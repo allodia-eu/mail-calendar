@@ -19,7 +19,8 @@ import SwiftUI
 /// eagerly, and hands over a closure the shell can await to ask the editor whether its document
 /// still matches the quoted original it opened with.
 @MainActor
-final class ComposeDraftProbe: ObservableObject {
+@Observable
+final class ComposeDraftProbe {
     /// Set the moment the user edits To/Cc/Bcc/Subject, or attaches a file. Needs no round-trip.
     var headersEdited = false
 

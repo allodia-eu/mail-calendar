@@ -16,7 +16,8 @@ import Testing
 
 @testable import MailcalUI
 
-@Suite struct SplitViewAutosaveTests {
+// Main-actor bound: every line of it builds or walks an AppKit view hierarchy.
+@Suite @MainActor struct SplitViewAutosaveTests {
     /// Builds the shape the shell actually has: an outer split whose second pane contains an inner
     /// split. Returns both splits and a probe view sitting inside a pane of the inner one.
     private func nestedSplits() -> (outer: NSSplitView, inner: NSSplitView, innerProbe: NSView) {

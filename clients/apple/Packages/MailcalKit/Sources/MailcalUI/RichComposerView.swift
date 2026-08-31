@@ -8,7 +8,7 @@ import SwiftUI
 import WebKit
 
 private struct RichComposerWebView: PlatformViewRepresentable {
-    @ObservedObject var editor: RichComposerEditor
+    let editor: RichComposerEditor
 
     #if os(macOS)
     func makeNSView(context: Context) -> WKWebView { editor.webView }
@@ -103,7 +103,7 @@ struct RichComposeView: View {
     private let showsStylePicker: Bool
     // Not `private`: RichComposerView.Signature.swift's signature-resolution properties read and
     // set it too.
-    @StateObject var editor: RichComposerEditor
+    @State var editor: RichComposerEditor
     @State private var from: String?
     /// The user's explicit signature choice for this message, or `nil` to follow the account.
     /// Not `private`: RichComposerView.Signature.swift reads and sets it too.
@@ -175,7 +175,7 @@ struct RichComposeView: View {
         // where the user has to begin. An assistant's draft is the exception among new messages:
         // it supplied the recipients, so the body is the place there too.
         editor.focusBodyOnLoad = Self.opensInBody(mode: mode, to: initialTo)
-        _editor = StateObject(wrappedValue: editor)
+        _editor = State(initialValue: editor)
         _from = State(initialValue: initialFrom)
         // Every address the caller pre-filled is finished, nothing here is being typed, so the
         // fields open with all of them committed, and each renders as its own pill (see

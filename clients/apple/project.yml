@@ -194,7 +194,7 @@ targets:
         # than an empty `Library/Helpers/allodia-mcp.app` (the ITMS-90207/90036 rejection of 0.3.0).
         MCP_RELAY_OUTPUT: $(DERIVED_FILE_DIR)/allodia-mcp.not-copied
         MCP_RELAY_OUTPUT[sdk=macosx*]: $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Library/Helpers/allodia-mcp.app/Contents/MacOS/allodia-mcp
-        SWIFT_VERSION: "5.0"
+        SWIFT_VERSION: "6.0"
         ENABLE_DEBUG_DYLIB: NO
         # Apple-silicon only (matches the XCFramework, which has no x86_64 slices).
         EXCLUDED_ARCHS[sdk=macosx*]: x86_64
@@ -275,6 +275,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ${MAILCAL_APP_ID}verify
-        SWIFT_VERSION: "5.0"
+        SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"

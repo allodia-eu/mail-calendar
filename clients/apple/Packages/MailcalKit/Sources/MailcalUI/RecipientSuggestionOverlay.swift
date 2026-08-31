@@ -29,7 +29,10 @@ struct RecipientSuggestionOverlay {
 /// Carries the open list up to the composer. `reduce` keeps the first: only the focused field
 /// publishes, so there is never a second one to choose between.
 enum RecipientSuggestionOverlayKey: PreferenceKey {
-    static let defaultValue: RecipientSuggestionOverlay? = nil
+    // `nonisolated(unsafe)` because the value carries the field's `accept` closure and so is not
+    // `Sendable`, while `PreferenceKey` requires this to be reachable from anywhere. Nothing is
+    // shared: it is `nil`, and every real value is made and read on the main actor by SwiftUI.
+    nonisolated(unsafe) static let defaultValue: RecipientSuggestionOverlay? = nil
 
     static func reduce(
         value: inout RecipientSuggestionOverlay?,

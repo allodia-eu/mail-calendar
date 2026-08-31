@@ -10,6 +10,7 @@
 
 import Foundation
 import MailcalBindings
+import SwiftUI
 import Testing
 
 @testable import MailcalUI

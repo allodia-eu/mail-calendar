@@ -384,7 +384,7 @@ struct SanitizedHTMLView: PlatformViewRepresentable {
         func webView(
             _ webView: WKWebView,
             decidePolicyFor navigationAction: WKNavigationAction,
-            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+            decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void
         ) {
             // Allow only the initial in-document load (loadHTMLString → `.other`, an
             // about:/empty URL); the body itself is inert, we never navigate it in place.

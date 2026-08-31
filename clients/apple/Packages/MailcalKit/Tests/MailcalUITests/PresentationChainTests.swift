@@ -12,6 +12,7 @@ import Testing
 @testable import MailcalUI
 
 /// A stand-in for one `UIViewController` in a presentation chain.
+@MainActor
 private final class FakeNode: PresentationChainNode {
     let name: String
     var presenting: FakeNode?
@@ -23,7 +24,7 @@ private final class FakeNode: PresentationChainNode {
     var isDismissingNow: Bool { dismissing }
 }
 
-struct PresentationChainTests {
+@MainActor struct PresentationChainTests {
     /// Nothing presented: the root is the only candidate.
     @Test func idleRootIsItsOwnTop() {
         let root = FakeNode("root")

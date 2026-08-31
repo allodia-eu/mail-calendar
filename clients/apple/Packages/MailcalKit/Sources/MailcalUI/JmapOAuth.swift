@@ -78,7 +78,7 @@ final class JmapSignIn: NSObject, ASWebAuthenticationPresentationContextProvidin
             let session = ASWebAuthenticationSession(
                 url: url,
                 callbackURLScheme: JmapOAuthConfig.callbackScheme
-            ) { callbackURL, error in
+            ) { @Sendable callbackURL, error in
                 if let callbackURL {
                     continuation.resume(returning: callbackURL.absoluteString)
                 } else {

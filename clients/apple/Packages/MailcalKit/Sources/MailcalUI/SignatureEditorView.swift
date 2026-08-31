@@ -19,7 +19,8 @@ import WebKit
 private let signatureImageLimit = 512 * 1024
 
 @MainActor
-final class SignatureEditor: NSObject, ObservableObject, WKNavigationDelegate {
+@Observable
+final class SignatureEditor: NSObject, WKNavigationDelegate {
     let webView: WKWebView
     private var expectingInitialLoad = true
     /// The body to load once the bundle has finished loading, set for an existing signature,
@@ -79,7 +80,7 @@ final class SignatureEditor: NSObject, ObservableObject, WKNavigationDelegate {
     func webView(
         _ webView: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void
     ) {
         if expectingInitialLoad {
             expectingInitialLoad = false
@@ -162,7 +163,7 @@ private struct SignatureEditorAsset {
 }
 
 private struct SignatureEditorWebView: PlatformViewRepresentable {
-    @ObservedObject var editor: SignatureEditor
+    let editor: SignatureEditor
 
     #if os(macOS)
     func makeNSView(context: Context) -> WKWebView { editor.webView }
@@ -221,7 +222,7 @@ struct SignatureEditorView: View {
     let save: (String, String, String) -> Void
     let cancel: () -> Void
 
-    @StateObject private var editor: SignatureEditor
+    @State private var editor: SignatureEditor
     @State private var name: String
     @State private var imageError: String?
 
@@ -239,7 +240,7 @@ struct SignatureEditorView: View {
         self.cancel = cancel
         let editor = SignatureEditor()
         editor.pendingBody = initialBodyHTML
-        _editor = StateObject(wrappedValue: editor)
+        _editor = State(initialValue: editor)
         _name = State(initialValue: initialName)
     }
 

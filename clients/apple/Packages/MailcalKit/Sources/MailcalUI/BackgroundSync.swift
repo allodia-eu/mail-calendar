@@ -6,6 +6,7 @@
 import BackgroundTasks
 import Foundation
 import MailcalBindings
+import Synchronization
 
 /// The BGTaskScheduler identifier for the periodic background mail refresh. Must match the
 /// `BGTaskSchedulerPermittedIdentifiers` entry in project.yml (the generated Info.plist) and the
@@ -30,21 +31,23 @@ private func backgroundDataDir() -> String {
 /// Weak so it clears once the foreground model releases its core; a genuinely terminated app starts a
 /// fresh process where this is `nil`, and the handler cold-builds a headless core. Set by
 /// `MailcalModel.connect` (iOS only). See docs/background-sync.md.
-final class LiveCore: @unchecked Sendable {
+final class LiveCore: Sendable {
     static let shared = LiveCore()
-    private let lock = NSLock()
-    private weak var app: MailcalApp?
+
+    /// The weak handle, behind a `Mutex` rather than a lock beside it: the mutex owns the value, so
+    /// there is no way to read the handle without holding it.
+    private struct Handle: ~Copyable {
+        weak var app: MailcalApp?
+    }
+
+    private let handle = Mutex(Handle())
 
     func set(_ app: MailcalApp?) {
-        lock.lock()
-        defer { lock.unlock() }
-        self.app = app
+        handle.withLock { $0.app = app }
     }
 
     func current() -> MailcalApp? {
-        lock.lock()
-        defer { lock.unlock() }
-        return app
+        handle.withLock { $0.app }
     }
 }
 
@@ -74,6 +77,9 @@ public func handleBackgroundRefresh() async {
     scheduleBackgroundRefresh()
     let configs = KeychainStore.configs()
     let dataDir = backgroundDataDir()
+    // Read here rather than in the pass below: the idiom is main-actor state, and the pass runs
+    // off the cooperative pool. One hop, before any of the blocking work starts.
+    let deviceInfo = await DeviceFacts.current()
     // The FFI pass blocks its thread (the core drives its runtime to completion), so run it off the
     // cooperative pool. The reuse-vs-cold decision happens INSIDE the task so the (non-Sendable) core
     // never crosses an isolation boundary.
@@ -98,7 +104,7 @@ public func handleBackgroundRefresh() async {
                 configs: configs,
                 dataDir: dataDir,
                 deviceTimezone: deviceTimeZone(),
-                deviceInfo: DeviceFacts.current(),
+                deviceInfo: deviceInfo,
                 // The same Keychain writer the app hands its core: this pass refreshes tokens
                 // like any other, and the core is released when the closure returns. A rotation
                 // with nowhere to go is lost, and against a server that detects a replayed
@@ -128,7 +134,12 @@ import UserNotifications
 /// the simulator (where the app is the frontmost process, and `BGTaskScheduler` can't background it)
 /// can actually see the banner. A release build keeps the default, foreground notifications are
 /// suppressed, since you don't notify a user for mail they're already looking at.
-final class DebugForegroundNotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
+///
+/// `@unchecked Sendable`, like `DiagnosticSink`: `UNUserNotificationCenterDelegate` is not
+/// main-actor bound, and this holds no stored property for a delivery to race against.
+final class DebugForegroundNotificationPresenter:
+    NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable
+{
     static let shared = DebugForegroundNotificationPresenter()
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,

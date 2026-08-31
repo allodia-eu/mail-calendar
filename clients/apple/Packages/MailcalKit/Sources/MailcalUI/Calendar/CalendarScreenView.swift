@@ -5,6 +5,7 @@
 // screen. Day, three-day and week are therefore three ZOOM LEVELS of one grid, not three views: the
 // days never move, only their width changes.
 
+import Combine
 import MailcalBindings
 import SwiftUI
 

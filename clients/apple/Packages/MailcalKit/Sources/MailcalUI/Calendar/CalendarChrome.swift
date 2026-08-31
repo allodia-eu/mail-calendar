@@ -63,7 +63,10 @@ struct CalendarHeaderBar: View {
             .disabled(!canCreateEvent)
 
             Menu {
-                Picker(L10n.calendar_view_label(), selection: Binding(get: { mode }, set: onMode)) {
+                Picker(
+                    L10n.calendar_view_label(),
+                    selection: Binding(get: { mode }, set: { onMode($0) })
+                ) {
                     ForEach(CalendarMode.allCases) { entry in
                         Text(label(for: entry)).tag(entry)
                     }

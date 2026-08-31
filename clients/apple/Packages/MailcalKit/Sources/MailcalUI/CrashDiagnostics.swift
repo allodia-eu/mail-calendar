@@ -71,7 +71,11 @@ public enum CrashDiagnostics {
 
 /// The MetricKit subscriber itself. Separate from the enum above because MetricKit requires an
 /// `NSObject`, and because nothing outside this file has any reason to hold one.
-private final class DiagnosticSink: NSObject, MXMetricManagerSubscriber {
+///
+/// `@unchecked Sendable` rather than a lock: MetricKit delivers on a queue of its own choosing, and
+/// this holds no stored property for that delivery to race against. Only `@unchecked` is available,
+/// an `NSObject` subclass cannot conform to `Sendable` outright.
+private final class DiagnosticSink: NSObject, MXMetricManagerSubscriber, @unchecked Sendable {
     /// Required by the protocol, and deliberately empty: these are the daily power and performance
     /// aggregates, which are a product-analytics question and not a diagnostic-log one. Analytics
     /// here is opt-in, EU-only and closed-enum by construction (docs/analytics.md); quietly writing

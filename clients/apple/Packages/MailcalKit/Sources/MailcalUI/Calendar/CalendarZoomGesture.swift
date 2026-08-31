@@ -123,6 +123,12 @@ struct CalendarZoomGesture: ViewModifier {
             override var isFlipped: Bool { true }
         }
 
+        /// Main-actor bound: everything it touches (the view, the event, the parent's callbacks)
+        /// is, and the local monitor below is called on the main thread as part of the app's own
+        /// event dispatch. AppKit's block is imported without that isolation, so `assumeIsolated`
+        /// is where the fact is stated; it is an assertion, not a hop, so a wrong assumption would
+        /// trap here rather than race somewhere else.
+        @MainActor
         final class Coordinator {
             var parent: PinchCatcher
             private weak var view: NSView?
@@ -134,7 +140,7 @@ struct CalendarZoomGesture: ViewModifier {
             func watch(_ view: NSView) {
                 self.view = view
                 monitor = NSEvent.addLocalMonitorForEvents(matching: .magnify) { [weak self] event in
-                    self?.handle(event)
+                    MainActor.assumeIsolated { self?.handle(event) }
                     return event
                 }
             }

@@ -66,7 +66,7 @@ final class MicrosoftSignIn: NSObject, ASWebAuthenticationPresentationContextPro
             let session = ASWebAuthenticationSession(
                 url: url,
                 callbackURLScheme: MicrosoftOAuthConfig.callbackScheme
-            ) { callbackURL, error in
+            ) { @Sendable callbackURL, error in
                 if let callbackURL {
                     continuation.resume(returning: callbackURL.absoluteString)
                 } else {

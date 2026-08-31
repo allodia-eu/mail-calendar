@@ -242,7 +242,7 @@ struct EventEditorState: Identifiable {
     /// Parse `YYYY-MM-DDTHH:MM:SS` or a bare `YYYY-MM-DD` into a device-calendar `Date` carrying the
     /// same wall-clock numbers.
     static func parseWall(_ value: String) -> Date {
-        var parts = value.split(separator: "T")
+        let parts = value.split(separator: "T")
         let date = parts.first.map(String.init) ?? value
         let dmy = date.split(separator: "-").compactMap { Int($0) }
         var comps = DateComponents()

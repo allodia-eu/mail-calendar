@@ -220,7 +220,9 @@ final class MailboxModel {
     // for the duration of its async flow; internal so MailcalModel.Google.swift can set it.
     var googleBrowserFlow: (any GoogleBrowserFlow)?
     // Not `private`: MailcalModel.Connect.swift's `observeSystemTimeZone()` sets it.
-    @ObservationIgnored var timeZoneObserver: NSObjectProtocol?
+    // `nonisolated(unsafe)` because the nonisolated `deinit` below unregisters it and the token
+    // is not `Sendable`. Nothing races for it: the last reference is gone by the time deinit runs.
+    @ObservationIgnored nonisolated(unsafe) var timeZoneObserver: NSObjectProtocol?
     private var started = false
     /// The full row count for the current view (set from each snapshot); `rows` holds only
     /// the visible window, so `rows.count < total` means more can be loaded.

@@ -105,7 +105,12 @@ public enum CrashLog {
 // over. Opening late costs one syscall and always finds the live file.
 
 /// Frames captured at signal time. Allocated at install, because the handler cannot allocate.
-private var crashFrames = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 128)
+///
+/// `nonisolated(unsafe)` here and on the three below: a signal handler can take no lock and enter
+/// no actor, so the compiler's concurrency checking has nothing to offer this path. The safety it
+/// cannot see is the discipline described above, one writer while the process dies.
+private nonisolated(unsafe) let crashFrames =
+    UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 128)
 private let crashFrameCapacity: Int32 = 128
 
 /// Non-zero once a fatal signal has begun writing its record.
@@ -115,16 +120,16 @@ private let crashFrameCapacity: Int32 = 128
 /// signal handler. Observed on an iPhone simulator: two `DEBUG` lines landed between frames 3 and 4
 /// of a SIGABRT stack. So the ordinary path stands down instead. Nothing is lost: the process is
 /// already dying, and a line written after the crash record would never be read anyway.
-private var crashRecordUnderway: Int32 = 0
+private nonisolated(unsafe) var crashRecordUnderway: Int32 = 0
 
 /// Whether a fatal signal handler has claimed the log. Read by `FileLog` before each write.
 func isWritingCrashRecord() -> Bool { crashRecordUnderway != 0 }
 
 /// The log path as a C string, and one pre-formatted banner per watched signal, indexed by signal
 /// number. Both are built at install time for the same reason the frame buffer is.
-private var crashLogPath: UnsafeMutablePointer<CChar>?
+private nonisolated(unsafe) var crashLogPath: UnsafeMutablePointer<CChar>?
 private let crashBannerSlots = 32
-private var crashBanners =
+private nonisolated(unsafe) let crashBanners =
     UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: crashBannerSlots)
 
 /// Builds everything the handler will need, while allocation is still allowed.

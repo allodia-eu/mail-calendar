@@ -14,18 +14,20 @@ import SwiftUI
 /// configured, so they are created once and reused. Building a fresh pair per call was the
 /// dominant cost janking list scroll, since `localDateTime` runs once per visible row on
 /// every render.
-private let isoParser: ISO8601DateFormatter = {
+private nonisolated(unsafe) let isoParser: ISO8601DateFormatter = {
     let iso = ISO8601DateFormatter()
     iso.formatOptions = [.withInternetDateTime]
     return iso
 }()
 
 /// Cached display formatters keyed by IANA zone (the zone rarely changes, so this stays a
-/// tiny map). Accessed only from the main thread (SwiftUI bodies + tap handlers).
-private var zoneFormatters: [String: DateFormatter] = [:]
+/// tiny map). Main-actor bound, which is where every reader already was (SwiftUI bodies + tap
+/// handlers); the parser above stays off the actor because `parseUtcInstant` is nonisolated and
+/// calls it, which the header above says is safe once the formatter is configured.
+@MainActor private var zoneFormatters: [String: DateFormatter] = [:]
 
 /// The reused display formatter for `zone`, built once and cached.
-private func displayFormatter(for zone: String) -> DateFormatter {
+@MainActor private func displayFormatter(for zone: String) -> DateFormatter {
     if let cached = zoneFormatters[zone] {
         return cached
     }
@@ -41,7 +43,7 @@ private func displayFormatter(for zone: String) -> DateFormatter {
 /// wall-clock (a floating event) is shown as-is; a bare date is shown as the date. The
 /// view-model is tzdata-free, so this host-side conversion is where "shown in your chosen
 /// time zone" happens.
-func localDateTime(_ raw: String, in zone: String) -> String {
+@MainActor func localDateTime(_ raw: String, in zone: String) -> String {
     if raw.isEmpty { return "" }
     if raw.hasSuffix("Z"), let date = isoParser.date(from: raw) {
         return displayFormatter(for: zone).string(from: date)
@@ -63,11 +65,10 @@ func parseUtcInstant(_ raw: String) -> Date? {
 
 /// Cached relative-label formatters keyed by "zone|pattern", same rationale as
 /// `zoneFormatters`: building a `DateFormatter` per visible row on every render janks scroll.
-/// Accessed only from the main thread (SwiftUI bodies).
-private var relativeFormatters: [String: DateFormatter] = [:]
+@MainActor private var relativeFormatters: [String: DateFormatter] = [:]
 
 /// The reused, locale-aware formatter for `pattern` in `zone`, built once and cached.
-private func relativeFormatter(_ pattern: String, for zone: String) -> DateFormatter {
+@MainActor private func relativeFormatter(_ pattern: String, for zone: String) -> DateFormatter {
     let key = "\(zone)|\(pattern)"
     if let cached = relativeFormatters[key] {
         return cached
@@ -99,7 +100,7 @@ func relativeDatePattern(dayDiff: Int, sameYear: Bool) -> String {
 /// `localDateTime`. Mirrors Android's `relativeDate` and Windows's `RelativeDate`
 /// (docs/timestamps.md). The time-of-day stays 24-hour, as `localDateTime` is, the 12/24h clock
 /// setting reaches the mail list on Android only (a documented gap).
-func relativeDate(_ raw: String, in zone: String) -> String {
+@MainActor func relativeDate(_ raw: String, in zone: String) -> String {
     guard raw.hasSuffix("Z"), let date = isoParser.date(from: raw) else {
         return localDateTime(raw, in: zone)
     }

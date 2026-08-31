@@ -33,16 +33,20 @@ struct AgentDraftRequest: Identifiable, Equatable {
 /// `openComposer` is called from the MCP server's connection task, off the main thread, and the
 /// port's contract says an implementation must not block, a host that waited for the window
 /// would stall that connection. So this hops to the main actor and returns immediately.
+///
+/// The model reference is bound to that actor rather than left free, and that is what lets this be
+/// `Sendable` while holding a `weak` (so necessarily mutable) stored property. The actor is the
+/// synchronisation, so both sides of the hop are checked rather than asserted.
 final class AgentComposerBridge: AgentHostUi {
-    private weak var model: MailboxModel?
+    @MainActor private weak var model: MailboxModel?
 
-    init(model: MailboxModel) {
+    @MainActor init(model: MailboxModel) {
         self.model = model
     }
 
     func openComposer(draft: AgentDraft) {
-        Task { @MainActor [weak model] in
-            model?.pendingAgentDraft = AgentDraftRequest(draft: draft)
+        Task { @MainActor in
+            self.model?.pendingAgentDraft = AgentDraftRequest(draft: draft)
             #if canImport(AppKit)
             // Bring the app forward: a draft the user cannot see is not the review step this
             // whole design is built around. `ignoringOtherApps` because the request came from

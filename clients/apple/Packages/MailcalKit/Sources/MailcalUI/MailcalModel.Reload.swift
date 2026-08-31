@@ -82,8 +82,8 @@ extension MailboxModel {
         }
         // The hot path: a MailboxList signal (fired repeatedly during a sync). Update ONLY the
         // mailbox-list state. The calendar, timezone, and quote style have their own surfaces
-        // (`.calendar` / `.settings`), so re-pulling them here every mailbox update was pure
-        // @Published churn, re-rendering unrelated views and janking scroll for nothing.
+        // (`.calendar` / `.settings`); re-pulling them on every mailbox update would re-render
+        // unrelated views and jank scroll for nothing.
         let snapshot = app?.mailboxList()
         rows = snapshot?.rows ?? []
         // Record the full count and release the "show more" guard: this snapshot answers any
