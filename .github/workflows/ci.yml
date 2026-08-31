@@ -512,6 +512,7 @@ jobs:
     # credentials). Runner: macos-26 — arm64, macOS 26 + Xcode 26 (our minimum).
     name: Apple clients (macOS + iOS)
     needs: changes
+    if: needs.changes.outputs.apple == 'true'
     runs-on: macos-26
     timeout-minutes: 20
     permissions:
