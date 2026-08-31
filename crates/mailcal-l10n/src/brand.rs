@@ -70,6 +70,14 @@ fn value(root: &Path, key: &str, from_environment: Option<&str>) -> Result<Strin
     }
     let branding = root.join("branding");
     for file in ["allodia.env", "default.env"] {
+        // Emitted whether or not the file exists, and before the read, because the interesting
+        // change is a brand file **appearing**: a build tree that has already generated an
+        // unbranded catalog keeps serving it otherwise, and the app carries the neutral name with
+        // nothing to say it should not. Cargo treats a `rerun-if-changed` on an absent path as
+        // "rerun when it appears", which is exactly the case that was silent.
+        //
+        // Harmless outside a build script: the line goes to stdout, which only Cargo reads.
+        println!("cargo:rerun-if-changed={}", branding.join(file).display());
         let Ok(text) = std::fs::read_to_string(branding.join(file)) else {
             continue;
         };
