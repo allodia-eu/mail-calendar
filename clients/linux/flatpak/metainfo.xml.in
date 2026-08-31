@@ -24,7 +24,9 @@
 
   <url type="homepage">https://allodia.eu</url>
   <url type="help">https://allodia.eu/docs/mail-calendar/</url>
-  <url type="bugtracker">https://allodia.eu/support</url>
+  <!-- A real tracker a reader can open, not a support page: `flatpak-builder-lint` fetches every
+       URL here and treats a 404 as fatal, and allodia.eu/support does not exist. -->
+  <url type="bugtracker">https://github.com/allodia-eu/mail-calendar/issues</url>
   <url type="contact">https://allodia.eu/contact</url>
 
   <categories>

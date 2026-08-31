@@ -98,21 +98,37 @@ def _localized_blocks(body: list[str]) -> dict[str, str]:
     }
 
 
+# Flathub's quality guidelines: 35 characters, and 10 to 25 preferred. Enforced here rather than
+# trusted, because the field is generated and nothing downstream measures it, and a listing held up
+# on a guideline costs a volunteer reviewer a comment and a round trip.
+SUMMARY_LIMIT = 35
+
+
 def summaries(listing: str) -> dict[str, str]:
-    """The one-line summary per locale; Google Play's short description.
+    """The one-line summary per locale, from the listing's own Flathub section.
+
+    Deliberately not Play's short description, which the other stores share: Flathub caps this at a
+    third of Play's 80 characters and asks for something a non-technical reader understands, so one
+    line cannot serve both. `store-listing.md` records that this is the one field Flathub does not
+    share with another store.
 
     AppStream renders a summary as a sentence fragment beside the name and its validator objects to
-    a trailing full stop, so the one the Play console wants is trimmed of it here. That is a
-    presentation rule of the format, not an edit to the copy: nothing else about the line changes,
-    and the document stays the only place it is written.
+    a trailing full stop, so one is trimmed here. That is a presentation rule of the format, not an
+    edit to the copy.
     """
-    body = one_section(listing.splitlines(), 3, r"^Google Play — Short description", "'Short description'")
+    body = one_section(listing.splitlines(), 3, r"^Flathub — Summary", "'Flathub — Summary'")
     out = {}
     for locale, text in _localized_blocks(body).items():
         collapsed = " ".join(text.split())
         out[locale] = collapsed.rstrip(".")
     if not out:
-        raise DocumentShapeError("no localized short descriptions found under 'Google Play: Short description'")
+        raise DocumentShapeError("no localized summaries found under 'Flathub: Summary'")
+    for locale, text in sorted(out.items()):
+        if len(text) > SUMMARY_LIMIT:
+            raise MetadataError(
+                f"the {locale} Flathub summary is {len(text)} characters, over the "
+                f"{SUMMARY_LIMIT} Flathub's quality guidelines allow: {text!r}"
+            )
     return out
 
 
@@ -227,7 +243,12 @@ def desktop_entry(name: str, summary_by_locale: dict[str, str], locales: list[st
         "Exec=mailcal %u",
         f"Icon={APP_ID}",
         "Terminal=false",
-        "Categories=Network;Email;Office;Calendar;",
+        # One MAIN category. `Network` and `Office` are both main ones, and an entry naming two is
+        # filed under both, so the app appears twice in the application menu. `desktop-file-validate`
+        # says so as a hint rather than an error, which is how it survived. `Email` and `Calendar`
+        # are additional categories and `Office` satisfies each, so this says the same thing about
+        # the app and places it once.
+        "Categories=Office;Email;Calendar;",
         "MimeType=x-scheme-handler/mailto;",
         "Keywords=email;mail;calendar;imap;jmap;caldav;smtp;",
         "StartupNotify=true",

@@ -131,13 +131,27 @@ fields the generator takes and, more importantly, which it deliberately leaves e
 | AppStream / desktop field | Taken from |
 |---|---|
 | `<name>` | the injected `MAILCAL_APP_NAME` ([`branding.md`](branding.md)), never the listing |
-| `<summary>`, `Comment` | the listing's "Google Play — Short description", per locale, minus its trailing full stop (AppStream's validator rejects one) |
+| `<summary>`, `Comment` | the listing's "Flathub — Summary", per locale, minus its trailing full stop (AppStream's validator rejects one) |
 | `<description>` | the **first two paragraphs** of the listing's shared body, per locale |
 | `<release version date>` | `/VERSION` + that release's note ([`versioning.md`](versioning.md)) |
 
 Those two fields are what every listing file must carry, branded or not, because this is the one
 store that cannot be typed by hand: a build with no metainfo has no entry in a software centre at
-all. **English is required and every other locale is optional**: AppStream falls a reader back to
+all.
+
+**The summary is the one field Flathub does not share with another store.** Its quality guidelines
+cap it at **35 characters**, against Play's 80, and ask for something a non-technical reader
+understands: no protocol names, sentence case, no full stop, not starting with an article. One line
+cannot serve both, so the listing carries a "Flathub — Summary" section of its own and
+`flatpak_metadata.py` refuses one over the cap. Nothing downstream would catch it: a guideline is
+not a gate, and the cost of breaking it is a volunteer reviewer's comment and a round trip.
+
+**The `.desktop` `Categories` names one main category, and that is deliberate.** `Network` and
+`Office` are both main categories, and an entry naming two is filed under both, so the app appears
+twice in the application menu. `Email` and `Calendar` are additional categories that `Office`
+satisfies, so `Office;Email;Calendar;` says the same thing about the app and places it once.
+`desktop-file-validate` reports the two-main case as a hint rather than an error, which is how it
+survived until `flatpak-builder-lint` was run against a real submission. **English is required and every other locale is optional**: AppStream falls a reader back to
 the untagged paragraph directly above, which is what lets the neutral default be English-only.
 
 **The feature bullets are still left out, and that is rule 3 doing its job.** A branded body's
