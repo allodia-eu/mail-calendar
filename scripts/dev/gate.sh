@@ -145,6 +145,7 @@ if [ "$LIST_ONLY" -eq 1 ]; then
 5  store copy      scripts/ci/check_store_copy_length.py
 6  user docs       scripts/ci/check_user_docs.py
 7  showcase flag   scripts/ci/check-showcase-flag.sh
+7b dev account     scripts/ci/check-dev-account.sh
 8  log hygiene     scripts/ci/check_log_hygiene.py
 8b british english scripts/ci/check_british_english.py
 8c dash punctuation scripts/ci/check_dash_hygiene.py
@@ -243,6 +244,13 @@ run "user docs (contract)" python3 scripts/ci/check_user_docs.py
 # (a GNU-only sed construct plus `set -e`), which is exactly the kind of thing running it locally
 # surfaces and CI-only did not.
 run "showcase flag contract" bash scripts/ci/check-showcase-flag.sh
+
+# 7b. The same property for the dev-account switch: the harness fixture is compiled out of a
+# release build, and the four clients' hand-written copies of it have not drifted apart. It was
+# CI-only until a file split moved the fixture to a sibling and every local gate stayed green
+# while the check that would have caught it never ran. A check nothing runs before pushing is one
+# that reports at the worst moment.
+run "dev account contract" bash scripts/ci/check-dev-account.sh
 
 # 8. The log is product surface (docs/logging.md): a line describes the user's mail, never our
 # source tree. This holds only the exact half, a repo path, a `.md`, an `#nnn` inside a logged

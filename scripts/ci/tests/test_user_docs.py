@@ -431,6 +431,10 @@ class PathsReadTheSameEverywhere(unittest.TestCase):
 class RealTree(unittest.TestCase):
     """The checker runs clean against the repository it ships in."""
 
+    # `audit` is called directly here, so the skip `main` performs for a tree with no help pages
+    # does not apply. The public copy is such a tree: Allodia's pages travel with the brand.
+    @unittest.skipUnless((subject.REPO_ROOT / "docs" / "user").is_dir(),
+                         "no docs/user/ in this tree, so there are no help pages to audit")
     def test_the_repository_passes_its_own_check(self):
         self.assertEqual(subject.audit(subject.REPO_ROOT), [])
 

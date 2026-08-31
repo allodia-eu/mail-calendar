@@ -23,11 +23,13 @@ fail=0
 # in four languages, and a value edited in one place fails to log in from exactly one platform,
 # with a plain "authentication failed", nowhere near the edit. Pin the four fields together, and to
 # the addresses `scripts/dev/*` dials and seeds.
+# Named by directory rather than by file. The fields have to exist in the client; which file holds
+# them is not the invariant, and splitting one for the 500-line limit has already moved them once.
 imap_clients=(
-  clients/apple/Packages/MailcalKit/Sources/MailcalUI/MailcalModel+DevAccount.swift
-  clients/android/app/src/main/java/eu/allodia/mailcal/MainActivityCore.kt
-  clients/windows/Mailcal/Services/MailboxModel.DevAccount.cs
-  clients/linux/src/dev_account.rs
+  clients/apple/Packages/MailcalKit/Sources/MailcalUI
+  clients/android/app/src/main/java/eu/allodia/mailcal
+  clients/windows/Mailcal/Services
+  clients/linux/src
 )
 imap_fields=(
   'addr = "127.0.0.1:12993"'
@@ -38,7 +40,7 @@ imap_fields=(
 for file in "${imap_clients[@]}"; do
   for field in "${imap_fields[@]}"; do
     if ! git grep --untracked -qI --fixed-strings "$field" -- "$file"; then
-      printf 'ERROR: %s no longer carries the harness IMAP fixture field:\n  %s\n' "$file" "$field" >&2
+      printf 'ERROR: nothing in %s carries the harness IMAP fixture field:\n  %s\n' "$file" "$field" >&2
       printf 'All four clients inject the same hand-written [imap] config; a drift here logs in\n' >&2
       printf 'from every platform but one, and says only "authentication failed".\n' >&2
       fail=1
@@ -69,7 +71,7 @@ for file in \
     fail=1
   fi
 done
-if ! git grep -qI --fixed-strings 'FLAG_DEBUGGABLE' -- clients/android/app/src/main/java/eu/allodia/mailcal/MainActivity.kt; then
+if ! git grep -qI --fixed-strings 'FLAG_DEBUGGABLE' -- clients/android/app/src/main/java/eu/allodia/mailcal; then
   printf 'ERROR: the Android dev-account switch is no longer gated on FLAG_DEBUGGABLE.\n' >&2
   printf 'A release build must ignore MAILCAL_DEV_ACCOUNT entirely.\n' >&2
   fail=1

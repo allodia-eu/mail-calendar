@@ -134,6 +134,11 @@ def ahead_of(root: Path, version: str) -> List[str]:
     target = check_user_docs.version_tuple(version)
     if target is None:
         raise DocsReleaseError("%r is not a MAJOR.MINOR.PATCH version" % version)
+    # A tree with no help pages has none claiming a future release. Allodia's travel with the
+    # brand, so the public copy is exactly that tree, and a release cut there must not be blocked
+    # by the absence of documents it was never given.
+    if not (root / "docs" / "user").is_dir():
+        return []
     problems = []  # type: List[str]
     pages = load_pages(root)
     for locale in sorted(pages):

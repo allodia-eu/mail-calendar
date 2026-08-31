@@ -209,7 +209,14 @@ jobs:
         run: scripts/ci/check-license-dir.sh
 
       - name: The staged public tree is publishable
-        run: scripts/dev/public-split.sh
+        # Absent from the public copy by design: it is the tool that makes that copy, so a
+        # tree without it is already the output and has nothing left to stage.
+        run: |
+          if [ -f scripts/dev/public-split.sh ]; then
+            scripts/dev/public-split.sh
+          else
+            echo "SKIP: this tree is the public copy; the tool that stages it is not in it."
+          fi
 
   # The repository states its licensing once, for every file at once, in REUSE.toml rather than in
   # a header on each source file. The blanket annotation matches every path, so what this catches
