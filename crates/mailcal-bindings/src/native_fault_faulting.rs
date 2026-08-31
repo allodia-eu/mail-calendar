@@ -23,8 +23,7 @@
 
 use std::{
     ffi::{CString, c_char},
-    fs,
-    ptr,
+    fs, ptr,
     sync::atomic::{AtomicPtr, Ordering},
 };
 
@@ -91,7 +90,13 @@ fn scratch(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
 /// to end the process.
 fn run_child(test: &str, log: &std::path::Path) -> std::process::ExitStatus {
     std::process::Command::new(std::env::current_exe().expect("the test binary's own path"))
-        .args([test, "--exact", "--ignored", "--nocapture", "--test-threads=1"])
+        .args([
+            test,
+            "--exact",
+            "--ignored",
+            "--nocapture",
+            "--test-threads=1",
+        ])
         .env(CHILD_LOG, log)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
