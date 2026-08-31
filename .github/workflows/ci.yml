@@ -622,8 +622,9 @@ jobs:
 
   windows:
     # Fast per-commit gate: x64 Debug only — Rust cdylib -> C# bindings (vendored binshim) ->
-    # WinUI app build -> headless FFI gate. The expensive both-arch RELEASE .msixupload is built
-    # only by windows-release.yml (on a tag or manual dispatch).
+    # WinUI app build -> headless FFI gate. The expensive both-arch RELEASE .msixupload is not
+    # built here at all: it carries the Store identity and the OAuth registrations, neither of which
+    # this repository holds, so it is built where they are.
     name: Windows client (x64)
     needs: changes
     if: needs.changes.outputs.windows == 'true'

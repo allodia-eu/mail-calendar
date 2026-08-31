@@ -55,9 +55,9 @@ The **next version is derived, never typed**: each pending fragment in
 (a fix), and the release is **minor if any of them says minor, else patch**. The semver judgement is
 therefore made while the change is in the author's head, not reconstructed weeks later at release.
 
-Committing and tagging are left to you: a `vX.Y.Z` tag is what triggers the Windows release workflow
-([`windows-release.yml`](../.github/workflows/windows-release.yml)), so you tag when you mean to
-release.
+Committing and tagging are left to you: a `vX.Y.Z` tag is the input the store packaging builds
+take, so you tag when you mean to release. Those builds are not in this repository; what they need
+from it is this tag and the tree under it.
 
 **Dev builds carry no suffix.** A build off `main` reports the last released marketing version, and
 what distinguishes it is its **build number**, which is derived fresh and uncommitted on every
@@ -147,9 +147,9 @@ the guard instead asserts each still *reads* `/VERSION` and that no literal has 
   above it, but a PR that ships a visible fix and writes no fragment is invisible to every machine
   here. That half stays a reviewer's duty ([`changelog.md`](changelog.md) → Enforcement).
 - **The Windows CI `windows` job builds Debug**, where `<Version>` still resolves from `/VERSION`,
-  but the Store package version (`.0` revision, manifest stamp) is only exercised by
-  `windows-release.yml` / `package.ps1`. A manifest-versioning regression surfaces at release, not
-  in per-commit CI.
+  but the Store package version (`.0` revision, manifest stamp) is only exercised by `package.ps1`
+  in a release build, which this repository does not run. A manifest-versioning regression surfaces
+  at release, not in per-commit CI.
 
 ## Enforcement
 
