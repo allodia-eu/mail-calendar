@@ -167,7 +167,7 @@ changing is that rule working, not an oversight.
   `clients/linux/flatpak/screenshots.json` exists, the generator emits a comment in place of the
   gallery rather than an empty element (invalid) or invented URLs (valid, and broken in front of a
   user). The images belong in the same content-addressed store the user guides use
-  ([`docs_publish.py`](../scripts/dev/docs_publish.py)), so **publishing precedes shipping**: a
+  (by the publisher's own tooling), so **publishing precedes shipping**: a
   listing naming an image the store cannot fetch is a broken gallery. Flathub also wants one showing
   what the app does; two of the six capturable screens (`settings`, `add-account`) are chrome, so
   this gap does not close on its own; it closes when Linux reaches more of the matrix.

@@ -72,7 +72,7 @@ def manifest(images=None):
                 for platform in ("macos", "android")
             }
         }
-    return {"version": 1, "generator": "scripts/dev/docs_images.py", "images": images}
+    return {"version": 1, "generator": "scripts/docs_images.py", "images": images}
 
 
 DEFAULT_NAV = {

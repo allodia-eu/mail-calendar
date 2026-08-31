@@ -145,8 +145,8 @@ does not declare.
    background-refresh task id, the notification-portal attribution. A literal is a value that stops
    matching the moment the app is re-branded, and every one of those failures is silent.
 3. **`branding/allodia.env` is the only file that carries Allodia's identity.** It is not secret;
-   it is the public identity of a shipped app, so it is committed, and it is what moves to the
-   release repository.
+   it is the public identity of a shipped app, so it is committed, and it is the one file a
+   publisher swaps to make a build their own.
 4. **⚠️ Its values are reservations held by third parties.** `MAILCAL_APP_ID` is the App ID Apple
    has on file, the redirect URIs registered with Azure and Google, and the directory every
    existing installation keeps its mail in; the MSIX trio is what Partner Center matches an upload
@@ -177,7 +177,7 @@ does not declare.
 - **Publisher metadata still names Allodia in an unbranded build**: the AppStream `<developer>`
   block and the four `allodia.eu` URLs in `clients/linux/flatpak/metainfo.xml.in`, and the
   Credential Manager's own labels. These come from `docs/store-listing.md`'s family of documents,
-  which move to the release repository together.
+  which travel with the brand rather than with this tree.
 - **One catalog string still names the company**, so an unbranded build shows it: the MCP
   description's "nothing is sent to Allodia". It is not the *product's* name, which is what
   `{app_name}` covers: it is a claim about who runs the service, and it is rewritten with the rest
