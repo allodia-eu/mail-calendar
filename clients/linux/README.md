@@ -178,6 +178,32 @@ validates both against the installed tree with `desktop-file-validate` and `apps
 rejection caught during the build rather than after an upload. The icons under `flatpak/icons/` are
 committed, derived from the one brand source by `flatpak/generate-icons.sh`.
 
+### A Flatpak with seeded data, for a recording or a capture
+
+`--release` is exactly what puts the fixtures out of reach, so the packaged app cannot be pointed at
+the harness: `MAILCAL_DEV_ACCOUNT` is `cfg(debug_assertions)` and the harness CA trust is compiled
+out, so the Stalwart certificate is refused as well. What survives one step further is **showcase**,
+which is `cfg(any(debug_assertions, feature = "dev-harness"))`:
+
+```sh
+clients/linux/package.sh --features dev-harness --install
+flatpak run --env=MAILCAL_SHOWCASE=en <app-id>          # or nl, de, fr, es, it, pt
+```
+
+That is a real Flatpak on the seeded showcase dataset, with no keyring and no real mail, which is
+what a store video or a sandbox-only bug wants. `MAILCAL_DEV_ACCOUNT` still refuses in this build and
+says so; showcase is the only fixture an optimised build offers.
+
+The Flathub manifest that publishes Allodia's build is deliberately not in this tree. It states an
+application id and a download host as literals, which is the one thing `branding/` exists to
+prevent here, and a build from source never reads it anyway: it compiles the client rather than
+downloading one. What Flathub ships is public where it matters, in Flathub's own repository for the
+application id Allodia publishes under.
+
+⚠️ **It installs over the shipped one**, because both carry the same application id, and it is *not*
+the artifact to upload. The script says so on every run. Rebuild without `--features` before
+packaging anything for release.
+
 ### Keep one installed as your everyday app
 
 `--install` adds a `mailcal-local` remote over `target/flatpak/repo` and installs from it, so the

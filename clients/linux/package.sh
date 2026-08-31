@@ -6,6 +6,12 @@
 #   clients/linux/package.sh --install       # build, then install it for this user
 #   clients/linux/package.sh --install --run # …and launch it
 #   clients/linux/package.sh --bundle        # also write a single-file target/flatpak/mailcal.flatpak
+#   clients/linux/package.sh --features X,Y  # extra cargo features, ADDED to the derived ones
+#
+# `--features dev-harness` is the one anybody needs: it builds a bundle that still answers
+# MAILCAL_SHOWCASE, which is how a Flatpak is recorded or photographed without a real mailbox. It
+# is deliberately not the default and it says so on every run. A release build is what proves the
+# debug fixtures are absent, and this one puts them back while looking identical from the outside.
 #
 # Everything about the app's identity, copy and version is decided elsewhere and generated during
 # the build (see flatpak/org.mailcal.client.yml); nothing here is retyped from a document.
@@ -35,12 +41,21 @@ OUT="$ROOT/target/flatpak"
 INSTALL=0
 RUN=0
 BUNDLE=0
+EXTRA_FEATURES=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --install) INSTALL=1 ;;
     --run) RUN=1; INSTALL=1 ;;
     --bundle) BUNDLE=1 ;;
-    -h | --help) sed -n '2,15p' "$0"; exit 0 ;;
+    --features)
+      # A bare `--features` must not fall through to the default set: that is a fixture build the
+      # operator asked for and did not get, and the bundle looks the same either way.
+      [[ $# -ge 2 && -n "$2" ]] ||
+        { echo "package.sh: --features needs a comma-separated list (e.g. --features dev-harness)" >&2; exit 2; }
+      EXTRA_FEATURES="$2"
+      shift
+      ;;
+    -h | --help) sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "package.sh: unknown option '$1'" >&2; exit 2 ;;
   esac
   shift
@@ -164,20 +179,38 @@ fi
 # bundle deliberately stayed on default features, so a released Linux client had no sign-in even
 # where the registration was present.
 ALLODIA_FEATURE="$(core_cargo_features)"
-if [[ -n "$ALLODIA_FEATURE" ]]; then
+# One comma-separated list, because that is all cargo takes. The derived feature comes first and is
+# never dropped: a checkout holding the registration must not lose the sign-in merely because the
+# operator asked for a fixture as well.
+CARGO_FEATURES="$ALLODIA_FEATURE"
+if [[ -n "$EXTRA_FEATURES" ]]; then
+  CARGO_FEATURES="${CARGO_FEATURES:+$CARGO_FEATURES,}$EXTRA_FEATURES"
+fi
+if [[ -n "$CARGO_FEATURES" ]]; then
   MANIFEST_WITH_FEATURES="$(dirname "$MANIFEST")/.package-sh-with-features.yml"
   # Only the client's own build line: the MCP shim is a separate package that has no such feature,
   # and `-p mailcal-linux` is what tells the two apart.
-  sed "s|^\([[:space:]]*- cargo build --release --locked -p mailcal-linux\)\$|\1 --features $ALLODIA_FEATURE|" \
+  sed "s|^\([[:space:]]*- cargo build --release --locked -p mailcal-linux\)\$|\1 --features $CARGO_FEATURES|" \
     "$MANIFEST" > "$MANIFEST_WITH_FEATURES"
   # A manifest whose cargo line moved would leave this a silent no-op, and the bundle would ship
   # without the sign-in behind a green build; the same failure the requirement below guards.
-  grep -q -- "-p mailcal-linux --features $ALLODIA_FEATURE\$" "$MANIFEST_WITH_FEATURES" || {
-    echo "package.sh: could not put --features $ALLODIA_FEATURE on the cargo line in $MANIFEST" >&2
+  grep -q -- "-p mailcal-linux --features $CARGO_FEATURES\$" "$MANIFEST_WITH_FEATURES" || {
+    echo "package.sh: could not put --features $CARGO_FEATURES on the cargo line in $MANIFEST" >&2
     exit 1
   }
   MANIFEST="$MANIFEST_WITH_FEATURES"
-  echo "==> credentials: this bundle carries the Allodia sign-in (--features $ALLODIA_FEATURE)"
+  if [[ -n "$ALLODIA_FEATURE" ]]; then
+    echo "==> credentials: this bundle carries the Allodia sign-in (--features $ALLODIA_FEATURE)"
+  fi
+fi
+
+# Said after the manifest is settled, and said whatever else was printed: a bundle built this way
+# installs, launches and reads exactly like the one that ships, so the operator is the only thing
+# left that can tell them apart.
+if [[ -n "$EXTRA_FEATURES" ]]; then
+  echo "==> features: --features $EXTRA_FEATURES. This bundle is NOT the shippable artifact."
+  echo "    --release is what proves the debug fixtures are absent; these put them back."
+  echo "    Rebuild without --features before uploading or submitting anything."
 fi
 
 # The requirement deliberately travels by a different road than the credentials it guards.
