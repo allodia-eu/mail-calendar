@@ -22,7 +22,7 @@ create, edit, and delete dispatch the shared provider-neutral intents.
 It packages as a Flatpak (see "Package as a Flatpak" below) and has showcase mode, so the
 store/marketing captures are produced the same way as every other client's.
 
-It is not a shippable client yet. It has email-first setup and autodetection, Google Desktop
+It ships from this release. It has email-first setup and autodetection, Google Desktop
 OAuth, and standards-discovered JMAP OAuth (RFC 9728 → 8414 → 7591 → PKCE) through the system
 browser and bounded `127.0.0.1` loopback callbacks. JMAP sign-in appears only after the core's
 pre-flight confirms the server advertises dynamic registration; a failure restores the detected
@@ -33,8 +33,9 @@ rotation. It carries the shared Settings taxonomy; every
 category ([`docs/settings.md`](../../docs/settings.md)): Diagnostics, first-run analytics
 consent, and local new-mail notifications from the live sync runtime. Calendar management,
 default-calendar selection, periodic refresh, device-zone recovery, and packaged-runtime performance
-qualification are wired and semantically driven. Horizontal calendar gestures, event move/resize,
-and the rows still marked ⬜ in the capability matrix remain. Normal/release startup loads stored accounts
+qualification are wired and semantically driven. What remains is the four rows still marked ⬜ for
+Linux in [`docs/capabilities.md`](../../docs/capabilities.md): configurable swipe actions, and the
+calendar's pinch-to-zoom, continuous day strip and wheel scrolling of the grid. Normal/release startup loads stored accounts
 from the system keyring and opens required setup when none exist; deterministic data remains
 available through debug-only demo and local Stalwart fixtures.
 

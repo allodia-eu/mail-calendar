@@ -19,9 +19,10 @@ characters and, unlike the feature bullets, free of any capability claim. The `<
 the **first two paragraphs** of the shared body: the ones rule 5 names as never trimmed ("the
 sovereignty framing is the point"), which describe the product rather than what a given client can
 do today. Every remaining paragraph is a feature list, and store-listing rule 3 forbids copy that
-out-runs the capability matrix; Linux is 🚧 there, so the bullets are left out entirely
-rather than filtered down to a subset nobody has reviewed. When Linux graduates, the bullets it may
-then claim are a deliberate edit here, not a silent consequence of a matrix cell flipping.
+out-runs the capability matrix. Linux ships every bullet but configurable swipe actions, which is
+still ⬜ there, and the body is one block reused verbatim, so the bullets stay out rather than being
+filtered down to a subset nobody has reviewed. Closing that is a deliberate edit here, not a silent
+consequence of a matrix cell flipping.
 
 The documents are read through the checker's own scrapers (`scripts/ci/check_store_copy_length.py`,
 `scripts/ci/changelog_fragments.py`) for the reason `msstore_payload.py` gives: a second reading of

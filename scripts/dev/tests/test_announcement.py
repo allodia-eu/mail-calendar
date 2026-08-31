@@ -42,8 +42,8 @@ class Grouping(unittest.TestCase):
 
     def test_linux_is_reported_as_unreleased_rather_than_announced(self) -> None:
         out = subject.build("1.0.0", "2027-01-01", [fragment("penguin", ("linux",))])
-        self.assertIn("## 🐧 Linux (in development, not yet released)", out)
-        self.assertIn("cannot be installed yet", out)
+        self.assertIn("## 🐧 Linux (not yet in a store)", out)
+        self.assertIn("is not in a store yet", out)
 
     def test_a_platform_with_no_change_gets_no_heading(self) -> None:
         out = subject.build("1.0.0", "2027-01-01", [fragment("winonly", ("windows",))])
