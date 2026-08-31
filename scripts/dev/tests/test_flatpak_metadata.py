@@ -86,7 +86,8 @@ class ListingScraping(unittest.TestCase):
         self.assertEqual(paragraphs["en"][0], "First framing paragraph.")
         self.assertEqual(paragraphs["nl"][1], "Tweede alinea.")
         # Rule 3 of docs/store-listing.md: the feature bullets may not out-run the matrix, and
-        # Linux is 🚧 on nearly all of them. They are left out entirely.
+        # Linux is ⬜ on one of them (configurable swipe actions), and the body is one block
+        # reused verbatim, so they are left out entirely.
         self.assertNotIn(
             "Feature bullets", " ".join(paragraphs["en"]), "a feature bullet reached the metainfo"
         )

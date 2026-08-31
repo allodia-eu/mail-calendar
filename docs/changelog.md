@@ -254,6 +254,7 @@ the one we are building. Every version listed here has a note; `check-version-sy
 
 | Version | Date | What shipped |
 |---|---|---|
+| [0.7.0](changelog/released/0.7.0.md) | 2026-08-31 | Allodia Mail & Calendar on Linux |
 | [0.6.0](changelog/released/0.6.0.md) | 2026-08-28 | A new account on a computer syncs more history · A repeating event says exactly how it repeats · An Allodia account of your own · …54 more |
 | [0.5.0](changelog/released/0.5.0.md) | 2026-08-20 | A quiet note when mail is catching up · The composer opens on the fields a message usually needs · Answering an invitation works on an account whose calendar server will not answer for you · …60 more |
 | [0.4.0](changelog/released/0.4.0.md) | 2026-08-04 | Removing an account is somewhere you would look for it · Account setup is laid out for the screen it is on · Attach files opens the picker again on iPhone and iPad · …6 more |

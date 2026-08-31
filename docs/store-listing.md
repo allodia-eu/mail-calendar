@@ -4,8 +4,8 @@
 Connect (Apple: macOS, iOS, iPadOS), Google Play Console (Android) and a Linux software centre. One
 product, one story: the description a user reads before installing must say the same thing on every
 store and in every language the build ships. Store copy is **marketing derived from the product**,
-not a place to invent capabilities: it must match what the app actually does today (the README
-"Status: platform capability matrix"), the brand voice (clear, plain, anti-hype), and the
+not a place to invent capabilities: it must match what the app actually does today
+([`capabilities.md`](capabilities.md)), the brand voice (clear, plain, anti-hype), and the
 [`privacy-policy.md`](privacy-policy.md) it links to.
 
 **The rules are here; the copy is not.** This file holds what may be claimed, which locales move
@@ -140,22 +140,25 @@ store that cannot be typed by hand: a build with no metainfo has no entry in a s
 all. **English is required and every other locale is optional**: AppStream falls a reader back to
 the untagged paragraph directly above, which is what lets the neutral default be English-only.
 
-**The feature bullets are left out entirely, and that is rule 3 doing its job.** A branded body's
+**The feature bullets are still left out, and that is rule 3 doing its job.** A branded body's
 bullets describe search, contacts, signatures, swipe actions, mail actions, threading, background
-delivery and invitations. **Meeting invitations are now ✅ on Linux**, and so are search and
-signatures, but contacts, threading, mail actions, swipe actions and background delivery are still
-🚧 or ⬜ in the capability matrix, and the body is one block of copy reused verbatim. So the
-bullets stay out: a listing that claimed some of them and quietly carried the rest would be exactly
-the copy out-running the matrix that rule 3 forbids.
+delivery and invitations. Linux now ships every one of those but **configurable swipe actions**,
+which is ⬜ in the capability matrix. The body is one block of copy reused verbatim, so a listing
+that took it would claim a capability this client does not have, which is precisely the copy
+out-running the matrix that rule 3 forbids.
+
+The gap is much narrower than it was, and closing it is a **deliberate edit here** rather than
+something to infer from the matrix: either the shared body gains a Linux-shaped variant, or the
+swipe-actions row lands and the bullets go in whole.
 
 The first two paragraphs are the sovereignty framing, which describes the *product*, makes no
 capability claim, and is the part rule 5 already names as never trimmed. So the generator can take
 them for any client at any maturity, while the bullets wait for the matrix.
 
-**When Linux does graduate, the bullets it may then claim are a deliberate edit to the generator**,
-not a silent consequence of a cell flipping, which is the only way rule 3 can be enforced by a
-machine rather than remembered by a person. The invitation cell flipping without this section
-changing is that rule working, not an oversight.
+**The bullets a client may claim are a deliberate edit to the generator**, not a silent consequence
+of a cell flipping, which is the only way rule 3 can be enforced by a machine rather than remembered
+by a person. Cells flipping to ✅ without this section changing is that rule working, not an
+oversight.
 
 ---
 

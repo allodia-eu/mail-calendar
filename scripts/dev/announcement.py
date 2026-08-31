@@ -111,7 +111,8 @@ def build(version, date, fragments):
         "",
         f"Released {reading_date(date)}.",
         "",
-        f"This release carries {len(fragments)} changes. "
+        f"This release carries {len(fragments)} "
+        f"{'change' if len(fragments) == 1 else 'changes'}. "
         "REPLACE THIS PARAGRAPH: name the two or three changes the release is actually about, "
         "in a reader's terms.",
         "",
@@ -146,11 +147,11 @@ def build(version, date, fragments):
         lines += _group(
             reaching,
             f"## {PLATFORM_EMOJI[platform]} {PLATFORM_NAMES[platform]} "
-            "(in development, not yet released)",
+            "(not yet in a store)",
         )
         lines += [
-            f"The {PLATFORM_NAMES[platform]} app cannot be installed yet. The above is what "
-            "landed this cycle, listed for completeness.",
+            f"The {PLATFORM_NAMES[platform]} app is not in a store yet, so there is nowhere to "
+            "update from. The above is what landed this cycle.",
             "",
         ]
 

@@ -225,7 +225,7 @@ Localisation follows the same shape on purpose: the Rust core emits machine-read
 
 - [`README.md`](README.md) (this directory): the cross-platform contracts: rendering and
   composer security, logging, analytics, background sync, OAuth, JMAP.
-- [`../README.md`](../README.md) → "Status: platform capability matrix": what each client
+- [`capabilities.md`](capabilities.md): what each client
   actually ships today.
 - The engine's own README (public sibling repo `email-calendar-sync-engine`): the provider
   matrix and the host-facing `engine-api` facade.
