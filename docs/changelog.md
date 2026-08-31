@@ -169,8 +169,8 @@ differs, which is what stops a Mac-only fix appearing in the iPhone's note.
 note is pasted anywhere.
 
 `release.py` does **not** commit and does **not** tag, the same deliberate rule as `bump-version.sh`:
-a `vX.Y.Z` tag triggers [`windows-release.yml`](../.github/workflows/windows-release.yml), so you tag
-when you mean to release.
+a `vX.Y.Z` tag is what the release builds take as their input, so you tag when you mean to
+release.
 
 ---
 

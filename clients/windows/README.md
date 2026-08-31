@@ -23,8 +23,8 @@ target `cargo test` did not just build, **and drops the two gates that have to e
 `MailcalVerify` FFI check is skipped (`Skipping the native gate (cross-arch build: …)`) and the
 app is never launched, since a cross-arch binary cannot run here. The slower run proves less.
 Don't copy the `windows` CI job's `-Arch x64`, that runner *is* x64, so for it that is the
-native form. Both arches together are a **release-packaging** concern (`./package.ps1`,
-`windows-release.yml`), immediately before a Store submission.
+native form. Both arches together are a **release-packaging** concern (`./package.ps1`), immediately before a
+Store submission.
 
 It:
 
