@@ -341,6 +341,54 @@ class FlatpakCredentialHandoff(unittest.TestCase):
         # The registration still has to reach the sandbox, like every other one.
         self.assertIn("allodia-client-id", self.captured_env_file.read_text(encoding="utf-8"))
 
+    def test_extra_features_join_the_derived_one(self) -> None:
+        """`--features` adds to what the registration derived; it never replaces it.
+
+        The fixture build a video capture needs is `dev-harness`, and a checkout that also holds the
+        Allodia registration must not lose the sign-in to ask for it. Cargo takes one
+        comma-separated list, so the two have to be joined rather than either winning.
+        """
+        output = self.run_package(
+            **{ALLODIA_ID: "allodia-client-id"}, _args=["--features", "dev-harness"]
+        )
+
+        built = self.sandbox_manifest()
+        self.assertIn(
+            "- cargo build --release --locked -p mailcal-linux "
+            f"--features {ALLODIA_FEATURE},dev-harness",
+            built,
+        )
+        # Still only the client's own line.
+        self.assertIn("-p mailcal-mcp-shim --bin allodia-mcp\n", built)
+        self.assertNotIn("mailcal-mcp-shim --bin allodia-mcp --features", built)
+        self.assertIn("dev-harness", output)
+
+    def test_extra_features_reach_the_cargo_line_without_a_registration(self) -> None:
+        """A build from source with no registration still gets exactly what was asked for."""
+        self.run_package(_args=["--features", "dev-harness"])
+
+        built = self.sandbox_manifest()
+        self.assertIn(
+            "- cargo build --release --locked -p mailcal-linux --features dev-harness\n", built
+        )
+        self.assertNotIn(ALLODIA_FEATURE, built)
+
+    def test_a_fixture_build_says_it_is_not_the_shippable_one(self) -> None:
+        """The warning is the point of the flag having a name rather than being a manifest edit.
+
+        `--release` is what proves the debug fixtures are absent, and this puts them back. A bundle
+        built this way installs, runs and looks exactly like the artifact that ships, so nothing
+        downstream can tell them apart, which makes the operator the only remaining check.
+        """
+        output = self.run_package(_args=["--features", "dev-harness"])
+        self.assertIn("NOT the shippable artifact", output)
+
+    def test_features_without_a_list_is_refused(self) -> None:
+        """A bare `--features` must not silently build the default set."""
+        done = self.package(_args=["--features"])
+        self.assertNotEqual(done.returncode, 0, "a bare --features was accepted")
+        self.assertIn("--features", done.stdout + done.stderr)
+
     def test_a_build_without_the_registration_asks_for_no_feature(self) -> None:
         """The ordinary build from source: no registration, no feature, no sign-in surface."""
         self.run_package(**{MS_ID: "ms-id"})

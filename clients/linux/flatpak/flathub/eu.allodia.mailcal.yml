@@ -1,0 +1,133 @@
+# ⛔ NOT BUILDABLE AS IT STANDS, and not built by anything here. Both `sha256` values are zeroes
+#    and both `size` values are 0, because the 0.6.0 tarballs have not been produced or uploaded
+#    yet. Fill them from the artefacts themselves before this is used for anything.
+#
+# The copy of record is flathub/eu.allodia.mailcal, once that repository exists; this is the
+# working copy, kept here because `scripts/dev/flatpak_metadata.py` has to emit two of the files it
+# installs and the two would otherwise drift in different repositories.
+#
+# It compiles nothing. The binaries arrive as `extra-data`: Flathub stores only the URL, checksum
+# and byte count, and the user's own machine downloads them from dl.allodia.eu at install time. So
+# this manifest never sees the source tree, the engine, crates.io or an OAuth registration: the
+# bundle it describes is built by clients/linux/package.sh, uploaded, and referenced by checksum.
+#
+# The twin of that arrangement is that `clients/linux/flatpak/org.mailcal.client.yml` beside this
+# directory stays what it is: the from-source build, used for local packaging and every dev loop.
+app-id: eu.allodia.mailcal
+
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+# No rust-stable extension: nothing is compiled here.
+
+command: mailcal
+
+finish-args:
+  # Mail. The loopback OAuth callback also needs the host network namespace, so the browser the
+  # portal opens can reach the 127.0.0.1 listener.
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # WebKitGTK renders the reading view and the composer; without a GPU node it falls back to a
+  # software rasteriser that makes scrolling a long message visibly slow.
+  - --device=dri
+  #
+  # Deliberately NOT granted:
+  #
+  #   --talk-name=org.freedesktop.secrets: oo7 selects its backend from the sandbox state, so
+  #     inside Flatpak it uses the file backend keyed through the Secret *portal*, which every
+  #     sandboxed app may call. Granting the bus name would hand this app every other
+  #     application's stored secrets to read.
+  #
+  #   --filesystem=…: attachments are saved and opened through GtkFileDialog and the portal
+  #     launchers, which become the FileChooser and OpenURI portals inside the sandbox. The user
+  #     picks the file, and only that file is handed over.
+  #
+  # Notifications need no permission either: the notification portal is open to every sandboxed app.
+
+modules:
+  - name: allodia-mail-calendar
+    buildsystem: simple
+    build-commands:
+      # The launchers. `apply_extra` may only write inside /app/extra, so nothing can be moved to
+      # /app/bin at install time: the wrappers are installed here and exec across.
+      - install -Dm755 apply_extra /app/bin/apply_extra
+      - install -Dm755 mailcal.sh /app/bin/mailcal
+      - install -Dm755 allodia-mcp.sh /app/bin/allodia-mcp
+
+      # AppStream and the desktop entry are read by Flathub AT BUILD TIME to generate the store
+      # listing, so they cannot arrive with the extra-data. They are generated in the product repo
+      # by scripts/dev/flatpak_metadata.py and committed here.
+      - install -Dm644 eu.allodia.mailcal.desktop /app/share/applications/eu.allodia.mailcal.desktop
+      - install -Dm644 eu.allodia.mailcal.metainfo.xml
+        /app/share/metainfo/eu.allodia.mailcal.metainfo.xml
+      - desktop-file-validate /app/share/applications/eu.allodia.mailcal.desktop
+      - appstreamcli validate --no-net --explain /app/share/metainfo/eu.allodia.mailcal.metainfo.xml
+
+      - install -Dm644 icons/128.png /app/share/icons/hicolor/128x128/apps/eu.allodia.mailcal.png
+      - install -Dm644 icons/256.png /app/share/icons/hicolor/256x256/apps/eu.allodia.mailcal.png
+      - install -Dm644 icons/512.png /app/share/icons/hicolor/512x512/apps/eu.allodia.mailcal.png
+
+      # GPL-3.0-only obliges an offer of corresponding source to whoever receives the binary, and
+      # this is the copy that travels with it.
+      - install -Dm644 LICENSE /app/share/licenses/eu.allodia.mailcal/LICENSE
+
+    sources:
+      # ⚠️ sha256 and size are placeholders until the 0.6.0 tarballs are built and uploaded.
+      #    Fill both from the build itself. A mismatch in EITHER fails every install, and `size`
+      #    is checked as strictly as the digest.
+      - type: extra-data
+        only-arches: [x86_64]
+        filename: allodia-mail-calendar-x86_64.tar.xz
+        url: https://dl.allodia.eu/mailcal/linux/0.6.0/allodia-mail-calendar-0.6.0-x86_64.tar.xz
+        sha256: 0000000000000000000000000000000000000000000000000000000000000000
+        size: 0
+        x-checker-data:
+          type: json
+          url: https://dl.allodia.eu/mailcal/linux/releases.json
+          version-query: .stable
+          url-query: '"https://dl.allodia.eu/mailcal/linux/" + $version
+            + "/allodia-mail-calendar-" + $version + "-x86_64.tar.xz"'
+
+      - type: extra-data
+        only-arches: [aarch64]
+        filename: allodia-mail-calendar-aarch64.tar.xz
+        url: https://dl.allodia.eu/mailcal/linux/0.6.0/allodia-mail-calendar-0.6.0-aarch64.tar.xz
+        sha256: 0000000000000000000000000000000000000000000000000000000000000000
+        size: 0
+        x-checker-data:
+          type: json
+          url: https://dl.allodia.eu/mailcal/linux/releases.json
+          version-query: .stable
+          url-query: '"https://dl.allodia.eu/mailcal/linux/" + $version
+            + "/allodia-mail-calendar-" + $version + "-aarch64.tar.xz"'
+
+      # Unpacks in /app/extra, which is the only directory it can write to. No network, no D-Bus,
+      # and $FLATPAK_DEST is NOT expanded here, so never reference it.
+      - type: script
+        dest-filename: apply_extra
+        commands:
+          - tar -xf allodia-mail-calendar-*.tar.xz
+          - rm -f allodia-mail-calendar-*.tar.xz
+
+      - type: script
+        dest-filename: mailcal.sh
+        commands:
+          - exec /app/extra/bin/mailcal "$@"
+
+      # Settings → Advanced hands the user a client snippet that runs
+      # `flatpak run --command=allodia-mcp`, so this name has to resolve the same way.
+      - type: script
+        dest-filename: allodia-mcp.sh
+        commands:
+          - exec /app/extra/bin/allodia-mcp "$@"
+
+      - type: file
+        path: eu.allodia.mailcal.desktop
+      - type: file
+        path: eu.allodia.mailcal.metainfo.xml
+      - type: file
+        path: LICENSE
+      - type: dir
+        path: icons
