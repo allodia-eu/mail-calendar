@@ -194,10 +194,11 @@ That is a real Flatpak on the seeded showcase dataset, with no keyring and no re
 what a store video or a sandbox-only bug wants. `MAILCAL_DEV_ACCOUNT` still refuses in this build and
 says so; showcase is the only fixture an optimised build offers.
 
-The Flathub manifest that publishes Allodia's build is not here. It states an application id
-and a download host as literals, which is the one thing `branding/` exists to prevent in this
-tree, and a build from source never uses it: it compiles the client rather than downloading
-one. It lives with the rest of Allodia's packaging configuration, in the release repository.
+The Flathub manifest that publishes Allodia's build is deliberately not in this tree. It states an
+application id and a download host as literals, which is the one thing `branding/` exists to
+prevent here, and a build from source never reads it anyway: it compiles the client rather than
+downloading one. What Flathub ships is public where it matters, in Flathub's own repository for the
+application id Allodia publishes under.
 
 ⚠️ **It installs over the shipped one**, because both carry the same application id, and it is *not*
 the artifact to upload. The script says so on every run. Rebuild without `--features` before
