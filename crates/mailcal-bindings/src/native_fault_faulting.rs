@@ -3,11 +3,27 @@
 //! Nothing short of an actual fault proves any of this. The install could silently fail, the
 //! record could land in the wrong file, the chain could be dropped, and every unit test in
 //! [`super`] would still pass, because each one only asks what a string looks like.
+//!
+//! # The child is spawned, not forked
+//!
+//! `fork(2)` from a process with other threads running gives a child that may call only
+//! async-signal-safe functions until it execs, and `armed::install` cannot honour that: it
+//! allocates, by construction, a `CString` per signal name and a `Box<sigaction>` per handler it
+//! displaces. libtest runs these tests on threads beside a hundred and fifty others, so the fork
+//! landed in a process where another thread could be inside the allocator.
+//!
+//! What that produced in CI was not a hang but a `Box::into_raw` the chain could not use:
+//! `PREVIOUS[slot]` held a non-null pointer that `sigaction` refused with `EFAULT`, leaving the
+//! armed handler in place, so the `raise` at the end of it re-entered the handler until the
+//! alternate stack ran out. Both tests then died of SIGSEGV whatever signal they had raised, which
+//! is why the SIGTRAP one reported status 139 rather than 133.
+//!
+//! Spawning the test binary again removes the hazard rather than narrowing the window: the child is
+//! a fresh process that never forked, so every allocation in it is an ordinary one.
 
 use std::{
     ffi::{CString, c_char},
     fs,
-    os::unix::ffi::OsStrExt as _,
     ptr,
     sync::atomic::{AtomicPtr, Ordering},
 };
@@ -27,13 +43,14 @@ const SURVIVED: &str = "[the ordinary log is live again]\n";
 const SILENCED: &str = "[the ordinary log is still standing down]\n";
 const SURVIVED_STATUS: i32 = 43;
 
-/// The child's log path, prepared before the fork so the handler only ever reads it.
+/// The child's log path, stored before the handler is armed so it only ever reads it.
 static LOG_PATH: AtomicPtr<c_char> = AtomicPtr::new(ptr::null_mut());
 
 /// The handler `install` will displace. Async-signal-safe, like the one replacing it.
 extern "C" fn previous(_number: libc::c_int) {
     let path = LOG_PATH.load(Ordering::Relaxed);
-    // SAFETY: `path` was leaked before the fork; the rest is `open`/`write`/`close`/`_exit`,
+    // SAFETY: `path` was leaked before the handler was armed; the rest is
+    // `open`/`write`/`close`/`_exit`,
     // every one of them on the async-signal-safe list.
     unsafe {
         if !path.is_null() {
@@ -47,40 +64,82 @@ extern "C" fn previous(_number: libc::c_int) {
     }
 }
 
-#[test]
-fn a_real_fault_writes_its_record_and_still_reaches_the_handler_it_displaced() {
-    let dir = std::env::temp_dir().join(format!("mailcal-fault-{}", std::process::id()));
+/// The environment variable that turns a spawned run of this binary into the child half.
+///
+/// Its absence is what keeps `cargo test -- --ignored` from faulting a harness: the child tests
+/// return immediately unless the parent asked for them by name and handed them a log.
+const CHILD_LOG: &str = "MAILCAL_FAULT_CHILD_LOG";
+
+/// The log this run is the child of, or `None` when it is an ordinary test run.
+fn child_log() -> Option<String> {
+    std::env::var(CHILD_LOG).ok()
+}
+
+/// A scratch directory and a seeded log, named for the test so two running at once cannot collide.
+fn scratch(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+    let dir = std::env::temp_dir().join(format!("mailcal-{name}-{}", std::process::id()));
     fs::create_dir_all(&dir).expect("scratch dir");
     let log = dir.join("mailcal.log");
     fs::write(&log, "an ordinary line\n").expect("seed the log");
-    let path = CString::new(log.as_os_str().as_bytes()).expect("path");
-    // Before the fork, so the child's handler only reads what is already there.
+    (dir, log)
+}
+
+/// Runs one `#[ignore]`d child test in a **new process** and reports how it left.
+///
+/// `--test-threads=1` is not tidiness: the child arms process-wide signal handlers and then faults,
+/// so a second test running beside it would be sharing the disposition of the signal that is about
+/// to end the process.
+fn run_child(test: &str, log: &std::path::Path) -> std::process::ExitStatus {
+    std::process::Command::new(std::env::current_exe().expect("the test binary's own path"))
+        .args([test, "--exact", "--ignored", "--nocapture", "--test-threads=1"])
+        .env(CHILD_LOG, log)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .expect("spawn the child")
+}
+
+/// How the child left, for a message that can tell an exit code from a signal.
+fn how_it_left(status: &std::process::ExitStatus) -> String {
+    use std::os::unix::process::ExitStatusExt as _;
+    match (status.code(), status.signal()) {
+        (Some(code), _) => format!("exit {code}"),
+        (None, Some(signal)) => format!("killed by signal {signal}"),
+        _ => format!("{status:?}"),
+    }
+}
+
+#[test]
+#[ignore = "the child half of a_real_fault_...; that test spawns it by name"]
+fn the_faulting_child() {
+    let Some(log) = child_log() else { return };
+    let path = CString::new(log.as_bytes()).expect("path");
+    // Before the handler is armed, so `previous` only ever reads what is already there.
     LOG_PATH.store(path.into_raw(), Ordering::Relaxed);
 
-    // SAFETY: the child does no allocation-sensitive work before it faults, and leaves through
-    // `_exit`, so the test harness's state is never touched by two processes at once.
-    let child = unsafe {
-        let forked = libc::fork();
-        if forked == 0 {
-            libc::signal(libc::SIGSEGV, previous as *const () as usize);
-            armed::install(log.to_str().expect("utf-8 path"));
-            // Volatile so the optimizer cannot decide a null write is unreachable and drop it.
-            std::ptr::write_volatile(std::ptr::null_mut::<u8>(), 1);
-            libc::_exit(0); // Unreachable; a fault that did not happen must not read as a pass.
-        }
-        forked
-    };
-    assert!(child > 0, "fork failed");
+    // SAFETY: an ordinary single-purpose process. It arms two handlers, faults, and leaves through
+    // whichever of them runs; nothing after the write is reachable.
+    unsafe {
+        libc::signal(libc::SIGSEGV, previous as *const () as usize);
+        armed::install(&log);
+        // Volatile so the optimizer cannot decide a null write is unreachable and drop it.
+        std::ptr::write_volatile(std::ptr::null_mut::<u8>(), 1);
+        libc::_exit(0); // Unreachable; a fault that did not happen must not read as a pass.
+    }
+}
 
-    let mut status = 0;
-    // SAFETY: `child` is this process's own, and `status` is a live local.
-    unsafe { libc::waitpid(child, &raw mut status, 0) };
+#[test]
+fn a_real_fault_writes_its_record_and_still_reaches_the_handler_it_displaced() {
+    let (dir, log) = scratch("fault");
+    let status = run_child("native_fault::faulting::the_faulting_child", &log);
     let written = fs::read_to_string(&log).expect("read the log back");
     let _ = fs::remove_dir_all(&dir);
 
-    assert!(
-        libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == CHAINED_STATUS,
-        "the fault never reached the displaced handler (status {status}); log:\n{written}"
+    assert_eq!(
+        status.code(),
+        Some(CHAINED_STATUS),
+        "the fault never reached the displaced handler ({}); log:\n{written}",
+        how_it_left(&status)
     );
     assert!(
         written.contains("unhandled native fault SIGSEGV at 0x0"),
@@ -104,48 +163,46 @@ fn a_real_fault_writes_its_record_and_still_reaches_the_handler_it_displaced() {
 extern "C" fn recovers(_number: libc::c_int) {}
 
 #[test]
-fn a_fault_the_process_survives_leaves_the_ordinary_log_working() {
-    let dir = std::env::temp_dir().join(format!("mailcal-survived-{}", std::process::id()));
-    fs::create_dir_all(&dir).expect("scratch dir");
-    let log = dir.join("mailcal.log");
-    fs::write(&log, "an ordinary line\n").expect("seed the log");
+#[ignore = "the child half of a_fault_the_process_survives_...; that test spawns it by name"]
+fn the_surviving_child() {
+    let Some(log) = child_log() else { return };
 
-    // SAFETY: as above: the child only writes to its own log and leaves through `_exit`.
-    let child = unsafe {
-        let forked = libc::fork();
-        if forked == 0 {
-            // A signal sent from outside is delivered where nothing faulted, so the handler
-            // this one displaces returns and execution carries on past the raise.
-            libc::signal(libc::SIGTRAP, recovers as *const () as usize);
-            armed::install(log.to_str().expect("utf-8 path"));
-            libc::raise(libc::SIGTRAP);
-            // Back in ordinary code, where the log bridge decides whether to forward a line.
-            let verdict = if super::is_writing_fault_record() {
-                SILENCED
-            } else {
-                SURVIVED
-            };
-            let path = CString::new(log.as_os_str().as_bytes()).expect("path");
-            let fd = libc::open(path.as_ptr(), libc::O_WRONLY | libc::O_APPEND);
-            if fd >= 0 {
-                libc::write(fd, verdict.as_ptr().cast(), verdict.len());
-                libc::close(fd);
-            }
-            libc::_exit(SURVIVED_STATUS);
+    // SAFETY: as above. This one is expected to come back from its own signal, so it runs on past
+    // the raise and leaves deliberately.
+    unsafe {
+        // A signal sent from outside is delivered where nothing faulted, so the handler this one
+        // displaces returns and execution carries on past the raise.
+        libc::signal(libc::SIGTRAP, recovers as *const () as usize);
+        armed::install(&log);
+        libc::raise(libc::SIGTRAP);
+        // Back in ordinary code, where the log bridge decides whether to forward a line.
+        let verdict = if super::is_writing_fault_record() {
+            SILENCED
+        } else {
+            SURVIVED
+        };
+        let path = CString::new(log.as_bytes()).expect("path");
+        let fd = libc::open(path.as_ptr(), libc::O_WRONLY | libc::O_APPEND);
+        if fd >= 0 {
+            libc::write(fd, verdict.as_ptr().cast(), verdict.len());
+            libc::close(fd);
         }
-        forked
-    };
-    assert!(child > 0, "fork failed");
+        libc::_exit(SURVIVED_STATUS);
+    }
+}
 
-    let mut status = 0;
-    // SAFETY: `child` is this process's own, and `status` is a live local.
-    unsafe { libc::waitpid(child, &raw mut status, 0) };
+#[test]
+fn a_fault_the_process_survives_leaves_the_ordinary_log_working() {
+    let (dir, log) = scratch("survived");
+    let status = run_child("native_fault::faulting::the_surviving_child", &log);
     let written = fs::read_to_string(&log).expect("read the log back");
     let _ = fs::remove_dir_all(&dir);
 
-    assert!(
-        libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == SURVIVED_STATUS,
-        "the child did not survive its own signal (status {status}); log:\n{written}"
+    assert_eq!(
+        status.code(),
+        Some(SURVIVED_STATUS),
+        "the child did not survive its own signal ({}); log:\n{written}",
+        how_it_left(&status)
     );
     assert!(
         written.contains("unhandled native fault SIGTRAP at"),
