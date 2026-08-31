@@ -215,9 +215,9 @@ Four obligations that reach outside this repo, or outside the doc:
   a release assembles every pending fragment into one store field and each note is measured against
   the tightest store its `Platforms:` reach. `store-copy` rejects a bad tag, a missing locale or an
   over-cap note; **nothing can detect that you wrote no fragment.** Internal-only work writes none.
-- **User-doc images are in neither repo's git.** `scripts/dev/docs_publish.py` uploads them to the
-  website's content-addressed store, and **publishing precedes shipping**: run `--check` before a
-  page goes out. The gate cannot, by design, because it needs no network.
+- **The help pages and their tooling are not in this tree.** They belong to whoever publishes this
+  app under their own name, along with the screenshots, which are in no git at all: they are
+  uploaded to a content-addressed store, and **publishing precedes shipping**.
 
 ## Building & verifying
 

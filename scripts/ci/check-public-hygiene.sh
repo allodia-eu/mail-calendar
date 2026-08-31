@@ -66,6 +66,19 @@ if [ -n "$tracker" ]; then
   fail=1
 fi
 
+# --- Somewhere the reader cannot follow ----------------------------------------------------------
+# This is a public repository, so a pointer at a private one fails twice: the reader cannot open it,
+# and what it says goes stale on a schedule nothing here can see. Describe the thing by what it does
+# instead. Naming the *shape* of the pointer rather than the repository keeps this rule publishable,
+# which the earlier version of it was not.
+#
+# The article is the signal, and it is why this can be a grep at all. *The* release repository and
+# *our* private one point somewhere; *a* private repository is a category in an argument, which is
+# how `docs/pledge.md` promises no build step reaches one and how `allodia_license/README.md`
+# explains why a closed component is worse than a readable one. Those stay.
+deny "a pointer at a repository the reader cannot open (say what it does, not where it is):" \
+  '(the|our) (release|internal|private) repos(itory)?|[Hh]andbook'
+
 # --- A plan's phases -------------------------------------------------------------------------
 # "Phase A", "the field-parity wave", "Pre-Phase-4" name a step in a roadmap. Two things are
 # wrong with one in the code: it points at a document the reader may not have, and it stops being
@@ -93,7 +106,7 @@ fi
 # --- People and reservations -----------------------------------------------------------------
 # Fixtures and docs name no individual: a signature body, an attendee CN and a primary address
 # all read better as `alice`, and the rest of the suite already does. The Apple team id and the
-# certificate display names are Allodia's reservations, which the release repository owns; a
+# certificate display names are reservations held with third parties and kept out of this tree; a
 # public repository carrying them can put something in a store under this product's name.
 # The four documents that need a party name one on purpose. An eenmanszaak has no legal
 # personality of its own, so "Allodia" alone would name nobody a licence could bind; which is the

@@ -12,7 +12,8 @@ PRs in flight stops being possible. This script is the one thing that moves it.
 
 What it does, in order:
 
-0. Recaptures the documentation screenshots (`scripts/dev/docs_release.py --recapture`), unless
+0. Recaptures the documentation screenshots (`docs_release.py --recapture`, when
+   `MAILCAL_RELEASE_TOOLS` names the tooling that holds it), unless
    `--skip-docs`. First, because it builds a client per platform and photographs it: it is the
    longest step here, the most likely to fail for reasons about the *host* rather than the release,
    and everything below it deletes files. `--skip-docs` exists for a machine that cannot capture,
@@ -50,6 +51,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -80,14 +82,29 @@ from check_store_copy_length import (  # noqa: E402
 )
 
 import announcement  # noqa: E402  (a sibling in scripts/dev)
-import docs_release  # noqa: E402  (a sibling in scripts/dev)
+
+# A publisher's help pages are written in their own voice, and so are the tools that publish them,
+# so neither is in this tree. `MAILCAL_RELEASE_TOOLS` names the directory holding those tools, for
+# whoever has them. Without it a release still cuts, and the documentation steps say they were
+# skipped. Silence there would be the bad outcome, because a shipped build whose help pages
+# describe the previous release is exactly what those steps prevent.
+RELEASE_TOOLS = Path(os.environ["MAILCAL_RELEASE_TOOLS"]).expanduser() \
+    if os.environ.get("MAILCAL_RELEASE_TOOLS") else None
+if RELEASE_TOOLS and (RELEASE_TOOLS / "docs_release.py").is_file():
+    sys.path.insert(0, str(RELEASE_TOOLS))
+    import docs_release  # noqa: E402  (path set above)
+else:
+    docs_release = None
+
+# `docs_release` raises its own error type; without it there is nothing extra to catch.
+DOCS_ERRORS = (docs_release.DocsReleaseError,) if docs_release else ()
 
 VERSION_PATH = REPO_ROOT / "VERSION"
 ANNOUNCEMENTS_DIR = REPO_ROOT / "docs" / "changelog" / "announcements"
 CHANGELOG_PATH = REPO_ROOT / "docs" / "changelog.md"
 BUMP_SCRIPT = REPO_ROOT / "scripts" / "dev" / "bump-version.sh"
 STORE_COPY_CHECK = REPO_ROOT / "scripts" / "ci" / "check_store_copy_length.py"
-DOCS_RELEASE = REPO_ROOT / "scripts" / "dev" / "docs_release.py"
+DOCS_RELEASE = (RELEASE_TOOLS / "docs_release.py") if RELEASE_TOOLS else None
 USER_DOCS_CHECK = REPO_ROOT / "scripts" / "ci" / "check_user_docs.py"
 
 # Where the release index table starts in docs/changelog.md. New rows go directly under it, so the
@@ -302,13 +319,13 @@ def main(argv=None):
         # A page claiming a release above the one being cut describes a build nobody can install.
         # The gate refuses that too, against `/VERSION`; this asks it against the version in hand,
         # and asks it here, where refusing still costs nothing.
-        ahead = docs_release.ahead_of(REPO_ROOT, version)
+        ahead = docs_release.ahead_of(REPO_ROOT, version) if docs_release else []
         if ahead:
             raise ReleaseError(
                 "the documentation is ahead of this release:\n  %s\nDocumentation describes the "
                 "app users are running, not the branch." % "\n  ".join(ahead)
             )
-    except (ReleaseError, DocumentShapeError, docs_release.DocsReleaseError) as error:
+    except (ReleaseError, DocumentShapeError) + DOCS_ERRORS as error:
         # A malformed `_summary.md` is an authoring mistake with a named fix, not a crash; it
         # reads the same way a malformed fragment does.
         print("ERROR: {}".format(error), file=sys.stderr)
@@ -349,7 +366,14 @@ def main(argv=None):
     # Before any write: the screenshots. It builds and photographs a client per platform, so it is
     # the step most likely to fail for reasons about this machine rather than about the release,
     # and every line below deletes a fragment or moves a version. Same reasoning as `over_cap`.
-    if not args.skip_docs:
+    if not args.skip_docs and not docs_release:
+        print(
+            "\n==> skipping the documentation screenshots: MAILCAL_RELEASE_TOOLS is unset, so the\n"
+            "    tools that publish the help pages are not on this machine. The release is cut\n"
+            "    without them.",
+            file=sys.stderr,
+        )
+    if not args.skip_docs and docs_release:
         step = [sys.executable, str(DOCS_RELEASE), "--recapture"]
         print("\n==> {}".format(" ".join(step)))
         if subprocess.call(step, cwd=str(REPO_ROOT)):
@@ -397,7 +421,7 @@ def main(argv=None):
         )
 
     steps = [[str(BUMP_SCRIPT), version]]
-    if not args.skip_docs:
+    if not args.skip_docs and docs_release:
         # After the bump, not before: a page's `updated_for` may never exceed `/VERSION`, so the
         # pages can only claim this release once that file names it.
         steps.append([sys.executable, str(DOCS_RELEASE), "--publish"])
@@ -412,11 +436,12 @@ def main(argv=None):
         print("\n==> {}".format(" ".join(step)))
         failed |= subprocess.call(step, cwd=str(REPO_ROOT))
 
-    if args.skip_docs:
+    if args.skip_docs or not docs_release:
+        why = "--skip-docs" if args.skip_docs else "MAILCAL_RELEASE_TOOLS is unset"
         print(
-            "\n--skip-docs: the documentation still shows {}. Before this build reaches users, on "
-            "a host that can photograph the clients:\n"
-            "    python3 scripts/dev/docs_release.py --apply".format(current),
+            "\n{}: the documentation still shows {}. Before this build reaches users, on a host "
+            "that can photograph the clients, where that tooling lives:\n"
+            "    python3 scripts/docs_release.py --apply".format(why, current),
             file=sys.stderr,
         )
 

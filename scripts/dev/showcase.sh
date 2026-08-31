@@ -135,7 +135,7 @@ appearance_suffix() { # <appearance>
 # (docs/user-docs.md). It is a *set*, not more screens on the store list, because the two have
 # different destinations, different sizes, and different lifetimes: the store set is uploaded to
 # three consoles at their exact pixel sizes, while a doc image is downscaled and content-addressed
-# by scripts/dev/docs_images.py.
+# by the tooling that publishes the help pages.
 #
 # The four `setup-*` screens are one flow photographed at four moments. They are driven by the
 # address the client types and by the core's *scripted* detection; in a showcase build

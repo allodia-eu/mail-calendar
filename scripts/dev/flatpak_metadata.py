@@ -167,7 +167,7 @@ def _screenshots_element(manifest: dict | None) -> str:
     """The gallery, from the committed manifest the capture step writes.
 
     The images are served from the website's content-addressed store, the same one the user guides
-    use (`scripts/dev/docs_publish.py`), so a screenshot is addressed by its own hash and a stale
+    use (the publisher's own upload tooling), so a screenshot is addressed by its own hash and a stale
     one cannot be served under a fresh name. `docs_publish.py --check` is what proves they are
     reachable; a metainfo naming an unpublished URL renders as a broken gallery, so publishing
     precedes shipping here exactly as it does for the guides.
@@ -179,7 +179,7 @@ def _screenshots_element(manifest: dict | None) -> str:
     if not manifest:
         return (
             "  <!-- No gallery yet: clients/linux/flatpak/screenshots.json is written by\n"
-            "       scripts/dev/showcase.sh linux and uploaded by scripts/dev/docs_publish.py. -->"
+            "       scripts/dev/showcase.sh linux and uploaded to the content store. -->"
         )
     out = ["  <screenshots>"]
     for index, shot in enumerate(manifest["screenshots"]):

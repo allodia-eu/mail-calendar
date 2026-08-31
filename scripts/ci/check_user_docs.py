@@ -593,7 +593,7 @@ def check_current(pages: Dict[str, Dict[str, Page]], raw_version: str) -> List[s
             if version_tuple(raw) is not None and raw != raw_version:
                 problems.append(
                     "%s: `updated_for: %s` lags /VERSION (%s). Recapture and stamp the set:\n"
-                    "      python3 scripts/dev/docs_release.py --apply" % (page.where, raw, raw_version)
+                    "      python3 scripts/docs_release.py --apply   (where the help pages live)" % (page.where, raw, raw_version)
                 )
     return problems
 
