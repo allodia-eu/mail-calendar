@@ -510,24 +510,8 @@ jobs:
     # Cross-compile the Rust core to an XCFramework, generate the Xcode project, build the macOS +
     # iOS app targets, and build + run the headless FFI verifier (demo mode — deterministic, no
     # credentials). Runner: macos-26 — arm64, macOS 26 + Xcode 26 (our minimum).
-    #
-    # ⏸️ TEMPORARILY DISABLED — macOS runners bill at **10x** every other platform. That is the
-    # whole reason; every other platform stays on CI, because no single host builds them all.
-    #
-    # This is a **cost** decision, not a statement that Apple needs less proof. It moves the Apple
-    # gate from a machine that cannot forget to a person who can. On a macOS host,
-    # `scripts/dev/gate.sh --clients` builds the macOS app, the iOS simulator slice and
-    # `swift test` on the same Xcode this runner would use — run it before pushing an Apple change,
-    # and say in the PR that you did. On Windows or Linux that step *skips*, so an Apple change
-    # pushed from there has no gate at all: get it built on a Mac, or re-enable this job for that
-    # PR.
-    #
-    # Re-enable by restoring the `if:` to `needs.changes.outputs.apple == 'true'`. Nothing else
-    # depends on this job; `ci-ok` counts `skipped` as success, so the required check stays green
-    # either way — which is precisely why this cannot be noticed by watching CI.
     name: Apple clients (macOS + iOS)
     needs: changes
-    if: false # was: needs.changes.outputs.apple == 'true' — see the note above
     runs-on: macos-26
     timeout-minutes: 20
     permissions:
