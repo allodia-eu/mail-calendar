@@ -25,6 +25,23 @@ reads as a broken body when what moved was a heading.
 
 ---
 
+### Flathub — Summary (≤35)
+
+Flathub's quality guidelines cap the AppStream `<summary>` far shorter than any console does, and
+ask for something a non-technical reader understands: no protocol names, no toolkit, sentence case,
+no full stop, and not starting with an article. Play's 80 characters cannot meet that, so this is
+the one field Flathub does not share with another store.
+
+It is also the `.desktop` `Comment`, which is what GNOME's app grid and search show, and the same
+brevity is what that wants.
+
+**English**
+```
+Private mail and calendar
+```
+
+---
+
 ### Google Play — Short description (≤80)
 
 **English**

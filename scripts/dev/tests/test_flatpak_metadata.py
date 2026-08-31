@@ -65,6 +65,18 @@ Opsomming die niet meegaat.
 Allodia Mail & Calendar
 ```
 
+### Flathub — Summary (≤35)
+
+**English**
+```
+Private mail and calendar.
+```
+
+**Nederlands**
+```
+Privé e-mail en agenda.
+```
+
 ### Google Play — Short description (≤80)
 
 **English**
@@ -77,6 +89,22 @@ Sovereign, private email & calendar.
 Soevereine, private e-mail en agenda.
 ```
 """
+
+
+class SummaryLimit(unittest.TestCase):
+    def test_a_summary_over_flathubs_cap_is_refused(self):
+        """Flathub's cap is a guideline, so nothing downstream would catch it.
+
+        A listing rejected on a guideline costs a volunteer reviewer a comment and a round trip,
+        which is exactly what this field is short to avoid.
+        """
+        over = LISTING.replace(
+            "Private mail and calendar.",
+            "Mail and calendar over open standards, on servers you choose.",
+        )
+        with self.assertRaises(meta.MetadataError) as refused:
+            meta.summaries(over)
+        self.assertIn("over the 35", str(refused.exception))
 
 
 class ListingScraping(unittest.TestCase):
@@ -94,8 +122,8 @@ class ListingScraping(unittest.TestCase):
 
     def test_a_summary_loses_only_its_trailing_stop(self):
         summaries = meta.summaries(LISTING)
-        self.assertEqual(summaries["en"], "Sovereign, private email & calendar")
-        self.assertEqual(summaries["nl"], "Soevereine, private e-mail en agenda")
+        self.assertEqual(summaries["en"], "Private mail and calendar")
+        self.assertEqual(summaries["nl"], "Privé e-mail en agenda")
 
     def test_a_body_with_too_few_paragraphs_is_a_shape_error(self):
         thin = LISTING.replace(
