@@ -42,6 +42,18 @@ cargo_version="$(awk '
 ' Cargo.toml)"
 [ "$cargo_version" = "$VERSION" ] || note "Cargo.toml [workspace.package] version is '$cargo_version', expected '$VERSION'."
 
+# Cargo.lock: a mirror in all but name, and the one that used to be missed. It carries a version per
+# workspace member, and a release that moved Cargo.toml without it produced a tag whose every
+# `--locked` build failed with "cannot update the lock file". Checked against a member that is
+# always present rather than all of them, because one drifting means the bump skipped the lock
+# entirely.
+lock_version="$(awk '
+  /^name = "mailcal-app"$/ { found = 1; next }
+  found && /^version = "/ { gsub(/[^0-9.]/, ""); print; exit }
+' Cargo.lock)"
+[ "$lock_version" = "$VERSION" ] ||
+  note "Cargo.lock has mailcal-app at '$lock_version', expected '$VERSION'. Run: cargo update --workspace"
+
 # project.yml: MARKETING_VERSION under settings.base (the `$(MARKETING_VERSION)` Info.plist reference
 # has no trailing colon, so this matches only the real setting).
 apple_marketing="$(grep -Eo 'MARKETING_VERSION:[[:space:]]*"[0-9.]+"' clients/apple/project.yml | head -n1 | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')"
