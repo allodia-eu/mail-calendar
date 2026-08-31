@@ -34,7 +34,7 @@ category ([`docs/settings.md`](../../docs/settings.md)): Diagnostics, first-run 
 consent, and local new-mail notifications from the live sync runtime. Calendar management,
 default-calendar selection, periodic refresh, device-zone recovery, and packaged-runtime performance
 qualification are wired and semantically driven. Horizontal calendar gestures, event move/resize,
-and the rows still marked ⬜ in the README matrix remain. Normal/release startup loads stored accounts
+and the rows still marked ⬜ in the capability matrix remain. Normal/release startup loads stored accounts
 from the system keyring and opens required setup when none exist; deterministic data remains
 available through debug-only demo and local Stalwart fixtures.
 

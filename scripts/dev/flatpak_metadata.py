@@ -19,7 +19,7 @@ characters and, unlike the feature bullets, free of any capability claim. The `<
 the **first two paragraphs** of the shared body: the ones rule 5 names as never trimmed ("the
 sovereignty framing is the point"), which describe the product rather than what a given client can
 do today. Every remaining paragraph is a feature list, and store-listing rule 3 forbids copy that
-out-runs the README capability matrix; Linux is 🚧 there, so the bullets are left out entirely
+out-runs the capability matrix; Linux is 🚧 there, so the bullets are left out entirely
 rather than filtered down to a subset nobody has reviewed. When Linux graduates, the bullets it may
 then claim are a deliberate edit here, not a silent consequence of a matrix cell flipping.
 

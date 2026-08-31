@@ -155,8 +155,9 @@ attention, human or agent alike. Write the fact, not the story around it.
   request/result types derive `JsonSchema` beside the deserializer so a published schema and the
   parser cannot drift. It stays open for `Intent`, deliberately serde-free so the FFI enum's shape
   is not pinned by a wire format no client speaks.
-- **Keep the README capability matrix current.** It is the at-a-glance truth for what each client
-  ships, so a change that shifts a capability's reach updates it too. Internal refactors do not.
+- **Keep the capability matrix current.** [`docs/capabilities.md`](docs/capabilities.md) is the
+  at-a-glance truth for what each client ships, so a change that shifts a capability's reach updates
+  it too. Internal refactors do not.
 
 ## Cross-platform contracts
 
@@ -164,9 +165,9 @@ attention, human or agent alike. Write the fact, not the story around it.
 carries a per-platform matrix. Add or change a surface a contract covers and you MUST, in the same
 change: (1) update that doc's rule **and** its matrix, (2) apply it to **every** platform that ships
 the surface (a new platform may not ship the surface until it meets every gate in the contract),
-(3) update the README capability matrix if a capability's reach shifted, and (4) write a changelog
+(3) update [`docs/capabilities.md`](docs/capabilities.md) if a capability's reach shifted, and (4) write a changelog
 fragment if a user could notice. A shortfall goes under that doc's **"Known gaps"**, never left
-silent. Two couplings apply to everything user-facing: copy may not out-run the README matrix
+silent. Two couplings apply to everything user-facing: copy may not out-run the capability matrix
 (anti-hype), and every privacy claim must match [`docs/privacy-policy.md`](docs/privacy-policy.md).
 
 | Contract | What it decides |
@@ -186,7 +187,7 @@ silent. Two couplings apply to everything user-facing: copy may not out-run the 
 | [`settings.md`](docs/settings.md) | Which Settings categories exist, in which order, under which names, and what lives in each, so "Settings → Reading" is true on every platform. |
 | [`background-sync.md`](docs/background-sync.md) | The `run_background_sync` port: a bounded one-shot pass, the persisted per-account high-water-mark (inbound Inbox only, first-run seeded), and the notification content policy. |
 | [`sync-progress.md`](docs/sync-progress.md) | The two things a client may say about mail arriving. A pass the user **awaits** gets the bar, in its own row **below** the list; a pass nobody started gets a **hint** inside a status line the client already draws, never a row of its own, and reaches it only once it has actually committed mail. The same rule decides the **reading spinner**: a client draws it only when the core says an open has outlasted its threshold, never merely because no snapshot has arrived. |
-| [`onboarding.md`](docs/onboarding.md) | The first screen that adds a mail account: the Allodia-account recommendation, the sign-in line, the divider and the email-address field, **in that order**. Skipping is one action on that screen; a build with no registration loses items 1 to 3 **together**; the copy may not out-run the README matrix (phone and desktop, never web); the card claims the account list, never mail and never a password. |
+| [`onboarding.md`](docs/onboarding.md) | The first screen that adds a mail account: the Allodia-account recommendation, the sign-in line, the divider and the email-address field, **in that order**. Skipping is one action on that screen; a build with no registration loses items 1 to 3 **together**; the copy may not out-run the capability matrix (phone and desktop, never web); the card claims the account list, never mail and never a password. |
 | [`account-autodetect.md`](docs/account-autodetect.md) | The strategy set raced in priority order, plus two rules binding every platform: an **untrusted** (non-HTTPS) result needs explicit user approval before a credential is sent, and the **email address never appears in a URL**, only the domain. |
 | [`mcp.md`](docs/mcp.md) | Writes go through the same door the user does; reads must not be an `Intent`. Off by default, empty allow list, direct send its own toggle, the known-recipient guard, bodies only from `get_message`, no irreversible primitive. |
 | [`branding.md`](docs/branding.md) | The app's name and application id are **injected**, never written in a client: `branding/default.env` is the unbranded default and `branding/allodia.env` overrides it, so removing that one file un-brands every build. Everything named after the id (OAuth redirect schemes, keychain and app groups, the data directory) follows it. |
@@ -408,7 +409,7 @@ were broken right now, would this tell me?*
   mapping all read those. Adding a language:
   1. `messages/<loc>.json` and the locale in `project.inlang/settings.json`.
   2. A `ShowcaseLocale` variant plus `showcase_data/<loc>.rs` and `showcase_bodies/<loc>.rs` seeds.
-  3. The README capability matrix.
+  3. [`docs/capabilities.md`](docs/capabilities.md).
   4. Its store translation in the branded listing (`branding/<brand>-listing.md`) and a note in every
      **pending** changelog fragment (released notes are history).
   5. The three screenshot-capture lists, which are deliberately not catalog-driven (a locale is

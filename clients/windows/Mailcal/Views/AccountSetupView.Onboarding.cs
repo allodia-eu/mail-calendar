@@ -9,7 +9,7 @@
 //   * A build with no Allodia registration loses the card, the sign-in line AND the divider
 //     together. A lone "or connect directly" heading under nothing is the tell that the wrong thing
 //     was gated.
-//   * The copy may not out-run the README capability matrix: phone and computer, never web.
+//   * The copy may not out-run the capability matrix: phone and computer, never web.
 //   * The card claims the account LIST and nothing else, never the mail, never a password.
 //
 // Its own partial, like the JMAP sign-in beside it, so the code-behind stays clear of the 500-line

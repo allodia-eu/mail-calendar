@@ -47,7 +47,7 @@ section. Edit the shared body and it changes everywhere by construction.
 2. **Cover every store, in every catalog locale.** A change to what the app does that touches the
    copy updates **all three** stores and **every** catalog language, in the same change.
 3. **The copy may not out-run the matrix.** A capability appears in a store's listing only if the
-   README capability matrix marks it shipped (✅) for **that store's platform(s)**. A feature that is
+   capability matrix marks it shipped (✅) for **that store's platform(s)**. A feature that is
    🚧 or ⬜ on the store's platform is **left out**, never soft-promised: the brand's anti-hype rule
    is load-bearing here. This is the tie to the capability matrix in place of a matrix row: the
    listing is checked *against* it. A listing file records what it is holding back, and why, under
@@ -144,7 +144,7 @@ the untagged paragraph directly above, which is what lets the neutral default be
 bullets describe search, contacts, signatures, swipe actions, mail actions, threading, background
 delivery and invitations. **Meeting invitations are now ✅ on Linux**, and so are search and
 signatures, but contacts, threading, mail actions, swipe actions and background delivery are still
-🚧 or ⬜ in the README capability matrix, and the body is one block of copy reused verbatim. So the
+🚧 or ⬜ in the capability matrix, and the body is one block of copy reused verbatim. So the
 bullets stay out: a listing that claimed some of them and quietly carried the rest would be exactly
 the copy out-running the matrix that rule 3 forbids.
 
@@ -183,7 +183,7 @@ capability that changes what would be advertised:
 
 1. Edit the **shared body once**, in the resolved listing file; never inside a store console.
 2. Update **all three** stores and **every catalog locale** in the same change.
-3. Check the copy against the README capability matrix: a feature appears only where its store's
+3. Check the copy against the capability matrix: a feature appears only where its store's
    platform is ✅; anything else goes under that listing's "Deliberately left out".
 4. Keep every privacy claim consistent with [`privacy-policy.md`](privacy-policy.md).
 5. Run the length check before you push: `python3 scripts/ci/check_store_copy_length.py`. It is

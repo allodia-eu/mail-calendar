@@ -74,7 +74,7 @@ metainfo is generated, and stays public whatever brand is on the build. What res
 the answer.
 
 **The neutral default is deliberately thin.** English only, no per-store fields, and no capability
-claim: the anti-hype rule measures copy against the README matrix per platform, and an unbranded
+claim: the anti-hype rule measures copy against the capability matrix per platform, and an unbranded
 build's reach is nobody's to certify. It carries the two fields the Linux metainfo cannot be
 generated without, and the checker measures a per-store field only if the listing promises one.
 

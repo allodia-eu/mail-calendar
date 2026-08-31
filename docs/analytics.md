@@ -330,7 +330,7 @@ not after.
 
 This contract is binding via [`../AGENTS.md`](../AGENTS.md). When you change analytics:
 
-1. Update this document (the rule **and** the matrix) **and** the README capability matrix in the
+1. Update this document (the rule **and** the matrix) **and** the capability matrix in the
    same change.
 2. Keep the policy identical across every existing platform: opt-in, default off, unbundled,
    one-click withdrawal, the payload preview, and the never-send-content rule.

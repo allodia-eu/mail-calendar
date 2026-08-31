@@ -234,7 +234,7 @@ genuinely does not work.
    release assembles every pending fragment into one field, so a note's real budget is that cap
    divided by however many changes ship beside it. One sentence is the target, not the ceiling.
 4. **The note may not out-run the matrix: same anti-hype coupling as the listing.** A note
-   describes only capabilities the README capability matrix marks ✅ for the platform of the store it
+   describes only capabilities the capability matrix marks ✅ for the platform of the store it
    is pasted into. `Platforms:` is how you say that: tag the change with where it landed, and a
    platform that did not get it never sees the bullet. Where one body covers several platforms and
    one of them lacks a detail, scope that sentence in the text ("On Mac and Windows the calendar now
@@ -276,7 +276,7 @@ the one we are building. Every version listed here has a note; `check-version-sy
   because the tag triggers a Windows Store build. Mirrors the same gap in
   [`versioning.md`](versioning.md).
 - **Rule 4 is not machine-checked.** `Platforms:` makes "a note describes only what is ✅ on that
-  platform" *checkable* in principle, but parsing the README capability matrix is separate work.
+  platform" *checkable* in principle, but parsing the capability matrix is separate work.
   Until then it is a reviewer's duty, as it always was.
 - **The date is the day the release is cut**, not the day a store approves it. Nothing reads store
   review status, so a note dated the 5th may reach users on the 8th.
@@ -308,7 +308,7 @@ This contract is binding via [`../AGENTS.md`](../AGENTS.md). When you ship a use
    console, and never bump [`/VERSION`](../VERSION) yourself.
 2. Keep each note within the cap its platforms imply (Play's **500** whenever Android is one of
    them) so one body serves every store it goes to.
-3. Check the note against the README capability matrix (rule 4) and against
+3. Check the note against the capability matrix (rule 4) and against
    [`privacy-policy.md`](privacy-policy.md), the same two couplings as
    [`store-listing.md`](store-listing.md).
 

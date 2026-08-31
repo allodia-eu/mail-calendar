@@ -135,11 +135,11 @@ $Suite = @{
           'the card must say what the account DOES, not only offer one (docs/onboarding.md item ' +
           "1). Expected the subtitle: $CardSubtitle")
         $shown = $subtitle.Current.Name
-        # Rule 3: the copy may not out-run the README capability matrix, and there is no web
+        # Rule 3: the copy may not out-run the capability matrix, and there is no web
         # client. Rule 4: what travels is the account list, never the mail and never a password.
         Assert-True ($shown -notmatch '(?i)\bweb\b') (
           'there is no web client, so no card says "and web" in any locale, the copy may not ' +
-          "out-run the README capability matrix. The card says: $shown")
+          "out-run the capability matrix. The card says: $shown")
         Assert-True ($shown -match '(?i)mail accounts') (
           'the card claims the account LIST; a card claiming storage, backup or "your mail ' +
           'everywhere" describes something the product does not do. The card says: ' + $shown)

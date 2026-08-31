@@ -11,7 +11,7 @@ metadata generator reads. This file is only an answer to them.
 **It is deliberately English-only and deliberately short.** The generator requires English and
 treats every other locale as optional, falling back to the untagged paragraph, so a neutral build
 loses nothing by not translating copy nobody has reviewed. And it makes no capability claim at all:
-the anti-hype rule measures copy against the README capability matrix per platform, and an
+the anti-hype rule measures copy against the capability matrix per platform, and an
 unbranded build is not one whose reach anybody has checked.
 
 **It never names the app.** The name is injected ([`../docs/branding.md`](../docs/branding.md)) and

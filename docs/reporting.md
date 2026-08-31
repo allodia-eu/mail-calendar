@@ -67,7 +67,7 @@ leave it there. This is the path the debug fixtures and the showcase engine take
 
 - **Apple and Windows ship no spam affordance at all.** Both carry the catalog keys
   (`action_mark_as_spam` / `action_mark_as_not_spam`) and neither calls them, so the action a
-  user has on Android and Linux is simply absent there. The README matrix claimed otherwise until
+  user has on Android and Linux is simply absent there. The capability matrix claimed otherwise until
   this contract landed.
 - **No client offers a phishing verdict**, though three of the four transports have one. Adding it
   means a new intent, and each client's menu item gated on

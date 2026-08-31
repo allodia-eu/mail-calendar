@@ -203,7 +203,7 @@ When a change touches the free/paid boundary:
 
 1. It must satisfy all five promises. A change that moves an existing free feature behind a paywall
    is rejected outright, whatever it is called.
-2. This document, the README capability matrix, and the affected feature's contract doc are updated
+2. This document, the capability matrix, and the affected feature's contract doc are updated
    in the same change; user-visible changes write their changelog fragment.
 3. A new paid service documents its free counterpart in the table above and its sovereignty posture
    in its own doc before it ships.

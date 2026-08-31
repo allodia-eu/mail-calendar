@@ -620,7 +620,7 @@ from it (the refresh path: the token source always starts expired, so the first 
 necessarily refreshes). A forged callback was also rejected as a possible CSRF, which is the `state`
 row above proven rather than assumed. Two rows stay 🚧 there because this pass did not exercise
 them: **rotation** persistence (no server has rotated one yet) and the **re-consent prompt**. The
-Microsoft row in the README capability matrix likewise stays 🚧 for Windows, since it also covers
+Microsoft row in the capability matrix likewise stays 🚧 for Windows, since it also covers
 mail actions, send and calendar writes that were not touched. **Android is 🚧**: code-complete (it
 compiles via `assembleDebug`), pending a runtime sign-in. A new platform must meet every core-side
 gate above and register its own redirect.

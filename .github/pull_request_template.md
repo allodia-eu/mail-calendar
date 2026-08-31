@@ -22,7 +22,7 @@ different claims, and both beat "works".
 - [ ] Touches a surface one of AGENTS.md's cross-platform contracts covers → that doc's rule **and**
       its matrix are updated, and every platform shipping the surface moves in this change (a
       shortfall is written under **Known gaps**, not left silent)
-- [ ] A user-facing capability's reach shifted → the README capability matrix is updated
+- [ ] A user-facing capability's reach shifted → the capability matrix is updated
 - [ ] A user could notice this → `docs/changelog/unreleased/<slug>.md` in every catalog locale,
       with `Platforms:` and `Bump:`
 - [ ] Touches what the app stores, sends or shares → `docs/privacy-policy.md` is updated in every
