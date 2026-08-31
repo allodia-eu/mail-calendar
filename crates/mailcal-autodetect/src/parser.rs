@@ -1,0 +1,342 @@
+//! A streaming parser for the Mozilla autoconfig XML format (Thunderbird's
+//! `config-v1.1.xml` / ISPDB payload), reimplemented from the format's shape, not
+//! ported from Thunderbird's code.
+//!
+//! Strict by design: a document that offers no TLS-capable server, an unknown
+//! `socketType`, or no recognised authentication is an error, not a lenient partial
+//! parse: a malformed config must fold to "nothing found", never to a plaintext or
+//! half-formed account. Only `incomingServer type="imap"` and `outgoingServer
+//! type="smtp"` are read (POP3 is skipped); unknown elements; including the ISPDB's
+//! top-level `<oAuth2>` endpoint block, are skipped, because OAuth endpoints come from
+//! the app's own trusted table, never from a fetched file.
+
+use quick_xml::{Reader, escape::unescape, events::Event, name::QName};
+
+use crate::{
+    hostname::valid_host_or_ip,
+    types::{AuthKind, DetectedServer, EmailParts, SocketKind},
+};
+
+/// The servers parsed from one autoconfig document, each list in the document's
+/// preference order and guaranteed non-empty.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct ParsedServers {
+    /// The `imap` incoming servers.
+    pub incoming: Vec<DetectedServer>,
+    /// The `smtp` outgoing servers.
+    pub outgoing: Vec<DetectedServer>,
+}
+
+/// Why an autoconfig document could not be turned into usable settings. Each variant is
+/// a distinct, testable failure; the orchestrator treats them all as a clean miss.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub(crate) enum ParseError {
+    /// The bytes were not well-formed XML.
+    #[error("malformed autoconfig XML: {0}")]
+    Xml(String),
+    /// The root element was not `clientConfig`.
+    #[error("missing 'clientConfig' root element")]
+    MissingClientConfig,
+    /// There was no `emailProvider` element.
+    #[error("missing 'emailProvider' element")]
+    MissingEmailProvider,
+    /// The `emailProvider` had no `id` attribute.
+    #[error("missing 'emailProvider' id attribute")]
+    MissingProviderId,
+    /// The `emailProvider` `id` was not a valid hostname.
+    #[error("invalid 'emailProvider' id: {0:?}")]
+    InvalidProviderId(String),
+    /// No `domain` child validated as a hostname.
+    #[error("no valid 'domain' element")]
+    NoValidDomain,
+    /// A server block had no `hostname`.
+    #[error("server missing 'hostname'")]
+    MissingHostname,
+    /// A server's `hostname` was not a valid host or IP.
+    #[error("invalid server hostname: {0:?}")]
+    InvalidHostname(String),
+    /// A server's `port` was missing, non-numeric, zero, or over 65535.
+    #[error("missing or invalid server 'port'")]
+    InvalidPort,
+    /// A server block had no `username`.
+    #[error("server missing 'username'")]
+    MissingUsername,
+    /// A server's `socketType` was neither `SSL` nor `STARTTLS` (plaintext included).
+    #[error("unsupported 'socketType': {0:?}")]
+    InvalidSocketType(String),
+    /// A server offered no recognised `authentication` method.
+    #[error("no usable 'authentication' method")]
+    NoUsableAuth,
+    /// No supported (`imap`) incoming server was present.
+    #[error("no supported 'incomingServer'")]
+    NoIncomingServer,
+    /// No supported (`smtp`) outgoing server was present.
+    #[error("no supported 'outgoingServer'")]
+    NoOutgoingServer,
+}
+
+/// Parses `xml` against `email` (for placeholder substitution), returning the supported
+/// incoming/outgoing servers or the first validation error.
+pub(crate) fn parse_autoconfig(
+    xml: &[u8],
+    email: &EmailParts,
+) -> Result<ParsedServers, ParseError> {
+    let mut reader = Reader::from_reader(xml);
+    reader.config_mut().trim_text(true);
+    // The root element must be `clientConfig`; declarations/PIs/comments before it are
+    // fine, but the first *element* is decisive: a nested clientConfig doesn't count.
+    loop {
+        match read(&mut reader)? {
+            Event::Start(e) if local_name(&e.name()) == b"clientConfig" => {
+                return parse_client_config(&mut reader, email);
+            }
+            Event::Start(_) | Event::Empty(_) | Event::Eof => {
+                return Err(ParseError::MissingClientConfig);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Parses the children of `clientConfig`: requires an `emailProvider`, everything else
+/// (including a stray top-level `<oAuth2>`) is skipped.
+fn parse_client_config(
+    reader: &mut Reader<&[u8]>,
+    email: &EmailParts,
+) -> Result<ParsedServers, ParseError> {
+    loop {
+        match read(reader)? {
+            Event::Start(e) if local_name(&e.name()) == b"emailProvider" => {
+                let id = attribute(&e, b"id").ok_or(ParseError::MissingProviderId)?;
+                let id = substitute(&id, email);
+                if !valid_host_or_ip(&id) {
+                    return Err(ParseError::InvalidProviderId(id));
+                }
+                return parse_email_provider(reader, email);
+            }
+            Event::Eof => return Err(ParseError::MissingEmailProvider),
+            _ => {}
+        }
+    }
+}
+
+/// Parses an `emailProvider`: at least one valid `domain`, then the supported servers.
+fn parse_email_provider(
+    reader: &mut Reader<&[u8]>,
+    email: &EmailParts,
+) -> Result<ParsedServers, ParseError> {
+    let mut has_valid_domain = false;
+    let mut incoming = Vec::new();
+    let mut outgoing = Vec::new();
+
+    loop {
+        match read(reader)? {
+            Event::Start(e) => {
+                let name = local_name(&e.name());
+                match name.as_slice() {
+                    b"domain" => {
+                        let value = substitute(read_text(reader, &name)?.trim(), email);
+                        has_valid_domain |= valid_host_or_ip(&value);
+                    }
+                    b"incomingServer" => {
+                        if let Some(server) = parse_server(reader, &e, email, "imap", &name)? {
+                            incoming.push(server);
+                        }
+                    }
+                    b"outgoingServer" => {
+                        if let Some(server) = parse_server(reader, &e, email, "smtp", &name)? {
+                            outgoing.push(server);
+                        }
+                    }
+                    _ => skip(reader, &name)?,
+                }
+            }
+            Event::End(e) if local_name(&e.name()) == b"emailProvider" => break,
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+
+    if !has_valid_domain {
+        return Err(ParseError::NoValidDomain);
+    }
+    if incoming.is_empty() {
+        return Err(ParseError::NoIncomingServer);
+    }
+    if outgoing.is_empty() {
+        return Err(ParseError::NoOutgoingServer);
+    }
+    Ok(ParsedServers { incoming, outgoing })
+}
+
+/// Parses one `incomingServer`/`outgoingServer`. Returns `None` (consuming the element)
+/// when its `type` is not `wanted_type`: the POP3 skip. `tag` is the element's local
+/// name, used to find its closing tag.
+fn parse_server(
+    reader: &mut Reader<&[u8]>,
+    start: &quick_xml::events::BytesStart<'_>,
+    email: &EmailParts,
+    wanted_type: &str,
+    tag: &[u8],
+) -> Result<Option<DetectedServer>, ParseError> {
+    if attribute(start, b"type").as_deref() != Some(wanted_type) {
+        skip(reader, tag)?;
+        return Ok(None);
+    }
+
+    let mut hostname = None;
+    let mut port_text = None;
+    let mut socket = None;
+    let mut username = None;
+    let mut auth = Vec::new();
+
+    loop {
+        match read(reader)? {
+            Event::Start(e) => {
+                let child = local_name(&e.name());
+                match child.as_slice() {
+                    b"hostname" => {
+                        hostname = Some(substitute(read_text(reader, &child)?.trim(), email));
+                    }
+                    b"port" => port_text = Some(read_text(reader, &child)?.trim().to_owned()),
+                    b"socketType" => socket = Some(read_text(reader, &child)?.trim().to_owned()),
+                    b"username" => {
+                        username = Some(substitute(read_text(reader, &child)?.trim(), email));
+                    }
+                    b"authentication" => {
+                        if let Some(kind) = parse_auth(read_text(reader, &child)?.trim()) {
+                            auth.push(kind);
+                        }
+                    }
+                    _ => skip(reader, &child)?,
+                }
+            }
+            Event::End(e) if local_name(&e.name()) == tag => break,
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+
+    let hostname = hostname
+        .filter(|h| !h.is_empty())
+        .ok_or(ParseError::MissingHostname)?;
+    if !valid_host_or_ip(&hostname) {
+        return Err(ParseError::InvalidHostname(hostname));
+    }
+    let port = parse_port(port_text.as_deref())?;
+    let socket = parse_socket(socket.as_deref())?;
+    let username = username
+        .filter(|u| !u.is_empty())
+        .ok_or(ParseError::MissingUsername)?;
+    if auth.is_empty() {
+        return Err(ParseError::NoUsableAuth);
+    }
+
+    Ok(Some(DetectedServer {
+        hostname,
+        port,
+        socket,
+        auth,
+        username,
+    }))
+}
+
+/// Parses a port string to a `1..=65535` value.
+fn parse_port(text: Option<&str>) -> Result<u16, ParseError> {
+    match text.and_then(|t| t.parse::<u16>().ok()) {
+        Some(port) if port != 0 => Ok(port),
+        _ => Err(ParseError::InvalidPort),
+    }
+}
+
+/// Maps a `socketType` string to a [`SocketKind`]; anything else (including `plain`) is
+/// a hard error, autodetect never yields a plaintext config.
+fn parse_socket(text: Option<&str>) -> Result<SocketKind, ParseError> {
+    match text {
+        Some("SSL") => Ok(SocketKind::Tls),
+        Some("STARTTLS") => Ok(SocketKind::StartTls),
+        other => Err(ParseError::InvalidSocketType(
+            other.unwrap_or("").to_owned(),
+        )),
+    }
+}
+
+/// Maps an `authentication` string to an [`AuthKind`], or `None` for an unrecognized
+/// value (skipped, as long as at least one recognised value remains).
+fn parse_auth(text: &str) -> Option<AuthKind> {
+    match text {
+        "OAuth2" => Some(AuthKind::OAuth2),
+        "password-cleartext" => Some(AuthKind::PasswordCleartext),
+        "password-encrypted" => Some(AuthKind::PasswordEncrypted),
+        _ => None,
+    }
+}
+
+/// Substitutes the autoconfig placeholders in `value`.
+fn substitute(value: &str, email: &EmailParts) -> String {
+    value
+        .replace("%EMAILADDRESS%", &email.full)
+        .replace("%EMAILLOCALPART%", &email.local)
+        .replace("%EMAILDOMAIN%", email.domain.as_str())
+}
+
+/// Reads the text content of the element named `name` up to its closing tag,
+/// concatenating text nodes and ignoring any nested markup.
+fn read_text(reader: &mut Reader<&[u8]>, name: &[u8]) -> Result<String, ParseError> {
+    let mut text = String::new();
+    loop {
+        match read(reader)? {
+            Event::Text(bytes) => {
+                let decoded = bytes.decode().map_err(|e| ParseError::Xml(e.to_string()))?;
+                let chunk = unescape(&decoded).map_err(|e| ParseError::Xml(e.to_string()))?;
+                text.push_str(&chunk);
+            }
+            // A custom DTD entity surfaces as a general reference; unescaping an unknown
+            // one errors: so a "billion laughs" document is rejected, never expanded.
+            Event::GeneralRef(bytes) => {
+                let decoded = bytes.decode().map_err(|e| ParseError::Xml(e.to_string()))?;
+                let reference = format!("&{decoded};");
+                let chunk = unescape(&reference).map_err(|e| ParseError::Xml(e.to_string()))?;
+                text.push_str(&chunk);
+            }
+            Event::Start(e) => skip(reader, &local_name(&e.name()))?,
+            Event::End(e) if local_name(&e.name()) == name => break,
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    Ok(text)
+}
+
+/// Skips to the closing tag of the currently-open element named `name`.
+fn skip(reader: &mut Reader<&[u8]>, name: &[u8]) -> Result<(), ParseError> {
+    reader
+        .read_to_end(QName(name))
+        .map(|_| ())
+        .map_err(|e| ParseError::Xml(e.to_string()))
+}
+
+/// Reads one event, mapping a quick-xml error into [`ParseError::Xml`].
+fn read<'a>(reader: &mut Reader<&'a [u8]>) -> Result<Event<'a>, ParseError> {
+    reader
+        .read_event()
+        .map_err(|e| ParseError::Xml(e.to_string()))
+}
+
+/// The local name (after any `prefix:`) of a qualified element name.
+fn local_name(name: &QName<'_>) -> Vec<u8> {
+    name.local_name().as_ref().to_vec()
+}
+
+/// The value of `start`'s attribute named `key`, if present and UTF-8.
+fn attribute(start: &quick_xml::events::BytesStart<'_>, key: &[u8]) -> Option<String> {
+    start.attributes().flatten().find_map(|attr| {
+        (attr.key.as_ref() == key)
+            .then(|| String::from_utf8(attr.value.into_owned()).ok())
+            .flatten()
+    })
+}
+
+#[cfg(test)]
+#[path = "parser_tests.rs"]
+mod parser_tests;

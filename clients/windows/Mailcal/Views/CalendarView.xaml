@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Allodia.Mailcal.Views.CalendarView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Allodia.Mailcal.ViewModels"
+    xmlns:views="using:Allodia.Mailcal.Views"
+    xmlns:l10n="using:Allodia.Mailcal">
+
+    <UserControl.Resources>
+        <views:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header: the period on screen, month paging, "back to today", the calendar manager, the
+             zoom/shape menu, and new event.
+             The period title is written by the GRID, from the days actually visible, at the day zoom
+             the user is looking at one column, and naming the month of a Sunday they cannot see is a
+             small lie that reads as a bug. The month grid writes it too, from its anchor month. -->
+        <StackPanel Grid.Row="0">
+            <!-- A Microsoft account connected before calendar support (or with revoked consent)
+                 syncs no calendar until it re-authenticates, prompt here, where its absence is felt.
+                 Mail is unaffected, so it is a Warning info bar, not an error; "Reconnect" re-runs the
+                 account's sign-in, upgrading its token in place with the calendar scope. -->
+            <!-- Visibility as well as IsOpen: a closed InfoBar stays visible at zero size, so its
+                 top margin would still push the toolbar down (MainWindow.xaml carries the note). -->
+            <InfoBar Margin="12,12,12,0"
+                     IsOpen="{x:Bind Model.HasCalendarReauth, Mode=OneWay}"
+                     Visibility="{x:Bind Model.HasCalendarReauth, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                     IsClosable="False"
+                     Severity="Warning"
+                     AutomationProperties.AutomationId="CalendarReauthBanner"
+                     Message="{x:Bind Model.CalendarReauthText, Mode=OneWay}">
+                <InfoBar.Content>
+                    <Button Content="{x:Bind l10n:L10n.CalendarReauthAction()}"
+                            Margin="0,8,0,12"
+                            AutomationProperties.AutomationId="CalendarReauthAction"
+                            Click="OnCalendarReauth" />
+                </InfoBar.Content>
+            </InfoBar>
+        <Grid Padding="16,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Grid.Resources>
+                <!-- One height for every control in this bar.
+
+                     A WinUI button sizes itself to its CONTENT and then centres itself, and its default
+                     style pins VerticalAlignment to Center, so a button holding a 12px glyph comes out
+                     shorter than one holding a line of text, and no amount of stretching by the parent
+                     will even it up. Measured, before this: the chevrons were 25px and the calendar-
+                     manager icon 27px while "Today", "View" and "New Event" were all 32px, each one
+                     floating in the middle of its own slack. The bar read as ragged, because it was.
+
+                     32px is WinUI's standard control height, which is what the text buttons had already
+                     arrived at on their own. Stretch as well as MinHeight, so the row stays even if
+                     anything in it ever grows. -->
+                <Style x:Key="HeaderButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                    <Setter Property="MinHeight" Value="32" />
+                    <Setter Property="VerticalAlignment" Value="Stretch" />
+                </Style>
+                <Style x:Key="HeaderAccentButton" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                    <Setter Property="MinHeight" Value="32" />
+                    <Setter Property="VerticalAlignment" Value="Stretch" />
+                </Style>
+                <Style x:Key="HeaderDropDown" TargetType="DropDownButton">
+                    <Setter Property="MinHeight" Value="32" />
+                    <Setter Property="VerticalAlignment" Value="Stretch" />
+                </Style>
+            </Grid.Resources>
+
+            <TextBlock x:Name="PeriodText" Grid.Column="0" VerticalAlignment="Center"
+                       AutomationProperties.AutomationId="CalendarPeriod"
+                       Style="{StaticResource SubtitleTextBlockStyle}" />
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <!-- The result of the user's last create/edit/delete: a spinner while it settles, a
+                     check when saved, a tap-to-retry warning when it could not be confirmed. The retry
+                     is OnRefresh, a full sync reconciles the local view (see CalendarWriteStatus);
+                     the warning means "couldn't confirm", not "rejected". Each child toggles its own
+                     Visibility, so at Idle the cluster takes no space. -->
+                <ProgressRing IsActive="True" Width="16" Height="16" VerticalAlignment="Center"
+                              Visibility="{x:Bind Model.CalendarWriteBusyVisibility, Mode=OneWay}"
+                              AutomationProperties.Name="{x:Bind Model.CalendarWriteStatusText, Mode=OneWay}" />
+                <FontIcon Glyph="&#xE73E;" FontSize="14" VerticalAlignment="Center"
+                          Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                          Visibility="{x:Bind Model.CalendarWriteSavedVisibility, Mode=OneWay}"
+                          ToolTipService.ToolTip="{x:Bind Model.CalendarWriteStatusText, Mode=OneWay}"
+                          AutomationProperties.Name="{x:Bind Model.CalendarWriteStatusText, Mode=OneWay}" />
+                <Button Style="{StaticResource HeaderButton}" Click="OnRefresh"
+                        Visibility="{x:Bind Model.CalendarWriteWarningVisibility, Mode=OneWay}"
+                        AutomationProperties.AutomationId="CalendarWriteWarning"
+                        AutomationProperties.Name="{x:Bind Model.CalendarWriteStatusText, Mode=OneWay}"
+                        ToolTipService.ToolTip="{x:Bind Model.CalendarWriteStatusText, Mode=OneWay}">
+                    <FontIcon Glyph="&#xE7BA;" FontSize="14"
+                              Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                </Button>
+
+                <!-- < Today >. The only way to reach next week on a mouse with no horizontal wheel,
+                     which is most of them, and the calm way to do it on any device.
+
+                     "Today" is ALWAYS shown, and that is the whole reason the three are one cluster.
+                     It used to appear only when it would actually move you, which meant it winked in
+                     and out as you scrolled past today's week, taking 90px of the header with it and
+                     shunting the chevrons sideways under the very cursor that was aiming at them. A
+                     navigation control that moves while you navigate is not a navigation control.
+
+                     The chevrons step by the VISIBLE SPAN (a day in the day zoom, three in the 3-day,
+                     a week in the work-week and week zooms, a month in the month), so a click never
+                     skips a day the user could not see. Their spoken names follow the zoom; the code-
+                     behind sets them, because XAML cannot. -->
+                <StackPanel x:Name="NavCluster" Orientation="Horizontal" Spacing="2">
+                    <Button x:Name="PrevButton" Click="OnPrevPeriod"
+                            Style="{StaticResource HeaderButton}"
+                            AutomationProperties.AutomationId="CalendarPrev">
+                        <FontIcon Glyph="&#xE76B;" FontSize="12" />
+                    </Button>
+                    <Button x:Name="TodayButton" Click="OnBackToToday"
+                            Style="{StaticResource HeaderButton}"
+                            AutomationProperties.AutomationId="CalendarToday"
+                            ToolTipService.ToolTip="{x:Bind l10n:L10n.CalendarBackToToday()}"
+                            Content="{x:Bind l10n:L10n.CalendarToday()}" />
+                    <Button x:Name="NextButton" Click="OnNextPeriod"
+                            Style="{StaticResource HeaderButton}"
+                            AutomationProperties.AutomationId="CalendarNext">
+                        <FontIcon Glyph="&#xE76C;" FontSize="12" />
+                    </Button>
+                </StackPanel>
+
+                <Button x:Name="ManageButton" Click="OnManageCalendars"
+                        Style="{StaticResource HeaderButton}"
+                        AutomationProperties.AutomationId="CalendarManage"
+                        AutomationProperties.Name="{x:Bind l10n:L10n.CalendarManage()}"
+                        ToolTipService.ToolTip="{x:Bind l10n:L10n.CalendarManage()}">
+                    <FontIcon Glyph="&#xE8FD;" FontSize="14" />
+                </Button>
+
+                <DropDownButton x:Name="ViewButton"
+                                Style="{StaticResource HeaderDropDown}"
+                                AutomationProperties.AutomationId="CalendarViewMenu"
+                                Content="{x:Bind l10n:L10n.CalendarViewLabel()}">
+                    <DropDownButton.Flyout>
+                        <!-- Ids as well as labels: the zoom levels are the one place a test has to
+                             name a view, and the app's language on a dev run is the developer's own
+                             preference (docs/calendar.md §2). -->
+                        <MenuFlyout Placement="Bottom">
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewDay()}" Tag="day" Click="OnPickView"
+                                            AutomationProperties.AutomationId="CalendarViewDay" />
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewThreeDay()}" Tag="three" Click="OnPickView"
+                                            AutomationProperties.AutomationId="CalendarViewThreeDay" />
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewWorkWeek()}" Tag="work" Click="OnPickView"
+                                            AutomationProperties.AutomationId="CalendarViewWorkWeek" />
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewWeek()}" Tag="week" Click="OnPickView"
+                                            AutomationProperties.AutomationId="CalendarViewWeek" />
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewMonth()}" Tag="month" Click="OnPickView"
+                                            AutomationProperties.AutomationId="CalendarViewMonth" />
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewAgenda()}" Tag="agenda" Click="OnPickView"
+                                            AutomationProperties.AutomationId="CalendarViewAgenda" />
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+
+                <!-- Disabled (never hidden, the header keeps its shape) while no calendar accepts
+                     writes: read-only accounts everywhere, or nothing synced yet. -->
+                <Button Style="{StaticResource HeaderAccentButton}" Click="OnNewEvent"
+                        IsEnabled="{x:Bind Model.NewEventEnabled, Mode=OneWay}"
+                        AutomationProperties.AutomationId="CalendarNewEvent">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE787;" FontSize="14" />
+                        <TextBlock Text="{x:Bind l10n:L10n.ActionNewEvent()}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+        </StackPanel>
+
+        <!-- The drawn time grid. Added from code-behind (CalendarSurface is internal, and the XAML
+             compiler wants public types in markup). It is a single Win2D canvas with a single pointer
+             owner, deliberately NOT a ScrollViewer wrapping anything, because on Windows the
+             touchpad's two-finger pan arrives as a WHEEL and a ScrollViewer would quietly take it,
+             which is docs/calendar.md §6's four-handlers-one-finger bug in a Windows hat. -->
+        <Grid x:Name="GridHost" Grid.Row="1" />
+
+        <!-- The month grid. A DIFFERENT layout, not the time grid with more columns (§2), so it is a
+             separate composed surface, added from code-behind (MonthGridView is internal). It has no
+             pinch and no fling, so composition is the right tool; the per-frame budget §7 guards is a
+             property of the time grid's motion, which the month has none of. Paged by the header
+             chevrons, not by a swipe. -->
+        <Grid x:Name="MonthHost" Grid.Row="1" Visibility="Collapsed" Padding="8,0,8,4" />
+
+        <!-- The agenda, one zoom level out of the grid's world: a flat list, no geometry. -->
+        <ListView x:Name="AgendaList" Grid.Row="1" Visibility="Collapsed"
+                  AutomationProperties.AutomationId="CalendarAgenda"
+                  ItemsSource="{x:Bind Model.Events}" SelectionMode="None"
+                  IsItemClickEnabled="True" ItemClick="OnAgendaEventClick" Padding="12,0,12,0">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="vm:EventItem">
+                    <Grid Padding="4,6" ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.ContextFlyout>
+                            <MenuFlyout>
+                                <!-- Hidden (not disabled) on a read-only row, per the cross-client
+                                     write-gating policy, the flag on this exact record decides. -->
+                                <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionDeleteEvent()}" Tag="{x:Bind}" Click="OnDeleteEvent"
+                                                Visibility="{x:Bind DeleteVisibility}" />
+                            </MenuFlyout>
+                        </Grid.ContextFlyout>
+                        <FontIcon Grid.Column="0" Width="22" Glyph="&#xE787;" FontSize="16"
+                                  VerticalAlignment="Center"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind Title}"
+                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            <!-- A list row has nothing to dash or hatch, so an unanswered invitation
+                                 says so in words instead (docs/invitations.md). Collapsed, not blank,
+                                 on an ordinary commitment. -->
+                            <TextBlock Text="{x:Bind AwaitingText}" Visibility="{x:Bind AwaitingVisibility}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{x:Bind StartText}" VerticalAlignment="Center"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button Grid.Column="3" Tag="{x:Bind}" Click="OnDeleteEvent"
+                                Visibility="{x:Bind DeleteVisibility}"
+                                Background="Transparent" BorderThickness="0" Padding="6"
+                                ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionDeleteEvent()}">
+                            <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                        </Button>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <!-- Footer: refresh. -->
+        <Grid Grid.Row="2" Padding="16,10">
+            <Button HorizontalAlignment="Right" Content="{x:Bind l10n:L10n.ActionRefresh()}" Click="OnRefresh" />
+        </Grid>
+    </Grid>
+</UserControl>

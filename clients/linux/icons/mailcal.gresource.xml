@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The glyphs the reading toolbar and folder pane draw. Bundled rather than named out of the
+     icon theme so they look the same on every distribution: a theme can only replace an icon name
+     it ships, and none ships these. Adwaita; the theme the GNOME runtime this app is packaged
+     against provides; has no inbox and no archive glyph at all, and a name it does not ship
+     draws the broken-image icon. The role icons it does ship (document-edit, mail-send,
+     mail-mark-junk, user-trash, folder) stay themed, so the pane still looks like it belongs. -->
+<gresources>
+  <gresource prefix="/mailcal/icons">
+    <file preprocess="xml-stripblanks">scalable/actions/mailcal-archive-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">scalable/actions/mailcal-inbox-symbolic.svg</file>
+  </gresource>
+</gresources>

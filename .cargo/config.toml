@@ -1,0 +1,69 @@
+# Cargo settings that must hold for EVERY build of this workspace — not only the ones the client
+# build scripts drive. This file is tracked; see the engine-override note at the bottom.
+
+# ---------------------------------------------------------------------------------------------
+# Windows: link the C runtime statically.
+#
+# Rust's *-pc-windows-msvc targets link the CRT dynamically by default, so mailcal_bindings.dll
+# imports VCRUNTIME140.dll. That file ships in the Visual C++ Redistributable, not in Windows.
+# Visual Studio installs it, so every dev box has it and a clean machine does not — and nothing in
+# our MSIX package graph supplies it either: we depend only on Microsoft.WindowsAppRuntime.2, and
+# that framework package declares no dependencies of its own, so Microsoft.VCLibs.140.00.UWPDesktop
+# (which does carry vcruntime140.dll) is never pulled in. Microsoft links Microsoft.UI.Xaml.dll's
+# own CRT statically for exactly this reason.
+#
+# On a clean machine LoadLibrary therefore fails with ERROR_MOD_NOT_FOUND, the first P/Invoke throws
+# DllNotFoundException inside App.OnLaunched, and WinUI fail-fasts with 0xc000027b
+# (STATUS_STOWED_EXCEPTION). That is how 1.0.0.0 failed Microsoft Store certification, on a machine
+# indistinguishable from a customer's.
+#
+# Scoped to the two MSVC triples ON PURPOSE. `+crt-static` means something different — and wrong —
+# for the Apple and Android targets, which link libc dynamically by contract.
+#
+# `cc` reads crt-static back out of the target features, so libsqlite3-sys and ring compile with
+# /MT and the C dependencies stay consistent with the Rust side.
+#
+# CAVEAT, and the reason clients/windows/rust-crt.ps1 still asserts on the built artifact: a
+# RUSTFLAGS environment variable SUPPRESSES target.*.rustflags outright (Cargo precedence), silently
+# undoing everything below. The assert turns that into a loud build failure rather than a broken
+# Store upload.
+# ---------------------------------------------------------------------------------------------
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+# ---------------------------------------------------------------------------------------------
+# Engine path override (simultaneous engine + core development).
+#
+# This file used to be gitignored and used for that override. It is tracked now, so put the
+# override OUTSIDE the repo: Cargo merges config from every ancestor directory, so create
+# `<the directory holding this checkout>/.cargo/config.toml` containing
+#
+#     [patch."https://github.com/allodia-eu/email-calendar-sync-engine"]
+#     engine-api = { path = "email-calendar-sync-engine/crates/engine-api" }
+#     engine-core = { path = "email-calendar-sync-engine/crates/engine-core" }
+#     engine-provider = { path = "email-calendar-sync-engine/crates/engine-provider" }
+#     engine-tls = { path = "email-calendar-sync-engine/crates/engine-tls" }
+#     provider-imap = { path = "email-calendar-sync-engine/crates/provider-imap" }
+#     provider-caldav = { path = "email-calendar-sync-engine/crates/provider-caldav" }
+#     provider-graph = { path = "email-calendar-sync-engine/crates/provider-graph" }
+#     provider-jmap = { path = "email-calendar-sync-engine/crates/provider-jmap" }
+#
+# The paths resolve relative to the directory holding the config file that declares them, so
+# those entries point at an engine checkout sitting next to this one. Delete the file to go back
+# to the git-pinned engine commit in Cargo.toml. ($CARGO_HOME/config.toml works too, but applies
+# to every workspace on the machine.)
+#
+# Use `[patch]`, NOT the older `paths = ["email-calendar-sync-engine"]` form this comment used to
+# recommend: a `paths` override may not change a crate's dependency list, so it breaks with a
+# confusing resolver conflict the moment the local engine's dependencies differ from the pinned
+# commit's — exactly the situation simultaneous development creates. Cargo warns `paths` will
+# become a hard error; `[patch]` handles it correctly.
+#
+# If you already have a gitignored `.cargo/config.toml` from before this change, move your
+# override up one directory as above and delete the file, or `git checkout` will refuse to
+# overwrite it.
+# ---------------------------------------------------------------------------------------------

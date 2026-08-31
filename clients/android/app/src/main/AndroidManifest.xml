@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The Rust core connects to the account's IMAP/SMTP/CalDAV endpoints over TLS. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Observe network reachability (default-network callback) to drive the offline banner
+         and feed the core's ReportNetworkReachable signal. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Post new-mail notifications from the background sync worker (docs/background-sync.md).
+         Runtime-requested on Android 13+; the worker silently skips posting if not granted. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Ask the user to exempt us from Doze's app-standby deferral, so the ~15-minute background
+         sync actually runs at ~15 minutes rather than whenever the OS next feels like it
+         (docs/background-sync.md). User-granted via a system dialog, never automatic, and
+         revocable in Settings; the sync degrades to best-effort if refused, it does not break.
+         Play Store note: this permission has a restricted acceptable-use list, keeping mail
+         delivered in the background is the app's core function, which is the basis we declare. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:name=".MailcalApplication"
+        android:allowBackup="true"
+        android:label="${appName}"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+        android:icon="@mipmap/allodia_mailcal_icon">
+
+        <!-- singleTask so the Microsoft OAuth redirect (below) is delivered to the existing
+             activity via onNewIntent rather than spawning a second instance. -->
+        <!-- Handle configuration changes in-place (Compose recomposes off the new
+             Configuration) instead of letting Android destroy + recreate the Activity, which
+             would re-run the whole account connect and flash "Connecting to your account…" on
+             every rotation / dark-mode / font-scale change. `locale` is deliberately absent, so
+             a language change still recreates and fully re-localizes (AppCompat per-app locale). -->
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|navigation|uiMode|density|fontScale"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Mail links. Two actions, one filter, because the OS uses each for a different
+                 half of the same job: ACTION_VIEW is a tapped `mailto:` link in a browser or
+                 document, and ACTION_SENDTO with a `mailto:` URI is how every other app (and
+                 the system's "send email" chooser) asks for a mail client, registering only
+                 VIEW makes the app open links but never appear in the chooser.
+
+                 BROWSABLE is what lets a web page reach us at all. The URI is parsed by the
+                 shared core, which honours only To/Cc/Bcc/Subject/Body and drops every other
+                 header a link may name (docs/composer-security.md, Gate 12), so this filter
+                 exposes a pre-filled composer, never a send. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mailto" />
+            </intent-filter>
+            <!-- The Microsoft OAuth redirect (MSAL Android format: msauth://<package>/<hash>),
+                 which the activity captures and hands back to the core. Must match the redirect
+                 registered in the Azure app; android:path uses the *decoded* signature hash
+                 (the raw '+' and '=', not their %2B/%3D percent-encoding). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="msauth"
+                      android:host="${applicationId}"
+                      android:path="/VzSiQcXRmi2kyjzcA+mYLEtbGVs=" />
+            </intent-filter>
+            <!-- The Google OAuth redirect (reversed-client-id custom scheme:
+                 com.googleusercontent.apps.<CLIENT_ID_SUFFIX>:/oauth2redirect), which the activity
+                 captures and hands back to the core. The reversed client id is globally unique, so
+                 the scheme alone scopes the redirect to us (onNewIntent dispatches by scheme).
+                 The scheme is filled in by the googleRedirectScheme placeholder in
+                 build.gradle.kts, which derives it from the same injected client id the core is
+                 built with, so this filter and the URI the browser is sent to cannot drift. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${googleRedirectScheme}" />
+            </intent-filter>
+            <!-- The JMAP OAuth redirect. Unlike Microsoft and Google there is no provider-issued
+                 scheme to key on, a JMAP server is discovered at runtime, not integrated at build
+                 time, so we use our own app scheme and a dedicated host. This exact URI is what
+                 the core sends as `redirect_uri` when it dynamically registers the client
+                 (RFC 7591), so it MUST equal JmapOAuthConfig.REDIRECT_URI character for
+                 character; a mismatch is rejected by the server as redirect_uri_mismatch. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${applicationId}"
+                      android:host="jmap-oauth" />
+            </intent-filter>
+            <!-- The Allodia account OAuth redirect. Same application-id scheme as the JMAP filter
+                 above, under its own host: `onNewIntent` dispatches by scheme AND host, because a
+                 redirect handed to the wrong flow fails by never coming back rather than by
+                 erroring. This exact URI is registered with the account service, so it MUST equal
+                 AllodiaOAuthConfig.REDIRECT_URI character for character.
+
+                 A build carrying no Allodia registration never offers the sign-in, so this filter
+                 is dead there, the same shape as the Google one above. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${applicationId}"
+                      android:host="account-oauth" />
+            </intent-filter>
+        </activity>
+
+        <!-- Grants a one-shot, read-only content URI to the OS default handler when the user
+             opens a saved attachment, so the file is scanned/opened by the OS (never rendered
+             in-app). Bytes stay app-private (cache) until an explicit open. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- AppCompat's per-app language store: with autoStoreLocales the chosen locale
+             (AppCompatDelegate.setApplicationLocales) is mirrored to the Android 13+ system
+             per-app language so the two stay in sync. -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data android:name="autoStoreLocales" android:value="true" />
+        </service>
+    </application>
+
+</manifest>

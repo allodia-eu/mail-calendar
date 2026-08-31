@@ -1,0 +1,30 @@
+[package]
+name = "mailcal-telemetry"
+description = "The HTTPS delivery adapter for consented product analytics: implements `mailcal_app::TelemetrySink` over reqwest + the shared engine-tls policy. Fire-and-forget, bounded, and a silent no-op when the endpoint is unreachable: an air-gapped deployment must run identically."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+# The port this crate implements, and the `Batch` wire type it serializes.
+mailcal-app = { workspace = true }
+# The one host-selected TLS policy, shared with IMAP/CalDAV/JMAP/Graph and OAuth. `reqwest` is
+# kept off its default TLS path workspace-wide, so an HTTPS client is built from engine-tls's
+# preconfigured rustls config; exactly as `mailcal-oauth` does.
+engine-tls = { workspace = true, features = ["reqwest"] }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+# The delivery worker is a detached task on the app's runtime: telemetry must never block a
+# dispatch, a sync, or boot.
+tokio = { workspace = true, features = ["rt", "sync"] }
+# Diagnostics only: the counts and outcomes of delivery, never a payload.
+log = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+
+[lints]
+workspace = true

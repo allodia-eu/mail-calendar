@@ -1,0 +1,63 @@
+# Machine-readable licensing for the whole repository, per the REUSE specification
+# (https://reuse.software/spec/). It says once, for every file at once, what LICENSE and
+# the README say in prose: this is the application, and the application is GPL-3.0-only.
+# No source file carries a licence header.
+#
+# The blanket below matches every path, so `reuse lint` can never report an uncovered file. What
+# it does catch is the case the blanket must not swallow, and all three are vendoring mistakes:
+# a file carrying its own SPDX header fails until that licence's text is in LICENSES/; a
+# misspelled or deprecated identifier fails the same way; and a text left in LICENSES/ after the
+# code that needed it is gone fails as unused. Run in CI and in scripts/dev/gate.sh.
+#
+# `GPL-3.0-only`, not `-or-later`: docs/pledge.md pledges GPL-3.0, and `-or-later` would grant
+# terms under a licence nobody has read yet.
+#
+# precedence = "closest" is the default and the one to keep: a licence header inside a file wins
+# over the blanket statement below. That is what keeps vendored third-party code labelled with
+# its own licence instead of being silently relabelled GPL. "override" would do the relabelling.
+
+version = 1
+
+SPDX-PackageName = "mail-calendar"
+SPDX-PackageSupplier = "Dennis Ameling (Allodia) <info@allodia.eu>"
+SPDX-PackageDownloadLocation = "https://github.com/allodia-eu/mail-calendar"
+
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Dennis Ameling (Allodia)"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+# --- The one directory that is not the application ----------------------------------------------
+# `allodia_license/` holds the client surfaces for capabilities that only exist because Allodia
+# runs a service behind them. It is source-available, not GPL, and the open tree builds without it
+# — scripts/ci/check-license-dir.sh is what proves the second half.
+
+[[annotations]]
+path = "allodia_license/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Dennis Ameling (Allodia)"
+SPDX-License-Identifier = "LicenseRef-Allodia-1.0"
+
+# --- Vendored third-party ----------------------------------------------------------------------
+# Upstream files kept verbatim, under their own licences. `gradlew` and `gradlew.bat` carry an
+# Apache-2.0 header of their own and would resolve correctly without this; the wrapper jar and
+# properties file cannot carry one, so all four are named together rather than leaving the pair
+# that matters to a rule a reader has to reconstruct.
+
+[[annotations]]
+path = [
+  "clients/android/gradlew",
+  "clients/android/gradlew.bat",
+  "clients/android/gradle/wrapper/**",
+]
+precedence = "closest"
+SPDX-FileCopyrightText = "2015 the original authors (Gradle)"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "CODE_OF_CONDUCT.md"
+precedence = "closest"
+SPDX-FileCopyrightText = "Coraline Ada Ehmke and the Contributor Covenant contributors"
+SPDX-License-Identifier = "CC-BY-4.0"
+

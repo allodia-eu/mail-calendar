@@ -1,0 +1,33 @@
+# Keeps an IDE's AI codebase indexer out of build output and the clients it is not looking at.
+#
+# Android Studio opens `clients/android` as the project, but Gemini's RAG crawler walks the whole
+# checkout regardless — and "Mark Directory as Excluded" does NOT stop it (that writes
+# `CidrRootsConfiguration/excludeRoots`, which only the native/CIDR roots read). This file is the
+# control that actually applies. Syntax is .gitignore's.
+#
+# The episode that produced it: `clients/apple/Scripts/package.sh` staged a .dmg containing a
+# symlink to the real /Applications and left it behind. The crawler followed it and indexed every
+# installed app, Xcode's SDK included — 1,567,345 files scanned against a 176k-file repo, with the
+# IDE unusable throughout. package.sh now removes its staging dir; this is the second line.
+
+# Build output — large, generated, and worthless as context.
+target/
+clients/apple/build/
+clients/apple/Packages/MailcalKit/.build/
+clients/android/app/build/
+clients/android/build/
+clients/windows/**/bin/
+clients/windows/**/obj/
+
+# Sibling clients: real source, but not what an Android session is working on. Delete the line for
+# whichever client you are actually in.
+clients/apple/
+clients/linux/
+clients/windows/
+
+# Agent scratch space. `.claude/worktrees/email-calendar-sync-engine` is a symlink to the engine
+# checkout, so leaving this in drags a second repo into the index.
+.claude/
+
+# Captured artifacts — hundreds of PNGs, no text to index.
+showcase-screenshots/

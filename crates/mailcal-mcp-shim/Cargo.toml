@@ -1,0 +1,45 @@
+[package]
+name = "mailcal-mcp-shim"
+description = "allodia-mcp: the tiny stdio<->socket relay an MCP client spawns to reach a running Allodia Mail & Calendar."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+# Deliberately its own crate rather than a `[[bin]]` in `mailcal-mcp`. A binary target there would
+# link mailcal-app -> engine-api -> SQLite -> rustls into what is a byte relay needing none of it:
+# tens of megabytes holding a second copy of the mail store's machinery and the TLS stack, inside a
+# helper that ANOTHER application executes on the user's behalf. That is the rule, and it holds on
+# every target.
+#
+# On Unix that comes out as literally zero dependencies: a socket's duplicated fd can be read and
+# written at the same time, so two threads and `std` are the whole program.
+[dependencies]
+
+# Windows cannot be written that way, and the reason is in src/windows.rs: a named pipe opened as
+# a file is a SYNCHRONOUS file object, and Windows serializes I/O on one: so a parked read blocks
+# every write, on a duplicated handle just the same, and the relay deadlocks after a single
+# request. Overlapped I/O is the fix, and getting it without hand-rolled `unsafe` FFI (which the
+# workspace forbids) means tokio's named-pipe client. Scoped to this target so the Unix binary is
+# untouched, and still nothing of the mail stack: rt + the two I/O pieces it needs.
+[target.'cfg(windows)'.dependencies]
+tokio = { workspace = true, features = ["rt", "net", "io-util", "sync", "time", "macros"] }
+
+# Dev-only, and therefore not in the shipped binary: the end-to-end relay test asserts that
+# every line reaching stdout parses as JSON-RPC, which needs a parser to check with. The shim
+# itself still has no parser, that is the point of the check.
+[dev-dependencies]
+serde_json = { workspace = true }
+
+# The Windows end-to-end test has to BE the app: it stands up a real named-pipe server and speaks
+# to the real binary over it. Same features as the server side uses.
+[target.'cfg(windows)'.dev-dependencies]
+tokio = { workspace = true, features = ["rt", "net", "io-util", "sync", "time", "macros"] }
+
+[[bin]]
+name = "allodia-mcp"
+path = "src/main.rs"
+
+[lints]
+workspace = true

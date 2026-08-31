@@ -1,0 +1,11 @@
+[package]
+name = "mailcal-buildenv"
+description = "Shared build-script access to the values Allodia injects at compile time: resolves a name from the environment or the repo's gitignored `.env`, and decides whether a build we ship must refuse to be built without it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

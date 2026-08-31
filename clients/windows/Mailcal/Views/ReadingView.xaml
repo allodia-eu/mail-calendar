@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Allodia.Mailcal.Views.ReadingView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:mailcal="using:Allodia.Mailcal.Controls"
+    xmlns:l10n="using:Allodia.Mailcal"
+    xmlns:vm="using:Allodia.Mailcal.ViewModels">
+
+    <!-- The reading pane: the third column of the sidebar | list | reading layout. A solid
+         background so it reads as its own pane; it shows a placeholder until a message is
+         picked, then that message's header + body inline beside the list. -->
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+        <!-- The open message: header, remote-images bar, body. Hidden until one is selected. -->
+        <Grid x:Name="ContentRoot" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Header: subject/from + date, then the message action toolbar. -->
+            <StackPanel Grid.Row="0" Spacing="10" Padding="16,8">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- The sender's face, set in Render() from the row that opened this pane and
+                         then from the body snapshot, never projected here. Both name the same
+                         person, so only the photo can differ, and only until the snapshot lands. -->
+                    <mailcal:AvatarView Grid.Column="0" x:Name="SenderAvatar" Diameter="40"
+                                        VerticalAlignment="Top" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock x:Name="SubjectText" Style="{StaticResource SubtitleTextBlockStyle}"
+                                   TextTrimming="CharacterEllipsis" MaxLines="2" />
+                        <TextBlock x:Name="FromText" Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis" MaxLines="1" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" x:Name="DateText" VerticalAlignment="Center"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Grid>
+                <!-- Recipient headers (To / Cc / Bcc), set in Render(); each collapses when
+                     empty. Bcc is present only on the sender's own Sent/Drafts copies. -->
+                <StackPanel Spacing="1">
+                    <TextBlock x:Name="ToText" Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                               Visibility="Collapsed" />
+                    <TextBlock x:Name="CcText" Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                               Visibility="Collapsed" />
+                    <TextBlock x:Name="BccText" Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                               Visibility="Collapsed" />
+                </StackPanel>
+                <!-- Reply/reply-all/forward, then a divider, then archive/delete (mirrors the
+                     list's context menu, surfaced as a toolbar like a desktop mail client). The
+                     reading pane is user-resizable (the draggable list|reading divider) down to a
+                     narrow width where the labels, long in Dutch and other locales, would
+                     overflow and clip off the pane edge. So the buttons live in a horizontally-
+                     scrolling ScrollViewer (which arranges them at their full natural width,
+                     unclamped, a reliable width read even when they overflow) and the toolbar
+                     collapses to icon-only below that width, restoring the labels above it
+                     (OnActionToolbarSizeChanged). The Windows twin of the Apple client's compact-
+                     width toolbar; each button keeps a tooltip so the action stays named when
+                     icon-only. -->
+                <ScrollViewer x:Name="ActionScroller"
+                              HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Hidden"
+                              VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled"
+                              SizeChanged="OnActionToolbarSizeChanged">
+                    <StackPanel x:Name="ActionButtons" Orientation="Horizontal" Spacing="8"
+                                SizeChanged="OnActionToolbarSizeChanged">
+                        <!-- Each button's content is an icon + label panel, not a plain string, so
+                             WinUI derives NO UIA Name from it, a screen reader announced these five
+                             as an unlabelled "button" until AutomationProperties.Name was set. The
+                             labels also collapse to icon-only at narrow widths
+                             (OnActionToolbarSizeChanged), which is exactly when the spoken name is
+                             the only name left. Kept in sync by uitests/Accessibility.Tests.ps1. -->
+                        <Button Click="OnReply" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionReply()}"
+                                AutomationProperties.AutomationId="ReadingReply"
+                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionReply()}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE8CA;" FontSize="14" />
+                                <TextBlock x:Name="ReplyLabel" Text="{x:Bind l10n:L10n.ActionReply()}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Click="OnReplyAll" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionReplyAll()}"
+                                AutomationProperties.AutomationId="ReadingReplyAll"
+                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionReplyAll()}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE8C2;" FontSize="14" />
+                                <TextBlock x:Name="ReplyAllLabel" Text="{x:Bind l10n:L10n.ActionReplyAll()}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Click="OnForward" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionForward()}"
+                                AutomationProperties.AutomationId="ReadingForward"
+                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionForward()}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE72A;" FontSize="14" />
+                                <TextBlock x:Name="ForwardLabel" Text="{x:Bind l10n:L10n.ActionForward()}" />
+                            </StackPanel>
+                        </Button>
+                        <!-- Subtle separator between the compose actions and the manage actions. -->
+                        <Border Width="1" Margin="4,2" VerticalAlignment="Stretch"
+                                Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Button Click="OnArchive" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionArchive()}"
+                                AutomationProperties.AutomationId="ReadingArchive"
+                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionArchive()}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE7B8;" FontSize="14" />
+                                <TextBlock x:Name="ArchiveLabel" Text="{x:Bind l10n:L10n.ActionArchive()}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Click="OnDelete" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionDelete()}"
+                                AutomationProperties.AutomationId="ReadingDelete"
+                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionDelete()}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                <TextBlock x:Name="DeleteLabel" Text="{x:Bind l10n:L10n.ActionDelete()}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </ScrollViewer>
+            </StackPanel>
+
+            <!-- The meeting-invitation card, above everything the sender wrote. Its content is
+                 built in code (InvitationCardView), so this is only its slot: present when the
+                 core's two-condition RSVP gate says this message is an invitation, absent
+                 otherwise, a published .ics keeps its attachment chip and gets no card. -->
+            <Border Grid.Row="1" x:Name="InvitationHost" Visibility="Collapsed"
+                    Padding="16,0,16,8" />
+
+            <StackPanel Grid.Row="2" x:Name="AttachmentPanel" Visibility="Collapsed"
+                        Padding="16,0,16,8" Spacing="6">
+                <TextBlock Text="{x:Bind l10n:L10n.AttachmentsTitle()}"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <!-- Capped and scrolling, because this panel sits in an Auto row ABOVE the body's
+                     star row: an unbounded list takes what it wants and starves the message, so a
+                     mail carrying twenty files left neither the body nor the last few attachments
+                     reachable. A ScrollViewer rather than the composer's bare MaxHeight
+                     (ComposerView.xaml), that works there because a ListView brings its own
+                     ScrollViewer, while an ItemsControl has none and would simply clip. It sizes
+                     to its content up to the cap, so two attachments still take two rows. -->
+                <ScrollViewer MaxHeight="176"
+                              AutomationProperties.AutomationId="AttachmentScroll"
+                              VerticalScrollMode="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollMode="Disabled"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl x:Name="AttachmentItems">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:MessageAttachment">
+                                <Grid ColumnSpacing="8" Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{x:Bind FileName}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{x:Bind Detail}"
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <!-- Open hands the file to the OS default handler (OS scanning);
+                                         Save writes it to a chosen location. Neither renders in-app. -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                        <Button Content="{x:Bind l10n:L10n.ActionOpen()}"
+                                                Click="OnOpenAttachment" />
+                                        <Button Content="{x:Bind l10n:L10n.ActionSave()}"
+                                                Click="OnSaveAttachment" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <TextBlock x:Name="AttachmentError" Visibility="Collapsed"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+            </StackPanel>
+
+            <!-- Remote-images opt-in bar (collapsed unless the body has blocked remote images). -->
+            <Grid Grid.Row="3" x:Name="RemoteImagesBanner" Visibility="Collapsed"
+                  Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                  Padding="16,6" ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Text="{x:Bind l10n:L10n.ReadingRemoteBlocked()}" />
+                <Button Grid.Column="1" Content="{x:Bind l10n:L10n.ActionLoadImages()}" Click="OnLoadRemoteImages" />
+            </Grid>
+
+            <!-- Body: a spinner until the snapshot arrives, then the HTML WebView or plain text. -->
+            <Grid Grid.Row="4">
+                <ProgressRing x:Name="LoadingRing" IsActive="False" Width="36" Height="36"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <controls:WebView2 x:Name="Body" Visibility="Collapsed" />
+                <!-- A plain-text body is the message itself, not a label: it is many lines whose
+                     own breaks carry the paragraphing, so each line box must keep the font's
+                     natural leading. (It must NOT set TextLineBounds="Tight", which trims every
+                     line to cap-height→baseline, that crowds the lines and drops descenders onto
+                     the caps below.)
+
+                     Everything here mirrors the shared HTML reading document (BASE_CSS in
+                     mailcal-app) so the two body kinds are one surface, not two: 15px / line-height
+                     1.5, on that document's white canvas with its near-black ink. The canvas is
+                     LITERAL, not a ThemeResource, precisely because BASE_CSS pins the HTML body to
+                     `color-scheme:light; background:#fff` in every theme, mail is authored for
+                     white, so a themed brush here would drift from the HTML pane the moment the
+                     system went dark, and a themed *foreground* over this canvas would go
+                     white-on-white. The message canvas is light in both themes; the pane's chrome
+                     around it (header, toolbar, empty/error states) stays themed. -->
+                <ScrollViewer x:Name="PlainScroller" Visibility="Collapsed" Padding="16"
+                              Background="#FFFFFFFF">
+                    <TextBlock x:Name="PlainText" IsTextSelectionEnabled="True" TextWrapping="Wrap"
+                               FontSize="15" LineHeight="22" Foreground="#FF1A1A1A" />
+                </ScrollViewer>
+                <TextBlock x:Name="EmptyText" Visibility="Collapsed"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="{x:Bind l10n:L10n.ReadingNoContent()}" />
+                <!-- Fetch failed (provider/network), as distinct from a body-less message. -->
+                <StackPanel x:Name="ErrorPanel" Visibility="Collapsed" Spacing="8"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE7BA;" FontSize="24" HorizontalAlignment="Center"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="{x:Bind l10n:L10n.ReadingLoadError()}" HorizontalAlignment="Center"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button Content="{x:Bind l10n:L10n.ActionRetry()}" HorizontalAlignment="Center" Click="OnRetry" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- No message selected: the pane's resting state (the list stays beside it, so there's
+             no "back", picking a row fills the pane, switching folders empties it again). -->
+        <StackPanel x:Name="NoSelectionPanel" Spacing="10"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+            <FontIcon Glyph="&#xE715;" FontSize="28" HorizontalAlignment="Center"
+                      Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            <TextBlock Text="{x:Bind l10n:L10n.ReadingEmpty()}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

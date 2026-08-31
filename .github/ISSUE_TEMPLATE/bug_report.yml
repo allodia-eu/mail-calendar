@@ -1,0 +1,61 @@
+name: Bug report
+description: Something behaves wrongly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Not for security problems** — those go through SECURITY.md, privately.
+
+        Please leave real mail out of this form. Subjects, addresses and message bodies are the one
+        thing an issue tracker should never end up holding.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform and version
+      description: Settings -> About has the version.
+      placeholder: macOS 26.1, app 0.5.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: account
+    attributes:
+      label: Account type
+      description: >
+        The providers differ enough that a bug in one path often does not exist in another.
+      options:
+        - IMAP / SMTP
+        - JMAP
+        - Microsoft 365 (Graph)
+        - Gmail / Google Workspace
+        - CalDAV / CardDAV
+        - More than one
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log excerpt
+      description: >
+        Settings -> Diagnostics can share the log file. It holds counts, ids, durations and events
+        by design, never mail content, addresses or credentials, so it is safe to attach. Turn on
+        DEBUG there first if you can reproduce the problem on demand.
+      render: text
+
+  - type: textarea
+    id: anything
+    attributes:
+      label: Anything else
+      description: Screenshots, a recording, whether it used to work.

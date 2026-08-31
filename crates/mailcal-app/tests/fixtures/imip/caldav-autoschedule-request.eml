@@ -1,0 +1,79 @@
+Delivered-To: alice@test.local
+X-Spam-Status: No
+From: "Bob Tester" <bob@test.local>
+To: <alice@test.local>
+Auto-Submitted: auto-generated
+Reply-To: bob@test.local
+Subject: Invitation: Quarterly planning @ Monday August 3, 2026 10:00am ()
+Message-ID: <18c75dab357d2c5a.d6ebd4047b529c0c.a8f7b106315c92dc@5dc2c1f99fe6>
+Date: Fri, 31 Jul 2026 11:52:47 +0000
+MIME-Version: 1.0
+Content-Type: multipart/mixed; 
+	boundary="18c75dab3587a916_75234dbdfa9d1821_a8f7b106315c92dc"
+
+
+--18c75dab3587a916_75234dbdfa9d1821_a8f7b106315c92dc
+Content-Type: multipart/related; 
+	boundary="18c75dab3587b380_135ac77779e79436_a8f7b106315c92dc"
+
+
+--18c75dab3587b380_135ac77779e79436_a8f7b106315c92dc
+Content-Type: multipart/alternative; 
+	boundary="18c75dab3587b768_b1924130f932104b_a8f7b106315c92dc"
+
+
+--18c75dab3587b768_b1924130f932104b_a8f7b106315c92dc
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Quarterly planning -- see the calendar part.
+
+--18c75dab3587b768_b1924130f932104b_a8f7b106315c92dc
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><p>Quarterly planning -- see the calendar part.</p></body></htm=
+l>
+
+--18c75dab3587b768_b1924130f932104b_a8f7b106315c92dc--
+
+--18c75dab3587b380_135ac77779e79436_a8f7b106315c92dc
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-Disposition: inline
+Content-ID: <logo.1785498767@test.local>
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6
+kgAAAABJRU5ErkJggg==
+--18c75dab3587b380_135ac77779e79436_a8f7b106315c92dc--
+
+--18c75dab3587a916_75234dbdfa9d1821_a8f7b106315c92dc
+Content-Type: text/calendar; method="REQUEST"; charset="utf-8"
+Content-Disposition: attachment; filename="event.ics"
+Content-Transfer-Encoding: quoted-printable
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Stalwart Labs LLC//Stalwart Server//EN
+METHOD:REQUEST
+BEGIN:VEVENT
+DTSTAMP:20260731T115247Z
+SEQUENCE:1
+UID:harness-invite-115247@test.local
+DTSTART:20260803T100000Z
+DTEND:20260803T110000Z
+SUMMARY:Quarterly planning
+LOCATION:Meeting room 2
+DESCRIPTION:Agenda to follow.
+ORGANIZER;CN=3D"Bob Tester":mailto:bob@test.local
+ATTENDEE;CN=3D"Bob Tester";ROLE=3DCHAIR;PARTSTAT=3DACCEPTED;CUTYPE=3DINDIVI=
+DUAL:mai
+ lto:bob@test.local
+ATTENDEE;CN=3D"Alice Tester";ROLE=3DREQ-PARTICIPANT;PARTSTAT=3DNEEDS-ACTION=
+;RSVP=3D
+ TRUE;CUTYPE=3DINDIVIDUAL:mailto:alice@test.local
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR
+
+--18c75dab3587a916_75234dbdfa9d1821_a8f7b106315c92dc--

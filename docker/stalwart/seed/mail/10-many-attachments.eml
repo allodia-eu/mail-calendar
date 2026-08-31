@@ -1,0 +1,157 @@
+From: Facilities <facilities@example.com>
+To: Alice Tester <alice@test.local>
+Subject: Message with many attachments
+Date: Fri, 09 Jan 2026 16:40:00 +0000
+Message-ID: <many-attachments-0010@test.local>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="harness-boundary-0010"
+
+--harness-boundary-0010
+Content-Type: text/plain; charset=utf-8
+
+Twenty files, which is what a real contractor's quote pack looks like. The point of
+this fixture is the READING view, not the parser: the attachment bar sits above the
+message in a column that does not scroll, so twenty rows used to push the body clean
+off the bottom of the screen with no way to reach either it or the last few files.
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-01.csv"
+Content-Disposition: attachment; filename="quote-01.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAwMQpjb2x1bW4sdmFsdWUKMSwxMAo=
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-02.csv"
+Content-Disposition: attachment; filename="quote-02.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAwMgpjb2x1bW4sdmFsdWUKMSwyMAo=
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-03.csv"
+Content-Disposition: attachment; filename="quote-03.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAwMwpjb2x1bW4sdmFsdWUKMSwzMAo=
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-04.csv"
+Content-Disposition: attachment; filename="quote-04.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAwNApjb2x1bW4sdmFsdWUKMSw0MAo=
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-05.csv"
+Content-Disposition: attachment; filename="quote-05.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAwNQpjb2x1bW4sdmFsdWUKMSw1MAo=
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-06.csv"
+Content-Disposition: attachment; filename="quote-06.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAwNgpjb2x1bW4sdmFsdWUKMSw2MAo=
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-07.csv"
+Content-Disposition: attachment; filename="quote-07.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAwNwpjb2x1bW4sdmFsdWUKMSw3MAo=
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-08.csv"
+Content-Disposition: attachment; filename="quote-08.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAwOApjb2x1bW4sdmFsdWUKMSw4MAo=
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-09.csv"
+Content-Disposition: attachment; filename="quote-09.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAwOQpjb2x1bW4sdmFsdWUKMSw5MAo=
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-10.csv"
+Content-Disposition: attachment; filename="quote-10.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAxMApjb2x1bW4sdmFsdWUKMSwxMDAK
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-11.csv"
+Content-Disposition: attachment; filename="quote-11.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAxMQpjb2x1bW4sdmFsdWUKMSwxMTAK
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-12.csv"
+Content-Disposition: attachment; filename="quote-12.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAxMgpjb2x1bW4sdmFsdWUKMSwxMjAK
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-13.csv"
+Content-Disposition: attachment; filename="quote-13.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAxMwpjb2x1bW4sdmFsdWUKMSwxMzAK
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-14.csv"
+Content-Disposition: attachment; filename="quote-14.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAxNApjb2x1bW4sdmFsdWUKMSwxNDAK
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-15.csv"
+Content-Disposition: attachment; filename="quote-15.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAxNQpjb2x1bW4sdmFsdWUKMSwxNTAK
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-16.csv"
+Content-Disposition: attachment; filename="quote-16.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAxNgpjb2x1bW4sdmFsdWUKMSwxNjAK
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-17.csv"
+Content-Disposition: attachment; filename="quote-17.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAxNwpjb2x1bW4sdmFsdWUKMSwxNzAK
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-18.csv"
+Content-Disposition: attachment; filename="quote-18.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAxOApjb2x1bW4sdmFsdWUKMSwxODAK
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-19.csv"
+Content-Disposition: attachment; filename="quote-19.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAxOQpjb2x1bW4sdmFsdWUKMSwxOTAK
+
+--harness-boundary-0010
+Content-Type: text/csv; name="quote-20.csv"
+Content-Disposition: attachment; filename="quote-20.csv"
+Content-Transfer-Encoding: base64
+
+ZmlsZSAyMApjb2x1bW4sdmFsdWUKMSwyMDAK
+
+--harness-boundary-0010--

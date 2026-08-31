@@ -1,0 +1,3 @@
+# The generated UniFFI Swift bindings (mailcal_bindings.swift + L10n.swift) land here when you run
+# clients/apple/Scripts/build-core.sh. They are git-ignored; this file just keeps the SPM target
+# directory present in git.

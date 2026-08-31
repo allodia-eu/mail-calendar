@@ -1,0 +1,30 @@
+[package]
+name = "mailcal-oauth"
+description = "Provider-agnostic OAuth 2.0 Authorization-Code-with-PKCE client (Microsoft first; Gmail and IMAP/SMTP XOAUTH2 reuse it later). The engine stays OAuth-agnostic, so token acquisition/refresh lives here in the product core."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+engine-tls = { workspace = true, features = ["reqwest"] }
+reqwest = { workspace = true }
+ring = { workspace = true }
+base64 = { workspace = true }
+url = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[build-dependencies]
+# Resolves the injected values below from the environment or the repo's `.env`, and refuses a
+# build we ship that lost one. Shared with the other injecting build script so they cannot drift.
+mailcal-buildenv = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,44 @@
+[package]
+name = "mailcal-autodetect"
+description = "Email-first automatic mail-server-settings detection: a JMAP well-known probe, Mozilla autoconfig, the ISPDB, and a host-resolved MX fallback, raced in priority order. Reimplements the approach of Thunderbird for Android's autodiscovery in the shared core so every client gets it from one implementation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+# Object-safe async trait for the fetcher, so the strategies take `Arc<dyn Fetch>` and
+# tests can inject a virtual-time fake in place of real HTTP.
+async-trait = { workspace = true }
+# The shared TLS trust store (Mozilla roots + OS store) behind the HTTPS fetcher; the
+# same policy the OAuth and Graph paths use, so detection trusts exactly what sync does.
+engine-tls = { workspace = true, features = ["reqwest"] }
+# A quiet diagnostic trail of which strategy/URL was tried (domain only, never the
+# local part), forwarded to the host's logger by the bindings.
+log = { workspace = true }
+# Mozilla's compiled-in Public Suffix List; derives a provider's registrable domain
+# from an MX hostname for the MX fallback (no platform exposes a PSL API).
+psl = { workspace = true }
+# Streaming pull-parser for the Mozilla autoconfig XML; no custom-entity expansion, so a
+# hostile config can't balloon in memory.
+quick-xml = { workspace = true }
+# The HTTP client for every lookup. Redirects are disabled and followed by hand so each
+# hop's scheme is inspected for the trust decision.
+reqwest = { workspace = true }
+# Classifies a JMAP well-known probe response: a 2xx JSON object advertising
+# `capabilities` is a JMAP session.
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+# `timeout`/`sleep` bound each request and the whole run; the orchestrator spawns the
+# strategies onto this runtime.
+tokio = { workspace = true, features = ["rt", "time", "macros"] }
+url = { workspace = true }
+
+[dev-dependencies]
+# Virtual time (`start_paused`) drives the orchestrator's priority/deadline tests without
+# real waits; a multi-thread runtime backs the one-shot TCP mock-server fetch tests.
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
+
+[lints]
+workspace = true

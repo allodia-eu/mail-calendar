@@ -1,0 +1,22 @@
+From: Reports <reports@example.com>
+To: Alice Tester <alice@test.local>
+Subject: Message with a text attachment
+Date: Fri, 09 Jan 2026 14:15:00 +0000
+Message-ID: <attachment-0004@test.local>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="harness-boundary-0004"
+
+--harness-boundary-0004
+Content-Type: text/plain; charset=utf-8
+
+Body part. A file attachment follows; attachments span file/item/reference/inline
+kinds and this protects the file-attachment path end to end.
+
+--harness-boundary-0004
+Content-Type: text/csv; name="report.csv"
+Content-Disposition: attachment; filename="report.csv"
+Content-Transfer-Encoding: base64
+
+cXVhcnRlcixyZXZlbnVlCjEsMTAwCjIsMTUwCg==
+
+--harness-boundary-0004--

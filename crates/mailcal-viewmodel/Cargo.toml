@@ -1,0 +1,19 @@
+[package]
+name = "mailcal-viewmodel"
+description = "Pure view-models for Allodia Mail & Calendar: immutable mailbox-list and calendar-agenda snapshots projected from engine-api types, shared by every host renderer."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+# The engine domain types the snapshots project from (Message/Mailbox/Event).
+engine-api = { workspace = true }
+
+[dev-dependencies]
+# Domain constructors (ids/membership/time) build the fixtures the projections run over.
+engine-core = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,11 @@
+# The nightly rustfmt pin. `scripts/dev/gate.sh` and the `lint` job in
+# `.github/workflows/ci.yml` both read `channel` from here, so a local `cargo fmt` and CI's
+# `fmt --check` are never two different builds of rustfmt: nightly rustfmt output drifts between
+# dates, and stable silently ignores most of `rustfmt.toml` rather than failing.
+#
+# Bumping it (Renovate opens the PR — see renovate.json -> customManagers) means re-running the
+# gate and committing any reformatting in the same change.
+#
+# Not `rust-toolchain.toml`: that pins the stable channel everything is built and linted with.
+[toolchain]
+channel = "nightly-2026-08-22"

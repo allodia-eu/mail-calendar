@@ -1,0 +1,37 @@
+name: Feature request
+description: Something the app should do and does not
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth reading first: docs/pledge.md, which says what stays free in every build, and the
+        README's capability matrix, which says what each client ships today. The answer to
+        "why isn't this on Linux yet?" is often already there.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: >
+        The situation, not the solution. What you are trying to get done tells us more than a
+        described control does, and often has a better answer than the one you had in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you had in mind
+      description: If you already have a shape for it.
+
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: Platforms this is about
+      options:
+        - label: macOS
+        - label: iOS / iPadOS
+        - label: Windows
+        - label: Android
+        - label: Linux

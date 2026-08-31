@@ -1,0 +1,11 @@
+From: Newsletter <news@example.com>
+To: Alice Tester <alice@test.local>
+Subject: Duplicate Message-ID (copy B)
+Date: Wed, 07 Jan 2026 10:00:00 +0000
+Message-ID: <shared-dup-msgid@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Second of two messages that share the same Message-ID as copy A. Different
+Subject and Date so the two are distinguishable by content the harness controls,
+never by the server-assigned IMAP UID.

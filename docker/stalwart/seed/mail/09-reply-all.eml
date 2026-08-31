@@ -1,0 +1,18 @@
+From: Bestuur VvE <board@test.local>
+To: Alice Tester <alice@test.local>, Technische Commissie <tc@test.local>
+Cc: Rene Manager <rene@test.local>
+Subject: Meter reading photo, block 2
+Date: Mon, 12 Jan 2026 10:15:00 +0000
+Message-ID: <reply-all-0009@test.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+The only fixture addressed to more than one person, and the only one with a Cc.
+
+Reply-all is the whole reason it exists: it is the one action whose result depends
+on the shape of the original's recipients, and against every other fixture here it
+derives a single address — which is exactly the case that worked while a To holding
+two of them, and a Cc holding one, were both drawn wrong (docs/contacts.md §4).
+
+The sender is a fourth address, so the derived To is "board, tc" and the derived Cc
+is "rene": three pills across two fields, with Alice's own address removed from both.

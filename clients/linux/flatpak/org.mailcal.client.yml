@@ -1,0 +1,113 @@
+# Flatpak manifest for the Linux client. Built by clients/linux/package.sh, which is the twin of
+# clients/apple/Scripts/package.sh and clients/windows/package.ps1.
+#
+#   flatpak-builder --user --install build-dir clients/linux/flatpak/org.mailcal.client.yml
+#
+# The id is the one the client registers with GTK and stores secrets under
+# (clients/linux/src/main.rs, clients/linux/src/secrets.rs). It is also the basename of the desktop
+# entry, the icon and the metainfo; the shell ties a window to its launcher by that match, and the
+# notification portal attributes a notification by it.
+#
+# Every id below is the UNBRANDED default (docs/branding.md), which is what this manifest builds as
+# it stands. package.sh generates a branded copy beside this file when the checkout has a brand,
+# and removes it on the way out: the copy has to be a sibling, because `sources: path: ../../..`
+# resolves against the manifest's own directory.
+app-id: org.mailcal.client
+
+# The GNOME runtime is what decouples the client from the host distribution: whatever a user's
+# distribution ships, the app links GTK 4.22, libadwaita 1.9 and WebKitGTK 2.52 from here. Bumping
+# this is a deliberate change; a runtime carries the WebKit that enforces the reading-view gates.
+# The development baseline (Ubuntu 26.04) tracks the same GNOME generation, which is convenient
+# rather than load-bearing: a distribution's build of GTK and the runtime's are still two builds,
+# and they drift on their own schedules.
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+
+command: mailcal
+
+finish-args:
+  # Mail. The loopback OAuth callback (clients/linux/src/ui/oauth_loopback.rs) also needs the host
+  # network namespace, so the browser the portal opens can reach the 127.0.0.1 listener.
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # WebKitGTK renders the reading view and the composer; without a GPU node it falls back to a
+  # software rasteriser that makes scrolling a long message visibly slow.
+  - --device=dri
+  #
+  # Deliberately NOT granted:
+  #
+  #   --talk-name=org.freedesktop.secrets; oo7 selects its backend from the sandbox state
+  #     (clients/linux/src/secrets.rs opens `Keyring::new()`), so inside Flatpak it uses the file
+  #     backend keyed through the Secret *portal*, which every sandboxed app may call. Granting the
+  #     bus name would hand this app every other application's stored secrets to read.
+  #
+  #   --filesystem=…; attachments are saved and opened through GtkFileDialog and
+  #     AppInfo::launch_default_for_uri, which become the FileChooser and OpenURI portals inside the
+  #     sandbox. The user picks the file, and only that file is handed over.
+  #
+  # Notifications (ashpd, clients/linux/src/ui/notifications.rs) likewise need no permission: the
+  # notification portal is open to every sandboxed app.
+
+modules:
+  - name: mailcal
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/mailcal/cargo
+      build-args:
+        # Cargo fetches crates.io and the pinned engine commit. Flathub's builders run with no
+        # network and require every source declared in the manifest instead: see "Known gaps" in
+        # clients/linux/README.md for what a submission additionally needs.
+        - --share=network
+    build-commands:
+      # `--locked` so the build resolves to the committed Cargo.lock rather than whatever is newest.
+      # Default features, so `dev-harness` and the debug-only account fixture cannot be linked in,
+      # the same property the tag-only release build in CI asserts.
+      - cargo build --release --locked -p mailcal-linux
+      - cargo build --release --locked -p mailcal-mcp-shim --bin allodia-mcp
+      - install -Dm755 target/release/mailcal-linux /app/bin/mailcal
+      - install -Dm755 target/release/allodia-mcp /app/bin/allodia-mcp
+      - test -x /app/bin/allodia-mcp
+
+      # The desktop entry and the metainfo carry no copy or version of their own; they are emitted
+      # here from branding/<brand>-listing.md, /VERSION and docs/changelog/released/.
+      - python3 scripts/dev/flatpak_metadata.py --out-dir metadata
+      - install -Dm644 metadata/org.mailcal.client.desktop
+        /app/share/applications/org.mailcal.client.desktop
+      - install -Dm644 metadata/org.mailcal.client.metainfo.xml
+        /app/share/metainfo/org.mailcal.client.metainfo.xml
+
+      # Validate what was just installed, not the sources it came from. A store rejects a bad
+      # metainfo after the upload; this rejects it during the build (AGENTS.md: assert a remote
+      # gate's invariant locally first).
+      - desktop-file-validate /app/share/applications/org.mailcal.client.desktop
+      - appstreamcli validate --no-net --explain
+        /app/share/metainfo/org.mailcal.client.metainfo.xml
+
+      - install -Dm644 clients/linux/flatpak/icons/128.png
+        /app/share/icons/hicolor/128x128/apps/org.mailcal.client.png
+      - install -Dm644 clients/linux/flatpak/icons/256.png
+        /app/share/icons/hicolor/256x256/apps/org.mailcal.client.png
+      - install -Dm644 clients/linux/flatpak/icons/512.png
+        /app/share/icons/hicolor/512x512/apps/org.mailcal.client.png
+    sources:
+      - type: dir
+        path: ../../..
+        # `target/` alone is tens of gigabytes, and flatpak-builder copies the source tree before it
+        # builds. The other clients' assets are another 130 MB this build never opens. Everything
+        # the Linux client needs from outside its own directory stays: crates/, Cargo.lock,
+        # VERSION, messages/ and project.inlang/ (build-time l10n codegen), docs/ and scripts/ (the
+        # metadata generator), and clients/composer/dist/editor.html, which ui/composer.rs embeds
+        # with include_str!.
+        skip:
+          - .git
+          - target
+          - clients/android
+          - clients/apple
+          - clients/windows

@@ -1,0 +1,8 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:harness-bob
+FN:Bob Tester
+N:Tester;Bob;;;
+EMAIL:bob@test.local
+ORG:Allodia Test
+END:VCARD

@@ -1,0 +1,19 @@
+<!-- Material Symbols "troubleshoot" (outlined). Settings: the Diagnostics category, which handed
+     ic_info back to About, the two categories are not the same thing and may not look it.
+     Vendored from google/material-design-icons; the Compose `Icon` supplies the real colour, so
+     the fillColor here is only a placeholder.
+
+     The upstream SVG draws in a `0 -960 960 960` viewBox. Rather than re-origin every coordinate
+     by hand, this path has curves, and a mistyped one is a silently wrong glyph, the group
+     translates the drawing down by its own height, so the path data is upstream's, verbatim. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+  <group android:translateY="960">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M824-120 636-308q-41 32-90.5 50T440-240q-90 0-162.5-44T163-400h98q34 37 79.5 58.5T440-320q100 0 170-70t70-170q0-100-70-170t-170-70q-94 0-162.5 63.5T201-580h-80q8-127 99.5-213.5T440-880q134 0 227 93t93 227q0 56-18 105.5T692-364l188 188-56 56ZM397-400l-63-208-52 148H80v-60h160l66-190h60l61 204 43-134h60l60 120h30v60h-67l-47-94-50 154h-59Z"/>
+  </group>
+</vector>

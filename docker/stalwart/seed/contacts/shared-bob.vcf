@@ -1,0 +1,8 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:harness-shared-iris-bob
+FN:Iris Jansen
+N:Jansen;Iris;;;
+EMAIL;TYPE=home:iris.jansen@example.eu
+EMAIL;TYPE=work:i.jansen@meridiaan.example
+END:VCARD

@@ -1,0 +1,9 @@
+From: System Notices <noreply@example.com>
+To: Alice Tester <alice@test.local>
+Subject: Message with no Message-ID
+Date: Thu, 08 Jan 2026 11:30:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+This message intentionally carries no Message-ID header. Threading must fall
+back to a locally-derived id and the object must still be stored distinctly.

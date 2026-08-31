@@ -1,0 +1,31 @@
+# Generated UniFFI Kotlin bindings (rebuilt by build-and-run.sh).
+app/src/main/java/uniffi/
+
+# Generated localized resources + typed L10n accessor, from the shared inlang catalog
+# (rebuilt by build-and-run.sh; the source of truth is ../../messages/*.json).
+app/src/main/java/eu/allodia/mailcal/L10n.kt
+app/src/main/res/values/strings.xml
+app/src/main/res/values-*/strings.xml
+
+# Cross-compiled cdylib (rebuilt by build-and-run.sh).
+app/src/main/jniLibs/
+
+# Gradle build output + caches.
+build/
+app/build/
+.gradle/
+
+# Machine-specific SDK path.
+local.properties
+
+# Captured run artifacts.
+screenshot*.png
+
+# The Android upload key and its passwords. NEVER committed, the release signing config reads them
+# from here when present, and builds unsigned when absent (see app/build.gradle.kts).
+app/keystore.properties
+*.jks
+*.keystore
+
+# Release builds
+app/release

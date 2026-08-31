@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for `xcodebuild -exportArchive` in the iOS/iPadOS DEVICE flow (Scripts/package.sh
+  --ios-device), an .ipa you can install on your own iPhone or iPad. __TEAM_ID__ is substituted
+  from signing.local.sh into a copy under build/ at run time, so no team id is committed.
+
+  method=debugging is the whole difference from the App Store template beside it. The name is
+  Xcode's for the DISTRIBUTION CHANNEL, not the build configuration: it is the current spelling of
+  what used to be "development", which Xcode 26 still accepts while warning that it is deprecated.
+  Nothing about it makes this a Debug build.
+
+  The archive is the SAME Release configuration: optimized, no debug scaffolding. What changes is
+  who the export is signed for. This profile embeds the team's REGISTERED DEVICES, which is exactly
+  what makes the result installable; an app-store-connect export carries no device list and iOS
+  refuses to launch it, which is why that .ipa cannot be sideloaded and this one can.
+
+  What it costs, and it is worth saying plainly: development signing brings development
+  entitlements. `aps-environment` is `development`, so push tokens are sandbox tokens, anything
+  exercising real APNs delivery needs the TestFlight build, not this one. Everything that is a
+  property of the compiled code, optimization, timing, memory, R8-equivalent stripping, is
+  identical to what ships.
+
+  destination=export writes a local .ipa rather than uploading. manageAppVersionAndBuildNumber=false
+  is LOAD-BEARING for the same reason as the App Store template: the CFBundleVersion is the dotted
+  UTC timestamp package.sh stamps (docs/versioning.md), and letting Xcode "manage" it would clobber
+  that stamp, so a device build reports the same version a store build would.
+-->
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>debugging</string>
+    <key>teamID</key>
+    <string>__TEAM_ID__</string>
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <key>destination</key>
+    <string>export</string>
+    <key>manageAppVersionAndBuildNumber</key>
+    <false/>
+</dict>
+</plist>

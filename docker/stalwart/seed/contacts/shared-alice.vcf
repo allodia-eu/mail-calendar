@@ -1,0 +1,10 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:harness-shared-iris
+FN:Iris Jansen
+N:Jansen;Iris;;;
+EMAIL;TYPE=work:iris.jansen@example.eu
+TEL;TYPE=cell:+31 20 123 4567
+ORG:Meridiaan Bouw
+TITLE:Projectleider
+END:VCARD

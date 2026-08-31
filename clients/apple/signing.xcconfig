@@ -1,0 +1,14 @@
+// Per-machine signing for a PHYSICAL iPhone/iPad build, the one build that cannot be ad-hoc
+// signed, because iOS only launches an app whose signature has a provisioning profile behind it.
+// project.yml points every configuration at this file and reads MAILCAL_DEVELOPMENT_TEAM from it
+// for `sdk=iphoneos*`; simulator and macOS builds sign ad-hoc and never look here.
+//
+// The team id stays out of git (per-machine, like clients/apple/signing.local.sh) so the default
+// below is empty: a fresh checkout builds for the simulator and macOS exactly as before, and a
+// device build fails with Xcode's "requires a provisioning profile" until the local file exists.
+// `Scripts/build-and-run.sh --device` writes it from the team it resolves, which is also what
+// makes Xcode's own Run button work, since Xcode cannot run that detection itself.
+MAILCAL_DEVELOPMENT_TEAM =
+
+// `#include?`, the optional form, silent when the file is absent.
+#include? "signing.local.xcconfig"

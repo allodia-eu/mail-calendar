@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Allodia.Mailcal.Views.ComposerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:views="using:Allodia.Mailcal.Views"
+    xmlns:l10n="using:Allodia.Mailcal">
+
+    <!-- The composer as it lives in the reading-pane slot: FLUID, not the fixed 620x660 the
+         ContentDialog carried. The pane is user-resizable down to its 380 epx MinWidth (the
+         list|reading splitter), so a fixed width would clip its own right edge exactly as the
+         dialog once did. Everything stretches; the editor is the lone star row and absorbs the
+         height. -->
+    <Grid Padding="16" RowSpacing="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleText" Grid.Row="0" Style="{StaticResource SubtitleTextBlockStyle}"
+                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+
+        <!-- Which account the message is sent from. The core sends as, and through, that account
+             (its identity AND its outbox), so this is an account picker, not a free-text From
+             header. With one account there is nothing to choose, so the code-behind shows the
+             read-only FromRow instead of a menu onto a single item (the Apple client's
+             FromAccountField does the same); the address stays visible either way. FromBox is
+             populated and selected regardless, hidden or not, it is what the send reads its
+             account from, so the sender never falls back to whatever the core would derive. -->
+        <ComboBox x:Name="FromBox" Grid.Row="1" HorizontalAlignment="Stretch"
+                  Header="{x:Bind l10n:L10n.ComposeFrom()}" DisplayMemberPath="Email"
+                  SelectionChanged="OnFromChanged" />
+        <StackPanel x:Name="FromRow" Grid.Row="1" Spacing="4" Visibility="Collapsed">
+            <TextBlock Text="{x:Bind l10n:L10n.ComposeFrom()}" />
+            <TextBlock x:Name="FromAddress" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+
+        <!-- To/Cc/Bcc: each finished address is a removable pill, the one being typed stays text,
+             and typing offers ranked suggestions from synced contacts AND from people the user has
+             written to (docs/contacts.md §4). The labels and automation ids are set in the
+             code-behind rather than bound here, so the control needs no dependency property for a
+             string that never changes after Init.
+
+             Cc and Bcc live behind the chevron on the To row, as they do on Android and as Gmail
+             and Thunderbird draw them, so the header a message usually needs is From, To, Subject.
+             The three fields sit in ONE grid row inside a StackPanel rather than in three rows of
+             their own: a collapsed row is zero-height but the Grid's RowSpacing is not, so
+             collapsing them there would leave the gap they used to occupy. -->
+        <StackPanel Grid.Row="2" Spacing="10">
+            <!-- The chevron goes in the To field's own trailing slot, beside its input, rather than
+                 beside the field as a whole, the field is taller than its input, so anything
+                 aligned against the field is drawn low. RecipientField owns that; see its XAML. -->
+            <views:RecipientField x:Name="ToField">
+                <views:RecipientField.Trailing>
+                    <ToggleButton x:Name="CcBccToggle" MinWidth="0" Padding="10,6" Margin="8,0,0,0"
+                                  Checked="OnToggleCcBcc" Unchecked="OnToggleCcBcc"
+                                  AutomationProperties.AutomationId="CcBccToggle"
+                                  AutomationProperties.Name="{x:Bind l10n:L10n.ComposeShowCcBcc()}"
+                                  ToolTipService.ToolTip="{x:Bind l10n:L10n.ComposeShowCcBcc()}">
+                        <FontIcon x:Name="CcBccChevron" Glyph="&#xE70D;" FontSize="12" />
+                    </ToggleButton>
+                </views:RecipientField.Trailing>
+            </views:RecipientField>
+            <StackPanel x:Name="CcBccPanel" Spacing="10" Visibility="Collapsed">
+                <views:RecipientField x:Name="CcField" />
+                <views:RecipientField x:Name="BccField" />
+            </StackPanel>
+        </StackPanel>
+        <TextBox x:Name="SubjectBox" Grid.Row="3" Header="{x:Bind l10n:L10n.ComposeSubject()}" TextChanged="OnHeaderChanged" />
+
+        <!-- The per-message quote-style toggle. Shown only for a reply/forward that carries a
+             quoted original AND when the user opted into per-message styling in Settings, off by
+             default, so an ordinary reply just uses the app default. Flipping it re-styles the
+             quote in place; it does not change the persisted default. -->
+        <StackPanel x:Name="QuoteStylePanel" Grid.Row="4" Orientation="Horizontal" Spacing="12" Visibility="Collapsed">
+            <TextBlock Text="{x:Bind l10n:L10n.QuoteStyleLabel()}" VerticalAlignment="Center" />
+            <RadioButton x:Name="QuoteIndentedRadio" GroupName="QuoteStyle"
+                         Content="{x:Bind l10n:L10n.QuoteStyleIndented()}" Checked="OnQuoteStyleChanged" />
+            <RadioButton x:Name="QuoteLineHeaderRadio" GroupName="QuoteStyle"
+                         Content="{x:Bind l10n:L10n.QuoteStyleLineHeader()}" Checked="OnQuoteStyleChanged" />
+        </StackPanel>
+
+        <Border Grid.Row="5" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+            <controls:WebView2 x:Name="Editor" />
+        </Border>
+
+        <StackPanel Grid.Row="6" Spacing="6">
+            <!-- The composer's action row: things you do TO the message, as opposed to the
+                 From/To/Cc fields you address it with. That is why Signature sits here and not
+                 among them (docs/signatures.md), it is the Windows counterpart of the action bar
+                 macOS/iOS put above the editor and of Android's app bar. It stays hidden until the
+                 library holds something, since a picker offering only "None" says nothing; the
+                 current choice shows as a checkmark inside the menu rather than on the button, so
+                 the row stays a row of verbs. -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="{x:Bind l10n:L10n.ActionAttach()}" Click="OnAttachFiles" />
+                <Button x:Name="RemoveAttachmentButton" Content="{x:Bind l10n:L10n.ActionRemove()}"
+                        Click="OnRemoveAttachment" IsEnabled="False" />
+                <DropDownButton x:Name="SignatureButton" Visibility="Collapsed"
+                                Content="{x:Bind l10n:L10n.ComposeSignatureLabel()}">
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="SignatureMenu" />
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+            </StackPanel>
+            <ListView x:Name="AttachmentList" MaxHeight="92" SelectionMode="Single"
+                      DisplayMemberPath="DisplayName" SelectionChanged="OnAttachmentSelectionChanged" />
+        </StackPanel>
+
+        <TextBlock x:Name="PrepareError" Grid.Row="7" Visibility="Collapsed"
+                   Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                   Style="{StaticResource CaptionTextBlockStyle}"
+                   Text="{x:Bind l10n:L10n.ComposePrepareError()}" />
+
+        <!-- Send / Cancel. These were ContentDialog chrome (PrimaryButton / CloseButton) and the
+             send hung off args.Cancel in the dialog's button handler; a pane has no chrome, so the
+             composer now owns its own action row. -->
+        <StackPanel Grid.Row="8" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <!-- Named like its sibling so a test can press it without knowing the app's language:
+                 a harness run is in whatever the developer prefers, not a pinned locale. -->
+            <Button x:Name="CancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}" Click="OnCancel" />
+            <Button x:Name="SendButton" Content="{x:Bind l10n:L10n.ActionSend()}"
+                    Style="{StaticResource AccentButtonStyle}" Click="OnSend" IsEnabled="False" />
+        </StackPanel>
+    </Grid>
+</UserControl>

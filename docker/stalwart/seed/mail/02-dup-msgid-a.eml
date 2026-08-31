@@ -1,0 +1,11 @@
+From: Newsletter <news@example.com>
+To: Alice Tester <alice@test.local>
+Subject: Duplicate Message-ID (copy A)
+Date: Tue, 06 Jan 2026 10:00:00 +0000
+Message-ID: <shared-dup-msgid@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+First of two messages that deliberately share one Message-ID. Message-ID is a
+threading/reconciliation hint, not hard identity, so these must remain two
+distinct stored provider objects.

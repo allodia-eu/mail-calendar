@@ -1,0 +1,76 @@
+Delivered-To: bob.tester+invite@test.local
+MIME-Version: 1.0
+Reply-To: Bob Tester <bob.tester@test.local>
+Sender: Calendar service <calendar-notification@test.local>
+Auto-Submitted: auto-generated
+Message-ID: <calendar-ae83880f-0725-4bc5-a75f-8ddc88f68bb3@test.local>
+Date: Fri, 31 Jul 2026 11:56:26 +0000
+Subject: Geannuleerde afspraak: Quarterly planning op di 4 aug 2026 9am - 10am
+ (CEST) (bob.tester+invite@test.local)
+From: Bob Tester <bob.tester@test.local>
+To: bob.tester+invite@test.local
+Content-Type: multipart/mixed; boundary="000000000000d0de710657e6e00c"
+
+--000000000000d0de710657e6e00c
+Content-Type: multipart/alternative; boundary="000000000000d0de700657e6e00a"
+
+--000000000000d0de700657e6e00a
+Content-Type: text/plain; charset="UTF-8"; format=flowed; delsp=yes
+Content-Transfer-Encoding: base64
+
+UXVhcnRlcmx5IHBsYW5uaW5nIC0tIHNlZSB0aGUgY2FsZW5kYXIgcGFydC4K
+--000000000000d0de700657e6e00a
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><p>Quarterly planning -- see the calendar part.</p></body></htm=
+l>
+
+--000000000000d0de700657e6e00a
+Content-Type: text/calendar; charset="UTF-8"; method=CANCEL
+Content-Transfer-Encoding: 7bit
+
+BEGIN:VCALENDAR
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:CANCEL
+BEGIN:VEVENT
+DTSTART:20260804T070000Z
+DTEND:20260804T080000Z
+DTSTAMP:20260731T115626Z
+ORGANIZER;CN=Bob Tester:mailto:bob.tester@test.local
+UID:gmail-request-1@test.local
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;CN=bo
+ b.tester+invite@test.local;X-NUM-GUESTS=0:mailto:bob.tester+invite@test.lo
+ cal
+CREATED:20260731T115525Z
+DESCRIPTION:Agenda to follow.
+LAST-MODIFIED:20260731T115619Z
+LOCATION:Meeting room 2
+SEQUENCE:1
+STATUS:CANCELLED
+SUMMARY:Quarterly planning
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR
+
+--000000000000d0de700657e6e00a--
+--000000000000d0de710657e6e00c
+Content-Type: application/ics; name="invite.ics"
+Content-Disposition: attachment; filename="invite.ics"
+Content-Transfer-Encoding: base64
+
+QkVHSU46VkNBTEVOREFSDQpQUk9ESUQ6LS8vR29vZ2xlIEluYy8vR29vZ2xlIENhbGVuZGFyIDcw
+LjkwNTQvL0VODQpWRVJTSU9OOjIuMA0KQ0FMU0NBTEU6R1JFR09SSUFODQpNRVRIT0Q6Q0FOQ0VM
+DQpCRUdJTjpWRVZFTlQNCkRUU1RBUlQ6MjAyNjA4MDRUMDcwMDAwWg0KRFRFTkQ6MjAyNjA4MDRU
+MDgwMDAwWg0KRFRTVEFNUDoyMDI2MDczMVQxMTU2MjZaDQpPUkdBTklaRVI7Q049Qm9iIFRlc3Rl
+cjptYWlsdG86Ym9iLnRlc3RlckB0ZXN0LmxvY2FsDQpVSUQ6Z21haWwtcmVxdWVzdC0xQHRlc3Qu
+bG9jYWwNCkFUVEVOREVFO0NVVFlQRT1JTkRJVklEVUFMO1JPTEU9UkVRLVBBUlRJQ0lQQU5UO1BB
+UlRTVEFUPU5FRURTLUFDVElPTjtDTj1ibw0KIGIudGVzdGVyK2ludml0ZUB0ZXN0LmxvY2FsO1gt
+TlVNLUdVRVNUUz0wOm1haWx0bzpib2IudGVzdGVyK2ludml0ZUB0ZXN0LmxvDQogY2FsDQpDUkVB
+VEVEOjIwMjYwNzMxVDExNTUyNVoNCkRFU0NSSVBUSU9OOkFnZW5kYSB0byBmb2xsb3cuDQpMQVNU
+LU1PRElGSUVEOjIwMjYwNzMxVDExNTYxOVoNCkxPQ0FUSU9OOk1lZXRpbmcgcm9vbSAyDQpTRVFV
+RU5DRToxDQpTVEFUVVM6Q0FOQ0VMTEVEDQpTVU1NQVJZOlF1YXJ0ZXJseSBwbGFubmluZw0KVFJB
+TlNQOk9QQVFVRQ0KRU5EOlZFVkVOVA0KRU5EOlZDQUxFTkRBUg0K
+--000000000000d0de710657e6e00c--

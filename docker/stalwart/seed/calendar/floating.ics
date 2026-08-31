@@ -1,0 +1,13 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//PIM Sync Engine//Stalwart Harness//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:floating-2006@test.local
+DTSTAMP:20260101T000000Z
+DTSTART:20260415T120000
+DTEND:20260415T130000
+SUMMARY:Floating-time event (no zone)
+DESCRIPTION:Wall-clock with no TZID and no UTC marker; resolves through the observer's zone.
+END:VEVENT
+END:VCALENDAR

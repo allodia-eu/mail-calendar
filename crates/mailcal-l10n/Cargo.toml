@@ -1,0 +1,17 @@
+[package]
+name = "mailcal-l10n"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde_json = "1"
+
+[[bin]]
+name = "mailcal-l10n"
+path = "src/bin/mailcal-l10n.rs"

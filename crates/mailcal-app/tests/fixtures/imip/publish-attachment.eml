@@ -1,0 +1,38 @@
+Delivered-To: alice@test.local
+From: "Owners association" <notices@test.local>
+To: <alice@test.local>
+Subject: Annual general meeting - calendar file enclosed
+Message-ID: <publish-1@test.local>
+Date: Fri, 31 Jul 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="publish-boundary-1"
+
+--publish-boundary-1
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+The date of the annual general meeting is enclosed as a calendar file.
+
+--publish-boundary-1
+Content-Type: text/calendar; charset="utf-8"; method=PUBLISH
+Content-Disposition: attachment; filename="agm.ics"
+Content-Transfer-Encoding: 8bit
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Owners association//Notices//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:publish-agm-2026@test.local
+DTSTAMP:20260731T090000Z
+DTSTART:20260910T180000Z
+DTEND:20260910T200000Z
+SUMMARY:Annual general meeting
+LOCATION:Community hall
+ORGANIZER;CN=Owners association:mailto:notices@test.local
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR
+
+--publish-boundary-1--

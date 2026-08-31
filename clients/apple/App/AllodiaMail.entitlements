@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Grants the app a keychain access group so SecItemAdd/Copy succeed (without this an
+         unsigned/entitlement-less app can't persist Keychain items on iOS, writes fail with
+         errSecMissingEntitlement and the account is gone on the next launch). -->
+    <key>keychain-access-groups</key>
+    <array>
+        <!-- Must carry the team prefix (via $(AppIdentifierPrefix)) to be a valid access group;
+             a bare bundle id doesn't match the app's application-identifier, so the default group
+             is invalid and SecItemAdd still fails. The id half is $(PRODUCT_BUNDLE_IDENTIFIER)
+             rather than a literal so a re-branded build (docs/branding.md) cannot claim the
+             group of the build it is not. -->
+        <string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    </array>
+</dict>
+</plist>

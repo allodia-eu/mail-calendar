@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The first-boot welcome screen, and the one place we ask about usage statistics.
+
+  The rules it implements are legal conditions, not styling choices (docs/analytics.md):
+
+    * The switch starts OFF (IsOn is not bound, and nothing pre-checks it), and nothing is written
+      to the device until the user leaves the screen. Under ePrivacy Art. 5(3) the *act* of storing
+      the install id is what needs consent, so a pre-ticked switch would be the violation itself.
+    * Refusing costs nothing. "Get started" is the only way forward and is always enabled.
+    * The consent is unbundled: this screen accepts no terms and creates no account.
+    * "See exactly what we send" shows the literal payload the core would put on the wire. It is an
+      inline reveal rather than a second dialog, a nested ContentDialog is not allowed in WinUI.
+
+  The button sits outside the ScrollViewer, in its own Grid row, so it stays on screen however far
+  the payload panel pushes the content down. The content row is centred vertically.
+-->
+<UserControl
+    x:Class="Allodia.Mailcal.Views.WelcomeView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l10n="using:Allodia.Mailcal">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalAlignment="Center" HorizontalScrollMode="Disabled">
+            <StackPanel MaxWidth="480" Spacing="8" HorizontalAlignment="Center">
+                <Image
+                    Source="ms-appx:///Images/welcome-art.png"
+                    Width="140" Height="140"
+                    AutomationProperties.Name="{x:Bind l10n:L10n.A11yWelcomeArt()}" />
+
+                <TextBlock
+                    Text="{x:Bind l10n:L10n.WelcomeTitle()}"
+                    Style="{StaticResource TitleTextBlockStyle}"
+                    TextWrapping="Wrap"
+                    TextAlignment="Center" />
+                <TextBlock
+                    Text="{x:Bind l10n:L10n.WelcomeTagline()}"
+                    Style="{StaticResource BodyTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextWrapping="Wrap"
+                    TextAlignment="Center"
+                    Margin="0,0,0,12" />
+
+                <Border
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                    <StackPanel Spacing="8">
+                        <ToggleSwitch
+                            x:Name="ShareStats"
+                            Header="{x:Bind l10n:L10n.WelcomeAnalyticsToggle()}" />
+                        <TextBlock
+                            Text="{x:Bind l10n:L10n.WelcomeAnalyticsBody()}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            TextWrapping="Wrap" />
+                        <HyperlinkButton
+                            Content="{x:Bind l10n:L10n.WelcomeAnalyticsPreview()}"
+                            Click="OnTogglePayload" />
+                        <ScrollViewer
+                            x:Name="PayloadPanel"
+                            Visibility="Collapsed"
+                            HorizontalScrollBarVisibility="Auto"
+                            HorizontalScrollMode="Enabled"
+                            Background="{ThemeResource LayerFillColorDefaultBrush}"
+                            CornerRadius="4"
+                            Padding="12">
+                            <!-- Monospaced and not wrapped: a re-flowed payload is a paraphrase,
+                                 and the point of this panel is that it is not one. -->
+                            <TextBlock
+                                x:Name="PayloadText"
+                                FontFamily="Consolas"
+                                IsTextSelectionEnabled="True"
+                                TextWrapping="NoWrap" />
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <HyperlinkButton
+                    Content="{x:Bind l10n:L10n.WelcomePrivacyPolicy()}"
+                    NavigateUri="{x:Bind PrivacyUri}"
+                    HorizontalAlignment="Center" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- The automation id is what the UI suite settles this screen by. It cannot go by label:
+             the app's language on a harness run is the developer's own, and this screen stands in
+             front of every other surface until it is answered, so a suite that cannot find the
+             button reports "the message list never appeared" and names the wrong thing entirely. -->
+        <Button
+            Grid.Row="1"
+            AutomationProperties.AutomationId="WelcomeGetStarted"
+            Content="{x:Bind l10n:L10n.WelcomeGetStarted()}"
+            Style="{StaticResource AccentButtonStyle}"
+            HorizontalAlignment="Center"
+            MinWidth="200"
+            Margin="0,16,0,0"
+            Click="OnGetStarted" />
+    </Grid>
+</UserControl>

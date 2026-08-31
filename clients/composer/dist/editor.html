@@ -1,0 +1,1840 @@
+<!--
+  GENERATED FILE; do not edit.
+
+  Source: clients/composer/src/ (TypeScript, ESM). Rebuild with:
+      cd clients/composer && bun run build
+
+  Committed deliberately: every client loads this one file (Apple copies it, Windows Content-includes
+  it, Android reads it from assets, Linux include_str!s it), and generating it at build time would
+  make bun a prerequisite of cargo, MSBuild and Gradle. "bun run check" re-derives it and fails if
+  this copy is stale.
+-->
+<!doctype html>
+<!-- No `lang`, deliberately. It is what the engine's spell checker keys off, and a mail composer has
+     no one language: the same person writes Dutch to family and English to work, often in one
+     session. Any fixed value spellchecks every message against it, and on macOS it also overrides
+     NSSpellChecker's per-paragraph "Automatic by Language". Absent, each host falls back to the
+     user's own configured dictionaries. The signature editor loads this document too. -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Composer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --border: #d8dde3;
+      --text: #152330;
+      --muted: #5f6b73;
+      --surface: #fbfbf8;
+      --control: #ffffff;
+      --active: #16598d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: var(--surface);
+      color: var(--text);
+      font: 15px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    /* On a touch host nothing here is under 16px, because 16px is the size below which WebKit
+       zooms the whole page in when an editable or a `select` takes focus: its "make the field
+       readable" behaviour, which a page cannot decline except by locking `maximum-scale`, and
+       that takes pinch-zoom away with it. In a composer the zoom is pure damage: the toolbar
+       grows past the edge of the web view, the caret drifts under it, and nothing returns to
+       scale until the field is blurred. Sized on `html`/`body` rather than on the elements that
+       trigger it, so a control added to the toolbar later cannot reintroduce it. */
+    @media (pointer: coarse) {
+      html,
+      body {
+        font-size: 16px;
+      }
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+      background: #f6f8fa;
+    }
+
+    button,
+    select {
+      min-height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--control);
+      color: var(--text);
+      font: inherit;
+    }
+
+    button {
+      min-width: 32px;
+      padding: 0 9px;
+    }
+
+    button:active,
+    select:focus,
+    button:focus {
+      outline: 2px solid color-mix(in srgb, var(--active) 35%, transparent);
+      outline-offset: 1px;
+    }
+
+    select {
+      padding: 0 8px;
+    }
+
+    /* A hairline between groups of related controls, so eleven buttons read as four groups. */
+    .toolbar .sep {
+      width: 1px;
+      align-self: stretch;
+      margin: 2px 2px;
+      background: var(--border);
+    }
+
+    .toolbar svg {
+      display: block;
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* The colour buttons show the colour they will apply as a bar under the glyph, so the control
+       says what it does without opening it. */
+    .swatch-button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 0 8px;
+      line-height: 1;
+    }
+
+    .swatch-button .bar {
+      width: 16px;
+      height: 3px;
+      border-radius: 1px;
+      background: var(--text);
+      /* A pale colour needs an edge or it looks like an empty control on the white button. */
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+    }
+
+    /* --- Popovers (colour palette, table menu) --- */
+
+    .menu {
+      position: relative;
+      display: flex;
+    }
+
+    .popover {
+      position: absolute;
+      z-index: 3;
+      top: calc(100% + 4px);
+      left: 0;
+      min-width: 168px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--control);
+      box-shadow: 0 6px 18px rgba(21, 35, 48, 0.16);
+    }
+
+    .popover[hidden] {
+      display: none;
+    }
+
+    /* In native-chrome mode the toolbar is pinned to the bottom of the viewport, so a popover
+       below it would open off-screen behind the keyboard. */
+    body.native-chrome .popover {
+      top: auto;
+      bottom: calc(100% + 4px);
+    }
+
+    /* Keep a popover inside the viewport when its button sits near the right edge. */
+    .popover.align-end {
+      left: auto;
+      right: 0;
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(6, 22px);
+      gap: 4px;
+    }
+
+    .swatches button {
+      width: 22px;
+      height: 22px;
+      min-width: 0;
+      padding: 0;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+    }
+
+    .popover .reset {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+      padding: 0 8px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    /* The insert-table size picker: hovering the grid previews the size, clicking commits it. */
+    .grid-picker {
+      display: grid;
+      grid-template-columns: repeat(8, 16px);
+      gap: 2px;
+    }
+
+    .grid-picker span {
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      background: var(--control);
+    }
+
+    .grid-picker span.on {
+      border-color: var(--active);
+      background: color-mix(in srgb, var(--active) 18%, #ffffff);
+    }
+
+    .grid-size {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .menu-items {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .menu-items button {
+      min-height: 28px;
+      padding: 0 8px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .menu-items button:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--active) 10%, transparent);
+    }
+
+    .menu-items button:disabled {
+      color: var(--muted);
+      opacity: 0.6;
+    }
+
+    .menu-items hr {
+      margin: 4px 0;
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+
+    .editor {
+      flex: 1;
+      min-height: 180px;
+      padding: 14px;
+      overflow: auto;
+      background: #ffffff;
+      outline: none;
+      word-break: break-word;
+    }
+
+    .editor:empty::before {
+      content: attr(data-placeholder);
+      color: var(--muted);
+    }
+
+    /* Native-chrome mode (Android): the native surface owns a single scroll; the compose
+       header sits in a native overlay above this WebView and scrolls away as the message
+       grows, and the toolbar pins just above the keyboard. So here the *page* scrolls (not an
+       inner editor box), the toolbar is fixed to the viewport bottom, and the editor reserves
+       room for the native header (top) and the fixed toolbar (bottom) via insets the host sets.
+       Untouched hosts (macOS/Windows) keep the flex/inner-scroll layout above. */
+    html.native-chrome,
+    body.native-chrome {
+      height: auto;
+    }
+
+    /* Keep the caret clear of the fixed toolbar: reserve the toolbar's height at the bottom when
+       the browser scrolls the caret into view, so a newly typed line lands above it, not behind. */
+    html.native-chrome {
+      scroll-padding-bottom: var(--composer-bottom-inset, 56px);
+    }
+
+    body.native-chrome {
+      display: block;
+      min-height: 100%;
+    }
+
+    body.native-chrome .toolbar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2;
+      border-top: 1px solid var(--border);
+      border-bottom: none;
+    }
+
+    body.native-chrome .editor {
+      flex: none;
+      overflow: visible;
+      box-sizing: border-box;
+      /* Filling the viewport when empty; so tapping anywhere focuses the body; is done in JS
+         (`fillViewport`), NOT here. Viewport-percentage units are dead in this WebView: it is laid
+         out after the page loads, so its layout viewport is fixed at zero height and both
+         `100vh` and `100%` compute to `0px` with no warning. Do not "simplify" this back to
+         `min-height: 100vh`; it silently does nothing and the body stops being tappable. */
+      /* 16px sides to line up with the native header fields' inset. */
+      padding: var(--composer-top-inset, 14px) 16px var(--composer-bottom-inset, 56px);
+    }
+
+    p {
+      margin: 0 0 10px;
+    }
+
+    ul,
+    ol {
+      margin: 0 0 10px 22px;
+      padding: 0;
+    }
+
+    /* A sub-list is inside its parent <li>, so it must not repeat the outer block's bottom margin,
+       that would open a gap between an indented item and the one after it. */
+    li > ul,
+    li > ol {
+      margin-bottom: 0;
+    }
+
+    table {
+      width: 100%;
+      margin: 0 0 10px;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    td,
+    th {
+      min-width: 48px;
+      min-height: 28px;
+      padding: 6px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    /* Constrain every image to the editor width and keep its aspect ratio: editor-inserted
+       attachments (which carry data-attachment-id) AND the inline images carried in a quoted
+       reply/forward (raw <img src="data:…"> with no data-attachment-id). Without this, a
+       quoted signature logo renders at its intrinsic size and overflows the editor. The
+       `height: auto !important` keeps a quoted image whose original CSS/inline style pinned
+       its height from being squashed when the width is capped; mirrors the reading view's
+       BASE_CSS (docs/rendering-security.md). */
+    img {
+      max-width: 100%;
+      height: auto !important;
+    }
+
+    /* The quoted original on reply/forward. The attribution is display-only; the body stays
+       editable so the user can trim it. The two styles mirror the Rust composer renderer
+       (mailcal-composer): Indented puts the body in a left border, LineAndHeader divides it
+       off with a rule and shows a labeled header block. The two tokens are the Rust
+       QuoteStyle variant names, which serialize verbatim into the seed JSON. */
+    .allodia-quote {
+      margin: 14px 0 0;
+    }
+
+    .allodia-quote[data-quote-style="LineAndHeader"] {
+      border-top: 1pt solid rgb(181, 196, 223);
+      padding-top: 3pt;
+    }
+
+    .aq-attr {
+      color: var(--muted);
+      margin: 0 0 8px;
+      white-space: pre-wrap;
+    }
+
+    /* A plain-text original keeps the line breaks its sender wrote. It is inserted with
+       `textContent`, so there are no <br>s to lay it out: without this the whole message
+       collapses onto one line. */
+    .aq-body.aq-plain {
+      white-space: pre-wrap;
+    }
+
+    .allodia-quote[data-quote-style="Indented"] .aq-body {
+      margin: 0 0 0 0.8ex;
+      padding-left: 1ex;
+      border-left: 2px solid #cccccc;
+    }
+
+    /* The sender's signature. Editable like any other body content (Outlook's model: seeded,
+       then yours to trim before sending) and given no decoration of its own; whatever the user
+       authored in Settings is exactly what they should see here, and what goes out. The margin
+       is the only editor-side addition, so the seeded block doesn't butt against the line above
+       it; the Rust renderer emits the same wrapper class with no styling at all. */
+    .allodia-signature {
+      margin: 14px 0 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar" role="toolbar">
+    <button type="button" data-command="bold" title="Bold"><strong>B</strong></button>
+    <button type="button" data-command="italic" title="Italic"><em>I</em></button>
+    <button type="button" data-command="underline" title="Underline"><u>U</u></button>
+
+    <span class="sep"></span>
+
+    <div class="menu">
+      <button type="button" class="swatch-button" id="text-colour" title="Text colour" aria-haspopup="true" aria-expanded="false">
+        <span aria-hidden="true"><strong>A</strong></span>
+        <span class="bar" id="text-colour-bar"></span>
+      </button>
+      <div class="popover" id="text-colour-menu" role="menu" hidden></div>
+    </div>
+
+    <div class="menu">
+      <button type="button" class="swatch-button" id="highlight" title="Highlight" aria-haspopup="true" aria-expanded="false">
+        <span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13h4l6.2-6.2a1.6 1.6 0 0 0 0-2.3l-1.7-1.7a1.6 1.6 0 0 0-2.3 0L3 9z"/><path d="M2.2 13.8h5"/></svg>
+        </span>
+        <span class="bar" id="highlight-bar"></span>
+      </button>
+      <div class="popover" id="highlight-menu" role="menu" hidden></div>
+    </div>
+
+    <select id="font-size" title="Font size" aria-label="Font size">
+      <option value="Normal">Normal</option>
+      <option value="Small">Small</option>
+      <option value="Large">Large</option>
+      <option value="Huge">Huge</option>
+    </select>
+
+    <span class="sep"></span>
+
+    <button type="button" id="bullet-list" title="Bulleted list">&bull;</button>
+    <button type="button" id="ordered-list" title="Numbered list">1.</button>
+    <button type="button" id="outdent" title="Decrease indent">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 3.5h7M7 8h7M7 12.5h7M4.5 6 2 8l2.5 2"/></svg>
+    </button>
+    <button type="button" id="indent" title="Increase indent">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 3.5h7M7 8h7M7 12.5h7M2 6l2.5 2L2 10"/></svg>
+    </button>
+
+    <span class="sep"></span>
+
+    <div class="menu">
+      <button type="button" id="table" title="Table" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1"/><path d="M1.5 6.2h13M1.5 9.9h13M6 2.5v11M10.5 2.5v11"/></svg>
+      </button>
+      <div class="popover" id="table-menu" role="menu" hidden></div>
+    </div>
+  </div>
+  <main id="editor" class="editor" contenteditable="true" data-placeholder="Write your message" aria-label="Write your message"></main>
+  <script>
+(() => {
+  // src/dom.ts
+  function documentOf(node) {
+    return node.ownerDocument ?? node;
+  }
+  function windowOf(node) {
+    const view = documentOf(node).defaultView;
+    if (!view)
+      throw new Error("editor node is detached from a window");
+    return view;
+  }
+  function focusEditor(editor) {
+    editor.focus({ preventScroll: true });
+  }
+  function rangeWithin(editor) {
+    const selection = windowOf(editor).getSelection();
+    if (!selection || selection.rangeCount === 0)
+      return null;
+    const range = selection.getRangeAt(0);
+    return editor.contains(range.startContainer) ? range : null;
+  }
+  function ancestorAtCaret(editor, ...tags) {
+    const range = rangeWithin(editor);
+    return range ? ancestorOf(range.startContainer, editor, ...tags) : null;
+  }
+  function ancestorOf(node, editor, ...tags) {
+    const wanted = new Set(tags.map((tag) => tag.toUpperCase()));
+    let current = node;
+    while (current && current !== editor) {
+      if (current.nodeType === 1 && wanted.has(current.tagName)) {
+        return current;
+      }
+      current = current.parentNode;
+    }
+    return null;
+  }
+  function saveSelection(editor) {
+    const range = rangeWithin(editor);
+    if (!range)
+      return null;
+    return {
+      startNode: range.startContainer,
+      startOffset: range.startOffset,
+      endNode: range.endContainer,
+      endOffset: range.endOffset
+    };
+  }
+  function restoreSelection(editor, saved) {
+    if (!saved || !editor.contains(saved.startNode) || !editor.contains(saved.endNode))
+      return;
+    const doc = documentOf(editor);
+    const selection = doc.defaultView?.getSelection();
+    if (!selection)
+      return;
+    const range = doc.createRange();
+    try {
+      range.setStart(saved.startNode, saved.startOffset);
+      range.setEnd(saved.endNode, saved.endOffset);
+    } catch {
+      return;
+    }
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  function caretInto(target, atStart = true) {
+    const doc = documentOf(target);
+    const selection = doc.defaultView?.getSelection();
+    if (!selection)
+      return;
+    const range = doc.createRange();
+    range.selectNodeContents(target);
+    range.collapse(atStart);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  var START_TO_END = 1;
+  var END_TO_START = 3;
+  function rangeOverlaps(range, target) {
+    return range.compareBoundaryPoints(END_TO_START, target) <= 0 && range.compareBoundaryPoints(START_TO_END, target) >= 0;
+  }
+  function rangeTouches(range, node) {
+    const nodeRange = documentOf(node).createRange();
+    nodeRange.selectNodeContents(node);
+    return rangeOverlaps(range, nodeRange);
+  }
+  function emptyLine(doc, tag = "p") {
+    const node = doc.createElement(tag);
+    node.appendChild(doc.createElement("br"));
+    return node;
+  }
+  function isBlank(element) {
+    if (element.childNodes.length === 0)
+      return true;
+    const only = element.childNodes.length === 1 ? element.firstChild : null;
+    return !!only && only.nodeType === 1 && only.tagName === "BR";
+  }
+
+  // src/attachments.ts
+  class Attachments {
+    items = [];
+    remember(attachment) {
+      const index = this.items.findIndex((item) => item.id === attachment.id);
+      if (index >= 0)
+        this.items[index] = attachment;
+      else
+        this.items.push(attachment);
+    }
+    list() {
+      return this.items.slice();
+    }
+    add(meta) {
+      this.remember({
+        id: String(meta.id),
+        blob: String(meta.blob),
+        file_name: String(meta.file_name),
+        media_type: String(meta.media_type),
+        size: meta.size == null ? null : Number(meta.size),
+        disposition: "Attachment"
+      });
+    }
+    addInlineImage(editor, meta) {
+      this.remember({
+        id: String(meta.id),
+        blob: String(meta.blob),
+        file_name: String(meta.file_name),
+        media_type: String(meta.media_type),
+        size: meta.size == null ? null : Number(meta.size),
+        disposition: { Inline: { cid: String(meta.cid) } }
+      });
+      const image = documentOf(editor).createElement("img");
+      image.dataset.attachmentId = String(meta.id);
+      image.alt = String(meta.alt_text || "");
+      if (meta.width_px)
+        image.width = Number(meta.width_px);
+      image.src = safePreviewUrl(meta.preview_url);
+      focusEditor(editor);
+      insertAtCaret(editor, image);
+    }
+  }
+  function safePreviewUrl(url) {
+    return typeof url === "string" && (url.startsWith("data:image/") || url.startsWith("blob:")) ? url : "";
+  }
+  function insertAtCaret(editor, node) {
+    const selection = documentOf(editor).defaultView?.getSelection();
+    if (!selection || selection.rangeCount === 0 || !editor.contains(selection.getRangeAt(0).startContainer)) {
+      editor.appendChild(node);
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  // src/autoformat.ts
+  var MARKER = "-";
+  var BLOCK_TAGS = new Set(["DIV", "P", "UL", "OL", "TABLE", "BLOCKQUOTE", "SECTION", "ARTICLE"]);
+  var REGION_CLASSES = ["allodia-quote", "aq-attr", "aq-body", "allodia-signature"];
+  function autoformatBulletList(editor) {
+    const range = rangeWithin(editor);
+    if (!range?.collapsed)
+      return false;
+    if (ancestorOf(range.startContainer, editor, "li", "td", "th"))
+      return false;
+    const doc = documentOf(editor);
+    const block = ancestorOf(range.startContainer, editor, "p", "div");
+    if (block && REGION_CLASSES.some((name) => block.classList.contains(name)))
+      return false;
+    const line = block ?? editor;
+    if (!block && Array.from(editor.children).some((child) => BLOCK_TAGS.has(child.tagName))) {
+      return false;
+    }
+    const before = doc.createRange();
+    before.selectNodeContents(line);
+    before.setEnd(range.startContainer, range.startOffset);
+    if (before.toString() !== MARKER)
+      return false;
+    before.deleteContents();
+    const list = doc.createElement("ul");
+    const item = doc.createElement("li");
+    while (line.firstChild)
+      item.appendChild(line.firstChild);
+    for (const node of Array.from(item.childNodes)) {
+      if (node.nodeType === 3 && node.nodeValue === "")
+        node.remove();
+    }
+    if (item.childNodes.length === 0)
+      item.appendChild(doc.createElement("br"));
+    list.appendChild(item);
+    if (block)
+      block.replaceWith(list);
+    else
+      editor.appendChild(list);
+    caretInto(item, true);
+    return true;
+  }
+
+  // src/types.ts
+  function emptyMarks() {
+    return {
+      bold: false,
+      italic: false,
+      underline: false,
+      size: null,
+      color: null,
+      highlight: null
+    };
+  }
+  var SIZE_PX = {
+    Small: 13,
+    Normal: 15,
+    Large: 18,
+    Huge: 24
+  };
+  function isFontSize(value) {
+    return value === "Small" || value === "Normal" || value === "Large" || value === "Huge";
+  }
+
+  // src/marks.ts
+  function normalizeColor(value) {
+    const raw = (value ?? "").trim().toLowerCase();
+    if (!raw || raw === "transparent" || raw === "initial" || raw === "inherit")
+      return null;
+    const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(raw);
+    if (hex) {
+      const digits = hex[1];
+      return digits.length === 3 ? `#${digits[0]}${digits[0]}${digits[1]}${digits[1]}${digits[2]}${digits[2]}` : `#${digits}`;
+    }
+    const rgb = /^rgba?\(([^)]+)\)$/.exec(raw);
+    if (rgb) {
+      const parts = rgb[1].split(/[\s,/]+/).filter(Boolean);
+      if (parts.length < 3)
+        return null;
+      if (parts.length > 3 && Number.parseFloat(parts[3]) === 0)
+        return null;
+      const channels = parts.slice(0, 3).map((part) => {
+        const n = part.endsWith("%") ? Math.round(Number.parseFloat(part) / 100 * 255) : Number.parseInt(part, 10);
+        return Number.isFinite(n) ? Math.min(255, Math.max(0, n)) : null;
+      });
+      if (channels.some((c) => c === null))
+        return null;
+      return `#${channels.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+    }
+    return null;
+  }
+  function elementMarks(element, inherited) {
+    const tag = element.tagName;
+    const style = element.style;
+    const computed = element.ownerDocument.defaultView?.getComputedStyle(element);
+    const weight = Number.parseInt(computed?.fontWeight ?? "", 10);
+    const decoration = `${computed?.textDecorationLine ?? ""} ${computed?.textDecoration ?? ""}`;
+    const size = element.dataset.size;
+    const color = normalizeColor(element.dataset.color ?? style?.color);
+    const highlight = normalizeColor(element.dataset.highlight ?? style?.backgroundColor);
+    return {
+      bold: inherited.bold || tag === "B" || tag === "STRONG" || weight >= 600,
+      italic: inherited.italic || tag === "I" || tag === "EM",
+      underline: inherited.underline || tag === "U" || decoration.includes("underline"),
+      size: isFontSize(size) ? size : inherited.size,
+      color: color ?? inherited.color,
+      highlight: highlight ?? inherited.highlight
+    };
+  }
+  function normalizeFontElements(editor, pendingSize) {
+    for (const node of Array.from(editor.querySelectorAll("font"))) {
+      if (node.closest(".allodia-quote, .allodia-signature"))
+        continue;
+      const span = editor.ownerDocument.createElement("span");
+      const inline = node.getAttribute("style");
+      if (inline)
+        span.setAttribute("style", inline);
+      if (node.getAttribute("size") === "7" && pendingSize) {
+        span.dataset.size = pendingSize;
+        span.style.fontSize = `${SIZE_PX[pendingSize]}px`;
+      }
+      const color = normalizeColor(node.getAttribute("color"));
+      if (color) {
+        span.dataset.color = color;
+        span.style.color = color;
+      }
+      while (node.firstChild)
+        span.appendChild(node.firstChild);
+      node.replaceWith(span);
+    }
+  }
+
+  // src/quote.ts
+  function readStyle(value) {
+    return value === "LineAndHeader" ? "LineAndHeader" : "Indented";
+  }
+  function readHeaders(json) {
+    try {
+      const parsed = JSON.parse(json || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  function quoteBlock(container) {
+    const body = container.querySelector(".aq-body");
+    return {
+      Quote: {
+        style: readStyle(container.dataset.quoteStyle),
+        attribution: {
+          line: container.dataset.quoteLine || "",
+          headers: readHeaders(container.dataset.quoteHeaders)
+        },
+        body_html: body ? body.innerHTML : "",
+        body_plain: container.dataset.quotePlain || ""
+      }
+    };
+  }
+  function renderQuoteAttribution(container) {
+    const attr = container.querySelector(".aq-attr");
+    if (!attr)
+      return;
+    const doc = documentOf(container);
+    attr.textContent = "";
+    if (container.dataset.quoteStyle === "LineAndHeader") {
+      readHeaders(container.dataset.quoteHeaders).forEach((header, index) => {
+        if (index > 0)
+          attr.appendChild(doc.createElement("br"));
+        const label = doc.createElement("strong");
+        label.textContent = `${header.label}: `;
+        attr.appendChild(label);
+        attr.appendChild(doc.createTextNode(header.value || ""));
+      });
+    } else {
+      attr.textContent = container.dataset.quoteLine || "";
+    }
+  }
+  function setComposerQuote(editor, seed) {
+    const doc = documentOf(editor);
+    editor.innerHTML = "";
+    const initialText = typeof seed.initial_text === "string" ? seed.initial_text : "";
+    const lead = doc.createElement("p");
+    if (initialText)
+      lead.textContent = initialText;
+    else
+      lead.appendChild(doc.createElement("br"));
+    editor.appendChild(lead);
+    const attribution = seed.attribution ?? { line: "", headers: [] };
+    const container = doc.createElement("div");
+    container.className = "allodia-quote";
+    container.dataset.quoteStyle = readStyle(seed.style);
+    container.dataset.quoteLine = attribution.line || "";
+    container.dataset.quoteHeaders = JSON.stringify(attribution.headers || []);
+    container.dataset.quotePlain = seed.body_plain || "";
+    const attr = doc.createElement("div");
+    attr.className = "aq-attr";
+    attr.setAttribute("contenteditable", "false");
+    container.appendChild(attr);
+    const body = doc.createElement("div");
+    body.className = "aq-body";
+    if (seed.body_html) {
+      body.innerHTML = seed.body_html;
+    } else {
+      body.textContent = seed.body_plain || "";
+      body.classList.add("aq-plain");
+    }
+    container.appendChild(body);
+    renderQuoteAttribution(container);
+    editor.appendChild(container);
+    caretInto(lead, !initialText);
+    focusEditor(editor);
+  }
+  function setComposerQuoteStyle(editor, style) {
+    const container = editor.querySelector(".allodia-quote");
+    if (!container)
+      return;
+    container.dataset.quoteStyle = readStyle(style);
+    renderQuoteAttribution(container);
+  }
+
+  // src/signature.ts
+  function composerSignature(editor) {
+    return Array.from(editor.children).find((child) => child.classList.contains("allodia-signature")) ?? null;
+  }
+  function signatureBlock(container) {
+    return {
+      Signature: {
+        body_html: container.innerHTML,
+        body_plain: container.dataset.signaturePlain || ""
+      }
+    };
+  }
+  function setComposerSignature(editor, signature) {
+    const doc = documentOf(editor);
+    let container = composerSignature(editor);
+    if (!signature?.body_html) {
+      container?.remove();
+      return;
+    }
+    if (!container) {
+      container = doc.createElement("div");
+      container.className = "allodia-signature";
+      const quote = editor.querySelector(".allodia-quote");
+      if (quote)
+        editor.insertBefore(container, quote);
+      else
+        editor.appendChild(container);
+      if (!container.previousElementSibling) {
+        const lead = doc.createElement("p");
+        lead.appendChild(doc.createElement("br"));
+        editor.insertBefore(lead, container);
+      }
+    }
+    container.innerHTML = signature.body_html;
+    container.dataset.signaturePlain = signature.body_plain || "";
+  }
+  function routeClickBelowSignature(editor, target) {
+    if (target !== editor)
+      return false;
+    const signature = composerSignature(editor);
+    if (!signature)
+      return false;
+    let anchor = signature.previousElementSibling;
+    if (!anchor) {
+      const lead = documentOf(editor).createElement("p");
+      lead.appendChild(documentOf(editor).createElement("br"));
+      editor.insertBefore(lead, signature);
+      anchor = lead;
+    }
+    caretInto(anchor, false);
+    focusEditor(editor);
+    return true;
+  }
+  function setSignatureBody(editor, html, placeholder) {
+    editor.innerHTML = typeof html === "string" ? html : "";
+    if (typeof placeholder === "string" && placeholder) {
+      editor.dataset.placeholder = placeholder;
+      editor.setAttribute("aria-label", placeholder);
+    }
+    focusEditor(editor);
+  }
+  function signatureBody(editor) {
+    return { body_html: editor.innerHTML, body_plain: editor.innerText };
+  }
+
+  // src/document.ts
+  function normalizeText(value) {
+    return value.replace(/\u00A0/g, " ");
+  }
+  function inlineText(text, marks) {
+    const run = {
+      text: normalizeText(text),
+      bold: marks.bold,
+      italic: marks.italic,
+      underline: marks.underline
+    };
+    if (marks.size)
+      run.font_size = marks.size;
+    if (marks.color)
+      run.color = marks.color;
+    if (marks.highlight)
+      run.highlight = marks.highlight;
+    return { Text: run };
+  }
+  function inlineImage(element) {
+    const id = element.dataset.attachmentId;
+    if (!id)
+      return null;
+    const width = Number.parseInt(element.getAttribute("width") || element.style.width, 10);
+    return {
+      Image: {
+        attachment_id: id,
+        alt_text: element.getAttribute("alt") || "",
+        width_px: Number.isFinite(width) && width > 0 ? width : null
+      }
+    };
+  }
+  function inlinesFrom(node, marks) {
+    if (node.nodeType === 3) {
+      return node.nodeValue ? [inlineText(node.nodeValue, marks)] : [];
+    }
+    if (node.nodeType !== 1)
+      return [];
+    const element = node;
+    if (element.tagName === "BR") {
+      return [];
+    }
+    if (element.tagName === "IMG") {
+      const image = inlineImage(element);
+      return image ? [image] : [];
+    }
+    const nextMarks = elementMarks(element, marks);
+    return Array.from(element.childNodes).flatMap((child) => inlinesFrom(child, nextMarks));
+  }
+  function blockInlines(element) {
+    return Array.from(element.childNodes).flatMap((child) => inlinesFrom(child, emptyMarks()));
+  }
+  function isBr(node) {
+    return node.nodeType === 1 && node.tagName === "BR";
+  }
+  function leafParagraphs(element, blocks) {
+    const children = Array.from(element.childNodes);
+    if (children.length > 0 && isBr(children[children.length - 1]))
+      children.pop();
+    let content = [];
+    const flush = () => {
+      blocks.push({ Paragraph: { content } });
+      content = [];
+    };
+    for (const child of children) {
+      if (isBr(child))
+        flush();
+      else
+        content.push(...inlinesFrom(child, emptyMarks()));
+    }
+    flush();
+  }
+  function listValue(element) {
+    return {
+      kind: element.tagName === "OL" ? "Ordered" : "Bullet",
+      items: Array.from(element.children).filter((child) => child.tagName === "LI").map(listItem)
+    };
+  }
+  function listItem(li) {
+    const content = [];
+    let child = null;
+    for (const node of Array.from(li.childNodes)) {
+      if (node.nodeType === 1 && (node.tagName === "UL" || node.tagName === "OL")) {
+        child = listValue(node);
+      } else {
+        content.push(...inlinesFrom(node, emptyMarks()));
+      }
+    }
+    return { content, child };
+  }
+  function tableRows(table) {
+    const rows = [];
+    for (const child of Array.from(table.children)) {
+      if (child.tagName === "TR") {
+        rows.push(child);
+      } else if (child.tagName === "TBODY" || child.tagName === "THEAD" || child.tagName === "TFOOT") {
+        for (const row of Array.from(child.children)) {
+          if (row.tagName === "TR")
+            rows.push(row);
+        }
+      }
+    }
+    return rows;
+  }
+  function tableBlock(element) {
+    return {
+      Table: {
+        rows: tableRows(element).map((row) => ({
+          cells: Array.from(row.children).filter((cell) => cell.tagName === "TD" || cell.tagName === "TH").map((cell) => ({ content: blockInlines(cell) }))
+        }))
+      }
+    };
+  }
+  var BLOCK_TAGS2 = new Set(["DIV", "P", "UL", "OL", "TABLE", "BLOCKQUOTE", "SECTION", "ARTICLE"]);
+  function hasBlockChild(element) {
+    return Array.from(element.children).some((child) => BLOCK_TAGS2.has(child.tagName));
+  }
+  function collectBlocks(container, blocks) {
+    let inlineRun = [];
+    const flush = () => {
+      if (inlineRun.length === 0)
+        return;
+      const content = inlineRun.flatMap((node) => inlinesFrom(node, emptyMarks()));
+      if (content.length > 0)
+        blocks.push({ Paragraph: { content } });
+      inlineRun = [];
+    };
+    for (const child of Array.from(container.childNodes)) {
+      const element = child.nodeType === 1 ? child : null;
+      const tag = element?.tagName ?? null;
+      if (element?.classList.contains("allodia-quote")) {
+        flush();
+        blocks.push(quoteBlock(element));
+        continue;
+      }
+      if (element?.classList.contains("allodia-signature")) {
+        flush();
+        blocks.push(signatureBlock(element));
+        continue;
+      }
+      if (tag === "UL" || tag === "OL") {
+        flush();
+        blocks.push({ List: listValue(element) });
+      } else if (tag === "TABLE") {
+        flush();
+        blocks.push(tableBlock(element));
+      } else if (tag === "DIV" || tag === "P") {
+        flush();
+        if (hasBlockChild(element))
+          collectBlocks(element, blocks);
+        else
+          leafParagraphs(element, blocks);
+      } else if (tag === "BR") {
+        flush();
+      } else {
+        inlineRun.push(child);
+      }
+    }
+    flush();
+  }
+  function documentBlocks(editor) {
+    const blocks = [];
+    collectBlocks(editor, blocks);
+    return blocks.length > 0 ? blocks : [{ Paragraph: { content: [] } }];
+  }
+
+  // src/format.ts
+  function exec(editor, command, value) {
+    focusEditor(editor);
+    const doc = documentOf(editor);
+    return doc.execCommand?.(command, false, value) ?? false;
+  }
+  function preferCss(editor) {
+    exec(editor, "styleWithCSS", "true");
+  }
+  function applyMark(editor, command) {
+    exec(editor, command);
+  }
+  function applyFontSize(editor, size) {
+    exec(editor, "fontSize", "7");
+    normalizeFontElements(editor, size);
+    const range = rangeWithin(editor);
+    for (const span of Array.from(editor.querySelectorAll("span[style*='font-size']"))) {
+      if (span.dataset.size || span.closest(".allodia-quote, .allodia-signature"))
+        continue;
+      if (!range || !rangeTouches(range, span))
+        continue;
+      span.dataset.size = size;
+      span.style.fontSize = `${SIZE_PX[size]}px`;
+    }
+  }
+  function applyColor(editor, kind, color) {
+    const normalized = normalizeColor(color);
+    if (!normalized) {
+      clearColor(editor, kind);
+      return;
+    }
+    preferCss(editor);
+    if (kind === "color") {
+      exec(editor, "foreColor", normalized);
+    } else if (!exec(editor, "hiliteColor", normalized)) {
+      exec(editor, "backColor", normalized);
+    }
+    normalizeFontElements(editor, null);
+    stampColor(editor, kind, normalized);
+  }
+  function stampColor(editor, kind, color) {
+    const property = kind === "color" ? "color" : "background-color";
+    for (const span of Array.from(editor.querySelectorAll(`span[style*='${property}']`))) {
+      if (span.closest(".allodia-quote, .allodia-signature"))
+        continue;
+      const own = normalizeColor(kind === "color" ? span.style.color : span.style.backgroundColor);
+      if (own === color)
+        span.dataset[kind === "color" ? "color" : "highlight"] = color;
+    }
+  }
+  function clearColor(editor, kind) {
+    const range = rangeWithin(editor);
+    if (!range)
+      return;
+    const attribute = kind === "color" ? "data-color" : "data-highlight";
+    const property = kind === "color" ? "color" : "backgroundColor";
+    for (const element of Array.from(editor.querySelectorAll("*"))) {
+      if (element.closest(".allodia-quote, .allodia-signature"))
+        continue;
+      if (!element.hasAttribute(attribute) && !element.style[property])
+        continue;
+      if (!rangeTouches(range, element))
+        continue;
+      element.removeAttribute(attribute);
+      element.style[property] = "";
+      unwrapIfBare(element);
+    }
+  }
+  function unwrapIfBare(element) {
+    if (element.tagName !== "SPAN")
+      return;
+    const meaningful = Array.from(element.attributes).some((attribute) => attribute.name !== "style" || attribute.value.trim() !== "");
+    const parent = element.parentElement;
+    if (meaningful || !parent)
+      return;
+    while (element.firstChild)
+      parent.insertBefore(element.firstChild, element);
+    element.remove();
+  }
+
+  // src/host.ts
+  function installNativeChrome(editor, toolbar) {
+    const doc = editor.ownerDocument;
+    const win = windowOf(editor);
+    const setBottomInset = () => {
+      doc.documentElement.style.setProperty("--composer-bottom-inset", `${toolbar.offsetHeight}px`);
+    };
+    const fillViewport = () => {
+      editor.style.minHeight = `${doc.documentElement.clientHeight}px`;
+    };
+    return {
+      useNativeComposerChrome() {
+        doc.documentElement.classList.add("native-chrome");
+        doc.body.classList.add("native-chrome");
+        setBottomInset();
+        fillViewport();
+        if (win.ResizeObserver)
+          new win.ResizeObserver(setBottomInset).observe(toolbar);
+        win.addEventListener("resize", fillViewport);
+      },
+      setComposerTopInset(cssPx) {
+        const px = Number(cssPx);
+        doc.documentElement.style.setProperty("--composer-top-inset", `${Number.isFinite(px) && px > 0 ? px : 14}px`);
+      }
+    };
+  }
+
+  // src/labels.ts
+  var DEFAULT_LABELS = {
+    placeholder: "Write your message",
+    bold: "Bold",
+    italic: "Italic",
+    underline: "Underline",
+    fontSize: "Font size",
+    sizeNormal: "Normal",
+    sizeSmall: "Small",
+    sizeLarge: "Large",
+    sizeHuge: "Huge",
+    bulletedList: "Bulleted list",
+    numberedList: "Numbered list",
+    indent: "Increase indent",
+    outdent: "Decrease indent",
+    textColour: "Text colour",
+    colourAutomatic: "Automatic",
+    highlight: "Highlight",
+    highlightNone: "No highlight",
+    table: "Table",
+    insertTable: "Insert table",
+    insertRowAbove: "Insert row above",
+    insertRowBelow: "Insert row below",
+    insertColumnLeft: "Insert column left",
+    insertColumnRight: "Insert column right",
+    deleteRow: "Delete row",
+    deleteColumn: "Delete column",
+    deleteTable: "Delete table"
+  };
+  function mergeLabels(current, incoming) {
+    const source = typeof incoming === "string" ? safeParse(incoming) : incoming ?? {};
+    const merged = { ...current };
+    for (const key of Object.keys(DEFAULT_LABELS)) {
+      const value = source[key];
+      if (typeof value === "string" && value.length > 0)
+        merged[key] = value;
+    }
+    return merged;
+  }
+  function safeParse(json) {
+    try {
+      const parsed = JSON.parse(json);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  // src/lists.ts
+  function ownLineRange(li) {
+    const range = documentOf(li).createRange();
+    range.selectNodeContents(li);
+    const sub = Array.from(li.children).find((child) => child.tagName === "UL" || child.tagName === "OL");
+    if (sub)
+      range.setEndBefore(sub);
+    return range;
+  }
+  function selectedListItems(editor) {
+    const range = rangeWithin(editor);
+    if (!range)
+      return [];
+    if (range.collapsed) {
+      const li = ancestorOf(range.startContainer, editor, "li");
+      return li ? [li] : [];
+    }
+    return Array.from(editor.querySelectorAll("li")).filter((li) => rangeOverlaps(range, ownLineRange(li)));
+  }
+  function isListTag(element) {
+    return !!element && (element.tagName === "UL" || element.tagName === "OL");
+  }
+  function trailingList(li) {
+    const last = li.lastElementChild;
+    return isListTag(last) ? last : null;
+  }
+  function createList(like) {
+    return documentOf(like).createElement(like.tagName.toLowerCase());
+  }
+  function takeFollowing(li) {
+    const following = [];
+    for (let node = li.nextElementSibling;node; ) {
+      const next = node.nextElementSibling;
+      following.push(node);
+      node = next;
+    }
+    return following;
+  }
+  function indentItem(li) {
+    const list = li.parentElement;
+    if (!isListTag(list))
+      return false;
+    const previous = li.previousElementSibling;
+    if (!previous || previous.tagName !== "LI")
+      return false;
+    let nested = trailingList(previous);
+    if (!nested) {
+      nested = createList(list);
+      previous.appendChild(nested);
+    }
+    nested.appendChild(li);
+    return true;
+  }
+  function outdentItem(li) {
+    const list = li.parentElement;
+    if (!isListTag(list))
+      return false;
+    const doc = documentOf(li);
+    const parentItem = list.parentElement;
+    const following = takeFollowing(li);
+    if (parentItem?.tagName === "LI" && parentItem.parentElement) {
+      if (following.length > 0) {
+        const sub = trailingList(li) ?? createList(list);
+        if (!sub.parentElement)
+          li.appendChild(sub);
+        for (const node of following)
+          sub.appendChild(node);
+      }
+      parentItem.parentElement.insertBefore(li, parentItem.nextSibling);
+      if (list.children.length === 0)
+        list.remove();
+      return true;
+    }
+    const tail = createList(list);
+    for (const node of following)
+      tail.appendChild(node);
+    const promoted = trailingList(li);
+    promoted?.remove();
+    const paragraph = doc.createElement("p");
+    while (li.firstChild)
+      paragraph.appendChild(li.firstChild);
+    if (paragraph.childNodes.length === 0)
+      paragraph.appendChild(doc.createElement("br"));
+    const parent = list.parentElement;
+    if (!parent)
+      return false;
+    let anchor = list;
+    const place = (node) => {
+      parent.insertBefore(node, anchor.nextSibling);
+      anchor = node;
+    };
+    place(paragraph);
+    if (promoted)
+      place(promoted);
+    if (tail.children.length > 0)
+      place(tail);
+    li.remove();
+    if (list.children.length === 0)
+      list.remove();
+    caretInto(paragraph, false);
+    return true;
+  }
+  function indentSelection(editor, outdent) {
+    const items = selectedListItems(editor);
+    if (items.length === 0)
+      return false;
+    const caret = saveSelection(editor);
+    for (const li of items) {
+      if (outdent)
+        outdentItem(li);
+      else
+        indentItem(li);
+    }
+    restoreSelection(editor, caret);
+    focusEditor(editor);
+    return true;
+  }
+
+  // src/seeds.ts
+  function focusComposerBody(editor) {
+    const lead = editor.firstElementChild;
+    if (!rangeWithin(editor) && lead)
+      caretInto(lead, true);
+    focusEditor(editor);
+  }
+  function setPlainText(editor, text) {
+    const doc = documentOf(editor);
+    editor.textContent = "";
+    for (const line of String(text ?? "").split(`
+`)) {
+      const div = doc.createElement("div");
+      if (line.length > 0)
+        div.textContent = line;
+      else
+        div.appendChild(doc.createElement("br"));
+      editor.appendChild(div);
+    }
+  }
+
+  // src/tables.ts
+  function cellsOf(row) {
+    return Array.from(row.children).filter((cell) => cell.tagName === "TD" || cell.tagName === "TH");
+  }
+  function newCell(doc) {
+    const cell = doc.createElement("td");
+    cell.appendChild(doc.createElement("br"));
+    return cell;
+  }
+  function cellAtCaret(editor) {
+    return ancestorAtCaret(editor, "td", "th");
+  }
+  function tableOf(cell, editor) {
+    return ancestorOf(cell.parentElement, editor, "table");
+  }
+  function outermostList(li, editor) {
+    let found = null;
+    for (let node = li;node && node !== editor; node = node.parentElement) {
+      if (node.tagName === "UL" || node.tagName === "OL")
+        found = node;
+    }
+    return found;
+  }
+  function locate(cell, editor) {
+    const table = tableOf(cell, editor);
+    if (!table)
+      return null;
+    const rows = tableRows(table);
+    const row = cell.parentElement;
+    if (!row)
+      return null;
+    const rowIndex = rows.indexOf(row);
+    const columnIndex = cellsOf(row).indexOf(cell);
+    if (rowIndex < 0 || columnIndex < 0)
+      return null;
+    return { table, rows, row, rowIndex, columnIndex };
+  }
+  function insertTable(editor, rows, columns) {
+    const doc = documentOf(editor);
+    const rowCount = Math.max(1, Math.floor(rows));
+    const columnCount = Math.max(1, Math.floor(columns));
+    const table = doc.createElement("table");
+    const body = doc.createElement("tbody");
+    for (let r = 0;r < rowCount; r += 1) {
+      const row = doc.createElement("tr");
+      for (let c = 0;c < columnCount; c += 1)
+        row.appendChild(newCell(doc));
+      body.appendChild(row);
+    }
+    table.appendChild(body);
+    const trailing = emptyLine(doc);
+    const range = rangeWithin(editor);
+    const cell = range ? ancestorOf(range.startContainer, editor, "td", "th") : null;
+    const enclosing = cell ? ancestorOf(cell, editor, "table") : null;
+    const block = range && !cell ? ancestorOf(range.startContainer, editor, "p", "div", "li") : null;
+    if (enclosing?.parentElement) {
+      enclosing.parentElement.insertBefore(table, enclosing.nextSibling);
+      table.parentElement?.insertBefore(trailing, table.nextSibling);
+    } else if (block && block.tagName !== "LI" && isBlank(block)) {
+      block.replaceWith(table);
+      table.parentElement?.insertBefore(trailing, table.nextSibling);
+    } else if (block && block.parentElement) {
+      const anchor = block.tagName === "LI" ? outermostList(block, editor) ?? block : block;
+      anchor.parentElement?.insertBefore(table, anchor.nextSibling);
+      table.parentElement?.insertBefore(trailing, table.nextSibling);
+    } else {
+      editor.appendChild(table);
+      editor.appendChild(trailing);
+    }
+    const first = table.querySelector("td");
+    if (first)
+      caretInto(first);
+    return table;
+  }
+  function insertRow(editor, cell, below) {
+    const at = locate(cell, editor);
+    if (!at)
+      return false;
+    const doc = documentOf(cell);
+    const width = cellsOf(at.row).length;
+    const row = doc.createElement("tr");
+    for (let c = 0;c < width; c += 1)
+      row.appendChild(newCell(doc));
+    at.row.parentElement?.insertBefore(row, below ? at.row.nextSibling : at.row);
+    caretInto(row.firstElementChild ?? row);
+    return true;
+  }
+  function insertColumn(editor, cell, after) {
+    const at = locate(cell, editor);
+    if (!at)
+      return false;
+    const doc = documentOf(cell);
+    let focus = null;
+    for (const row of at.rows) {
+      const cells = cellsOf(row);
+      const fresh = newCell(doc);
+      const anchor = cells[at.columnIndex];
+      if (anchor)
+        row.insertBefore(fresh, after ? anchor.nextSibling : anchor);
+      else
+        row.appendChild(fresh);
+      if (row === at.row)
+        focus = fresh;
+    }
+    if (focus)
+      caretInto(focus);
+    return true;
+  }
+  function deleteRow(editor, cell) {
+    const at = locate(cell, editor);
+    if (!at)
+      return false;
+    if (at.rows.length <= 1)
+      return deleteTable(editor, cell);
+    const fallback = at.rows[at.rowIndex + 1] ?? at.rows[at.rowIndex - 1];
+    at.row.remove();
+    const next = fallback ? cellsOf(fallback)[at.columnIndex] ?? cellsOf(fallback)[0] : null;
+    if (next)
+      caretInto(next);
+    return true;
+  }
+  function deleteColumn(editor, cell) {
+    const at = locate(cell, editor);
+    if (!at)
+      return false;
+    if (cellsOf(at.row).length <= 1)
+      return deleteTable(editor, cell);
+    let focus = null;
+    for (const row of at.rows) {
+      const cells = cellsOf(row);
+      const doomed = cells[at.columnIndex];
+      const survivor = cells[at.columnIndex + 1] ?? cells[at.columnIndex - 1] ?? null;
+      if (row === at.row)
+        focus = survivor;
+      doomed?.remove();
+    }
+    if (focus)
+      caretInto(focus);
+    return true;
+  }
+  function deleteTable(editor, cell) {
+    const table = tableOf(cell, editor);
+    if (!table)
+      return false;
+    const paragraph = emptyLine(documentOf(table));
+    table.replaceWith(paragraph);
+    caretInto(paragraph);
+    return true;
+  }
+  function moveToAdjacentCell(editor, back) {
+    const cell = cellAtCaret(editor);
+    if (!cell)
+      return false;
+    const table = tableOf(cell, editor);
+    if (!table)
+      return false;
+    const cells = tableRows(table).flatMap((row) => cellsOf(row));
+    const next = cells[cells.indexOf(cell) + (back ? -1 : 1)];
+    if (!next)
+      return false;
+    caretInto(next);
+    return true;
+  }
+
+  // src/toolbar.ts
+  var TEXT_COLOURS = [
+    "#000000",
+    "#7f7f7f",
+    "#c00000",
+    "#ff0000",
+    "#ffc000",
+    "#ffff00",
+    "#92d050",
+    "#00b050",
+    "#00b0f0",
+    "#0070c0",
+    "#002060",
+    "#7030a0"
+  ];
+  var HIGHLIGHTS = ["#ffff00", "#92d050", "#00ffff", "#ff99cc", "#ffc000", "#c0c0c0"];
+  var PICKER_ROWS = 6;
+  var PICKER_COLUMNS = 8;
+  function installToolbar(editor, root, labels) {
+    const doc = documentOf(root);
+    const byId = (id) => {
+      const node = doc.getElementById(id);
+      if (!node)
+        throw new Error(`editor markup is missing #${id}`);
+      return node;
+    };
+    root.addEventListener("mousedown", (event) => {
+      const target = event.target;
+      if (!target?.closest?.("select"))
+        event.preventDefault();
+    });
+    for (const button of Array.from(root.querySelectorAll("[data-command]"))) {
+      button.addEventListener("click", () => {
+        const command = button.dataset.command;
+        if (command === "bold" || command === "italic" || command === "underline") {
+          applyMark(editor, command);
+        }
+      });
+    }
+    const fontSize = byId("font-size");
+    fontSize.addEventListener("change", () => {
+      if (isFontSize(fontSize.value))
+        applyFontSize(editor, fontSize.value);
+    });
+    byId("bullet-list").addEventListener("click", () => legacy(editor, "insertUnorderedList"));
+    byId("ordered-list").addEventListener("click", () => legacy(editor, "insertOrderedList"));
+    byId("indent").addEventListener("click", () => indentSelection(editor, false));
+    byId("outdent").addEventListener("click", () => indentSelection(editor, true));
+    const alignPopover = (popover) => {
+      popover.panel.classList.remove("align-end");
+      const view = windowOf(editor);
+      const width = view.innerWidth;
+      const wasHidden = popover.panel.hidden;
+      popover.panel.hidden = false;
+      const button = popover.button.getBoundingClientRect();
+      const panel = popover.panel.getBoundingClientRect();
+      popover.panel.hidden = wasHidden;
+      if (width > 0 && panel.width > 0 && button.left + panel.width > width) {
+        popover.panel.classList.add("align-end");
+      }
+    };
+    const popovers = [];
+    const closeAll = (except) => {
+      for (const popover of popovers) {
+        if (popover === except)
+          continue;
+        popover.panel.hidden = true;
+        popover.button.setAttribute("aria-expanded", "false");
+      }
+    };
+    const register = (buttonId, panelId, build) => {
+      const popover = {
+        button: byId(buttonId),
+        panel: byId(panelId),
+        build: () => build(byId(panelId))
+      };
+      popovers.push(popover);
+      popover.button.addEventListener("click", () => {
+        const opening = popover.panel.hidden;
+        closeAll(popover);
+        if (opening) {
+          popover.build();
+          alignPopover(popover);
+        }
+        popover.panel.hidden = !opening;
+        popover.button.setAttribute("aria-expanded", String(opening));
+      });
+      return popover;
+    };
+    const swatchBar = (id, colour) => {
+      byId(id).style.background = colour;
+    };
+    const paletteBuilder = (kind, colours, barId, resetLabel) => (panel) => {
+      panel.textContent = "";
+      const grid = doc.createElement("div");
+      grid.className = "swatches";
+      for (const colour of colours) {
+        const swatch = doc.createElement("button");
+        swatch.type = "button";
+        swatch.style.background = colour;
+        swatch.title = colour;
+        swatch.setAttribute("aria-label", colour);
+        swatch.addEventListener("click", () => {
+          applyColor(editor, kind, colour);
+          swatchBar(barId, colour);
+          closeAll();
+        });
+        grid.appendChild(swatch);
+      }
+      panel.appendChild(grid);
+      const reset = doc.createElement("button");
+      reset.type = "button";
+      reset.className = "reset";
+      reset.textContent = resetLabel();
+      reset.addEventListener("click", () => {
+        applyColor(editor, kind, null);
+        closeAll();
+      });
+      panel.appendChild(reset);
+    };
+    register("text-colour", "text-colour-menu", paletteBuilder("color", TEXT_COLOURS, "text-colour-bar", () => labels().colourAutomatic));
+    register("highlight", "highlight-menu", paletteBuilder("highlight", HIGHLIGHTS, "highlight-bar", () => labels().highlightNone));
+    swatchBar("highlight-bar", HIGHLIGHTS[0]);
+    register("table", "table-menu", (panel) => buildTableMenu(panel, editor, doc, labels(), closeAll));
+    doc.addEventListener("mousedown", (event) => {
+      if (!event.target?.closest?.(".menu"))
+        closeAll();
+    });
+    doc.addEventListener("keydown", (event) => {
+      if (event.key === "Escape")
+        closeAll();
+    });
+    return {
+      applyLabels(current) {
+        editor.dataset.placeholder = current.placeholder;
+        editor.setAttribute("aria-label", current.placeholder);
+        const title = (selector, text) => {
+          const node = root.querySelector(selector);
+          if (node)
+            node.title = text;
+        };
+        title('[data-command="bold"]', current.bold);
+        title('[data-command="italic"]', current.italic);
+        title('[data-command="underline"]', current.underline);
+        title("#bullet-list", current.bulletedList);
+        title("#ordered-list", current.numberedList);
+        title("#indent", current.indent);
+        title("#outdent", current.outdent);
+        title("#text-colour", current.textColour);
+        title("#highlight", current.highlight);
+        title("#table", current.table);
+        fontSize.title = current.fontSize;
+        fontSize.setAttribute("aria-label", current.fontSize);
+        const sizeText = {
+          Normal: current.sizeNormal,
+          Small: current.sizeSmall,
+          Large: current.sizeLarge,
+          Huge: current.sizeHuge
+        };
+        for (const option of Array.from(fontSize.options)) {
+          const text = sizeText[option.value];
+          if (text)
+            option.textContent = text;
+        }
+        closeAll();
+      }
+    };
+  }
+  function buildTableMenu(panel, editor, doc, labels, close) {
+    panel.textContent = "";
+    const picker = doc.createElement("div");
+    picker.className = "grid-picker";
+    const size = doc.createElement("p");
+    size.className = "grid-size";
+    size.textContent = labels.insertTable;
+    const cells = [];
+    const paint = (rows, columns) => {
+      cells.forEach((cell2, index) => {
+        const row = Math.floor(index / PICKER_COLUMNS);
+        const column = index % PICKER_COLUMNS;
+        cell2.classList.toggle("on", row < rows && column < columns);
+      });
+      size.textContent = rows > 0 ? `${rows} × ${columns}` : labels.insertTable;
+    };
+    for (let row = 0;row < PICKER_ROWS; row += 1) {
+      for (let column = 0;column < PICKER_COLUMNS; column += 1) {
+        const cell2 = doc.createElement("span");
+        cell2.addEventListener("mouseenter", () => paint(row + 1, column + 1));
+        cell2.addEventListener("click", () => {
+          insertTable(editor, row + 1, column + 1);
+          close();
+        });
+        cells.push(cell2);
+        picker.appendChild(cell2);
+      }
+    }
+    picker.addEventListener("mouseleave", () => paint(0, 0));
+    panel.append(picker, size);
+    const cell = cellAtCaret(editor);
+    if (!cell)
+      return;
+    panel.appendChild(doc.createElement("hr"));
+    const items = doc.createElement("div");
+    items.className = "menu-items";
+    const action = (text, run) => {
+      const button = doc.createElement("button");
+      button.type = "button";
+      button.textContent = text;
+      button.addEventListener("click", () => {
+        run();
+        close();
+      });
+      items.appendChild(button);
+    };
+    action(labels.insertRowAbove, () => insertRow(editor, cell, false));
+    action(labels.insertRowBelow, () => insertRow(editor, cell, true));
+    action(labels.insertColumnLeft, () => insertColumn(editor, cell, false));
+    action(labels.insertColumnRight, () => insertColumn(editor, cell, true));
+    items.appendChild(doc.createElement("hr"));
+    action(labels.deleteRow, () => deleteRow(editor, cell));
+    action(labels.deleteColumn, () => deleteColumn(editor, cell));
+    action(labels.deleteTable, () => deleteTable(editor, cell));
+    panel.appendChild(items);
+  }
+  function legacy(editor, command) {
+    editor.focus({ preventScroll: true });
+    documentOf(editor).execCommand?.(command, false);
+  }
+
+  // src/main.ts
+  var doc = document;
+  var editor = doc.getElementById("editor");
+  var toolbarRoot = doc.querySelector(".toolbar");
+  var attachments = new Attachments;
+  var labels = DEFAULT_LABELS;
+  var toolbar = installToolbar(editor, toolbarRoot, () => labels);
+  var chrome = installNativeChrome(editor, toolbarRoot);
+  editor.addEventListener("paste", (event) => {
+    event.preventDefault();
+    const text = event.clipboardData?.getData("text/plain") ?? "";
+    doc.execCommand?.("insertText", false, text);
+  });
+  editor.addEventListener("dragover", (event) => event.preventDefault());
+  editor.addEventListener("drop", (event) => event.preventDefault());
+  editor.addEventListener("keydown", (event) => {
+    if (event.isComposing)
+      return;
+    if (event.key === " " && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (autoformatBulletList(editor)) {
+        event.preventDefault();
+        return;
+      }
+    }
+    if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+      const command = { b: "bold", i: "italic", u: "underline" }[event.key.toLowerCase()];
+      if (command === "bold" || command === "italic" || command === "underline") {
+        event.preventDefault();
+        applyMark(editor, command);
+      }
+      return;
+    }
+    if (event.key !== "Tab")
+      return;
+    event.preventDefault();
+    if (indentSelection(editor, event.shiftKey))
+      return;
+    if (moveToAdjacentCell(editor, event.shiftKey))
+      return;
+    if (!event.shiftKey) {
+      doc.execCommand?.("insertText", false, "\t");
+    }
+  });
+  editor.addEventListener("mousedown", (event) => {
+    if (routeClickBelowSignature(editor, event.target))
+      event.preventDefault();
+  });
+  function parsed(value) {
+    return typeof value === "string" ? JSON.parse(value) : value;
+  }
+  window.addComposerAttachment = (meta) => attachments.add(meta);
+  window.addComposerInlineImage = (meta) => attachments.addInlineImage(editor, meta);
+  window.setComposerQuote = (quote) => setComposerQuote(editor, parsed(quote));
+  window.setComposerQuoteStyle = (style) => setComposerQuoteStyle(editor, style);
+  window.setComposerSignature = (signature) => setComposerSignature(editor, signature == null ? null : parsed(signature));
+  window.setSignatureBody = (html, placeholder) => setSignatureBody(editor, html, placeholder);
+  window.signatureBody = () => JSON.stringify(signatureBody(editor));
+  window.focusComposerBody = () => focusComposerBody(editor);
+  window.setPlainText = (text) => setPlainText(editor, text);
+  window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
+  window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
+  window.setComposerLabels = (incoming) => {
+    labels = mergeLabels(labels, incoming);
+    toolbar.applyLabels(labels);
+  };
+  window.insertSignatureImage = (image) => {
+    const data = (image ? parsed(image) : {}) ?? {};
+    const url = String(data.data_url ?? "");
+    if (!url.startsWith("data:image/") || safePreviewUrl(url) === "")
+      return;
+    const node = doc.createElement("img");
+    node.src = url;
+    node.alt = String(data.alt_text ?? "");
+    if (data.width_px)
+      node.width = Number(data.width_px);
+    focusEditor(editor);
+    insertAtCaret(editor, node);
+  };
+  window.composerDocument = () => JSON.stringify({ blocks: documentBlocks(editor), attachments: attachments.list() });
+})();
+  </script>
+</body>
+</html>

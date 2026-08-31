@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Headless gate for the Rust <-> C# UniFFI binding (the twin of macOS verify.swift).
+       A plain console app, no WinUI, so it stays deterministic and CI-able: it drives
+       the demo loop and asserts the seeded rows cross the FFI. The native cdylib is built
+       first by build-and-run.ps1; NativeLib points at it and copies it next to the exe. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Allodia.MailcalVerify</RootNamespace>
+    <!-- The Rust cdylib the generated P/Invokes load. Override with -p:NativeLib=... -->
+    <NativeLib Condition="'$(NativeLib)' == ''">$(MSBuildThisFileDirectory)..\..\..\target\debug\mailcal_bindings.dll</NativeLib>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The generated C# bindings, shared with the WinUI app (one source of truth). -->
+    <Compile Include="..\Generated\mailcal_bindings.cs" Link="Generated\mailcal_bindings.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- [DllImport("mailcal_bindings")] resolves to this DLL next to the exe. -->
+    <Content Include="$(NativeLib)" Link="mailcal_bindings.dll" Condition="Exists('$(NativeLib)')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Surface a missing cdylib at build time rather than as a runtime DllNotFoundException. -->
+  <Target Name="WarnMissingNativeLib" BeforeTargets="Build" Condition="!Exists('$(NativeLib)')">
+    <Warning Text="Native library not found at '$(NativeLib)'. Build it first via clients/windows/build-and-run.ps1 (or pass -p:NativeLib=&lt;path&gt;)." />
+  </Target>
+
+</Project>

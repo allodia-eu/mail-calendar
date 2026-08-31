@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider roots for handing app-private files to other apps, one grant at a time:
+     - opened-attachments: saved attachment bytes (cache), granted read-only to the OS default
+       handler when the user opens one.
+     - logs: the rotating diagnostic log (files/logs/app.log), granted read-only to the share
+       target the user picks in the Diagnostics screen's share sheet (docs/logging.md). -->
+<paths>
+    <cache-path name="opened-attachments" path="opened-attachments/" />
+    <files-path name="logs" path="logs/" />
+</paths>

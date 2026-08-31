@@ -1,0 +1,12 @@
+<!-- Material Symbols "contacts" (filled). Contacts: the nav-bar tab.
+     Vendored from google/material-design-icons; the Compose `Icon` supplies the real
+     colour, so the fillColor here is only a placeholder. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+  <path
+      android:fillColor="#000000"
+      android:pathData="M120,120L120,40L840,40L840,120L120,120ZM120,920L120,840L840,840L840,920L120,920ZM200,800Q167,800 143.5,776.5Q120,753 120,720L120,240Q120,207 143.5,183.5Q167,160 200,160L760,160Q793,160 816.5,183.5Q840,207 840,240L840,720Q840,753 816.5,776.5Q793,800 760,800L200,800ZM480,480Q513,480 536.5,456.5Q560,433 560,400Q560,367 536.5,343.5Q513,320 480,320Q447,320 423.5,343.5Q400,367 400,400Q400,433 423.5,456.5Q447,480 480,480ZM280,640L680,640L680,616Q680,586 664,562Q648,538 621,525Q589,510 555,505Q521,500 480,500Q439,500 405,505Q371,510 339,525Q312,538 296,562Q280,586 280,616L280,640Z"/>
+</vector>

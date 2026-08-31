@@ -1,0 +1,118 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Dependency updates, grouped so one PR lands on one platform's gate.",
+    "The window is the whole first day of the month; `schedule:monthly` opens only a pre-dawn hour, too narrow for a repo this size. Not cron: Renovate matches a cron by comparing the *next* run's hour to the current one, which drops the :59 minute of every hour.",
+    "Nothing is created or rebased outside that window, so tick a PR's rebase checkbox if it conflicts mid-month.",
+    "Security fixes are exempt: `vulnerabilityAlerts` defaults to no schedule and no release-age wait."
+  ],
+  "extends": ["config:recommended"],
+  "timezone": "Europe/Amsterdam",
+  "schedule": ["on the first day of the month"],
+  "minimumReleaseAge": "3 days",
+  "semanticCommits": "disabled",
+  "prHourlyLimit": 0,
+  "prConcurrentLimit": 10,
+  "labels": ["dependencies"],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["dependencies", "security"]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The nightly rustfmt pin lives in rust-nightly.toml so scripts/dev/gate.sh and ci.yml read one value and cannot drift. Renovate's built-in `uses-with` support only sees a literal `toolchain:` in a workflow, so the pin needs this manager to keep being bumped — same package and datasource it resolved there.",
+      "managerFilePatterns": ["/^rust-nightly\\.toml$/"],
+      "matchStrings": ["channel\\s*=\\s*\"(?<currentValue>nightly-\\d{4}-\\d{2}-\\d{2})\""],
+      "depNameTemplate": "rust",
+      "datasourceTemplate": "rust-version"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "A nightly rustfmt bump can reformat the tree, so it lands on its own PR rather than grouped with unrelated bumps.",
+      "matchFileNames": ["rust-nightly.toml"],
+      "labels": ["dependencies", "rust"]
+    },
+    {
+      "matchFileNames": ["Cargo.toml", "crates/**", "clients/linux/**"],
+      "labels": ["dependencies", "rust"]
+    },
+    {
+      "description": "One workspace, one lockfile: the core crates and the GTK client move together. Two branches editing Cargo.lock conflict on the first merge, and on a monthly schedule the loser stays conflicted for a month.",
+      "matchFileNames": ["Cargo.toml", "crates/**", "clients/linux/**"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest", "bump"],
+      "groupName": "Rust workspace dependencies"
+    },
+    {
+      "description": "The engine crates are one git source at one rev — cargo refuses two revs of the same repo, so a per-crate PR would not build. Kept out of the workspace group because moving the engine is an integration pass, not a dependency bump.",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["/email-calendar-sync-engine/"],
+      "groupName": "PIM sync engine",
+      "labels": ["dependencies", "rust", "engine"]
+    },
+    {
+      "description": "UniFFI and its C# generator are one version in two places. `uniffi-bindgen-cs` reads the metadata a specific UniFFI release emits — its tag carries that release as build metadata (`v0.11.0+v0.31.0`) — and it trails upstream by months, skipping releases. Bumping `uniffi` alone leaves both in the lockfile and the generator decoding a layout it does not know, so C# binding generation fails and the Windows job is where that surfaces, eight minutes in. Renovate cannot hold one update until another is ready, so the pair leaves the workspace group and waits for a tick on the dependency dashboard: a new UniFFI is still reported there, and the PR is opened once `uniffi-bindgen-cs` has a tag naming it.",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["uniffi", "/uniffi-bindgen-cs/"],
+      "groupName": "UniFFI toolchain",
+      "labels": ["dependencies", "rust", "uniffi"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchFileNames": ["clients/apple/**"],
+      "labels": ["dependencies", "apple"]
+    },
+    {
+      "matchFileNames": ["clients/apple/**"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest", "bump"],
+      "groupName": "Apple client dependencies"
+    },
+    {
+      "matchFileNames": ["clients/android/**"],
+      "labels": ["dependencies", "android"]
+    },
+    {
+      "matchFileNames": ["clients/android/**"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest", "bump"],
+      "groupName": "Android client dependencies"
+    },
+    {
+      "matchFileNames": ["clients/windows/**"],
+      "labels": ["dependencies", "windows"]
+    },
+    {
+      "matchFileNames": ["clients/windows/**"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest", "bump"],
+      "groupName": "Windows client dependencies"
+    },
+    {
+      "matchFileNames": ["clients/composer/**"],
+      "labels": ["dependencies", "composer"]
+    },
+    {
+      "description": "The editor's toolchain feeds `dist/editor.html`, which every client bundles, so this one lands on all four gates.",
+      "matchFileNames": ["clients/composer/**"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest", "bump"],
+      "groupName": "composer editor dependencies"
+    },
+    {
+      "matchFileNames": [".github/**"],
+      "labels": ["dependencies", "ci"]
+    },
+    {
+      "matchFileNames": [".github/**"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest", "bump"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "matchFileNames": ["docker/**"],
+      "labels": ["dependencies", "harness"]
+    },
+    {
+      "matchFileNames": ["docker/**"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest", "bump"],
+      "groupName": "mail harness image"
+    }
+  ]
+}

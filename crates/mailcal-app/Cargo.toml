@@ -1,0 +1,64 @@
+[package]
+name = "mailcal-app"
+description = "Product runtime for Allodia Mail & Calendar: owns the engine, drives a sync, and exposes the unidirectional dispatch/snapshot loop the native UI binds to."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+engine-api = { workspace = true }
+engine-provider = { workspace = true }
+# For `FailureClass`, so a failed sync can be classified on the engine's own typed taxonomy
+# (an expired OAuth grant vs. a server that's down) instead of on rendered error text.
+# `engine-api` re-exports the domain types but not the error taxonomy, hence the direct dep.
+engine-core = { workspace = true }
+# The pure view-models the runtime projects into and hands to hosts.
+mailcal-viewmodel = { workspace = true }
+# The provider-format glue: builds CalDAV event writes (iCal) so the app stays free of
+# a direct provider-caldav dependency.
+mailcal-account = { workspace = true }
+# Shared rich compose document renderer and attachment manifest.
+mailcal-composer = { workspace = true }
+# Sanitises the engine's raw (unsanitized) message HTML before a host renders it.
+ammonia = { workspace = true }
+# An await-safe `RwLock` guarding the set of accounts (mutated when one is added at
+# runtime, read across the sync/snapshot/action paths that hold it over `.await`), plus
+# `time` for the send-status terminal auto-clear delay (`tokio::time::sleep`).
+tokio = { workspace = true, features = ["sync", "time"] }
+# The host-injected `MailboxConnector` port is an async, dyn-dispatched trait.
+async-trait = { workspace = true }
+# `join_all` drives every folder's (and account's) sync concurrently so the work
+# overlaps instead of running one folder at a time on a single core.
+futures = { workspace = true }
+# The logging facade: timing + lifecycle diagnostics across the boot/sync/snapshot path.
+# A no-op until the bindings install a host logger, so the core stays sink-agnostic.
+log = { workspace = true }
+# The wall clock: seeds a first background-sync notification mark to "now" over an empty
+# inbox (mirrors the engine's own `SystemClock`), and stamps the moment analytics consent was
+# given (GDPR Art. 7(1): a controller must be able to demonstrate consent).
+time = { workspace = true }
+# The consented-analytics payload (`telemetry`): `serde` derives the wire types and
+# `serde_json` renders them; both for the HTTP body and, from the *same* type, for the consent
+# screen's "see exactly what we send" panel, so the preview cannot drift from the wire.
+serde = { workspace = true }
+serde_json = { workspace = true }
+# A system CSPRNG + base64url for the analytics install id (16 random bytes), minted only at
+# the moment of consent. Same construction as the OAuth CSRF `state`; both are already in the
+# dependency graph via rustls, so neither adds a crate.
+ring = { workspace = true }
+base64 = { workspace = true }
+
+[dev-dependencies]
+# (`engine-core` (a fake `Provider` and domain objects drive the engine offline in tests) is a
+# regular dependency above, so tests reach it without re-declaring it here.)
+async-stream = { workspace = true }
+# `async-trait` (the `MailboxConnector` port) is a regular dep above, so tests reach it
+# without re-declaring it here. `test-util` enables tokio's pausable clock
+# (`pause`/`advance`) so the send-status auto-clear tests advance virtual time
+# deterministically instead of sleeping 2.5s.
+tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
+
+[lints]
+workspace = true

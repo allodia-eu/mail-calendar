@@ -1,0 +1,42 @@
+# Allodia Mail & Calendar — product-core rustfmt config.
+#
+# This repo is the *reference* for the Allodia Rust formatting style; the sibling engine
+# adopts it later (AGENTS.md: this core leads, engine follows). It is deliberately as strict
+# as rustfmt allows, which means several options here are **nightly-only** — so formatting
+# runs on nightly: `cargo +nightly fmt`. A plain stable `cargo build`/`test` is unaffected
+# (formatting is a separate step); CI runs the fmt check on a pinned nightly to avoid drift.
+
+# Opt into the 2024 formatting-style rules (the newest, strictest defaults).
+style_edition = "2024"
+
+# Width budget. Kept at the rustfmt default so diffs stay conventional.
+max_width = 100
+
+# Imports: collapse to one `use` per crate, grouped std / external / crate and alphabetized,
+# so import blocks are uniform across every file.
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+
+# Comments & docs: wrap prose to the width budget, format fenced code inside doc comments,
+# and normalise `/* … */` to `//` and doc attributes to `///` so comment style is uniform.
+wrap_comments = true
+comment_width = 100
+format_code_in_doc_comments = true
+normalize_comments = true
+normalize_doc_attributes = true
+
+# Small, unambiguous consistency wins.
+use_field_init_shorthand = true
+use_try_shorthand = true
+condense_wildcard_suffixes = true
+format_macro_matchers = true
+reorder_impl_items = true
+
+newline_style = "Unix"
+
+# Strictness: an over-long line of *code* is a hard fmt error (fails `cargo fmt --check`)
+# rather than being quietly left as-is. `error_on_unformatted` (the comment/string-literal
+# variant) is deliberately left OFF: the showcase HTML templates are long raw-string literals
+# that cannot be wrapped, and a handful of doc comments carry unbreakable URLs — those are
+# legitimately unformattable, and erroring on them would only punish unavoidable long strings.
+error_on_line_overflow = true

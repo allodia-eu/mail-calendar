@@ -1,0 +1,30 @@
+# Generated UniFFI C# bindings (rebuilt by build-and-run.ps1).
+Generated/
+
+# Generated localized resources + typed L10n accessor, from the shared inlang catalog
+# (rebuilt by build-and-run.ps1; the source of truth is ../../messages/*.json).
+Mailcal/L10n.cs
+Mailcal/L10nLocales.cs
+Mailcal/Brand.cs
+Mailcal/Strings/
+
+# .NET build output + caches.
+**/bin/
+**/obj/
+
+# Captured run artifacts.
+screenshot*.png
+
+# Store bundles kept out of the wipe by package.ps1, one directory per version. Covered by the
+# *.msixupload rule below too; named here so the directory's purpose is not a mystery.
+build/
+
+# MSIX packaging output (rebuilt by package.ps1). The Images/ tile assets are committed
+# inputs, so they are NOT ignored — only the generated packages are.
+**/AppPackages/
+**/BundleArtifacts/
+*.msix
+*.msixbundle
+*.msixupload
+*.appxbundle
+*.appxupload

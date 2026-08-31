@@ -1,0 +1,39 @@
+# A workspace member, and deliberately not in `default-members`: see the root `Cargo.toml`. That
+# absence, plus the optional off-by-default dependency in `crates/mailcal-app`, is what keeps this
+# out of a shipped build; membership is what lets it share one lockfile, one set of dependency
+# versions and one copy of the engine with everything else.
+[package]
+name = "allodia-license"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license = "LicenseRef-Allodia-1.0"
+
+[dependencies]
+# The whole OAuth flow: RFC 8414 discovery, PKCE, the code exchange and refresh rotation. Reused
+# rather than reimplemented: a second OAuth client here would be a second one to get wrong, and
+# this one is exercised against Microsoft, Google and standards-discovered JMAP.
+mailcal-oauth = { path = "../../../crates/mailcal-oauth" }
+# Asking the service who a token belongs to. The same client `mailcal-oauth` builds for discovery,
+# so the TLS policy is one policy -- this crate chooses no provider of its own, which is the rule
+# the entitlement half keeps by taking a `Transport` instead.
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+# Reading the stored account config for the half that travels. The mirror structs in
+# `projection.rs` have no password field, so this parses what the credential store holds without
+# being able to carry a secret out of it.
+toml = { workspace = true }
+
+[lints]
+workspace = true
+
+# The probe only. It needs a running service, a browser and a person, so it is an example rather
+# than a test -- but the failures it finds (a scope the service does not know, a redirect it will
+# not accept, a loopback port it matches exactly) are exactly the ones no unit test can see.
+[dev-dependencies]
+reqwest = { workspace = true, features = ["blocking"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

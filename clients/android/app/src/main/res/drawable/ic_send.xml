@@ -1,0 +1,14 @@
+<!-- Material Symbols "send" (filled). The composer's Send action, and the Sent folder.
+     Vendored from google/material-design-icons; the Compose `Icon` supplies the real
+     colour, so the fillColor here is only a placeholder.
+     Flipped for RTL by android:autoMirrored. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960"
+    android:autoMirrored="true">
+  <path
+      android:fillColor="#000000"
+      android:pathData="M120,800L120,560L440,480L120,400L120,160L880,480L120,800Z"/>
+</vector>

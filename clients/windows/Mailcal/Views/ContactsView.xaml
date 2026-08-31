@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Allodia.Mailcal.Views.ContactsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Allodia.Mailcal.ViewModels"
+    xmlns:controls="using:Allodia.Mailcal.Controls"
+    xmlns:l10n="using:Allodia.Mailcal">
+
+    <!-- The contacts surface: an A–Z list of unified people beside one person's detail.
+
+         Every row here is one PERSON, not one provider card, the core has already merged the cards
+         that share an address, across accounts. A merged row says so ("In 2 accounts"), which is a
+         product rule rather than a decoration: a user who filed a contact twice and now sees it once
+         must be able to find out why (docs/contacts.md §1).
+
+         The list does no sorting, no re-bucketing and no matching of its own. The core owns all
+         three so that four clients cannot disagree about them; search is pushed INTO the core, which
+         is what lets a person beyond the 200-row page cap still be found.
+
+         Read-only in this version, the detail says so in as many words rather than offering an
+         edit affordance that does nothing (§3). -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*" MinWidth="280" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="3*" MinWidth="320" />
+        </Grid.ColumnDefinitions>
+
+        <!-- The list column: the header with search, then either the people or an empty state. -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Padding="16,10" ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                           Style="{StaticResource SubtitleTextBlockStyle}"
+                           Text="{x:Bind l10n:L10n.ContactsTitle()}" />
+                <TextBox x:Name="SearchBox" Grid.Column="1" VerticalAlignment="Center"
+                         AutomationProperties.AutomationId="ContactsSearch"
+                         AutomationProperties.Name="{x:Bind l10n:L10n.ContactsSearchPlaceholder()}"
+                         PlaceholderText="{x:Bind l10n:L10n.ContactsSearchPlaceholder()}"
+                         TextChanged="OnSearchChanged" />
+                <!-- Clearing resets the filter in the CORE as well as the field, as one action: a
+                     narrowing the user can no longer see must never shrink the next search. -->
+                <Button x:Name="ClearSearchButton" Grid.Column="2" Click="OnClearSearch"
+                        Visibility="Collapsed"
+                        AutomationProperties.AutomationId="ContactsSearchClear"
+                        AutomationProperties.Name="{x:Bind l10n:L10n.ContactsSearchClear()}"
+                        ToolTipService.ToolTip="{x:Bind l10n:L10n.ContactsSearchClear()}">
+                    <FontIcon Glyph="&#xE711;" FontSize="14" />
+                </Button>
+            </Grid>
+
+            <ListView x:Name="PeopleList" Grid.Row="1" Padding="8,0,8,8"
+                      AutomationProperties.AutomationId="ContactsList"
+                      AutomationProperties.Name="{x:Bind l10n:L10n.ContactsTitle()}"
+                      ItemsSource="{x:Bind Model.Contacts, Mode=OneWay}"
+                      Visibility="{x:Bind Model.ContactsListVisibility, Mode=OneWay}"
+                      SelectionMode="Single" SelectionChanged="OnPersonSelected">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ContactItem">
+                        <StackPanel>
+                            <!-- The A–Z header rides on the row rather than on a grouped source: the
+                                 core hands back one flat ordered list, and re-grouping it here would
+                                 be a second ordering that could disagree with the first. The
+                                 projection decides it by comparing with the row above. -->
+                            <TextBlock Text="{x:Bind SectionHeader}"
+                                       Visibility="{x:Bind SectionVisibility}"
+                                       Margin="4,8,0,2"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <Grid Padding="4,6" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <!-- The person's photo where an account's address book has one,
+                                     else their initials on their own colour (docs/avatars.md). The
+                                     same avatar the mail list draws for them, so the two screens
+                                     cannot disagree about who someone is. -->
+                                <controls:AvatarView Grid.Column="0" Avatar="{x:Bind Avatar}"
+                                                     VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind DisplayName}" MaxLines="1"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{x:Bind Email}" Visibility="{x:Bind EmailVisibility}"
+                                               MaxLines="1" TextTrimming="CharacterEllipsis"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <!-- The disclosure a merged row owes the user. Only above one,
+                                         every ordinary contact would otherwise carry a meaningless
+                                         "In 1 accounts". -->
+                                    <TextBlock Text="{x:Bind AccountCountText}"
+                                               Visibility="{x:Bind AccountCountVisibility}"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <!-- The two empty states are deliberately different sentences: telling someone who has
+                 just searched "No contacts yet" reads as though theirs had vanished. -->
+            <StackPanel Grid.Row="1" Spacing="8" Padding="32"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="ContactsEmpty"
+                        Visibility="{x:Bind Model.ContactsEmptyVisibility, Mode=OneWay}">
+                <TextBlock Text="{x:Bind Model.ContactsEmptyTitle, Mode=OneWay}"
+                           HorizontalAlignment="Center" TextWrapping="Wrap"
+                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock Text="{x:Bind Model.ContactsEmptyBody, Mode=OneWay}"
+                           Visibility="{x:Bind Model.ContactsEmptyBodyVisibility, Mode=OneWay}"
+                           HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                           MaxWidth="320"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </Grid>
+
+        <Border Grid.Column="1" Width="1"
+                Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- The detail pane. Its "Also in" section is what earns this screen its keep: for a person
+             merged from several accounts it NAMES them, which is the explanation of the list row's
+             "In 2 accounts" badge. Per-value provenance is there for the same reason, an address
+             you only have at work should be visibly the work one. -->
+        <ScrollViewer Grid.Column="2" Padding="20"
+                      AutomationProperties.AutomationId="ContactsDetail"
+                      Visibility="{x:Bind Model.ContactDetailVisibility, Mode=OneWay}">
+            <StackPanel Spacing="16">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <!-- The screen a photograph is most of, so it is drawn largest here. Read from
+                         the row's resolved avatar rather than projected afresh: the list showing a
+                         photograph and the page it opens showing initials is the same defect twice
+                         (docs/avatars.md). -->
+                    <controls:AvatarView Diameter="56" VerticalAlignment="Center"
+                                         Avatar="{x:Bind Model.OpenedContact.Avatar, Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind Model.OpenedContact.DisplayName, Mode=OneWay}"
+                               VerticalAlignment="Center" TextWrapping="Wrap"
+                               IsTextSelectionEnabled="True"
+                               AutomationProperties.AutomationId="ContactName"
+                               Style="{StaticResource SubtitleTextBlockStyle}" />
+                </StackPanel>
+
+                <ItemsControl ItemsSource="{x:Bind Model.OpenedContact.Groups, Mode=OneWay}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ContactValueGroup">
+                            <StackPanel Margin="0,0,0,12" Spacing="4">
+                                <TextBlock Text="{x:Bind Heading}"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <ItemsControl ItemsSource="{x:Bind Values}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ContactValueItem">
+                                            <!-- Stacked, not side by side. Laid out as a row, the
+                                                 provenance label, several full addresses joined by
+                                                 commas, takes whatever width it wants and squeezes
+                                                 the value to nothing. A column cannot do that
+                                                 whatever either string's length. -->
+                                            <StackPanel Margin="0,0,0,6">
+                                                <TextBlock Text="{x:Bind Value}" TextWrapping="Wrap"
+                                                           IsTextSelectionEnabled="True" />
+                                                <TextBlock Text="{x:Bind AccountsText}"
+                                                           Visibility="{x:Bind AccountsVisibility}"
+                                                           TextWrapping="Wrap"
+                                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Only shown for an actual merge: naming the single account an ordinary contact
+                     came from is noise, and would make every contact look like a merge. -->
+                <StackPanel Spacing="4"
+                            AutomationProperties.AutomationId="ContactAlsoIn"
+                            Visibility="{x:Bind Model.OpenedContact.AccountsVisibility, Mode=OneWay}">
+                    <TextBlock Text="{x:Bind l10n:L10n.ContactsSectionAccounts()}"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                    <ItemsControl ItemsSource="{x:Bind Model.OpenedContact.Accounts, Mode=OneWay}" />
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <!-- Said in as many words, rather than left for the user to infer from the absence
+                     of an edit button, or, worse, from a disabled one they press twice (§3). -->
+                <TextBlock Text="{x:Bind l10n:L10n.ContactsReadOnly()}" TextWrapping="Wrap"
+                           AutomationProperties.AutomationId="ContactsReadOnly"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- The counterpart of the reading pane's placeholder, so the second column is never a
+             blank half-window before a person is picked. -->
+        <StackPanel Grid.Column="2" Spacing="8"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Visibility="{x:Bind Model.ContactPlaceholderVisibility, Mode=OneWay}">
+            <FontIcon Glyph="&#xE77B;" FontSize="36"
+                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <TextBlock Text="{x:Bind l10n:L10n.ContactsTitle()}" HorizontalAlignment="Center"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

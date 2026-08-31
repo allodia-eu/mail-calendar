@@ -1,0 +1,26 @@
+# Which Android emulators THIS machine uses. Copy to devices.local.sh and fill in:
+#
+#     cp scripts/dev/devices.local.sh.example scripts/dev/devices.local.sh
+#
+# The filled-in copy is git-ignored, because AVD names are per-machine: nobody else has yours, and a
+# name committed here would be wrong for every other developer on the first run.
+#
+# List what this machine actually has:
+#
+#     emulator -list-avds
+#
+# Why this file exists at all: without a named AVD the `android` target photographs *the attached
+# device*, which on a developer's own machine is usually their real phone, holding their real mail
+# and diary. A capture run installs and drives a build on whatever it resolves, so the default has
+# to be a device you chose deliberately rather than whichever one happens to be plugged in. An
+# explicit `--serial` still overrides everything here.
+
+# The phone the `android` screenshot set is shot on; Play's phone slot, and the docs set.
+# REQUIRED: there is no sensible default, since it is a name only your machine knows.
+MAILCAL_AVD_PHONE=
+
+# Play keeps a separate screenshot slot per tablet size. These default to the stock SDK profile
+# names (`avdmanager create avd -d small_tablet` / `-d pixel_tablet`), so leave them blank unless
+# your AVDs are called something else.
+MAILCAL_AVD_TABLET_7=
+MAILCAL_AVD_TABLET_10=

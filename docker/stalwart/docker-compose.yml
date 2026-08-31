@@ -1,0 +1,92 @@
+# Deterministic Stalwart protocol test harness (Stalwart v0.16).
+#
+# `docker compose up -d --wait` brings up a Stalwart server that self-bootstraps
+# through its management API, creates the test accounts, and seeds one shared
+# dataset every protocol sees (JMAP, IMAP, SMTP, CalDAV), then reports healthy
+# once seeding is done (the healthcheck gates on a post-seed marker). Tests
+# connect to the host-mapped ports below via the STALWART_* env vars (see
+# docker/stalwart/README.md and crates/stalwart-harness).
+#
+# Transport: JMAP + CalDAV + management on plaintext HTTP 8080; SMTP plaintext on
+# 25; SMTP submission implicit-TLS on 465; IMAP implicit-TLS on 993; all with the
+# server's self-signed test certificate (tests trust-skip explicitly; this never
+# touches a host trust store). The entrypoint additionally provisions STARTTLS
+# listeners for IMAP (143) and SMTP submission (587): Stalwart supports these ports
+# but recommends implicit TLS (993/465), so a fresh bootstrap does not create them;
+# we add them to exercise the engine's STARTTLS transports end-to-end.
+#
+# Determinism: the image is pinned by sha256 digest and the whole setup is driven
+# from fixed inputs. Start from a clean slate with `docker compose down -v`
+# before `up` (CI always does).
+#
+# ⚠️ THE PROJECT NAME AND EVERY HOST PORT MUST DIFFER FROM THE ENGINE REPO'S HARNESS.
+# Both repos run a Stalwart harness from a file named docker/stalwart/docker-compose.yml, and they
+# started life as copies of each other, so both said `name: stalwart-harness` and both bound
+# 18080/11025/11465/11587/11993/11143. Docker Compose keys a project on that NAME, not on the file's
+# path: `up` from either repo therefore adopted the SAME container and the SAME named volumes and
+# recreated it with its own mounts. The failure is silent and confusing: the container stays healthy
+# and the ports keep answering, but the seed data is the *other* repo's, so a fixture you just added
+# is simply absent and the seed log describes steps your seed.sh does not contain. That is a real
+# afternoon, and it is why the numbers below look arbitrary.
+#
+# The convention: **11xxx is the engine, 12xxx is this repo**, and HTTP is 18080 there / 28080 here
+# (18081 is taken by the engine's SabreDAV harness, do not reuse it). Keep the third digit equal to
+# the real port so a number is still readable. If a third harness ever appears, take 13xxx / 38080.
+
+name: mailcal-core-harness
+
+services:
+  stalwart:
+    # stalwartlabs/stalwart v0.16.8, pinned by multi-arch digest (linux/amd64 +
+    # linux/arm64). Bump deliberately: re-resolve the digest and update CI too.
+    image: stalwartlabs/stalwart:v0.16.8@sha256:154dc1f2895ba8d319817fb37c3c26bac3f3e36e2eb338edcf789a79717a5d49
+    # Self-bootstrapping wrapper: bootstrap via API, restart to full server,
+    # create accounts, seed, then run the server in the foreground.
+    entrypoint: ["/bin/sh", "/harness/entrypoint.sh"]
+    environment:
+      # Fixed fallback-admin credential so the management API has a known login
+      # from first boot (no random password, no wizard).
+      STALWART_RECOVERY_ADMIN: "admin:harness-admin-pw"
+      STALWART_HOSTNAME: "mail.test.local"
+      HARNESS_ADMIN_PW: "harness-admin-pw"
+      HARNESS_ALICE_PW: "harness-alice-pw"
+      HARNESS_BOB_PW: "harness-bob-pw"
+      # Dev-only bulk seed: SEED_BULK=1 (e.g. `scripts/dev/harness.sh up --bulk`) seeds
+      # SEED_BULK_COUNT extra varied messages into dev-only folders for a fuller, real-feeling
+      # mailbox. Default 0 keeps CI's dataset the deterministic fixture above.
+      SEED_BULK: "${SEED_BULK:-0}"
+      SEED_BULK_COUNT: "${SEED_BULK_COUNT:-60}"
+    volumes:
+      - ./entrypoint.sh:/harness/entrypoint.sh:ro
+      - ./seed.sh:/harness/seed.sh:ro
+      # The living week: calendar events re-anchored on the current Monday at every seed, so the grid
+      # opens on a week with something in it. The pinned fixtures under ./seed are all in early 2026.
+      - ./seed-calendar-week.sh:/harness/seed-calendar-week.sh:ro
+      - ./seed:/harness/seed:ro
+      - stalwart-etc:/etc/stalwart
+      - stalwart-data:/var/lib/stalwart
+    ports:
+      # host:container, loopback only: never expose a test mail server on all
+      # interfaces. High host ports avoid clashing with a real local server, and the
+      # 12xxx/28080 block keeps this repo's harness off the engine's (see the header).
+      - "127.0.0.1:28080:8080" # HTTP: JMAP + CalDAV/CardDAV + management
+      - "127.0.0.1:12025:25" # SMTP (plaintext)
+      - "127.0.0.1:12465:465" # SMTP submission (implicit TLS), Stalwart default listener
+      - "127.0.0.1:12587:587" # SMTP submission (STARTTLS), entrypoint adds this listener
+      - "127.0.0.1:12993:993" # IMAP (implicit TLS)
+      - "127.0.0.1:12143:143" # IMAP (STARTTLS), entrypoint adds this listener
+    # Healthy only once the shared dataset is seeded: the marker is written at
+    # the end of the entrypoint, and HTTP liveness must also answer. This is the
+    # real readiness signal tests wait on, not a sleep.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -f /var/lib/stalwart/.harness-ready && curl -fsS http://127.0.0.1:8080/healthz/live >/dev/null || exit 1
+      interval: 3s
+      timeout: 5s
+      retries: 80
+      start_period: 10s
+
+volumes:
+  stalwart-etc:
+  stalwart-data:

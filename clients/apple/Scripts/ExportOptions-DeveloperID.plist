@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for `xcodebuild -exportArchive` in the DIRECT-DISTRIBUTION flow (Scripts/package.sh
+  --developer-id). __TEAM_ID__ is substituted from signing.local.sh into a copy under build/ at run
+  time, so no team id is committed. Developer ID needs no provisioning profile; the exporter picks
+  the "Developer ID Application" cert and applies Hardened Runtime + a secure timestamp.
+-->
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>developer-id</string>
+    <key>teamID</key>
+    <string>__TEAM_ID__</string>
+    <key>signingStyle</key>
+    <string>manual</string>
+    <key>signingCertificate</key>
+    <string>Developer ID Application</string>
+</dict>
+</plist>

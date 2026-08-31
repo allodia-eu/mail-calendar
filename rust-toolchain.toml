@@ -1,0 +1,16 @@
+# The one Rust version this repo builds with, everywhere: rustup reads this file for every cargo
+# invocation inside the checkout, and CI installs exactly this channel (ci.yml parses it, so the
+# version lives in one place). Pinning keeps local and CI byte-identical and — because the CI cache
+# key contains the rustc version — stops a floating `stable` from silently invalidating every
+# cache mid-day, which is what a 1.96.0 -> 1.96.1 -> 1.97.0 drift did on 2026-07-09.
+#
+# Bumping is a deliberate, standalone PR: a new stable can add default-warn rustc/clippy lints, and
+# the workspace denies all warnings (see the root Cargo.toml), so the bump is where those surface
+# and get fixed — not a red build on someone's unrelated change.
+#
+# `cargo fmt` is the one exception: rustfmt.toml uses nightly-only options, so formatting runs on
+# the nightly pinned in rust-nightly.toml instead. Run it via scripts/dev/gate.sh, which reads that
+# file — the same one ci.yml reads (see AGENTS.md).
+[toolchain]
+channel = "1.97.0"
+components = ["clippy"]

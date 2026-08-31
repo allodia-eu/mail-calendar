@@ -1,0 +1,10 @@
+From: Alice Tester <alice@test.local>
+To: Alice Tester <alice@test.local>
+Subject: Message with flags and a custom keyword
+Date: Sat, 10 Jan 2026 08:45:00 +0000
+Message-ID: <flagged-0005@test.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+The seeder APPENDs this with \Seen and \Flagged set plus a custom keyword, so the
+flag/keyword mapping (JMAP keywords <-> IMAP flags) has a fixture to protect.

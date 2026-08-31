@@ -1,0 +1,8 @@
+// Exposes libresolv's res_9_query (and the nameser constants) to Swift, and links libresolv.
+// SystemMxResolver uses it to send an MX query via the system resolver; the raw answer is
+// parsed in Swift by DnsMessage.
+module CResolv {
+    header "shim.h"
+    link "resolv"
+    export *
+}

@@ -1,0 +1,318 @@
+# The Allodia Mail & Calendar Rust product core. docs/architecture.md has the layered
+# architecture and the crate split it is built as
+# (domain/ports/services/commands/viewmodel/bindings).
+[workspace]
+resolver = "2"
+members = ["crates/*", "clients/linux", "allodia_license/crates/allodia-license"]
+# Three members are deliberately absent from `default-members` below, which is what keeps them out
+# of a bare `cargo build`/`cargo test`. That list is explicit rather than a subtraction, so a crate
+# added to `members` never joins the default build by accident. `cargo test --workspace` — what
+# scripts/dev/gate.sh runs — covers all three regardless.
+#
+# The C# binding-generator binshim (crates/mailcal-bindgen-cs) is a member so it shares the
+# lockfile/target dir and Renovate tracks its pinned git tag; only the Windows binding-generation
+# step builds it, via `cargo run -p ...`.
+#
+# `crates/mailcal-buildenv` is a `[build-dependencies]` of the two crates that inject compile-time
+# values, so it is built whenever either of them is and needs no place here. Membership is what puts
+# its tests — the parser deciding whether a shipped binary carries its credentials — in
+# `cargo test --workspace`, which a build script's own `#[cfg(test)]` would never reach.
+#
+# `allodia_license/crates/allodia-license` is the one crate not under the GPL. Membership is what
+# lets it share this lockfile, these dependency versions and these lints — it reuses
+# `mailcal-oauth`, and its own workspace meant a second copy of the engine on disk for one small
+# crate. What keeps it out of a shipped build is its absence below **and** the optional,
+# off-by-default dependency in `crates/mailcal-bindings`; scripts/ci/check-license-dir.sh fails
+# if either moves.
+default-members = [
+  "crates/mailcal-app",
+  "crates/mailcal-account",
+  "crates/mailcal-autodetect",
+  "crates/mailcal-composer",
+  "crates/mailcal-viewmodel",
+  "crates/mailcal-oauth",
+  "crates/mailcal-telemetry",
+  "crates/mailcal-mcp",
+  "crates/mailcal-mcp-shim",
+  "crates/mailcal-bindings",
+]
+
+# `version` mirrors the top-level `/VERSION` single source of truth (docs/versioning.md). Cargo
+# cannot read an external file, so this is the one committed duplicate — the `version-sync` CI job
+# (scripts/ci/check-version-sync.sh) fails if it ever drifts from `/VERSION`. Bump both together
+# with `scripts/dev/bump-version.sh X.Y.Z`.
+[workspace.package]
+version = "0.6.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+# The application is GPL-3.0-only (docs/pledge.md, LICENSE). Stated here so `cargo metadata`
+# carries it, and in REUSE.toml for every non-Rust file; `reuse lint` gates the pair.
+license = "GPL-3.0-only"
+
+# ---------------------------------------------------------------------------------------------
+# Debug info: the single biggest lever on build time and target/ size, so it is decided HERE
+# rather than left to rustc's default (`debug = 2`, full CodeView/DWARF for everything).
+#
+# Measured on a Surface Pro X (SQ1, 8 cores, arm64) at the default: `target/` reached 19 GB, of
+# which 2.8 GB was PDBs under `debug/deps` and 4.4 GB was `debug/incremental` — most of that
+# debug info too, since the incremental cache stores what it would regenerate. A drive with 8 GB
+# free cannot hold that, which is why `cargo clean` had become routine — and every clean throws
+# away the cache that makes an incremental build 22s instead of 2m45s. Small target dirs and warm
+# caches are the same problem.
+#
+# The split below follows from who reads the information:
+#   - Our own crates keep `line-tables-only`. That is exactly what makes a panic backtrace name a
+#     file and a line, which is how a core panic gets traced from a client log — and it is the
+#     part worth keeping. Variable-level info is what a debugger needs, and the debugging loop in
+#     docs/debugging.md is logs, screenshots and UIA, not breakpoints.
+#   - Dependencies get nothing. 399 crates deep, no one has ever stepped into rustls or sqlite
+#     here; their debug info is pure disk. This is the "optimise the dependencies" advice done the
+#     way that actually helps a build — note that the *other* common form of it,
+#     `[profile.dev.package."*"] opt-level = 3`, trades MORE build time for faster dependency
+#     runtime. That is a test-speed knob, not a build-speed one; do not add it expecting this.
+#
+# CI carried `CARGO_PROFILE_DEV_DEBUG: line-tables-only` as a workflow env var for exactly this
+# reason, which meant the fix existed for the runners and never for the people. Putting it in the
+# manifest gives every build the same treatment — local, CI, and every client build script — so
+# the workflow no longer sets it.
+# ---------------------------------------------------------------------------------------------
+[profile.dev]
+debug = "line-tables-only"
+
+# `[profile.test]` has to say it again, and this is the trap. `cargo test` builds its targets
+# under the *test* profile, and while the Cargo book describes that profile as inheriting `dev`,
+# the top-level `debug` key measurably does not come with it: setting it on `dev` alone rebuilds
+# nothing for `cargo test`, and adding it here rebuilds everything. So the line above applied to
+# `cargo build` and never to `gate.sh`, which is where the time actually goes.
+#
+# Measured in the engine repo, same shape of workspace, `cargo test --workspace --all-features
+# --no-run` after touching one crate: 368s before, 149s after. Only wall time moves — this
+# removes the writing of debug info, not the compiling of code.
+#
+# The `package."*"` override below does NOT need repeating; that one is inherited.
+[profile.test]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = 0
+
+# Release keeps line tables for the same reason dev does, and for one that only applies here: the
+# panic hook (crates/mailcal-bindings/src/crash.rs) writes a backtrace into the user's diagnostic
+# log, and that backtrace is the ONLY record of where the core died — the FFI boundary carries a
+# panic's message to the host and nothing else. At rustc's release default (`debug = 0`) those
+# frames are function names at best and bare addresses on a stripped binary, which turns a crash
+# report into "it crashed somewhere". Line tables are the smallest thing that answers "where".
+#
+# Dependencies still get nothing — `[profile.release.package."*"]` below, because
+# `[profile.dev.package."*"]` does not reach release. That override is what makes this affordable
+# rather than theoretical: measured on the arm64 Android cdylib, it takes the library from
+# 192.3 MiB to 97.7 MiB, and its DWARF from 155.0 MiB to 60.6 MiB.
+#
+# **Packaging decides how much of this a user actually gets**, and each platform decides it
+# separately — so do not read this key as the answer for any of them.
+#
+# Android deliberately keeps less than what is set here: clients/android/build-release.sh sets
+# `CARGO_PROFILE_RELEASE_DEBUG=0` for its own cross-compile, so the shipped cdylib keeps the
+# linker's symbol table and carries no DWARF. Measured deflated, a shipped stack costs 10.4 MiB
+# with bare addresses, 11.9 MiB with names, and 24.2 MiB with names plus file and line — names are
+# what makes a support log readable, and the rest more than doubles the download. That override is
+# the ONLY thing deciding the symbol content of an Android release: AGP's strip task is exempted
+# from our library on purpose, and for a long time it was a silent no-op for every library, so this
+# key alone decided the shipped payload and nobody noticed. Without the `package."*"` override
+# below, the deflated arm64 slice was 40.6 MiB.
+#
+# Apple lands in the same place by a different route: `dwarf-with-dsym` moves the DWARF into a
+# `.dSYM` the `.ipa` omits, so the shipped binary carries none either, and `STRIP_STYLE: debugging`
+# in clients/apple/project.yml is what keeps the symbol table beside it. Linux and Windows get file
+# and line, and pay for it in the binary, because ELF carries DWARF inside it. docs/logging.md
+# holds the per-platform picture.
+[profile.release]
+debug = "line-tables-only"
+
+# A crash names our code, not rustls's. Measured on the arm64 Android cdylib, this override drops
+# 94.5 MiB of DWARF — every byte of it describing a frame no one reading a support log will act
+# on. Cargo does not inherit the `[profile.dev.package."*"]` override into release, so it has to
+# be repeated.
+#
+# It does NOT reduce the total to nothing: 60.6 MiB of DWARF remains, and every surviving compile
+# unit belongs to a `crates/mailcal-*` CGU — no dependency unit is left. Do not read that as "our
+# code is enormous". A dependency's generic instantiated in one of our crates is compiled *into*
+# it and takes this workspace's debug setting, so a large share of what is attributed to us here
+# is someone else's code monomorphized under our name, and no profile key separates the two.
+[profile.release.package."*"]
+debug = 0
+
+# Opt in when you genuinely need a debugger (`cargo build --profile debugger`). It lands in
+# `target/debugger/` rather than `target/debug/`, so turning it on does not evict the warm dev
+# cache — at the cost of a second target dir while it exists, so `cargo clean -p <crate>` it
+# afterwards. Note the client build scripts hardcode the `debug`/`release` directory names, so to
+# get full debug info THROUGH one of them, override the dev profile for that one invocation
+# instead: `CARGO_PROFILE_DEV_DEBUG=full ./clients/apple/Scripts/build-core.sh`.
+[profile.debugger]
+inherits = "dev"
+debug = "full"
+
+# Mirror the engine's lint discipline (AGENTS.md: mirror the engine).
+[workspace.lints.rust]
+unsafe_code = "forbid"
+# Every rustc warning is a hard error, caught on a local `cargo build`/`test` rather than
+# only in CI. `warnings` is the default-warn group (unused, dead_code, …) at low priority;
+# the allow-by-default lints below are enabled on top. Only this workspace's crates are
+# affected — Cargo caps lints on dependencies. Without a pinned toolchain a newer rustc can
+# introduce a new default-warn lint that then fails the build; fix or bump when that happens.
+warnings = { level = "deny", priority = -1 }
+missing_docs = "deny"
+missing_debug_implementations = "deny"
+unreachable_pub = "deny"
+
+# Rustdoc lints also hard-fail (on `cargo doc`), so a broken/private doc link or an
+# accidental HTML tag is caught locally instead of in CI.
+[workspace.lints.rustdoc]
+all = { level = "deny", priority = -1 }
+
+# Clippy's `pedantic` group is a hard error here — *stricter* than the engine, which keeps it
+# at `warn` (this core is the reference the engine adopts later). `priority = -1` lets the
+# per-lint `allow`s below win. The four allows are the ones that fire almost entirely on false
+# positives for this codebase; everything else in `pedantic` is fixed, not silenced.
+[workspace.lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+# Domain proper nouns (JMAP, CalDAV, IMAP, OAuth, PKCE, RFC numbers, …) read as unticked code
+# identifiers to `doc_markdown`, but our docs are protocol-heavy prose where they're proper
+# nouns. (Mirrors the engine's allow.)
+doc_markdown = "allow"
+# Our module/type naming intentionally repeats the module name for call-site clarity
+# (e.g. `account::AccountConfig`); this lint fights that convention. (Mirrors the engine.)
+module_name_repetitions = "allow"
+# `must_use_candidate` flags nearly every pure getter/builder; the signal-to-noise is too low
+# to gate the build on.
+must_use_candidate = "allow"
+# `too_many_lines` (a per-function 100-line threshold) fights our own 500-line/file rule and
+# fires on cohesive-but-long functions; the file-length CI gate is our size discipline instead.
+too_many_lines = "allow"
+# The only panics in this core are internal `lock().expect("… poisoned")` calls — an
+# unrecoverable invariant violation (a prior panic while holding the lock), not documented
+# API behaviour a caller can act on. A uniform "# Panics: if a lock is poisoned" on every
+# getter is noise. (`missing_errors_doc` stays denied — errors ARE part of the contract.)
+missing_panics_doc = "allow"
+
+[workspace.dependencies]
+# Internal crates.
+# Build-script access to the values Allodia injects at compile time (the OAuth registrations, the
+# analytics relay). A `[build-dependencies]` of `mailcal-oauth` and `mailcal-bindings` only — it
+# ships in no binary. See BUILDING.md.
+mailcal-buildenv = { path = "crates/mailcal-buildenv" }
+mailcal-app = { path = "crates/mailcal-app" }
+# Rich-message compose document validation and HTML/plain-text rendering, shared by clients.
+mailcal-composer = { path = "crates/mailcal-composer" }
+# Pure view-models (mailbox-list + calendar-agenda snapshots) shared by every host.
+mailcal-viewmodel = { path = "crates/mailcal-viewmodel" }
+# Loads an account's connection config and builds the concrete providers it drives.
+mailcal-account = { path = "crates/mailcal-account" }
+# Email-first automatic mail-server-settings detection (JMAP well-known probe, Mozilla
+# autoconfig, ISPDB, host-resolved MX fallback) — the shared engine behind every client's
+# account-setup wizard.
+mailcal-autodetect = { path = "crates/mailcal-autodetect" }
+# Provider-agnostic OAuth 2.0 Authorization-Code-with-PKCE client (Microsoft first; Gmail and
+# IMAP/SMTP XOAUTH2 reuse it later). Token acquisition/refresh is the host's job — the engine
+# stays OAuth-agnostic (north-star.md) — so this lives in the product core.
+mailcal-oauth = { path = "crates/mailcal-oauth" }
+# The local Model Context Protocol server — the agent adapter over the core's query/action layer.
+# Kept out of `mailcal-app` for the same reason `mailcal-telemetry` is: a build without this crate
+# structurally CANNOT listen on a socket, so the demo, the showcase, and every test are not merely
+# configured off but incapable. See docs/mcp.md.
+mailcal-mcp = { path = "crates/mailcal-mcp" }
+# The HTTPS delivery adapter for consented product analytics: implements the core's
+# `TelemetrySink` port. Kept out of `mailcal-app` so the core stays network-free — the demo, the
+# showcase, and every test run with no sink, and therefore cannot phone home. See docs/analytics.md.
+mailcal-telemetry = { path = "crates/mailcal-telemetry" }
+# The sync engine, consumed only through its `engine-api` facade. Pinned by
+# git commit to the public allodia-eu/email-calendar-sync-engine, so the build is
+# reproducible everywhere with no sibling checkout (and no repo credentials — it's public).
+# To develop against a local engine checkout at the same time, add a `paths` override to a
+# `.cargo/config.toml` in the directory ABOVE this checkout — see `.cargo/config.toml`, which is
+# tracked (it pins the Windows static-CRT rustflags) and so is no longer the place for it.
+# Re-pin: bump `rev` on every line below to the new engine commit (keep them identical).
+engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+# The one host-selected TLS policy shared across IMAP/CalDAV/JMAP/Graph.
+engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1", features = ["tls-native-certs"] }
+# Concrete provider adapters the account layer connects. IMAP first; CalDAV for calendar.
+provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+# The Microsoft Graph mail read/sync + writes adapter (bearer-token): metadata/body sync
+# plus mail edits (mark-read/flag, move, permanent delete). The account layer builds a
+# token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
+provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+# The Google (Gmail + Google Calendar) native-API read/sync + write adapter (bearer-token),
+# the cloud-API counterpart of provider-graph. Gmail mail sync is account-global (one provider,
+# no per-folder fan-out); Google Calendar is IANA-native. The account layer builds a
+# token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
+provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+# The JMAP mail read/sync + submission + calendar-read adapter (RFC 8620/8621). Takes a
+# base URL + credentials (HTTP Basic username/password, or an OAuth bearer token) and
+# discovers everything else from the session. The account layer injects the shared TLS policy
+# before connecting it directly.
+provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+# JSON Schema derivation for the MCP tool surface (crates/mailcal-mcp). MCP requires a
+# draft-2020-12 `inputSchema` per tool; deriving it from the same struct the handler deserializes
+# is what stops a client sending exactly what a tool documented and getting a parse error.
+schemars = { version = "1", features = ["preserve_order"] }
+# UniFFI generates the Kotlin/Swift bindings over the app.
+uniffi = "0.31"
+async-trait = "0.1"
+# A lightweight logging facade: the core emits `log::{info,debug,…}!` records with no
+# knowledge of where they go, and the bindings install a bridge that forwards them to the
+# host-injected platform logger (Windows file log / os_log / android.util.Log) — so every
+# layer's diagnostics land in one place with a host-controlled level. `std` enables
+# `set_boxed_logger` (the runtime global-logger install the bindings use).
+log = { version = "0.4", features = ["std"] }
+# POSIX signal handling for the native-fault record the bindings write on the way out.
+libc = "0.2"
+# The Windows half of the same record: a vectored exception handler, which is what a native fault
+# arrives as there. Features are chosen per-crate, because they decide what is compiled.
+windows-sys = "0.61"
+# Concurrency combinators (`join_all`) so the app drives every folder/account sync at
+# once rather than serially on one core.
+futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+async-stream = "0.3.6"
+tokio = { version = "1", default-features = false }
+# Account-config (de)serialization.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+thiserror = "2"
+# OAuth token-endpoint HTTP (Microsoft/Google token + refresh) and the Graph `/me` lookup that
+# names a signed-in account. `rustls-no-provider` keeps reqwest off its default TLS path; callers
+# that speak HTTPS build clients from `engine-tls`'s preconfigured rustls config.
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "form", "rustls-no-provider", "charset", "http2"] }
+rustls-pki-types = "1"
+# SHA-256 + a system CSPRNG for PKCE (RFC 7636): the code-verifier's random bytes and the
+# S256 code-challenge. Already pulled in transitively by rustls, so this adds no new crate.
+ring = "0.17"
+# base64url (no padding) for the PKCE verifier/challenge and the CSRF `state`.
+base64 = "0.23"
+# Builds the authorization-request URL with correct percent-encoding and parses the redirect
+# callback URL (extracting `code`/`state`/`error`).
+url = "2"
+# Detects the device's current IANA zone from the OS (region-aware, so it returns the real
+# city — e.g. Europe/Amsterdam — not the Windows-zone primary). One shared implementation
+# over the FFI keeps device-zone detection consistent across macOS/Android/Windows.
+iana-time-zone = "0.1"
+# Calendar-date math for the sync-depth cutoff ("N months ago"). Matches the engine's date
+# library so the `time::Date` passed to `ImapConfig::with_since` is one shared type.
+time = "0.3"
+# Sanitises a message's raw (hostile) text/html into a safe, inert subset before any client
+# renders it — one hardened, pure-Rust (mobile-safe) sanitiser shared by every client. The
+# engine returns HTML unsanitized by design (mime.md); the product core sanitises here
+# (north-star.md: HTML is sanitised, remote images blocked by default).
+ammonia = "4"
+# Streaming pull-parser for the Mozilla autoconfig XML (mailcal-autodetect). Pinned to the
+# minor version provider-caldav already locks, so it adds no new transitive crates; it does
+# not expand custom entities, so hostile config files can't balloon in memory.
+quick-xml = "0.40"
+# Mozilla's Public Suffix List, compiled in — derives a provider's registrable ("base")
+# domain from an MX hostname for the autodetect MX fallback. No platform exposes a PSL API,
+# and a stale list only ever costs a missed/extra HTTPS probe, never a trust decision.
+psl = "2"

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for `xcodebuild -exportArchive` in the iOS/iPadOS App Store flow (Scripts/package.sh
+  --ios-app-store). __TEAM_ID__ is substituted from signing.local.sh into a copy under build/ at run
+  time, so no team id is committed.
+
+  Automatic signing (signingStyle=automatic + -allowProvisioningUpdates) lets Xcode fetch/create the
+  Apple Distribution cert and the App Store provisioning profile, unlike the macOS Store flow, iOS
+  `-exportArchive` re-signs nested code correctly, so there is no manual re-sign pass (the macOS
+  ITMS-90284 nested-SPM-bundle skip is a macOS-only bug). The pre-upload gate in package.sh still
+  ASSERTS the app came out Apple-Distribution-signed against a distribution profile before upload.
+
+  method=app-store-connect is the current name (Xcode 15.3+; the repo pins Xcode 26+). destination=
+  export writes a local .ipa instead of uploading, so upload stays an explicit step (Transporter /
+  altool). manageAppVersionAndBuildNumber=false is LOAD-BEARING: the app's CFBundleVersion is the
+  dotted UTC timestamp package.sh stamps (docs/versioning.md); leaving Xcode to "manage" it would
+  clobber that stamp with its own value.
+-->
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store-connect</string>
+    <key>teamID</key>
+    <string>__TEAM_ID__</string>
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <key>destination</key>
+    <string>export</string>
+    <key>manageAppVersionAndBuildNumber</key>
+    <false/>
+    <key>uploadSymbols</key>
+    <true/>
+</dict>
+</plist>

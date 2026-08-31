@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Mac App Store entitlements for the NESTED MCP relay bundle
+  (Contents/Library/Helpers/allodia-mcp.app, docs/mcp.md), applied by Scripts/package.sh's
+  app-store flow. The Developer-ID flow signs the same bundle with NO entitlements: it is not
+  sandboxed there and needs none.
+
+  Two keys, and no third. The Store rejects an upload whose nested executables lack
+  com.apple.security.app-sandbox (ITMS-90296), and the app group is what lets the sandboxed relay
+  connect() to the socket the app binds in the shared container.
+
+  WHY NOT com.apple.security.inherit, which is what Apple's "Embedding a helper tool in a
+  sandboxed app" prescribes: that document describes a helper THE APP ITSELF SPAWNS, which
+  inherits the app's sandbox. This relay is spawned by the user's assistant, an unrelated,
+  unsandboxed process, and Apple is explicit that a non-sandboxed parent launching a child with
+  `inherit` is an error, because there is no sandbox to inherit. MEASURED here (2026-08-03):
+  SIGTRAP in _libsecinit_appsandbox before main(), so the relay would never start. The
+  configuration in this file is the one that was measured to work end to end.
+
+  Adding keys here is not free. Apple's guidance for an embedded tool is that extra entitlements
+  cause launch failures, and the two that look useful do nothing for a Unix socket anyway
+  (temporary-exception file grants do not cover connect(); network.client is AF_INET only).
+-->
+<dict>
+    <!-- Required on every executable in a Store submission. Without it: ITMS-90296 at upload. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- The shared container holding mcp.sock. Byte-identical to the app's own group entitlement
+         and to McpEndpoint.appGroupIdentifier; a mismatch is a relay that launches and then
+         cannot connect, which reads to a user as "the app is not running".
+
+         No team-id prefix: macOS accepts a `group.`-style identifier (MEASURED 2026-08-03, full
+         round trip through ~/Library/Group Containers/group.eu.allodia.mailcal/), and the shorter
+         string buys 5 bytes of the sun_path budget, which is the tightest constraint on this
+         path. Note this is NOT the same shape as keychain-access-groups next door in the app's
+         entitlements, which does take $(AppIdentifierPrefix). -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    </array>
+</dict>
+</plist>

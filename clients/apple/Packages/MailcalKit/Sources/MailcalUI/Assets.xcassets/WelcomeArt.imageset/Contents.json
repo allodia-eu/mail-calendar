@@ -1,0 +1,8 @@
+{
+  "images" : [
+    { "idiom" : "universal", "scale" : "1x", "filename" : "welcome-art.png" },
+    { "idiom" : "universal", "scale" : "2x", "filename" : "welcome-art@2x.png" },
+    { "idiom" : "universal", "scale" : "3x", "filename" : "welcome-art@3x.png" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}

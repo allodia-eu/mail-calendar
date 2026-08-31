@@ -1,0 +1,10 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:harness-ahmed
+FN:Ahmed El Amrani
+N:El Amrani;Ahmed;;;
+EMAIL:ahmed.elamrani@example.eu
+TEL;TYPE=cell:+31 6 2233 4455
+ORG:Noordlicht Studio
+TITLE:Art Director
+END:VCARD

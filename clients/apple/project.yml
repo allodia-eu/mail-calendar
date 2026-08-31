@@ -1,0 +1,280 @@
+# XcodeGen manifest, the source of truth for the Xcode project. Regenerate the .xcodeproj with
+# `xcodegen generate` (the .xcodeproj itself is git-ignored). One multiplatform app target builds
+# for macOS, iPhone, and iPad from a single set of sources over the shared MailcalKit package.
+name: AllodiaMail
+
+options:
+  # Only a fallback for a target that names no PRODUCT_BUNDLE_IDENTIFIER; every target
+  # here names one, from the brand (docs/branding.md).
+  bundleIdPrefix: eu.allodia
+  deploymentTarget:
+    macOS: "15.0"
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+packages:
+  MailcalKit:
+    path: Packages/MailcalKit
+
+# Per-machine signing values, kept out of git (signing.xcconfig optionally includes the local file).
+# Only a physical-device build reads them, see CODE_SIGN_* below.
+configFiles:
+  Debug: signing.xcconfig
+  Release: signing.xcconfig
+
+targets:
+  AllodiaMail:
+    type: application
+    # A single multiplatform app target, iOS here covers both iPhone and iPad.
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - App
+    dependencies:
+      - package: MailcalKit
+        product: MailcalUI
+    # Ship the MCP stdio relay inside the app, so an assistant can spawn it by an absolute path
+    # (docs/mcp.md). A script phase rather than a `copyFiles` entry because the file is BUILT (by
+    # Scripts/build-core.sh) and git-ignored, so it does not exist when xcodegen generates the
+    # project, a file reference would be a red missing-file.
+    # macOS only: iOS hosts no server, so a relay there would reach nothing.
+    #
+    # It is wrapped in a nested `.app` rather than dropped beside the app's own executable. That
+    # is the sandbox's requirement, not a preference: a bare Mach-O carrying
+    # com.apple.security.app-sandbox has no CFBundleIdentifier, so there is no container to
+    # attach and the process dies in _libsecinit_appsandbox before main() (SIGTRAP, measured
+    # 2026-08-03). The Store build MUST carry that entitlement or the upload is rejected
+    # (ITMS-90296), so the bundle is the only shape that both uploads and runs. The Developer-ID
+    # build wears the same layout so there is one relay path, not two.
+    postBuildScripts:
+      - name: Copy the allodia-mcp relay (macOS)
+        # Declared inputs/outputs rather than `basedOnDependencyAnalysis: false`, so Xcode can skip
+        # the phase when nothing moved, and, more to the point, so it stops printing a note on
+        # every single build. A note that fires unconditionally trains everyone to ignore notes.
+        #
+        # The output is $(MCP_RELAY_OUTPUT), which is per-SDK (see settings below) and points
+        # OUTSIDE the product on iOS. That indirection is the fix for a real rejection, not tidiness:
+        # Xcode creates the directories of a declared output BEFORE running the phase, so while this
+        # path named `…/$(CONTENTS_FOLDER_PATH)/Library/Helpers/allodia-mcp.app/…` unconditionally,
+        # an iOS build, where the script exits on its first line, still shipped that bundle, made
+        # of four empty folders. App Store delivery rejected 0.3.0 twice over it: ITMS-90207 ("does
+        # not contain a bundle executable") and ITMS-90036 ("Info.plist … is missing").
+        inputFiles:
+          - $(SRCROOT)/Packages/MailcalKit/artifacts/allodia-mcp
+        outputFiles:
+          - $(MCP_RELAY_OUTPUT)
+        script: |
+          if [ "$PLATFORM_NAME" != "macosx" ]; then
+            # iOS hosts no MCP server, so nothing is copied, but two things still have to happen.
+            # Write the stamp Xcode is watching, or the phase is never up to date and re-runs on
+            # every build. And remove a Library/Helpers left inside the product by an OLDER build of
+            # this tree, whose output path did point in there: an incremental archive over such a
+            # build directory would otherwise carry the empty bundle into the .ipa exactly as before.
+            mkdir -p "$(dirname "$SCRIPT_OUTPUT_FILE_0")"
+            : >"$SCRIPT_OUTPUT_FILE_0"
+            STALE="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Library/Helpers"
+            rm -rf "$STALE/allodia-mcp.app"
+            rmdir "$STALE" "$(dirname "$STALE")" 2>/dev/null || true
+            exit 0
+          fi
+          RELAY="${SCRIPT_INPUT_FILE_0:-$SRCROOT/Packages/MailcalKit/artifacts/allodia-mcp}"
+          if [ ! -f "$RELAY" ]; then
+            # A Release build that cannot ship the relay must FAIL, not warn. Without the relay the
+            # app still launches, the MCP panel still renders, and the config snippet it offers
+            # falls back to a bare `allodia-mcp` on PATH, which resolves nowhere, so the assistant
+            # reports only "Failed to spawn process: No such file or directory". That is a silent
+            # ship of a broken feature, and it has happened once already (the phase was lost in a
+            # merge and a notarized build went out without it). Debug keeps the warning: a dev
+            # who has not run build-core.sh should still get an app to work on.
+            if [ "$CONFIGURATION" = "Release" ]; then
+              echo "error: allodia-mcp is missing, run Scripts/build-core.sh before packaging"
+              exit 1
+            fi
+            echo "warning: allodia-mcp is missing, run Scripts/build-core.sh; MCP will be unavailable"
+            exit 0
+          fi
+          # A nested .app, because the sandbox needs a bundle identifier to make a container from
+          # (see the phase comment above). CFBundleIdentifier must match the app group's owner
+          # prefix and stay in step with App/AllodiaMailMcpHelper.appstore.entitlements.
+          BUNDLE="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Library/Helpers/allodia-mcp.app"
+          mkdir -p "$BUNDLE/Contents/MacOS"
+          cat >"$BUNDLE/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key><string>allodia-mcp</string>
+              <key>CFBundleIdentifier</key><string>${MAILCAL_APP_ID}.mcp</string>
+              <key>CFBundleName</key><string>allodia-mcp</string>
+              <key>CFBundlePackageType</key><string>APPL</string>
+              <key>CFBundleShortVersionString</key><string>$MARKETING_VERSION</string>
+              <key>CFBundleVersion</key><string>$CURRENT_PROJECT_VERSION</string>
+              <key>LSBackgroundOnly</key><true/>
+              <key>LSMinimumSystemVersion</key><string>$MACOSX_DEPLOYMENT_TARGET</string>
+          </dict>
+          </plist>
+          PLIST
+          # The heredoc above is indented to match this script; strip that indent back off, or the
+          # XML declaration is not on line 1 and the plist is invalid.
+          sed -i '' 's/^          //' "$BUNDLE/Contents/Info.plist"
+          plutil -lint "$BUNDLE/Contents/Info.plist" >/dev/null || {
+            echo "error: generated a malformed Info.plist for the relay bundle"; exit 1; }
+          cp -f "$RELAY" "$BUNDLE/Contents/MacOS/allodia-mcp"
+          # Ad-hoc sign it here so a DEBUG build runs; package.sh re-signs the whole tree with the
+          # real identity for a release (and has a gate that would catch it if it did not).
+          codesign --force --sign - --timestamp=none "$BUNDLE" >/dev/null 2>&1 || true
+    info:
+      path: App/Info.plist
+      properties:
+        # The product's name, in full, in both keys the OS reads.
+        #
+        # It is "Allodia Mail & Calendar", never "Allodia Mail", which names a product that does
+        # not exist, and never bare "Allodia", which is the company
+        # (AGENTS.md → "Brand & voice"). Both keys, because macOS reads
+        # two of them: Finder and the Applications list take CFBundleDisplayName, while the app menu
+        # beside the Apple logo takes CFBundleName, which, left to default to $(PRODUCT_NAME), put
+        # a run-together "AllodiaMail" in the one place every Mac user looks for an app's name.
+        #
+        # Past Apple's 15-character guidance for CFBundleName, deliberately: the guidance is about
+        # menu-bar width, and a brand rule that says "never abbreviate the product" outranks a
+        # narrower File menu. The executable and the bundle stay `AllodiaMail`, renaming those
+        # moves every signing path, packaging script and `pkill` pattern in the repo, for a string
+        # no user sees.
+        #
+        # Not localised. The product name is the same in all seven languages, so an InfoPlist
+        # strings file per locale would be seven copies of one constant, each able to drift.
+        #
+        # Injected, not written (docs/branding.md). XcodeGen expands `${...}` from the environment
+        # and leaves the literal `${MAILCAL_APP_NAME}` behind when nothing set it, so every script
+        # that generates this project loads the brand first and then refuses a project that still
+        # holds a placeholder.
+        CFBundleDisplayName: ${MAILCAL_APP_NAME}
+        CFBundleName: ${MAILCAL_APP_NAME}
+        # Wire the Info.plist version keys to the build settings below so package.sh's
+        # CURRENT_PROJECT_VERSION override (a fresh timestamp per Store upload) and --version actually
+        # take effect. Without these, xcodegen writes its literal defaults (1.0 / 1) and every archive
+        # ships "build 1", which App Store Connect rejects as a duplicate on the second upload.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSApplicationCategoryType: public.app-category.productivity
+        NSHumanReadableCopyright: "© 2026 Allodia"
+        # The app's only cryptography is standard TLS (IMAP/SMTP/JMAP/CalDAV/HTTPS over the OS
+        # stack), which is exempt, so this is `false` ("no NON-exempt encryption"). It answers the
+        # App Store export-compliance question up front instead of per-upload in App Store Connect.
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        # Background mail sync (docs/background-sync.md): the app-refresh background mode + the
+        # permitted BGTaskScheduler identifier the `.backgroundTask(.appRefresh:)` handler uses.
+        # Ignored on macOS (which keeps the always-on foreground runtime).
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - ${MAILCAL_APP_ID}.refresh
+        # All FOUR orientations, deliberately: an iPad app that supports multitasking (i.e. does not
+        # set UIRequiresFullScreen) MUST list every orientation, or App Store delivery rejects the
+        # build with error 90474. package.sh's Flow C asserts this before archiving.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ${MAILCAL_APP_ID}
+        # MARKETING_VERSION mirrors the top-level /VERSION single source of truth (docs/versioning.md)
+        # so the dev loop (build-and-run.sh) reports the real version. Scripts/package.sh re-stamps it
+        # from /VERSION at release, and the version-sync CI job fails if this drifts. CURRENT_PROJECT_VERSION
+        # is the dev default only, package.sh overrides it with a fresh dotted timestamp per Store upload.
+        MARKETING_VERSION: "0.6.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"   # iPhone + iPad
+        # Where the relay copy phase declares its output, per SDK, because Xcode materializes an
+        # output's directories whether or not the phase produces anything. On macOS that is the
+        # relay's real destination inside the app; everywhere else it is a stamp in the derived-file
+        # directory, so a platform that ships no relay ends up with nothing in its product rather
+        # than an empty `Library/Helpers/allodia-mcp.app` (the ITMS-90207/90036 rejection of 0.3.0).
+        MCP_RELAY_OUTPUT: $(DERIVED_FILE_DIR)/allodia-mcp.not-copied
+        MCP_RELAY_OUTPUT[sdk=macosx*]: $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Library/Helpers/allodia-mcp.app/Contents/MacOS/allodia-mcp
+        SWIFT_VERSION: "5.0"
+        ENABLE_DEBUG_DYLIB: NO
+        # Apple-silicon only (matches the XCFramework, which has no x86_64 slices).
+        EXCLUDED_ARCHS[sdk=macosx*]: x86_64
+        EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+        # The app icon. One AppIcon.appiconset carries BOTH the per-size `mac` idiom images and the
+        # single-size 1024 `universal`/`ios` image, so every platform uses the same set, scoped per
+        # SDK here. (Historically iOS was set to "" because the set had only Mac images and xcodegen's
+        # auto-emitted unscoped ASSETCATALOG_COMPILER_APPICON_NAME made the iOS build fail "did not
+        # have any applicable content"; the iOS 1024 icon was added for the App Store submission:
+        # Scripts/generate-appicon.sh emits it, so iOS now points at the same AppIcon.)
+        ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]: AppIcon
+        ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]: AppIcon
+        ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]: AppIcon
+        # Ad-hoc sign ("-", no team/provisioning). The keychain-access-group entitlement is
+        # iOS-only: iOS needs it for Keychain persistence (an unsigned app's SecItemAdd fails
+        # silently, so a stored account vanishes on relaunch), but on macOS that same entitlement
+        # would demand a provisioning profile, and macOS uses the file keychain, which needs none.
+        # The DISTRIBUTION identity/team are NOT baked in here: Scripts/package.sh overrides
+        # CODE_SIGN_IDENTITY + DEVELOPMENT_TEAM on the xcodebuild line (from the git-ignored
+        # signing.local.sh), so no team id or cert reference is committed.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        # A physical iPhone/iPad is the exception: iOS refuses to launch an ad-hoc signed app, so a
+        # device build needs a real provisioning profile, which needs a team. Automatic signing
+        # resolves that profile (and registers the device in it) given the team id, which is
+        # per-machine and therefore comes from signing.xcconfig's optional local include rather than
+        # from here. Empty in a fresh checkout, so nothing changes for macOS or the simulator.
+        CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+        CODE_SIGN_IDENTITY[sdk=iphoneos*]: Apple Development
+        DEVELOPMENT_TEAM[sdk=iphoneos*]: $(MAILCAL_DEVELOPMENT_TEAM)
+        CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: App/AllodiaMail.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: App/AllodiaMail.entitlements
+      configs:
+        # Release is the packaging config (Scripts/package.sh). Debug is untouched, so the dev loop
+        # (build-and-run.sh: ad-hoc, no hardened runtime) behaves exactly as before.
+        Release:
+          # Hardened Runtime is a notarization prerequisite (macOS only; iOS ignores it).
+          ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+          # macOS entitlements, indirected through MACOS_ENTITLEMENTS so the --app-store flow can
+          # swap in the sandbox set (App/AllodiaMail.appstore.entitlements) by overriding this ONE
+          # build setting on the xcodebuild line. Passing CODE_SIGN_ENTITLEMENTS directly can't
+          # work: an xcodebuild setting override is global, so the MailcalKit package targets would
+          # inherit it and fail trying to open the (app-relative) path. Only the app target
+          # references $(MACOS_ENTITLEMENTS), so overriding the variable stays scoped to it.
+          MACOS_ENTITLEMENTS: App/AllodiaMail.macOS.entitlements
+          CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: $(MACOS_ENTITLEMENTS)
+          # Keep the symbol table in the shipped binary, so a crash stack in the user's diagnostic
+          # log names functions instead of offsets. Xcode's default here is `all`, which leaves
+          # 2,282 symbols of 140,259 and turns every frame of `backtrace_symbols_fd`, the Apple
+          # crash handler's only symbolizer, into `AllodiaMail + 1852`.
+          #
+          # DWARF is unaffected either way: `dwarf-with-dsym` has already moved it into the .dSYM
+          # before the strip runs, so this trades no file-and-line, only names. Measured on the
+          # macOS Release binary, gzipped as a stand-in for what the store delivers: 15.6 MiB at
+          # `all` against 17.9 MiB here.
+          #
+          # ⚠️ NOT `non-global`, which looks like the cheaper middle and is worse than useless.
+          # `dladdr` reports the nearest *preceding* symbol, so with local symbols gone a frame
+          # resolves to whatever global happens to sit below it, measured, a fileprivate frame
+          # came back confidently named as the public function two frames up. A support log that
+          # names the wrong function costs more than one that names none.
+          STRIP_STYLE: debugging
+
+  # The headless FFI runtime gate (was clients/macos/verify.swift, built by swiftc). A macOS
+  # command-line tool over MailcalBindings, drives the Rust loop against the real account and
+  # asserts counts. Run: `xcodebuild -scheme MailcalVerify build && <product>` (needs
+  # ~/.config/mailcal/account.toml). It is the one headless verifier target, and CI's runtime gate.
+  MailcalVerify:
+    type: tool
+    platform: macOS
+    deploymentTarget:
+      macOS: "15.0"
+    sources:
+      - Verify
+    dependencies:
+      - package: MailcalKit
+        product: MailcalBindings
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ${MAILCAL_APP_ID}verify
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"

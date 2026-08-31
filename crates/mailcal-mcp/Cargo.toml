@@ -1,0 +1,43 @@
+[package]
+name = "mailcal-mcp"
+description = "The local Model Context Protocol server for Allodia Mail & Calendar: a JSON-RPC tool surface over the product core's query/action layer, reachable only over a local socket the signed-in OS user owns."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+# The product core's read (query_*) and write (act_*) layer. This crate is an ADAPTER over that
+# layer and adds no mail logic of its own, ordering, scope, and the recipient index all come
+# from there, so an agent and a person are never shown two different mailboxes.
+mailcal-app = { workspace = true }
+# The row/snapshot types a query returns.
+mailcal-viewmodel = { workspace = true }
+# `AccountId`: the typed account identity the core's references are built from.
+engine-api = { workspace = true }
+# The wire format is JSON-RPC 2.0, so every request/response type is (de)serialized.
+serde = { workspace = true }
+serde_json = { workspace = true }
+# JSON Schema derivation for the tool surface. MCP requires a draft-2020-12 `inputSchema` per
+# tool, and hand-writing a dozen schemas beside a dozen structs is a drift bug waiting to happen
+#: the schema and the deserializer must agree, or a client sends exactly what the tool
+# documented and gets a parse error. Derived on the MCP request/result types ONLY: `Intent` stays
+# serde-free, so the FFI enum's shape is not pinned by a wire format no client speaks.
+schemars = { workspace = true }
+# The accept loop, the per-connection tasks, and the framed socket I/O.
+tokio = { workspace = true, features = ["rt", "net", "io-util", "sync", "time", "macros"] }
+# The host-injected composer port is an async-free trait, but the backend port is async.
+async-trait = { workspace = true }
+# Diagnostics: counts, ids and durations only; never a query, an address, or a body.
+log = { workspace = true }
+# Encodes the app icon into the `data:` URI the server advertises as its own (`branding.rs`).
+# A data URI rather than a link so a client never reaches out to allodia.eu to render our logo;
+# see that module for why an unasked-for network callback is the wrong shape for this product.
+base64 = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "io-util", "time"] }
+
+[lints]
+workspace = true

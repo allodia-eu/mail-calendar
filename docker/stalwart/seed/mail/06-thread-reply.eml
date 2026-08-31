@@ -1,0 +1,11 @@
+From: Alice Tester <alice@test.local>
+To: Bob Tester <bob@test.local>
+Subject: Re: Project kickoff
+Date: Mon, 12 Jan 2026 09:30:00 +0000
+Message-ID: <thread-reply-0006@test.local>
+In-Reply-To: <thread-root-0006@test.local>
+References: <thread-root-0006@test.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Reply in the same thread, pointing at the root via In-Reply-To and References.

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  macOS DIRECT-DISTRIBUTION entitlements (Developer ID + Hardened Runtime, Scripts/package.sh
+  --developer-id, the notarized .dmg flow). Deliberately minimal:
+
+  * The app is NOT sandboxed here (direct distribution doesn't require the App Sandbox, that's the
+    Mac App Store's job, see AllodiaMail.appstore.entitlements). So networking (IMAP/SMTP/JMAP/
+    CalDAV/HTTPS), arbitrary file access (attachment save/open), and the file-based login keychain
+    all work WITHOUT any entitlement, sandbox entitlements would only constrain them.
+
+  * No `keychain-access-groups`: this build uses the file keychain, which needs no access group, and
+    it MUST, macOS SIGKILLs a Developer-ID app that declares keychain-access-groups with no
+    provisioning profile (exit 137 at launch, confirmed 2026-07-19), and Developer ID distribution
+    uses no profile (the same reason the ad-hoc debug build omits it, see project.yml).
+    KeychainHelper.swift keys off exactly this: with no access group its gate stays on the file
+    keychain; only the Mac App Store build (which DOES get a profile-granted group) switches to the
+    iOS-style data-protection keychain. See AllodiaMail.appstore.entitlements.
+
+  Only Hardened-Runtime EXCEPTIONS belong in this file, and only if a runtime need forces one.
+  WKWebView (the rich composer + the reading view) runs its JIT in a separate, system-provided
+  WebContent process with its own entitlements, so the host app needs no `com.apple.security.cs.*`
+  exception for it, verified by opening the composer and a rendered message in a notarized build.
+  If a future dependency needs JIT/DYLD exceptions in-process, add the specific key here and
+  re-verify with `codesign -d --entitlements - <app>`.
+
+  DO NOT pass this file to `codesign --entitlements`. Xcode strips XML comments before signing;
+  codesign's AMFI parser does not, and rejects the file outright ("AMFIUnserializeXML: syntax
+  error near line 6"). Scripts/package.sh's Developer-ID flow therefore reads the entitlements
+  back OFF the exported app instead, which is also the more correct source, since that copy is
+  what the build actually applied.
+-->
+<dict/>
+</plist>

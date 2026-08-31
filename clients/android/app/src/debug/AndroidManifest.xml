@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DEBUG-only manifest additions (merged only into debug builds): a broadcast receiver that
+     triggers a one-time background sync for live testing. Not present in release builds. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name=".DebugSyncReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="${applicationId}.DEBUG_RUN_SYNC" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

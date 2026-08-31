@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Mac App Store entitlements (Apple Distribution + App Sandbox, Scripts/package.sh --app-store).
+
+  The Store MANDATES the App Sandbox. Its runtime behaviour is VERIFIED (2026-07-18) with a
+  sandboxed build of this app driven against the local harness: under the sandbox
+  homeDirectoryForCurrentUser resolves to the app CONTAINER, so the engine store + diagnostic log
+  (MailcalModel.swift, FileLog.swift) land in ~/Library/Containers/eu.allodia.mailcal/Data/.local/
+  share/mailcal, writable, no sandbox denial (the getpwuid-escapes-the-container trap does NOT bite
+  here). Confirmed under the sandbox: the SQLite store opens, JMAP sync connects/authenticates/
+  downloads under network.client, the log writes, and Keychain items this app owns round-trip
+  prompt-free across launches. The one thing to remember: the container is a DIFFERENT path from the
+  direct-distribution build, so data does not carry over between the two. Distribution mechanics (the
+  Distribution cert + Mac App Store profile + the actual .pkg upload) are the remaining work, see
+  clients/apple/README.md ("Packaging for the Mac App Store").
+-->
+<dict>
+    <!-- Required by the Store. Once on, everything below is default-deny and must be re-granted. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- Outbound connections: IMAP / SMTP / JMAP / CalDAV / HTTPS (incl. Microsoft OAuth). The app
+         never listens, so no network.server. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Attachments: save a received file to a user-chosen location; attach user-chosen files in
+         the composer. Both go through the user (powerbox), so this scoped grant is sufficient, no
+         broad filesystem entitlement. -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- Per-account credentials in the Keychain. This group is LOAD-BEARING on the Store build:
+         KeychainHelper.swift enables kSecUseDataProtectionKeychain whenever the running build carries
+         a keychain-access-group (this build, via its Mac App Store provisioning profile, and iOS),
+         so the Store build uses the iOS-style DATA-PROTECTION keychain under this access group,
+         matching iOS. Verified prompt-free across launches (2026-07-19). The Developer ID .dmg and
+         the ad-hoc dev build carry NO access group and stay on the file keychain, and they MUST:
+         macOS SIGKILLs a Developer-ID app that declares keychain-access-groups with no provisioning
+         profile (confirmed 2026-07-19), and ad-hoc signing has no team to anchor the group. So a
+         single macOS keychain is not reachable; the gate picks the right one per signing.
+         $(AppIdentifierPrefix) expands to the team id at build time, so it stays team-agnostic in
+         git and matches the app's application-identifier. -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    </array>
+
+    <!-- The MCP socket, and the ONLY way the relay can reach it under the sandbox (docs/mcp.md).
+         The app binds ~/Library/Group Containers/<group>/mcp.sock and the nested relay bundle
+         (AllodiaMailMcpHelper.appstore.entitlements) connects to it; the shared group is the
+         entire grant, so this string must stay byte-identical in both files and in
+         McpEndpoint.appGroupIdentifier.
+
+         MEASURED (2026-08-03) rather than assumed, because the three plausible alternatives all
+         fail and two of them fail in ways that look like success: a bare Mach-O relay with
+         app-sandbox crashes in libsecinit before main() (no bundle, so no container, this is why
+         the relay is a nested .app); a temporary-exception file grant over the real-home path
+         does not cover a socket connect() and returns EPERM; and network.client governs
+         AF_INET/AF_INET6 only, so it does nothing for a Unix socket either. With this group and
+         nothing else, the round trip completes.
+
+         No $(AppIdentifierPrefix) here, unlike keychain-access-groups above: macOS accepts a
+         `group.`-prefixed identifier (measured), and the shorter string buys 5 bytes of the
+         sun_path budget that bounds this socket's path. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    </array>
+</dict>
+</plist>

@@ -1,0 +1,46 @@
+From: Newsletter <news@example.com>
+To: Alice Tester <alice@test.local>
+Subject: HTML message with a remote image
+Date: Mon, 05 Jan 2026 09:30:00 +0000
+Message-ID: <html-0008@test.local>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt-0008"
+
+--alt-0008
+Content-Type: text/plain; charset=utf-8
+
+The plain-text alternative of the HTML fixture.
+
+A reader that prefers text/plain shows this part; one that prefers text/html
+shows the styled part instead. Both are here so the two reading paths can be
+compared against the same message.
+
+--alt-0008
+Content-Type: text/html; charset=utf-8
+
+<html>
+  <head>
+    <style>
+      .card { border: 1px solid #d9d9d9; border-radius: 6px; padding: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="card" style="font-family: Segoe UI, sans-serif; color: #1a1a1a; line-height: 1.5;">
+      <h1 style="color: #16598d; margin: 0 0 12px;">HTML rendering fixture</h1>
+      <p>A styled body with <strong>bold</strong>, <em>italic</em>, and a
+        <a href="https://example.com/link">link</a> — enough presentational CSS
+        (inline, a <code>&lt;style&gt;</code> block, and a class) that stripping it
+        would be obvious.</p>
+      <p>The image below is <strong>remote</strong>, so the reading pane must block
+        it and offer the "load remote images" opt-in rather than fetching it:</p>
+      <p><img src="https://images.example.invalid/tracker.png" width="120" height="40"
+              alt="a remote image that must not load by default"></p>
+      <ul>
+        <li>First item</li>
+        <li>Second item</li>
+      </ul>
+    </div>
+  </body>
+</html>
+
+--alt-0008--

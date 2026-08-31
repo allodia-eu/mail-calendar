@@ -1,0 +1,8 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:harness-namesake-a
+FN:Jan de Vries
+N:de Vries;Jan;;;
+EMAIL:jan.devries@example.eu
+ORG:Vries Advies
+END:VCARD

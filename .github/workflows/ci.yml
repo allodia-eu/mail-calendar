@@ -1,0 +1,1069 @@
+# CI for the product core and its clients: lint, workspace tests + the gated JMAP live tests
+# against a real Stalwart JMAP server, plus the Apple, Windows, Android, and Linux clients.
+#
+# The core consumes the sync engine as a **git dependency pinned by commit** to the public
+# allodia-eu/email-calendar-sync-engine (see the root Cargo.toml), so Cargo fetches it with
+# no repo credentials and no separate checkout — the build is reproducible from this repo
+# alone. (For simultaneous local engine work, developers put a `paths` override in a
+# `.cargo/config.toml` ABOVE this checkout — outside the repo, so never active in CI. The repo's own
+# `.cargo/config.toml` is tracked and pins the Windows static-CRT rustflags.)
+#
+# Cost discipline — macOS minutes bill at 10x and Windows at 2x, so three rules hold:
+#   1. Every expensive job gates on `changes`, which derives the affected areas from the actual
+#      change set (scripts/ci/changed-areas.sh). A manual run forces any subset via `areas`.
+#   2. Only `main` writes the shared caches — see the `save-if` notes on each cache step.
+#   3. The Android and Linux RELEASE builds run on a `v*` tag (or a manual dispatch), not on every
+#      push. They were the two longest steps in the workflow — 255s and 121s, more than a third of
+#      the run's critical path — and what they prove is a property of the thing being shipped.
+#      The trade is stated plainly: R8 breakage and a dev fixture leaking out of `cfg`-guarded
+#      code are now found at the tag, with every commit since the last one in the bisect window.
+#      Tag runs also build these cold, because `main` no longer warms a release-profile cache.
+#
+# **Every job carries `timeout-minutes`.** They are backstops, not budgets: the slowest job on a
+# push has been the Linux x86_64 leg at ~12 minutes, so 20 leaves room to spare and still catches
+# a stall. Without one a job inherits GitHub's six-hour default, which is what `apt-get update`
+# hanging on an unresponsive mirror actually cost — and a job stuck for hours is indistinguishable
+# from a slow one until someone looks. The `android` and `linux` bounds are expressions rather than
+# numbers because a tag runs a materially bigger job in the same skin (the release builds and the
+# Flatpak bundle, per rule 3 above); a flat push-sized bound there would kill every release build.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    # A tag builds everything: `changed-areas.sh` sees an all-zero `before` for a newly created
+    # ref, cannot resolve a change set, and fails open onto every area — which is what a release
+    # wants anyway.
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      areas:
+        description: Areas to build, bypassing change detection (use when a trigger missed a build)
+        type: choice
+        default: all
+        options: [all, rust, apple, windows, android, linux]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Superseded PR pushes are wasted spend, so cancel them. Never cancel a run on main: main's run
+  # is what refreshes the shared caches every branch restores from, and a cancelled run never
+  # reaches its cache-save step — back-to-back merges would leave the caches permanently stale.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Debug info used to be trimmed here, with `CARGO_PROFILE_DEV_DEBUG: line-tables-only`. It now
+# lives in `[profile.dev]` in the root Cargo.toml, because a workflow env var fixes the problem for
+# the runners and for nobody else: local target dirs kept every byte of debug info the runners were
+# careful to skip, which is how a developer box reached 19 GB of `target/` and made `cargo clean` —
+# the thing that throws away the cache this file works hard to preserve — a routine step. The
+# manifest reaches CI, laptops, and every client build script alike, and it goes further than this
+# ever did (dependencies now get no debug info at all). Do not reintroduce the variable: it would
+# silently override the manifest for CI only, and the drift would be invisible until someone read
+# both files.
+
+# The values Allodia injects into the core at build time (BUILDING.md). Workflow-level rather than
+# per-job because several jobs build a binary and the ones that would be forgotten are exactly the
+# ones whose omission is invisible: the app still builds, it just quietly stops offering Google and
+# Microsoft sign-in, or asks for analytics consent it then has nowhere to honour.
+#
+# A pull request from a fork receives **no** secrets, so these arrive as the empty string and that
+# run builds the absent case — which is the point rather than a shortfall: it is the build outside
+# contributors get, and it has to stay green. Blank counts as unset everywhere that reads them.
+#
+# Locally the same values come from a gitignored `.env`; the real environment wins over it, which is
+# why setting them here needs nothing else.
+env:
+  MAILCAL_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.MAILCAL_GOOGLE_DESKTOP_CLIENT_ID }}
+  MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET }}
+  MAILCAL_GOOGLE_IOS_CLIENT_ID: ${{ secrets.MAILCAL_GOOGLE_IOS_CLIENT_ID }}
+  MAILCAL_GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.MAILCAL_GOOGLE_ANDROID_CLIENT_ID }}
+  MAILCAL_MS_CLIENT_ID: ${{ secrets.MAILCAL_MS_CLIENT_ID }}
+  # Signing in to an Allodia account. The client id is one of the registrations a release build is
+  # *required* to carry, so its absence here failed a tagged build rather than quietly dropping a
+  # route. The host has a built-in default and is set only to point a build at another instance.
+  MAILCAL_ALLODIA_CLIENT_ID: ${{ secrets.MAILCAL_ALLODIA_CLIENT_ID }}
+  MAILCAL_ALLODIA_HOST: ${{ secrets.MAILCAL_ALLODIA_HOST }}
+  # The consented-analytics relay (docs/analytics.md), injected the same way and for the same
+  # reason: a build that lost it still asks for consent and then reports nowhere. A fork gets the
+  # empty string, which is the silent build every from-source checkout already makes.
+  ALLODIA_TELEMETRY_URL: ${{ secrets.ALLODIA_TELEMETRY_URL }}
+
+jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      rust: ${{ steps.detect.outputs.rust }}
+      apple: ${{ steps.detect.outputs.apple }}
+      windows: ${{ steps.detect.outputs.windows }}
+      android: ${{ steps.detect.outputs.android }}
+      linux: ${{ steps.detect.outputs.linux }}
+      toolchain: ${{ steps.toolchain.outputs.channel }}
+      nightly: ${{ steps.toolchain.outputs.nightly }}
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The showcase flag is a cross-client contract whose failure mode is silent and photogenic:
+      # a capture run against the developer's real mailbox looks exactly like a working one. It
+      # lives here, in the always-run gate job, rather than in `lint` — `lint` is gated on the
+      # `rust` area, so a clients/windows-only change (which is precisely where this last broke)
+      # would skip it. Dependency-free: git grep, nothing installed.
+      - name: Showcase flag contract
+        run: scripts/ci/check-showcase-flag.sh
+
+      # Likewise silent when broken, and likewise spread across the clients rather than the Rust
+      # area: the injected harness account (a fixture hand-written in four languages) and the
+      # debug-only trust of the harness's self-signed IMAP certificate.
+      - name: Dev-account (harness) contract
+        run: scripts/ci/check-dev-account.sh
+
+      # Also invisible to every other gate: the banned call resolves fine against a desktop's
+      # application database and wedges inside a Flatpak, so only the packaged build shows it.
+      - name: Desktop hand-off (portal launchers)
+        run: scripts/ci/check-desktop-handoff.sh
+
+      - name: Which areas does this change touch?
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # A manual run bypasses detection entirely — the escape hatch for a missed trigger.
+          FORCE_AREAS: ${{ github.event_name == 'workflow_dispatch' && inputs.areas || '' }}
+        run: scripts/ci/changed-areas.sh
+
+      # rust-toolchain.toml (stable, for everything) and rust-nightly.toml (the rustfmt pin) are
+      # the single sources of truth for the two Rust versions this repo uses. Parse them once here
+      # and feed them to every job's toolchain install, so neither is duplicated in YAML —
+      # scripts/dev/gate.sh reads the same two files, which is what keeps local and CI identical.
+      - name: Read the pinned Rust toolchains
+        id: toolchain
+        run: |
+          read_channel() { sed -n 's/^channel[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$1"; }
+          channel=$(read_channel rust-toolchain.toml)
+          [ -n "$channel" ] || { echo "no [toolchain] channel in rust-toolchain.toml" >&2; exit 1; }
+          nightly=$(read_channel rust-nightly.toml)
+          [ -n "$nightly" ] || { echo "no [toolchain] channel in rust-nightly.toml" >&2; exit 1; }
+          echo "Pinned Rust toolchain: $channel (rustfmt: $nightly)"
+          echo "channel=$channel" >>"$GITHUB_OUTPUT"
+          echo "nightly=$nightly" >>"$GITHUB_OUTPUT"
+
+  # The 500-line rule spans languages (Rust *and* C#), so this gate is deliberately NOT behind the
+  # `changes` areas: a Windows-only PR touches no Rust and would skip a rust-gated job entirely —
+  # which is precisely the PR that can land an over-long C# file. It needs no toolchain and no
+  # cache, so running it on every push costs a few seconds and closes that hole.
+  file-length:
+    name: File length (<= 500 lines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Every tracked source file is within the limit
+        run: scripts/ci/check-file-length.sh
+
+  # One app version across all clients (docs/versioning.md). Like file-length, this is NOT behind the
+  # `changes` areas: /VERSION feeds every client, so a drift can arrive from an Apple/Windows/Android-
+  # only PR that a rust-gated job would skip. Dependency-free (grep + awk), so it runs on every push.
+  version-sync:
+    name: Version sync (one /VERSION)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Every version mirror and derivation matches /VERSION
+        run: scripts/ci/check-version-sync.sh
+
+  # Every client still takes its name and application id from branding/ (docs/branding.md). Not
+  # behind the `changes` areas, for the same reason version-sync is not: the identity feeds every
+  # client, so a literal written back into one manifest can arrive from a PR that touches no Rust.
+  # Dependency-free (grep + sed), so it runs on every push — which is also why the public-split
+  # content rules ride along here: same shape of rule, same shape of failure, and both have to see
+  # every change rather than only the ones that touch code.
+  branding:
+    name: Branding and public-split hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Every client derives its identity from the brand
+        run: scripts/ci/check-branding.sh
+
+      - name: The tree carries nothing the public repository must not
+        run: scripts/ci/check-public-hygiene.sh
+
+      # The same rules, applied to the copy rather than the source. It stages the public tree and
+      # re-runs the check inside it, which is where a link into a removed path becomes visible:
+      # in this checkout those links resolve, so nothing else can see them. No toolchain and no
+      # submodule -- the pipeline excludes what the public tree does not receive.
+      - name: The default build does not reach into allodia_license/
+        run: scripts/ci/check-license-dir.sh
+
+      - name: The staged public tree is publishable
+        run: scripts/dev/public-split.sh
+
+  # The repository states its licensing once, for every file at once, in REUSE.toml rather than in
+  # a header on each source file. The blanket annotation matches every path, so what this catches
+  # is vendoring: a third-party file carrying its own SPDX header fails until that licence's text
+  # is in LICENSES/, a misspelled or deprecated identifier fails the same way, and a licence text
+  # nothing references any more fails as unused. Nothing else in this workflow reads a licence at
+  # all. Not behind the `changes` areas, for the reason branding and version-sync are not: any PR
+  # can add a file, including one that touches no code. Costs seconds.
+  reuse:
+    name: REUSE compliance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Every tracked file has a licence and a copyright holder
+        uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
+
+  # The store copy fits the fields its consoles actually enforce (docs/store-listing.md ->
+  # "Field limits"). Same reasoning as file-length and version-sync, plus one of its own: the gate
+  # this replaces is REMOTE. App Store Connect and Play reject an over-long description at
+  # submission, after a build number has been spent — and six of seven description bodies were over
+  # the 4,000-character cap for several releases because the limit was stated in a table and
+  # measured by nothing. Docs-only PRs are exactly the ones that change copy, so this cannot sit
+  # behind the `changes` areas. Its own tests run first: the check scrapes two hand-written
+  # markdown files, and the way it fails silently is by measuring nothing at all.
+  store-copy:
+    name: Store copy (field limits)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Unit-test the checker
+        run: python3 -m unittest discover -s scripts/ci/tests -v
+
+      - name: Every listing field and release note fits its console's limit
+        run: python3 scripts/ci/check_store_copy_length.py
+
+  # A log line describes the user's mail, never our source tree (docs/logging.md). NOT behind the
+  # `changes` areas, and for the sharpest version of the file-length reason: the log is written from
+  # Rust *and* from every client's own language, so any single-platform PR can add a line — and the
+  # ones this catches ship all the way to a user's device, where a path into this repository is
+  # meaningless to the reader and frozen against every later refactor. Stdlib Python, no toolchain.
+  # It found two on the day it was written: an `error!` citing a design-doc rule, and a Linux line
+  # logging a raw account id, which is an address the privacy rule forbids outright.
+  log-hygiene:
+    name: Log hygiene (no repo paths in log lines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: No log line names this repository
+        run: python3 scripts/ci/check_log_hygiene.py
+
+  # British English in prose and comments (AGENTS.md -> "How we write"). Always-run and ungated for
+  # the reason the checkers above are: the file that breaks it is whichever one someone happened to
+  # write a comment in, which turns on no area in particular. Stdlib Python, no toolchain.
+  british-english:
+    name: British English (prose and comments)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prose and comments are British English
+        run: python3 scripts/ci/check_british_english.py
+
+  # Dash punctuation in prose and comments (AGENTS.md -> "How we write"). Always-run for the same
+  # reason as the spelling checker: any source area can contain reader-facing prose.
+  dash-hygiene:
+    name: Dash punctuation (prose and comments)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: No dash punctuation remains in swept prose
+        run: python3 scripts/ci/check_dash_hygiene.py
+
+  # The shared editor's chrome is localised by each client passing its own strings in. Ungated, like
+  # the checkers above: the change that breaks it is adding a toolbar control, which touches the
+  # composer bundle and one client — turning on neither of the other clients' areas, which is where
+  # the label would then be missing.
+  composer-labels:
+    name: Composer labels (every client sends every one)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Every client sends the shared editor every label
+        run: python3 scripts/ci/check_composer_labels.py
+
+  # A snapshot the host pulls and the signal that tells it to are one operation (`Surfaced`). The
+  # type enforces it for anyone who uses it; this refuses the ways round it, which compile fine and
+  # fail as a stale paint rather than a panic. Stdlib Python, no toolchain — and deliberately not
+  # behind the `changes` areas, since the ways to reopen it are edits to files a Rust-only filter
+  # would still catch but a docs-only run would not.
+  surface-publish:
+    name: Published surfaces (no signal without a snapshot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: A published surface is only ever signalled by publishing it
+        run: python3 scripts/ci/check_surface_publish.py
+
+  # The user-documentation contract (docs/user-docs.md). Deliberately NOT behind the `changes`
+  # areas, for the same reason as file-length and store-copy — and one sharper still: the change
+  # most likely to break these pages is a *docs-only* change, which turns off every gated job.
+  # Stdlib Python, no toolchain, no cache; the checker's own tests run in `store-copy` above via
+  # `discover`, so this job is only the run against the real tree.
+  user-docs:
+    name: User docs (contract)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: The user documentation can be published as it stands
+        run: python3 scripts/ci/check_user_docs.py
+
+  # The unit tests for the scripts/dev debugging helpers — the accessibility-tree selection rules
+  # each platform's `control.sh ui-dump|find` is built on. Like file-length and version-sync, this
+  # is deliberately NOT behind the `changes` areas, and for a sharper reason than those two:
+  # `scripts/dev/*` maps to NO area at all, so a change to exactly the code these tests cover would
+  # skip every gated job and the tests would never run. A check that cannot fail is not a check.
+  # `discover` rather than a filename list, so a third helper's tests are picked up by existing.
+  # Dependency-free (stdlib unittest, no simulator, no pyatspi), so it runs on every push.
+  dev-scripts:
+    name: Dev script helpers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Unit-test the scripts/dev helpers
+        run: python3 -m unittest discover -s scripts/dev/tests -v
+
+  composer-editor:
+    name: Composer editor
+    # Ungated, like `dev-scripts` and for the same reason: `changed-areas.sh` maps
+    # `clients/composer/*` onto the four client areas, so an editor-only change would otherwise run
+    # four full client builds and no test of the thing that actually changed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.0"
+
+      - name: Install the editor's dev dependencies
+        working-directory: clients/composer
+        run: bun install --frozen-lockfile
+
+      - name: Type-check
+        working-directory: clients/composer
+        run: bun run typecheck
+
+      - name: Unit-test the editor
+        working-directory: clients/composer
+        run: bun test
+
+      # The step that matters: `editor.html` is a committed build output, so this is the only thing
+      # standing between a source edit and every client shipping the previous bundle.
+      - name: The committed bundle matches its sources
+        working-directory: clients/composer
+        run: bun run check
+
+  lint:
+    name: Format + Clippy
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # Submodules are contributor and AI guidance; the lints do not need them.
+
+      # rustfmt runs on a PINNED nightly (rust-nightly.toml): the workspace rustfmt.toml uses
+      # nightly-only options (crate-granular grouped imports, wrap_comments, …) and nightly
+      # rustfmt output drifts between dates. `components: rustfmt` is load-bearing — `cargo +<pin>`
+      # would otherwise auto-install the toolchain WITHOUT rustfmt and fail with a message that
+      # reads like the pin is wrong.
+      - name: Install nightly rustfmt (pinned)
+        id: nightly
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.nightly }}
+          components: rustfmt
+
+      - name: Install the pinned Rust + clippy
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+          components: clippy
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: lint
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Formatting (nightly rustfmt.toml)
+        run: cargo +${{ steps.nightly.outputs.name }} fmt --all --check
+
+      - name: Clippy (warnings as errors)
+        run: cargo clippy --workspace --exclude mailcal-linux --all-targets --all-features -- -D warnings
+
+  jmap-stalwart:
+    name: Workspace tests + JMAP live (Stalwart)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # Submodules are contributor and AI guidance; the build does not need them.
+
+      - name: Install the pinned Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: jmap-stalwart
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # Doc build is the CI backstop for the rustdoc warnings-as-errors: the workspace
+      # denies all rustdoc lints (broken/private links, HTML tags), so a bad doc link fails
+      # here. `cargo test` below does not run rustdoc, so this dedicated step is what catches
+      # the doc-link class in CI (it's also caught locally on `cargo doc`). Fails fast, before
+      # Stalwart is even started.
+      - name: Docs (warnings-as-errors)
+        run: cargo doc --workspace --exclude mailcal-linux --no-deps
+
+      # The Stalwart image is pinned by digest in docker-compose.yml; it self-bootstraps
+      # and seeds inside its entrypoint, reporting healthy only once the shared dataset is
+      # ready — so `--wait` returns on real readiness, not a sleep.
+      - name: Start Stalwart and seed the shared dataset
+        working-directory: docker/stalwart
+        run: docker compose up -d --wait
+
+      # Offline tests run here; the JMAP live tests inside the workspace skip unless
+      # STALWART_* is set — set below for the dedicated live step so a failure is attributable.
+      - name: Build + test the workspace
+        run: cargo test --workspace --exclude mailcal-linux
+
+      # The line above builds `allodia-license` as a workspace member but never turns the feature
+      # on, so every `#[cfg(feature = "allodia-license")]` arm in mailcal-bindings goes uncompiled
+      # and a break there reaches a release build unseen. The twin of gate.sh's `allodia tests`.
+      - name: Build + test the Allodia sign-in feature
+        run: cargo test -p mailcal-bindings --features allodia-license
+
+      - name: Run the gated JMAP live integration test
+        env:
+          STALWART_HTTP_ADDR: 127.0.0.1:28080
+          STALWART_ACCOUNT: alice@test.local
+          STALWART_PASSWORD: harness-alice-pw
+        run: cargo test -p mailcal-account --test live_jmap -- --nocapture
+
+      - name: Dump Stalwart logs on failure
+        if: failure()
+        working-directory: docker/stalwart
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        working-directory: docker/stalwart
+        run: docker compose down -v
+
+  apple:
+    # Cross-compile the Rust core to an XCFramework, generate the Xcode project, build the macOS +
+    # iOS app targets, and build + run the headless FFI verifier (demo mode — deterministic, no
+    # credentials). Runner: macos-26 — arm64, macOS 26 + Xcode 26 (our minimum).
+    #
+    # ⏸️ TEMPORARILY DISABLED — macOS runners bill at **10x** every other platform. That is the
+    # whole reason; every other platform stays on CI, because no single host builds them all.
+    #
+    # This is a **cost** decision, not a statement that Apple needs less proof. It moves the Apple
+    # gate from a machine that cannot forget to a person who can. On a macOS host,
+    # `scripts/dev/gate.sh --clients` builds the macOS app, the iOS simulator slice and
+    # `swift test` on the same Xcode this runner would use — run it before pushing an Apple change,
+    # and say in the PR that you did. On Windows or Linux that step *skips*, so an Apple change
+    # pushed from there has no gate at all: get it built on a Mac, or re-enable this job for that
+    # PR.
+    #
+    # Re-enable by restoring the `if:` to `needs.changes.outputs.apple == 'true'`. Nothing else
+    # depends on this job; `ci-ok` counts `skipped` as success, so the required check stays green
+    # either way — which is precisely why this cannot be noticed by watching CI.
+    name: Apple clients (macOS + iOS)
+    needs: changes
+    if: false # was: needs.changes.outputs.apple == 'true' — see the note above
+    runs-on: macos-26
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # `delete-used-deriveddata-cache` below calls the cache-delete API. Only main reaches it.
+      actions: write
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Xcode's build cache. Restoring it takes the three xcodebuild steps below from ~117s to
+      # ~30s: a git checkout stamps every source file with a fresh mtime, which would invalidate
+      # DerivedData, so this action restores the recorded mtimes alongside it. Measured locally:
+      # the macOS app rebuilds in 2-12s warm vs 45-59s cold — and it stays that fast even when
+      # build-core.sh regenerates the XCFramework, because Xcode then relinks rather than
+      # recompiles. (SourcePackages caching does nothing here: MailcalKit has no external SwiftPM
+      # dependencies.) Runs before build-core.sh so the restored mtimes precede any regeneration.
+      - name: Cache Xcode DerivedData
+        uses: irgaly/xcode-cache@4141f139f00e335c6e1031fb93e667181f86146f # v1.9.2
+        with:
+          key: xcode-deriveddata-${{ runner.os }}-${{ github.sha }}
+          restore-keys: xcode-deriveddata-${{ runner.os }}-
+          deriveddata-directory: ${{ github.workspace }}/clients/apple/build
+          # Same rule as the Rust cache: only main writes. Read-only short-circuits the action's
+          # whole save-and-delete branch, so a PR can never evict or delete main's entry.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          # main keys per-commit, so drop the entry we just restored — otherwise every merge
+          # leaves another ~600 MB behind and we are back to fighting the 10 GB budget.
+          delete-used-deriveddata-cache: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Select Xcode 26 (our minimum)
+        run: |
+          APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$APP" ]; then sudo xcode-select -s "$APP"; fi
+          xcodebuild -version
+
+      - name: Set up Rust (Apple targets)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+          # No aarch64-apple-ios: this job passes --no-device below, so the physical-device slice
+          # is never compiled here. Add it back if you ever drop that flag.
+          targets: aarch64-apple-darwin,aarch64-apple-ios-sim
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: apple
+          # Only main saves. A cache written on a PR ref is readable by nothing but that PR, so
+          # every PR would upload ~1 GB that serves no later run and only evicts main's entries
+          # from the repo's 10 GB budget. PRs restore main's entry and rebuild what they touched.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # --no-device: the steps below link only `platform=macOS` and `generic/platform=iOS
+      # Simulator`, so cross-compiling the physical-device slice here buys nothing but minutes on
+      # a 10x-billed runner. The trade is real: an error that only breaks the device slice now
+      # surfaces when someone builds for a device (or at release) instead of here.
+      - name: Build the Rust core -> XCFramework + bindings
+        run: ./clients/apple/Scripts/build-core.sh --no-device
+
+      # The client's own tests: plain logic, no UI, no simulator — the page<->date mapping, the zoom
+      # clamps, the all-day overflow rule, the localised copy. They run before the app builds, because
+      # a broken rule should fail in seconds rather than after two xcodebuild invocations.
+      - name: Test MailcalKit
+        working-directory: clients/apple/Packages/MailcalKit
+        run: swift test
+
+      - name: Generate the Xcode project
+        working-directory: clients/apple
+        run: xcodegen generate
+
+      # The three xcodebuild invocations share one derived-data path, so the app builds and the
+      # verifier reuse each other's MailcalKit build products instead of compiling it three times.
+      # The index store only feeds the Xcode UI, so generating it here is pure cost.
+      - name: Build the macOS app
+        working-directory: clients/apple
+        run: |
+          xcodebuild -project AllodiaMail.xcodeproj -scheme AllodiaMail \
+            -destination 'platform=macOS' -configuration Debug \
+            -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
+
+      - name: Build the iOS app
+        working-directory: clients/apple
+        run: |
+          xcodebuild -project AllodiaMail.xcodeproj -scheme AllodiaMail \
+            -destination 'generic/platform=iOS Simulator' -configuration Debug \
+            -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
+
+      - name: Build + run the headless FFI verifier (demo mode)
+        working-directory: clients/apple
+        run: |
+          xcodebuild -project AllodiaMail.xcodeproj -scheme MailcalVerify \
+            -destination 'platform=macOS' -configuration Debug \
+            -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
+          MAILCAL_DEMO=1 ./build/Build/Products/Debug/MailcalVerify
+
+  windows:
+    # Fast per-commit gate: x64 Debug only — Rust cdylib -> C# bindings (vendored binshim) ->
+    # WinUI app build -> headless FFI gate. The expensive both-arch RELEASE .msixupload is built
+    # only by windows-release.yml (on a tag or manual dispatch).
+    name: Windows client (x64)
+    needs: changes
+    if: needs.changes.outputs.windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+      # This job is I/O-bound, not CPU-bound. GitHub's Windows runners put the workspace on D:
+      # (the VM's local temp SSD) but leave every tool's package store on C: (the remote-backed
+      # OS disk), which is roughly 20x slower — ~4.3k IOPS vs ~84k, benchmarked on these images
+      # (chadgolden.com/blog/github-actions-hosted-windows-runners-slower-than-expected-ci-and-you).
+      # `dotnet restore` writes 1.5 GB across 3147 files and took 97s; a cold `dotnet restore` on
+      # a developer laptop takes 10s, and package *resolution* is only 124ms — so the cost is the
+      # write path, not the network and not NuGet. Both stores move to D:.
+      NUGET_PACKAGES: 'D:\.nuget\packages'
+      CARGO_HOME: 'D:\.cargo'
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Fail loudly rather than silently writing to C: if a future runner image drops the temp
+      # disk (Windows Server 2025 images are documented as C:-only on some SKUs).
+      - name: 'Verify the D: temp disk exists'
+        run: |
+          if (-not (Test-Path 'D:\')) {
+            throw 'No D: drive on this runner: drop the NUGET_PACKAGES/CARGO_HOME overrides, or set up a Dev Drive.'
+          }
+          Get-PSDrive -PSProvider FileSystem |
+            Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}} | Format-Table | Out-String | Write-Host
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up Rust (pinned + x64 MSVC target)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: windows
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # No NuGet cache on purpose. The entry was ~1 GB (WindowsAppSDK + the Windows SDK build
+      # tools dominate) and restoring it cost ~2 min at the runner's ~60 MB/s from the cache
+      # service — slower than letting `dotnet restore` pull the same packages from nuget.org's
+      # CDN inside the build step below. It also consumed a tenth of the repo's 10 GB cache
+      # budget, evicting the Rust caches that actually pay for themselves. Re-add it only with a
+      # measurement showing it beats a cold restore.
+      - name: Build (x64, Debug) and verify the FFI binding
+        run: ./clients/windows/build-and-run.ps1 -Arch x64 -Configuration Debug -NoRun
+
+  android:
+    # The Android client's unit suite: Robolectric supplies the Android framework and Compose's
+    # test rule drives the composables, so the whole thing runs on the JVM — no emulator, no KVM,
+    # no cross-compiled cdylib. The generated binding is data classes and enums only, and nothing
+    # here loads the native library.
+    name: Android client (unit tests; release build on tags)
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    # A backstop, not a budget: the unit suite runs about five minutes. A tag adds the release
+    # build's R8 pass and resource shrinking, which the larger bound covers.
+    timeout-minutes: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && 40 || 20 }}
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install the pinned Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: android
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # Gradle's dependency cache, plus ~/.m2: Robolectric fetches its `android-all-instrumented`
+      # runtime (~100 MB) through its own Maven resolver on first use, not through Gradle, so it
+      # lands there and would otherwise be re-downloaded on every run.
+      #
+      # Split restore/save rather than the all-in-one `actions/cache`, so only `main` WRITES it —
+      # the same rule the rust-cache steps follow via `save-if`. A cache saved on a PR ref is
+      # readable by nothing but that PR and merely evicts main's entries from the repo's 10 GB
+      # budget; PRs restore main's entry and re-resolve only what they changed.
+      - name: Restore Gradle + the Robolectric runtime
+        id: gradle-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.m2/repository
+          key: gradle-${{ runner.os }}-${{ hashFiles('clients/android/**/*.gradle.kts', 'clients/android/gradle/wrapper/gradle-wrapper.properties', 'clients/android/app/src/test/resources/robolectric.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # The Kotlin binding and the localised resources are gitignored build outputs, so a fresh
+      # checkout has neither — Gradle generates both itself (the "Generated sources" block in
+      # app/build.gradle.kts), from the HOST cdylib, which is why this job installs Rust. Keeping
+      # that in one place is deliberate: a separate CI step would be a second definition that can
+      # drift from what a developer's `./gradlew :app:test` actually runs.
+
+      - name: Unit tests (JVM)
+        working-directory: clients/android
+        run: ./gradlew --no-daemon :app:test
+
+      # Build the release variant so R8 actually runs in CI — minification, strict full-mode keep
+      # rules, and resource shrinking. Nothing here loads the cdylib, so the APK packages without
+      # the native libs, but R8 still exercises the ENTIRE keep-rule set in proguard-rules.pro
+      # against the real dependency classes (JNA, the generated UniFFI binding, WorkManager/Room).
+      # Unsigned is fine and intended: the release build is written to build without a keystore
+      # (see app/build.gradle.kts), so the shrinker and its keep rules run on every machine.
+      #
+      # SCOPE — read before trusting this. It catches BUILD-TIME R8 breakage: a malformed keep
+      # rule, a missing-class error, a shrinker/lint-vital failure. It does NOT catch runtime
+      # reflective stripping — R8 silently dropping a member only a Native/reflection path reaches
+      # (e.g. a Room `*_Impl` no-arg constructor). That build SUCCEEDS and the app crashes on
+      # launch, so only a release-variant emulator smoke test would see it. That heavier guard is a
+      # deliberate follow-up (needs an emulator + the cross-compiled cdylib in CI); until then this
+      # class of regression is verified by hand on a device/emulator when release shrinking changes.
+      #
+      # Tag-only (rule 3 in the header), and this is the one with no cheap stand-in: the JVM suite
+      # above runs UNMINIFIED, so between tags nothing in CI reads proguard-rules.pro at all. A
+      # keep rule broken by an unrelated dependency bump surfaces at the tag.
+      - name: Release build (exercise R8 + resource shrinking)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        working-directory: clients/android
+        env:
+          # A tag is Allodia shipping. A release build that quietly lost its OAuth client
+          # registrations or its analytics relay endpoint is correct in every respect except in
+          # front of a user, so the compile is made to fail naming what is missing rather than
+          # produce the artifact (crates/mailcal-oauth/build.rs,
+          # crates/mailcal-bindings/build.rs). Deliberately not workflow-level: an ordinary push,
+          # and every fork, must keep building without secrets.
+          MAILCAL_REQUIRE_INJECTED_CONFIG: 1
+        run: ./gradlew --no-daemon :app:assembleRelease
+
+      # A suite that compiles away to nothing still reports BUILD SUCCESSFUL, and Gradle prints no
+      # test count — so a green Android job would prove nothing. Read the JUnit XML and insist the
+      # run had tests in it. (It also prints the count, which `> Task :app:testDebugUnitTest
+      # FROM-CACHE` otherwise hides.)
+      - name: The suite must have actually run
+        working-directory: clients/android
+        run: |
+          results=app/build/test-results/testDebugUnitTest
+          shopt -s nullglob
+          reports=("$results"/TEST-*.xml)
+          if (( ${#reports[@]} == 0 )); then
+            echo "::error::no JUnit reports in $results — did the suite compile away?"
+            exit 1
+          fi
+          read -r total failures errors < <(
+            awk 'match($0, /tests="[0-9]+"/)    { t += substr($0, RSTART+7,  RLENGTH-8) }
+                 match($0, /failures="[0-9]+"/) { f += substr($0, RSTART+10, RLENGTH-11) }
+                 match($0, /errors="[0-9]+"/)   { e += substr($0, RSTART+8,  RLENGTH-9) }
+                 END { print t+0, f+0, e+0 }' "${reports[@]}"
+          )
+          echo "Android unit tests: $total run, $failures failures, $errors errors (${#reports[@]} classes)"
+          printf '### Android unit tests\n\n%s run, %s failures, %s errors across %s classes.\n' \
+            "$total" "$failures" "$errors" "${#reports[@]}" >>"$GITHUB_STEP_SUMMARY"
+          if (( total == 0 )); then
+            echo "::error::the suite ran 0 tests — a green run that proves nothing"
+            exit 1
+          fi
+          (( failures == 0 && errors == 0 ))
+
+      - name: Upload the test report on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-test-report
+          path: clients/android/app/build/reports/tests/
+          retention-days: 7
+
+      # Only `main` refreshes the shared entry (see the restore step). `always()` so a red test run
+      # still saves the dependency cache it warmed — the download is not what failed.
+      - name: Save Gradle + the Robolectric runtime
+        if: always() && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.m2/repository
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+
+
+  # The one arm of the native-fault handler no host gate reaches: its `cfg` is selected by an
+  # Android target, so `cargo test` on a developer's machine never builds it. Everything else in
+  # crates/mailcal-bindings/src/native_fault*.rs is covered — Linux by the `lint` job's workspace
+  # tests, Apple by the `cfg(test)` build of `armed` — and this closes the last side.
+  #
+  # It is not a theoretical gap. `native_fault_faulting.rs` reached main referencing a module that
+  # had moved, and it built green everywhere: macOS compiles the file but cfg's out the helper that
+  # held the reference, and the Linux job that would have caught it was not running. Only a real
+  # Android build saw it.
+  #
+  # Gated on `rust` rather than `android`: the code under test is the shared core, and a
+  # Compose-only change cannot break it. `crates/*` turns on every area, so any core change lands
+  # here. The one shape this misses is an edit to the script ALONE — scripts/dev/* deliberately
+  # enables no area — which is acceptable because the way you change that script is by running it.
+  #
+  # An emulator in CI is also the prerequisite the `android` job's release-build comment asks for:
+  # a release-variant smoke test that would catch R8 dropping a reflectively-reached member. This
+  # job establishes the emulator; that check is still to write.
+  android-native-fault:
+    name: Android native-fault suite (emulator)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    # The emulator boot dominates a warm run; a cold one adds the x86_64 cross-compile of the whole
+    # dependency tree.
+    timeout-minutes: 45
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the pinned Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+          targets: x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: android-native-fault
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # Installed as its own step rather than left to the script's `cargo install` fallback, so its
+      # cost is visible in the log instead of hidden inside a step named for something else.
+      - name: Install cargo-ndk
+        run: cargo install --locked cargo-ndk
+
+      # cargo-ndk locates the NDK from the environment, and the runner image exports
+      # ANDROID_NDK_LATEST_HOME / ANDROID_NDK_ROOT rather than the ANDROID_NDK_HOME that
+      # clients/android/build-release.sh sets for a developer. Naming it here means a runner
+      # without one fails on this line, saying so, instead of several minutes later inside a step
+      # named for the emulator.
+      - name: Point cargo-ndk at the runner's NDK
+        run: |
+          ndk="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-${ANDROID_NDK_LATEST_HOME:-}}}"
+          [ -n "$ndk" ] && [ -d "$ndk" ] || {
+            echo "::error::no Android NDK on this runner (ANDROID_NDK_HOME/ROOT/LATEST_HOME all unset or missing)"
+            exit 1
+          }
+          echo "ANDROID_NDK_HOME=$ndk" >>"$GITHUB_ENV"
+          echo "using NDK at $ndk"
+
+      # The emulator needs hardware acceleration to boot in any reasonable time, and a GitHub
+      # runner's /dev/kvm is not world-writable by default.
+      - name: Let the runner use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # API 33 because that is where the suite was verified on real hardware, and because bionic
+      # gained `backtrace(3)` there — the boundary the Android record's shape is decided by. The
+      # script reads the ABI off the device itself, so it needs no argument to target x86_64 here
+      # and arm64 on a phone.
+      - name: Native-fault suite on an emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 33
+          arch: x86_64
+          target: default
+          script: scripts/dev/test-android-native-fault.sh
+  linux:
+    # Both tier-1 targets, because the Flatpak ships both and an arm64-only break is otherwise
+    # invisible until someone installs it. The per-push legs prove the shared core, generated
+    # localisation API, observer bridge and native UI stay warning-clean; the release build and the
+    # bundle are tag-only, for the reason in this file's header (they are the two slowest steps and
+    # each proves a property of the artifact being shipped, not of the change).
+    name: Linux client (${{ matrix.arch }})
+    needs: changes
+    if: needs.changes.outputs.linux == 'true'
+    runs-on: ${{ matrix.runner }}
+    # A backstop, not a budget. On a push the legs run 7-9 minutes on x86_64 and 3-4 on arm64, so
+    # anything near that is stuck rather than slow. A tag is a different job in the same skin: it
+    # adds the release build, a ~2 GB GNOME runtime download and a cold Flatpak compile inside the
+    # sandbox, so the push bound would kill every release build at the one moment that is most
+    # expensive to discover.
+    timeout-minutes: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && 60 || 20 }}
+    strategy:
+      # One arch failing should still report the other: "arm64 is broken and x86_64 is fine" is a
+      # different bug from "the client is broken", and cancelling hides which one this is.
+      fail-fast: false
+      # Pinned to the development baseline rather than `ubuntu-latest`, which still resolves to
+      # 24.04 and would move underneath this job the day GitHub flips it. 26.04 images are marked
+      # **preview**: they are the supported target of this repository's Linux client (26.04 carries
+      # the same GNOME 50 generation the Flatpak links), and preview means they can change under a
+      # green build — so a Linux leg that breaks with no matching source change is worth checking
+      # against the runner image's changelog before it is treated as a regression here.
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-26.04
+          - arch: aarch64
+            runner: ubuntu-26.04-arm
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install GTK4 + libadwaita + WebKitGTK development libraries
+        # `apt-get update` reaches a mirror, and a mirror that stops answering hangs the step
+        # rather than failing it — observed twice in one day at 20+ minutes against a normal 1-2.
+        # Five minutes is several times the normal cost and well short of the wait that prompted
+        # this, so a stall is reported as one instead of being mistaken for a slow build.
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            pkg-config libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev \
+            at-spi2-core python3-pyatspi dbus-x11 xvfb xauth
+
+      - name: Install the pinned Rust + clippy
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+          components: clippy
+
+      # The key carries the arch. Without it both legs write one cache, and the second to finish
+      # restores the other architecture's artifacts — which do not link, and fail in a way that
+      # reads like a source error.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: linux-${{ matrix.arch }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Clippy (warnings as errors)
+        run: cargo clippy -p mailcal-linux --all-targets --all-features -- -D warnings
+
+      - name: Unit tests
+        run: xvfb-run --auto-servernum cargo test -p mailcal-linux --all-features
+
+      - name: AT-SPI adapter tests
+        run: /usr/bin/python3 -m unittest scripts/dev/tests/test_linux_ui_atspi.py
+
+      - name: Docs (warnings as errors)
+        run: cargo doc -p mailcal-linux --no-deps
+
+      # Default features deliberately omit `dev-harness`; this confirms the fixture and its custom
+      # trust path do not leak into the production-shaped binary.
+      #
+      # Tag-only (rule 3 in the header). The cheap half of this property is still checked on every
+      # push: `check-dev-account.sh`, in the always-run `changes` job, greps for the
+      # `#![cfg(debug_assertions)]` on dev_account.rs, the `cfg(not(...))` arm in tls.rs, and
+      # `dev-harness` never being a default feature. What only a release COMPILE can catch is a
+      # call site that escaped a `cfg` arm — boot.rs reaching dev_account:: unguarded builds
+      # perfectly in debug.
+      - name: Release build (dev fixture excluded)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        env:
+          # A tag is Allodia shipping. A release build that quietly lost its OAuth client
+          # registrations or its analytics relay endpoint is correct in every respect except in
+          # front of a user, so the compile is made to fail naming what is missing rather than
+          # produce the artifact (crates/mailcal-oauth/build.rs,
+          # crates/mailcal-bindings/build.rs). Deliberately not workflow-level: an ordinary push,
+          # and every fork, must keep building without secrets.
+          MAILCAL_REQUIRE_INJECTED_CONFIG: 1
+        run: cargo build --release -p mailcal-linux
+
+      # The packaging gate: the artifact a user installs, on both architectures. Kept beside the
+      # release build rather than replacing it — this one compiles cold inside the sandbox and
+      # reports errors through flatpak-builder's output, so the step above is what fails fast and
+      # readably when the break is in the source rather than in the packaging.
+      #
+      # It also validates the generated desktop entry and metainfo against the installed tree (see
+      # the manifest), which is the half of a store rejection that can be caught locally.
+      - name: Build the Flatpak bundle
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        env:
+          # A tag is Allodia shipping. A release build that quietly lost its OAuth client
+          # registrations or its analytics relay endpoint is correct in every respect except in
+          # front of a user, so the compile is made to fail naming what is missing rather than
+          # produce the artifact (crates/mailcal-oauth/build.rs,
+          # crates/mailcal-bindings/build.rs). Deliberately not workflow-level: an ordinary push,
+          # and every fork, must keep building without secrets.
+          MAILCAL_REQUIRE_INJECTED_CONFIG: 1
+        run: |
+          sudo apt-get install --yes flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub \
+            org.gnome.Platform//50 org.gnome.Sdk//50 \
+            org.freedesktop.Sdk.Extension.rust-stable//25.08
+          clients/linux/package.sh --bundle
+
+      - name: Keep the bundle
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mailcal-linux-${{ matrix.arch }}.flatpak
+          path: target/flatpak/mailcal.flatpak
+          if-no-files-found: error
+
+  # The single check to mark as required in the branch ruleset. The six jobs above are skipped
+  # when a change can't affect them, and a skipped job reports NO status — so requiring them
+  # directly would hang a docs-only PR forever. This job always runs and collapses them into one
+  # verdict.
+  #
+  # `if: always()` is what lets it run even when a dependency was skipped or failed. The result
+  # check must then be explicit: `needs.*.result` is one of success / skipped / failure /
+  # cancelled, and only the first two are acceptable. Do NOT use `contains(needs.*.result,
+  # 'failure')` alone — that misses `cancelled`.
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: [changes, file-length, version-sync, branding, reuse, store-copy, user-docs, log-hygiene, british-english, dash-hygiene, composer-labels, surface-publish, dev-scripts, composer-editor, lint, jmap-stalwart, apple, windows, android, android-native-fault, linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Every job that ran must have succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *)
+                echo "::error::a required job ended in '$result'"
+                exit 1
+                ;;
+            esac
+          done
+          echo "All jobs passed or were correctly skipped."

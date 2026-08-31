@@ -1,0 +1,453 @@
+<!doctype html>
+<!-- No `lang`, deliberately. It is what the engine's spell checker keys off, and a mail composer has
+     no one language: the same person writes Dutch to family and English to work, often in one
+     session. Any fixed value spellchecks every message against it, and on macOS it also overrides
+     NSSpellChecker's per-paragraph "Automatic by Language". Absent, each host falls back to the
+     user's own configured dictionaries. The signature editor loads this document too. -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Composer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --border: #d8dde3;
+      --text: #152330;
+      --muted: #5f6b73;
+      --surface: #fbfbf8;
+      --control: #ffffff;
+      --active: #16598d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: var(--surface);
+      color: var(--text);
+      font: 15px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    /* On a touch host nothing here is under 16px, because 16px is the size below which WebKit
+       zooms the whole page in when an editable or a `select` takes focus: its "make the field
+       readable" behaviour, which a page cannot decline except by locking `maximum-scale`, and
+       that takes pinch-zoom away with it. In a composer the zoom is pure damage: the toolbar
+       grows past the edge of the web view, the caret drifts under it, and nothing returns to
+       scale until the field is blurred. Sized on `html`/`body` rather than on the elements that
+       trigger it, so a control added to the toolbar later cannot reintroduce it. */
+    @media (pointer: coarse) {
+      html,
+      body {
+        font-size: 16px;
+      }
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+      background: #f6f8fa;
+    }
+
+    button,
+    select {
+      min-height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--control);
+      color: var(--text);
+      font: inherit;
+    }
+
+    button {
+      min-width: 32px;
+      padding: 0 9px;
+    }
+
+    button:active,
+    select:focus,
+    button:focus {
+      outline: 2px solid color-mix(in srgb, var(--active) 35%, transparent);
+      outline-offset: 1px;
+    }
+
+    select {
+      padding: 0 8px;
+    }
+
+    /* A hairline between groups of related controls, so eleven buttons read as four groups. */
+    .toolbar .sep {
+      width: 1px;
+      align-self: stretch;
+      margin: 2px 2px;
+      background: var(--border);
+    }
+
+    .toolbar svg {
+      display: block;
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* The colour buttons show the colour they will apply as a bar under the glyph, so the control
+       says what it does without opening it. */
+    .swatch-button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 0 8px;
+      line-height: 1;
+    }
+
+    .swatch-button .bar {
+      width: 16px;
+      height: 3px;
+      border-radius: 1px;
+      background: var(--text);
+      /* A pale colour needs an edge or it looks like an empty control on the white button. */
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+    }
+
+    /* --- Popovers (colour palette, table menu) --- */
+
+    .menu {
+      position: relative;
+      display: flex;
+    }
+
+    .popover {
+      position: absolute;
+      z-index: 3;
+      top: calc(100% + 4px);
+      left: 0;
+      min-width: 168px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--control);
+      box-shadow: 0 6px 18px rgba(21, 35, 48, 0.16);
+    }
+
+    .popover[hidden] {
+      display: none;
+    }
+
+    /* In native-chrome mode the toolbar is pinned to the bottom of the viewport, so a popover
+       below it would open off-screen behind the keyboard. */
+    body.native-chrome .popover {
+      top: auto;
+      bottom: calc(100% + 4px);
+    }
+
+    /* Keep a popover inside the viewport when its button sits near the right edge. */
+    .popover.align-end {
+      left: auto;
+      right: 0;
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(6, 22px);
+      gap: 4px;
+    }
+
+    .swatches button {
+      width: 22px;
+      height: 22px;
+      min-width: 0;
+      padding: 0;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+    }
+
+    .popover .reset {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+      padding: 0 8px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    /* The insert-table size picker: hovering the grid previews the size, clicking commits it. */
+    .grid-picker {
+      display: grid;
+      grid-template-columns: repeat(8, 16px);
+      gap: 2px;
+    }
+
+    .grid-picker span {
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      background: var(--control);
+    }
+
+    .grid-picker span.on {
+      border-color: var(--active);
+      background: color-mix(in srgb, var(--active) 18%, #ffffff);
+    }
+
+    .grid-size {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .menu-items {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .menu-items button {
+      min-height: 28px;
+      padding: 0 8px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .menu-items button:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--active) 10%, transparent);
+    }
+
+    .menu-items button:disabled {
+      color: var(--muted);
+      opacity: 0.6;
+    }
+
+    .menu-items hr {
+      margin: 4px 0;
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+
+    .editor {
+      flex: 1;
+      min-height: 180px;
+      padding: 14px;
+      overflow: auto;
+      background: #ffffff;
+      outline: none;
+      word-break: break-word;
+    }
+
+    .editor:empty::before {
+      content: attr(data-placeholder);
+      color: var(--muted);
+    }
+
+    /* Native-chrome mode (Android): the native surface owns a single scroll; the compose
+       header sits in a native overlay above this WebView and scrolls away as the message
+       grows, and the toolbar pins just above the keyboard. So here the *page* scrolls (not an
+       inner editor box), the toolbar is fixed to the viewport bottom, and the editor reserves
+       room for the native header (top) and the fixed toolbar (bottom) via insets the host sets.
+       Untouched hosts (macOS/Windows) keep the flex/inner-scroll layout above. */
+    html.native-chrome,
+    body.native-chrome {
+      height: auto;
+    }
+
+    /* Keep the caret clear of the fixed toolbar: reserve the toolbar's height at the bottom when
+       the browser scrolls the caret into view, so a newly typed line lands above it, not behind. */
+    html.native-chrome {
+      scroll-padding-bottom: var(--composer-bottom-inset, 56px);
+    }
+
+    body.native-chrome {
+      display: block;
+      min-height: 100%;
+    }
+
+    body.native-chrome .toolbar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2;
+      border-top: 1px solid var(--border);
+      border-bottom: none;
+    }
+
+    body.native-chrome .editor {
+      flex: none;
+      overflow: visible;
+      box-sizing: border-box;
+      /* Filling the viewport when empty; so tapping anywhere focuses the body; is done in JS
+         (`fillViewport`), NOT here. Viewport-percentage units are dead in this WebView: it is laid
+         out after the page loads, so its layout viewport is fixed at zero height and both
+         `100vh` and `100%` compute to `0px` with no warning. Do not "simplify" this back to
+         `min-height: 100vh`; it silently does nothing and the body stops being tappable. */
+      /* 16px sides to line up with the native header fields' inset. */
+      padding: var(--composer-top-inset, 14px) 16px var(--composer-bottom-inset, 56px);
+    }
+
+    p {
+      margin: 0 0 10px;
+    }
+
+    ul,
+    ol {
+      margin: 0 0 10px 22px;
+      padding: 0;
+    }
+
+    /* A sub-list is inside its parent <li>, so it must not repeat the outer block's bottom margin,
+       that would open a gap between an indented item and the one after it. */
+    li > ul,
+    li > ol {
+      margin-bottom: 0;
+    }
+
+    table {
+      width: 100%;
+      margin: 0 0 10px;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    td,
+    th {
+      min-width: 48px;
+      min-height: 28px;
+      padding: 6px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    /* Constrain every image to the editor width and keep its aspect ratio: editor-inserted
+       attachments (which carry data-attachment-id) AND the inline images carried in a quoted
+       reply/forward (raw <img src="data:…"> with no data-attachment-id). Without this, a
+       quoted signature logo renders at its intrinsic size and overflows the editor. The
+       `height: auto !important` keeps a quoted image whose original CSS/inline style pinned
+       its height from being squashed when the width is capped; mirrors the reading view's
+       BASE_CSS (docs/rendering-security.md). */
+    img {
+      max-width: 100%;
+      height: auto !important;
+    }
+
+    /* The quoted original on reply/forward. The attribution is display-only; the body stays
+       editable so the user can trim it. The two styles mirror the Rust composer renderer
+       (mailcal-composer): Indented puts the body in a left border, LineAndHeader divides it
+       off with a rule and shows a labeled header block. The two tokens are the Rust
+       QuoteStyle variant names, which serialize verbatim into the seed JSON. */
+    .allodia-quote {
+      margin: 14px 0 0;
+    }
+
+    .allodia-quote[data-quote-style="LineAndHeader"] {
+      border-top: 1pt solid rgb(181, 196, 223);
+      padding-top: 3pt;
+    }
+
+    .aq-attr {
+      color: var(--muted);
+      margin: 0 0 8px;
+      white-space: pre-wrap;
+    }
+
+    /* A plain-text original keeps the line breaks its sender wrote. It is inserted with
+       `textContent`, so there are no <br>s to lay it out: without this the whole message
+       collapses onto one line. */
+    .aq-body.aq-plain {
+      white-space: pre-wrap;
+    }
+
+    .allodia-quote[data-quote-style="Indented"] .aq-body {
+      margin: 0 0 0 0.8ex;
+      padding-left: 1ex;
+      border-left: 2px solid #cccccc;
+    }
+
+    /* The sender's signature. Editable like any other body content (Outlook's model: seeded,
+       then yours to trim before sending) and given no decoration of its own; whatever the user
+       authored in Settings is exactly what they should see here, and what goes out. The margin
+       is the only editor-side addition, so the seeded block doesn't butt against the line above
+       it; the Rust renderer emits the same wrapper class with no styling at all. */
+    .allodia-signature {
+      margin: 14px 0 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar" role="toolbar">
+    <button type="button" data-command="bold" title="Bold"><strong>B</strong></button>
+    <button type="button" data-command="italic" title="Italic"><em>I</em></button>
+    <button type="button" data-command="underline" title="Underline"><u>U</u></button>
+
+    <span class="sep"></span>
+
+    <div class="menu">
+      <button type="button" class="swatch-button" id="text-colour" title="Text colour" aria-haspopup="true" aria-expanded="false">
+        <span aria-hidden="true"><strong>A</strong></span>
+        <span class="bar" id="text-colour-bar"></span>
+      </button>
+      <div class="popover" id="text-colour-menu" role="menu" hidden></div>
+    </div>
+
+    <div class="menu">
+      <button type="button" class="swatch-button" id="highlight" title="Highlight" aria-haspopup="true" aria-expanded="false">
+        <span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13h4l6.2-6.2a1.6 1.6 0 0 0 0-2.3l-1.7-1.7a1.6 1.6 0 0 0-2.3 0L3 9z"/><path d="M2.2 13.8h5"/></svg>
+        </span>
+        <span class="bar" id="highlight-bar"></span>
+      </button>
+      <div class="popover" id="highlight-menu" role="menu" hidden></div>
+    </div>
+
+    <select id="font-size" title="Font size" aria-label="Font size">
+      <option value="Normal">Normal</option>
+      <option value="Small">Small</option>
+      <option value="Large">Large</option>
+      <option value="Huge">Huge</option>
+    </select>
+
+    <span class="sep"></span>
+
+    <button type="button" id="bullet-list" title="Bulleted list">&bull;</button>
+    <button type="button" id="ordered-list" title="Numbered list">1.</button>
+    <button type="button" id="outdent" title="Decrease indent">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 3.5h7M7 8h7M7 12.5h7M4.5 6 2 8l2.5 2"/></svg>
+    </button>
+    <button type="button" id="indent" title="Increase indent">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 3.5h7M7 8h7M7 12.5h7M2 6l2.5 2L2 10"/></svg>
+    </button>
+
+    <span class="sep"></span>
+
+    <div class="menu">
+      <button type="button" id="table" title="Table" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1"/><path d="M1.5 6.2h13M1.5 9.9h13M6 2.5v11M10.5 2.5v11"/></svg>
+      </button>
+      <div class="popover" id="table-menu" role="menu" hidden></div>
+    </div>
+  </div>
+  <main id="editor" class="editor" contenteditable="true" data-placeholder="Write your message" aria-label="Write your message"></main>
+  <!--EDITOR_BUNDLE-->
+</body>
+</html>

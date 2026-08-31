@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Template for the AppStream metainfo a software centre reads. The placeholders are filled by
+  scripts/dev/flatpak_metadata.py, which takes the copy from branding/<brand>-listing.md and the release
+  history from /VERSION plus docs/changelog/released/; so no name, sentence, version or date is
+  ever hand-edited here. The generated file is not committed; the Flatpak build emits it.
+-->
+<component type="desktop-application">
+  <id>@APP_ID@</id>
+
+  <!-- The app is proprietary; this file is not, so a software centre may redistribute it. -->
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+
+  <name>@NAME@</name>
+@SUMMARIES@
+@DESCRIPTION@
+
+  <developer id="eu.allodia">
+    <name>Allodia</name>
+  </developer>
+
+  <launchable type="desktop-id">@APP_ID@.desktop</launchable>
+
+  <url type="homepage">https://allodia.eu</url>
+  <url type="help">https://allodia.eu/docs/mail-calendar/</url>
+  <url type="bugtracker">https://allodia.eu/support</url>
+  <url type="contact">https://allodia.eu/contact</url>
+
+  <categories>
+    <category>Network</category>
+    <category>Email</category>
+    <category>Office</category>
+    <category>Calendar</category>
+  </categories>
+
+  <keywords>
+    <keyword>email</keyword>
+    <keyword>mail</keyword>
+    <keyword>calendar</keyword>
+    <keyword>IMAP</keyword>
+    <keyword>JMAP</keyword>
+    <keyword>SMTP</keyword>
+    <keyword>CalDAV</keyword>
+  </keywords>
+
+@SCREENSHOTS@
+
+  <!-- Mist Blue and the deep navy used for dark surfaces.
+       A software centre tints the area behind the icon with these; they are not UI colours. -->
+  <branding>
+    <color type="primary" scheme_preference="light">#a8cad5</color>
+    <color type="primary" scheme_preference="dark">#0b2c46</color>
+  </branding>
+
+  <!-- The app itself carries no rated content. What a user's own mail contains is not the app's
+       content rating, which is why every mail client publishes an empty OARS block rather than
+       rating itself for what someone might be sent. -->
+  <content_rating type="oars-1.1"/>
+
+  <!-- Three panes need room. Stated as a recommendation, not a requirement: the window still opens
+       narrower, and refusing to install on a small screen would be a worse answer than a cramped
+       one. -->
+  <recommends>
+    <display_length compare="ge">960</display_length>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+
+@RELEASES@
+</component>

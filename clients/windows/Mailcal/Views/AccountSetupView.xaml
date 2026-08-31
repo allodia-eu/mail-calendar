@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Allodia.Mailcal.Views.AccountSetupView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l10n="using:Allodia.Mailcal">
+
+    <ScrollViewer>
+        <StackPanel MaxWidth="480" Margin="24" Spacing="12" HorizontalAlignment="Center">
+
+            <!-- Email-first detection step: type only an email; the shared core looks up the
+                 provider's settings and routes to the prefilled form below. "Set up manually"
+                 skips detection straight to the manual tabs. -->
+            <StackPanel x:Name="DetectPanel" Spacing="12">
+                <TextBlock Text="{x:Bind l10n:L10n.SetupDetectTitle()}" Style="{StaticResource TitleTextBlockStyle}" />
+
+                <!-- First run only: the Allodia-account recommendation, the way back for someone
+                     who already has one, and the divider that names what follows, above the
+                     address field, in that order (docs/onboarding.md). The whole panel is hidden
+                     when this build carries no registration, or when this is not the first
+                     account: a lone "or connect directly" heading under nothing is what a wrongly
+                     gated client looks like. Its contents are built in the code-behind, which is
+                     where the sign-in states live. -->
+                <StackPanel x:Name="OnboardingAllodiaPanel" Spacing="12" Visibility="Collapsed" />
+
+                <TextBlock
+                    Text="{x:Bind l10n:L10n.SetupDetectDescription()}"
+                    Style="{StaticResource BodyTextBlockStyle}"
+                    TextWrapping="Wrap"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBox x:Name="DetectEmail" Header="{x:Bind l10n:L10n.SetupFieldEmail()}"
+                         PlaceholderText="{x:Bind l10n:L10n.SetupDetectEmailPlaceholder()}"
+                         TextChanged="OnDetectEmailChanged" KeyDown="OnDetectEmailKeyDown" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" VerticalAlignment="Center">
+                    <ProgressRing x:Name="DetectSpinner" Width="20" Height="20" VerticalAlignment="Center"
+                                  IsActive="False" Visibility="Collapsed" />
+                    <TextBlock x:Name="DetectingText" VerticalAlignment="Center" Visibility="Collapsed"
+                               Text="{x:Bind l10n:L10n.SetupDetectLooking()}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button x:Name="ManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual()}" Click="OnSetUpManually" />
+                    <Button x:Name="ContinueButton" Content="{x:Bind l10n:L10n.SetupDetectAction()}"
+                            Style="{StaticResource AccentButtonStyle}" IsEnabled="False" Click="OnContinueDetect" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- The routed / manual form, revealed after detection (or via "Set up manually"). -->
+            <StackPanel x:Name="SetupPanel" Spacing="12" Visibility="Collapsed">
+                <TextBlock x:Name="SetupTitleText" Text="{x:Bind l10n:L10n.SetupDetectFoundTitle()}" Style="{StaticResource TitleTextBlockStyle}" />
+
+                <!-- A found note or a "why manual" reason, set by the code-behind after routing. -->
+                <TextBlock x:Name="DetectNote"
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                <!-- Account type: IMAP/password vs. JMAP (a password or API token, plus a browser
+                     sign-in where the server offers one) vs. Microsoft 365 vs. Google (Gmail +
+                     Google Calendar). -->
+                <StackPanel x:Name="AccountTypeRow" Orientation="Horizontal" Spacing="16">
+                    <RadioButton x:Name="ImapChoice" GroupName="AccountType" IsChecked="True"
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypePassword()}" Checked="OnAccountTypeChanged" />
+                    <RadioButton x:Name="JmapChoice" GroupName="AccountType"
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypeJmap()}" Checked="OnAccountTypeChanged" />
+                    <RadioButton x:Name="MicrosoftChoice" GroupName="AccountType"
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypeMicrosoft()}" Checked="OnAccountTypeChanged" />
+                    <RadioButton x:Name="GoogleChoice" GroupName="AccountType"
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypeGoogle()}" Checked="OnAccountTypeChanged" />
+                </StackPanel>
+
+                <!-- IMAP / password account fields. -->
+                <StackPanel x:Name="ImapSection" Spacing="12">
+                    <TextBlock
+                        Text="{x:Bind l10n:L10n.SetupCredentialsNote()}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+                    <TextBox x:Name="ImapHost" Header="{x:Bind l10n:L10n.SetupFieldMailServer()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintImap()}"
+                             TextChanged="OnFieldChanged" />
+                    <TextBox x:Name="Username" Header="{x:Bind l10n:L10n.SetupFieldEmail()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail()}"
+                             TextChanged="OnFieldChanged" />
+                    <PasswordBox x:Name="Password" Header="{x:Bind l10n:L10n.SetupFieldPassword()}" PasswordChanged="OnPasswordChanged" />
+
+                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAdvanced()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+                    <TextBox x:Name="SmtpHost" Header="{x:Bind l10n:L10n.SetupFieldSmtp()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintSmtp()}" />
+                    <TextBox x:Name="CaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldav()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav()}" />
+
+                    <TextBlock
+                        Text="{x:Bind l10n:L10n.SetupPortNote()}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
+                <!-- JMAP account fields: email + (a provider sign-in, where the server offers one)
+                     + (password or API token) + an optional server. -->
+                <StackPanel x:Name="JmapSection" Spacing="12" Visibility="Collapsed">
+                    <TextBlock
+                        Text="{x:Bind l10n:L10n.SetupJmapNote()}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+                    <TextBox x:Name="JmapEmail" Header="{x:Bind l10n:L10n.SetupFieldEmail()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail()}"
+                             TextChanged="OnJmapFieldChanged" />
+
+                    <!-- "Sign in with your provider", shown ONLY once the core's pre-flight said
+                         this server actually offers discoverable OAuth (jmap_oauth_available), so
+                         the button can never dead-end. The manual path is never REMOVED, only
+                         moved out of the way: on a detected card a server that offers sign-in
+                         shows the button alone (see JmapManualPanel below), and discovery can fail
+                         on any server, so the secret field returns the moment it does. The panel
+                         and its state come from JmapSignInGate (unit-tested);
+                         AccountSetupView.JmapSignIn.cs drives it. -->
+                    <StackPanel x:Name="JmapSignInPanel" Spacing="8" Visibility="Collapsed">
+                        <TextBlock
+                            Text="{x:Bind l10n:L10n.SetupJmapSigninNote()}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button x:Name="JmapSignInButton" Content="{x:Bind l10n:L10n.SetupJmapSigninButton()}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                HorizontalAlignment="Left" Click="OnSignInJmap" />
+                        <!-- A failed sign-in says so here and leaves the field below usable,
+                             never a dead end, and never a raw protocol error in front of the user. -->
+                        <InfoBar x:Name="JmapSignInFailedBar" IsOpen="False" IsClosable="False"
+                                 Severity="Warning"
+                                 Message="{x:Bind l10n:L10n.SetupJmapSigninFailed()}" />
+                    </StackPanel>
+
+                    <!-- The manual way in: a secret, and the server to present it to. Grouped so it
+                         can be shown or hidden as ONE thing, on a detected card whose server
+                         offers sign-in it is hidden, because offering both asks the user to choose
+                         between two routes to the same place when the better one is a single
+                         click (Android does the same, AccountSetupDetect.kt). It comes back the
+                         instant a sign-in fails, and "Set up manually" reaches it any time, so the
+                         manual path is never locked behind a flow this server might not honour.
+                         The three parts move together deliberately: a secret box with no server to
+                         send it to, or a note describing a field that isn't on screen, is worse
+                         than either. -->
+                    <StackPanel x:Name="JmapManualPanel" Spacing="12">
+                        <PasswordBox x:Name="JmapPassword" Header="{x:Bind l10n:L10n.SetupJmapSecretPlaceholder()}" PasswordChanged="OnPasswordChanged" />
+
+                        <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAdvanced()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+                        <TextBox x:Name="JmapServer" Header="{x:Bind l10n:L10n.SetupJmapServerPlaceholder()}"
+                                 PlaceholderText="{x:Bind l10n:L10n.SetupJmapServerPlaceholder()}"
+                                 TextChanged="OnJmapFieldChanged" />
+
+                        <TextBlock
+                            Text="{x:Bind l10n:L10n.SetupJmapSecretNote()}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Microsoft 365 branch: a note; the sign-in button lives in the shared footer. -->
+                <StackPanel x:Name="MicrosoftSection" Spacing="12" Visibility="Collapsed">
+                    <TextBlock
+                        Text="{x:Bind l10n:L10n.SetupMicrosoftNote()}"
+                        Style="{StaticResource BodyTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
+                <!-- Google branch: a note + the Early Access gate; the sign-in button lives in the
+                     shared footer, disabled until the Early Access box is checked. -->
+                <StackPanel x:Name="GoogleSection" Spacing="12" Visibility="Collapsed">
+                    <TextBlock
+                        Text="{x:Bind l10n:L10n.SetupGoogleNote()}"
+                        Style="{StaticResource BodyTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                    <!-- Early Access gate: Gmail sign-in is allow-listed while Google reviews the
+                         app, so the user must have signed up first with the address they're adding,
+                         otherwise Google hard-blocks the flow. The sign-in button stays disabled
+                         until they confirm the sign-up (see OnGoogleEarlyAccessChanged). -->
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{x:Bind l10n:L10n.SetupGoogleEarlyAccessTitle()}"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock Text="{x:Bind l10n:L10n.SetupGoogleEarlyAccessBody()}"
+                                       Style="{StaticResource BodyTextBlockStyle}"
+                                       TextWrapping="Wrap"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <HyperlinkButton Content="{x:Bind l10n:L10n.SetupGoogleEarlyAccessLink()}"
+                                             Padding="0" Click="OnOpenGoogleEarlyAccess" />
+                            <CheckBox x:Name="GoogleEarlyAccessCheck"
+                                      Content="{x:Bind l10n:L10n.SetupGoogleEarlyAccessConfirm()}"
+                                      Checked="OnGoogleEarlyAccessChanged" Unchecked="OnGoogleEarlyAccessChanged" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Untrusted-settings approval: shown only when detection returned settings over a
+                     connection that isn't fully secure; Connect stays disabled until it's checked. -->
+                <StackPanel x:Name="ApprovalPanel" Spacing="8" Visibility="Collapsed">
+                    <TextBlock
+                        Text="{x:Bind l10n:L10n.SetupDetectUntrustedWarning()}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                    <CheckBox x:Name="ApprovalCheck" Content="{x:Bind l10n:L10n.SetupDetectTrustConfirm()}"
+                              Checked="OnApprovalChanged" Unchecked="OnApprovalChanged" />
+                </StackPanel>
+
+                <InfoBar
+                    IsOpen="{x:Bind Model.HasSetupError, Mode=OneWay}"
+                    IsClosable="False"
+                    Severity="Error"
+                    Title="{x:Bind l10n:L10n.SetupErrorTitle()}"
+                    Message="{x:Bind Model.SetupError, Mode=OneWay}" />
+
+                <!-- Connect (IMAP/JMAP) or Sign in (Microsoft / Google); Cancel when adding another
+                     account. The Google button's IsEnabled is driven in code-behind, it depends on
+                     the Early Access checkbox as well as the submitting state. -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" VerticalAlignment="Center">
+                    <ProgressRing Width="20" Height="20" VerticalAlignment="Center"
+                                  IsActive="{x:Bind Model.IsSubmitting, Mode=OneWay}"
+                                  Visibility="{x:Bind Model.SubmittingVisibility, Mode=OneWay}" />
+                    <Button x:Name="CancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}"
+                            Visibility="{x:Bind Model.CancelVisibility, Mode=OneWay}"
+                            IsEnabled="{x:Bind Model.CancelEnabled, Mode=OneWay}" Click="OnCancel" />
+                    <Button x:Name="ConnectButton" Content="{x:Bind Model.ConnectButtonText, Mode=OneWay}"
+                            Style="{StaticResource AccentButtonStyle}"
+                            IsEnabled="False" Click="OnConnect" />
+                    <Button x:Name="MicrosoftButton" Content="{x:Bind l10n:L10n.SetupMicrosoftSignin()}"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Visibility="Collapsed"
+                            IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnSignInMicrosoft" />
+                    <Button x:Name="GoogleButton" Content="{x:Bind l10n:L10n.SetupGoogleSignin()}"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Visibility="Collapsed"
+                            IsEnabled="False" Click="OnSignInGoogle" />
+                </StackPanel>
+
+                <!-- Advanced escape from a detected result: reveal the full account-type picker with
+                     the detected settings prefilled, for users who want to edit servers or choose a
+                     different protocol. Hidden in manual mode (the picker is already showing). -->
+                <HyperlinkButton x:Name="SetupManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual()}"
+                                 HorizontalAlignment="Center" Visibility="Collapsed" Click="OnSetUpManuallyFromFound" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

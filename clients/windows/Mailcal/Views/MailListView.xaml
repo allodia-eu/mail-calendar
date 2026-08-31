@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Allodia.Mailcal.Views.MailListView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Allodia.Mailcal.ViewModels"
+    xmlns:local="using:Allodia.Mailcal.Views"
+    xmlns:controls="using:Allodia.Mailcal.Controls"
+    xmlns:l10n="using:Allodia.Mailcal">
+
+    <UserControl.Resources>
+        <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!-- A single message: full interaction (reply/forward/flag/archive/delete) via the menu, and
+             a configurable swipe action per edge.
+
+             The SwipeControl gesture takes touch, pen, and precision-touchpad input, but NEVER a
+             mouse, and plenty of Windows desktops have neither a touch screen nor a precision
+             touchpad. So the context menu below is an EQUAL path, not a fallback: Archive and Move
+             to Trash there run through the same deferred dispatch and raise the same undo bar,
+             undo window included. The revealed buttons themselves are built in code from the
+             persisted setting (MailListView.Swipe.cs), one per edge, the configured action, not a
+             fixed pair, so they are attached in OnSwipeControlLoaded rather than declared here. -->
+        <DataTemplate x:Key="FlatRowTemplate" x:DataType="vm:MailRow">
+            <SwipeControl Loaded="OnSwipeControlLoaded">
+            <Grid Padding="4,6" ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <!-- Alignment gutter: conversation rows show their expand/collapse chevron here
+                         (Outlook-style); a flat row leaves it empty so the leading glyph and the
+                         subject line up across flat and threaded rows. -->
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpen()}" Tag="{x:Bind}" Click="OnOpen" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReply()}" Tag="{x:Bind}" Click="OnReply" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReplyAll()}" Tag="{x:Bind}" Click="OnReplyAll" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionForward()}" Tag="{x:Bind}" Click="OnForward" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="{x:Bind MarkReadText}" Tag="{x:Bind}" Click="OnToggleRead" />
+                        <MenuFlyoutItem Text="{x:Bind FlagToggleText}" Tag="{x:Bind}" Click="OnToggleFlag" />
+                        <MenuFlyoutSeparator />
+                        <!-- Archive was missing entirely (it existed only on the *thread* menu), so a
+                             mouse-only user could not reach a swipe action bound to it. -->
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionArchive()}" Tag="{x:Bind}" Click="OnArchive" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToTrash()}" Tag="{x:Bind}" Click="OnDelete" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionDeletePermanently()}" Tag="{x:Bind}" Click="OnPermanentlyDelete" />
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+
+                <!-- Dot, then the sender's face. The envelope glyph that used to sit here is
+                     retired (docs/avatars.md): it said the same thing on every row, and the circle
+                     needs the gutter. The dot keeps its width when the row is read, so the faces
+                     stay in one column down the list; a bare Ellipse would collapse to nothing. -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                            VerticalAlignment="Center">
+                    <Grid Width="7">
+                        <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                 Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                 Visibility="{x:Bind UnreadVisibility}" />
+                    </Grid>
+                    <controls:AvatarView Avatar="{x:Bind Avatar}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind Title}" FontWeight="{x:Bind TitleWeight}"
+                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                    <TextBlock Text="{x:Bind Subtitle}" FontWeight="{x:Bind SubtitleWeight}"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                </StackPanel>
+
+                <!-- Flag then paperclip, matching the macOS row order; each collapses when absent. -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE7C1;" FontSize="14"
+                              Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                              Visibility="{x:Bind FlagVisibility}" />
+                    <FontIcon Glyph="&#xE723;" FontSize="14"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                              Visibility="{x:Bind AttachmentVisibility}" />
+                </StackPanel>
+                <TextBlock Grid.Column="4" Text="{x:Bind DateText}" VerticalAlignment="Center"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+            </SwipeControl>
+        </DataTemplate>
+
+        <!-- A conversation: a header (chevron, subject, count, latest sender) that expands inline
+             into the whole thread as indented sub-rows; right-click → Archive conversation. A tap
+             on the header (list ItemClick) toggles it and opens the latest in the reading pane. -->
+        <DataTemplate x:Key="ThreadRowTemplate" x:DataType="vm:MailRow">
+            <StackPanel>
+                <Grid Padding="4,6" ColumnSpacing="10">
+                    <Grid.ContextFlyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.ThreadArchive()}" Tag="{x:Bind}" Click="OnArchiveThread" />
+                        </MenuFlyout>
+                    </Grid.ContextFlyout>
+                    <Grid.ColumnDefinitions>
+                        <!-- The chevron gutter: same fixed width the flat row reserves, so the glyph
+                             and subject align across flat and threaded rows (Outlook-style). -->
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Grid.Column="0" Glyph="{x:Bind ChevronGlyph, Mode=OneWay}" FontSize="12"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              Visibility="{x:Bind ChevronVisibility}"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <!-- The conversation's latest sender. The chevron and the count badge already
+                         say this is a thread, so the bubble glyph that used to sit here said
+                         nothing the row did not. -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                                VerticalAlignment="Center">
+                        <Grid Width="7">
+                            <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                     Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                     Visibility="{x:Bind UnreadVisibility}" />
+                        </Grid>
+                        <controls:AvatarView Avatar="{x:Bind Avatar}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{x:Bind Title}" FontWeight="{x:Bind TitleWeight}"
+                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            <Border Visibility="{x:Bind CountVisibility}" VerticalAlignment="Center"
+                                    Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                    CornerRadius="8" Padding="6,0">
+                                <TextBlock Text="{x:Bind CountText}" Style="{StaticResource CaptionTextBlockStyle}" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{x:Bind Subtitle}" FontWeight="{x:Bind SubtitleWeight}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis" MaxLines="1" />
+                    </StackPanel>
+                    <!-- Threads carry no flag, so just the paperclip when any message has an attachment. -->
+                    <FontIcon Grid.Column="3" Glyph="&#xE723;" FontSize="14" VerticalAlignment="Center"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                              Visibility="{x:Bind AttachmentVisibility}" />
+                    <TextBlock Grid.Column="4" Text="{x:Bind DateText}" VerticalAlignment="Center"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Grid>
+
+                <!-- The expanded conversation: one sub-row per message. Each is a Button so its tap
+                     opens that message and does NOT bubble to the list's ItemClick (the toggle). -->
+                <ItemsControl ItemsSource="{x:Bind Messages}" Visibility="{x:Bind SubRowsVisibility, Mode=OneWay}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ThreadMessageItem">
+                            <Button Tag="{x:Bind}" Click="OnThreadMessageOpen"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                    Background="Transparent" BorderThickness="0" Padding="30,4,4,4">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
+                                                VerticalAlignment="Center">
+                                        <Grid Width="7">
+                                            <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                     Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                                     Visibility="{x:Bind UnreadVisibility}" />
+                                        </Grid>
+                                        <controls:AvatarView Avatar="{x:Bind Avatar}" Diameter="26" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{x:Bind FromText}" FontWeight="{x:Bind FromWeight}"
+                                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                            <Border Visibility="{x:Bind SentVisibility}" VerticalAlignment="Center"
+                                                    Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                                    CornerRadius="8" Padding="6,0">
+                                                <TextBlock Text="{x:Bind SentText}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{x:Bind PreviewText}" Visibility="{x:Bind PreviewVisibility}"
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                    </StackPanel>
+                                    <FontIcon Grid.Column="2" Glyph="&#xE723;" FontSize="12" VerticalAlignment="Center"
+                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                              Visibility="{x:Bind AttachmentVisibility}" />
+                                    <TextBlock Grid.Column="3" Text="{x:Bind DateText}" VerticalAlignment="Center"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+
+        <local:MailRowTemplateSelector x:Key="RowSelector"
+            Flat="{StaticResource FlatRowTemplate}"
+            Thread="{StaticResource ThreadRowTemplate}" />
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header: folder title + search. The title and the search box are both flexible (star)
+             so the row reflows to the pane width, the title trims with an ellipsis rather than
+             wrapping a character per line when the pane is narrow, and the search box shrinks
+             instead of forcing the controls to overflow. (Conversation grouping moved to the
+             Settings dialog, reached from the pane's Settings gear.) -->
+        <Grid Grid.Row="0" Padding="16,12" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="60" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" x:Name="HeaderText" VerticalAlignment="Center"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                       AutomationProperties.AutomationId="MailboxHeader"
+                       Text="{x:Bind Model.CurrentFolderName, Mode=OneWay}" />
+            <AutoSuggestBox Grid.Column="1" x:Name="SearchBox" QueryIcon="Find"
+                            HorizontalAlignment="Stretch" MinWidth="120" MaxWidth="240"
+                            PlaceholderText="{x:Bind l10n:L10n.SearchPlaceholder()}" TextChanged="OnSearchChanged" />
+        </Grid>
+
+        <!-- Both bars bind Visibility as well as IsOpen: a closed InfoBar stays visible at zero
+             size, so its top margin would otherwise hold the list down whether or not either bar
+             has anything to say (MainWindow.xaml's banner strip carries the full note). -->
+        <StackPanel Grid.Row="1">
+            <!-- How far back the results reach. Search reads what is on this device and nothing
+                 else, so an empty result without this line claims "no such message" when it means
+                 "not in the last three months", and only the second is something the user can
+                 fix, which is why the link goes to the depth setting rather than to help text. -->
+            <Grid Margin="16,0,16,8" ColumnSpacing="8"
+                  Visibility="{x:Bind Model.HasSearchHorizon, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           AutomationProperties.AutomationId="SearchHorizonText"
+                           Text="{x:Bind Model.SearchHorizonText, Mode=OneWay}" />
+                <HyperlinkButton Grid.Column="1" HorizontalAlignment="Left" Padding="0"
+                                 AutomationProperties.AutomationId="SearchHorizonChange"
+                                 Content="{x:Bind l10n:L10n.SearchHorizonChange()}"
+                                 Click="OnChangeSyncDepth" />
+            </Grid>
+
+            <!-- A Microsoft account connected before the mail write/send scopes (or with revoked
+                 consent) can read mail but its send / mark-read / move / delete are refused with a
+                 403, prompt here, above the list. Reading is unaffected, so it is a Warning info
+                 bar, not an error; "Reconnect" re-runs the account's sign-in, re-granting the full
+                 scope set (clearing this and any calendar prompt); it clears once a send succeeds. -->
+            <InfoBar Margin="16,8,16,0"
+                     IsOpen="{x:Bind Model.HasMailReauth, Mode=OneWay}"
+                     Visibility="{x:Bind Model.HasMailReauth, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                     IsClosable="False"
+                     Severity="Warning"
+                     AutomationProperties.AutomationId="MailReauthBanner"
+                     Message="{x:Bind Model.MailReauthText, Mode=OneWay}">
+                <InfoBar.Content>
+                    <Button Content="{x:Bind l10n:L10n.MailReauthAction()}"
+                            Margin="0,8,0,12"
+                            AutomationProperties.AutomationId="MailReauthAction"
+                            Click="OnMailReauth" />
+                </InfoBar.Content>
+            </InfoBar>
+
+            <!-- An account whose stored sign-in the server has stopped accepting: an expired or
+                 revoked OAuth grant, or a refused password. Not an outage, the server answered,
+                 so a retry never helps and only a fresh sign-in does. The button appears only for
+                 an OAuth account; a password/JMAP one is pointed at Settings by the message. -->
+            <InfoBar Margin="16,8,16,0"
+                     IsOpen="{x:Bind Model.HasSignInExpired, Mode=OneWay}"
+                     Visibility="{x:Bind Model.HasSignInExpired, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                     IsClosable="False"
+                     Severity="Warning"
+                     AutomationProperties.AutomationId="SignInExpiredBanner"
+                     Message="{x:Bind Model.SignInExpiredText, Mode=OneWay}">
+                <InfoBar.Content>
+                    <Button Content="{x:Bind l10n:L10n.SigninExpiredAction()}"
+                            Margin="0,8,0,12"
+                            Visibility="{x:Bind Model.SignInExpiredActionVisible, Mode=OneWay}"
+                            AutomationProperties.AutomationId="SignInExpiredAction"
+                            Click="OnSignInExpired" />
+                </InfoBar.Content>
+            </InfoBar>
+
+        </StackPanel>
+
+        <!-- Tap a row to open it in the reading pane (a flat row opens its message, a
+             conversation row opens its latest message); the open row stays highlighted
+             (Single selection), and right-click gives the full action menu. -->
+        <ListView Grid.Row="2" x:Name="RowsList" ItemsSource="{x:Bind Model.Rows}"
+                  ItemTemplateSelector="{StaticResource RowSelector}" SelectionMode="Single"
+                  IsItemClickEnabled="True" ItemClick="OnRowClick"
+                  Loaded="OnRowsListLoaded"
+                  Padding="12,0,12,0">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                </Style>
+            </ListView.ItemContainerStyle>
+        </ListView>
+
+        <!-- Transient send hint: "Sending…" while in flight, then a brief Sent/Failed
+             confirmation. Floats at the top of the list; the core auto-clears it. -->
+        <InfoBar Grid.Row="2" VerticalAlignment="Top" Margin="16,8"
+                 IsOpen="{x:Bind Model.SendStatusVisible, Mode=OneWay}"
+                 IsClosable="False"
+                 Severity="{x:Bind Model.SendStatusSeverity, Mode=OneWay}"
+                 Message="{x:Bind Model.SendStatusText, Mode=OneWay}">
+            <InfoBar.Content>
+                <ProgressRing IsActive="True" Width="18" Height="18"
+                              HorizontalAlignment="Left" Margin="0,0,0,12"
+                              Visibility="{x:Bind Model.SendStatusBusyVisibility, Mode=OneWay}" />
+            </InfoBar.Content>
+        </InfoBar>
+
+        <!-- The swipe confirmation with its Undo, over the bottom of the list. Windows has no toast
+             host, so this is an InfoBar pinned to the bottom of the list, the twin of the Apple
+             client's capsule toast and Android's Snackbar.
+             Pressing Undo closes the window early: for a Delete/Archive nothing was ever
+             dispatched, so the row simply returns (MailListView.Swipe.cs). -->
+        <InfoBar Grid.Row="2" x:Name="UndoBar" VerticalAlignment="Bottom" Margin="16,8"
+                 IsOpen="False" IsClosable="False" Severity="Informational">
+            <InfoBar.ActionButton>
+                <Button Content="{x:Bind l10n:L10n.ActionUndo()}" Click="OnUndoSwipe" />
+            </InfoBar.ActionButton>
+        </InfoBar>
+
+        <!-- Footer: count + connection status, compose, refresh. (Reset + per-account sync
+             settings moved to the Settings dialog, reached from the pane's Settings gear.) -->
+        <!-- Background-download progress: a thin bar with a "downloading Y of X" count beside it,
+             shown only while a sync is fetching mail (the Auto row collapses when idle).
+
+             **Its own row under the list, not above it.** In the banner stack above, every
+             appearance and disappearance resized the ListView and shifted every row, for a
+             background pass the user did not start. Here it opens into the footer's edge and the
+             list never moves. -->
+        <Grid Grid.Row="3" Padding="16,4,16,8" ColumnSpacing="10"
+              Visibility="{x:Bind Model.SyncProgressVisible, Mode=OneWay}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ProgressBar Grid.Column="0" VerticalAlignment="Center"
+                         IsIndeterminate="{x:Bind Model.SyncProgressIsIndeterminate, Mode=OneWay}"
+                         Value="{x:Bind Model.SyncProgressValue, Mode=OneWay}"
+                         Maximum="{x:Bind Model.SyncProgressMaximum, Mode=OneWay}" />
+            <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="{x:Bind Model.SyncProgressText, Mode=OneWay}" />
+        </Grid>
+
+        <Grid Grid.Row="4" Padding="16,10" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <!-- The status line. A Grid, not a StackPanel: a horizontal StackPanel measures its
+                 children against infinite width, so a long hint takes its full desired width and
+                 pushes the connection status past the column's edge, where the Grid clips it away
+                 entirely. Here the hint holds the one elastic column, so it is the thing that
+                 gives when the row runs out of room; the status keeps its width and stays on
+                 screen. Spacing is per-element margin rather than ColumnSpacing so the gap
+                 disappears with the hint. -->
+            <Grid Grid.Column="0" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="{x:Bind Model.SyncHintColumnWidth, Mode=OneWay}" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="{x:Bind Model.MailCountText, Mode=OneWay}" />
+                <!-- The background-sync hint: which accounts are pulling mail down right now,
+                     and how far through their folders. A caption inside this status line, never
+                     a bar, a pass the user did not start may not take a row of layout and move
+                     the list. Collapsed whenever nothing is arriving unasked, which is almost
+                     always. -->
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0"
+                           AutomationProperties.AutomationId="SyncHint"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                           Visibility="{x:Bind Model.SyncHintVisible, Mode=OneWay}"
+                           Text="{x:Bind Model.SyncHintText, Mode=OneWay}" />
+                <!-- Connection status for the current scope (the selected account, or all in the
+                     unified inbox): a subtle "Verbonden" when reachable, a caution "Niet verbonden"
+                     with a warning glyph otherwise. Click it for the details + a retry. -->
+                <!-- Icon + text content, so no UIA Name is derived; the status IS the label, so it
+                     is bound as the spoken name too (uitests/Accessibility.Tests.ps1). -->
+                <Button Grid.Column="2" Padding="6,2" Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="ConnectionStatus"
+                        AutomationProperties.Name="{x:Bind Model.ConnectionStatusText, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE7BA;" FontSize="13"
+                                  Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                  Visibility="{x:Bind Model.ConnectionStatusWarningVisibility, Mode=OneWay}" />
+                        <TextBlock VerticalAlignment="Center"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Text="{x:Bind Model.ConnectionStatusText, Mode=OneWay}" />
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout>
+                            <StackPanel Spacing="10" MaxWidth="360">
+                                <TextBlock Text="{x:Bind Model.ConnectionStatusDetail, Mode=OneWay}"
+                                           IsTextSelectionEnabled="True" TextWrapping="Wrap"
+                                           Style="{StaticResource CaptionTextBlockStyle}" />
+                                <Button Content="{x:Bind l10n:L10n.ActionRetry()}" Click="OnRefresh"
+                                        HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </Grid>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="{x:Bind l10n:L10n.ActionCompose()}" Style="{StaticResource AccentButtonStyle}" Click="OnCompose"
+                        AutomationProperties.AutomationId="ComposeButton" />
+                <Button Content="{x:Bind l10n:L10n.ActionRefresh()}" Click="OnRefresh"
+                        AutomationProperties.AutomationId="RefreshButton" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

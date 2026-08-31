@@ -1,0 +1,21 @@
+# Line endings. The tree is LF throughout — 1289 files against five strays, all of them Python
+# from the store-listing work, normalised when this file was added. The strays were not harmless:
+# Python's `write_text` on Windows converts LF to CRLF, so a one-line edit to any of them came back
+# as a whole-file rewrite — three times in one afternoon, each caught by eye before it was
+# committed, which is not a control. `.ps1` is in the list for the same reason and not by mistake:
+# nothing about PowerShell wants CRLF, and the tooling that rewrites these files runs on Windows.
+*.py    text eol=lf
+*.sh    text eol=lf
+*.rs    text eol=lf
+*.md    text eol=lf
+*.ps1   text eol=lf
+
+# CRLF here is the format, not an accident, and normalising it would break what these describe.
+# RFC 5322 mail and RFC 6350 vCards end their lines CRLF, and the iMIP fixtures are real messages,
+# parsed by crates/mailcal-app's invitation tests.
+*.eml   -text
+*.vcf   -text
+
+# The Windows launcher Gradle ships. Left alone rather than declared `text eol=crlf`: that would
+# store it LF and rewrite the vendored blob, and the bytes here are Gradle's, not ours.
+*.bat   -text

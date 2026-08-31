@@ -1,0 +1,78 @@
+# Release packaging: build BOTH arches (x64 + arm64) in RELEASE and emit the unsigned
+# .msixupload for Partner Center (Microsoft signs it on ingestion). Runs on a version tag or
+# manual dispatch — NOT on every commit (the `windows` job in ci.yml covers per-commit feedback).
+#
+# The engine is a git dependency pinned by commit in the root Cargo.toml, so this repo builds on
+# its own — no sibling checkout. Actions are SHA-pinned (immutable) with a version comment.
+name: Windows release package
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Check out product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      # rust-toolchain.toml is the single source of truth for the Rust version (ci.yml does the
+      # same). `shell: bash` is Git Bash on the Windows runner, so the parse is the one in ci.yml.
+      - name: Read the pinned Rust toolchain
+        id: toolchain
+        shell: bash
+        run: |
+          channel=$(sed -n 's/^channel[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' rust-toolchain.toml)
+          [ -n "$channel" ] || { echo "no [toolchain] channel in rust-toolchain.toml" >&2; exit 1; }
+          echo "channel=$channel" >>"$GITHUB_OUTPUT"
+
+      - name: Set up Rust (pinned + both MSVC targets)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ steps.toolchain.outputs.channel }}
+          targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          # Release artifacts, both arches — a different target dir from the `windows` CI job's.
+          shared-key: windows-release
+          # A cache saved on a tag ref can be read by nothing else, so tag builds only restore.
+          # A manual dispatch from main is what refreshes the entry.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # No NuGet cache — see the note in ci.yml's `windows` job: restoring the ~1 GB entry was
+      # slower than letting `dotnet restore` fetch from nuget.org.
+      - name: Build the Store package (x64 + arm64, Release)
+        run: ./clients/windows/package.ps1
+
+      - name: Verify the FFI binding (x64)
+        run: |
+          $lib = (Resolve-Path target/x86_64-pc-windows-msvc/release/mailcal_bindings.dll).Path
+          dotnet run --project clients/windows/MailcalVerify -c Release "-p:NativeLib=$lib"
+
+      - name: Upload the .msixupload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: msixupload
+          path: clients/windows/Mailcal/AppPackages/*.msixupload
+          if-no-files-found: error

@@ -1,0 +1,229 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The Windows client's first unit-test project.
+       Everything the calendar contract (docs/calendar.md) actually gates is in here: the grid's
+       state machine as arithmetic, and the gesture-versus-animation race that no synthetic swipe
+       and no UI Automation script can reproduce.
+
+       It is a PLAIN net10.0 assembly, no WinUI, no Windows TFM, no test host, no emulator. That is
+       possible only because the calendar's pure layer (Mailcal/Calendar/*.cs) is free of every WinUI
+       and Win2D type, and it is why `dotnet test` here runs in seconds and can gate every PR. If a
+       future change drags `Windows.Foundation.Rect` or a `CanvasControl` into one of the linked
+       files below, this project stops compiling, which is the alarm working, not a nuisance. Put
+       the WinUI-facing half in Mailcal/Views/ instead.
+
+       Sources are LINKED rather than referenced, for the same reason MailcalVerify links them: the
+       generated UniFFI types are `internal`, so they must compile INTO the assembly under test. No
+       InternalsVisibleTo, no test-only visibility widening in the product code. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Allodia.Mailcal.Tests</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- The generated UniFFI bindings contain unsafe blocks (they marshal RustBuffer by pointer).
+         They are never *called* here, no cdylib is loaded, but they must still compile. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The generated bindings carry their own doc/nullable shape; don't fail the tests on it. -->
+    <NoWarn>$(NoWarn);CS8632;CS0169;CS0649;CS8002</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The pure calendar layer, under test. Deliberately an explicit list and not a wildcard: a new
+         file here is a deliberate act, and a WinUI-flavoured one must not be swept in by accident. -->
+    <Compile Include="..\Mailcal\Calendar\CalendarGeometry.cs" Link="Calendar\CalendarGeometry.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarZoom.cs" Link="Calendar\CalendarZoom.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarAllDay.cs" Link="Calendar\CalendarAllDay.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarPaging.cs" Link="Calendar\CalendarPaging.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarSurfaceState.cs" Link="Calendar\CalendarSurfaceState.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarAnimation.cs" Link="Calendar\CalendarAnimation.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarSurfaceDriver.cs" Link="Calendar\CalendarSurfaceDriver.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarVelocity.cs" Link="Calendar\CalendarVelocity.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarGestureOwner.cs" Link="Calendar\CalendarGestureOwner.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarGestureOwner.Wheel.cs" Link="Calendar\CalendarGestureOwner.Wheel.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarWriteIndicator.cs" Link="Calendar\CalendarWriteIndicator.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarWriteGating.cs" Link="Calendar\CalendarWriteGating.cs" />
+    <!-- The grid's clock and hour-ruler labels. Pure BCL, its L10n half is CalendarSurfaceStrings.cs,
+         split off precisely so this one could be linked here and reused by the invitation preview. -->
+    <Compile Include="..\Mailcal\Calendar\CalendarFormat.cs" Link="Calendar\CalendarFormat.cs" />
+    <!-- The invitation card's rules: which conflict sentence applies, which attendee buckets earn a
+         phrase, the "when" line, and the preview's hour band. Every one of them is something a
+         screenshot would not catch, in particular that "we haven't looked at your calendar" must not
+         read as "nothing else then", which shipped as a confident lie over an unread calendar once
+         already. WinUI-free AND L10n-free on purpose: the words are InvitationText (Views/), because
+         L10n.cs cannot be linked into this assembly, so a rule phrased as a string would be a rule no
+         test could reach. -->
+    <Compile Include="..\Mailcal\Calendar\InvitationFormat.cs" Link="Calendar\InvitationFormat.cs" />
+    <!-- The event editor's state machine and the tap hit-test, WinUI-free on purpose (the pickers
+         live in the dialog, the paint records in the surface), so the create/edit payload shapes and
+         the §7 hit geometry are pinned here without a UI. -->
+    <Compile Include="..\Mailcal\Calendar\EventEditorState.cs" Link="Calendar\EventEditorState.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarHitTest.cs" Link="Calendar\CalendarHitTest.cs" />
+    <!-- What a tap yielded, and so which question a write from it owes the user. WinUI-free and
+         L10n-free on purpose: the rule is which occurrence was drawn, and getting it wrong deletes
+         a whole series in place of one Tuesday, the one outcome nobody can undo. -->
+    <Compile Include="..\Mailcal\Calendar\EventOpen.cs" Link="Calendar\EventOpen.cs" />
+    <!-- The attendee row's text. WinUI-free and L10n-free on purpose (the "Organiser" word is passed
+         in), so what the user actually reads on an event's attendee list is a rule a test can fail. -->
+    <Compile Include="..\Mailcal\Calendar\AttendeeSummary.cs" Link="Calendar\AttendeeSummary.cs" />
+    <!-- Which sentence a repeat rule gets: the frame that states it, and the weekday and month names
+         that go in it. WinUI-free AND L10n-free on purpose, the words are EventRepeatText
+         (Dialogs/), the same seam InvitationFormat / InvitationText uses, so the decisions stay
+         reachable here. Two of them are silent when wrong: DayNames is indexed from Sunday while the
+         core counts from Monday, which renames every day of the week and still reads like a real
+         sentence; and a rule that skips periods reaching the every-period frame is a fortnightly
+         meeting calling itself "Weekly", which is the reason the core sends a structure at all. -->
+    <Compile Include="..\Mailcal\Calendar\EventRepeatFormat.cs" Link="Calendar\EventRepeatFormat.cs" />
+    <!-- The account-setup form's JMAP field logic, WinUI-free on purpose, so it's testable here
+         (the view's WinUI half stays in Views/). It builds a JmapSetup, so it needs the bindings. -->
+    <Compile Include="..\Mailcal\Services\JmapSetupForm.cs" Link="Services\JmapSetupForm.cs" />
+    <!-- The same form's "Sign in with your provider" gate: whether the button is offered at all,
+         and that a failed sign-in never takes the password/API-token field away. Pure BCL. -->
+    <Compile Include="..\Mailcal\Services\JmapSignInGate.cs" Link="Services\JmapSignInGate.cs" />
+    <!-- Browser sign-in serialization: a second request supersedes an attempt abandoned in the
+         browser, instead of being refused behind a guard that only clears on the 5-minute cap.
+         WinUI-free on purpose, the flows it runs stay in MailboxModel. Pure BCL. -->
+    <Compile Include="..\Mailcal\Services\SignInFlight.cs" Link="Services\SignInFlight.cs" />
+    <!-- The Diagnostics settings panel's pure half (log snapshot math, tail read, export
+         concatenation, byte formatting, boot level resolution), WinUI-free on purpose, so it's
+         testable here (the dialog's WinUI half stays in Dialogs/). It returns the bindings'
+         LogLevel, so it needs the generated file below. -->
+    <Compile Include="..\Mailcal\Services\DiagnosticsLog.cs" Link="Services\DiagnosticsLog.cs" />
+    <!-- The rotating file log itself, linked for its session marker, which must name the build a
+         support log came from (docs/logging.md). It is WinUI- AND WinRT-free on purpose: the one
+         `Package.Current` read it needs lives in AppIdentity and arrives as a parameter, the same
+         shape as OAuthScheme.For(bool). That is also why this file compiles on a Mac at all, it
+         used to reach no gate outside a Windows desktop, so a change to it was unverifiable until
+         someone booted the app. -->
+    <Compile Include="..\Mailcal\Services\Log.cs" Link="Services\Log.cs" />
+    <!-- The crash line's composition, the one rule of the crash log a gate can reach. What it
+         guards is a shape, not prose: `unhandled` is the single string support greps across four
+         clients, and the three .NET shapes (XAML thread, CLR domain, unobserved task) must all say
+         it. WinUI-free on purpose, which is what lets it be linked here at all; WinUI's own
+         UnhandledException is wired in App.xaml.cs and formats through this same method. -->
+    <Compile Include="..\Mailcal\Services\CrashLog.cs" Link="Services\CrashLog.cs" />
+    <!-- Which custom URI scheme each build shape claims for OAuth redirects. Pure BCL by design:
+         the packaging *test* (AppIdentity) needs WinRT, but the choice it drives must be pinned,
+         since the packaged literal has to match Package.appxmanifest and the Azure registration. -->
+    <Compile Include="..\Mailcal\Services\OAuthScheme.cs" Link="Services\OAuthScheme.cs" />
+    <!-- Where the MCP server listens and what an assistant is told to spawn (docs/mcp.md). Every
+         value in it has to match something outside the file, the pipe name the core binds, the
+         alias the app manifest registers, the config key the protocol advertises, and all three
+         fail silently. WinUI-free on purpose; "am I packaged" arrives as a parameter, like
+         OAuthScheme.For(bool). -->
+    <Compile Include="..\Mailcal\Services\McpEndpoint.cs" Link="Services\McpEndpoint.cs" />
+    <!-- How far back a search looked, as the list header states it (docs/search.md). It maps the
+         core's SearchHorizon onto one of two sentences; both words arrive as parameters, so the
+         rule is reachable here while L10n.cs stays out of this assembly. The failure it catches is
+         a quiet one, an "all mail" horizon rendered with the months sentence would read as a
+         confident, wrong claim about what the device holds. -->
+    <Compile Include="..\Mailcal\Services\SearchHorizonLine.cs" Link="Services\SearchHorizonLine.cs" />
+    <!-- The unwrapping of UniFFI's generated "@v1=" exception-message prefix, which otherwise
+         reaches user-facing setup errors verbatim. The generated bindings are built and never
+         committed, so a test is the only thing that can catch it coming back. Pure BCL. -->
+    <Compile Include="..\Mailcal\Services\CoreError.cs" Link="Services\CoreError.cs" />
+    <!-- The writable-paths resolution, in particular the dev-isolation mapping every preference
+         store rides (AppPathsTests), which must agree with the engine-store subdir. WinUI-free. -->
+    <Compile Include="..\Mailcal\Services\AppPaths.cs" Link="Services\AppPaths.cs" />
+    <!-- Which appearance a launch paints in: the DEBUG-only override, else the core's stored
+         choice. The override is the lever the showcase and UI suites pull to photograph both
+         themes without touching the developer's desktop, and a spelling it silently ignores would
+         look exactly like a working one, so the rule is pinned here rather than trusted. -->
+    <Compile Include="..\Mailcal\Services\AppearanceChoice.cs" Link="Services\AppearanceChoice.cs" />
+    <!-- The folder pane's width bounds (docs/folder-pane.md). The drag itself needs a window AND a
+         real mouse, synthetic pointer input does not reach this client's content at all, as the
+         shipped list|reading splitter demonstrates, so the arithmetic is split out to be reachable
+         here. It is also where the sharp edge is: on a narrow window the two floors cross, and
+         Math.Clamp with min > max throws. -->
+    <Compile Include="..\Mailcal\Services\SidebarWidth.cs" Link="Services\SidebarWidth.cs" />
+    <!-- The zone-aware timestamp formatting (the relative list label + absolute reading-header date,
+         docs/timestamps.md), pure BCL, no WinUI, no bindings, so the bucketing is pinned here. -->
+    <Compile Include="..\Mailcal\Services\TimeZones.cs" Link="Services\TimeZones.cs" />
+    <!-- Where the reading pane lands when archive/delete takes the open message out of the folder:
+         next one down, else the one above. Pure BCL, the row-to-MessageStop projection is the
+         WinUI-facing half and stays in MailboxModel.Reading.cs. The end-of-list fallback is the case
+         a hand test skips, since it only shows up on the last message of a folder. -->
+    <Compile Include="..\Mailcal\Services\ReadingAdvance.cs" Link="Services\ReadingAdvance.cs" />
+    <!-- Which row the list highlights for the message in the reading pane, the other half of the
+         auto-advance. Pure BCL for the same reason: the view re-runs this rule on every open and
+         every snapshot reconcile, and a hand test cannot see the reconcile case at all. -->
+    <Compile Include="..\Mailcal\Services\ReadingSelection.cs" Link="Services\ReadingSelection.cs" />
+    <!-- What the reading pane shows between two messages: whether the rendered one stands in while
+         the next one's body is fetched, or the pane drops to its spinner. Pure BCL for the third
+         time in this group, and the reason is sharper here, because the bug it fixes is a ~200 ms
+         flicker that no screenshot and no UI-automation assertion can see. -->
+    <Compile Include="..\Mailcal\Services\ReadingHandover.cs" Link="Services\ReadingHandover.cs" />
+    <!-- The language-choice -> formatting-culture mapping (docs/timestamps.md): the half of the
+         Language setting that makes DATES follow it, not just words. Split out of LanguageStore
+         precisely so it is WinUI-free and testable here, LanguageStore itself touches MRT-Core. -->
+    <Compile Include="..\Mailcal\Services\AppCulture.cs" Link="Services\AppCulture.cs" />
+    <!-- The email-first detection routing + connect-gating, likewise WinUI-free (the view's WinUI
+         half stays in Views/), and it maps the generated SetupRecommendation, so it needs the bindings. -->
+    <Compile Include="..\Mailcal\Services\AccountDetectForm.cs" Link="Services\AccountDetectForm.cs" />
+    <!-- The composer recipient field's string work: which part of a To/Cc/Bcc field is being typed,
+         which recipients are finished, and what the field becomes when one is accepted or removed.
+         Both failure modes here are SILENT (a whole-field query matches nothing once a first
+         recipient is entered; a whole-field replace destroys the recipients already typed), so the
+         rule docs/contacts.md §4 binds every client to is pinned here rather than trusted. -->
+    <Compile Include="..\Mailcal\Services\RecipientTokens.cs" Link="Services\RecipientTokens.cs" />
+    <!-- The avatar as the views bind it (docs/avatars.md): which of photo / letters / person glyph
+         a circle draws, which theme's colour it sits on, and, the rule the snapshot reconcile
+         rides on, that two avatars differing only by a photo are NOT equal. WinUI-free on purpose
+         (the brushes and the bitmap are Controls/AvatarView.cs), which is also what lets
+         ReadingAdvance carry one. It projects the generated Avatar, so it needs the bindings. -->
+    <Compile Include="..\Mailcal\ViewModels\AvatarItem.cs" Link="ViewModels\AvatarItem.cs" />
+    <!-- The contacts list's pure decisions: the A–Z section headers, the "In N accounts" merge
+         disclosure, the account-id -> address provenance labels, and which of the two empty states
+         applies. It reads the generated ContactRow/ContactDetail, so it needs the bindings below. -->
+    <Compile Include="..\Mailcal\Services\ContactSections.cs" Link="Services\ContactSections.cs" />
+    <!-- The composer's signature rules (docs/signatures.md): which of an account's two slots a
+         compose kind seeds from, the resolution precedence that makes an explicit per-message choice
+         survive a From change, and the seed payload's key names. All three fail SILENTLY in the app
+        , a mis-mapped slot sends the wrong signature, and a mis-keyed payload reads to the editor
+         as "remove it", so they are pinned rather than trusted. RichComposeKind is its own file
+         precisely so this can link it without dragging L10n and WinUI in. -->
+    <Compile Include="..\Mailcal\ViewModels\RichComposeKind.cs" Link="ViewModels\RichComposeKind.cs" />
+    <Compile Include="..\Mailcal\Services\ComposerSignatures.cs" Link="Services\ComposerSignatures.cs" />
+    <!-- The embedded-image cap and the media-type refusal, enforced client-side, where the user can
+         still be told, so the core never sees an oversized logo. Pure BCL. -->
+    <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />
+    <!-- The debug-only harness send gate: which recipients count as outside test.local. Pure BCL. -->
+    <Compile Include="..\Mailcal\Services\HarnessRecipientGate.cs" Link="Services\HarnessRecipientGate.cs" />
+    <!-- The mail-link (`mailto:`) activation gate: is this launch one, and which URI is in it. Pure
+         BCL on purpose, the parse belongs to the shared core and the composer to the shell, so what
+         is left is exactly the part whose two failure modes are silent (an OAuth redirect read as a
+         mail link, and a manifest protocol name drifting from the code's). -->
+    <Compile Include="..\Mailcal\Services\MailLink.cs" Link="Services\MailLink.cs" />
+    <!-- The sidebar accordion's shape, and, the reason it is a reconcile and not a rebuild, HOW
+         MANY collection events reaching it costs. The NavigationView is bound to this, so every
+         event is a container the framework has to realize; the old hand-built menu spent ten
+         seconds of UI thread opening a 57-folder account. Cost is invisible to a screenshot and to
+         UI Automation alike (both see the right sidebar either way), so it is asserted here as
+         arithmetic. WinUI-free on purpose, that is what lets it be. -->
+    <Compile Include="..\Mailcal\ViewModels\SidebarSources.cs" Link="ViewModels\SidebarSources.cs" />
+    <Compile Include="..\Mailcal\ViewModels\SidebarItem.cs" Link="ViewModels\SidebarItem.cs" />
+    <Compile Include="..\Mailcal\ViewModels\SidebarTree.cs" Link="ViewModels\SidebarTree.cs" />
+    <!-- CalendarLayout / WeekStart / JmapSetup come from here. Never invoked, no cdylib is loaded. -->
+    <Compile Include="..\Generated\mailcal_bindings.cs" Link="Generated\mailcal_bindings.cs" />
+    <!-- The shipped locale list, the dependency-free partial of L10n, which is why it is a file of
+         its own: AppCulture resolves a language choice against the catalog rather than a hardcoded
+         pair, so the list has ONE home (messages/) and a language cannot reach the picker with the
+         host's dates behind it. Its sibling L10n.cs must NOT be linked here, it opens with
+         `using Microsoft.Windows.ApplicationModel.Resources`, and this is a plain net10.0 assembly.
+         Generated by mailcal-l10n, which build-and-run.ps1 runs before `dotnet test`; git-ignored,
+         like the bindings above. -->
+    <Compile Include="..\Mailcal\L10nLocales.cs" Link="L10nLocales.cs" />
+    <Compile Include="..\Mailcal\Brand.cs" Link="Brand.cs" />
+    <!-- The real app manifest, beside the test assembly: OAuthSchemeTests asserts the packaged
+         custom URI scheme against what the manifest actually declares, so the "these must match
+         character-for-character" coupling is a check instead of a comment. -->
+    <None Include="..\Mailcal\Package.appxmanifest" Link="Package.appxmanifest" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

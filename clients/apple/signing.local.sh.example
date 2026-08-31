@@ -1,0 +1,60 @@
+# Local signing config for Scripts/package.sh. COPY this to `signing.local.sh` (git-ignored) and
+# fill it in. Nothing here is a secret, a Team ID and a certificate's display name are both public
+# (they're embedded in every shipped app), but signing.local.sh is kept out of git so each machine
+# holds its own values without churning the repo. The real certs/keys live in your login keychain,
+# never in this file.
+
+# Your PAID Apple Developer Team ID (Developer portal → top-right, or an App ID's prefix).
+# NOTE: Flow C (iOS/iPadOS App Store, --ios-app-store) uses AUTOMATIC signing, so this Team ID plus an
+# Apple account signed into Xcode is all it needs, none of the persistent-cert variables below.
+DEVELOPMENT_TEAM="REPLACE_WITH_TEAM_ID"
+
+# Flow A (Developer ID .dmg), the EXACT name of your "Developer ID Application" certificate as it
+# prints in:  security find-identity -v -p codesigning
+# For example: "Developer ID Application: Your Name (ABCDE12345)"
+DEVELOPER_ID_IDENTITY="Developer ID Application: REPLACE (REPLACE_WITH_TEAM_ID)"
+
+# Flow A notarization, the notary credential profile you create ONCE with:
+#   xcrun notarytool store-credentials AllodiaNotary \
+#     --apple-id you@example.com --team-id <TEAM_ID> --password <app-specific-password>
+# (Only needed for the notarized build; --no-notarize skips it.)
+NOTARY_KEYCHAIN_PROFILE="AllodiaNotary"
+
+# Flow B (Mac App Store) signs the whole app tree itself with EXPLICIT, PERSISTENT certs, not
+# Xcode's automatic (cloud-managed) signing, which re-signs the app but skips nested SPM resource
+# bundles and got the first upload rejected (ITMS-90284). Create both once (README has the steps),
+# then set their EXACT names as printed by `security find-identity -v`:
+#
+#   APPLE_DISTRIBUTION_IDENTITY, signs the .app and every nested bundle. Xcode ▸ Settings ▸
+#     Accounts ▸ your team ▸ Manage Certificates… ▸ + ▸ "Apple Distribution".
+#     e.g. "Apple Distribution: Your Team (ABCDE12345)"
+#   MAC_INSTALLER_IDENTITY, signs the Store .pkg. developer.apple.com ▸ Certificates ▸ + ▸
+#     "Mac Installer Distribution", download + double-click to install.
+#     e.g. "3rd Party Mac Developer Installer: Your Team (ABCDE12345)"
+#
+# You also need a Mac App Store provisioning profile that lists the Apple Distribution cert above.
+# A dev-signed archive does NOT refresh it, so create one explicitly (once): developer.apple.com ▸
+# Profiles ▸ + ▸ "Mac App Store" ▸ your App ID ▸ pick that cert ▸ Generate ▸ Download,
+# then double-click to install. package.sh auto-finds it (both standard profile folders). If it's
+# somewhere non-standard, point at it explicitly by uncommenting MAS_PROVISIONING_PROFILE below.
+# See clients/apple/README.md for the full account setup.
+APPLE_DISTRIBUTION_IDENTITY="Apple Distribution: REPLACE (REPLACE_WITH_TEAM_ID)"
+MAC_INSTALLER_IDENTITY="3rd Party Mac Developer Installer: REPLACE (REPLACE_WITH_TEAM_ID)"
+# MAS_PROVISIONING_PROFILE="$HOME/Downloads/Allodia_Mail_Mac_App_Store.provisionprofile"
+
+# ---- Uploading a finished build (optional; Flow B and Flow C) ----------------------------------
+# App Store Connect API credentials for `xcrun altool --upload-app`. Set both and package.sh prints
+# its upload line ready to paste; leave them out and it prints <KEY_ID>/<ISSUER_UUID> placeholders
+# for you to fill in by hand every release, exactly as it always did.
+#
+# Neither is a secret, so both belong here under the same rule as the Team ID above. The KEY ID
+# names a key; the ISSUER ID names your App Store Connect account. What actually authenticates is
+# the private key file `AuthKey_<KEY_ID>.p8`, and altool finds it BY KEY ID, in the first of
+# ./private_keys, ~/private_keys, ~/.private_keys, ~/.appstoreconnect/private_keys that has it. So
+# the .p8 is never named here and never goes in the repo; Apple lets you download it exactly once,
+# so keep the copy you have.
+#
+# Both ids are on one page: App Store Connect ▸ Users and Access ▸ Integrations ▸ App Store Connect
+# API. "Issuer ID" sits above the key table (one per account); the Key ID is the key's own row.
+# ASC_API_KEY_ID="REPLACE_WITH_KEY_ID"
+# ASC_API_ISSUER_ID="REPLACE_WITH_ISSUER_UUID"

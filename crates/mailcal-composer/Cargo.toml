@@ -1,0 +1,17 @@
+[package]
+name = "mailcal-composer"
+description = "Shared rich-message composer contract for Allodia Mail & Calendar: validates editor documents and renders deterministic HTML, plain text, and attachment manifests."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

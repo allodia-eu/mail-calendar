@@ -1,0 +1,80 @@
+[package]
+name = "mailcal-account"
+description = "Load an account's connection config and build the concrete providers it drives."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[features]
+# Compiles the dev-only extra-CA TLS trust path (`src/dev_tls.rs`) into a build regardless of
+# profile; used by the Android dev loop, whose core is built `--release` (so `debug_assertions`
+# is off) yet still needs to trust the local Stalwart harness's self-signed IMAP cert. Off by
+# default, so a production release build excludes it; Apple debug builds already get it via
+# `debug_assertions`.
+dev-harness = []
+
+[dependencies]
+engine-api = { workspace = true }
+engine-core = { workspace = true }
+engine-provider = { workspace = true }
+engine-tls = { workspace = true, features = ["reqwest"] }
+provider-imap = { workspace = true }
+provider-caldav = { workspace = true }
+# The Microsoft Graph mail adapter, wrapped here in a token-refreshing provider.
+provider-graph = { workspace = true }
+# The Google (Gmail + Google Calendar) native-API adapter, wrapped here in a token-refreshing
+# provider: the cloud-API counterpart of provider-graph.
+provider-google = { workspace = true }
+# The JMAP adapter (RFC 8620/8621): connected directly with a base URL + credentials
+# (Basic username/password, or an OAuth bearer token).
+provider-jmap = { workspace = true }
+# The OAuth 2.0 + PKCE client that mints/refreshes the Graph bearer token.
+mailcal-oauth = { workspace = true }
+# The email-first detection engine; this crate maps its protocol-neutral result onto a
+# concrete setup route the clients can prefill (what our engine can actually connect).
+mailcal-autodetect = { workspace = true }
+# The pure view-models. `EventDetail` is one: this crate builds it because the projection
+# reaches into `engine-core` domain types, and its attendee list is the *same* projection the
+# invitation card's tally reads, so both take it from `mailcal-viewmodel` rather than each
+# deciding for itself what an unanswered organiser means. A leaf crate (engine-api only), so
+# depending on it here adds no cycle and no weight.
+mailcal-viewmodel = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+# Implementing the engine's async `Provider` trait for the refreshing Graph wrapper.
+async-trait = { workspace = true }
+# Builds provider streams around async token refresh / reconnect setup.
+async-stream = { workspace = true }
+futures = { workspace = true }
+# Diagnostics for the Graph connect + token-refresh path (routes to the host logger).
+log = { workspace = true }
+# The Graph `/me` address lookup that names a signed-in Microsoft account.
+reqwest = { workspace = true }
+rustls-pki-types = { workspace = true }
+# Calendar-date math for the sync-depth cutoff ("N months ago"); matches the engine's date
+# library so the app can turn it into a per-sync window.
+time = { workspace = true }
+
+# The gated live JMAP integration test (`tests/live_jmap.rs`) drives the connected
+# provider directly, so it needs the provider trait + domain types and a test runtime.
+# These duplicate normal deps because an integration test is a separate crate that only
+# sees dev-dependencies. The test skips unless `STALWART_HTTP_ADDR` is set, so the
+# offline suite stays green.
+[dev-dependencies]
+engine-core = { workspace = true }
+engine-provider = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+# The probe binary drives the full engine sync against a real account; the library is
+# reused by the bindings to build the same providers.
+[[bin]]
+name = "probe"
+path = "src/bin/probe.rs"
+
+[lints]
+workspace = true

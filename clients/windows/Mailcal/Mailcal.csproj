@@ -1,0 +1,202 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The Windows client: a WinUI 3 (Windows App SDK) desktop app rendering the
+       mailbox-list snapshot the Rust core drives through the UniFFI `MailcalApp` object,
+       the Windows twin of ../../macos and ../../android. Same dispatch(Intent) in /
+       surface_changed + immutable-snapshot out loop; only the renderer differs.
+
+       Unpackaged + WinAppSDK-self-contained so `dotnet run` works with no MSIX and no
+       separately installed runtime. Dual-arch: build with -r win-arm64 or -r win-x64;
+       build-and-run.ps1 builds the matching Rust cdylib and points NativeLib at it. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Latest-only: build against the Windows 11 24H2 SDK (10.0.26100), .NET 10, no legacy
+         OS floor below Windows 10 2004. Requires VS 2026 / the 26100 SDK. -->
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <RootNamespace>Allodia.Mailcal</RootNamespace>
+    <!-- The assembly version, derived from the top-level /VERSION single source of truth
+         (docs/versioning.md). DeviceFacts.cs reports the ASSEMBLY version (not the MSIX manifest),
+         so this is what makes the analytics app_version real. The Store-visible MSIX package version
+         is stamped separately by package.ps1 into Package.appxmanifest. $(MSBuildThisFileDirectory)
+         is clients/windows/Mailcal, so ..\..\..\VERSION is the repo root. The version-sync CI job
+         (scripts/ci/check-version-sync.sh) fails if this stops reading /VERSION; bump with
+         scripts/dev/bump-version.sh. -->
+    <_RawVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\..\..\VERSION'))</_RawVersion>
+    <Version>$(_RawVersion.Trim())</Version>
+    <!-- English is the catalog's base locale and the resource fallback: the Strings/en/*.resw
+         serve when the OS language (or PrimaryLanguageOverride) has no better match. The value
+         is the bare neutral tag `en`, NOT `en-US`, to match the qualifier mailcal-l10n writes
+         (Strings/en/Resources.resw); a region-qualified default with no region-qualified resource
+         trips PRI257 ("no resources for default language en-US") at MSIX pack time. -->
+    <DefaultLanguage>en</DefaultLanguage>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The multi-resolution brand icon embedded in the exe. This is what Windows shows on the
+         taskbar, title bar, and Alt-Tab for the UNPACKAGED dev loop (dotnet run / build-and-run.ps1),
+         which has no MSIX manifest to source tile art from. The packaged/Store build additionally
+         uses the Images\*.png tiles below. Regenerate from the brand source via
+         Images\generate-assets.ps1. -->
+    <ApplicationIcon>Images\app.ico</ApplicationIcon>
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <!-- We supply our own entry point (Program.Main) to single-instance the app and route the
+         Microsoft OAuth custom-scheme redirect (eu.allodia.mailcal://auth) into the running
+         instance; see Program.cs. The bootstrap auto-initializer (unpackaged self-contained) runs
+         via a module initializer, independent of Main, so taking Main over is safe.
+
+         The generated App.g.i.cs gates its entry point behind `#if !DISABLE_XAML_GENERATED_MAIN`,
+         and the WinAppSDK targets STILL don't turn this MSBuild property into that compile symbol
+         (re-verified against 2.4.0), so the DefineConstants line below is load-bearing, not
+         belt-and-braces. Drop it and the build fails with CS0101 ("namespace 'Allodia.Mailcal'
+         already contains a definition for 'Program'"), because the guard RENAMES the generated
+         pair rather than eliding it (`Program`/`Main` become
+         `XamlGeneratedProgram`/`XamlGeneratedMain`), so with the symbol defined the class is still
+         emitted, under a name that no longer collides with ours, and Program.cs stays the sole
+         entry point. Upstream's reason for the rename is that a custom Main can now call the
+         default implementation; we don't, because ours must run the single-instance rendezvous
+         BEFORE Application.Start, and the generated body starts the app unconditionally. -->
+    <DISABLE_XAML_GENERATED_MAIN>true</DISABLE_XAML_GENERATED_MAIN>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <!-- Opt-in packaging. A bare build / `dotnet run` / build-and-run.ps1 stays UNPACKAGED +
+         WinAppSDK-self-contained, exactly the spike's dev loop. package.ps1 passes
+         -p:Packaged=true to produce the Store MSIX instead. -->
+    <WindowsPackageType Condition="'$(Packaged)' == 'true'">MSIX</WindowsPackageType>
+    <WindowsPackageType Condition="'$(Packaged)' != 'true'">None</WindowsPackageType>
+    <!-- Unpackaged dev: bundle the WinApp SDK so `dotnet run` needs no runtime install.
+         Packaged/Store: framework-dependent, the Store delivers the WinApp SDK framework
+         package as a dependency, so it stays out of the upload. -->
+    <WindowsAppSDKSelfContained Condition="'$(Packaged)' != 'true'">true</WindowsAppSDKSelfContained>
+    <!-- Packaged: self-contain .NET (per-RID) so the MSIX runs on a clean Windows 10 box
+         with no .NET 10 installed, the Store delivers the WinApp SDK, but not .NET. -->
+    <SelfContained Condition="'$(Packaged)' == 'true'">true</SelfContained>
+    <RuntimeIdentifier Condition="'$(Packaged)' == 'true' and '$(Platform)' == 'x64'">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(Packaged)' == 'true' and '$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
+    <!-- Keep EVERY language inside each main app package instead of splitting each locale into a
+         separate per-language resource package. Single-project MSIX bundling splits non-default
+         languages OUT of the main package (obj/.../split.language-nl.pri) but never adds the
+         resulting resource package to the .msixbundle, so the language silently vanishes and the
+         bundle advertises only the default (en), which the Store rejects as "package supports only
+         EN". Dropping `Language` from the auto-resource-package qualifiers (default
+         `Language|Scale|DXFeatureLevel`) retains all locales in each arch package, so the bundle
+         manifest lists every language the catalog ships (en, nl, de, fr, es, it, pt). Negligible
+         size cost for our few resw; revisit only if the locale set grows large enough to want
+         on-demand per-language downloads. -->
+    <AppxBundleAutoResourcePackageQualifiers Condition="'$(Packaged)' == 'true'">Scale|DXFeatureLevel</AppxBundleAutoResourcePackageQualifiers>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The generated UniFFI bindings carry their own doc/nullable shape; don't fail on it. -->
+    <NoWarn>$(NoWarn);CS8632;CS0169;CS0649;CS8002</NoWarn>
+    <!-- The Rust cdylib the generated P/Invokes load. build-and-run.ps1 overrides this
+         per-arch via -p:NativeLib=...; the Store bundle build (package.ps1) instead lets it
+         resolve per $(Platform) below, so each arch in the .msixbundle gets its matched DLL.
+         Final fallback: host debug, for a bare `dotnet build` with no Platform set. -->
+    <_RustTriple Condition="'$(Platform)' == 'ARM64'">aarch64-pc-windows-msvc</_RustTriple>
+    <_RustTriple Condition="'$(Platform)' == 'x64'">x86_64-pc-windows-msvc</_RustTriple>
+    <NativeLib Condition="'$(NativeLib)' == '' and '$(_RustTriple)' != ''">$(MSBuildThisFileDirectory)..\..\..\target\$(_RustTriple)\$(Configuration.ToLowerInvariant())\mailcal_bindings.dll</NativeLib>
+    <NativeLib Condition="'$(NativeLib)' == ''">$(MSBuildThisFileDirectory)..\..\..\target\debug\mailcal_bindings.dll</NativeLib>
+    <!-- The MCP stdio relay (crates/mailcal-mcp-shim -> allodia-mcp.exe, docs/mcp.md). An MCP client
+         executes it as a child process, so it ships BESIDE the app's exe (and at the MSIX package
+         root, where the App Execution Alias in Package.appxmanifest points). Resolved exactly like
+         $(NativeLib) above, per-arch and per-configuration, and overridable the same way. -->
+    <McpRelay Condition="'$(McpRelay)' == '' and '$(_RustTriple)' != ''">$(MSBuildThisFileDirectory)..\..\..\target\$(_RustTriple)\$(Configuration.ToLowerInvariant())\allodia-mcp.exe</McpRelay>
+    <McpRelay Condition="'$(McpRelay)' == ''">$(MSBuildThisFileDirectory)..\..\..\target\debug\allodia-mcp.exe</McpRelay>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <!-- SystemEvents.TimeChanged: the live OS time-zone-change signal (WinUI doesn't pull
+         in the WindowsDesktop framework, so this comes as its own package). -->
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.11" />
+    <!-- Win2D: the immediate-mode canvas the calendar grid is DRAWN on.
+         WinUI has no such thing of its own, and the grid may not be composed out of XAML elements,
+         a composable per event means a layout pass per event on every frame of a pinch, which is the
+         single biggest thing docs/calendar.md §7 forbids. Measured on Android against the same diary:
+         the composable grid dropped 20.7% of in-motion frames, the canvas 7.4%. -->
+    <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The generated C# bindings, shared with ../MailcalVerify (one source of truth).
+         The UniFFI types are `internal`, so they must compile INTO this assembly, hence
+         a linked source file, never a project/DLL reference. -->
+    <Compile Include="..\Generated\mailcal_bindings.cs" Link="Generated\mailcal_bindings.cs" />
+  </ItemGroup>
+
+  <!-- The generated localized resources (mailcal-l10n writes Strings/<locale>/Resources.resw
+       from the shared inlang catalog) are auto-included as PRIResource by the .NET SDK's
+       default globbing, so NO explicit <PRIResource> item is needed, an explicit one
+       duplicates the default and fails the build (EnableDefaultPriItems). L10n.cs and its
+       dependency-free twin L10nLocales.cs (the shipped locale list, which Mailcal.Tests links
+       on its own) likewise sit at the project root and are picked up by default C# globbing. So
+       does Brand.cs, the application id this build was branded with (docs/branding.md), which
+       Mailcal.Tests links for the same reason. -->
+
+  <ItemGroup>
+    <!-- [DllImport("mailcal_bindings")] resolves to this DLL next to the exe. The script
+         builds the Rust cdylib first, so it exists by the time MSBuild copies it. -->
+    <Content Include="$(NativeLib)" Link="mailcal_bindings.dll" Condition="Exists('$(NativeLib)')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\composer\dist\editor.html" Link="composer\editor.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- The MCP relay, at the output root (and hence the MSIX package root, which is what the
+         manifest's Executable="allodia-mcp.exe" resolves against). The Link has no directory on
+         purpose: put it in a subfolder and the alias silently points at nothing. -->
+    <Content Include="$(McpRelay)" Link="allodia-mcp.exe" Condition="Exists('$(McpRelay)')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- The multi-res brand icon, laid down next to the exe (and packaged under Images\ in the
+         MSIX) so MainWindow.AppWindow.SetIcon can point at it at runtime for the title-bar/taskbar
+         icon. WinUI 3 doesn't surface the exe's embedded <ApplicationIcon> in the title bar on its
+         own, so the running window needs the file on disk. The Images\**\*.png glob below (MSIX
+         only) is PNGs, so this doesn't double-include. -->
+    <Content Include="Images\app.ico" Link="Images\app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- The welcome screen's art, loaded at runtime as ms-appx:///Images/welcome-art.png. It has
+         to be copied in *both* modes, so it cannot ride on the MSIX-only Images\**\*.png glob below
+        , and because it is a PNG it would otherwise be picked up twice in a packaged build, which
+         is why that glob excludes it explicitly. -->
+    <Content Include="Images\welcome-art.png" Link="Images\welcome-art.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- MSIX packaging inputs, used only for the Store build (-p:Packaged=true). The Win32
+       side-by-side app.manifest (ApplicationManifest above) still applies in both modes, it
+       declares DPI/OS support and is embedded in the exe. This is the separate package
+       identity + tile/store art the Store needs. -->
+  <ItemGroup Condition="'$(WindowsPackageType)' == 'MSIX'">
+    <AppxManifest Include="Package.appxmanifest">
+      <SubType>Designer</SubType>
+    </AppxManifest>
+    <!-- The tile/store PNGs the manifest references. The build-time source generate-assets.ps1
+         derives the tiles + app.ico from lives in branding/, outside this glob, so it cannot bloat
+         the shipped MSIX. Exclude welcome-art.png: it is already included unconditionally above,
+         and including it twice is a build error. -->
+    <Content Include="Images\**\*.png" Exclude="Images\welcome-art.png" />
+  </ItemGroup>
+
+  <!-- The Content copy above is conditional, so a missing cdylib would otherwise build green
+       and only fail with DllNotFoundException at the first P/Invoke. Surface it at build time
+       instead (e.g. when building from Visual Studio without running build-and-run.ps1). -->
+  <Target Name="WarnMissingNativeLib" BeforeTargets="Build" Condition="!Exists('$(NativeLib)')">
+    <Warning Text="Native library not found at '$(NativeLib)'. Build it first via clients/windows/build-and-run.ps1 (or pass -p:NativeLib=&lt;path&gt;); otherwise the app throws DllNotFoundException('mailcal_bindings') at startup." />
+  </Target>
+
+  <!-- The relay's Content copy is likewise conditional, and its absence is INVISIBLE: the app
+       builds, launches and renders the whole MCP panel, and the only artefact that knows is the
+       package, which nobody reads. That is exactly how the macOS build shipped an app with no
+       relay in it (docs/mcp.md). So a PACKAGED build fails rather than warns; a Debug dev build
+       that has not run build-and-run.ps1 yet still gets an app to work on. -->
+  <Target Name="CheckMcpRelay" BeforeTargets="Build" Condition="!Exists('$(McpRelay)')">
+    <Error Condition="'$(WindowsPackageType)' == 'MSIX'"
+           Text="The MCP relay was not found at '$(McpRelay)'. A packaged build must ship it: the App Execution Alias in Package.appxmanifest points at allodia-mcp.exe, so packaging without it produces an app whose Settings panel offers a configuration snippet naming a command that does not exist. Build it with: cargo build -p mailcal-mcp-shim --bin allodia-mcp --target &lt;triple&gt; (package.ps1 does this), or pass -p:McpRelay=&lt;path&gt;." />
+    <Warning Text="The MCP relay was not found at '$(McpRelay)'. Settings -> Advanced will still show the AI assistant access panel, but the configuration snippet names a command this build does not carry. Build it via clients/windows/build-and-run.ps1 (or pass -p:McpRelay=&lt;path&gt;)." />
+  </Target>
+
+</Project>

@@ -1,0 +1,19 @@
+# Use this repository-specific permissions profile by default.
+default_permissions = "workspace-public-web"
+
+# Allow Codex's built-in web-search tool to retrieve current, live results.
+web_search = "live"
+
+# Let sensitive approvals go through auto-review
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+
+[permissions.workspace-public-web]
+description = "Write access inside the workspace with public internet access."
+extends = ":workspace"
+
+[permissions.workspace-public-web.network]
+enabled = true
+
+[permissions.workspace-public-web.network.domains]
+"*" = "allow"

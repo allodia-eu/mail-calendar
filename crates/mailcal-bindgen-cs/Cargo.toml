@@ -1,0 +1,24 @@
+# A thin binshim around NordSecurity's C# binding generator, exposing its `main()` as a
+# `cargo run` target so binding generation uses a Cargo.lock-pinned generator (Renovate-trackable)
+# instead of a separately `cargo install`ed binary. Kept OUT of the workspace default-members
+# (see the root Cargo.toml), so only the Windows binding-generation step builds it.
+[package]
+name = "mailcal-bindgen-cs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+license.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "uniffi-bindgen-cs"
+path = "src/main.rs"
+
+[dependencies]
+# Pinned to the core's UniFFI: a generator built against a different UniFFI can't read the
+# cdylib's metadata. This tag and the workspace's `uniffi` move together, never one alone; the
+# generator's tag names the UniFFI release it can read, and it trails upstream by months.
+uniffi-bindgen-cs = { git = "https://github.com/NordSecurity/uniffi-bindgen-cs", tag = "v0.11.0+v0.31.0" }

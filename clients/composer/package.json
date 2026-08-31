@@ -1,0 +1,16 @@
+{
+  "name": "allodia-composer-editor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run build.ts",
+    "check": "bun run build.ts --check",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "happy-dom": "^20.0.0",
+    "typescript": "7"
+  }
+}

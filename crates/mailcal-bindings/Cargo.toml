@@ -1,0 +1,145 @@
+[package]
+name = "mailcal-bindings"
+description = "UniFFI Kotlin/Swift bindings over mailcal-app: the FFI surface the native macOS/Android clients consume."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+# `cdylib` is what every host actually loads (the Windows DLL, the Android .so, the macOS dylib);
+# `lib` stays for the in-crate uniffi-bindgen, the tests, and mailcal-linux.
+#
+# `staticlib` is NOT here, and that is deliberate. An iOS app bundle can't ship a loose dylib, so
+# the iOS slice links a static archive into the XCFramework, but crate-type is not per-target, so
+# listing it here built it for EVERY host. On Windows that archive is 1.9 GB in a single file, and
+# Android and Linux paid the same for something only clients/apple/Scripts/build-core.sh has ever
+# opened. It asks for it explicitly now (`cargo rustc --crate-type staticlib`), which is the one
+# place that needs it. Measured: removing it cost ~1s of build time and saved 1.9 GB per non-Apple
+# target dir: a disk fix, not a speed one.
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+# Forwards the dev-only extra-CA TLS trust path to the account layer for a release core build
+# (the Android dev loop passes `--features dev-harness`). Off by default; excluded from production.
+dev-harness = ["mailcal-account/dev-harness"]
+# Allodia's own builds only. `allodia_license/` is source-available rather than GPL and the open
+# tree has to build without it (docs/pledge.md, promise 4), so the dependency below is optional and
+# off, and scripts/ci/check-license-dir.sh allows exactly this one line to name the directory.
+#
+# It is *this* crate rather than `mailcal-app` for the reason `mailcal-mcp` and `mailcal-telemetry`
+# are: signing in opens sockets, and this is the only crate that may. What the feature changes is
+# the body of the Allodia sign-in calls, never their presence -- the FFI surface is the same either
+# way, so one set of generated bindings compiles against both builds.
+allodia-license = ["dep:allodia-license"]
+
+[dependencies]
+# Off by default -- see [features] above.
+allodia-license = { path = "../../allodia_license/crates/allodia-license", optional = true }
+mailcal-app = { workspace = true }
+# Shared compose document renderer and rich-submit contract.
+mailcal-composer = { workspace = true }
+# The pure view-model types the FFI records mirror.
+mailcal-viewmodel = { workspace = true }
+engine-api = { workspace = true }
+engine-provider = { workspace = true }
+# Construct the demo provider's sample mail (Mailbox/Message).
+engine-core = { workspace = true }
+# Load the account config + build the real (IMAP) provider for `new_account`.
+mailcal-account = { workspace = true }
+# The email-first server-settings detection engine behind `detect_account_settings`.
+mailcal-autodetect = { workspace = true }
+# Parses the debug-only MAILCAL_AUTODETECT_WELL_KNOWN_BASE override into a URL.
+url = { workspace = true }
+# The OAuth flow that drives Microsoft sign-in (begin URL + code→token exchange).
+mailcal-oauth = { workspace = true }
+# The JMAP OAuth discovery chain (RFC 9728/8414/7591) drives its own HTTP client.
+reqwest = { workspace = true }
+# The local MCP (AI assistant access) server. Kept out of `mailcal-app` so a build without it
+# structurally cannot listen; this crate is the only thing that can bind a socket. It reaches
+# the app through a port declared there and implemented here (`mcp.rs`), because `create_draft`
+# needs the host's composer, which lives on this side of the FFI.
+mailcal-mcp = { workspace = true }
+# The HTTPS delivery adapter for consented analytics. Kept out of `mailcal-app` so the core
+# stays network-free; this crate is the only thing that can put an event on the wire.
+mailcal-telemetry = { workspace = true }
+async-trait = { workspace = true }
+# The transient begin→complete `pending` handle is serde-encoded to a JSON string.
+serde = { workspace = true }
+# `join_all` connects every account's providers concurrently at boot, so multi-account
+# connect time is ~max(account) rather than the sum of sequential logins.
+futures = { workspace = true }
+# OAuth expiry timestamps and sync-depth date conversions shared with the core.
+time = { workspace = true }
+# Detects the device's IANA zone for `device_time_zone` (region-aware OS query).
+iana-time-zone = { workspace = true }
+# `new_account`'s error type (FFI-surfaced) derives thiserror's Display.
+thiserror = { workspace = true }
+uniffi = { workspace = true, features = ["cli"] }
+# `rt-multi-thread` spawns the per-account watch/poll tasks; `time` powers the poll timers
+# (`tokio::time::interval`) and the watch reconnect backoff (`sleep`).
+tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
+serde_json = { workspace = true }
+# Reading and writing the one stored config that is not a mail account: the Allodia grant. The
+# store holds config TOML, and recognising this entry is what keeps a build with no Allodia
+# sign-in from reporting a perfectly good stored grant as a corrupt account.
+toml = { workspace = true }
+# The logging facade + the bridge that forwards core `log` records to the host-injected
+# `Logger` (the FFI logging port), so all layers log to one platform-native sink.
+log = { workspace = true }
+
+# The signal handler behind `watch_for_native_faults` (`native_fault.rs`); `sigaction`, and the
+# handful of async-signal-safe calls it may make once a fault has arrived. Unix only: Windows has
+# no POSIX signal for a native fault, so nothing there links it.
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+# The vectored exception handler behind `watch_for_native_faults` on Windows
+# (`native_fault_windows.rs`), where a native fault is not a signal and reaches no managed handler.
+# The feature list is exactly what that file imports; each one gates the item named beside it.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",          # HANDLE, CloseHandle, INVALID_HANDLE_VALUE
+    "Win32_Security",            # SECURITY_ATTRIBUTES, which CreateFileW's signature names
+    "Win32_Storage_FileSystem",  # CreateFileW, WriteFile
+    "Win32_System_Diagnostics_Debug", # AddVectoredExceptionHandler
+    "Win32_System_IO",           # OVERLAPPED, which WriteFile's signature names
+    "Win32_System_Kernel",       # EXCEPTION_POINTERS (and it gates AddVectoredExceptionHandler)
+    "Win32_System_LibraryLoader", # GetModuleHandleExW, GetModuleFileNameW
+    "Win32_System_ProcessStatus", # GetModuleInformation, MODULEINFO
+    "Win32_System_Threading",    # GetCurrentProcess
+] }
+
+# The probe only. It needs a running account service, a browser and a person, so it is an example
+# rather than a test -- but what it drives is the shipping FFI, and the failures it finds (a grant
+# that reaches no store, an entry the next launch reads as a corrupt account) are exactly the ones
+# no offline test can see.
+[[example]]
+name = "allodia_signin"
+required-features = ["allodia-license"]
+
+[dev-dependencies]
+# Builds a real `ImapError` for the connect-verdict tests: whether a refused login raises the
+# "sign in again" prompt is decided from the engine's typed error, so a test that asserts it
+# must present the typed error rather than a stand-in.
+provider-imap = { workspace = true }
+
+# UniFFI's generated scaffolding uses `unsafe` extern "C" fns, so this crate overrides
+# the workspace `unsafe_code = "forbid"`, and it can't inherit the
+# workspace `missing_docs`/`missing_debug_implementations` denies since the proc-macros
+# generate public items the binding layer does not hand-document. It still treats every
+# other warning as an error (rustc + rustdoc), so a broken/private doc link on the FFI
+# surface is caught locally; `warnings`/`rustdoc::all` don't enable `missing_docs`, so the
+# undocumented generated items stay fine.
+[build-dependencies]
+# Resolves the analytics relay endpoint from the environment or the repo's `.env`, and refuses a
+# build we ship that lost it. Shared with `mailcal-oauth`'s build script so the two cannot drift.
+mailcal-buildenv = { workspace = true }
+
+[lints.rust]
+unsafe_code = "allow"
+warnings = { level = "deny", priority = -1 }
+
+[lints.rustdoc]
+all = { level = "deny", priority = -1 }

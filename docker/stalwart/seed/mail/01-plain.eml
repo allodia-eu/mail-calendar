@@ -1,0 +1,12 @@
+From: Alice Tester <alice@test.local>
+To: Bob Tester <bob@test.local>
+Subject: Harness baseline message
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+Message-ID: <baseline-0001@test.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Baseline plaintext message with a unique Message-ID.
+
+This one is also COPYed into Archive by the seeder, so the same content has two
+mailbox memberships (two distinct provider objects) — the IMAP copy invariant.

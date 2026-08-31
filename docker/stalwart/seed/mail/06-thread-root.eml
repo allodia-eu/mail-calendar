@@ -1,0 +1,10 @@
+From: Bob Tester <bob@test.local>
+To: Alice Tester <alice@test.local>
+Subject: Project kickoff
+Date: Mon, 12 Jan 2026 09:00:00 +0000
+Message-ID: <thread-root-0006@test.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Thread root. The reply references this Message-ID so threading by References has
+a fixture independent of subject matching.

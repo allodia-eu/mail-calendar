@@ -1,0 +1,33 @@
+# Gitignored files copied into every new worktree (same syntax as .gitignore).
+# Only files that are BOTH listed here and gitignored are copied.
+#
+# The Android release signing config: without it a worktree can only produce an
+# unsigned release build, so it cannot be installed over an existing release
+# install (signature mismatch) — and reinstalling would mean uninstalling first,
+# which destroys the developer's accounts and mail store on a real device.
+clients/android/app/keystore.properties
+
+# Credentials for the publishing scripts (`scripts/dev/envfile.py`): the docs
+# screenshot upload token, and anything else you keep beside it. Copied so the
+# repo-local file — the findable one, right where you are working — keeps
+# working in a worktree instead of becoming the stale copy of three.
+#
+# The build reads it too now (BUILDING.md): without it a worktree builds an app
+# that does not offer Google or Microsoft sign-in, which looks like a regression
+# in whatever you happen to be working on.
+.env
+
+# The Apple signing config, for the same reason as the Android keystore above: without it a
+# worktree cannot build for a physical device at all — `sdk=iphoneos*` signs against the team id
+# in signing.local.xcconfig, and Xcode stops at "AllodiaMail requires a provisioning profile"
+# because it cannot run the script's team detection itself.
+clients/apple/signing.local.xcconfig
+clients/apple/signing.local.sh
+
+# The Android SDK path. `build-and-run.sh` exports ANDROID_HOME itself so the script works
+# without it, but Android Studio opening the worktree does not — it reads this.
+clients/android/local.properties
+
+# This session's own permissions. Not build config — a worktree works without it — but a fresh one
+# re-asks for every command that was already allowed in the checkout beside it.
+.claude/settings.local.json
