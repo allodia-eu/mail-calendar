@@ -70,27 +70,35 @@ concurrency:
 # ones whose omission is invisible: the app still builds, it just quietly stops offering Google and
 # Microsoft sign-in, or asks for analytics consent it then has nowhere to honour.
 #
-# A pull request from a fork receives **no** secrets, so these arrive as the empty string and that
-# run builds the absent case — which is the point rather than a shortfall: it is the build outside
-# contributors get, and it has to stay green. Blank counts as unset everywhere that reads them.
+# **These are deliberately fake, and this repository holds no real ones.** Every value below is a
+# compile-time `option_env!` string (`crates/mailcal-oauth/src/credentials.rs`,
+# `crates/mailcal-bindings/src/analytics.rs`), and the code only ever asks whether one is present
+# and non-empty. So a placeholder exercises the *same* branches as a real registration: the setup
+# wizard offers the routes, the Allodia sign-in surface compiles, and the analytics relay is
+# configured. Nothing dials any of these during a test.
 #
-# Locally the same values come from a gitignored `.env`; the real environment wins over it, which is
-# why setting them here needs nothing else.
+# The real registrations live in the private release repository, which is the only place that
+# builds a shippable artifact. Putting them here would mean a public repository whose every
+# workflow-touching pull request is a security review rather than a quality one.
+#
+# ⚠️ **Shape matters more than value.** `reversed_client_id_redirect` returns `None` for an id that
+# does not end in `.apps.googleusercontent.com`, so a carelessly-shaped placeholder does not fail —
+# it silently disables the route it was meant to keep under test.
+#
+# The opposite case, a build carrying no registrations at all, is what every from-source checkout
+# makes. It is covered by the `unbranded` job below rather than by hoping a fork opens a pull
+# request.
+#
+# Locally the same names come from a gitignored `.env`; the real environment wins over it.
 env:
-  MAILCAL_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.MAILCAL_GOOGLE_DESKTOP_CLIENT_ID }}
-  MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET }}
-  MAILCAL_GOOGLE_IOS_CLIENT_ID: ${{ secrets.MAILCAL_GOOGLE_IOS_CLIENT_ID }}
-  MAILCAL_GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.MAILCAL_GOOGLE_ANDROID_CLIENT_ID }}
-  MAILCAL_MS_CLIENT_ID: ${{ secrets.MAILCAL_MS_CLIENT_ID }}
-  # Signing in to an Allodia account. The client id is one of the registrations a release build is
-  # *required* to carry, so its absence here failed a tagged build rather than quietly dropping a
-  # route. The host has a built-in default and is set only to point a build at another instance.
-  MAILCAL_ALLODIA_CLIENT_ID: ${{ secrets.MAILCAL_ALLODIA_CLIENT_ID }}
-  MAILCAL_ALLODIA_HOST: ${{ secrets.MAILCAL_ALLODIA_HOST }}
-  # The consented-analytics relay (docs/analytics.md), injected the same way and for the same
-  # reason: a build that lost it still asks for consent and then reports nowhere. A fork gets the
-  # empty string, which is the silent build every from-source checkout already makes.
-  ALLODIA_TELEMETRY_URL: ${{ secrets.ALLODIA_TELEMETRY_URL }}
+  MAILCAL_GOOGLE_DESKTOP_CLIENT_ID: "1234567890-ci.apps.googleusercontent.com"
+  MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET: "not-a-real-secret"
+  MAILCAL_GOOGLE_IOS_CLIENT_ID: "1234567890-ci-ios.apps.googleusercontent.com"
+  MAILCAL_GOOGLE_ANDROID_CLIENT_ID: "1234567890-ci-android.apps.googleusercontent.com"
+  MAILCAL_MS_CLIENT_ID: "00000000-0000-4000-8000-000000000000"
+  MAILCAL_ALLODIA_CLIENT_ID: "ci-placeholder"
+  MAILCAL_ALLODIA_HOST: "https://accounts.invalid"
+  ALLODIA_TELEMETRY_URL: "https://telemetry.invalid"
 
 jobs:
   changes:
@@ -1028,6 +1036,63 @@ jobs:
           path: target/flatpak/mailcal.flatpak
           if-no-files-found: error
 
+  unbranded:
+    # The build every from-source checkout makes: no OAuth registrations, no Allodia sign-in, no
+    # analytics relay. It is a supported build (BUILDING.md) and it has to stay green — but until
+    # now it was only ever compiled when an outside contributor happened to open a pull request,
+    # covered by an accident of how GitHub withholds secrets from forks rather than by a test. With
+    # placeholders set at workflow level it would otherwise never be built here at all.
+    name: Build from source (no registrations)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Emptied, not unset: blank counts as absent everywhere that reads them (`present()` in
+      # crates/mailcal-oauth/src/credentials.rs trims and rejects the empty string), and it is also
+      # the shape a fork's run has.
+      MAILCAL_GOOGLE_DESKTOP_CLIENT_ID: ""
+      MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET: ""
+      MAILCAL_GOOGLE_IOS_CLIENT_ID: ""
+      MAILCAL_GOOGLE_ANDROID_CLIENT_ID: ""
+      MAILCAL_MS_CLIENT_ID: ""
+      MAILCAL_ALLODIA_CLIENT_ID: ""
+      MAILCAL_ALLODIA_HOST: ""
+      ALLODIA_TELEMETRY_URL: ""
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the pinned Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+
+      - name: The credential-free build still compiles and passes
+        run: cargo test -p mailcal-oauth -p mailcal-bindings
+
+      # The other half, and the one that can be checked nowhere else in this repository: with
+      # placeholders present at workflow level, `MAILCAL_REQUIRE_INJECTED_CONFIG` can no longer
+      # fail on any other job, so it would be a gate that cannot fire. Here the registrations are
+      # genuinely absent, so demanding them must stop the build — and the failure has to name what
+      # is missing, because a release that quietly lost one is correct in every respect except in
+      # front of a user.
+      - name: Demanding the registrations fails when they are absent
+        env:
+          MAILCAL_REQUIRE_INJECTED_CONFIG: 1
+        run: |
+          set -uo pipefail
+          if cargo build -p mailcal-oauth 2> build.log; then
+            echo "::error::the build succeeded without its registrations — the guard is not firing"
+            exit 1
+          fi
+          cat build.log
+          grep -qi "MAILCAL_GOOGLE_DESKTOP_CLIENT_ID" build.log || {
+            echo "::error::the build failed without naming the missing registration"
+            exit 1
+          }
+          echo "guard confirmed: the build refuses and says what is missing"
+
   # The single check to mark as required in the branch ruleset. The six jobs above are skipped
   # when a change can't affect them, and a skipped job reports NO status — so requiring them
   # directly would hang a docs-only PR forever. This job always runs and collapses them into one
@@ -1040,7 +1105,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [changes, file-length, version-sync, branding, reuse, store-copy, user-docs, log-hygiene, british-english, dash-hygiene, composer-labels, surface-publish, dev-scripts, composer-editor, lint, jmap-stalwart, apple, windows, android, android-native-fault, linux]
+    needs: [changes, file-length, version-sync, branding, reuse, store-copy, user-docs, log-hygiene, british-english, dash-hygiene, composer-labels, surface-publish, dev-scripts, composer-editor, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
