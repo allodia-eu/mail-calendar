@@ -28,14 +28,14 @@ import Testing
 
     private func snapshot() -> ReadingSnapshot {
         ReadingSnapshot(
+            key: "m1",
+            from: "Sender <sender@example.test>",
             avatar: Avatar(
                 initials: "S",
                 light: Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB"),
                 dark: Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB"),
                 imagePath: nil
             ),
-            key: "m1",
-            from: "Sender <sender@example.test>",
             to: "recipient@example.test",
             cc: "",
             bcc: "",
