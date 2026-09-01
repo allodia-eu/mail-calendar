@@ -116,7 +116,7 @@ Two different things, kept distinct on purpose:
 
 ## Committed mirrors (the only hand-synced values)
 
-Two files cannot read `/VERSION` at build time, so they carry a copy the `version-sync` CI job pins:
+Two files cannot read `/VERSION` at build time, so they carry a copy the version-sync check pins:
 
 - `Cargo.toml` `[workspace.package].version`: Cargo has no file-include.
 - `clients/apple/project.yml` `MARKETING_VERSION`: consumed by XcodeGen when generating the project
@@ -160,7 +160,7 @@ client derives it:
    `scripts/dev/bump-version.sh`), never a per-client literal and never in a feature PR.
 2. Keep the derivation identical in spirit across platforms: marketing version = `/VERSION`, build
    number derived per store, no committed value except the two pinned mirrors.
-3. The `version-sync` CI job ([`scripts/ci/check-version-sync.sh`](../scripts/ci/check-version-sync.sh))
+3. The version-sync check ([`scripts/ci/check-version-sync.sh`](../scripts/ci/check-version-sync.sh))
    fails the build if a mirror drifts, a derivation stops reading `/VERSION`, or `/VERSION` names a
    release with no note under `docs/changelog/released/`; it runs on **every** push, not behind
    change-area gating, because `/VERSION` feeds every client.

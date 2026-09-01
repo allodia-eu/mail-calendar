@@ -852,7 +852,7 @@ class RealDocumentTests(unittest.TestCase):
         )
 
     def test_the_real_copy_fits_google_play_today(self):
-        """Same numbers the store-copy CI job enforces, read off the real documents."""
+        """Same numbers CI's store-copy check enforces, read off the real documents."""
         listing = listing_module.listing_path().read_text(encoding="utf-8")
         measured = listing_module.measure(
             listing_module.listing_payloads(listing),

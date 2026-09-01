@@ -420,7 +420,7 @@ def measure(listings, notes, limits):
     """Every field measured against the Play row of `store-listing.md`'s "Field limits" table.
 
     The point is to fail *here* rather than at Play. It duplicates no numbers: the caps come from
-    the same parsed table the `store-copy` CI job enforces, so this can only reject copy that job
+    the same parsed table the store-copy check in CI enforces, so this can only reject copy that check
     would also reject; and it catches the case that job cannot, which is a limit changing between
     the branch turning green and the upload.
     """

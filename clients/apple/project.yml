@@ -182,7 +182,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: ${MAILCAL_APP_ID}
         # MARKETING_VERSION mirrors the top-level /VERSION single source of truth (docs/versioning.md)
         # so the dev loop (build-and-run.sh) reports the real version. Scripts/package.sh re-stamps it
-        # from /VERSION at release, and the version-sync CI job fails if this drifts. CURRENT_PROJECT_VERSION
+        # from /VERSION at release, and the version-sync check fails if this drifts. CURRENT_PROJECT_VERSION
         # is the dev default only, package.sh overrides it with a fresh dotted timestamp per Store upload.
         MARKETING_VERSION: "0.7.0"
         CURRENT_PROJECT_VERSION: "1"

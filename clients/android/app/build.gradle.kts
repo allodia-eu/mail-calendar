@@ -89,7 +89,7 @@ android {
         // forward-compatible at a higher minSdk.
         minSdk = 31
         targetSdk = 37
-        // Both derived from /VERSION above, never edit these literals (the version-sync CI job fails
+        // Both derived from /VERSION above, never edit these literals (the version-sync check fails
         // if a hardcoded versionName creeps back). Change the version in /VERSION.
         versionCode = derivedVersionCode
         versionName = marketingVersion

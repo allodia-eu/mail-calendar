@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Guard the dev-account (local Stalwart harness) contract. Runs in the always-run `changes` CI job
+# Guard the dev-account (local Stalwart harness) contract. Runs in the always-run `checks` CI job
 # (not `lint`, which is gated on the `rust` area; most of what this checks is client code), and
 # locally:
 #

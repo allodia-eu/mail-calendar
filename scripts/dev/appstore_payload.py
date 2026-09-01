@@ -376,7 +376,7 @@ def load_listings(listing_md=None, locales=None, version=None, screenshots=None,
 def measure(listing: Listing, limits) -> list:
     """Every field App Store Connect would refuse, measured against the contract's own table.
 
-    The `store-copy` CI job measures the same copy against the *tightest* store across all three;
+    The store-copy check in CI measures the same copy against the *tightest* store across all three;
     this measures it against the one console it is about to be handed to. Same table, read the same
     way, so the two cannot disagree; and this one also catches the case that job cannot, which is
     the table changing between a branch turning green and the push.

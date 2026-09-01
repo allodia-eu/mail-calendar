@@ -510,7 +510,7 @@ def load_listings(listing_md=None, locales=None, version=None, screenshots=None)
 def measure(listing: Listing, limits) -> list:
     """Every field of this listing the Microsoft Store would refuse, measured against its own table.
 
-    The `store-copy` CI job measures the same copy against the *tightest* store across all three;
+    The store-copy check in CI measures the same copy against the *tightest* store across all three;
     this measures it against the one console it is about to be handed to, which is what decides
     whether this push can succeed. Same table, read the same way, so the two cannot disagree.
     """

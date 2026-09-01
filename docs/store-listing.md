@@ -61,7 +61,7 @@ section. Edit the shared body and it changes everywhere by construction.
    the vendor", "analytics is off by default", "credentials in the keystore") must be true per
    [`privacy-policy.md`](privacy-policy.md). If the policy changes what is stored, sent or shared,
    revisit the copy in the same change.
-6. **Respect each store's field limits** (the "Field limits" table below); `store-copy` in CI
+6. **Respect each store's field limits** (the "Field limits" table below); the store-copy check in CI
    measures this, so it fails on a branch rather than at submission. Where the shared body exceeds a
    field, trim from the tail (the feature bullets), never the first two paragraphs: the sovereignty
    framing is the point, and it is also the only part the Linux generator takes. **Trim every
@@ -108,7 +108,7 @@ as they would be pasted), the product name, the Microsoft search terms (count, l
 word budget), the Microsoft feature lists (count *and* per-item length), Apple's Subtitle /
 Promotional / Keywords, Play's Short description, and every changelog fragment and released note
 under `docs/changelog/`, each against the tightest store its own `Platforms:` reach
-([`changelog.md`](changelog.md)). It runs on **every** push (the `store-copy` CI job, deliberately
+([`changelog.md`](changelog.md)). It runs on **every** push (the `checks` CI job, deliberately
 not behind change-area gating (a docs-only PR is exactly the kind that edits copy). So the table is
 load-bearing: change a number here and you change what is enforced; the two cannot drift. If a
 console really does change a limit, edit the cell.

@@ -38,7 +38,7 @@ default-members = [
 ]
 
 # `version` mirrors the top-level `/VERSION` single source of truth (docs/versioning.md). Cargo
-# cannot read an external file, so this is the one committed duplicate — the `version-sync` CI job
+# cannot read an external file, so this is the one committed duplicate — the version-sync check
 # (scripts/ci/check-version-sync.sh) fails if it ever drifts from `/VERSION`. Bump both together
 # with `scripts/dev/bump-version.sh X.Y.Z`.
 [workspace.package]

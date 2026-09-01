@@ -370,8 +370,8 @@ were broken right now, would this tell me?*
   ⚠️ `cargo +<pin>` auto-installs a missing toolchain **without** rustfmt, then fails with
   `'cargo-fmt' is not installed`, which reads like a bad pin. The gate installs it for you.
 - **The 500-line limit** is enforced by
-  [`check-file-length.sh`](scripts/ci/check-file-length.sh) in its own always-run job, because no
-  linter in these languages has a per-file length lint. It covers `*.rs`, `*.cs`, `*.ts`, `*.js`,
+  [`check-file-length.sh`](scripts/ci/check-file-length.sh) in the always-run `checks` job, because
+  no linter in these languages has a per-file length lint. It covers `*.rs`, `*.cs`, `*.ts`, `*.js`,
   `*.html`, `*.swift` and `*.kt`. It reads `git ls-files`, so **an unstaged new file is invisible
   to it**: inspect untracked files before calling a change green, and use `git grep --untracked` in
   any new contract check. Generated files are invisible for the same reason and correctly so, which

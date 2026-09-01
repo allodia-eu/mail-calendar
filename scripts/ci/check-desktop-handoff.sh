@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Guard how the Linux client hands a URI or a file to the rest of the desktop. Runs in the
-# always-run `changes` CI job and locally:
+# always-run `checks` CI job and locally:
 #
 #     scripts/ci/check-desktop-handoff.sh
 #
