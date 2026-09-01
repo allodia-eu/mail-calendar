@@ -395,3 +395,60 @@ fn a_delete_names_one_occurrence_or_the_whole_series() {
         "a malformed token drops the intent rather than deleting the series"
     );
 }
+
+/// A draft the editor never touched asks for no write at all, and one whose frequency moved on
+/// leaves behind the part that belonged to the old frequency. Both decisions are the core's, and
+/// this is the boundary they have to survive: a client sends the draft it holds and nothing else.
+#[test]
+fn a_repeat_draft_decides_the_same_thing_on_both_sides_of_the_boundary() {
+    let stored = SimpleRecurrence {
+        frequency: RecurrenceFrequency::Monthly,
+        interval: 1,
+        days: Vec::new(),
+        // The month's last day: a rule no control models, so it has to be carried.
+        month_days: vec![-1],
+        months: Vec::new(),
+        end: RecurrenceEnd::Never,
+    };
+    let draft = RepeatDraft {
+        frequency: RecurrenceFrequency::Monthly,
+        interval: 1,
+        weekdays: vec![RecurrenceWeekday::Tuesday],
+        end: RecurrenceEnd::Never,
+        stored: Some(stored.clone()),
+    };
+
+    assert_eq!(
+        crate::repeat_change_of(Some(draft.clone()), true),
+        None,
+        "an untouched repeat asks for no write"
+    );
+
+    let mut ended = draft.clone();
+    ended.end = RecurrenceEnd::AfterCount { count: 10 };
+    let Some(RecurrenceChange::Set { rule }) = crate::repeat_change_of(Some(ended), true) else {
+        panic!("a changed repeat is a Set");
+    };
+    assert_eq!(
+        rule.month_days,
+        vec![-1],
+        "the last day survives the crossing"
+    );
+
+    let mut weekly = draft;
+    weekly.frequency = RecurrenceFrequency::Weekly;
+    let Some(RecurrenceChange::Set { rule }) = crate::repeat_change_of(Some(weekly), true) else {
+        panic!("a changed repeat is a Set");
+    };
+    assert!(
+        rule.month_days.is_empty(),
+        "a day of the month means nothing in a week"
+    );
+    assert_eq!(
+        rule.days,
+        vec![RecurrenceDay {
+            day: RecurrenceWeekday::Tuesday,
+            nth: None
+        }]
+    );
+}

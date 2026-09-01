@@ -24,6 +24,7 @@ use mailcal_viewmodel::{
 
 use crate::{
     recurrence_shape::{EventRecurrence, describe_recurrence},
+    repeat_draft::{RepeatDraft, repeat_draft_of},
     repeat_summary::{RepeatSummary, summarize_repeat},
 };
 
@@ -85,6 +86,12 @@ pub struct EventDetail {
     /// Decided here so four clients cannot disagree about what a rule means; the words stay each
     /// client's, because localisation is.
     pub repeat_summary: Option<RepeatSummary>,
+    /// The rule as an editor's **controls** hold it, or `None` when the editor may not open it:
+    /// no rule, one too rich to state, or one whose controls this app does not have.
+    ///
+    /// Decided here for the reason [`Self::repeat_summary`] is: five clients each deciding which
+    /// rules their editor may open is five sets of disagreements.
+    pub repeat_draft: Option<RepeatDraft>,
     /// Whether the event recurs (a master with a rule, or an overridden instance): so the editor
     /// can tell the user an edit applies to the whole series.
     pub is_recurring: bool,
@@ -146,6 +153,10 @@ pub fn project_event_detail(
         reminder_minutes: reminder_minutes(event),
         repeat_summary: match &recurrence {
             Some(EventRecurrence::Simple(rule)) => summarize_repeat(rule, start_date(event)),
+            Some(EventRecurrence::Complex) | None => None,
+        },
+        repeat_draft: match &recurrence {
+            Some(EventRecurrence::Simple(rule)) => repeat_draft_of(rule, start_date(event)),
             Some(EventRecurrence::Complex) | None => None,
         },
         recurrence,

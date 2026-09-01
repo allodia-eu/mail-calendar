@@ -94,6 +94,56 @@ pub struct SimpleRecurrence {
     pub end: RecurrenceEnd,
 }
 
+/// The repeat rule as an editor's **controls** hold it.
+///
+/// Four controls (a frequency, how many periods to skip, which weekdays, and what ends it),
+/// which is less than [`SimpleRecurrence`] can express. The parts they do not model are carried
+/// in [`stored`](Self::stored) and put back on save, so an edit that never touched the repeat
+/// cannot rewrite it.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct RepeatDraft {
+    /// The base frequency.
+    pub frequency: RecurrenceFrequency,
+    /// How many periods between instances; `1` is every period, and it is never `0`.
+    pub interval: u32,
+    /// The weekdays a **weekly** rule names, in week order. Never empty: a rule naming none
+    /// takes the event's own start weekday. Populated whatever the frequency, so switching to
+    /// weekly has a day already ticked; read only when the frequency is weekly.
+    pub weekdays: Vec<RecurrenceWeekday>,
+    /// What ends it.
+    pub end: RecurrenceEnd,
+    /// The rule this draft was seeded from, **as the controls hold it**, or `None` when the
+    /// event does not repeat yet.
+    ///
+    /// **Set by the core; pass it back untouched.** It is what tells a rule that changed from one
+    /// that did not, and what keeps the parts no control models.
+    pub stored: Option<SimpleRecurrence>,
+}
+
+impl From<mailcal_account::RepeatDraft> for RepeatDraft {
+    fn from(draft: mailcal_account::RepeatDraft) -> Self {
+        Self {
+            frequency: draft.frequency.into(),
+            interval: draft.interval,
+            weekdays: draft.weekdays.into_iter().map(Into::into).collect(),
+            end: draft.end.into(),
+            stored: draft.stored.map(Into::into),
+        }
+    }
+}
+
+impl From<RepeatDraft> for mailcal_account::RepeatDraft {
+    fn from(draft: RepeatDraft) -> Self {
+        Self {
+            frequency: draft.frequency.into(),
+            interval: draft.interval,
+            weekdays: draft.weekdays.into_iter().map(Into::into).collect(),
+            end: draft.end.into(),
+            stored: draft.stored.map(Into::into),
+        }
+    }
+}
+
 /// What an event's repeat rule is.
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
 pub enum EventRecurrence {
@@ -194,6 +244,15 @@ pub enum RecurrenceChange {
     },
     /// Stop repeating: every occurrence but the first goes.
     Clear,
+}
+
+impl From<mailcal_account::RecurrenceChange> for RecurrenceChange {
+    fn from(change: mailcal_account::RecurrenceChange) -> Self {
+        match change {
+            mailcal_account::RecurrenceChange::Set(rule) => Self::Set { rule: rule.into() },
+            mailcal_account::RecurrenceChange::Clear => Self::Clear,
+        }
+    }
 }
 
 impl From<RecurrenceChange> for mailcal_account::RecurrenceChange {

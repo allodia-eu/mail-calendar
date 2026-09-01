@@ -133,6 +133,7 @@ impl From<AppEventDetail> for EventDetail {
             is_recurring: detail.is_recurring,
             can_write: detail.can_write,
             repeat_summary: detail.repeat_summary.map(Into::into),
+            repeat_draft: detail.repeat_draft.map(Into::into),
             occurrence_start: detail.occurrence_start,
             attendees: detail
                 .attendees
