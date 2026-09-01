@@ -447,6 +447,7 @@ impl AppModel {
                 &settings.style,
                 kind == ComposeKind::Forward,
                 initial_text.as_deref(),
+                self.calendar.display_zone(),
             )
         });
         let subject = match (kind, opened) {

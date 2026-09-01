@@ -1,0 +1,60 @@
+# The date in a quoted reply
+
+Platforms: linux
+Bump: patch
+
+> Linux keeps the engine instant on `OpenedMessage.date` and formats at each display site, so the
+> quote was handed the raw value and a reply quoted the original as `2026-08-31T05:01:00Z`. The
+> other three clients build the message with the date already formatted and pass it through, so
+> only Linux was affected. `docs/timestamps.md` covered the mail list and the reading header but
+> not the quoted original; it now covers all three, and records that where the absolute date is
+> produced differs by platform, which is what made identical-looking code right on one and wrong
+> on another.
+
+**English**
+
+```
+The date on a quoted original now reads as a normal local date, in replies and forwards alike.
+```
+
+**Nederlands**
+
+```
+De datum boven een geciteerd bericht is nu een gewone lokale datum, zowel bij beantwoorden als
+bij doorsturen.
+```
+
+**Deutsch**
+
+```
+Das Datum über einem zitierten Original erscheint jetzt als normales lokales Datum, beim
+Antworten wie beim Weiterleiten.
+```
+
+**Français**
+
+```
+La date au-dessus d'un message cité s'affiche désormais comme une date locale normale, en réponse
+comme en transfert.
+```
+
+**Español**
+
+```
+La fecha sobre un mensaje citado ahora aparece como una fecha local normal, tanto al responder
+como al reenviar.
+```
+
+**Italiano**
+
+```
+La data sopra un messaggio citato ora appare come una normale data locale, sia nelle risposte sia
+negli inoltri.
+```
+
+**Português**
+
+```
+A data acima de uma mensagem citada passa a surgir como uma data local normal, tanto ao responder
+como ao reencaminhar.
+```

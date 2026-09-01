@@ -25,7 +25,9 @@ private val MESSAGE = OpenedMessage(
     subject = "Quarterly report",
     from = "sender@remote.test",
     avatar = stubAvatar(),
-    date = "10 July 2026 at 13:34",
+    // What this field actually holds: `localDateTime` output, applied where the message is
+    // built. Not an engine instant, and not display prose either.
+    date = "2026-07-10 15:34",
 )
 
 private fun snapshot(
@@ -62,6 +64,20 @@ class ComposerQuoteTest {
     ): String? = ComposerQuote.seedJson(ctx(), style, MESSAGE, reading, isForward, initialText)
 
     @Test
+    fun the_already_localised_date_reaches_the_quote_intact() {
+        // `OpenedMessage.date` is localised where the message is built (MainActivityCore.kt), so
+        // the quote passes it through. Running `localDateTime` over it a second time is the
+        // failure this guards: it finds no `Z` and no `T` in `2026-07-10 15:34`, falls to
+        // `take(10)`, and the recipient gets the date with the time silently removed.
+        val json = JSONObject(seed(snapshot())!!)
+        val attribution = json.getJSONObject("attribution")
+        val line = attribution.getString("line")
+        val sent = attribution.getJSONArray("headers").getJSONObject(1).getString("value")
+        assertTrue("the time was dropped from the attribution: $line", line.contains(MESSAGE.date))
+        assertEquals(MESSAGE.date, sent)
+    }
+
+    @Test
     fun there_is_nothing_to_quote_before_the_body_has_loaded() {
         assertNull(seed(null))
     }
@@ -88,7 +104,7 @@ class ComposerQuoteTest {
         assertEquals("Original", json.getString("body_plain"))
         val line = json.getJSONObject("attribution").getString("line")
         assertTrue("attribution names the sender and date: $line", line.contains("sender@remote.test"))
-        assertTrue(line.contains("10 July 2026"))
+        assertTrue("attribution carries the localised date: $line", line.contains("2026-07-10"))
     }
 
     @Test

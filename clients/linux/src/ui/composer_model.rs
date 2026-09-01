@@ -3,7 +3,7 @@
 use mailcal_bindings::{AgentDraft, MailtoPrefill, QuoteStyleKind, ReadingSnapshot};
 use serde_json::{Value, json};
 
-use super::model::OpenedMessage;
+use super::{model::OpenedMessage, timestamps};
 use crate::l10n;
 
 /// Which shared rich-submit path a composer session uses.
@@ -128,6 +128,7 @@ pub(crate) fn quote_seed(
     style: &QuoteStyleKind,
     is_forward: bool,
     initial_text: Option<&str>,
+    zone: &str,
 ) -> Option<String> {
     if reading.key != message.key {
         return None;
@@ -138,9 +139,13 @@ pub(crate) fn quote_seed(
         return None;
     }
 
+    // The reader of this quote is the *recipient*, so the date is localised exactly as the reading
+    // header is (docs/timestamps.md). The core emits a UTC instant; sending it raw would put
+    // `2026-08-31T05:01:00Z` in their mailbox.
+    let sent = timestamps::local_date_time(&message.date, zone);
     let mut headers = vec![
         header(l10n::quote_from(), &message.from),
-        header(l10n::quote_sent(), &message.date),
+        header(l10n::quote_sent(), &sent),
     ];
     if !reading.to.is_empty() {
         headers.push(header(l10n::quote_to(), &reading.to));
@@ -153,7 +158,7 @@ pub(crate) fn quote_seed(
     let line = if is_forward {
         l10n::quote_forwarded().to_owned()
     } else {
-        l10n::quote_attribution(&message.date, &message.from)
+        l10n::quote_attribution(&sent, &message.from)
     };
     let mut payload = json!({
         "style": match style {
@@ -268,8 +273,15 @@ mod tests {
             pending: false,
         };
 
-        let json = quote_seed(&message, &reading, &QuoteStyleKind::Indented, false, None)
-            .expect("matching body produces a quote");
+        let json = quote_seed(
+            &message,
+            &reading,
+            &QuoteStyleKind::Indented,
+            false,
+            None,
+            "Europe/Amsterdam",
+        )
+        .expect("matching body produces a quote");
         let payload: Value = serde_json::from_str(&json).expect("valid JSON");
 
         assert_eq!(payload["style"], "Indented");
@@ -280,6 +292,73 @@ mod tests {
             "recipient@example.test"
         );
         assert!(payload.get("initial_text").is_none());
+    }
+
+    #[test]
+    fn the_quoted_date_is_localised_before_it_is_sent_to_anyone() {
+        // The attribution and the `Sent:` header are read by the *recipient*, so a raw UTC instant
+        // from the core is a defect in their mailbox rather than in ours.
+        let message = OpenedMessage {
+            account: "account".to_owned(),
+            key: "message".to_owned(),
+            subject: "Planning".to_owned(),
+            from: "Sender <sender@example.test>".to_owned(),
+            date: "2026-08-31T05:01:00Z".to_owned(),
+            avatar: crate::ui::avatar::AvatarData::from(&crate::ui::model::blank_avatar()),
+        };
+        let reading = ReadingSnapshot {
+            avatar: crate::ui::model::blank_avatar(),
+            key: "message".to_owned(),
+            from: "Sender <sender@example.test>".to_owned(),
+            to: "recipient@example.test".to_owned(),
+            cc: String::new(),
+            bcc: String::new(),
+            html: Some("<p>Body</p>".to_owned()),
+            plain: Some("Body".to_owned()),
+            has_remote_images: false,
+            load_error: false,
+            attachments: Vec::new(),
+            invitation: None,
+            pending: false,
+        };
+
+        let json = quote_seed(
+            &message,
+            &reading,
+            &QuoteStyleKind::Indented,
+            false,
+            None,
+            "Europe/Amsterdam",
+        )
+        .expect("matching body produces a quote");
+        let payload: Value = serde_json::from_str(&json).expect("valid JSON");
+
+        let line = payload["attribution"]["line"]
+            .as_str()
+            .expect("an attribution line");
+        let sent = payload["attribution"]["headers"][1]["value"]
+            .as_str()
+            .expect("a Sent header");
+        for value in [line, sent] {
+            assert!(
+                !value.contains('T'),
+                "raw ISO instant reached the quote: {value}"
+            );
+            assert!(
+                !value.contains('Z'),
+                "raw ISO instant reached the quote: {value}"
+            );
+        }
+        // Amsterdam is UTC+2 on 31 August, so the localised hour is the visible proof that the
+        // instant was converted rather than merely reformatted.
+        assert!(
+            line.contains("07:01"),
+            "not converted to the display zone: {line}"
+        );
+        assert!(
+            sent.contains("07:01"),
+            "not converted to the display zone: {sent}"
+        );
     }
 
     #[test]
@@ -308,8 +387,15 @@ mod tests {
             pending: false,
         };
         let seed = |text| {
-            let json = quote_seed(&message, &reading, &QuoteStyleKind::Indented, false, text)
-                .expect("matching body produces a quote");
+            let json = quote_seed(
+                &message,
+                &reading,
+                &QuoteStyleKind::Indented,
+                false,
+                text,
+                "Europe/Amsterdam",
+            )
+            .expect("matching body produces a quote");
             serde_json::from_str::<Value>(&json).expect("valid JSON")
         };
 
@@ -346,10 +432,30 @@ mod tests {
             pending: false,
         };
 
-        assert!(quote_seed(&message, &reading, &QuoteStyleKind::Indented, false, None).is_none());
+        assert!(
+            quote_seed(
+                &message,
+                &reading,
+                &QuoteStyleKind::Indented,
+                false,
+                None,
+                "Europe/Amsterdam"
+            )
+            .is_none()
+        );
         reading.key = "current".to_owned();
         reading.html = None;
-        assert!(quote_seed(&message, &reading, &QuoteStyleKind::Indented, false, None).is_none());
+        assert!(
+            quote_seed(
+                &message,
+                &reading,
+                &QuoteStyleKind::Indented,
+                false,
+                None,
+                "Europe/Amsterdam"
+            )
+            .is_none()
+        );
     }
 
     #[test]
