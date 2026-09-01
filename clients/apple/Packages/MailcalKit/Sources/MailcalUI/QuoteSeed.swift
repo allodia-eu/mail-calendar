@@ -31,6 +31,7 @@ enum ComposerQuote {
         message: OpenedMessage,
         reading: ReadingSnapshot?,
         isForward: Bool,
+        zone: String,
         initialText: String? = nil
     ) -> String? {
         guard let reading, reading.key == message.key else { return nil }
@@ -38,13 +39,17 @@ enum ComposerQuote {
         let bodyPlain = reading.plain ?? ""
         guard !(bodyHTML.isEmpty && bodyPlain.isEmpty) else { return nil }
 
+        // The reader of this quote is the *recipient*, so the date is localised exactly as the
+        // reading header is (`docs/timestamps.md`). The core emits a UTC instant; sending it raw
+        // would put `2026-08-31T05:01:00Z` in their mailbox.
+        let sent = localDateTime(message.date, in: zone)
         let line = isForward
             ? L10n.quote_forwarded()
-            : L10n.quote_attribution(date: message.date, sender: message.from)
+            : L10n.quote_attribution(date: sent, sender: message.from)
 
         var headers: [[String: String]] = [
             ["label": L10n.quote_from(), "value": message.from],
-            ["label": L10n.quote_sent(), "value": message.date],
+            ["label": L10n.quote_sent(), "value": sent],
         ]
         if !reading.to.isEmpty {
             headers.append(["label": L10n.quote_to(), "value": reading.to])

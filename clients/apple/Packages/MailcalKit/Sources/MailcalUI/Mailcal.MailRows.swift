@@ -40,6 +40,7 @@ extension ContentView {
             message: opened,
             reading: model.reading,
             isForward: isForward,
+            zone: model.activeZone,
             initialText: isForward ? nil : ShowcaseMode.replyText(account: account, key: key)
         )
         return (quote, style)

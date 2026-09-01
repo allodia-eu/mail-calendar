@@ -25,7 +25,9 @@ private val MESSAGE = OpenedMessage(
     subject = "Quarterly report",
     from = "sender@remote.test",
     avatar = stubAvatar(),
-    date = "10 July 2026 at 13:34",
+    // A UTC instant, which is what the core actually emits (docs/timestamps.md). It used to be
+    // pre-formatted display text, which passed only while nothing localised it.
+    date = "2026-07-10T13:34:00Z",
 )
 
 private fun snapshot(
@@ -59,7 +61,30 @@ class ComposerQuoteTest {
         style: QuoteStyleKind = QuoteStyleKind.INDENTED,
         isForward: Boolean = false,
         initialText: String? = null,
-    ): String? = ComposerQuote.seedJson(ctx(), style, MESSAGE, reading, isForward, initialText)
+        message: OpenedMessage = MESSAGE,
+        activeZoneId: String? = "Europe/Amsterdam",
+    ): String? = ComposerQuote.seedJson(
+        ctx(), style, message, reading, isForward, activeZoneId, true, initialText,
+    )
+
+    @Test
+    fun the_quoted_date_is_localised_before_it_is_sent_to_anyone() {
+        // The attribution and the `Sent:` header are read by the *recipient*, so a raw UTC instant
+        // from the core is a defect in their mailbox rather than in ours.
+        val utc = MESSAGE.copy(date = "2026-08-31T05:01:00Z")
+        val json = JSONObject(seed(snapshot(), message = utc)!!)
+        val attribution = json.getJSONObject("attribution")
+        val line = attribution.getString("line")
+        val sent = attribution.getJSONArray("headers").getJSONObject(1).getString("value")
+        for (value in listOf(line, sent)) {
+            assertFalse("raw ISO instant reached the quote: $value", value.contains("T"))
+            assertFalse("raw ISO instant reached the quote: $value", value.contains("Z"))
+        }
+        // Amsterdam is UTC+2 on 31 August, so the localised hour proves the instant was converted
+        // rather than merely reformatted.
+        assertTrue("not converted to the display zone: $line", line.contains("07:01"))
+        assertTrue("not converted to the display zone: $sent", sent.contains("07:01"))
+    }
 
     @Test
     fun there_is_nothing_to_quote_before_the_body_has_loaded() {
@@ -88,7 +113,7 @@ class ComposerQuoteTest {
         assertEquals("Original", json.getString("body_plain"))
         val line = json.getJSONObject("attribution").getString("line")
         assertTrue("attribution names the sender and date: $line", line.contains("sender@remote.test"))
-        assertTrue(line.contains("10 July 2026"))
+        assertTrue("attribution carries the localised date: $line", line.contains("2026-07-10"))
     }
 
     @Test
