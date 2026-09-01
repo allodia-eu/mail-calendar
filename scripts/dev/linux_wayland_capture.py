@@ -6,8 +6,8 @@ returns empty and the capture dies reporting the DISPLAY it was given, which is 
 reachable, because XWayland is running. Nothing in that message names the actual cause.
 
 **This captures the whole screen, not the client's window, and that is deliberate.** Three things
-a window capture needs are unavailable to a script here, and each one fails silently rather than
-loudly:
+a window capture needs are unavailable on a session we did not start, and each one fails silently
+rather than loudly:
 
 - Per-window pixels. The portal offers the screen; `org.gnome.Shell.Screenshot.ScreenshotWindow`
   would offer the focused window but answers `AccessDenied` to everything except the shell's own
@@ -22,6 +22,10 @@ So a crop to AT-SPI's rectangle would produce a clean, correctly-sized PNG of wh
 be stacked above the client. A full screen that obviously contains the wrong thing is the honest
 failure mode; use `MAILCAL_LINUX_HEADLESS=1` under Xvfb when the capture has to be the window
 itself, where `xwd -id` reads that window's own backing pixels whatever is in front of it.
+
+A compositor we start ourselves is a different case: `showcase.sh linux` sizes a headless sway to
+one full-bleed client, so its output *is* the window. It launches its own seeded instance, so it
+photographs that and never the client you are debugging.
 """
 
 from __future__ import annotations
