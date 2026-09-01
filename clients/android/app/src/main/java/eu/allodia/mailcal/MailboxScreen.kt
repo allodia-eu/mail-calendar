@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,7 +50,6 @@ import uniffi.mailcal_bindings.MailtoPrefill
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.RecipientSuggestion
 import uniffi.mailcal_bindings.Recipients
-import uniffi.mailcal_bindings.SearchScope
 import uniffi.mailcal_bindings.SendStatus
 import uniffi.mailcal_bindings.SearchHorizon
 import uniffi.mailcal_bindings.SnapshotRow
@@ -74,11 +72,15 @@ internal fun MailboxScreen(
     // The folder navigation drawer state, owned by the caller (FolderDrawerScaffold). The
     // hamburger icon here opens it; the scaffold handles folder selection and rendering.
     drawerState: DrawerState,
-    onSearch: (query: String?) -> Unit,
-    // The search scope filter: which folders an active search covers. The core owns the scope
-    // (and resets it when the search is cleared); this reports the toggle and the label for its
-    // "current" side, which names whatever the list was showing when search opened.
-    onSetSearchScope: (SearchScope) -> Unit,
+    // Where the list is scrolled to, owned by the caller so it outlives this composition: opening
+    // a message replaces this screen rather than covering it. Defaulted for a test or a screenshot
+    // run, which never leaves the list.
+    position: MailListPosition = remember { MailListPosition() },
+    // The search chrome (field shown, query, scope), owned by the caller for the same reason and
+    // holding the dispatch to the core. Behaviour and invariants live in SearchBar.kt.
+    search: SearchBarState,
+    // Names the "current" side of the scope filter: whatever the list was showing when search
+    // opened.
     currentScopeLabel: String,
     // How far back the active search reached, or null when the list is not a search. The core
     // decides it from the sync depths of the accounts the scope covered.
@@ -148,10 +150,6 @@ internal fun MailboxScreen(
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    // The search chrome's state (field shown, query, scope). The results themselves live in Rust,
-    // which re-projects the snapshot as this dispatches; the field is a magnifier icon until
-    // opened, so the top bar stays compact. Behaviour + invariants live in SearchBar.kt.
-    val search = remember(onSearch, onSetSearchScope) { SearchBarState(onSearch, onSetSearchScope) }
     var showingCompose by remember { mutableStateOf(false) }
     // A mail link opens the composer. Guarded on `!showingCompose` rather than opening
     // unconditionally: the dialog reads its initial values once, so re-entering here while a
@@ -276,11 +274,11 @@ internal fun MailboxScreen(
             // OAuth grant, a refused password). Not an outage, the server answered, so "Try
             // again" would never help; only a fresh sign-in does.
             SignInExpiredBanner(signInExpired, onSignInExpired, ctx)
+            val listState = position.listState
             // Infinite scroll: when the last loaded row nears view, ask the core for the next page.
             // `onShowMore` is guarded in the host (it no-ops once every row is shown); keying the
             // effect on `rows.size` re-arms it after each page so scrolling keeps loading.
-            val listState = rememberLazyListState()
-            val nearEnd by remember {
+            val nearEnd by remember(listState) {
                 derivedStateOf {
                     val info = listState.layoutInfo
                     val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
@@ -290,38 +288,26 @@ internal fun MailboxScreen(
             LaunchedEffect(nearEnd, visibleRows.size) {
                 if (nearEnd) onShowMore()
             }
-            // Incoming-mail behaviour (IMAP IDLE, a sync, a new-account download). The head-of-list
-            // key changes whenever a newer message lands at the top.
-            val topRowKey = visibleRows.firstOrNull()?.let { row ->
-                when (row) {
-                    is SnapshotRow.Flat -> "m:${row.row.account}:${row.row.key}"
-                    is SnapshotRow.Thread -> "t:${row.row.account}:${row.row.threadId}"
-                }
-            }
-            // Whether the list is pinned to the very top. Recorded only when a scroll SETTLES (a
-            // user drag/fling or a programmatic scroll), never on a data change. That matters
-            // because prepending a row re-anchors LazyColumn to keep the old top item in view,
-            // bumping firstVisibleItemIndex to 1; reading the position after that would wrongly
-            // conclude the user had scrolled away. Starts true so a cold start lands at the top.
-            var pinnedToTop by remember { mutableStateOf(true) }
+            // Where a settled scroll left the list. Reported on every settle rather than read on
+            // demand, and on entry too, so returning from a message picks the position back up.
             LaunchedEffect(listState) {
                 snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
                     if (!scrolling) {
-                        pinnedToTop = listState.firstVisibleItemIndex == 0 &&
-                            listState.firstVisibleItemScrollOffset == 0
+                        position.scrollSettled(
+                            listState.firstVisibleItemIndex,
+                            listState.firstVisibleItemScrollOffset,
+                        )
                     }
                 }
             }
-            // When new mail arrives at the head: pull the list up if the user was already at the
-            // top, otherwise surface a tappable pill so they can jump up without losing their place.
-            var showNewMailPill by remember { mutableStateOf(false) }
+            // Incoming-mail behaviour (IMAP IDLE, a sync, a new-account download). The head-of-list
+            // key changes whenever a newer message lands at the top: pull the list up if the user
+            // was already there, otherwise raise a pill so they can jump up without losing their
+            // place. MailListPosition decides which, and it is what knows that an unchanged head
+            // means the user merely came back from reading, not that mail arrived.
+            val topRowKey = visibleRows.firstOrNull()?.let(::listKey)
             LaunchedEffect(topRowKey) {
-                if (topRowKey == null) return@LaunchedEffect
-                if (pinnedToTop) listState.animateScrollToItem(0) else showNewMailPill = true
-            }
-            // Dismiss the pill once the top is reached (via the pill itself or a manual scroll up).
-            LaunchedEffect(pinnedToTop) {
-                if (pinnedToTop) showNewMailPill = false
+                if (position.headOfList(topRowKey)) listState.animateScrollToItem(0)
             }
             // Pull down to sync, the standard gesture that replaces the old footer refresh button.
             PullToRefreshBox(
@@ -337,18 +323,7 @@ internal fun MailboxScreen(
                     // SwipeToDismissBox state, whose confirmValueChange closes over the row's
                     // key) to a specific message. Without it, rows are reused positionally and a
                     // pending swipe would Trash whatever message later lands at that index.
-                    itemsIndexed(
-                        visibleRows,
-                        key = { _, row ->
-                            // The account is part of the key: a provider key / thread id is unique
-                            // only WITHIN an account, so two accounts can collide on one in the
-                            // unified view, and reusing a slot across them would misroute a swipe.
-                            when (row) {
-                                is SnapshotRow.Flat -> "m:${row.row.account}:${row.row.key}"
-                                is SnapshotRow.Thread -> "t:${row.row.account}:${row.row.threadId}"
-                            }
-                        },
-                    ) { _, row ->
+                    itemsIndexed(visibleRows, key = { _, row -> listKey(row) }) { _, row ->
                         when (row) {
                             is SnapshotRow.Flat -> SwipeableFlatMessageRow(
                                 message = row.row,
@@ -391,11 +366,11 @@ internal fun MailboxScreen(
                 // aligned to the top-centre of the list.
                 Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)) {
                     NewMailPill(
-                        visible = showNewMailPill,
+                        visible = position.showNewMailPill,
                         label = L10n.mailbox_new_mail(ctx),
                         onClick = {
                             scope.launch { listState.animateScrollToItem(0) }
-                            showNewMailPill = false
+                            position.dismissNewMailPill()
                         },
                     )
                 }

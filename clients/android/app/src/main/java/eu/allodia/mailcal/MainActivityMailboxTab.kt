@@ -242,13 +242,16 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             onRemoveAccount = { removeAccount(it) },
                             // The folder navigation drawer state, the hamburger icon opens it.
                             drawerState = drawerState,
-                            // Live full-text search: a non-empty query shows ranked results
-                            // (the snapshot comes back as flat rows), `null` clears it and
-                            // returns to the folder view. It's a local FTS query, no network.
-                            onSearch = { instance.dispatch(Intent.Search(it)) },
-                            // The scope filter under the search field: all mail (every account,
-                            // every folder but Trash) or just what the list was showing.
-                            onSetSearchScope = { instance.dispatch(Intent.SetSearchScope(it)) },
+                            // The list's scroll position, kept by the activity: opening a message
+                            // swaps this whole screen out, so the row the user left has to be
+                            // remembered somewhere that outlives it.
+                            position = mailbox.list,
+                            // Live full-text search: a non-empty query shows ranked results (the
+                            // snapshot comes back as flat rows), clearing it returns to the folder
+                            // view. It's a local FTS query, no network. Kept by the activity for
+                            // the same reason as the position above, and because the core holds
+                            // its query just as long.
+                            search = mailbox.search,
                             searchHorizon = searchHorizon,
                             currentScopeLabel = currentScopeLabel(
                                 ctx = this@MailboxTabContent,

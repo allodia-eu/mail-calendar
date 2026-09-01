@@ -93,6 +93,14 @@ class MainActivity : AppCompatActivity() {
     // the Rust core; null until the first settings pull after construction.
     internal var timeZone by mutableStateOf<TimeZoneSnapshot?>(null)
 
+    // The mailbox screen's scroll position and search chrome, held here because the reading view,
+    // Settings and the other tabs REPLACE that screen rather than covering it (MailboxUiState.kt).
+    // Dispatching through `app` rather than a captured instance, being built before it connects.
+    internal val mailbox = MailboxUiState(
+        onSearch = { query -> app?.dispatch(Intent.Search(query)) },
+        onSetSearchScope = { scope -> app?.dispatch(Intent.SetSearchScope(scope)) },
+    )
+
     // The reading view: the message the user opened (its header, for the screen) and the
     // body snapshot the core fetched + sanitised. Both null when the list is showing.
     internal var openedMessage by mutableStateOf<OpenedMessage?>(null)
