@@ -646,6 +646,19 @@ linux_compositor_socket() { # <linux_wayland_sockets output from before the comp
 #
 # Debug, not release: the whole of clients/linux/src/showcase.rs is `#![cfg(debug_assertions)]`.
 #
+# The capture in flight, for `linux_cleanup`. Between starting the compositor and killing it every
+# way out is a `die` or an interrupt, and without this each one leaves a headless sway and its
+# client running until the machine is rebooted. `INT`/`TERM` as well as `EXIT`, because Ctrl-C is
+# how a long set actually gets abandoned.
+LINUX_COMPOSITOR_PID=""
+LINUX_COMPOSITOR_CONFIG=""
+
+linux_cleanup() {
+  [[ -n "$LINUX_COMPOSITOR_PID" ]] && kill -KILL "$LINUX_COMPOSITOR_PID" 2>/dev/null
+  [[ -n "$LINUX_COMPOSITOR_CONFIG" ]] && rm -f "$LINUX_COMPOSITOR_CONFIG"
+  return 0
+}
+
 # Captured on a headless compositor, never on the developer's session: sway tiles one client
 # full-bleed with no border, so the output *is* the window, and grim reads it over wlr-screencopy
 # with no portal permission and no focus. The app runs on the Wayland backend with the GL renderer,
@@ -670,6 +683,7 @@ linux_capture() { # <locale> <screen> <out>
   # `exec` in the config rather than an argument: sway takes no client on its command line, and a
   # child it starts itself inherits the showcase environment set on sway.
   config="$(mktemp)"
+  LINUX_COMPOSITOR_CONFIG="$config"
   cat >"$config" <<CONFIG
 output HEADLESS-1 resolution ${LINUX_OUTPUT% *} scale ${LINUX_OUTPUT##* }
 default_border none
@@ -684,6 +698,7 @@ CONFIG
     WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 \
     sway --unsupported-gpu -c "$config" >/dev/null 2>&1 &
   compositor_pid=$!
+  LINUX_COMPOSITOR_PID="$compositor_pid"
   # Detach it, so the next iteration's pkill doesn't print a "Terminated" job notice over the log.
   disown
   sock="$(linux_compositor_socket "$before")" ||
@@ -694,6 +709,8 @@ CONFIG
     die "grim could not capture the compositor's output on $sock"
   kill -KILL "$compositor_pid" 2>/dev/null || true
   rm -f "$config"
+  LINUX_COMPOSITOR_PID=""
+  LINUX_COMPOSITOR_CONFIG=""
   stop_client
 }
 
@@ -859,6 +876,7 @@ fi
 if [[ "$platform" == "linux" ]]; then
   require_cmd sway
   require_cmd grim
+  trap linux_cleanup EXIT INT TERM
 fi
 # Windows resolves its PowerShell before build_once, which shells out through it.
 if [[ "$platform" == "windows" ]]; then
