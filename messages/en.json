@@ -37,6 +37,12 @@
 	"mailbox_count_messages": "{count} messages",
 	"mailbox_count_conversations": "{count} conversations",
 	"mailbox_count_results": "{count} results",
+
+	"selection_count": "{count} selected",
+	"action_select": "Select",
+	"action_select_all": "Select all",
+	"action_clear_selection": "Clear selection",
+
 	"calendar_saving": "Saving…",
 	"calendar_saved": "Saved",
 	"calendar_save_unconfirmed": "Couldn't confirm; tap to retry",
@@ -107,6 +113,7 @@
 
 	"delete_permanently_title": "Delete permanently?",
 	"delete_permanently_message": "This message will be permanently deleted. This can't be undone.",
+	"delete_permanently_message_many": "{count} messages will be permanently deleted. This can't be undone.",
 
 	"compose_title_new": "New Message",
 	"compose_to": "To",

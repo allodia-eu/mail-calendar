@@ -128,7 +128,7 @@ pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
 pub use oauth_routes::{OAuthRoutes, oauth_routes};
-pub use protocol::{Intent, InvitationResponse, SearchScope};
+pub use protocol::{BulkAction, Intent, InvitationResponse, SearchScope, SelectedRow};
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
     AccountFolderRow, AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, FlatRow,

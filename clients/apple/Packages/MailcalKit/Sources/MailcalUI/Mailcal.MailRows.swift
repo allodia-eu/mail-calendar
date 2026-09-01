@@ -117,15 +117,21 @@ extension ContentView {
 
     @ViewBuilder
     func rowView(_ row: SnapshotRow) -> some View {
+        // Each row is handed its own click rule rather than deciding for itself: what a click
+        // means depends on the modifiers (macOS) or the mode (iPhone, iPad), and on where the row
+        // sits, so a Shift-click knows what range it is extending (`docs/list-selection.md`).
         switch row {
         case .flat(let message):
-            flatRow(message)
+            flatRow(message, click: { applySelectionClick(row) })
         case .thread(let thread):
-            threadRow(thread)
+            threadRow(thread, click: { applySelectionClick(row) })
         }
     }
 
-    private func flatRow(_ message: FlatRow) -> some View {
+    /// Whether `row` is one of the rows picked out to act on together.
+    func isSelectedRow(_ row: SnapshotRow) -> Bool { selection.contains(row) }
+
+    private func flatRow(_ message: FlatRow, click: @escaping () -> Bool) -> some View {
         HStack(spacing: 8) {
             // Alignment gutter: conversation rows put their expand/collapse chevron here
             // (Outlook-style). A flat row reserves the same width and leaves it empty, so the
@@ -165,7 +171,9 @@ extension ContentView {
         }
         .padding(.vertical, 3)
         .contentShape(Rectangle())
-        .onTapGesture { open(message) }
+        // A modified click (or a tap in selection mode) is aimed at the selection alone: opening
+        // as well would fetch and display a body for every row added to a twenty-row set.
+        .onTapGesture { if click() { open(message) } }
         // Each direction runs exactly the one action the user configured (Settings → Reading),
         // with an undo toast as the net. A swipe *rightwards* reveals the leading edge, so that
         // edge carries `swipeSettings.right`; the trailing edge carries `.left`. Mark read/unread
@@ -235,10 +243,10 @@ extension ContentView {
     /// expanded, reveals the whole thread as indented sub-rows, every message on it, received
     /// and the account owner's own Sent replies alike (the core gathers them across folders).
     @ViewBuilder
-    private func threadRow(_ thread: ThreadRow) -> some View {
+    private func threadRow(_ thread: ThreadRow, click: @escaping () -> Bool) -> some View {
         let expanded = expandedThreads.contains(threadKey(thread))
         VStack(spacing: 0) {
-            threadHeader(thread, expanded: expanded)
+            threadHeader(thread, expanded: expanded, click: click)
             if expanded {
                 ForEach(thread.messages, id: \.key) { message in
                     Divider().padding(.leading, 30)
@@ -250,7 +258,11 @@ extension ContentView {
 
     /// The thread's summary header. A collapsed thread whose open message is in the reading pane
     /// is highlighted here (expanded, the open sub-row carries the highlight instead).
-    private func threadHeader(_ thread: ThreadRow, expanded: Bool) -> some View {
+    private func threadHeader(
+        _ thread: ThreadRow,
+        expanded: Bool,
+        click: @escaping () -> Bool
+    ) -> some View {
         let active = !expanded && thread.messages.contains { isOpenMessage($0.account, $0.key) }
         // A conversation is unread if anything in it is: the header is a summary, and it may not
         // read as settled while it hides an unread reply. Its sub-rows carry their own weight.
@@ -293,7 +305,7 @@ extension ContentView {
         .padding(.vertical, 3)
         .background(active ? Color.accentColor.opacity(0.15) : Color.clear)
         .contentShape(Rectangle())
-        .onTapGesture { open(thread) }
+        .onTapGesture { if click() { open(thread) } }
         .contextMenu { threadMenu(thread) }
     }
 

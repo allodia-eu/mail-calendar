@@ -52,6 +52,13 @@ public sealed partial class MailListView : UserControl
         {
             return;
         }
+        // Never over a multi-selection. This runs on every snapshot reconcile, so a background
+        // sync arriving mid-selection would otherwise collapse the set the user is building down
+        // to the one message the reading pane happens to hold.
+        if (RowsList.SelectedItems.Count > 1)
+        {
+            return;
+        }
         MailRow? row = null;
         if (model.OpenedMessage is { } opened)
         {
@@ -172,7 +179,10 @@ public sealed partial class MailListView : UserControl
     // collapse, which opens nothing, then correctly leaves the highlight where the reader is.
     private async void OnRowClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not MailRow row || !await MayOpenMessageAsync())
+        // A Ctrl- or Shift-click is aimed at the selection, and the ListView has already applied
+        // it. Opening as well would fetch and display a body for every row added to a
+        // twenty-row selection (docs/list-selection.md).
+        if (SelectionModifierDown || e.ClickedItem is not MailRow row || !await MayOpenMessageAsync())
         {
             return;
         }

@@ -37,6 +37,12 @@
 	"mailbox_count_messages": "{count} berichten",
 	"mailbox_count_conversations": "{count} gesprekken",
 	"mailbox_count_results": "{count} resultaten",
+
+	"selection_count": "{count} geselecteerd",
+	"action_select": "Selecteren",
+	"action_select_all": "Alles selecteren",
+	"action_clear_selection": "Selectie wissen",
+
 	"calendar_saving": "Bezig met opslaan…",
 	"calendar_saved": "Opgeslagen",
 	"calendar_save_unconfirmed": "Niet bevestigd; tik om opnieuw te proberen",
@@ -107,6 +113,7 @@
 
 	"delete_permanently_title": "Definitief verwijderen?",
 	"delete_permanently_message": "Dit bericht wordt definitief verwijderd. Dit kan niet ongedaan worden gemaakt.",
+	"delete_permanently_message_many": "{count} berichten worden definitief verwijderd. Dit kan niet ongedaan worden gemaakt.",
 
 	"compose_title_new": "Nieuw bericht",
 	"compose_to": "Aan",

@@ -51,12 +51,18 @@ private val FlaggedAmber = Color(0xFFFFB300)
 
 
 // Widened from private: called from MailRowsSwipe.kt's SwipeableFlatMessageRow.
+@OptIn(ExperimentalFoundationApi::class)
 @androidx.compose.runtime.Composable
 internal fun FlatMessageRow(
     message: FlatRow,
     activeZoneId: String?,
     inJunkFolder: Boolean,
     accounts: List<AccountRow>,
+    // The list's selection mode: whether this row is picked, whether the mode is on at all (a tap
+    // then toggles rather than opens), and how to toggle it (docs/list-selection.md).
+    selected: Boolean,
+    selecting: Boolean,
+    onToggleSelect: () -> Unit,
     onOpen: (OpenedMessage) -> Unit,
     onSetRead: (account: String, key: String, read: Boolean) -> Unit,
     onSetFlagged: (account: String, key: String, flagged: Boolean) -> Unit,
@@ -97,20 +103,38 @@ internal fun FlatMessageRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .clickable {
-                onOpen(
-                    OpenedMessage(
-                        account = message.account,
-                        key = message.key,
-                        subject = message.subject,
-                        from = message.from,
-                        avatar = message.avatar,
-                        // The reading header keeps the full date; only the row shows the short one.
-                        date = localDateTime(message.date, activeZoneId, use24Hour),
-                    ),
-                )
-            }
+            // The selected row carries the theme's own selection colour rather than a tint of our
+            // own, so it reads as selected to a person and to the accessibility layer alike.
+            .background(
+                if (selected) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+            )
+            .combinedClickable(
+                // A long press enters selection mode; once in it, a tap adds or removes a row
+                // instead of opening it. A phone has no modifier keys, so this is the mode the
+                // contract gives it (docs/list-selection.md).
+                onLongClick = onToggleSelect,
+                onClick = {
+                    if (selecting) {
+                        onToggleSelect()
+                    } else {
+                        onOpen(
+                            OpenedMessage(
+                                account = message.account,
+                                key = message.key,
+                                subject = message.subject,
+                                from = message.from,
+                                avatar = message.avatar,
+                                // The reading header keeps the full date; the row shows the short one.
+                                date = localDateTime(message.date, activeZoneId, use24Hour),
+                            ),
+                        )
+                    }
+                },
+            )
             .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -336,18 +360,31 @@ private fun FlatMessageOverflow(
 internal fun ThreadConversationRow(
     thread: ThreadRow,
     activeZoneId: String?,
+    // The same selection mode the flat row takes. A conversation row stands for its whole thread,
+    // which the core expands itself (docs/list-selection.md, rule 2).
+    selected: Boolean,
+    selecting: Boolean,
+    onToggleSelect: () -> Unit,
     onOpenThread: () -> Unit,
-    onArchiveThread: () -> Unit,
 ) {
     val ctx = LocalContext.current
-    var menuOpen by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(
+                    if (selected) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                )
+                // Long press selects the conversation, as it does on a flat row. It used to open a
+                // one-item "Archive conversation" menu; the selection bar offers that action over
+                // the same rows and five more beside it, so the menu had nothing left of its own.
                 .combinedClickable(
-                    onClick = onOpenThread,
-                    onLongClick = { menuOpen = true },
+                    onClick = { if (selecting) onToggleSelect() else onOpenThread() },
+                    onLongClick = onToggleSelect,
                 )
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.Top,
@@ -403,17 +440,6 @@ internal fun ThreadConversationRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-        // Long-press → "Archive conversation" (the core archives the received side only, leaving
-        // any Sent copies in Sent).
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(L10n.thread_archive(ctx)) },
-                onClick = {
-                    menuOpen = false
-                    onArchiveThread()
-                },
-            )
         }
     }
 }

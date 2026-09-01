@@ -11,10 +11,10 @@ use mailcal_viewmodel::{QuoteStyleKind, SwipeActionKind, SwipeDirection, ViewMod
 // Named only by intra-doc links below, which rustdoc resolves against this module's scope.
 #[allow(unused_imports, reason = "named by intra-doc links on the variants")]
 use super::Surface;
-use super::{ComposerBlob, SearchScope};
+use super::{BulkAction, ComposerBlob, SearchScope};
 use crate::{
     invitations_rsvp::InvitationResponse,
-    reference::{EventRef, FolderRef, MessageRef, ThreadRef},
+    reference::{EventRef, FolderRef, MessageRef, RowRef, ThreadRef},
 };
 
 /// A host intent: the single inbound channel of the unidirectional loop.
@@ -190,6 +190,26 @@ pub enum Intent {
     ArchiveThread {
         /// The conversation to archive; its account and thread id bound together.
         thread: ThreadRef,
+    },
+    /// Apply one action to **every** selected row at once: the list's multi-selection acting as
+    /// one command (`docs/list-selection.md`).
+    ///
+    /// Not a loop over the single-row intents, and that is the whole point of the variant. Each
+    /// of those re-syncs the account it touched, so fifty of them would be fifty account-wide
+    /// syncs against the user's own server; this hides every affected row in one go, applies the
+    /// writes, and syncs each account **once** at the end. A row the provider refuses comes back
+    /// on its own, leaving the rest of the batch applied.
+    ///
+    /// A conversation row stands for its whole thread. A move (archive, trash, permanent delete)
+    /// leaves a copy filed in Sent where it is, on the same rule
+    /// [`Intent::ArchiveThread`](Self::ArchiveThread) follows; marking read and flagging reach
+    /// every message on the thread, Sent copies included, since neither takes anything out of a
+    /// folder.
+    ActOnSelection {
+        /// The selected rows, in list order; they may span accounts.
+        rows: Vec<RowRef>,
+        /// What to do to them.
+        action: BulkAction,
     },
     /// Mark a message as spam; **report** it as junk to its account's provider, which files it
     /// under Junk (RFC 6154 `\Junk` role, conventional-name fallback) *and* trains its filter;
