@@ -1,6 +1,8 @@
-// The date a quoted reply carries is read by the *recipient*, so a raw UTC instant from the core
-// is a defect in their mailbox rather than in ours. Every client localises it the way the reading
-// header does (`docs/timestamps.md`).
+// `OpenedMessage.date` is already localised on this platform: both constructions in
+// `Mailcal.AutoAdvance.swift` run `localDateTime` before the message reaches a view. So the quote
+// must pass it through, and running the formatter over it a second time is the failure this
+// guards. `localDateTime` finds no `Z` and no `T` in `2026-08-31 07:01`, falls to `prefix(10)`,
+// and the recipient gets a date with the time silently removed.
 
 import Foundation
 import MailcalBindings
@@ -9,20 +11,12 @@ import Testing
 @testable import MailcalUI
 
 @Suite struct QuoteSeedDateTests {
-    private func message(date: String) -> OpenedMessage {
-        OpenedMessage(
-            account: "a0",
-            key: "m1",
-            subject: "Planning",
-            from: "Sender <sender@example.test>",
-            // Any avatar: what is under test is the date, not what it draws.
-            avatar: Avatar(
-                initials: "S",
-                light: Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB"),
-                dark: Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB"),
-                imagePath: nil
-            ),
-            date: date
+    private func avatar() -> Avatar {
+        Avatar(
+            initials: "S",
+            light: Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB"),
+            dark: Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB"),
+            imagePath: nil
         )
     }
 
@@ -30,12 +24,7 @@ import Testing
         ReadingSnapshot(
             key: "m1",
             from: "Sender <sender@example.test>",
-            avatar: Avatar(
-                initials: "S",
-                light: Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB"),
-                dark: Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB"),
-                imagePath: nil
-            ),
+            avatar: avatar(),
             to: "recipient@example.test",
             cc: "",
             bcc: "",
@@ -49,14 +38,23 @@ import Testing
         )
     }
 
-    @Test func theQuotedDateIsLocalisedBeforeItIsSentToAnyone() throws {
+    @Test func theAlreadyLocalisedDateReachesTheQuoteIntact() throws {
+        // What `openedMessage` actually holds: localDateTime output, not an engine instant.
+        let displayed = "2026-08-31 07:01"
+        let message = OpenedMessage(
+            account: "a0",
+            key: "m1",
+            subject: "Planning",
+            from: "Sender <sender@example.test>",
+            avatar: avatar(),
+            date: displayed
+        )
         let json = try #require(
             ComposerQuote.seedJSON(
                 style: .indented,
-                message: message(date: "2026-08-31T05:01:00Z"),
+                message: message,
                 reading: snapshot(),
-                isForward: false,
-                zone: "Europe/Amsterdam"
+                isForward: false
             )
         )
         let payload = try #require(
@@ -67,13 +65,7 @@ import Testing
         let headers = try #require(attribution["headers"] as? [[String: String]])
         let sent = try #require(headers[1]["value"])
 
-        for value in [line, sent] {
-            #expect(!value.contains("T"), "raw ISO instant reached the quote: \(value)")
-            #expect(!value.contains("Z"), "raw ISO instant reached the quote: \(value)")
-        }
-        // Amsterdam is UTC+2 on 31 August, so the localised hour proves the instant was converted
-        // rather than merely reformatted.
-        #expect(line.contains("07:01"), "not converted to the display zone: \(line)")
-        #expect(sent.contains("07:01"), "not converted to the display zone: \(sent)")
+        #expect(line.contains(displayed), "the time was dropped from the attribution: \(line)")
+        #expect(sent == displayed, "the time was dropped from the Sent header: \(sent)")
     }
 }

@@ -25,9 +25,9 @@ private val MESSAGE = OpenedMessage(
     subject = "Quarterly report",
     from = "sender@remote.test",
     avatar = stubAvatar(),
-    // A UTC instant, which is what the core actually emits (docs/timestamps.md). It used to be
-    // pre-formatted display text, which passed only while nothing localised it.
-    date = "2026-07-10T13:34:00Z",
+    // What this field actually holds: `localDateTime` output, applied where the message is
+    // built. Not an engine instant, and not display prose either.
+    date = "2026-07-10 15:34",
 )
 
 private fun snapshot(
@@ -61,29 +61,20 @@ class ComposerQuoteTest {
         style: QuoteStyleKind = QuoteStyleKind.INDENTED,
         isForward: Boolean = false,
         initialText: String? = null,
-        message: OpenedMessage = MESSAGE,
-        activeZoneId: String? = "Europe/Amsterdam",
-    ): String? = ComposerQuote.seedJson(
-        ctx(), style, message, reading, isForward, activeZoneId, true, initialText,
-    )
+    ): String? = ComposerQuote.seedJson(ctx(), style, MESSAGE, reading, isForward, initialText)
 
     @Test
-    fun the_quoted_date_is_localised_before_it_is_sent_to_anyone() {
-        // The attribution and the `Sent:` header are read by the *recipient*, so a raw UTC instant
-        // from the core is a defect in their mailbox rather than in ours.
-        val utc = MESSAGE.copy(date = "2026-08-31T05:01:00Z")
-        val json = JSONObject(seed(snapshot(), message = utc)!!)
+    fun the_already_localised_date_reaches_the_quote_intact() {
+        // `OpenedMessage.date` is localised where the message is built (MainActivityCore.kt), so
+        // the quote passes it through. Running `localDateTime` over it a second time is the
+        // failure this guards: it finds no `Z` and no `T` in `2026-07-10 15:34`, falls to
+        // `take(10)`, and the recipient gets the date with the time silently removed.
+        val json = JSONObject(seed(snapshot())!!)
         val attribution = json.getJSONObject("attribution")
         val line = attribution.getString("line")
         val sent = attribution.getJSONArray("headers").getJSONObject(1).getString("value")
-        for (value in listOf(line, sent)) {
-            assertFalse("raw ISO instant reached the quote: $value", value.contains("T"))
-            assertFalse("raw ISO instant reached the quote: $value", value.contains("Z"))
-        }
-        // Amsterdam is UTC+2 on 31 August, so the localised hour proves the instant was converted
-        // rather than merely reformatted.
-        assertTrue("not converted to the display zone: $line", line.contains("07:01"))
-        assertTrue("not converted to the display zone: $sent", sent.contains("07:01"))
+        assertTrue("the time was dropped from the attribution: $line", line.contains(MESSAGE.date))
+        assertEquals(MESSAGE.date, sent)
     }
 
     @Test

@@ -1,13 +1,15 @@
 # The date in a quoted reply
 
-Platforms: macos, ios, android, linux
+Platforms: linux
 Bump: patch
 
-> The attribution line and the quoted `Sent:` header were handed the core's raw UTC instant, so a
-> reply quoted the original as `2026-08-31T05:01:00Z`. Windows already formatted it; the other
-> three clients had the formatter and never called it. `docs/timestamps.md` scoped itself to the
-> mail list and the reading header, so no rule said they were wrong. It now covers the quoted
-> original too, and says why this surface matters most: it is the one timestamp a stranger reads.
+> Linux keeps the engine instant on `OpenedMessage.date` and formats at each display site, so the
+> quote was handed the raw value and a reply quoted the original as `2026-08-31T05:01:00Z`. The
+> other three clients build the message with the date already formatted and pass it through, so
+> only Linux was affected. `docs/timestamps.md` covered the mail list and the reading header but
+> not the quoted original; it now covers all three, and records that where the absolute date is
+> produced differs by platform, which is what made identical-looking code right on one and wrong
+> on another.
 
 **English**
 

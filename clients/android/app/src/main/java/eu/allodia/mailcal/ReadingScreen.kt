@@ -423,8 +423,6 @@ internal fun ReadingScreen(
             message = message,
             reading = reading,
             isForward = mode == RichComposeMode.Forward,
-            activeZoneId = activeZoneId,
-            use24Hour = LocalUse24Hour.current,
             initialText = if (mode == RichComposeMode.Forward) null else composerInitialText,
         )
         RichComposeMessageDialog(

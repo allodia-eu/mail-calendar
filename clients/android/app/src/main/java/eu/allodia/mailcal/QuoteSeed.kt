@@ -37,8 +37,6 @@ internal object ComposerQuote {
         message: OpenedMessage,
         reading: ReadingSnapshot?,
         isForward: Boolean,
-        activeZoneId: String?,
-        use24Hour: Boolean,
         initialText: String? = null,
     ): String? {
         val snapshot = reading?.takeIf { it.key == message.key } ?: return null
@@ -48,19 +46,15 @@ internal object ComposerQuote {
             return null
         }
 
-        // The reader of this quote is the *recipient*, so the date is localised exactly as the
-        // reading header is (docs/timestamps.md). The core emits a UTC instant; sending it raw
-        // would put `2026-08-31T05:01:00Z` in their mailbox.
-        val sent = localDateTime(message.date, activeZoneId, use24Hour)
         val line = if (isForward) {
             L10n.quote_forwarded(ctx)
         } else {
-            L10n.quote_attribution(ctx, sent, message.from)
+            L10n.quote_attribution(ctx, message.date, message.from)
         }
 
         val headers = JSONArray()
         headers.put(header(L10n.quote_from(ctx), message.from))
-        headers.put(header(L10n.quote_sent(ctx), sent))
+        headers.put(header(L10n.quote_sent(ctx), message.date))
         if (snapshot.to.isNotEmpty()) {
             headers.put(header(L10n.quote_to(ctx), snapshot.to))
         }
