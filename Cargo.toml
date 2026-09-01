@@ -281,7 +281,7 @@ tokio = { version = "1", default-features = false }
 # Account-config (de)serialization.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.9"
+toml = "1.0"
 thiserror = "2"
 # OAuth token-endpoint HTTP (Microsoft/Google token + refresh) and the Graph `/me` lookup that
 # names a signed-in account. `rustls-no-provider` keeps reqwest off its default TLS path; callers
