@@ -135,7 +135,10 @@ fn cid_for(
 /// media types that pass [`image_media_type`]'s restricted-name check, so the rewrite can never
 /// attach an executable document under a `cid:` an `<img>` points at. Anything else returns
 /// `None` and the image is left as it was.
-fn decode_data_image(uri: &str) -> Option<(String, Vec<u8>)> {
+///
+/// Shared with [`crate::mail_compose`], which decodes the same shape for a pasted or dropped
+/// picture the editor carried in the document rather than behind a host blob handle.
+pub(super) fn decode_data_image(uri: &str) -> Option<(String, Vec<u8>)> {
     let body = uri.strip_prefix("data:")?;
     let (media, payload) = body.split_once(";base64,")?;
     let media = image_media_type(media)?;

@@ -122,13 +122,17 @@ impl fmt::Debug for AttachmentDisposition {
     }
 }
 
-/// Attachment metadata plus the host blob handle for the bytes.
+/// Attachment metadata plus wherever its bytes are: a host blob handle, or a `data:` URI the
+/// editor captured itself.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DraftAttachment {
     /// Stable id referenced from document nodes.
     pub id: AttachmentId,
-    /// Opaque local blob handle supplied by the host.
-    pub blob: DraftBlobHandle,
+    /// Opaque local blob handle supplied by the host, or `None` when [`Self::data_url`] carries
+    /// the bytes instead. Exactly one of the two is set; a document where neither or both are
+    /// fails validation.
+    #[serde(default)]
+    pub blob: Option<DraftBlobHandle>,
     /// Suggested filename for MIME metadata.
     pub file_name: String,
     /// Media type such as `image/png` or `application/pdf`.
@@ -137,6 +141,12 @@ pub struct DraftAttachment {
     pub size: Option<u64>,
     /// Inline CID part or regular attachment.
     pub disposition: AttachmentDisposition,
+    /// A base64 `data:image/…` URI carrying the bytes for a picture the editor captured itself: a
+    /// paste, or a file a host read for the "show it in the message" answer on a drop. Nothing is
+    /// staged behind it, so there is no handle to give; the core decodes it into a `cid:` part on
+    /// submit. Only ever set on an [`AttachmentDisposition::Inline`] image.
+    #[serde(default)]
+    pub data_url: Option<String>,
 }
 
 impl fmt::Debug for DraftAttachment {
@@ -148,6 +158,8 @@ impl fmt::Debug for DraftAttachment {
             .field("media_type", &self.media_type)
             .field("size", &self.size)
             .field("disposition", &self.disposition)
+            // A picture out of the user's message: its length, never its bytes.
+            .field("data_url_len", &self.data_url.as_ref().map(String::len))
             .finish()
     }
 }
@@ -393,8 +405,9 @@ impl fmt::Debug for ComposerDocument {
 pub struct OutputAttachment {
     /// Stable attachment id.
     pub id: AttachmentId,
-    /// Opaque local blob handle.
-    pub blob: DraftBlobHandle,
+    /// Opaque local blob handle, or `None` when the document carries the bytes itself; the caller
+    /// then reads the `data:` URI off the source [`DraftAttachment`] with this id.
+    pub blob: Option<DraftBlobHandle>,
     /// Suggested filename.
     pub file_name: String,
     /// Media type.

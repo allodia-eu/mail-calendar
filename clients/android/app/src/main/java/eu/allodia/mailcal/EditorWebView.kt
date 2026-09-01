@@ -10,11 +10,14 @@
 // body, the native barrier behind the bundle's own CSP.
 package eu.allodia.mailcal
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.PopupMenu
 import java.io.ByteArrayInputStream
 
 internal fun WebView.applyEditorSecuritySettings() {
@@ -25,6 +28,34 @@ internal fun WebView.applyEditorSecuritySettings() {
     settings.allowContentAccess = false
     settings.domStorageEnabled = false
     settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+}
+
+// Long-pressing a link offers its address.
+//
+// Selected text already gets Cut/Copy/Paste from the system's own selection bar, so that half needs
+// nothing; a link gets nothing by default, and a link inside a quoted original cannot be opened by
+// tapping it either (navigation is blocked), so without this it is text the user can see and not
+// use. The same item every other client offers (docs/composer-security.md, Gate 14).
+//
+// Returning false for anything that is not a link leaves ordinary text selection alone.
+internal fun WebView.installEditorLinkMenu() {
+    setOnLongClickListener { view ->
+        val result = (view as WebView).hitTestResult
+        val url = result.extra
+        val isLink = result.type == WebView.HitTestResult.SRC_ANCHOR_TYPE ||
+            result.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE
+        if (!isLink || url.isNullOrBlank()) {
+            return@setOnLongClickListener false
+        }
+        PopupMenu(context, view).apply {
+            menu.add(L10n.action_copy_link(context)).setOnMenuItemClickListener {
+                context.getSystemService(ClipboardManager::class.java)
+                    ?.setPrimaryClip(ClipData.newPlainText(null, url))
+                true
+            }
+        }.show()
+        true
+    }
 }
 
 // The navigation + subresource gate. Subclasses add their own `onPageFinished` (the hooks each host

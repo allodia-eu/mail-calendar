@@ -50,6 +50,10 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Composer **From** account picker + app-level default send account | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer formatting: bold/italic/underline, font size, **text + highlight colour**, bullets and numbering **nested to any depth** (Tab / Shift+Tab), tables with **add/remove row + column** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer toolbar in your language: the editor chrome reads the shared catalog ([docs](docs/composer-security.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Composer **Subject** is editable in every kind: a reply and a forward open with the derived `Re:`/`Fwd:` and can be renamed before sending | ✅ | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
+| **Paste a picture into the message**: a screenshot on the clipboard lands where you are typing and is sent as an inline `cid:` part, not an attachment ([docs](docs/composer-security.md) Gate 13) | ✅ | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
+| **Drag files onto the composer**: a document is attached, and a picture asks whether to show it in the message or send it as a file ([docs](docs/composer-security.md) Gate 13) | ✅ | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
+| Composer right-click menu: cut, copy, paste, and **copy a link's address** from a quoted original, in place of the WebView's browsing menu ([docs](docs/composer-security.md) Gate 14) | — | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | Open `mailto:` links: the OS offers Allodia Mail & Calendar as a mail app, and a tapped mail link opens the composer pre-filled (To/Cc/Bcc/Subject/Body, decoded in the core; every other header a link may name is dropped; [`docs/composer-security.md`](docs/composer-security.md) Gate 12) | ✅ | ⬜ | ⬜ | ✅ | ✅ | ✅ |
 | Reply/forward quoting: original quoted below (indented / line + header, app default with previews + opt-in per-message override) | ✅ | ✅ | ✅ | 🚧 | 🚧 | ✅ |
 | Signatures: a reusable library (rich text **+ an inline logo**), a per-account signature for new messages and for replies/forwards, seeded editable into the composer, auto-swapped when From changes, overridable per message; sent as `cid:` parts ([docs](docs/signatures.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

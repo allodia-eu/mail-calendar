@@ -42,6 +42,7 @@ async fn rich_reply_re_sanitizes_a_quoted_original_before_sending() {
         to: "reply@remote.test".to_owned(),
         cc: String::new(),
         bcc: String::new(),
+        subject: None,
         document,
         blobs: Vec::new(),
     };
@@ -97,6 +98,7 @@ async fn rich_reply_reattaches_quoted_inline_images_as_cid_keeping_the_original_
         to: "reply@remote.test".to_owned(),
         cc: String::new(),
         bcc: String::new(),
+        subject: None,
         document,
         blobs: Vec::new(),
     };

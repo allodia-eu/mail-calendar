@@ -23,8 +23,9 @@ namespace Allodia.Mailcal.Views;
 
 /// <summary>A rich HTML composer for a new message, reply, reply-all, or forward, rendered in the
 /// detail column in place of the reading pane. Every kind exposes editable To/Cc/Bcc fields,
-/// reply/reply-all open with To/Cc pre-filled from the core, new/forward open empty, and only a
-/// new message edits the Subject. Every kind shares the one hardened editor host.</summary>
+/// reply/reply-all open with To/Cc pre-filled from the core, new/forward open empty, and every
+/// kind edits the Subject (a reply/forward opens with the core's derived Re:/Fwd:). Every kind
+/// shares the one hardened editor host.</summary>
 public sealed partial class ComposerView : UserControl
 {
     private readonly List<PickedComposerAttachment> _attachments = new();
@@ -110,8 +111,10 @@ public sealed partial class ComposerView : UserControl
         // path leaves them at the empty defaults. Both are set before the dirty tracking is armed
         // below, so arriving prefilled is the request's doing rather than the user's.
         BccField.Text = RecipientTokens.Seeded(request.InitialBcc);
+        // Editable whatever the composer is for. A reply and a forward open with the core's
+        // derived `Re:`/`Fwd:` already in it, and renaming a thread here is what the user means
+        // by editing it: the field's value is what gets sent.
         SubjectBox.Text = request.InitialSubject;
-        SubjectBox.Visibility = request.ShowsSubject ? Visibility.Visible : Visibility.Collapsed;
         // Cc and Bcc open collapsed, but never over a recipient the request put there. A reply-all
         // fills Cc, and a mail link may name a Bcc, and a recipient the sender cannot see is one
         // they cannot remove (docs/composer-security.md, Gate 12). Applied rather than left to the
@@ -218,16 +221,17 @@ public sealed partial class ComposerView : UserControl
     }
 
     // Route the rendered document to the submit call this request is for. A reply/forward carries
-    // the original's (account, key) so the core can derive the Re:/Fwd: subject and the threading;
-    // `from` may name a different account, and the core still resolves the original in the one that
-    // holds it, so a cross-account reply still threads.
+    // the original's (account, key) so the core can derive the threading; `from` may name a
+    // different account, and the core still resolves the original in the one that holds it, so a
+    // cross-account reply still threads. The Subject rides every call: the field is editable, so
+    // what it holds is what goes out, and the core's derivation is only what it opened with.
     private bool Submit(Recipients recipients, string documentJson, ComposerFileAttachment[] files, string? from) =>
         _request! switch
         {
             { Kind: RichComposeKind.Forward, Account: { } account, Key: { } key } =>
-                _model!.SubmitRichForward(account, key, recipients, documentJson, files, from),
+                _model!.SubmitRichForward(account, key, recipients, SubjectBox.Text, documentJson, files, from),
             { Kind: RichComposeKind.Reply or RichComposeKind.ReplyAll, Account: { } account, Key: { } key } =>
-                _model!.SubmitRichReply(account, key, recipients, documentJson, files, from),
+                _model!.SubmitRichReply(account, key, recipients, SubjectBox.Text, documentJson, files, from),
             _ => _model!.SubmitRich(recipients, SubjectBox.Text, documentJson, files, from),
         };
 

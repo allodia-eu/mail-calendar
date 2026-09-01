@@ -186,6 +186,10 @@ pub enum Intent {
         /// The `Bcc` recipients: a comma-separated address list (may be empty); delivered
         /// but hidden from the other recipients.
         bcc: String,
+        /// The subject the user left in the composer's Subject field. `None` derives the
+        /// `Re:` subject from the original: the answer for a caller with no subject field
+        /// to read (the MCP surface), never a way to overrule one the user edited.
+        subject: Option<String>,
         /// The shared composer document.
         document: ComposerDocument,
         /// Host-resolved bytes for every attachment handle referenced by `document`.
@@ -211,6 +215,9 @@ pub enum Intent {
         /// The `Bcc` recipients: a comma-separated address list (may be empty); delivered
         /// but hidden from the other recipients.
         bcc: String,
+        /// The subject the user left in the composer's Subject field. `None` derives the
+        /// `Fwd:` subject from the original, as on a reply.
+        subject: Option<String>,
         /// The shared composer document.
         document: ComposerDocument,
         /// Host-resolved bytes for every attachment handle referenced by `document`.

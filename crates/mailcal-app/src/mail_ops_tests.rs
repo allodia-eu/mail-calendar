@@ -425,25 +425,32 @@ fn rich_document(
         attachments: vec![
             ComposerAttachment {
                 id: inline_id,
-                blob: inline_blob,
+                blob: Some(inline_blob),
                 file_name: "chart.png".to_owned(),
                 media_type: "image/png".to_owned(),
                 size: Some(3),
                 disposition: AttachmentDisposition::Inline {
                     cid: mailcal_composer::ContentId::new("chart@test.local").unwrap(),
                 },
+                data_url: None,
             },
             ComposerAttachment {
                 id: file_id,
-                blob: file_blob,
+                blob: Some(file_blob),
                 file_name: "report.pdf".to_owned(),
                 media_type: "application/pdf".to_owned(),
                 size: Some(4),
                 disposition: AttachmentDisposition::Attachment,
+                data_url: None,
             },
         ],
     }
 }
+
+// The pasted-picture send test lives in its own file (each test module stays under the 500-line
+// limit), as a child module reusing this module's `submit_app`/`dispatch_until` fixtures.
+#[path = "mail_ops_paste_tests.rs"]
+mod paste;
 
 // Rich reply/forward send tests live in their own file (each test module stays under the
 // 500-line limit), as a child module they reuse this module's `rich_document` and

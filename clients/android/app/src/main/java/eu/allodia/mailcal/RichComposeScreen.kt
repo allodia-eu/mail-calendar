@@ -8,11 +8,7 @@
 // button routes to onDismissRequest, full-screen chrome without restructuring navigation.
 package eu.allodia.mailcal
 
-import android.os.Handler
-import android.os.Looper
 import android.webkit.WebView
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +48,6 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import java.io.File
-import kotlin.concurrent.thread
 import org.json.JSONObject
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.ComposerFileAttachment
@@ -144,25 +139,13 @@ internal fun RichComposeMessageDialog(
     var scrollY by remember { mutableIntStateOf(0) }
     var headerHeightPx by remember { mutableIntStateOf(0) }
     var attachments by remember { mutableStateOf<List<PickedComposerFile>>(emptyList()) }
-    val pickAttachments = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris ->
-        if (uris.isEmpty()) {
-            return@rememberLauncherForActivityResult
-        }
-        // Copy each picked file (content resolver → app cache) off the main thread; a large
-        // selection would otherwise block the UI. Apply the result back on the main thread.
-        thread(name = "mailcal-stage-attachments") {
-            val staged = uris.mapNotNull { uri -> stageComposerFile(ctx, uri) }
-            Handler(Looper.getMainLooper()).post {
-                if (staged.isEmpty()) {
-                    prepareError = true
-                } else {
-                    attachments = attachments + staged
-                }
-            }
-        }
-    }
+    // Pictures dropped on the composer, waiting on the one question they raise. Held rather than
+    // acted on, because the answer decides whether they become body content or attachments.
+    var droppedPictures by remember { mutableStateOf<List<PickedComposerFile>>(emptyList()) }
+    val pickAttachments = rememberAttachmentPicker(
+        onStaged = { attachments = attachments + it },
+        onFailed = { prepareError = true },
+    )
     // The per-message style override of the persisted default, re-styles the quoted original in
     // place without disturbing the user's typed message.
     var style by remember { mutableStateOf(quoteStyle) }
@@ -350,7 +333,17 @@ internal fun RichComposeMessageDialog(
                         webView?.setComposerSignature(signature)
                     }
                 }
-                Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        // A dropped file is resolved natively: web code sees a `File` with no path,
+                        // so only the host can stage it for Rust and list it for removal.
+                        .composerDropTarget { dropped ->
+                            attachments = attachments + dropped.attach
+                            droppedPictures = dropped.pictures
+                        },
+                ) {
                     // The WebView fills the surface and owns the scroll (its toolbar pins above the
                     // keyboard via position:fixed in editor.html). It reports its scroll offset so
                     // the header overlay above can track it.
@@ -415,7 +408,7 @@ internal fun RichComposeMessageDialog(
                             onBcc = { bcc = it },
                             subject = subject,
                             onSubject = { subject = it },
-                            showsSubject = mode.showsSubject,
+
                             showCcBcc = showCcBcc,
                             onToggleCcBcc = { showCcBcc = !showCcBcc },
                             style = style.takeIf {
@@ -450,6 +443,16 @@ internal fun RichComposeMessageDialog(
                     // Inside the composer's own Dialog, so its window is created after this one and
                     // stacks above it, and so back reaches the confirmation (keep editing) rather
                     // than the composer underneath.
+                    // The dropped-picture question. Drawn inside the composer's own Dialog for the
+                    // same reason the discard prompt is: its window then stacks above, and back
+                    // reaches the question rather than the composer under it.
+                    ComposerDroppedPictureQuestion(
+                        pictures = droppedPictures,
+                        webView = webView,
+                        onAttach = { attachments = attachments + it },
+                        onUnreadable = { prepareError = true },
+                        onAnswered = { droppedPictures = emptyList() },
+                    )
                     if (confirmingDiscard) {
                         DiscardDraftDialog(
                             onDiscard = {

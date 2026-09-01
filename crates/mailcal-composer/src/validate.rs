@@ -27,6 +27,23 @@ pub enum ComposerError {
         /// Field name.
         field: &'static str,
     },
+    /// An attachment supplies no bytes: neither a host blob handle nor a `data:` URI.
+    AttachmentWithoutBytes {
+        /// Attachment id.
+        id: AttachmentId,
+    },
+    /// An attachment supplies bytes twice: a host blob handle *and* a `data:` URI.
+    AttachmentWithTwoSources {
+        /// Attachment id.
+        id: AttachmentId,
+    },
+    /// A `data:` attachment is not an inline `data:image/…`, the only shape the editor may carry
+    /// bytes for. A regular file attachment is staged by the host and referenced by handle, and a
+    /// `data:` URI of any other media type would attach a document behind an `<img>`.
+    UnsupportedInlineData {
+        /// Attachment id.
+        id: AttachmentId,
+    },
     /// Inline image points at an unknown attachment id.
     MissingInlineAttachment {
         /// Missing attachment id.
@@ -75,6 +92,19 @@ impl fmt::Display for ComposerError {
             Self::BlankAttachmentField { id, field } => {
                 write!(f, "attachment {} has a blank {field}", id.as_str())
             }
+            Self::AttachmentWithoutBytes { id } => {
+                write!(f, "attachment {} carries no bytes", id.as_str())
+            }
+            Self::AttachmentWithTwoSources { id } => write!(
+                f,
+                "attachment {} carries both a blob handle and inline data",
+                id.as_str()
+            ),
+            Self::UnsupportedInlineData { id } => write!(
+                f,
+                "attachment {} carries inline data that is not an inline image",
+                id.as_str()
+            ),
             Self::MissingInlineAttachment { id } => {
                 write!(
                     f,
@@ -170,6 +200,7 @@ fn index_attachments(
                 field: "media_type",
             });
         }
+        check_attachment_bytes(attachment)?;
         if indexed.insert(&attachment.id, attachment).is_some() {
             return Err(ComposerError::DuplicateAttachmentId {
                 id: attachment.id.clone(),
@@ -177,6 +208,38 @@ fn index_attachments(
         }
     }
     Ok(indexed)
+}
+
+/// Every attachment names its bytes exactly once, and the in-document form is narrow.
+///
+/// A host-staged file arrives as a blob handle; a picture the editor captured (a paste, or the
+/// "show it in the message" answer on a drop) arrives as a `data:` URI, because there is no staged
+/// file to hand a handle for. Carrying both would leave the core choosing between two sets of
+/// bytes for one part, and carrying neither would send an empty attachment.
+///
+/// The in-document form is restricted to an inline `data:image/…` so a document can never smuggle
+/// arbitrary bytes past the host: a regular file attachment is always staged natively, and only an
+/// image may be decoded into the `cid:` part an `<img>` points at.
+fn check_attachment_bytes(attachment: &DraftAttachment) -> ComposerResult<()> {
+    match (&attachment.blob, &attachment.data_url) {
+        (Some(_), None) => Ok(()),
+        (None, None) => Err(ComposerError::AttachmentWithoutBytes {
+            id: attachment.id.clone(),
+        }),
+        (Some(_), Some(_)) => Err(ComposerError::AttachmentWithTwoSources {
+            id: attachment.id.clone(),
+        }),
+        (None, Some(data_url)) => {
+            let inline = matches!(attachment.disposition, AttachmentDisposition::Inline { .. });
+            if inline && data_url.starts_with("data:image/") {
+                Ok(())
+            } else {
+                Err(ComposerError::UnsupportedInlineData {
+                    id: attachment.id.clone(),
+                })
+            }
+        }
+    }
 }
 
 // Recurse through nested sub-lists so an inline image (CID reference) buried in a

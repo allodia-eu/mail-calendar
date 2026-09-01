@@ -40,8 +40,8 @@ public sealed partial class MailboxModel
 
     /// <summary>
     /// Validate and queue a rich reply (or reply-all) to a message (by owning account + key)
-    /// with the user-confirmed <paramref name="recipients"/>; the app derives the
-    /// <c>Re:</c> subject and threading from the original. Only the error category is surfaced
+    /// with the user-confirmed <paramref name="recipients"/> and <paramref name="subject"/>; the
+    /// app derives the threading from the original. Only the error category is surfaced
     /// for diagnostics, the body is never logged.
     /// <paramref name="from"/> is the sending account (the composer's From dropdown), which may
     /// differ from <paramref name="account"/>: the core still resolves the original, and its
@@ -53,6 +53,7 @@ public sealed partial class MailboxModel
         string account,
         string key,
         Recipients recipients,
+        string subject,
         string documentJson,
         ComposerFileAttachment[] files,
         string? from)
@@ -63,7 +64,7 @@ public sealed partial class MailboxModel
         }
         try
         {
-            _app.SubmitRichReplyWithFiles(account, key, recipients, documentJson, files, from);
+            _app.SubmitRichReplyWithFiles(account, key, recipients, documentJson, files, from, subject);
             return true;
         }
         catch (Exception ex)
@@ -75,7 +76,7 @@ public sealed partial class MailboxModel
 
     /// <summary>
     /// Validate and queue a rich forward of a message (by owning account + key) to the entered
-    /// <paramref name="recipients"/>, with a <c>Fwd:</c> subject. Only the error category is
+    /// <paramref name="recipients"/> under <paramref name="subject"/>. Only the error category is
     /// surfaced for diagnostics, the body is never logged. <paramref name="from"/> is the sending
     /// account (the composer's From dropdown); <c>null</c> forwards from the original's account.
     /// </summary>
@@ -83,6 +84,7 @@ public sealed partial class MailboxModel
         string account,
         string key,
         Recipients recipients,
+        string subject,
         string documentJson,
         ComposerFileAttachment[] files,
         string? from)
@@ -93,7 +95,7 @@ public sealed partial class MailboxModel
         }
         try
         {
-            _app.SubmitRichForwardWithFiles(account, key, recipients, documentJson, files, from);
+            _app.SubmitRichForwardWithFiles(account, key, recipients, documentJson, files, from, subject);
             return true;
         }
         catch (Exception ex)

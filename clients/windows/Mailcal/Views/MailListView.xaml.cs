@@ -234,7 +234,7 @@ public sealed partial class MailListView : UserControl
         {
             return;
         }
-        App.Shell?.ComposeReply(row.Account, row.Key, replyAll);
+        App.Shell?.ComposeReply(row.Account, row.Key, replyAll, row.RawSubject);
     }
 
     private async void OnForward(object sender, RoutedEventArgs e)
@@ -243,7 +243,7 @@ public sealed partial class MailListView : UserControl
         {
             return;
         }
-        App.Shell?.ComposeForward(row.Account, row.Key);
+        App.Shell?.ComposeForward(row.Account, row.Key, row.RawSubject);
     }
 
     private void OnToggleRead(object sender, RoutedEventArgs e)

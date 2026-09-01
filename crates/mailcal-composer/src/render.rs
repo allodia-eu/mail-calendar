@@ -75,8 +75,12 @@ pub fn render(document: &ComposerDocument) -> ComposerResult<ComposerOutput> {
                     inline_attachments.push(output_attachment(attachment, Some(cid.clone())));
                 }
             }
+            // A regular attachment is always a host-staged file, so validation guarantees the
+            // handle it dedups on.
             AttachmentDisposition::Attachment => {
-                if seen_attachment_blobs.insert(&attachment.blob) {
+                if let Some(blob) = &attachment.blob
+                    && seen_attachment_blobs.insert(blob)
+                {
                     attachments.push(output_attachment(attachment, None));
                 }
             }

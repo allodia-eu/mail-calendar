@@ -3,19 +3,19 @@
 use std::{
     cell::{Cell, RefCell},
     fmt::Write as _,
-    path::Path,
     rc::Rc,
     sync::Arc,
 };
 
 use adw::prelude::*;
-use gtk::{AccessibleRole, accessible::Property as AccessibleProperty, gio, glib};
+use gtk::{AccessibleRole, accessible::Property as AccessibleProperty, gio};
 use mailcal_bindings::MailcalApp;
 use serde_json::json;
 use webkit6::prelude::WebViewExt;
 
 use super::{
     AppInput,
+    composer_attach::{connect_file_picker, install_drop_target, show_in_message},
     composer_draft::{DraftGuard, HeaderValues},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
     composer_model::{
@@ -116,8 +116,10 @@ impl ComposerPane {
         }
         self.fields
             .replace(vec![Rc::clone(&to), Rc::clone(&cc), Rc::clone(&bcc)]);
+        // Editable whatever the composer is for. A reply and a forward open with the derived
+        // `Re:`/`Fwd:` already in the field, and renaming a thread there is what the user means by
+        // editing it: the core takes the field's value over its own derivation.
         let subject = entry_row(&form, 4, l10n::compose_subject(), &request.subject, false);
-        subject.set_editable(request.kind == ComposeKind::New);
         content.append(&form);
 
         // The composer's action bar; things you do *to* the message, as against the From/To/Cc
@@ -140,6 +142,14 @@ impl ComposerPane {
         content.append(&error);
 
         let web = SecureWebView::new(DocumentKind::Composer, sender.clone());
+        install_drop_target(
+            &content,
+            show_in_message(web.widget()),
+            &file_list,
+            &files,
+            window,
+            &error,
+        );
         web.widget()
             .update_property(&[AccessibleProperty::Label(l10n::compose_body())]);
         let signature = request
@@ -212,6 +222,7 @@ impl ComposerPane {
 
     pub(crate) fn show_error(&self) {
         if let Some(error) = self.error.borrow().as_ref() {
+            error.set_text(l10n::compose_prepare_error());
             error.set_visible(true);
         }
         if let Some(send) = self.send.borrow().as_ref() {
@@ -307,6 +318,9 @@ fn connect_send(
                         from: from_value,
                     })));
                 } else {
+                    // The label is shared with the dropped-picture failure, so re-state which
+                    // failure this is rather than leaving the last message standing.
+                    error.set_text(l10n::compose_prepare_error());
                     error.set_visible(true);
                     button.set_sensitive(true);
                 }
@@ -406,78 +420,6 @@ fn seed_editor(
             );
         });
     });
-}
-
-fn connect_file_picker(
-    button: &gtk::Button,
-    list: &gtk::ListBox,
-    files: &Rc<RefCell<Vec<PickedFile>>>,
-    window: &adw::ApplicationWindow,
-) {
-    let list = list.clone();
-    let files = Rc::clone(files);
-    let parent = window.clone();
-    button.connect_clicked(move |_| {
-        let dialog = gtk::FileDialog::new();
-        let list = list.clone();
-        let files = Rc::clone(&files);
-        let parent = parent.clone();
-        glib::MainContext::default().spawn_local(async move {
-            let Ok(selected) = dialog.open_multiple_future(Some(&parent)).await else {
-                return;
-            };
-            for index in 0..selected.n_items() {
-                let Some(file) = selected.item(index).and_downcast::<gio::File>() else {
-                    continue;
-                };
-                let Some(path) = file.path() else {
-                    continue;
-                };
-                let file_name = path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("attachment")
-                    .to_owned();
-                let (content_type, _) = gio::content_type_guess(Some(Path::new(&file_name)), None);
-                let media_type = gio::content_type_get_mime_type(&content_type).map_or_else(
-                    || "application/octet-stream".to_owned(),
-                    |value| value.to_string(),
-                );
-                files.borrow_mut().push(PickedFile {
-                    path: path.to_string_lossy().into_owned(),
-                    file_name,
-                    media_type,
-                });
-            }
-            render_files(&list, &files);
-        });
-    });
-}
-
-fn render_files(list: &gtk::ListBox, files: &Rc<RefCell<Vec<PickedFile>>>) {
-    while let Some(child) = list.first_child() {
-        list.remove(&child);
-    }
-    for (index, file) in files.borrow().iter().enumerate() {
-        let row = adw::ActionRow::builder()
-            .title(&file.file_name)
-            .subtitle(&file.media_type)
-            .use_markup(false)
-            .build();
-        let remove = gtk::Button::from_icon_name("user-trash-symbolic");
-        remove.set_tooltip_text(Some(l10n::action_remove()));
-        remove.update_property(&[AccessibleProperty::Label(l10n::action_remove())]);
-        let list_for_remove = list.clone();
-        let files = Rc::clone(files);
-        remove.connect_clicked(move |_| {
-            if index < files.borrow().len() {
-                files.borrow_mut().remove(index);
-                render_files(&list_for_remove, &files);
-            }
-        });
-        row.add_suffix(&remove);
-        list.append(&row);
-    }
 }
 
 fn compose_title(kind: ComposeKind) -> &'static str {

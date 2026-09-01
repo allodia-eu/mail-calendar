@@ -40,7 +40,6 @@ internal fun ComposerHeaderFields(
     onBcc: (String) -> Unit,
     subject: String,
     onSubject: (String) -> Unit,
-    showsSubject: Boolean,
     // Whether Cc/Bcc are revealed, and the toggle for the chevron on the To row.
     showCcBcc: Boolean,
     onToggleCcBcc: () -> Unit,
@@ -96,16 +95,17 @@ internal fun ComposerHeaderFields(
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
-        if (showsSubject) {
-            OutlinedTextField(
-                value = subject,
-                onValueChange = onSubject,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text(L10n.compose_subject(ctx)) },
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+        // Editable whatever the composer is for. A reply and a forward open with the core's
+        // derived `Re:`/`Fwd:` already in it, and renaming a thread here is what the user means by
+        // editing it: the field's value is what gets sent.
+        OutlinedTextField(
+            value = subject,
+            onValueChange = onSubject,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text(L10n.compose_subject(ctx)) },
+        )
+        Spacer(modifier = Modifier.height(8.dp))
         // The per-message quote-style override. Only shown when the user has opted into it in
         // Settings (the caller passes null otherwise), and only on a reply/forward that actually
         // carries a quote. Flipping it re-styles the quoted original in place; it does not change

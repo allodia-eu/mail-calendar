@@ -47,6 +47,7 @@ extension MailboxModel {
         _ account: String,
         _ key: String,
         _ recipients: Recipients,
+        _ subject: String,
         _ documentJson: String,
         _ files: [ComposerFileAttachment],
         from: String?
@@ -59,7 +60,8 @@ extension MailboxModel {
                 recipients: recipients,
                 documentJson: documentJson,
                 files: files,
-                from: from
+                from: from,
+                subject: subject
             )
             return true
         } catch {
@@ -77,6 +79,7 @@ extension MailboxModel {
         _ account: String,
         _ key: String,
         _ recipients: Recipients,
+        _ subject: String,
         _ documentJson: String,
         _ files: [ComposerFileAttachment],
         from: String?
@@ -89,6 +92,7 @@ extension MailboxModel {
                 recipients: recipients,
                 documentJson: documentJson,
                 files: files,
+                subject: subject,
                 from: from
             )
             return true

@@ -180,6 +180,9 @@ fn submit(
             submission.document_json.clone(),
             files,
             submission.from.clone(),
+            // The Subject field is editable here too, so what it holds is what goes out; the
+            // core's derived `Re:`/`Fwd:` is only the value it opened with.
+            Some(submission.subject.clone()),
         ),
         ComposeKind::Forward => app.submit_rich_forward_with_files(
             submission.request.account.clone().unwrap_or_default(),
@@ -188,6 +191,9 @@ fn submit(
             submission.document_json.clone(),
             files,
             submission.from.clone(),
+            // The Subject field is editable here too, so what it holds is what goes out; the
+            // core's derived `Re:`/`Fwd:` is only the value it opened with.
+            Some(submission.subject.clone()),
         ),
     }
 }

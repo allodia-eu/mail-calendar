@@ -21,6 +21,11 @@ public sealed class OpenedMessage
     /// <summary>The subject, with a placeholder when empty.</summary>
     public required string Subject { get; init; }
 
+    /// <summary>The subject exactly as the message carries it, for the composer's editable Subject
+    /// field: what <see cref="Subject"/> shows may be a placeholder, and sending that would put
+    /// "Re: (no subject)" on the wire.</summary>
+    public string RawSubject { get; init; } = string.Empty;
+
     /// <summary>The sender address.</summary>
     public required string From { get; init; }
 

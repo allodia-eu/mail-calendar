@@ -225,7 +225,7 @@ public struct ContentView: View {
               compose == nil, readingKey != nil, let opened = openedMessage
         else { return }
         didAutoReply = true // fire once per launch, so opening later messages doesn't re-reply
-        beginReply(opened.account, opened.key, all: false)
+        beginReply(opened.account, opened.key, subject: opened.subject, all: false)
         #endif
     }
 

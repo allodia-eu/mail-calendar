@@ -29,18 +29,16 @@ private struct RichComposerWebView: PlatformViewRepresentable {
 /// a frame shorter than its content would overflow with nothing able to reach it.
 private let minimumEditorHeight: CGFloat = 280
 
-/// What the rich composer is for. Every mode now exposes editable To/Cc/Bcc fields, a
-/// reply and reply-all open with To/Cc pre-filled from the core (`replyRecipients`), a
-/// forward and new message open empty, so the user can adjust any recipient. Only a new
-/// message edits the Subject (reply/forward derive `Re:`/`Fwd:` in the core). Every mode
-/// shares the one hardened editor host.
+/// What the rich composer is for. Every mode exposes editable To/Cc/Bcc/Subject fields; a
+/// reply and reply-all open with To/Cc pre-filled from the core (`replyRecipients`) and the
+/// Subject with the core's derived `Re:`/`Fwd:`, a forward and new message open with empty
+/// addresses, so the user can adjust anything before sending. Every mode shares the one hardened
+/// editor host.
 enum RichComposeMode {
     case new
     case reply
     case replyAll
     case forward
-
-    var showsSubject: Bool { self == .new }
 }
 
 /// Everything the composer needs to seed, swap, and override signatures, the library to list, and
@@ -114,7 +112,12 @@ struct RichComposeView: View {
     /// Whether the Cc/Bcc rows are revealed. Collapsed unless the caller pre-filled one.
     @State private var showsCcBcc: Bool
     @State private var subject: String
-    @State private var prepareError = false
+    /// Not `private`: RichComposerView.Drop.swift sets it when a dropped picture cannot be shown.
+    @State var prepareError = false
+    /// Pictures dropped on the composer, waiting on the one question they raise. Held rather than
+    /// acted on, because the answer decides whether they become body content or attachments.
+    /// Not `private`: RichComposerView.Drop.swift owns the question.
+    @State var droppedPictures: [URL] = []
     @State private var quoteStyle: QuoteStyleKind
     /// Not `private`: RichComposerView.Attachments.swift's `attachmentList` and
     /// `chooseAttachments` read and set it too.
@@ -244,6 +247,7 @@ struct RichComposeView: View {
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .composeDraftTracking(probe: probe, editor: editor, to: to, cc: cc, bcc: bcc, subject: subject, attachments: attachments.count)
+        .modifier(composerDrop)
         #else
         // iOS/iPadOS: a full-height sheet with the title + Cancel/Send in the navigation bar.
         NavigationStack {
@@ -262,9 +266,21 @@ struct RichComposeView: View {
         // Outside the navigation stack, so an open recipient list clears the editor's web view.
         // Inside it, on the scroll view, or on the field, WebKit draws over the list.
         .recipientSuggestionLayer()
+        .modifier(composerDrop)
         #endif
     }
 
+    /// A dropped file is resolved natively: web code sees a `File` with no path, so only the host
+    /// can hand the bytes to Rust and list the file for removal. The same modifier on both hosts,
+    /// so the macOS pane and the iPad cover cannot come to behave differently.
+    private var composerDrop: ComposerDropModifier {
+        ComposerDropModifier(
+            attachments: $attachments,
+            droppedPictures: $droppedPictures,
+            prepareError: $prepareError,
+            editor: editor
+        )
+    }
 
     #if !os(macOS)
     /// The touch composer, in one scroll.
@@ -329,9 +345,10 @@ struct RichComposeView: View {
             RecipientField(label: L10n.compose_cc(), text: $cc, suggestionsFor: suggestionsFor)
             RecipientField(label: L10n.compose_bcc(), text: $bcc, suggestionsFor: suggestionsFor)
         }
-        if mode.showsSubject {
-            TextField(L10n.compose_subject(), text: $subject)
-        }
+        // Editable whatever the composer is for. A reply and a forward open with the core's
+        // derived `Re:`/`Fwd:` already in it, and renaming a thread here is what the user means by
+        // editing it: the field's value is what gets sent.
+        TextField(L10n.compose_subject(), text: $subject)
         actionBar
         if showsStylePicker {
             Picker(L10n.quote_style_label(), selection: $quoteStyle) {

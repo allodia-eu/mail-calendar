@@ -49,7 +49,7 @@ extension ContentView {
                 }
                 return false
             } cancel: { compose = nil }
-        case let .reply(account, key, to, cc, quote, quoteStyle):
+        case let .reply(account, key, to, cc, subject, quote, quoteStyle):
             RichComposeView(
                 title: L10n.action_reply(),
                 mode: .reply,
@@ -57,20 +57,21 @@ extension ContentView {
                 initialFrom: model.sendAccount(preferring: account)?.id,
                 initialTo: to,
                 initialCc: cc,
+                initialSubject: subject,
                 quote: quote,
                 quoteStyle: quoteStyle,
                 quoteStylePerMessage: model.quoteSettings.perMessage,
                 probe: draftProbe,
                 suggestionsFor: recipientSuggestions,
                 signatures: composerSignatures
-            ) { recipients, _, documentJson, files, from in
-                if model.submitRichReply(account, key, recipients, documentJson, files, from: from) {
+            ) { recipients, subject, documentJson, files, from in
+                if model.submitRichReply(account, key, recipients, subject, documentJson, files, from: from) {
                     compose = nil
                     return true
                 }
                 return false
             } cancel: { compose = nil }
-        case let .replyAll(account, key, to, cc, quote, quoteStyle):
+        case let .replyAll(account, key, to, cc, subject, quote, quoteStyle):
             RichComposeView(
                 title: L10n.action_reply_all(),
                 mode: .replyAll,
@@ -78,14 +79,15 @@ extension ContentView {
                 initialFrom: model.sendAccount(preferring: account)?.id,
                 initialTo: to,
                 initialCc: cc,
+                initialSubject: subject,
                 quote: quote,
                 quoteStyle: quoteStyle,
                 quoteStylePerMessage: model.quoteSettings.perMessage,
                 probe: draftProbe,
                 suggestionsFor: recipientSuggestions,
                 signatures: composerSignatures
-            ) { recipients, _, documentJson, files, from in
-                if model.submitRichReply(account, key, recipients, documentJson, files, from: from) {
+            ) { recipients, subject, documentJson, files, from in
+                if model.submitRichReply(account, key, recipients, subject, documentJson, files, from: from) {
                     compose = nil
                     return true
                 }
@@ -114,20 +116,21 @@ extension ContentView {
                 }
                 return false
             } cancel: { compose = nil }
-        case let .forward(account, key, quote, quoteStyle):
+        case let .forward(account, key, subject, quote, quoteStyle):
             RichComposeView(
                 title: L10n.action_forward(),
                 mode: .forward,
                 accounts: model.accounts,
                 initialFrom: model.sendAccount(preferring: account)?.id,
+                initialSubject: subject,
                 quote: quote,
                 quoteStyle: quoteStyle,
                 quoteStylePerMessage: model.quoteSettings.perMessage,
                 probe: draftProbe,
                 suggestionsFor: recipientSuggestions,
                 signatures: composerSignatures
-            ) { recipients, _, documentJson, files, from in
-                if model.submitRichForward(account, key, recipients, documentJson, files, from: from) {
+            ) { recipients, subject, documentJson, files, from in
+                if model.submitRichForward(account, key, recipients, subject, documentJson, files, from: from) {
                     compose = nil
                     return true
                 }

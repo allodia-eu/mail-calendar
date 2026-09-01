@@ -297,18 +297,18 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // Reply/reply-all/forward go through the SAME shared rich composer as
                             // new mail: the user-confirmed recipients ride the submit, and the
                             // Rust core derives the Re:/Fwd: subject + threading from the original.
-                            onReply = { account, key, from, recipients, documentJson, files ->
+                            onReply = { account, key, from, recipients, subject, documentJson, files ->
                                 try {
-                                    instance.submitRichReplyWithFiles(account, key, recipients, documentJson, files, from)
+                                    instance.submitRichReplyWithFiles(account, key, recipients, documentJson, files, from, subject)
                                     true
                                 } catch (e: MailcalException) {
                                     Log.w(TAG, "rich reply submit failed: ${e.javaClass.simpleName}")
                                     false
                                 }
                             },
-                            onForward = { account, key, from, recipients, documentJson, files ->
+                            onForward = { account, key, from, recipients, subject, documentJson, files ->
                                 try {
-                                    instance.submitRichForwardWithFiles(account, key, recipients, documentJson, files, from)
+                                    instance.submitRichForwardWithFiles(account, key, recipients, documentJson, files, from, subject)
                                     true
                                 } catch (e: MailcalException) {
                                     Log.w(TAG, "rich forward submit failed: ${e.javaClass.simpleName}")
