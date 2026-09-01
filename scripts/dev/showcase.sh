@@ -21,6 +21,8 @@
 #   --serial <serial>        Android device/emulator to use (default: the target's AVD)
 #   --avd <name>             Android AVD to use (default: the target's, from devices.local.sh)
 #   --no-build               Skip the build; reuse what is already installed. Refused when that
+#   --hidpi                    Linux only: capture at 2000x1400, scale 1.5, for Flathub's
+#                              screenshot cap. The default is the store set's 1280x720.
 #                            build is older than the sources it would be photographing, or when
 #                            there is none on the target device (macOS, iPhone, iPad, Linux; see
 #                            `report_capture_target`)
@@ -355,6 +357,16 @@ OUT_DIR="$REPO_ROOT/showcase-screenshots"
 SIMULATOR=""
 SERIAL=""
 AVD=""
+# The compositor's output, as "<width>x<height> <scale>", and what it actually hands back. The
+# default is the store set's, matching every other client's captures.
+#
+# `--hidpi` is Flathub's shape: it caps a screenshot at 1000x700, or 2000x1400 for HiDPI, and
+# 1280x720 meets neither. Scale 1.5 rather than 2 because at 2 the output is 1000x700 logical, the
+# three panes need 960, and the reading pane is clipped with nothing to say so. The two sizes differ
+# because 1400 does not divide by 1.5: sway floors the logical height and returns 2000x1399. Asking
+# for 1998 instead aborts inside pixman and grim captures nothing.
+LINUX_OUTPUT="1280x720 1"
+LINUX_CAPTURED="1280x720"
 BUILD=1
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -366,6 +378,7 @@ while [[ $# -gt 0 ]]; do
     --serial) SERIAL="${2:?missing value for --serial}"; shift 2 ;;
     --avd) AVD="${2:?missing value for --avd}"; shift 2 ;;
     --no-build) BUILD=0; shift ;;
+    --hidpi) LINUX_OUTPUT="2000x1400 1.5"; LINUX_CAPTURED="2000x1399"; shift ;;
     *) die "unknown option '$1'" ;;
   esac
 done
@@ -399,6 +412,10 @@ target_size() { # <target>
   case "$1" in
     android-tablet-7) printf '1200x1920\n' ;;
     android-tablet-10) printf '1600x2560\n' ;;
+    # What the compositor actually hands back, which the run states rather than inherits, so a
+    # frame that is not this size means it did not come up the way the run assumed. It is not
+    # always what was asked for: see LINUX_OUTPUT.
+    linux) printf '%s\n' "$LINUX_CAPTURED" ;;
     # The Windows client pins 1440x900 LOGICAL, so its physical frame follows the capturing
     # monitor's scale and only a 200% display gives the size the rest of the set is in. Every scale
     # sits inside the Store's own bounds, so nothing downstream objects to a set shot at 150%; it
@@ -588,6 +605,39 @@ windows_capture() { # <locale> <screen> <out> <appearance>
 
 LINUX_BIN="$REPO_ROOT/target/debug/mailcal-linux"
 
+
+# The Wayland sockets that exist now, each as `name:inode`. The compositor names its own socket
+# (`wl_display_add_socket_auto`), so a run identifies it by taking the one that was not there
+# before: the developer's session already owns wayland-0, and a stale compositor from an
+# interrupted run can own more.
+#
+# The inode is what makes that work across a sweep. The compositor releases its number when it
+# exits and the
+# next capture is handed the *same name* back; comparing names alone then finds nothing new and the
+# second screenshot of every run fails. A reused name is still a newly created file, so it has a new
+# inode.
+linux_wayland_sockets() {
+  local runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" sock
+  for sock in "$runtime"/wayland-*; do
+    [[ -S "$sock" ]] || continue
+    printf '%s:%s ' "$(basename "$sock")" "$(stat -c '%i' "$sock" 2>/dev/null)"
+  done
+}
+
+linux_compositor_socket() { # <linux_wayland_sockets output from before the compositor started>
+  local waited=0 entry
+  while [[ "$waited" -lt 20 ]]; do
+    for entry in $(linux_wayland_sockets); do
+      case " $1 " in *" $entry "*) continue ;; esac
+      printf '%s\n' "${entry%:*}"
+      return 0
+    done
+    sleep 1
+    waited=$((waited + 1))
+  done
+  return 1
+}
+
 # GTK registers the application id on the session bus and hands a second launch off to the first,
 # which then exits without ever reading its own environment; so a flag only takes effect in a fresh
 # process, and the previous one must be gone before the next starts. An *installed* build owns the
@@ -595,19 +645,73 @@ LINUX_BIN="$REPO_ROOT/target/debug/mailcal-linux"
 # instead. `flatpak kill <app-id>` first.
 #
 # Debug, not release: the whole of clients/linux/src/showcase.rs is `#![cfg(debug_assertions)]`.
+#
+# The capture in flight, for `linux_cleanup`. Between starting the compositor and killing it every
+# way out is a `die` or an interrupt, and without this each one leaves a headless sway and its
+# client running until the machine is rebooted. `INT`/`TERM` as well as `EXIT`, because Ctrl-C is
+# how a long set actually gets abandoned.
+LINUX_COMPOSITOR_PID=""
+LINUX_COMPOSITOR_CONFIG=""
+
+linux_cleanup() {
+  [[ -n "$LINUX_COMPOSITOR_PID" ]] && kill -KILL "$LINUX_COMPOSITOR_PID" 2>/dev/null
+  [[ -n "$LINUX_COMPOSITOR_CONFIG" ]] && rm -f "$LINUX_COMPOSITOR_CONFIG"
+  return 0
+}
+
+# Captured on a headless compositor, never on the developer's session: sway tiles one client
+# full-bleed with no border, so the output *is* the window, and grim reads it over wlr-screencopy
+# with no portal permission and no focus. The app runs on the Wayland backend with the GL renderer,
+# which is what ships; Xvfb would run it on X11 through GSK's cairo fallback and redraw every
+# shadow and rounded corner in the set.
+#
+# sway rather than cage because the size has to be chosen, and cage offers no way: WLR_HEADLESS_OUTPUTS
+# sets a count, not a size, and it implements no wlr-output-management. Weston can be sized and
+# implements no wlr-screencopy, so grim cannot read it.
+#
+# `--unsupported-gpu` is required: sway refuses to start under the proprietary Nvidia driver, over a
+# GPU the headless backend never touches.
+#
+# ⚠️ SIGKILL the compositor. wlroots aborts inside `wl_display_terminate`, and each abort files an
+# apport crash report: 49 of them across a full set. Taking its client away first reaches the same
+# call. SIGKILL has no core-dump action, and grim has already read the pixels.
 linux_capture() { # <locale> <screen> <out>
-  local offset
+  local offset before sock compositor_pid config
   offset="$(client_log_size)"
   stop_client
   sleep 1
-  MAILCAL_SHOWCASE="$1" MAILCAL_SHOWCASE_SCREEN="$2" "$LINUX_BIN" >/dev/null 2>&1 &
+  # `exec` in the config rather than an argument: sway takes no client on its command line, and a
+  # child it starts itself inherits the showcase environment set on sway.
+  config="$(mktemp)"
+  LINUX_COMPOSITOR_CONFIG="$config"
+  cat >"$config" <<CONFIG
+output HEADLESS-1 resolution ${LINUX_OUTPUT% *} scale ${LINUX_OUTPUT##* }
+default_border none
+default_floating_border none
+gaps inner 0
+gaps outer 0
+exec $LINUX_BIN
+CONFIG
+  before="$(linux_wayland_sockets)"
+  MAILCAL_SHOWCASE="$1" MAILCAL_SHOWCASE_SCREEN="$2" \
+    env -u DISPLAY -u WAYLAND_DISPLAY \
+    WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 \
+    sway --unsupported-gpu -c "$config" >/dev/null 2>&1 &
+  compositor_pid=$!
+  LINUX_COMPOSITOR_PID="$compositor_pid"
   # Detach it, so the next iteration's pkill doesn't print a "Terminated" job notice over the log.
   disown
+  sock="$(linux_compositor_socket "$before")" ||
+    die "sway opened no Wayland socket: it did not start, or $LINUX_BIN exited immediately"
   sleep "$(settle_for "$2")"
   require_showcase_launch "$1" "$offset" "$2"
-  # One capture adapter per platform, shared with `screenshot.sh linux` rather than reimplemented:
-  # it owns the compositor-versus-Xvfb decision that a raw xwd gets wrong on a normal desktop.
-  "$SHOWCASE_DIR/screenshot.sh" linux "$3" >/dev/null
+  WAYLAND_DISPLAY="$sock" grim "$3" ||
+    die "grim could not capture the compositor's output on $sock"
+  kill -KILL "$compositor_pid" 2>/dev/null || true
+  rm -f "$config"
+  LINUX_COMPOSITOR_PID=""
+  LINUX_COMPOSITOR_CONFIG=""
+  stop_client
 }
 
 # ---- build + run -------------------------------------------------------------------------------
@@ -768,6 +872,11 @@ report_capture_target() {
 
 if [[ "$platform" == "macos" ]]; then
   require_cmd screencapture
+fi
+if [[ "$platform" == "linux" ]]; then
+  require_cmd sway
+  require_cmd grim
+  trap linux_cleanup EXIT INT TERM
 fi
 # Windows resolves its PowerShell before build_once, which shells out through it.
 if [[ "$platform" == "windows" ]]; then
