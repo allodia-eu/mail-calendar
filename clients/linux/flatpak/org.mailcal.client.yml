@@ -14,6 +14,15 @@
 # resolves against the manifest's own directory.
 app-id: org.mailcal.client
 
+# The branch a user installs and `flatpak update` then follows. flatpak-builder defaults to
+# `master`, which is a build-tool default rather than a name anyone chose, and it is baked into the
+# ref: renaming it later does not migrate anyone, it silently strands every existing install on a
+# branch nothing publishes to any more. So it is named here, before the first public release.
+#
+# `default-branch` rather than `branch`: the latter overrides `--default-branch` as well, and the
+# point of naming it is to leave room for `--default-branch=beta` off this same manifest.
+default-branch: stable
+
 # The GNOME runtime is what decouples the client from the host distribution: whatever a user's
 # distribution ships, the app links GTK 4.22, libadwaita 1.9 and WebKitGTK 2.52 from here. Bumping
 # this is a deliberate change; a runtime carries the WebKit that enforces the reading-view gates.
