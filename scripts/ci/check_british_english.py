@@ -188,8 +188,14 @@ def hits(path: Path):
             yield number, match.group(0), british
 
 
+# `--others --exclude-standard` alongside `--cached` is not optional: without it `git ls-files`
+# reads the index, so a file added but not yet staged is invisible and this passes on the very
+# change that introduces what it forbids. `check-public-hygiene.sh` already says so about
+# `git grep --untracked`, and AGENTS.md says it about `check-file-length.sh`; this checker had the
+# same hole and neither. Ignored paths (target/, .env) stay ignored either way.
 def tracked(root: Path):
-    listing = subprocess.run(["git", "-C", str(root), "ls-files"],
+    listing = subprocess.run(["git", "-C", str(root), "ls-files", "--cached", "--others",
+                              "--exclude-standard"],
                              capture_output=True, text=True, check=True).stdout.split()
     for name in listing:
         if any(part in name for part in EXEMPT):

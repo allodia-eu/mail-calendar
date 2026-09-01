@@ -2,7 +2,7 @@
 """Capture the screen on a Wayland session, for the Linux client's debug tooling.
 
 A Wayland client has no X window, so the X tools the X11 path uses find nothing: `xdotool search`
-returns empty and the capture dies reporting the DISPLAY it was given — which is set, and
+returns empty and the capture dies reporting the DISPLAY it was given, which is set and
 reachable, because XWayland is running. Nothing in that message names the actual cause.
 
 **This captures the whole screen, not the client's window, and that is deliberate.** Three things
@@ -11,11 +11,11 @@ loudly:
 
 - Per-window pixels. The portal offers the screen; `org.gnome.Shell.Screenshot.ScreenshotWindow`
   would offer the focused window but answers `AccessDenied` to everything except the shell's own
-  UI. `gnome-screenshot --window` is not a way around that — it is a caller of the same denied
+  UI. `gnome-screenshot --window` is not a way around that: it is a caller of the same denied
   API, and it stopped working in GNOME 49.
 - The window's position. Wayland does not tell a client where it is on screen, so AT-SPI cannot
   either: measured here, a maximised terminal and a maximised browser both report `x=0 y=0`.
-- Which window is on top. `STATE_ACTIVE` does not decide it — the same two windows both report
+- Which window is on top. `STATE_ACTIVE` does not decide it: the same two windows both report
   active at once.
 
 So a crop to AT-SPI's rectangle would produce a clean, correctly-sized PNG of whatever happened to
@@ -48,7 +48,7 @@ def portal_screenshot(bus: Any, timeout: float) -> Path:
     """Ask the desktop portal for a screen capture; returns the file it wrote.
 
     The portal hands back a *file it owns*, written under the user's Pictures directory. Taking it
-    away again is the caller's job — a capture loop that only copies leaves one behind on every
+    away again is the caller's job. A capture loop that only copies leaves one behind on every
     iteration, in a directory that belongs to the user rather than to us.
     """
     from gi.repository import Gio, GLib
@@ -85,7 +85,7 @@ def portal_screenshot(bus: Any, timeout: float) -> Path:
 
     if outcome.get("code") != 0:
         die(
-            f"the desktop portal refused the screenshot (response {outcome.get('code')}) — the "
+            f"the desktop portal refused the screenshot (response {outcome.get('code')}): the "
             "first capture on a machine raises a permission dialog that has to be approved once "
             "by hand; run it with a human present, or use MAILCAL_LINUX_HEADLESS=1 under Xvfb, "
             "which needs no portal at all"

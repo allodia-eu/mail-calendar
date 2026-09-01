@@ -357,20 +357,14 @@ OUT_DIR="$REPO_ROOT/showcase-screenshots"
 SIMULATOR=""
 SERIAL=""
 AVD=""
-# The compositor's output, as "<width>x<height> <scale>". The default is the store set's, matching
-# what every other client's captures are sized against.
+# The compositor's output, as "<width>x<height> <scale>", and what it actually hands back. The
+# default is the store set's, matching every other client's captures.
 #
-# `--hidpi` is Flathub's shape: it caps a screenshot at 1000x700, or 2000x1400 for a HiDPI one, and
-# 1280x720 meets neither.
-#
-# Asked for and captured are two numbers here, which is why both are stated. 1400 does not divide by
-# 1.5, so sway floors the logical height to 933 and the output comes back **2000x1399**. Rounding
-# the request down instead does not work: 1998 wide aborts inside pixman
-# (`rowstride_bytes % sizeof (uint32_t)) == 0 was false`) and grim captures nothing at all. **Scale 1.5, not 2**, and the reason is the layout rather than taste: at
-# scale 2 a 2000x1400 output is 1000x700 *logical*, the three-pane layout needs at least 960 wide
-# (the metainfo says so with `display_length`), and the reading pane is clipped off the right edge
-# with nothing to say it happened. 1.5 gives 1333x933 logical, which the layout fits, and still
-# renders at half again the pixel density.
+# `--hidpi` is Flathub's shape: it caps a screenshot at 1000x700, or 2000x1400 for HiDPI, and
+# 1280x720 meets neither. Scale 1.5 rather than 2 because at 2 the output is 1000x700 logical, the
+# three panes need 960, and the reading pane is clipped with nothing to say so. The two sizes differ
+# because 1400 does not divide by 1.5: sway floors the logical height and returns 2000x1399. Asking
+# for 1998 instead aborts inside pixman and grim captures nothing.
 LINUX_OUTPUT="1280x720 1"
 LINUX_CAPTURED="1280x720"
 BUILD=1
@@ -652,37 +646,22 @@ linux_compositor_socket() { # <linux_wayland_sockets output from before the comp
 #
 # Debug, not release: the whole of clients/linux/src/showcase.rs is `#![cfg(debug_assertions)]`.
 #
-# Captured on a dedicated headless compositor, never on the developer's session.
+# Captured on a headless compositor, never on the developer's session: sway tiles one client
+# full-bleed with no border, so the output *is* the window, and grim reads it over wlr-screencopy
+# with no portal permission and no focus. The app runs on the Wayland backend with the GL renderer,
+# which is what ships; Xvfb would run it on X11 through GSK's cairo fallback and redraw every
+# shadow and rounded corner in the set.
 #
-# sway runs one client, tiled full-bleed with no border and no gap, so the output *is* the window:
-# no desktop behind it, no panel, and nothing that depends on which window is on top or where the
-# compositor put it. grim reads the pixels over `wlr-screencopy`, needing no portal permission and
-# no focus, so a run is unattended and does not care whether the developer is logged into X11 or
-# Wayland.
+# sway rather than cage because the size has to be chosen, and cage offers no way: WLR_HEADLESS_OUTPUTS
+# sets a count, not a size, and it implements no wlr-output-management. Weston can be sized and
+# implements no wlr-screencopy, so grim cannot read it.
 #
-# **sway rather than cage, because the size has to be chosen.** cage takes the wlroots headless
-# default of 1280x720 and offers no way to change it: `WLR_HEADLESS_OUTPUTS` sets a count and not a
-# size, and cage implements no `wlr-output-management`, so `wlr-randr` cannot reach it either.
-# Flathub caps a screenshot at 1000x700, or 2000x1400 for a HiDPI one, so a set that cannot be
-# sized cannot meet its guidelines. sway configures the output in one line and is wlroots too, so
-# grim keeps working. Weston can be sized and is the wrong answer: it implements no
-# `wlr-screencopy`, so grim cannot read it at all.
+# `--unsupported-gpu` is required: sway refuses to start under the proprietary Nvidia driver, over a
+# GPU the headless backend never touches.
 #
-# `--unsupported-gpu` is required and is not a warning about this: sway refuses to start under the
-# proprietary Nvidia driver, and the headless backend never touches the GPU it is refusing over.
-#
-# The app runs on the **Wayland backend with the GL renderer**, which is what ships. Xvfb was the
-# obvious alternative and is the wrong one for pixels: it runs GTK on X11 through GSK's cairo
-# fallback, which redraws every shadow, gradient and rounded corner in the set.
-#
-# ⚠️ **The compositor is SIGKILLed, and that is the whole point.** wlroots aborts inside
-# `wl_display_terminate` (`Assertion 'ret >= 0 || errno == EAGAIN' failed`), and an abort files an
-# apport crash report. Taking its client away first is not enough, because it reaches the same
-# `wl_display_terminate` when its last client goes: one capture of a two-shot run still filed one.
-# A full set is seven locales by seven captures, so that is up to forty-nine crash dialogs on the
-# developer's desktop. SIGKILL has no core-dump default action, so the abort never happens and
-# nothing is reported, and nothing is lost by it: grim has already read the pixels and the
-# compositor holds no state worth winding down.
+# ⚠️ SIGKILL the compositor. wlroots aborts inside `wl_display_terminate`, and each abort files an
+# apport crash report: 49 of them across a full set. Taking its client away first reaches the same
+# call. SIGKILL has no core-dump action, and grim has already read the pixels.
 linux_capture() { # <locale> <screen> <out>
   local offset before sock compositor_pid config
   offset="$(client_log_size)"
