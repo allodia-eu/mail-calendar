@@ -74,6 +74,9 @@ import SwiftUI
             override var isFlipped: Bool { true }
         }
 
+        /// Main-actor bound, and the monitor below assumes that isolation, for the reason
+        /// `PinchCatcher.Coordinator` states.
+        @MainActor
         final class Coordinator {
             var parent: ScrollCatcher
             private weak var view: NSView?
@@ -85,8 +88,10 @@ import SwiftUI
                 self.view = view
                 monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
                     // Consumed only when it was ours; anything else travels on untouched, so the
-                    // mailbox list and the sidebar keep scrolling normally.
-                    (self?.handle(event) ?? false) ? nil : event
+                    // mailbox list and the sidebar keep scrolling normally. The verdict, not the
+                    // event, leaves the isolated region: `NSEvent` is not `Sendable`.
+                    let handled = MainActor.assumeIsolated { self?.handle(event) ?? false }
+                    return handled ? nil : event
                 }
             }
 

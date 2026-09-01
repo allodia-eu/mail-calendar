@@ -105,7 +105,7 @@ final class GoogleSignIn: NSObject, GoogleBrowserFlow, ASWebAuthenticationPresen
             let session = ASWebAuthenticationSession(
                 url: url,
                 callbackURLScheme: scheme
-            ) { callbackURL, error in
+            ) { @Sendable callbackURL, error in
                 if let callbackURL {
                     continuation.resume(returning: callbackURL.absoluteString)
                 } else {

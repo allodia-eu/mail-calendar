@@ -12,7 +12,11 @@ import MailcalBindings
 
 /// Serialized, size-rotating log file. `append` is called from arbitrary Rust runtime
 /// threads, so writes (and the rotation check) hop onto one serial queue to avoid interleaving.
-final class FileLog {
+///
+/// `@unchecked` because that queue is the synchronisation the compiler cannot see: every stored
+/// property is a `let`, and the only shared object among them, the `DateFormatter`, has been
+/// thread-safe for formatting since macOS 10.9.
+final class FileLog: @unchecked Sendable {
     static let shared = FileLog()
 
     private static let maxBytes: UInt64 = 1 << 20 // 1 MB per file

@@ -24,6 +24,10 @@ import IOKit.ps
 /// exact models to us for free. We do not even *read* one: the laptop/desktop split comes from
 /// whether the machine has an internal battery, which is the thing the class actually means.
 enum DeviceFacts {
+    /// Main-actor bound because `UIDevice.current` is: the interface idiom is UI state, and this is
+    /// the one fact here that cannot be read from anywhere. Every caller already had a main actor
+    /// to hand or can reach one before it starts work.
+    @MainActor
     static func current() -> DeviceInfo {
         DeviceInfo(
             platform: platform(),
@@ -34,6 +38,7 @@ enum DeviceFacts {
         )
     }
 
+    @MainActor
     private static func platform() -> Platform {
         #if os(iOS)
         return UIDevice.current.userInterfaceIdiom == .pad ? .ipados : .ios
@@ -42,6 +47,7 @@ enum DeviceFacts {
         #endif
     }
 
+    @MainActor
     private static func deviceClass() -> DeviceClass {
         #if os(iOS)
         switch UIDevice.current.userInterfaceIdiom {

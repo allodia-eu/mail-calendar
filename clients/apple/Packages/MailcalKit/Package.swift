@@ -25,7 +25,7 @@ let package = Package(
         .systemLibrary(name: "CResolv", path: "Sources/CResolv"),
         // The shared client: view models + SwiftUI views + the Platform* shims (this is where
         // the `#if os()` divergences live). Model and views stay in one module, they are
-        // tightly coupled through @Published state, so a Core/UI split would only add churn.
+        // tightly coupled through observable state, so a Core/UI split would only add churn.
         .target(
             name: "MailcalUI",
             dependencies: ["MailcalBindings", "CResolv"],
@@ -38,15 +38,23 @@ let package = Package(
                 // `Image("WelcomeArt", bundle: .module)`, a bare `Image("…")` inside this
                 // module would look in the *main* bundle and render blank.
                 .process("Assets.xcassets"),
-            ]
+            ],
+            // A member must come from a module this FILE imports, not one a sibling happened to
+            // import. It is the half of "swift build is not the app build" a fast loop can catch:
+            // five files here were reaching Combine through SwiftUI.
+            swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]
         ),
         // The client's own tests, on the JVM-equivalent of the Android suite: plain logic, no UI, no
         // simulator. What is tested here is what the CLIENT decides, the page↔date mapping, the
         // zoom clamps, the all-day overflow rule, the localised copy. The core's layout has its own
         // Rust tests; this is the multiplication and the arithmetic on top of it.
-        .testTarget(name: "MailcalUITests", dependencies: ["MailcalUI"]),
+        .testTarget(
+            name: "MailcalUITests",
+            dependencies: ["MailcalUI"],
+            swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]
+        ),
     ],
-    // The ported client is Swift-5 code (as it was under swiftc); compile the whole package in
-    // Swift 5 language mode so Swift 6 strict-concurrency doesn't reject it wholesale.
-    swiftLanguageModes: [.v5]
+    // Stated rather than left to the tools version's default, so a later bump cannot move it
+    // silently: this package is checked under Swift 6 strict concurrency, warnings included.
+    swiftLanguageModes: [.v6]
 )

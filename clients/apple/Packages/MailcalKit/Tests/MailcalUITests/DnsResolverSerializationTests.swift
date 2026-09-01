@@ -10,26 +10,33 @@ import Testing
 
 @testable import MailcalUI
 
+/// The two counters, deliberately non-atomic: the lock under test is the only thing that may keep
+/// them consistent. If `withQueryLock` ever stops serializing, `active` exceeds 1 (and this racy
+/// access is itself the corruption the on-device crash comes from).
+///
+/// A box rather than two local `var`s purely so a concurrently-executing closure may reach them;
+/// the reads and writes inside are exactly as unprotected as they look, which is the point.
+private final class QueryLockCounters: @unchecked Sendable {
+    var active = 0
+    var maxObserved = 0
+}
+
 struct DnsResolverSerializationTests {
     @Test func queryLockSerializesConcurrentCallers() {
         let iterations = 1_000
-        // Deliberately non-atomic: the lock is the only thing that may keep these consistent. If
-        // withQueryLock ever stops serializing, `active` exceeds 1 (and this racy access is itself
-        // the corruption the on-device crash comes from).
-        var active = 0
-        var maxObserved = 0
+        let counters = QueryLockCounters()
         let group = DispatchGroup()
         let queue = DispatchQueue(label: "dns.serialization.test", attributes: .concurrent)
         for _ in 0..<iterations {
             queue.async(group: group) {
                 SystemMxResolver.withQueryLock {
-                    active += 1
-                    maxObserved = max(maxObserved, active)
-                    active -= 1
+                    counters.active += 1
+                    counters.maxObserved = max(counters.maxObserved, counters.active)
+                    counters.active -= 1
                 }
             }
         }
         group.wait()
-        #expect(maxObserved == 1)
+        #expect(counters.maxObserved == 1)
     }
 }

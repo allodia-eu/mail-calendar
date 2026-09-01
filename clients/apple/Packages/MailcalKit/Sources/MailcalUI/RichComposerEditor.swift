@@ -18,7 +18,8 @@ private enum RichComposerError: Error {
 }
 
 @MainActor
-final class RichComposerEditor: NSObject, ObservableObject, WKNavigationDelegate {
+@Observable
+final class RichComposerEditor: NSObject, WKNavigationDelegate {
     let webView: WKWebView
     private var expectingInitialLoad = true
     /// The quoted-original seed (a `Block::Quote`-shaped JSON) to inject once the editor
@@ -231,7 +232,7 @@ final class RichComposerEditor: NSObject, ObservableObject, WKNavigationDelegate
     func webView(
         _ webView: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void
     ) {
         if expectingInitialLoad {
             expectingInitialLoad = false

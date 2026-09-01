@@ -78,6 +78,10 @@ enum PlatformPasteboard {
 /// One link in a chain of modal presentations. Abstracted from `UIViewController` for one reason:
 /// the walk below is the fix for a shipped bug, and `swift test` runs on **macOS**, an
 /// `#if os(iOS)` test of it would compile to nothing and report a pass over untested code.
+///
+/// Main-actor bound because a `UIViewController` is, and a nonisolated protocol cannot take that
+/// conformance without opening a hole the walk would sit in.
+@MainActor
 protocol PresentationChainNode: AnyObject {
     /// What this node is currently presenting, if anything.
     var nextPresented: (any PresentationChainNode)? { get }
@@ -92,6 +96,7 @@ protocol PresentationChainNode: AnyObject {
 /// Attach files from the composer (a `fullScreenCover`), the file picker again from the
 /// add-account sheet, the log share from the Diagnostics settings. Presenting from the *root*
 /// therefore does nothing at all, which is exactly how it gets reported, "tapped it, no response".
+@MainActor
 func topOfPresentationChain(from root: any PresentationChainNode) -> any PresentationChainNode {
     var host = root
     while let next = host.nextPresented, !next.isDismissingNow {
@@ -156,8 +161,20 @@ final class PlatformQuickLook: NSObject, QLPreviewControllerDataSource, QLPrevie
         url as NSURL
     }
 
-    func previewControllerDidDismiss(_ controller: QLPreviewController) {
-        Self.active = nil
+    /// `nonisolated` because `QLPreviewControllerDelegate` is, unlike the data source beside it,
+    /// not declared on the main actor.
+    ///
+    /// A hop rather than `MainActor.assumeIsolated`: all this does is drop the retain that kept the
+    /// preview alive, so it loses nothing by happening a moment later, and an assumption that the
+    /// header does not actually promise would be a crash if QuickLook ever called it elsewhere.
+    ///
+    /// Identity-checked, because the hop is not synchronous: a preview opened between the dismissal
+    /// and this landing owns `active` by then, and `QLPreviewController` holds its data source
+    /// weakly, so clearing it blindly would deallocate the preview the user is looking at.
+    nonisolated func previewControllerDidDismiss(_ controller: QLPreviewController) {
+        Task { @MainActor in
+            if Self.active === self { Self.active = nil }
+        }
     }
 }
 

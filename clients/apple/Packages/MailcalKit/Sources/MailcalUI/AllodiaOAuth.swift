@@ -97,7 +97,7 @@ final class AllodiaSignIn: NSObject, ASWebAuthenticationPresentationContextProvi
             let session = ASWebAuthenticationSession(
                 url: url,
                 callbackURLScheme: AllodiaOAuthConfig.callbackScheme
-            ) { callbackURL, error in
+            ) { @Sendable callbackURL, error in
                 if let callbackURL {
                     continuation.resume(returning: callbackURL.absoluteString)
                 } else {
@@ -134,7 +134,7 @@ final class AllodiaSignIn: NSObject, ASWebAuthenticationPresentationContextProvi
         let session = ASWebAuthenticationSession(
             url: parsed,
             callbackURLScheme: AllodiaOAuthConfig.callbackScheme
-        ) { _, _ in }
+        ) { @Sendable _, _ in }
         session.presentationContextProvider = self
         session.prefersEphemeralWebBrowserSession = false
         self.session = session

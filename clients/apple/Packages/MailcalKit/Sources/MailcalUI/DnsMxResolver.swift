@@ -9,7 +9,7 @@ import CResolv
 import Foundation
 import MailcalBindings
 
-final class SystemMxResolver: MxResolver, @unchecked Sendable {
+final class SystemMxResolver: MxResolver, Sendable {
     // Apple's BIND-compatibility resolver is NOT safe to call concurrently. `_res` is per-thread
     // on Darwin (`_res` expands to `*__res_state()`), which isolates the resolver *state struct*:
     // and that alone was mistakenly assumed to make concurrent lookups safe. It does not: res_9_query

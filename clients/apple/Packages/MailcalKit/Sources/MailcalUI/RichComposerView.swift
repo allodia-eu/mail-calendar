@@ -8,7 +8,7 @@ import SwiftUI
 import WebKit
 
 private struct RichComposerWebView: PlatformViewRepresentable {
-    @ObservedObject var editor: RichComposerEditor
+    let editor: RichComposerEditor
 
     #if os(macOS)
     func makeNSView(context: Context) -> WKWebView { editor.webView }
@@ -103,7 +103,7 @@ struct RichComposeView: View {
     private let showsStylePicker: Bool
     // Not `private`: RichComposerView.Signature.swift's signature-resolution properties read and
     // set it too.
-    @StateObject var editor: RichComposerEditor
+    @State var editor: RichComposerEditor
     @State private var from: String?
     /// The user's explicit signature choice for this message, or `nil` to follow the account.
     /// Not `private`: RichComposerView.Signature.swift reads and sets it too.
@@ -175,7 +175,7 @@ struct RichComposeView: View {
         // where the user has to begin. An assistant's draft is the exception among new messages:
         // it supplied the recipients, so the body is the place there too.
         editor.focusBodyOnLoad = Self.opensInBody(mode: mode, to: initialTo)
-        _editor = StateObject(wrappedValue: editor)
+        _editor = State(initialValue: editor)
         _from = State(initialValue: initialFrom)
         // Every address the caller pre-filled is finished, nothing here is being typed, so the
         // fields open with all of them committed, and each renders as its own pill (see
@@ -196,7 +196,10 @@ struct RichComposeView: View {
     /// Whether this composer opens with the caret in the message body rather than in To.
     ///
     /// The two are exclusive, and every client decides it the same way (docs/contacts.md §4).
-    static func opensInBody(mode: RichComposeMode, to: String) -> Bool {
+    ///
+    /// `nonisolated` because the rule is a pure function of its arguments; it inherits the main
+    /// actor from `View` otherwise, which its unit tests would then have to pretend to be.
+    nonisolated static func opensInBody(mode: RichComposeMode, to: String) -> Bool {
         mode != .new || !to.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 

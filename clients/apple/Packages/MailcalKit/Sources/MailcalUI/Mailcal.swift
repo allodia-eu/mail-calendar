@@ -13,7 +13,7 @@ public struct ContentView: View {
     @State var model = MailboxModel()
     /// The swipe currently inside its undo window, and the rows it hides. Lives on the shell (not
     /// the list) so pushing the reading view on iPhone doesn't cancel the window.
-    @StateObject var swipeUndo = SwipeUndoController()
+    @State var swipeUndo = SwipeUndoController()
     @Environment(\.scenePhase) var scenePhase
     /// What the window is actually painted in right now, the app's own choice when it has one,
     /// the host's setting when it does not. Read rather than derived, because it is the only value
@@ -24,7 +24,7 @@ public struct ContentView: View {
     /// The open draft's dirtiness, as reported by the hosted composer. macOS renders the composer in
     /// the detail column, so a click on another message can reach it, and must ask before dropping
     /// what the user has written. See Mailcal.ComposeDraft.swift.
-    @StateObject var draftProbe = ComposeDraftProbe()
+    @State var draftProbe = ComposeDraftProbe()
     /// The message-open deferred while the "Discard draft?" prompt is up, run if the user discards.
     @State var pendingOpen: (() -> Void)?
     @State var confirmingDiscard = false

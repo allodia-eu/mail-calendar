@@ -17,7 +17,7 @@ import SwiftUI
 /// the sidebar split above it, and it must name the mail one. Returning the outer split from an
 /// inner pane would point two different layouts at a single defaults key, so each destination
 /// switch would overwrite the other's divider, the shape of the bug the nesting exists to fix.
-func nearestSplitView(from view: NSView) -> NSSplitView? {
+@MainActor func nearestSplitView(from view: NSView) -> NSSplitView? {
     var ancestor = view.superview
     while let candidate = ancestor {
         if let split = candidate as? NSSplitView { return split }

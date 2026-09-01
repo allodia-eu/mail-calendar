@@ -5,6 +5,7 @@
 // every platform.
 
 import MailcalBindings
+import SwiftUI
 import XCTest
 
 @testable import MailcalUI

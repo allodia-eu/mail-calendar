@@ -98,11 +98,13 @@ enum DevNamespace {
 /// redirected this way; `SplitViewAutosave`'s name is varied per namespace instead, and scene
 /// restoration is still shared. See `docs/debugging.md`.
 enum AppPrefs {
+    // `nonisolated(unsafe)`, not a lock or an actor: `UserDefaults` does its own synchronisation
+    // and is documented thread-safe, it simply predates `Sendable` and cannot say so.
     #if DEBUG
-    static let defaults =
+    nonisolated(unsafe) static let defaults =
         UserDefaults(suiteName: DevNamespace.currentKeychainService) ?? .standard
     #else
-    static let defaults = UserDefaults.standard
+    nonisolated(unsafe) static let defaults = UserDefaults.standard
     #endif
 
     /// Suffixes an AppKit autosave name so a dev build doesn't restore (or overwrite) the

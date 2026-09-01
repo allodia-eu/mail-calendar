@@ -64,11 +64,12 @@ enum SwipeEffect: Equatable {
 /// - `commit`/`revert` act only on the swipe that still owns the undo window (see `isCurrent`);
 ///   a stale one is dropped rather than dispatched.
 @MainActor
-final class SwipeUndoController: ObservableObject {
+@Observable
+final class SwipeUndoController {
     /// The swipe currently inside its undo window, or `nil`.
-    @Published private(set) var pending: PendingSwipe?
+    private(set) var pending: PendingSwipe?
     /// Rows hidden while their swipe is pending (or briefly after it commits).
-    @Published private(set) var hiddenRowKeys: Set<String> = []
+    private(set) var hiddenRowKeys: Set<String> = []
 
     private var counter = 0
 
