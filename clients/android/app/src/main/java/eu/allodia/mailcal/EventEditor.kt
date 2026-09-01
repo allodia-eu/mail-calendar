@@ -20,7 +20,21 @@ import java.time.format.DateTimeFormatter
 import uniffi.mailcal_bindings.EventAttendee
 import uniffi.mailcal_bindings.EventDetail
 import uniffi.mailcal_bindings.EventRecurrence
+import uniffi.mailcal_bindings.RecurrenceChange
+import uniffi.mailcal_bindings.RepeatDraft
 import uniffi.mailcal_bindings.RepeatSummary
+import uniffi.mailcal_bindings.SimpleRecurrence
+
+/**
+ * What a save should send for the repeat rule, decided by the core: see `mailcal_account`'s
+ * `recurrence_change_of`. Taken as a function so [EventEditorState] stays a plain class the JVM
+ * suite can drive: nothing in `app/src/test` loads the cdylib, and a direct call would need it.
+ */
+internal typealias RepeatChangeOf = (RepeatDraft?, Boolean) -> RecurrenceChange?
+
+/** The real one. The default everywhere but a test. */
+internal val coreRepeatChangeOf: RepeatChangeOf =
+    { draft, wasRepeating -> uniffi.mailcal_bindings.repeatChangeOf(draft, wasRepeating) }
 
 /** A calendar a create can target, or the calendar an edited event sits in. */
 internal data class CalendarChoice(val account: String, val id: String, val name: String)
@@ -36,6 +50,11 @@ internal data class EditTarget(
     val recurrence: EventRecurrence?,
     /** The rule as a sentence's parts, decided by the core, see [recurrenceSummary]. */
     val repeatSummary: RepeatSummary?,
+    /**
+     * The rule as the editor's controls hold it, or `null` when the core would not open it:
+     * a rule too rich to state, or one whose controls this app does not have.
+     */
+    val seededRepeat: RepeatDraft?,
     /**
      * The occurrence this editor was opened on, as the core resolved it, or `""` when it was
      * opened on the series. Non-empty is what makes Save **ask** which occurrences it meant.
@@ -56,6 +75,8 @@ internal data class CreateArgs(
     val timezone: String?,
     val notes: String?,
     val location: String?,
+    /** The rule a new event starts with, or `null` for a one-off. */
+    val recurrence: SimpleRecurrence?,
 )
 
 /** The arguments an edit dispatches (`Intent.UpdateEvent`). */
@@ -68,6 +89,12 @@ internal data class UpdateArgs(
     val notes: String?,
     val location: String?,
     val occurrence: String?,
+    /**
+     * What happens to the repeat rule: `null` leaves the series alone, `Set` replaces the rule,
+     * `Clear` makes the event a single one. Never sent beside an `occurrence`: a rule belongs to
+     * the series, and the core refuses the pairing.
+     */
+    val recurrence: RecurrenceChange?,
 )
 
 /**
@@ -87,6 +114,8 @@ internal class EventEditorState private constructor(
     initialLocation: String,
     initialNotes: String,
     initialCalendar: CalendarChoice?,
+    initialRepeat: RepeatDraft?,
+    private val repeatChangeOf: RepeatChangeOf,
 ) {
     var title by mutableStateOf(initialTitle)
     var allDay by mutableStateOf(initialAllDay)
@@ -98,14 +127,49 @@ internal class EventEditorState private constructor(
     var notes by mutableStateOf(initialNotes)
     var calendar by mutableStateOf(initialCalendar)
 
+    /**
+     * What the repeat controls hold, or `null` for "does not repeat". Seeded from the core and
+     * passed back to it. The `stored` rule it carries is what tells a rule that changed from one
+     * that did not, and what keeps the parts no control here models.
+     */
+    var repeatDraft by mutableStateOf(initialRepeat)
+
     val isEditing: Boolean get() = editing != null
+
+    /**
+     * Whether the repeat controls are offered at all. An event that does not repeat can always be
+     * given a rule; one that already repeats can only be changed when the core handed over a
+     * draft, which it does not for a rule it could not state in full.
+     */
+    val canEditRepeat: Boolean
+        get() = editing.let { it == null || !it.isRecurring || it.seededRepeat != null }
+
+    /**
+     * What this save should send for the repeat rule, or `null` to leave the series alone.
+     *
+     * The core decides it: a repeat changed and changed back is not a change, and the parts no
+     * control here models are put back by the same call.
+     */
+    val repeatChange: RecurrenceChange?
+        get() = when {
+            !canEditRepeat -> null
+            // Nothing chosen on an event that does not repeat. There is no question to put, which
+            // is also why the JVM suite can drive every non-repeating case without the cdylib.
+            repeatDraft == null && editing?.seededRepeat == null -> null
+            else -> repeatChangeOf(repeatDraft, editing?.seededRepeat != null)
+        }
 
     /**
      * Whether saving has to ask *This event / All events* first, true exactly when this editor
      * was opened on one occurrence of a series. The same question [asksAboutTheSeries] puts for a
      * drag, about the same thing.
+     *
+     * **A changed repeat settles the question**, so it is not put: a rule belongs to the series,
+     * and one occurrence is an instance of a rule rather than a holder of one. The controls say so
+     * before the user touches them.
      */
-    val asksAboutTheSeries: Boolean get() = editing?.occurrence?.isNotEmpty() == true
+    val asksAboutTheSeries: Boolean
+        get() = editing?.occurrence?.isNotEmpty() == true && repeatChange == null
 
     // All-day and the calendar are set at create and are display-only on edit: the engine's patcher
     // refuses a form change (all-day↔timed) or a calendar move. So the toggle and the picker are
@@ -135,6 +199,7 @@ internal class EventEditorState private constructor(
                 timezone = null,
                 notes = notes.ifBlank { null },
                 location = location.ifBlank { null },
+                recurrence = newRule(),
             )
         } else {
             CreateArgs(
@@ -148,8 +213,15 @@ internal class EventEditorState private constructor(
                 timezone = zone.ifBlank { null },
                 notes = notes.ifBlank { null },
                 location = location.ifBlank { null },
+                recurrence = newRule(),
             )
         }
+
+    /**
+     * The rule a create sends: whatever the controls hold, as a plain rule rather than one of the
+     * three answers an edit gives.
+     */
+    private fun newRule(): SimpleRecurrence? = (repeatChange as? RecurrenceChange.Set)?.rule
 
     /** The update-intent arguments for the current fields. Only valid while [isEditing]. */
     /**
@@ -180,6 +252,9 @@ internal class EventEditorState private constructor(
             notes = notes,
             location = location,
             occurrence = target.occurrence.takeIf { thisOccurrenceOnly && it.isNotEmpty() },
+            // A rule belongs to the series, so it never travels with an occurrence. The screen
+            // does not offer that combination, and this is the second place it cannot happen.
+            recurrence = if (thisOccurrenceOnly) null else repeatChange,
         )
     }
 
@@ -203,6 +278,7 @@ internal class EventEditorState private constructor(
             now: LocalDateTime,
             minutes: Int = 60,
             exact: Boolean = false,
+            repeatChangeOf: RepeatChangeOf = coreRepeatChangeOf,
         ): EventEditorState {
             val start = if (exact) now else now.plusHours(1).withMinute(0).withSecond(0).withNano(0)
             return EventEditorState(
@@ -215,11 +291,17 @@ internal class EventEditorState private constructor(
                 initialLocation = "",
                 initialNotes = "",
                 initialCalendar = default,
+                initialRepeat = null,
+                repeatChangeOf = repeatChangeOf,
             )
         }
 
         /** An editor prefilled from a stored event's detail. */
-        fun edit(detail: EventDetail, calendarName: String): EventEditorState {
+        fun edit(
+            detail: EventDetail,
+            calendarName: String,
+            repeatChangeOf: RepeatChangeOf = coreRepeatChangeOf,
+        ): EventEditorState {
             val start = parseWall(detail.start)
             // The detail's all-day end is exclusive; show the inclusive last day.
             val end = if (detail.allDay) parseWall(detail.end).minusDays(1) else parseWall(detail.end)
@@ -232,6 +314,7 @@ internal class EventEditorState private constructor(
                     reminderMinutes = detail.reminderMinutes,
                     recurrence = detail.recurrence,
                     repeatSummary = detail.repeatSummary,
+                    seededRepeat = detail.repeatDraft,
                     occurrence = detail.occurrenceStart,
                     attendees = detail.attendees,
                 ),
@@ -243,6 +326,8 @@ internal class EventEditorState private constructor(
                 initialLocation = detail.location ?: "",
                 initialNotes = detail.notes ?: "",
                 initialCalendar = CalendarChoice(detail.account, detail.calendar, calendarName),
+                initialRepeat = detail.repeatDraft,
+                repeatChangeOf = repeatChangeOf,
             )
         }
     }

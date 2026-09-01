@@ -30,6 +30,9 @@ struct EditTarget {
     let recurrence: EventRecurrence?
     /// The rule as a sentence's parts, decided by the core, see `recurrenceText`.
     let repeatSummary: RepeatSummary?
+    /// The rule as the editor's controls hold it, or `nil` when the core would not open it:
+    /// a rule too rich to state, or one whose controls this app does not have.
+    let seededRepeat: RepeatDraft?
     /// The occurrence this editor was opened on, as the core resolved it, or empty when it was
     /// opened on the series. Non-empty is what makes Save **ask** which occurrences it meant.
     let occurrence: String
@@ -49,6 +52,8 @@ struct CreateArgs: Equatable {
     let timezone: String?
     let notes: String?
     let location: String?
+    /// The rule a new event starts with, or `nil` for a one-off.
+    let recurrence: SimpleRecurrence?
 }
 
 /// The arguments an edit dispatches.
@@ -61,6 +66,10 @@ struct UpdateArgs: Equatable {
     let notes: String?
     let location: String?
     let occurrence: String?
+    /// What happens to the repeat rule: `nil` leaves the series alone, `.set` replaces the rule,
+    /// `.clear` makes the event a single one. Never sent beside an `occurrence`: a rule belongs
+    /// to the series, and the core refuses the pairing.
+    let recurrence: RecurrenceChange?
 }
 
 struct EventEditorState: Identifiable {
@@ -78,6 +87,10 @@ struct EventEditorState: Identifiable {
     var location: String
     var notes: String
     var calendar: CalendarChoice?
+    /// What the repeat controls hold, or `nil` for "does not repeat". Seeded from the core and
+    /// passed back to it. The `stored` rule it carries is what tells a rule that changed from
+    /// one that did not, and what keeps the parts no control here models.
+    var repeatDraft: RepeatDraft?
 
     var isEditing: Bool { editing != nil }
 
@@ -85,10 +98,35 @@ struct EventEditorState: Identifiable {
     /// calendar change), so the toggle and the picker are enabled only when creating.
     var canEditForm: Bool { editing == nil }
 
+    /// Whether the repeat controls are offered at all. An event that does not repeat can always
+    /// be given a rule; one that already repeats can only be changed when the core handed over a
+    /// draft, which it does not for a rule it could not state in full.
+    var canEditRepeat: Bool {
+        guard let editing else { return true }
+        return !editing.isRecurring || editing.seededRepeat != nil
+    }
+
+    /// What this save should send for the repeat rule, or `nil` to leave the series alone.
+    ///
+    /// The core decides it: a repeat changed and changed back is not a change, and the parts no
+    /// control here models are put back by the same call.
+    var repeatChange: RecurrenceChange? {
+        guard canEditRepeat else { return nil }
+        return repeatChangeOf(
+            draft: repeatDraft, wasRepeating: editing?.seededRepeat != nil
+        )
+    }
+
     /// Whether saving has to ask *This event · All events* first, true exactly when this editor
     /// was opened on one occurrence of a series. Mirrors `CalendarDragState.asksAboutTheSeries`,
     /// because it is the same question about the same thing.
-    var asksAboutTheSeries: Bool { !(editing?.occurrence.isEmpty ?? true) }
+    ///
+    /// **A changed repeat settles the question**, so it is not put: a rule belongs to the series,
+    /// and one occurrence is an instance of a rule rather than a holder of one. The controls say
+    /// so before the user touches them.
+    var asksAboutTheSeries: Bool {
+        !(editing?.occurrence.isEmpty ?? true) && repeatChange == nil
+    }
 
     /// Title present, and the interval non-empty (all-day: end day ≥ start day).
     var isValid: Bool {
@@ -112,7 +150,8 @@ struct EventEditorState: Identifiable {
                 allDay: true,
                 timezone: nil,
                 notes: notes.isEmpty ? nil : notes,
-                location: location.isEmpty ? nil : location
+                location: location.isEmpty ? nil : location,
+                recurrence: newRule()
             )
         }
         return CreateArgs(
@@ -125,8 +164,16 @@ struct EventEditorState: Identifiable {
             // A wall clock in the device's zone, so the event is created there, not in UTC.
             timezone: zone.isEmpty ? nil : zone,
             notes: notes.isEmpty ? nil : notes,
-            location: location.isEmpty ? nil : location
+            location: location.isEmpty ? nil : location,
+            recurrence: newRule()
         )
+    }
+
+    /// The rule a create sends: whatever the controls hold, as a plain rule rather than one of the
+    /// three answers an edit gives.
+    private func newRule() -> SimpleRecurrence? {
+        guard case .set(let rule) = repeatChange else { return nil }
+        return rule
     }
 
     /// The payload a Save dispatches.
@@ -147,7 +194,10 @@ struct EventEditorState: Identifiable {
             // Empty clears; a value sets.
             notes: notes,
             location: location,
-            occurrence: thisOccurrenceOnly && !target.occurrence.isEmpty ? target.occurrence : nil
+            occurrence: thisOccurrenceOnly && !target.occurrence.isEmpty ? target.occurrence : nil,
+            // A rule belongs to the series, so it never travels with an occurrence. `save()` does
+            // not offer that combination, and this is the second place it cannot happen.
+            recurrence: thisOccurrenceOnly ? nil : repeatChange
         )
     }
 
@@ -182,7 +232,8 @@ struct EventEditorState: Identifiable {
             end: cal.date(byAdding: .minute, value: minutes, to: start) ?? start,
             location: "",
             notes: "",
-            calendar: defaultCalendar
+            calendar: defaultCalendar,
+            repeatDraft: nil
         )
     }
 
@@ -200,6 +251,7 @@ struct EventEditorState: Identifiable {
                 reminderMinutes: detail.reminderMinutes,
                 recurrence: detail.recurrence,
                 repeatSummary: detail.repeatSummary,
+                seededRepeat: detail.repeatDraft,
                 occurrence: detail.occurrenceStart,
                 attendees: detail.attendees
             ),
@@ -210,7 +262,8 @@ struct EventEditorState: Identifiable {
             end: end,
             location: detail.location ?? "",
             notes: detail.notes ?? "",
-            calendar: CalendarChoice(account: detail.account, id: detail.calendar, name: calendarName)
+            calendar: CalendarChoice(account: detail.account, id: detail.calendar, name: calendarName),
+            repeatDraft: detail.repeatDraft
         )
     }
 

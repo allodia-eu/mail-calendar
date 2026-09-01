@@ -325,7 +325,8 @@ extension MailboxModel {
                 allDay: args.allDay,
                 timezone: args.timezone,
                 notes: args.notes,
-                location: args.location
+                location: args.location,
+                recurrence: args.recurrence
             )
         )
     }
@@ -341,7 +342,8 @@ extension MailboxModel {
                 end: args.end,
                 notes: args.notes,
                 location: args.location,
-                occurrence: args.occurrence
+                occurrence: args.occurrence,
+                recurrence: args.recurrence
             )
         )
     }
@@ -444,7 +446,9 @@ extension MailboxModel {
                 end: args.end,
                 notes: args.notes,
                 location: args.location,
-                recurrence: nil
+                // The real one: a rule change is the edit two of the four providers answer by
+                // discarding every override, so the warning has to be asked knowing about it.
+                recurrence: args.recurrence
             )
         )
     }

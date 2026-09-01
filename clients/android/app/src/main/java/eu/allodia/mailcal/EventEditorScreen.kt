@@ -209,24 +209,37 @@ internal fun EventEditorScreen(
                 )
                 Spacer(Modifier.height(8.dp))
 
-                // Reminder + recurrence: shown, not yet editable (display-only in v1).
+                // Reminder: shown, not yet editable. The repeat is a set of controls when the
+                // core handed over a draft, and the sentence it already decided when it did not.
                 ReadOnlyRow(
                     label = L10n.event_reminder(ctx),
                     value = reminderText(ctx, editor.editing?.reminderMinutes),
                 )
-                ReadOnlyRow(
-                    label = L10n.event_repeat(ctx),
-                    value = recurrenceSummary(
-                        ctx,
-                        editor.editing?.repeatSummary,
-                        editor.editing?.isRecurring == true,
-                        locale,
-                    ),
-                )
+                if (editor.canEditRepeat) {
+                    EventRepeatSection(editor = editor, start = editor.startDate, locale = locale)
+                } else {
+                    ReadOnlyRow(
+                        label = L10n.event_repeat(ctx),
+                        value = recurrenceSummary(
+                            ctx,
+                            editor.editing?.repeatSummary,
+                            editor.editing?.isRecurring == true,
+                            locale,
+                        ),
+                    )
+                    Text(
+                        text = L10n.event_repeat_locked(ctx),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
                 // Only when the answer is settled. An editor opened on one occurrence asks at
                 // Save which occurrences were meant, so stating the answer up here would tell
                 // the user something the next dialog contradicts.
-                if (editor.editing?.isRecurring == true && !editor.asksAboutTheSeries) {
+                if (editor.editing?.isRecurring == true && !editor.asksAboutTheSeries &&
+                    editor.editing?.occurrence?.isEmpty() == true
+                ) {
                     Text(
                         text = L10n.event_series_note(ctx),
                         style = MaterialTheme.typography.bodySmall,
@@ -412,7 +425,7 @@ private fun currentLocale(): Locale {
     return configuration.locales.takeIf { !it.isEmpty }?.get(0) ?: Locale.getDefault()
 }
 
-private fun pickDate(ctx: Context, initial: LocalDate, onPick: (LocalDate) -> Unit) {
+internal fun pickDate(ctx: Context, initial: LocalDate, onPick: (LocalDate) -> Unit) {
     android.app.DatePickerDialog(
         ctx,
         { _, year, month, day -> onPick(LocalDate.of(year, month + 1, day)) },

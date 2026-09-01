@@ -56,6 +56,7 @@ private fun standup() = EventDetail(
     reminderMinutes = null,
     recurrence = null,
     repeatSummary = null,
+    repeatDraft = null,
     isRecurring = false,
     canWrite = true,
     occurrenceStart = "",

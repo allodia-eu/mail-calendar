@@ -64,20 +64,36 @@ struct EventEditorView: View {
                 TextField(L10n.event_location(), text: $editor.location)
                 TextField(L10n.event_notes(), text: $editor.notes, axis: .vertical)
 
-                // Reminder + recurrence: shown, not yet editable (display-only in v1).
+                // Reminder: shown, not yet editable. The repeat is a set of controls when the
+                // core handed over a draft, and the sentence it already decided when it did not.
                 Section {
                     LabeledContent(L10n.event_reminder(), value: reminderText(editor.editing?.reminderMinutes))
-                    LabeledContent(
-                        L10n.event_repeat(),
-                        value: recurrenceText(
-                            editor.editing?.repeatSummary,
-                            isRecurring: editor.editing?.isRecurring ?? false
+
+                    if editor.canEditRepeat {
+                        EventRepeatSection(
+                            draft: $editor.repeatDraft,
+                            start: editor.start,
+                            opensOnOneOccurrence: !(editor.editing?.occurrence.isEmpty ?? true)
                         )
-                    )
+                    } else {
+                        LabeledContent(
+                            L10n.event_repeat(),
+                            value: recurrenceText(
+                                editor.editing?.repeatSummary,
+                                isRecurring: editor.editing?.isRecurring ?? false
+                            )
+                        )
+                        Text(L10n.event_repeat_locked())
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
                     // Only when the answer is settled. An editor opened on one occurrence asks
                     // at Save which occurrences were meant, so stating the answer up here would
                     // be telling the user something the next dialog contradicts.
-                    if editor.editing?.isRecurring == true, !editor.asksAboutTheSeries {
+                    if editor.editing?.isRecurring == true, !editor.asksAboutTheSeries,
+                        editor.editing?.occurrence.isEmpty == true
+                    {
                         Text(L10n.event_series_note())
                             .font(.footnote)
                             .foregroundStyle(.secondary)

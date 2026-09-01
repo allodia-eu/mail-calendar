@@ -27,6 +27,7 @@ import Testing
             reminderMinutes: nil,
             recurrence: nil,
             repeatSummary: nil,
+            repeatDraft: nil,
             isRecurring: true,
             canWrite: true,
             occurrenceStart: occurrence,
