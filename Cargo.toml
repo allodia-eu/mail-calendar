@@ -311,7 +311,7 @@ ammonia = "4"
 # Streaming pull-parser for the Mozilla autoconfig XML (mailcal-autodetect). Pinned to the
 # minor version provider-caldav already locks, so it adds no new transitive crates; it does
 # not expand custom entities, so hostile config files can't balloon in memory.
-quick-xml = "0.40"
+quick-xml = "0.42"
 # Mozilla's Public Suffix List, compiled in — derives a provider's registrable ("base")
 # domain from an MX hostname for the autodetect MX fallback. No platform exposes a PSL API,
 # and a stale list only ever costs a missed/extra HTTPS probe, never a trust decision.
