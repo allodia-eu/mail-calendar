@@ -69,14 +69,14 @@ fn value(root: &Path, key: &str, from_environment: Option<&str>) -> Result<Strin
         return Ok(found.to_string());
     }
     let branding = root.join("branding");
+    // The directory, and not only the files in it. Cargo drops a `rerun-if-changed` naming a path
+    // that does not exist, so a brand file *appearing* rebuilds nothing: the tree keeps its
+    // unbranded catalog and the app keeps the neutral name. Creating a file moves the directory's
+    // mtime, which Cargo does act on.
+    println!("cargo:rerun-if-changed={}", branding.display());
     for file in ["allodia.env", "default.env"] {
-        // Emitted whether or not the file exists, and before the read, because the interesting
-        // change is a brand file **appearing**: a build tree that has already generated an
-        // unbranded catalog keeps serving it otherwise, and the app carries the neutral name with
-        // nothing to say it should not. Cargo treats a `rerun-if-changed` on an absent path as
-        // "rerun when it appears", which is exactly the case that was silent.
-        //
-        // Harmless outside a build script: the line goes to stdout, which only Cargo reads.
+        // Before the read, so the file is tracked on the path that does not use it too. Harmless
+        // outside a build script: the line goes to stdout, which only Cargo reads.
         println!("cargo:rerun-if-changed={}", branding.join(file).display());
         let Ok(text) = std::fs::read_to_string(branding.join(file)) else {
             continue;
