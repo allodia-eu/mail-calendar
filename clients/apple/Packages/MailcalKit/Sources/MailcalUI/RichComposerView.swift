@@ -196,7 +196,10 @@ struct RichComposeView: View {
     /// Whether this composer opens with the caret in the message body rather than in To.
     ///
     /// The two are exclusive, and every client decides it the same way (docs/contacts.md §4).
-    static func opensInBody(mode: RichComposeMode, to: String) -> Bool {
+    ///
+    /// `nonisolated` because the rule is a pure function of its arguments; it inherits the main
+    /// actor from `View` otherwise, which its unit tests would then have to pretend to be.
+    nonisolated static func opensInBody(mode: RichComposeMode, to: String) -> Bool {
         mode != .new || !to.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
