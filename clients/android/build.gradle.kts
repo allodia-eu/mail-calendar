@@ -7,7 +7,7 @@
 // org.jetbrains.kotlin.android plugin is declared here; only the Compose compiler stays a separate,
 // version-locked plugin.
 plugins {
-    id("com.android.application") version "9.3.1" apply false
+    id("com.android.application") version "9.3.2" apply false
     // Kotlin 2.x splits the Compose compiler into its own plugin, version-locked to Kotlin.
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.10" apply false
 }
