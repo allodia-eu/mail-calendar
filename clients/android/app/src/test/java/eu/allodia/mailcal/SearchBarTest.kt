@@ -86,6 +86,41 @@ class SearchBarTest {
     }
 
     @Test
+    fun coming_back_to_the_field_does_not_re_run_a_search_the_core_already_applies() {
+        val state = state()
+        state.openSearch()
+        state.type("report")
+        state.commitQuery()
+        assertEquals(listOf<String?>("report"), queries)
+
+        // The debounce effect is keyed on the query, so it re-arms every time SearchField enters
+        // composition, and the state outlives that screen (MainActivity holds it). Returning from
+        // a message must not cost a second full-text query per account.
+        state.commitQuery()
+        assertEquals(listOf<String?>("report"), queries)
+
+        // A query that actually moved is still a search.
+        state.type("reports")
+        state.commitQuery()
+        assertEquals(listOf<String?>("report", "reports"), queries)
+    }
+
+    @Test
+    fun clearing_and_retyping_the_same_query_searches_again() {
+        val state = state()
+        state.openSearch()
+        state.type("report")
+        state.commitQuery()
+        state.clearQuery()
+        state.type("report")
+        state.commitQuery()
+
+        // The core dropped the search when the field emptied, so asking for it again is not a
+        // repeat, it is the only way the results come back.
+        assertEquals(listOf<String?>("report", null, "report"), queries)
+    }
+
+    @Test
     fun clearing_the_query_widens_the_scope_back_because_the_core_does_too() {
         val state = state()
         state.openSearch()
