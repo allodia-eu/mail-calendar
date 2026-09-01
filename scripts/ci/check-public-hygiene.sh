@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # Fail if something the public repository must not carry has come back.
 #
-# The tree is being made publishable while work continues in it, so the strip is not a one-off: a
-# private-tracker reference written today is one that has to be stripped again tomorrow, and the
-# pipeline that copies the tree cannot tell a fresh one from a missed one. This is the machine
-# half; the patterns a grep can decide, held at zero from here on.
+# This tree is the published one, so the rule is not a one-off strip before a copy: a
+# tracker reference or a personal identifier written today reaches a reader tomorrow. This is the
+# machine half; the patterns a grep can decide, held at zero.
 #
 # Run from the repo root:
 #
@@ -18,9 +17,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-# Paths the public copy does not receive at all, so what is in them is not this check's business.
-# Kept here rather than only in the copying script because this is the list a reader wants in
-# front of them when a match looks like a false positive.
+# Paths this check does not read. Each is either not maintained prose (history, vendored upstream,
+# a generated bundle) or a file that has to hold the shapes forbidden below in order to forbid
+# them. The list is here rather than anywhere else because it is what a reader wants in front of
+# them when a match looks like a false positive.
 EXCLUDED=(
   ':!docs/*-plan.md'              # working plans, excluded entirely
   ':!docs/changelog/released'     # shipped release notes: history, not maintained prose
@@ -118,8 +118,9 @@ fi
 # is the test account, and if that ever matters the fix is to rotate the account, not to hide the
 # pattern from a file anyone can read.
 #
-# What does not ship is this script's *test*, which would otherwise concentrate every one of these
-# values in a single file that is exempt from the check by construction. See public-exclude.txt.
+# This is the one checker in scripts/ci with no test of its own, and the reason is the same
+# sentence: its fixtures would be a single file holding every value below, exempt from the check by
+# construction. The EXCLUDED list keeps a slot for that file if anyone judges the trade differently.
 deny "a personal identifier in a fixture, doc or script:" '(Dennis|Ameling|dennisameling)' \
   ':!CLA.md' ':!REUSE.toml' ':!allodia_license/LICENSE.md' ':!LICENSES/LicenseRef-*'
 deny "an Apple team reservation:" '(X98DRMUM3J|947BB2P68Y|Fits4all)'

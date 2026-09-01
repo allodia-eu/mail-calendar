@@ -8,7 +8,7 @@
 # `.cargo/config.toml` ABOVE this checkout — outside the repo, so never active in CI. The repo's own
 # `.cargo/config.toml` is tracked and pins the Windows static-CRT rustflags.)
 #
-# Cost discipline — macOS minutes bill at 10x and Windows at 2x, so three rules hold:
+# Cost discipline — macOS minutes bill at 10x and Windows at 2x, so four rules hold:
 #   1. Every expensive job gates on `changes`, which derives the affected areas from the actual
 #      change set (scripts/ci/changed-areas.sh). A manual run forces any subset via `areas`.
 #   2. Only `main` writes the shared caches — see the `save-if` notes on each cache step.
@@ -18,6 +18,10 @@
 #      The trade is stated plainly: R8 breakage and a dev fixture leaking out of `cfg`-guarded
 #      code are now found at the tag, with every commit since the last one in the bisect window.
 #      Tag runs also build these cold, because `main` no longer warms a release-profile cache.
+#   4. A check that installs nothing is a STEP of the `checks` job, never a job of its own.
+#      Thirteen of these once had a runner each, for five to sixteen seconds of work apiece: a VM
+#      boot and a slot out of the account's parallel-job allowance for every one of them, which
+#      the client builds then queued behind. Add the next one there too.
 #
 # **Every job carries `timeout-minutes`.** They are backstops, not budgets: the slowest job on a
 # push has been the Linux x86_64 leg at ~12 minutes, so 20 leaves room to spare and still catches
@@ -101,6 +105,11 @@ env:
   ALLODIA_TELEMETRY_URL: "https://telemetry.invalid"
 
 jobs:
+  # Two jobs run on every push, ungated, and they are deliberately separate.
+  #
+  # `changes` is what every expensive job waits on, so it carries the detection and nothing else.
+  # A checker living here would, on failing, skip every build behind it: you would learn that a
+  # comment is misspelled and nothing at all about whether the change compiles.
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
@@ -117,36 +126,17 @@ jobs:
       - name: Check out the product core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The showcase flag is a cross-client contract whose failure mode is silent and photogenic:
-      # a capture run against the developer's real mailbox looks exactly like a working one. It
-      # lives here, in the always-run gate job, rather than in `lint` — `lint` is gated on the
-      # `rust` area, so a clients/windows-only change (which is precisely where this last broke)
-      # would skip it. Dependency-free: git grep, nothing installed.
-      - name: Showcase flag contract
-        run: scripts/ci/check-showcase-flag.sh
-
-      # Likewise silent when broken, and likewise spread across the clients rather than the Rust
-      # area: the injected harness account (a fixture hand-written in four languages) and the
-      # debug-only trust of the harness's self-signed IMAP certificate.
-      - name: Dev-account (harness) contract
-        run: scripts/ci/check-dev-account.sh
-
-      # Also invisible to every other gate: the banned call resolves fine against a desktop's
-      # application database and wedges inside a Flatpak, so only the packaged build shows it.
-      - name: Desktop hand-off (portal launchers)
-        run: scripts/ci/check-desktop-handoff.sh
-
       - name: Which areas does this change touch?
         id: detect
         env:
           GH_TOKEN: ${{ github.token }}
-          # A manual run bypasses detection entirely — the escape hatch for a missed trigger.
+          # A manual run bypasses detection entirely: the escape hatch for a missed trigger.
           FORCE_AREAS: ${{ github.event_name == 'workflow_dispatch' && inputs.areas || '' }}
         run: scripts/ci/changed-areas.sh
 
       # rust-toolchain.toml (stable, for everything) and rust-nightly.toml (the rustfmt pin) are
       # the single sources of truth for the two Rust versions this repo uses. Parse them once here
-      # and feed them to every job's toolchain install, so neither is duplicated in YAML —
+      # and feed them to every job's toolchain install, so neither is duplicated in YAML:
       # scripts/dev/gate.sh reads the same two files, which is what keeps local and CI identical.
       - name: Read the pinned Rust toolchains
         id: toolchain
@@ -160,253 +150,173 @@ jobs:
           echo "channel=$channel" >>"$GITHUB_OUTPUT"
           echo "nightly=$nightly" >>"$GITHUB_OUTPUT"
 
-  # The 500-line rule spans languages (Rust *and* C#), so this gate is deliberately NOT behind the
-  # `changes` areas: a Windows-only PR touches no Rust and would skip a rust-gated job entirely —
-  # which is precisely the PR that can land an over-long C# file. It needs no toolchain and no
-  # cache, so running it on every push costs a few seconds and closes that hole.
-  file-length:
-    name: File length (<= 500 lines)
+  # `checks` is every gate that needs no Rust toolchain, no cache and no area filter, in ONE job.
+  #
+  # One job because they were under two minutes of work spread over thirteen runners, and a runner
+  # costs far more than the seconds it works for: a fresh VM to boot and a slot out of the
+  # account's parallel-job allowance, which the client builds then queue behind. Splitting a
+  # six-second grep onto its own machine buys a green tick and a boot. Nothing about the checks
+  # themselves changed here; only where they run.
+  #
+  # None of them sits behind the `changes` areas, and the reason is one reason, not thirteen: the
+  # change most likely to break one of these turns on no area at all. A docs-only PR is what
+  # rewrites store copy and user documentation, and it switches every gated job off. A
+  # Windows-only PR is what lands an over-long C# file, or a log line naming this tree, and it
+  # touches no Rust. A comment breaking the spelling or dash rule is written in whichever file
+  # someone happened to be in. `scripts/dev/*` maps to no area whatsoever. A gate that the change
+  # most likely to break it can skip is not a gate.
+  #
+  # `if: ${{ !cancelled() }}` on every step buys back the one thing separate jobs gave: a failing
+  # step no longer hides the twelve behind it, so a PR still learns every rule it broke in a
+  # single run. A failed step still fails the job; the condition only stops GitHub's default
+  # `success()` from skipping the rest.
+  #
+  # Ordered cheapest first, so the log's first error arrives in seconds. The two steps that fetch
+  # something (the REUSE action's container, bun) are last for the same reason.
+  checks:
+    name: Repo-wide checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out the product core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Every tracked source file is within the limit
+      # No linter in any of these languages has a per-file length lint, so this is the only thing
+      # that enforces the 500-line rule, and it has to see C# and Kotlin as well as Rust.
+      - name: File length (<= 500 lines)
+        if: ${{ !cancelled() }}
         run: scripts/ci/check-file-length.sh
 
-  # One app version across all clients (docs/versioning.md). Like file-length, this is NOT behind the
-  # `changes` areas: /VERSION feeds every client, so a drift can arrive from an Apple/Windows/Android-
-  # only PR that a rust-gated job would skip. Dependency-free (grep + awk), so it runs on every push.
-  version-sync:
-    name: Version sync (one /VERSION)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Every version mirror and derivation matches /VERSION
+      # One app version across all clients (docs/versioning.md).
+      - name: Version sync (one /VERSION)
+        if: ${{ !cancelled() }}
         run: scripts/ci/check-version-sync.sh
 
-  # Every client still takes its name and application id from branding/ (docs/branding.md). Not
-  # behind the `changes` areas, for the same reason version-sync is not: the identity feeds every
-  # client, so a literal written back into one manifest can arrive from a PR that touches no Rust.
-  # Dependency-free (grep + sed), so it runs on every push — which is also why the public-split
-  # content rules ride along here: same shape of rule, same shape of failure, and both have to see
-  # every change rather than only the ones that touch code.
-  branding:
-    name: Branding and public-split hygiene
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # A cross-client contract whose failure mode is silent and photogenic: a capture run against
+      # the developer's real mailbox looks exactly like a working one.
+      - name: Showcase flag contract
+        if: ${{ !cancelled() }}
+        run: scripts/ci/check-showcase-flag.sh
 
+      # Likewise silent when broken: the injected harness account (a fixture hand-written in four
+      # languages) and the debug-only trust of the harness's self-signed IMAP certificate.
+      - name: Dev-account (harness) contract
+        if: ${{ !cancelled() }}
+        run: scripts/ci/check-dev-account.sh
+
+      # Also invisible to every other gate: the banned call resolves fine against a desktop's
+      # application database and wedges inside a Flatpak, so only the packaged build shows it.
+      - name: Desktop hand-off (portal launchers)
+        if: ${{ !cancelled() }}
+        run: scripts/ci/check-desktop-handoff.sh
+
+      # Every client still takes its name and application id from branding/ (docs/branding.md).
       - name: Every client derives its identity from the brand
+        if: ${{ !cancelled() }}
         run: scripts/ci/check-branding.sh
 
-      - name: The tree carries nothing the public repository must not
+      - name: The tree carries nothing a public repository must not
+        if: ${{ !cancelled() }}
         run: scripts/ci/check-public-hygiene.sh
 
-      # The same rules, applied to the copy rather than the source. It stages the public tree and
-      # re-runs the check inside it, which is where a link into a removed path becomes visible:
-      # in this checkout those links resolve, so nothing else can see them. No toolchain and no
-      # submodule -- the pipeline excludes what the public tree does not receive.
       - name: The default build does not reach into allodia_license/
+        if: ${{ !cancelled() }}
         run: scripts/ci/check-license-dir.sh
 
-      - name: The staged public tree is publishable
-        # Absent from the public copy by design: it is the tool that makes that copy, so a
-        # tree without it is already the output and has nothing left to stage.
-        run: |
-          if [ -f scripts/dev/public-split.sh ]; then
-            scripts/dev/public-split.sh
-          else
-            echo "SKIP: this tree is the public copy; the tool that stages it is not in it."
-          fi
-
-  # The repository states its licensing once, for every file at once, in REUSE.toml rather than in
-  # a header on each source file. The blanket annotation matches every path, so what this catches
-  # is vendoring: a third-party file carrying its own SPDX header fails until that licence's text
-  # is in LICENSES/, a misspelled or deprecated identifier fails the same way, and a licence text
-  # nothing references any more fails as unused. Nothing else in this workflow reads a licence at
-  # all. Not behind the `changes` areas, for the reason branding and version-sync are not: any PR
-  # can add a file, including one that touches no code. Costs seconds.
-  reuse:
-    name: REUSE compliance
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Every tracked file has a licence and a copyright holder
-        uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
-
-  # The store copy fits the fields its consoles actually enforce (docs/store-listing.md ->
-  # "Field limits"). Same reasoning as file-length and version-sync, plus one of its own: the gate
-  # this replaces is REMOTE. App Store Connect and Play reject an over-long description at
-  # submission, after a build number has been spent — and six of seven description bodies were over
-  # the 4,000-character cap for several releases because the limit was stated in a table and
-  # measured by nothing. Docs-only PRs are exactly the ones that change copy, so this cannot sit
-  # behind the `changes` areas. Its own tests run first: the check scrapes two hand-written
-  # markdown files, and the way it fails silently is by measuring nothing at all.
-  store-copy:
-    name: Store copy (field limits)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Unit-test the checker
+      # The checkers' own tests, before the checkers run against the real tree: several of these
+      # scrape hand-written markdown, and the way they fail is by silently measuring nothing.
+      # `discover` rather than a filename list, so a new checker's tests are picked up by existing.
+      - name: Unit-test the CI checkers
+        if: ${{ !cancelled() }}
         run: python3 -m unittest discover -s scripts/ci/tests -v
 
-      - name: Every listing field and release note fits its console's limit
-        run: python3 scripts/ci/check_store_copy_length.py
-
-  # A log line describes the user's mail, never our source tree (docs/logging.md). NOT behind the
-  # `changes` areas, and for the sharpest version of the file-length reason: the log is written from
-  # Rust *and* from every client's own language, so any single-platform PR can add a line — and the
-  # ones this catches ship all the way to a user's device, where a path into this repository is
-  # meaningless to the reader and frozen against every later refactor. Stdlib Python, no toolchain.
-  # It found two on the day it was written: an `error!` citing a design-doc rule, and a Linux line
-  # logging a raw account id, which is an address the privacy rule forbids outright.
-  log-hygiene:
-    name: Log hygiene (no repo paths in log lines)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: No log line names this repository
-        run: python3 scripts/ci/check_log_hygiene.py
-
-  # British English in prose and comments (AGENTS.md -> "How we write"). Always-run and ungated for
-  # the reason the checkers above are: the file that breaks it is whichever one someone happened to
-  # write a comment in, which turns on no area in particular. Stdlib Python, no toolchain.
-  british-english:
-    name: British English (prose and comments)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Prose and comments are British English
-        run: python3 scripts/ci/check_british_english.py
-
-  # Dash punctuation in prose and comments (AGENTS.md -> "How we write"). Always-run for the same
-  # reason as the spelling checker: any source area can contain reader-facing prose.
-  dash-hygiene:
-    name: Dash punctuation (prose and comments)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: No dash punctuation remains in swept prose
-        run: python3 scripts/ci/check_dash_hygiene.py
-
-  # The shared editor's chrome is localised by each client passing its own strings in. Ungated, like
-  # the checkers above: the change that breaks it is adding a toolbar control, which touches the
-  # composer bundle and one client — turning on neither of the other clients' areas, which is where
-  # the label would then be missing.
-  composer-labels:
-    name: Composer labels (every client sends every one)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Every client sends the shared editor every label
-        run: python3 scripts/ci/check_composer_labels.py
-
-  # A snapshot the host pulls and the signal that tells it to are one operation (`Surfaced`). The
-  # type enforces it for anyone who uses it; this refuses the ways round it, which compile fine and
-  # fail as a stale paint rather than a panic. Stdlib Python, no toolchain — and deliberately not
-  # behind the `changes` areas, since the ways to reopen it are edits to files a Rust-only filter
-  # would still catch but a docs-only run would not.
-  surface-publish:
-    name: Published surfaces (no signal without a snapshot)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: A published surface is only ever signalled by publishing it
-        run: python3 scripts/ci/check_surface_publish.py
-
-  # The user-documentation contract (docs/user-docs.md). Deliberately NOT behind the `changes`
-  # areas, for the same reason as file-length and store-copy — and one sharper still: the change
-  # most likely to break these pages is a *docs-only* change, which turns off every gated job.
-  # Stdlib Python, no toolchain, no cache; the checker's own tests run in `store-copy` above via
-  # `discover`, so this job is only the run against the real tree.
-  user-docs:
-    name: User docs (contract)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: The user documentation can be published as it stands
-        run: python3 scripts/ci/check_user_docs.py
-
-  # The unit tests for the scripts/dev debugging helpers — the accessibility-tree selection rules
-  # each platform's `control.sh ui-dump|find` is built on. Like file-length and version-sync, this
-  # is deliberately NOT behind the `changes` areas, and for a sharper reason than those two:
-  # `scripts/dev/*` maps to NO area at all, so a change to exactly the code these tests cover would
-  # skip every gated job and the tests would never run. A check that cannot fail is not a check.
-  # `discover` rather than a filename list, so a third helper's tests are picked up by existing.
-  # Dependency-free (stdlib unittest, no simulator, no pyatspi), so it runs on every push.
-  dev-scripts:
-    name: Dev script helpers
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
+      # The accessibility-tree selection rules each platform's `control.sh ui-dump|find` is built
+      # on. `scripts/dev/*` maps to no area, so nothing else in this workflow ever runs them.
       - name: Unit-test the scripts/dev helpers
+        if: ${{ !cancelled() }}
         run: python3 -m unittest discover -s scripts/dev/tests -v
 
-  composer-editor:
-    name: Composer editor
-    # Ungated, like `dev-scripts` and for the same reason: `changed-areas.sh` maps
-    # `clients/composer/*` onto the four client areas, so an editor-only change would otherwise run
-    # four full client builds and no test of the thing that actually changed.
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the product core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The gate this replaces is REMOTE: App Store Connect and Play reject an over-long
+      # description at submission, after a build number has been spent, and six of seven
+      # description bodies were over the 4,000-character cap for several releases because the limit
+      # was stated in a table and measured by nothing.
+      - name: Every listing field and release note fits its console's limit
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/check_store_copy_length.py
 
+      # Locale parity, nav reachability, screenshot ids that resolve for every platform a page
+      # claims, and an `updated_for` that cannot out-run /VERSION (docs/user-docs.md).
+      - name: The user documentation can be published as it stands
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/check_user_docs.py
+
+      # A log line describes the user's mail, never our source tree (docs/logging.md). The lines
+      # this catches ship all the way to a user's device, where a path into this repository is
+      # meaningless to the reader and frozen against every later refactor.
+      - name: No log line names this repository
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/check_log_hygiene.py
+
+      - name: Prose and comments are British English
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/check_british_english.py
+
+      - name: No dash punctuation remains in swept prose
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/check_dash_hygiene.py
+
+      # The shared editor's chrome is localised by each client passing its own strings in. The
+      # change that breaks it adds a toolbar control, touching the composer bundle and one client,
+      # which is not the client the label then goes missing from.
+      - name: Every client sends the shared editor every label
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/check_composer_labels.py
+
+      # A snapshot the host pulls and the signal that tells it to are one operation (`Surfaced`).
+      # The type enforces it for anyone who uses it; this refuses the ways round it, which compile
+      # fine and fail as a stale paint rather than a panic.
+      - name: A published surface is only ever signalled by publishing it
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/check_surface_publish.py
+
+      # The repository states its licensing once, for every file at once, in REUSE.toml rather
+      # than in a header on each source file. The blanket annotation matches every path, so what
+      # this catches is vendoring: a third-party file carrying its own SPDX header fails until that
+      # licence's text is in LICENSES/, a misspelled or deprecated identifier fails the same way,
+      # and a licence text nothing references any more fails as unused. Nothing else in this
+      # workflow reads a licence at all.
+      - name: Every tracked file has a licence and a copyright holder
+        if: ${{ !cancelled() }}
+        uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
+
+      # The composer editor. Ungated for a reason of its own: `changed-areas.sh` maps
+      # `clients/composer/*` onto all four client areas, so an editor-only change would otherwise
+      # run four full client builds and no test of the thing that actually changed.
       - name: Install bun
+        if: ${{ !cancelled() }}
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.4.0"
 
       - name: Install the editor's dev dependencies
+        if: ${{ !cancelled() }}
         working-directory: clients/composer
         run: bun install --frozen-lockfile
 
-      - name: Type-check
+      - name: Type-check the editor
+        if: ${{ !cancelled() }}
         working-directory: clients/composer
         run: bun run typecheck
 
       - name: Unit-test the editor
+        if: ${{ !cancelled() }}
         working-directory: clients/composer
         run: bun test
 
-      # The step that matters: `editor.html` is a committed build output, so this is the only thing
-      # standing between a source edit and every client shipping the previous bundle.
+      # The step that matters: `editor.html` is a committed build output, so this is the only
+      # thing standing between a source edit and every client shipping the previous bundle.
       - name: The committed bundle matches its sources
+        if: ${{ !cancelled() }}
         working-directory: clients/composer
         run: bun run check
 
@@ -1094,7 +1004,7 @@ jobs:
           }
           echo "guard confirmed: the build refuses and says what is missing"
 
-  # The single check to mark as required in the branch ruleset. The six jobs above are skipped
+  # The single check to mark as required in the branch ruleset. Every gated job above is skipped
   # when a change can't affect them, and a skipped job reports NO status — so requiring them
   # directly would hang a docs-only PR forever. This job always runs and collapses them into one
   # verdict.
@@ -1106,7 +1016,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [changes, file-length, version-sync, branding, reuse, store-copy, user-docs, log-hygiene, british-english, dash-hygiene, composer-labels, surface-publish, dev-scripts, composer-editor, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux]
+    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

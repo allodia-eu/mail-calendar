@@ -141,7 +141,6 @@ if [ "$LIST_ONLY" -eq 1 ]; then
 4ca desktop handoff scripts/ci/check-desktop-handoff.sh: portal launchers only
 4d licence dir     scripts/ci/check-license-dir.sh: the default build stands alone
 4e reuse           reuse lint: required; the gate fails without it
-4f public split    scripts/dev/public-split.sh: stages and verifies the public tree; absent there
 5  store copy      scripts/ci/check_store_copy_length.py
 6  user docs       scripts/ci/check_user_docs.py
 7  showcase flag   scripts/ci/check-showcase-flag.sh
@@ -215,21 +214,6 @@ if command -v reuse >/dev/null 2>&1; then
 else
   missing "reuse (every file licensed)" "reuse" "pipx install 'reuse[charset-normalizer]'"
 fi
-# The public tree, staged and verified. The check above says the private tree carries nothing it
-# must not; this one says the copy that gets published is still a copy anyone can read -- nothing
-# links into a submodule it does not have. That is the one defect only the pipeline can
-# see, because in this tree those links resolve. Three seconds; the build inside it is `--gate`,
-# and that is not this.
-#
-# Absent in the public tree, which is the tree it produces: the pipeline is one of its own
-# exclusions, so a contributor cloning the public repository has this gate and not that script.
-# Skipping is therefore the correct answer there and a missing file is not, which is exactly what
-# `public-split.sh --gate` reported before this said so.
-if [ -f scripts/dev/public-split.sh ]; then
-  run "public split (staged tree)" bash scripts/dev/public-split.sh
-else
-  skip "public split" "scripts/dev/public-split.sh is not in this tree: it stages the public copy, and is excluded from it"
-fi
 run "store copy (field limits)" python3 scripts/ci/check_store_copy_length.py
 # The user-doc contract (docs/user-docs.md): locale parity, nav reachability, screenshot ids that
 # resolve for every platform a page claims, and an `updated_for` that cannot out-run /VERSION.
@@ -237,7 +221,7 @@ run "store copy (field limits)" python3 scripts/ci/check_store_copy_length.py
 # these pages is a docs-only one, and a docs-only change is exactly what turns every gated job off.
 run "user docs (contract)" python3 scripts/ci/check_user_docs.py
 
-# 7. The showcase-flag contract. It runs in CI's `lint` job, and it belongs here for the same
+# 7. The showcase-flag contract. It runs in CI's `checks` job, and it belongs here for the same
 # reason the two above do: it is instant, dependency-free, and it guards a thing whose failure is
 # invisible: a screenshot of the developer's real mailbox, or a capture path that quietly offers
 # one screen or one language fewer than the others. It was also, until recently, dead on macOS

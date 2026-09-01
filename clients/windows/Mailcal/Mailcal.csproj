@@ -19,7 +19,7 @@
          (docs/versioning.md). DeviceFacts.cs reports the ASSEMBLY version (not the MSIX manifest),
          so this is what makes the analytics app_version real. The Store-visible MSIX package version
          is stamped separately by package.ps1 into Package.appxmanifest. $(MSBuildThisFileDirectory)
-         is clients/windows/Mailcal, so ..\..\..\VERSION is the repo root. The version-sync CI job
+         is clients/windows/Mailcal, so ..\..\..\VERSION is the repo root. The version-sync check
          (scripts/ci/check-version-sync.sh) fails if this stops reading /VERSION; bump with
          scripts/dev/bump-version.sh. -->
     <_RawVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\..\..\VERSION'))</_RawVersion>

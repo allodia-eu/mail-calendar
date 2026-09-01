@@ -3,7 +3,7 @@
 Two kinds of assertion here, and the second is the one that earns its keep. The pure functions are
 checked against small fixtures; then the whole thing is run against the **real** resolved listing,
 `/VERSION` and `docs/changelog/released/`. That second half is what makes
-this an always-run gate on the documents rather than on the code: the `dev-scripts` CI job is not
+this an always-run gate on the documents rather than on the code: the `checks` CI job that runs them is not
 area-gated, so a store-listing edit that moves a heading; a docs-only PR, which the `linux` area
 would never turn on; fails here instead of at a `flatpak-builder` run nobody does on that branch.
 """

@@ -459,7 +459,7 @@ def main(argv=None) -> int:
         print(
             "\nERROR: nothing was pushed. Trim the copy in the resolved listing (or the note in "
             "docs/changelog/released/) and re-run. The limits come from docs/store-listing.md's "
-            "'Field limits' table, the same numbers the store-copy CI job enforces.",
+            "'Field limits' table, the same numbers CI's store-copy check enforces.",
             file=sys.stderr,
         )
         return 1

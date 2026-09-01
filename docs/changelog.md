@@ -105,7 +105,7 @@ any other, it just has no console to be rejected by.
 
 **The caps are measured, not trusted.** Every fragment and every released note is counted by
 [`scripts/ci/check_store_copy_length.py`](../scripts/ci/check_store_copy_length.py) against the
-"Field limits" table, in the `store-copy` CI job, on every push. It takes the *minimum* of the
+"Field limits" table, in the `checks` CI job, on every push. It takes the *minimum* of the
 applicable stores rather than a hard-coded 500, so if Play ever raises its ceiling the next store's
 number takes over on its own. A 501-character note fails on the branch instead of in Partner Center,
 after a build number has been spent.
@@ -314,8 +314,8 @@ This contract is binding via [`../AGENTS.md`](../AGENTS.md). When you ship a use
    [`privacy-policy.md`](privacy-policy.md), the same two couplings as
    [`store-listing.md`](store-listing.md).
 
-The machine half is the `store-copy` job
+The machine half is the store-copy step of the `checks` job
 ([`check_store_copy_length.py`](../scripts/ci/check_store_copy_length.py)): unknown platform tag,
-bad `Bump:`, missing locale, over-cap note. The `version-sync` job
+bad `Bump:`, missing locale, over-cap note. The version-sync step
 ([`check-version-sync.sh`](../scripts/ci/check-version-sync.sh)) proves `/VERSION` names a release
 that has a note. Neither can check whether the note is *true*: that is rule 4, and it is yours.

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Guard the showcase (store-screenshot) flag contract. Runs in the `lint` CI job and locally:
+# Guard the showcase (store-screenshot) flag contract. Runs in the always-run `checks` CI job
+# and locally:
 #
 #     scripts/ci/check-showcase-flag.sh
 #
