@@ -15,17 +15,18 @@ use engine_api::{
 };
 
 use crate::{
-    App,
+    App, BulkAction,
     helpers::{generated_idempotency, generated_message_id},
-    reference::{MessageRef, ThreadRef},
+    reference::{MessageRef, RowRef, ThreadRef},
 };
 
+mod bulk;
 mod folders;
 mod report;
 pub(crate) mod result;
 mod send;
 
-use folders::{folder_name_matches_role, resolve_move_target};
+use folders::resolve_move_target;
 use result::MailActionError;
 
 /// What an optimistic removal actually asks the provider to do.
@@ -182,91 +183,13 @@ impl<P: Provider> App<P> {
     /// owner's Sent replies (the view-model gathers them across folders). Messages already in
     /// Archive are left alone. One optimistic batch (the whole received side leaves the list at
     /// once) + one refresh. A no-op when the account has no Archive folder or nothing qualifies.
+    ///
+    /// One conversation is a selection of one, so this runs the batch path in `mail_ops::bulk`
+    /// rather than a second copy of the same rules; the Sent protection and the single re-sync
+    /// are defined once for both.
     pub(super) async fn archive_thread(&self, thread: ThreadRef) {
-        let mailboxes = self
-            .engine
-            .mailboxes(&thread.account)
-            .await
-            .unwrap_or_default();
-        let Some(archive) = resolve_move_target(&mailboxes, &MailboxRole::Archive) else {
-            log::warn!(
-                "archive-thread: account {} has no Archive folder; skipping",
-                thread.account.as_str(),
-            );
-            return;
-        };
-        let archive_id = archive.id.clone();
-        let archive_key = archive.id.key().as_str().to_owned();
-        // The Sent folder(s) whose copies must stay put (role, then conventional name).
-        let sent_keys: Vec<&str> = mailboxes
-            .iter()
-            .filter(|mailbox| {
-                mailbox.role.as_ref() == Some(&MailboxRole::Sent)
-                    || folder_name_matches_role(&mailbox.name, &MailboxRole::Sent)
-            })
-            .map(|mailbox| mailbox.id.key().as_str())
-            .collect();
-        // The thread's members straight from the store's thread index (any age), so archiving a
-        // conversation shown in a windowed list still moves its out-of-window messages too.
-        let accounts = std::slice::from_ref(&thread.account);
-        let mut members = self
-            .engine
-            .mail_on_threads(accounts, [thread.thread_id.as_str()])
-            .await
-            .unwrap_or_default();
-        // A message the server never threaded projects under its own provider key as the thread
-        // id (the view-model's grouping convention), so it carries no `thread_id` in the store
-        // and the thread read finds nothing; resolve that lone message by key instead.
-        if members.is_empty()
-            && let Ok(key) = ProviderKey::new(thread.thread_id.clone())
-        {
-            members = self
-                .engine
-                .mail_by_keys(&thread.account, std::slice::from_ref(&key))
-                .await
-                .unwrap_or_default();
-        }
-        // Every message on the thread that is neither in Sent nor already in Archive.
-        let targets: Vec<ProviderKey> = members
-            .iter()
-            .filter(|member| {
-                !member.mailboxes.iter().any(|id| {
-                    let key = id.as_str();
-                    sent_keys.contains(&key) || key == archive_key
-                })
-            })
-            .map(|member| member.mail.key.clone())
-            .collect();
-        if targets.is_empty() {
-            return;
-        }
-        // Hide the whole set at once, then republish so the received side leaves the list
-        // before the network round-trips (the sent copies stay).
-        {
-            let mut removals = self
-                .pending_removals
-                .lock()
-                .expect("pending-removals mutex poisoned");
-            for key in &targets {
-                removals.insert((thread.account.as_str().to_owned(), key.as_str().to_owned()));
-            }
-        }
-        self.rebuild_snapshot().await;
-        for key in &targets {
-            let edit = MailEdit::move_to(key.clone(), archive_id.clone());
-            if !self.edit_only(&thread.account, &edit).await {
-                log::warn!(
-                    "archive-thread: move rejected for key {} on account {}; restoring the row",
-                    key.as_str(),
-                    thread.account.as_str(),
-                );
-                self.pending_removals
-                    .lock()
-                    .expect("pending-removals mutex poisoned")
-                    .remove(&(thread.account.as_str().to_owned(), key.as_str().to_owned()));
-            }
-        }
-        self.refresh_after_write(&thread.account).await;
+        self.act_on_selection(vec![RowRef::Thread(thread)], BulkAction::Archive)
+            .await;
     }
 
     /// Removes `message` from the list **optimistically**: hides the row now (so the list

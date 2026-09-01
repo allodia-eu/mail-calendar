@@ -312,6 +312,14 @@ extension MailboxModel {
         app?.dispatch(intent: .permanentlyDelete(account: account, key: key))
     }
 
+    /// Run one action over **every** selected row, as a single batch: one optimistic hide and one
+    /// re-sync per account, rather than one of each per row (`docs/list-selection.md`, rule 8).
+    /// A conversation row stands for its whole thread, which the core expands itself.
+    func actOnSelection(_ rows: [SelectedRow], _ action: BulkAction) {
+        guard !rows.isEmpty else { return }
+        app?.dispatch(intent: .actOnSelection(rows: rows, action: action))
+    }
+
     /// Create a calendar event from the editor's payload, then refresh the agenda. The editor built
     /// the calendar target, the all-day flag, the device-zone wall clock, the notes, and the location.
     func createEvent(_ args: CreateArgs) {

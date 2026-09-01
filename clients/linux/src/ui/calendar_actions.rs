@@ -53,6 +53,10 @@ impl AppModel {
 
     pub(super) fn pull_mailbox(&mut self, app: &MailcalApp) {
         self.snapshot = app.mailbox_list();
+        // A selected row that is no longer listed (archived, deleted, or filtered away by a
+        // folder change or a search) leaves the selection with it, so an action can never reach
+        // a message nobody can see (`docs/list-selection.md`, rule 4).
+        self.selection.retain_listed(&self.snapshot.rows);
         let account_connected = self
             .snapshot
             .accounts

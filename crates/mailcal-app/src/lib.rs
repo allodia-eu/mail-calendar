@@ -129,13 +129,13 @@ pub use mailcal_account::EventDetail;
 use mcp_settings::McpSettingsState;
 pub use prefetch::default_prefetch_size_limit;
 pub use protocol::{
-    AppObserver, CalendarWriteStatus, ComposerBlob, ContactWriteStatus, Intent,
+    AppObserver, BulkAction, CalendarWriteStatus, ComposerBlob, ContactWriteStatus, Intent,
     RecipientSuggestion, SearchScope, SendStatus, Surface,
 };
 pub use query::{MessageDetail, MessagePage};
 use quote_settings::QuoteSettingsState;
 pub use recipients::RecipientMatch;
-pub use reference::{EventRef, FolderRef, MessageRef, ThreadRef};
+pub use reference::{EventRef, FolderRef, MessageRef, RowRef, ThreadRef};
 use scope::Scope;
 use send_settings::SendSettingsState;
 pub use signatures::SignatureBody;
@@ -471,6 +471,8 @@ mod tests_report;
 mod tests_scope;
 #[cfg(test)]
 mod tests_search;
+#[cfg(test)]
+mod tests_selection;
 #[cfg(test)]
 mod tests_settings;
 #[cfg(test)]

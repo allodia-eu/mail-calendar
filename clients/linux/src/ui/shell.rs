@@ -20,6 +20,8 @@ use super::{
     mailbox_progressive::ProgressiveRenderer,
     reading::{InvitationClock, ReadingPane},
     search::SearchBar,
+    selection_bar::SelectionBar,
+    selection_input::{selection_gesture, selection_keys, sync_selection},
     settings::SettingsWindow,
     setup::SetupWindow,
     time_zone::TimeZonePrompt,
@@ -34,6 +36,7 @@ pub(crate) struct AppWidgets {
     sidebar: gtk::ListBox,
     messages: gtk::ListBox,
     search: SearchBar,
+    selection_bar: SelectionBar,
     primary: gtk::Stack,
     detail: gtk::Stack,
     destinations: DestinationBar,
@@ -95,9 +98,16 @@ impl AppWidgets {
         let sidebar_toolbar = sidebar_pane(&sender, &sidebar_scroll, &destinations);
 
         let messages = gtk::ListBox::new();
-        messages.set_selection_mode(gtk::SelectionMode::Single);
+        // Multiple, so a selection is the platform's own selected state rather than a colour we
+        // paint: a screen reader reads it, and Shift+arrow extends it (`docs/list-selection.md`,
+        // rule 11). The widget still holds no selection of its own; `sync_selection` draws the
+        // model's onto it after every render.
+        messages.set_selection_mode(gtk::SelectionMode::Multiple);
         messages.add_css_class("boxed-list");
         messages.update_property(&[AccessibleProperty::Label(l10n::a11y_message_list())]);
+        selection_gesture(&messages, &sender);
+        selection_keys(&messages, &sender);
+        let selection_bar = SelectionBar::new(&sender);
         let message_scroll = gtk::ScrolledWindow::new();
         message_scroll.set_min_content_width(340);
         message_scroll.set_child(Some(&messages));
@@ -125,6 +135,10 @@ impl AppWidgets {
         // it reveals need the full width anyway.
         let search = SearchBar::new(&sender);
         list_toolbar.add_top_bar(search.widget());
+        // Under the search chrome and over the rows, which is where the count belongs: it
+        // describes the list beneath it, and the revealer keeps the list's top edge from jumping
+        // as the selection empties and fills.
+        list_toolbar.add_top_bar(selection_bar.widget());
         list_toolbar.set_content(Some(&message_scroll));
         // One strip under the list: the foreground bar may take a row because the user awaits it;
         // the background hint borrows that same location and never moves the list's top edge.
@@ -210,6 +224,7 @@ impl AppWidgets {
             sidebar,
             messages,
             search,
+            selection_bar,
             primary,
             detail,
             destinations,
@@ -296,6 +311,11 @@ impl AppWidgets {
             );
             self.rendered_snapshot = Some(rendering);
         }
+        // After the rows, always: a plain click has already moved the widget's own selection, and
+        // this is what brings it back to what the model says (`selection_gesture`).
+        sync_selection(&self.messages, model);
+        self.selection_bar
+            .render(model.selection.summary(&model.snapshot.rows));
         if let Some(request) = &model.composer {
             self.settings.close();
             if !self.composer.is_active(model.composer_generation) {

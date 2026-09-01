@@ -3,8 +3,8 @@
 use std::{fmt, path::PathBuf};
 
 use mailcal_bindings::{
-    AgentDraft, ContactDetail, ContactEdit, ContactTarget, Intent, MailtoPrefill, SearchScope,
-    SetupRecommendation, Surface,
+    AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget, Intent, MailtoPrefill,
+    SearchScope, SetupRecommendation, Surface,
 };
 
 use super::{
@@ -21,6 +21,7 @@ use super::{
     mailbox::ThreadKey,
     microsoft::MicrosoftOutcome,
     model::OpenedMessage,
+    selection::SelectMode,
     setup_model::{AccountSubmission, ManualForm},
 };
 
@@ -90,6 +91,20 @@ pub(crate) enum AppInput {
         thread: ThreadKey,
         expanded: bool,
     },
+    /// A click on the row at `index` of the snapshot, with what the modifiers made it mean.
+    ///
+    /// The index, not the row: the gesture reads a position out of the `GtkListBox` and the model
+    /// resolves it against the snapshot it is holding, so no widget has to carry a message key.
+    SelectRow {
+        index: usize,
+        mode: SelectMode,
+    },
+    /// Select every row the list is showing, which is the loaded window rather than the whole
+    /// folder (`docs/list-selection.md`, rule 10).
+    SelectAllRows,
+    ClearSelection,
+    /// Run one action over every selected row, as a single batch in the core.
+    ActOnSelection(BulkAction),
     PerformMailAction(Box<MailActionRequest>),
     PerformOpenedMailAction(ActionKind),
     RequestPermanentDelete(MessageTarget),
@@ -266,6 +281,10 @@ impl fmt::Debug for AppInput {
             Self::OpenSyncDepthSettings => "OpenSyncDepthSettings",
             Self::OpenThreadMessage(_) => "OpenThreadMessage",
             Self::SetThreadExpanded { .. } => "SetThreadExpanded",
+            Self::SelectRow { .. } => "SelectRow",
+            Self::SelectAllRows => "SelectAllRows",
+            Self::ClearSelection => "ClearSelection",
+            Self::ActOnSelection(_) => "ActOnSelection",
             Self::PerformMailAction(_) => "PerformMailAction",
             Self::PerformOpenedMailAction(_) => "PerformOpenedMailAction",
             Self::RequestPermanentDelete(_) => "RequestPermanentDelete",

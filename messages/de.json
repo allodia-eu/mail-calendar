@@ -37,6 +37,12 @@
 	"mailbox_count_messages": "{count} Nachrichten",
 	"mailbox_count_conversations": "{count} Unterhaltungen",
 	"mailbox_count_results": "{count} Ergebnisse",
+
+	"selection_count": "{count} ausgewählt",
+	"action_select": "Auswählen",
+	"action_select_all": "Alle auswählen",
+	"action_clear_selection": "Auswahl aufheben",
+
 	"calendar_saving": "Wird gesichert…",
 	"calendar_saved": "Gesichert",
 	"calendar_save_unconfirmed": "Nicht bestätigt; zum Wiederholen tippen",
@@ -107,6 +113,7 @@
 
 	"delete_permanently_title": "Endgültig löschen?",
 	"delete_permanently_message": "Diese Nachricht wird endgültig gelöscht. Das lässt sich nicht widerrufen.",
+	"delete_permanently_message_many": "{count} Nachrichten werden endgültig gelöscht. Das lässt sich nicht widerrufen.",
 
 	"compose_title_new": "Neue Nachricht",
 	"compose_to": "An",

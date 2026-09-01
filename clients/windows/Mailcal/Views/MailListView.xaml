@@ -305,16 +305,73 @@
                 </InfoBar.Content>
             </InfoBar>
 
+            <!-- The selection bar: what is picked, and the six actions the contract gives it
+                 (docs/list-selection.md, rule 5). Last in the banner stack, so it sits directly
+                 over the rows it describes; collapsed entirely when nothing is selected, so it
+                 costs the list no height the rest of the time. The read and flag buttons are
+                 single toggles whose labels come from the selection. -->
+            <ScrollViewer HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled"
+                          Margin="16,0,16,8"
+                          AutomationProperties.AutomationId="SelectionBar"
+                          Visibility="{x:Bind Model.SelectionVisibility, Mode=OneWay}">
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock VerticalAlignment="Center" Margin="0,0,8,0"
+                               Style="{StaticResource BodyStrongTextBlockStyle}"
+                               AutomationProperties.AutomationId="SelectionCount"
+                               Text="{x:Bind Model.SelectionCountText, Mode=OneWay}" />
+                    <Button AutomationProperties.AutomationId="SelectionMarkRead"
+                            Content="{x:Bind Model.SelectionReadText, Mode=OneWay}"
+                            Click="OnSelectionToggleRead" />
+                    <Button AutomationProperties.AutomationId="SelectionFlag"
+                            Content="{x:Bind Model.SelectionFlagText, Mode=OneWay}"
+                            Click="OnSelectionToggleFlag" />
+                    <Button AutomationProperties.AutomationId="SelectionArchive"
+                            Content="{x:Bind l10n:L10n.ActionArchive()}"
+                            Click="OnSelectionArchive" />
+                    <Button AutomationProperties.AutomationId="SelectionDelete"
+                            Content="{x:Bind l10n:L10n.ActionMoveToTrash()}"
+                            Click="OnSelectionDelete" />
+                    <Button AutomationProperties.AutomationId="SelectionDeletePermanently"
+                            Content="{x:Bind l10n:L10n.ActionDeletePermanently()}"
+                            Click="OnSelectionPermanentlyDelete" />
+                    <Button AutomationProperties.AutomationId="SelectionSelectAll"
+                            Content="{x:Bind l10n:L10n.ActionSelectAll()}"
+                            Click="OnSelectAll" />
+                    <Button AutomationProperties.AutomationId="SelectionClear"
+                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionClearSelection()}"
+                            ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionClearSelection()}"
+                            Click="OnClearSelectionClicked">
+                        <FontIcon Glyph="&#xE711;" FontSize="14" />
+                    </Button>
+                </StackPanel>
+            </ScrollViewer>
+
         </StackPanel>
 
         <!-- Tap a row to open it in the reading pane (a flat row opens its message, a
-             conversation row opens its latest message); the open row stays highlighted
-             (Single selection), and right-click gives the full action menu. -->
+             conversation row opens its latest message); the open row stays highlighted, and
+             right-click gives the full action menu.
+
+             Extended selection, so Ctrl-click, Shift-click, Shift+arrow and Ctrl+A are the
+             list's own rather than something we reimplement, and the narrator reads a row's
+             selected state (docs/list-selection.md). Item click stays on because a conversation
+             row toggles its disclosure, which a selection change cannot express: clicking an
+             already-selected row changes no selection and would leave it stuck open. The click
+             handler ignores modified clicks so Ctrl-clicking twenty rows opens none of them. -->
         <ListView Grid.Row="2" x:Name="RowsList" ItemsSource="{x:Bind Model.Rows}"
-                  ItemTemplateSelector="{StaticResource RowSelector}" SelectionMode="Single"
+                  ItemTemplateSelector="{StaticResource RowSelector}" SelectionMode="Extended"
                   IsItemClickEnabled="True" ItemClick="OnRowClick"
+                  SelectionChanged="OnSelectionChanged"
                   Loaded="OnRowsListLoaded"
                   Padding="12,0,12,0">
+            <ListView.KeyboardAccelerators>
+                <!-- Scoped to the list, never the window: a focused search box or composer keeps
+                     its own Delete and Escape (docs/list-selection.md, rule 9). -->
+                <KeyboardAccelerator Key="Delete" Invoked="OnDeleteSelection" />
+                <KeyboardAccelerator Key="Back" Invoked="OnDeleteSelection" />
+                <KeyboardAccelerator Key="Escape" Invoked="OnClearSelection" />
+            </ListView.KeyboardAccelerators>
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />

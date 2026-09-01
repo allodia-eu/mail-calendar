@@ -63,6 +63,9 @@ extension ContentView {
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) { sidebarToggle }
                     ToolbarItemGroup(placement: .topBarTrailing) {
+                        // A phone has no modifier keys, so picking several messages is a mode:
+                        // Select enters it, Done leaves it (`docs/list-selection.md`).
+                        selectToggleButton
                         messageListMenu
                         Button { compose = .new } label: { Image(systemName: "square.and.pencil") }
                     }

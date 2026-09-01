@@ -309,20 +309,26 @@ extension ContentView {
     var compactMessageList: some View {
         VStack(spacing: 0) {
             SearchHorizonStrip(horizon: model.searchHorizon) { settingsCategory = .accounts }
-            List {
-                let rows = visibleRows
-                ForEach(rows, id: \.rowID) { row in
-                    rowView(row)
-                        .onAppear {
-                            if row.rowID == rows.last?.rowID {
-                                Task { @MainActor in model.showMore() }
+            // The count and the batched actions, over the rows they describe. Nothing selected
+            // draws nothing, so the list keeps its full height the rest of the time.
+            selectionBar
+            selectionBehaviour(
+                List {
+                    let rows = visibleRows
+                    ForEach(rows, id: \.rowID) { row in
+                        rowView(row)
+                            .listRowBackground(rowHighlight(row))
+                            .onAppear {
+                                if row.rowID == rows.last?.rowID {
+                                    Task { @MainActor in model.showMore() }
+                                }
                             }
-                        }
+                    }
                 }
-            }
-            .listStyle(.plain)
-            .searchable(text: $searchText, prompt: Text(L10n.search_placeholder()))
-            .onChange(of: searchText) { _, query in model.search(query) }
+                .listStyle(.plain)
+                .searchable(text: $searchText, prompt: Text(L10n.search_placeholder()))
+                .onChange(of: searchText) { _, query in model.search(query) }
+            )
             // Below the list, and outside it. As the list's first *row* it pushed every message
             // down when a background sync began and back up when it ended; as a strip under the
             // list it neither moves the rows nor scrolls away with them.

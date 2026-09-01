@@ -37,6 +37,12 @@
 	"mailbox_count_messages": "{count} mensagens",
 	"mailbox_count_conversations": "{count} conversas",
 	"mailbox_count_results": "{count} resultados",
+
+	"selection_count": "{count} selecionadas",
+	"action_select": "Selecionar",
+	"action_select_all": "Selecionar tudo",
+	"action_clear_selection": "Limpar a seleção",
+
 	"calendar_saving": "A guardar…",
 	"calendar_saved": "Guardado",
 	"calendar_save_unconfirmed": "Não foi possível confirmar; toque para tentar de novo",
@@ -107,6 +113,7 @@
 
 	"delete_permanently_title": "Eliminar definitivamente?",
 	"delete_permanently_message": "Esta mensagem será eliminada definitivamente. Não é possível anular.",
+	"delete_permanently_message_many": "{count} mensagens serão eliminadas definitivamente. Não é possível anular.",
 
 	"compose_title_new": "Nova mensagem",
 	"compose_to": "Para",
