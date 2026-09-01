@@ -80,6 +80,13 @@
          sentence; and a rule that skips periods reaching the every-period frame is a fortnightly
          meeting calling itself "Weekly", which is the reason the core sends a structure at all. -->
     <Compile Include="..\Mailcal\Calendar\EventRepeatFormat.cs" Link="Calendar\EventRepeatFormat.cs" />
+    <!-- What the repeat EDITOR's controls offer, and the arithmetic behind the weekday row. Split
+         from the dialog for the same reason as the line above: WinUI- and L10n-free, so the two
+         silent failures are reachable here. DayOfWeek counts Sunday as 0 while the core counts from
+         Monday, so an off-by-one renames every day and still draws a plausible row; and a weekly
+         rule left with no day ticked is one the core refuses, which reads as a save that did
+         nothing. -->
+    <Compile Include="..\Mailcal\Calendar\EventRepeatChoices.cs" Link="Calendar\EventRepeatChoices.cs" />
     <!-- The account-setup form's JMAP field logic, WinUI-free on purpose, so it's testable here
          (the view's WinUI half stays in Views/). It builds a JmapSetup, so it needs the bindings. -->
     <Compile Include="..\Mailcal\Services\JmapSetupForm.cs" Link="Services\JmapSetupForm.cs" />

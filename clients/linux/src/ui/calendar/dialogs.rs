@@ -13,7 +13,7 @@ use super::{
     dialogs_series,
     editor::{EventDetails, EventEditor, EventForm},
     model::{CalendarDialog, DeleteRequest},
-    repeat,
+    repeat, repeat_editor,
 };
 use crate::l10n;
 
@@ -212,6 +212,7 @@ fn present_editor(
     let notes_frame = gtk::Frame::new(None);
     notes_frame.set_child(Some(&notes));
     form.append(&notes_frame);
+    let repeat_draft = repeat_editor::append_repeat_section(&form, editor);
     // Only when the answer is settled. An editor opened on one occurrence asks at Save which
     // occurrences were meant, so stating the answer up here would tell the user something the
     // next dialog contradicts.
@@ -268,6 +269,7 @@ fn present_editor(
                 .text(&buffer.start_iter(), &buffer.end_iter(), true)
                 .to_string(),
             calendar_index: calendar.selected(),
+            repeat: repeat_draft.borrow().clone(),
         };
         if editor.intent(&form, false).is_err() {
             error.set_visible(true);
@@ -308,8 +310,9 @@ fn present_editor(
             })
         };
         // Which occurrences the save meant. Only an editor opened on one occurrence has a
-        // question to ask; anything else can only mean the series.
-        if editor.asks_about_the_series() {
+        // question to ask; anything else can only mean the series, and so does a changed repeat,
+        // because a rule belongs to the series rather than to one instance of it.
+        if editor.save_asks_about_the_series(&form) {
             let this_event = {
                 let submit = Rc::clone(&submit);
                 let form = form.clone();

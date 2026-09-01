@@ -38,6 +38,7 @@ public class EventEditorStateTests
             reminderMinutes,
             recurrence,
             null,
+            null,
             isRecurring,
             true,
             null,

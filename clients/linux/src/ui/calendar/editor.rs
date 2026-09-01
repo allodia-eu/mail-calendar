@@ -1,6 +1,9 @@
 //! Pure calendar editor state and provider-neutral intent construction.
 
-use mailcal_bindings::{EventAttendee, EventDetail, EventRecurrence, Intent, RepeatSummary};
+use mailcal_bindings::{
+    EventAttendee, EventDetail, EventRecurrence, Intent, RecurrenceChange, RepeatDraft,
+    RepeatSummary, repeat_change_of,
+};
 use time::{Duration, PrimitiveDateTime, Time};
 
 use super::{
@@ -36,6 +39,9 @@ pub(super) struct EventDetails {
     /// The rule as the parts a sentence needs, decided by the core: see `repeat::sentence`.
     /// `None` for an event with no rule, and for one whose rule the core would not state exactly.
     pub(super) repeat_summary: Option<RepeatSummary>,
+    /// The rule as the editor's controls hold it, or `None` when the core would not open it:
+    /// a rule too rich to state, or one whose controls this app does not have.
+    pub(super) repeat_draft: Option<RepeatDraft>,
     pub(super) is_recurring: bool,
     pub(super) can_write: bool,
     /// The occurrence this detail describes, as the **core resolved** it; empty when it
@@ -64,6 +70,7 @@ impl EventDetails {
             reminder_minutes: detail.reminder_minutes,
             recurrence: detail.recurrence,
             repeat_summary: detail.repeat_summary,
+            repeat_draft: detail.repeat_draft,
             is_recurring: detail.is_recurring,
             can_write: detail.can_write,
             occurrence: detail.occurrence_start,
@@ -82,6 +89,10 @@ pub(crate) struct EventForm {
     pub(crate) location: String,
     pub(crate) notes: String,
     pub(crate) calendar_index: u32,
+    /// What the repeat controls hold, or `None` for "does not repeat". The `stored` rule it
+    /// carries is what tells a rule that changed from one that did not, and what keeps the parts
+    /// no control here models.
+    pub(crate) repeat: Option<RepeatDraft>,
 }
 
 /// An open create/edit form. All validation and date-shape decisions stay outside GTK.
@@ -177,12 +188,44 @@ impl EventEditor {
         self.editing.is_none()
     }
 
-    /// Whether saving has to ask *This event · All events* first; true exactly when this
-    /// editor was opened on one occurrence of a series.
+    /// Whether this editor was opened on one occurrence of a series.
     pub(super) fn asks_about_the_series(&self) -> bool {
         self.editing
             .as_ref()
             .is_some_and(|target| !target.occurrence.is_empty())
+    }
+
+    /// Whether the repeat controls are offered at all. An event that does not repeat can always
+    /// be given a rule; one that already repeats can only be changed when the core handed over a
+    /// draft, which it does not for a rule it could not state in full.
+    pub(super) fn can_edit_repeat(&self) -> bool {
+        self.editing
+            .as_ref()
+            .is_none_or(|target| !target.is_recurring || target.repeat_draft.is_some())
+    }
+
+    /// What a save of `form` should send for the repeat rule, or `None` to leave the series alone.
+    ///
+    /// The core decides it: a repeat changed and changed back is not a change, and the parts no
+    /// control here models are put back by the same call.
+    pub(super) fn repeat_change(&self, form: &EventForm) -> Option<RecurrenceChange> {
+        if !self.can_edit_repeat() {
+            return None;
+        }
+        let was_repeating = self
+            .editing
+            .as_ref()
+            .is_some_and(|target| target.repeat_draft.is_some());
+        repeat_change_of(form.repeat.clone(), was_repeating)
+    }
+
+    /// Whether this save has to ask *This event · All events* first.
+    ///
+    /// **A changed repeat settles the question**, so it is not put: a rule belongs to the series,
+    /// and one occurrence is an instance of a rule rather than a holder of one. The controls say
+    /// so before the user touches them.
+    pub(super) fn save_asks_about_the_series(&self, form: &EventForm) -> bool {
+        self.asks_about_the_series() && self.repeat_change(form).is_none()
     }
 
     /// The intent a Save dispatches.
@@ -228,7 +271,12 @@ impl EventEditor {
                 location: Some(location.unwrap_or_default()),
                 occurrence: (this_occurrence_only && !detail.occurrence.is_empty())
                     .then(|| detail.occurrence.clone()),
-                recurrence: None,
+                // A rule belongs to the series, so it never travels with an occurrence. The save
+                // handler does not offer that combination, and this is the second place it
+                // cannot happen.
+                recurrence: (!this_occurrence_only)
+                    .then(|| self.repeat_change(form))
+                    .flatten(),
             });
         }
         let choice = usize::try_from(form.calendar_index)
@@ -244,7 +292,11 @@ impl EventEditor {
             timezone: (!form.all_day && !self.zone.is_empty()).then(|| self.zone.clone()),
             notes,
             location,
-            recurrence: None,
+            // A create sends the rule itself rather than one of the three answers an edit gives.
+            recurrence: match self.repeat_change(form) {
+                Some(RecurrenceChange::Set { rule }) => Some(rule),
+                Some(RecurrenceChange::Clear) | None => None,
+            },
         })
     }
 

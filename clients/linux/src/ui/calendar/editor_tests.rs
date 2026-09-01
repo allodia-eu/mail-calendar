@@ -3,7 +3,10 @@
 //!
 //! Split out of `editor.rs` to keep that file inside the 500-line cap.
 
-use mailcal_bindings::Intent;
+use mailcal_bindings::{
+    EventRecurrence, Intent, RecurrenceChange, RecurrenceDay, RecurrenceEnd, RecurrenceFrequency,
+    RecurrenceWeekday, RepeatDraft, SimpleRecurrence,
+};
 use time::{Date, Month, PrimitiveDateTime, Time};
 
 use super::{CalendarChoice, EventDetails, EventEditor, EventForm};
@@ -34,6 +37,7 @@ fn form(all_day: bool) -> EventForm {
         location: String::new(),
         notes: String::new(),
         calendar_index: 0,
+        repeat: None,
     }
 }
 
@@ -134,6 +138,7 @@ fn edit_keeps_wall_clocks_and_blank_optional_fields_clear_properties() {
         reminder_minutes: None,
         recurrence: None,
         repeat_summary: None,
+        repeat_draft: None,
         is_recurring: false,
         can_write: true,
         occurrence: String::new(),
@@ -161,6 +166,43 @@ fn edit_keeps_wall_clocks_and_blank_optional_fields_clear_properties() {
 
 /// An editor prefilled from an event the core resolved `occurrence` for.
 fn editing(occurrence: &str) -> EventEditor {
+    editing_with(occurrence, None)
+}
+
+/// A weekly rule, as the core would hand one over: the stored rule names the day the draft's
+/// row shows ticked, which is what makes the two comparable at all.
+fn weekly_rule() -> SimpleRecurrence {
+    SimpleRecurrence {
+        frequency: RecurrenceFrequency::Weekly,
+        interval: 1,
+        days: vec![RecurrenceDay {
+            day: RecurrenceWeekday::Tuesday,
+            nth: None,
+        }],
+        month_days: Vec::new(),
+        months: Vec::new(),
+        end: RecurrenceEnd::Never,
+    }
+}
+
+fn weekly_draft() -> RepeatDraft {
+    RepeatDraft {
+        frequency: RecurrenceFrequency::Weekly,
+        interval: 1,
+        weekdays: vec![RecurrenceWeekday::Tuesday],
+        end: RecurrenceEnd::Never,
+        stored: Some(weekly_rule()),
+    }
+}
+
+fn form_with(repeat: Option<RepeatDraft>) -> EventForm {
+    EventForm {
+        repeat,
+        ..form(false)
+    }
+}
+
+fn editing_with(occurrence: &str, repeat_draft: Option<RepeatDraft>) -> EventEditor {
     EventEditor::edit(
         EventDetails {
             account: "account-a".to_owned(),
@@ -175,8 +217,11 @@ fn editing(occurrence: &str) -> EventEditor {
             location: None,
             notes: None,
             reminder_minutes: None,
-            recurrence: None,
+            recurrence: repeat_draft.as_ref().map(|_| EventRecurrence::Simple {
+                rule: weekly_rule(),
+            }),
             repeat_summary: None,
+            repeat_draft,
             is_recurring: true,
             can_write: true,
             occurrence: occurrence.to_owned(),
@@ -229,4 +274,122 @@ fn editor_rejects_empty_or_backwards_intervals() {
     assert!(matches!(editor.intent(&invalid, false), Err("range")));
     invalid.title.clear();
     assert!(matches!(editor.intent(&invalid, false), Err("title")));
+}
+
+// --- The repeat rule an edit carries ------------------------------------------------------
+
+#[test]
+fn a_save_that_never_touched_the_repeat_says_nothing_about_it() {
+    let editor = editing_with("", Some(weekly_draft()));
+    match editor
+        .intent(&form_with(Some(weekly_draft())), false)
+        .unwrap()
+    {
+        Intent::UpdateEvent { recurrence, .. } => assert_eq!(recurrence, None),
+        _ => panic!("expected an update intent"),
+    }
+}
+
+#[test]
+fn a_changed_repeat_is_sent_as_a_set() {
+    let editor = editing_with("", Some(weekly_draft()));
+    let changed = RepeatDraft {
+        interval: 2,
+        ..weekly_draft()
+    };
+    match editor.intent(&form_with(Some(changed)), false).unwrap() {
+        Intent::UpdateEvent {
+            recurrence: Some(RecurrenceChange::Set { rule }),
+            ..
+        } => assert_eq!(rule.interval, 2),
+        _ => panic!("expected a Set"),
+    }
+}
+
+#[test]
+fn choosing_does_not_repeat_clears_the_series() {
+    let editor = editing_with("", Some(weekly_draft()));
+    match editor.intent(&form_with(None), false).unwrap() {
+        Intent::UpdateEvent { recurrence, .. } => {
+            assert_eq!(recurrence, Some(RecurrenceChange::Clear));
+        }
+        _ => panic!("expected an update intent"),
+    }
+}
+
+/// A rule belongs to the series. The core refuses the pairing, and the editor never builds it.
+#[test]
+fn a_rule_never_travels_with_a_single_occurrence() {
+    let editor = editing_with("2026-09-09T09:00:00", Some(weekly_draft()));
+    let changed = RepeatDraft {
+        interval: 3,
+        ..weekly_draft()
+    };
+    match editor.intent(&form_with(Some(changed)), true).unwrap() {
+        Intent::UpdateEvent {
+            occurrence,
+            recurrence,
+            ..
+        } => {
+            assert_eq!(occurrence.as_deref(), Some("2026-09-09T09:00:00"));
+            assert_eq!(recurrence, None);
+        }
+        _ => panic!("expected an update intent"),
+    }
+}
+
+/// Opened on one occurrence, a save normally asks which occurrences it meant. A changed rule
+/// answers that question on its own, so it is not put.
+#[test]
+fn a_changed_repeat_settles_the_scope_question() {
+    let editor = editing_with("2026-09-09T09:00:00", Some(weekly_draft()));
+    assert!(editor.save_asks_about_the_series(&form_with(Some(weekly_draft()))));
+
+    let changed = RepeatDraft {
+        interval: 2,
+        ..weekly_draft()
+    };
+    assert!(!editor.save_asks_about_the_series(&form_with(Some(changed))));
+}
+
+/// A rule the core would not state is shown and not offered: the client never seeds an editor
+/// from a partial picture, because saving it back would drop the rest.
+#[test]
+fn a_rule_too_rich_to_state_offers_no_controls() {
+    let editor = editing_with("", None);
+    assert!(!editor.can_edit_repeat());
+    match editor
+        .intent(&form_with(Some(weekly_draft())), false)
+        .unwrap()
+    {
+        Intent::UpdateEvent { recurrence, .. } => assert_eq!(recurrence, None),
+        _ => panic!("expected an update intent"),
+    }
+}
+
+#[test]
+fn a_create_carries_the_rule_as_a_plain_rule_rather_than_an_answer() {
+    let now = PrimitiveDateTime::new(
+        Date::from_calendar_date(2026, Month::July, 21).unwrap(),
+        Time::from_hms(10, 15, 0).unwrap(),
+    );
+    let editor = EventEditor::create_at(vec![choice()], "Europe/Amsterdam".to_owned(), now);
+    let fresh = RepeatDraft {
+        frequency: RecurrenceFrequency::Weekly,
+        interval: 2,
+        weekdays: vec![RecurrenceWeekday::Tuesday],
+        end: RecurrenceEnd::AfterCount { count: 8 },
+        stored: None,
+    };
+    match editor.intent(&form_with(Some(fresh)), false).unwrap() {
+        Intent::CreateEvent {
+            recurrence: Some(rule),
+            ..
+        } => {
+            assert_eq!(rule.frequency, RecurrenceFrequency::Weekly);
+            assert_eq!(rule.interval, 2);
+            assert_eq!(rule.end, RecurrenceEnd::AfterCount { count: 8 });
+        }
+        _ => panic!("expected a create carrying a rule"),
+    }
 }
