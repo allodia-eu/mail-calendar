@@ -1,0 +1,60 @@
+{
+  "screenshots": [
+    {
+      "caption": {
+        "en": "Every account in one inbox, with the message open beside it",
+        "nl": "Al je accounts in één postvak, met het bericht ernaast",
+        "de": "Alle Konten in einem Posteingang, die Nachricht daneben",
+        "fr": "Tous vos comptes dans une boîte de réception, le message à côté",
+        "es": "Todas las cuentas en una bandeja de entrada, con el mensaje al lado",
+        "it": "Tutti gli account in una casella di posta, con il messaggio accanto",
+        "pt": "Todas as contas numa caixa de entrada, com a mensagem ao lado"
+      },
+      "width": 2000,
+      "height": 1399,
+      "url": "https://dl.allodia.eu/mailcal/linux/screenshots/a94bcbc66024699e4f656ba3d62248fe450b48595ab7bcd9221b1d7b1e9b4690.png"
+    },
+    {
+      "caption": {
+        "en": "The same inbox in dark mode",
+        "nl": "Hetzelfde postvak in donkere modus",
+        "de": "Derselbe Posteingang im dunklen Modus",
+        "fr": "La même boîte de réception en mode sombre",
+        "es": "La misma bandeja de entrada en modo oscuro",
+        "it": "La stessa casella di posta in modalità scura",
+        "pt": "A mesma caixa de entrada em modo escuro"
+      },
+      "width": 2000,
+      "height": 1399,
+      "url": "https://dl.allodia.eu/mailcal/linux/screenshots/f22706fae8383fd4d5e196b622a769443e70173244ef68a4509f00b0abc32ae2.png"
+    },
+    {
+      "caption": {
+        "en": "Write a reply with formatting, attachments and a signature",
+        "nl": "Schrijf een antwoord met opmaak, bijlagen en een handtekening",
+        "de": "Antworten mit Formatierung, Anhängen und Signatur schreiben",
+        "fr": "Rédigez une réponse avec mise en forme, pièces jointes et signature",
+        "es": "Escribe una respuesta con formato, archivos adjuntos y firma",
+        "it": "Scrivi una risposta con formattazione, allegati e firma",
+        "pt": "Escreva uma resposta com formatação, anexos e assinatura"
+      },
+      "width": 2000,
+      "height": 1399,
+      "url": "https://dl.allodia.eu/mailcal/linux/screenshots/4a1a0ac91a841fee0b362bea2f539e2bfa82a012d4a8ca1a2eb2bb5b9d3f1842.png"
+    },
+    {
+      "caption": {
+        "en": "Answer an invitation, and see what it clashes with",
+        "nl": "Beantwoord een uitnodiging en zie waarmee die botst",
+        "de": "Eine Einladung beantworten und sehen, womit sie kollidiert",
+        "fr": "Répondez à une invitation et voyez ce qu'elle chevauche",
+        "es": "Responde a una invitación y comprueba con qué se solapa",
+        "it": "Rispondi a un invito e vedi con cosa si sovrappone",
+        "pt": "Responda a um convite e veja com o que entra em conflito"
+      },
+      "width": 2000,
+      "height": 1399,
+      "url": "https://dl.allodia.eu/mailcal/linux/screenshots/0dd95a6c36ad767ece43937f2325171cd607e5b5a5aaf13d6dd54541dec23e1c.png"
+    }
+  ]
+}
