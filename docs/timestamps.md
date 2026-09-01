@@ -77,6 +77,12 @@ seam in `timestamps.rs`).
   list time-of-day is fixed 24-hour (as their absolute formatter is); only Android threads the core
   `use24Hour` setting into the row's today→time label. The calendar honours the setting on every
   platform. Closing this on the mail list is a follow-up.
+- **The same gap reaches the quoted original, where it is visible to someone else.** Android's
+  `localDateTime` takes `use24Hour` and the quote passes it; the other three formatters have no
+  such parameter and render 24-hour. So one person replying to one message produces a different
+  quoted time depending on which client they used, in the *recipient's* mailbox. Whether to close
+  it by threading the setting everywhere, or by fixing this surface at 24-hour on every platform
+  because it is sent rather than displayed, is undecided.
 
 ## Enforcement
 
