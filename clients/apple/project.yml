@@ -184,7 +184,7 @@ targets:
         # so the dev loop (build-and-run.sh) reports the real version. Scripts/package.sh re-stamps it
         # from /VERSION at release, and the version-sync CI job fails if this drifts. CURRENT_PROJECT_VERSION
         # is the dev default only, package.sh overrides it with a fresh dotted timestamp per Store upload.
-        MARKETING_VERSION: "0.7.0"
+        MARKETING_VERSION: "0.7.1"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"   # iPhone + iPad
         # Where the relay copy phase declares its output, per SDK, because Xcode materializes an

@@ -42,7 +42,7 @@ default-members = [
 # (scripts/ci/check-version-sync.sh) fails if it ever drifts from `/VERSION`. Bump both together
 # with `scripts/dev/bump-version.sh X.Y.Z`.
 [workspace.package]
-version = "0.7.0"
+version = "0.7.1"
 edition = "2024"
 rust-version = "1.96"
 publish = false
