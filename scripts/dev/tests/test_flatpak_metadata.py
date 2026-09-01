@@ -10,6 +10,7 @@ would never turn on; fails here instead of at a `flatpak-builder` run nobody doe
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -269,6 +270,36 @@ class Gallery(unittest.TestCase):
         rendered = meta._screenshots_element(None)
         self.assertNotIn("<screenshots>", rendered)
         self.assertTrue(rendered.strip().startswith("<!--"))
+
+    def test_the_gallery_is_named_by_the_caller_and_not_carried_here(self):
+        """A committed gallery would outlive the deletion that un-brands a fork.
+
+        The images are of a *branded* build, on the publisher's own host. Committed to this tree
+        they would survive removing `branding/allodia.env`, and a fork's listing would advertise
+        itself with our screenshots. So the manifest is passed in, and its absence is the default.
+        """
+        import subprocess
+
+        tracked = subprocess.run(
+            ["git", "-C", str(meta.REPO_ROOT), "ls-files", "--cached", "--others",
+             "--exclude-standard", "*screenshots.json"],
+            capture_output=True, text=True, check=True,
+        ).stdout.split()
+        self.assertEqual(tracked, [], f"a gallery manifest is in the tree: {tracked}")
+
+        with tempfile.TemporaryDirectory() as out:
+            written = meta.build(Path(out))
+            metainfo = next(p for p in written if p.suffix == ".xml").read_text(encoding="utf-8")
+        self.assertNotIn("<screenshots>", metainfo)
+
+    def test_a_named_manifest_reaches_the_generated_metainfo(self):
+        with tempfile.TemporaryDirectory() as out:
+            gallery = Path(out) / "gallery.json"
+            gallery.write_text(json.dumps(self.SHOT), encoding="utf-8")
+            written = meta.build(Path(out), screenshots=gallery)
+            metainfo = next(p for p in written if p.suffix == ".xml").read_text(encoding="utf-8")
+        self.assertIn("<screenshots>", metainfo)
+        self.assertIn("https://allodia.eu/docs-assets/abc123", metainfo)
 
 
 if __name__ == "__main__":
