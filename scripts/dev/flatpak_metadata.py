@@ -181,13 +181,11 @@ def releases(released_dir: Path) -> list[tuple[str, str]]:
 
 
 def _screenshots_element(manifest: dict | None) -> str:
-    """The gallery, from the committed manifest the capture step writes.
+    """The gallery, from the manifest `--screenshots` names.
 
-    The images are served from the website's content-addressed store, the same one the user guides
-    use (the publisher's own upload tooling), so a screenshot is addressed by its own hash and a stale
-    one cannot be served under a fresh name. `docs_publish.py --check` is what proves they are
-    reachable; a metainfo naming an unpublished URL renders as a broken gallery, so publishing
-    precedes shipping here exactly as it does for the guides.
+    Each image is addressed by its own hash on the publisher's host, so a stale one cannot be
+    served under a fresh name. A metainfo naming an unpublished URL renders as a broken gallery,
+    so publishing the images precedes shipping the listing.
 
     No manifest means no gallery. That is the honest answer while the client is unshipped: an empty
     `<screenshots>` element is invalid AppStream, and inventing URLs for images nobody has uploaded
@@ -195,8 +193,8 @@ def _screenshots_element(manifest: dict | None) -> str:
     """
     if not manifest:
         return (
-            "  <!-- No gallery yet: clients/linux/flatpak/screenshots.json is written by\n"
-            "       scripts/dev/showcase.sh linux and uploaded to the content store. -->"
+            "  <!-- No gallery: the generator was given no screenshots manifest. Capture with\n"
+            "       scripts/dev/showcase.sh linux, publish, then name the manifest. -->"
         )
     out = ["  <screenshots>"]
     for index, shot in enumerate(manifest["screenshots"]):
@@ -320,7 +318,9 @@ def metainfo(
     return rendered
 
 
-def build(out_dir: Path, *, repo_root: Path = REPO_ROOT) -> list[Path]:
+def build(
+    out_dir: Path, *, repo_root: Path = REPO_ROOT, screenshots: Path | None = None
+) -> list[Path]:
     """Write both files into `out_dir`, and return what was written."""
     listing = brand.listing_source().read_text(encoding="utf-8")
     version = (repo_root / "VERSION").read_text(encoding="utf-8").strip()
@@ -331,7 +331,11 @@ def build(out_dir: Path, *, repo_root: Path = REPO_ROOT) -> list[Path]:
     summary_by_locale = summaries(listing)
     paragraphs = descriptions(listing)
     history = releases(repo_root / "docs" / "changelog" / "released")
-    gallery_path = repo_root / "clients" / "linux" / "flatpak" / "screenshots.json"
+    # Named by the caller, and out of this tree by default. A gallery is a set of URLs to images
+    # of a *branded* build on the publisher's own host, so a copy committed here would survive the
+    # one deletion that is supposed to un-brand a fork, and point its listing at our screenshots.
+    # A fork that wants one passes its own.
+    gallery_path = screenshots or (repo_root / "clients" / "linux" / "flatpak" / "screenshots.json")
     gallery = json.loads(gallery_path.read_text(encoding="utf-8")) if gallery_path.is_file() else None
 
     # The body no longer uses the token (see `parse_keystore_tokens`), but an unsubstituted one
@@ -367,9 +371,14 @@ def build(out_dir: Path, *, repo_root: Path = REPO_ROOT) -> list[Path]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out-dir", required=True, type=Path, help="where the two files are written")
+    parser.add_argument(
+        "--screenshots",
+        type=Path,
+        help="the gallery manifest, which lives with whoever publishes the listing",
+    )
     args = parser.parse_args(argv)
     try:
-        written = build(args.out_dir)
+        written = build(args.out_dir, screenshots=args.screenshots)
     except (DocumentShapeError, MetadataError) as error:
         print(f"flatpak-metadata: {error}", file=sys.stderr)
         return 1
