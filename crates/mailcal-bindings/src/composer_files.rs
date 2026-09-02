@@ -5,7 +5,7 @@ use std::{collections::HashSet, sync::Arc};
 use mailcal_app::{ComposerBlob as AppComposerBlob, Intent as AppIntent};
 use mailcal_composer::{
     AttachmentDisposition, AttachmentId, ComposerDocument, DraftAttachment as ComposerAttachment,
-    DraftBlobHandle,
+    DraftBlobHandle, safe_file_name, safe_media_type,
 };
 
 use crate::{
@@ -204,8 +204,8 @@ fn prepare_with_files(
             .ok_or_else(|| MailcalError::Composer("attachment id is blank".to_owned()))?;
         let handle = DraftBlobHandle::new(handle_value)
             .ok_or_else(|| MailcalError::Composer("attachment blob handle is blank".to_owned()))?;
-        let file_name = safe_file_name(&file);
-        let media_type = safe_media_type(&file.media_type);
+        let file_name = safe_file_name(&file.file_name, &file.path);
+        let media_type = safe_media_type(&file.media_type, &file_name);
         document.attachments.push(ComposerAttachment {
             id,
             blob: handle.clone(),
@@ -253,55 +253,6 @@ fn unique_value(prefix: &str, used: &mut HashSet<String>) -> String {
     }
 }
 
-fn safe_file_name(file: &ComposerFileAttachment) -> String {
-    let candidate = if file.file_name.trim().is_empty() {
-        std::path::Path::new(&file.path)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("attachment")
-    } else {
-        file.file_name.as_str()
-    };
-    let cleaned = candidate
-        .chars()
-        .map(|ch| {
-            if ch.is_control() || matches!(ch, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
-            {
-                '_'
-            } else {
-                ch
-            }
-        })
-        .collect::<String>();
-    let cleaned = cleaned.trim_matches(['.', ' ', '_']);
-    if cleaned.is_empty() {
-        "attachment".to_owned()
-    } else {
-        cleaned.to_owned()
-    }
-}
-
-/// Normalises a host-reported media type to a well-formed `type/subtype`, falling back to
-/// `application/octet-stream` for anything malformed. Requires exactly one `/` with a
-/// non-empty type and subtype drawn from the RFC token-ish charset: so degenerate values
-/// like `/`, `a/`, `/b`, or `a/b/c` never reach the outgoing `Content-Type`.
-fn safe_media_type(value: &str) -> String {
-    let trimmed = value.trim();
-    let valid_token = |token: &str| {
-        !token.is_empty()
-            && token
-                .bytes()
-                .all(|b| matches!(b, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'+' | b'-' | b'.'))
-    };
-    let mut parts = trimmed.split('/');
-    match (parts.next(), parts.next(), parts.next()) {
-        (Some(ty), Some(sub), None) if valid_token(ty) && valid_token(sub) => {
-            trimmed.to_ascii_lowercase()
-        }
-        _ => "application/octet-stream".to_owned(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -331,7 +282,11 @@ mod tests {
         let attachment = &prepared.document.attachments[0];
         assert_eq!(attachment.id.as_str(), "native-file-0");
         assert_eq!(attachment.file_name, "hello_.txt");
-        assert_eq!(attachment.media_type, "application/octet-stream");
+        // A malformed declared type falls back to what the name implies, not to
+        // `application/octet-stream`: the picker and the share path resolve metadata through the
+        // one shared pair (`mailcal_composer::{safe_file_name, safe_media_type}`), so a file
+        // whose host reported nothing usable still reaches the recipient openable.
+        assert_eq!(attachment.media_type, "text/plain");
         assert_eq!(attachment.size, Some(5));
         assert!(matches!(
             attachment.disposition,
@@ -397,18 +352,5 @@ mod tests {
         .expect_err("must reject unsupplied blob");
         assert!(matches!(err, MailcalError::Composer(msg) if msg.contains("ghost")));
         let _ = std::fs::remove_file(path);
-    }
-
-    #[test]
-    fn safe_media_type_rejects_degenerate_values() {
-        assert_eq!(safe_media_type("application/pdf"), "application/pdf");
-        assert_eq!(safe_media_type("image/SVG+xml"), "image/svg+xml");
-        for bad in ["/", "a/", "/b", "a/b/c", "bad media", "", "text"] {
-            assert_eq!(
-                safe_media_type(bad),
-                "application/octet-stream",
-                "expected fallback for {bad:?}"
-            );
-        }
     }
 }

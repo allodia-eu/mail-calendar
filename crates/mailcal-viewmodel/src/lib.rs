@@ -33,9 +33,10 @@ pub use folders::{
 pub use invitation::{AttendeeTally, InvitationCard, InvitationKind, ResponseStatus};
 pub use reading::{AttachmentRow, ReadingSnapshot};
 pub use settings::{
-    AccountSignatureRow, AccountSyncRow, McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind,
-    SignatureRow, SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection,
-    SwipeSettings, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot,
+    AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
+    McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureRow, SignatureSlotKind,
+    SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow,
+    SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot,
 };
 pub use sync_progress::{AccountSyncProgress, SyncProgressSnapshot};
 pub use text::plain_text;

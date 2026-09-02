@@ -44,6 +44,7 @@ mod connectivity;
 mod connector;
 mod contacts;
 mod contacts_write;
+mod default_mail_app;
 mod dispatch;
 mod display_settings;
 mod folder_pane;
@@ -443,6 +444,8 @@ mod tests_calendar_series_warning;
 mod tests_calendar_unexpandable;
 #[cfg(test)]
 mod tests_contacts;
+#[cfg(test)]
+mod tests_default_mail_app;
 #[cfg(test)]
 mod tests_depth;
 #[cfg(test)]

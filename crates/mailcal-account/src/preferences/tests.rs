@@ -57,6 +57,7 @@ fn save_then_load_round_trips_the_preferences() {
             "2026-06-01T09:30:00Z".to_owned(),
         )]),
         analytics_consent: Some(true),
+        default_mail_app_offer: Some(false),
         analytics_install_id: Some("k7VqZ3mQ0pR1sT2uV3wX4g".to_owned()),
         analytics_notice_version: Some(1),
         analytics_consented_at: Some("2026-07-11T10:00:00Z".to_owned()),
@@ -212,6 +213,21 @@ fn analytics_defaults_to_unasked_with_no_install_id() {
     let older: Preferences = toml::from_str("display_timezone = \"Europe/Amsterdam\"").unwrap();
     assert_eq!(older.analytics_consent, None);
     assert_eq!(older.analytics_install_id, None);
+}
+
+#[test]
+fn the_default_mail_app_offer_starts_unasked_and_tells_its_answers_apart() {
+    // The same tri-state the analytics consent above keeps, and for the same reason: `None` is
+    // the only value that lets the offer be put, so an older preferences file (written before
+    // the offer existed) must read back as never-offered rather than as answered.
+    assert_eq!(Preferences::default().default_mail_app_offer, None);
+    let older: Preferences = toml::from_str("display_timezone = \"Europe/Amsterdam\"").unwrap();
+    assert_eq!(older.default_mail_app_offer, None);
+
+    let declined: Preferences = toml::from_str("default_mail_app_offer = false").unwrap();
+    assert_eq!(declined.default_mail_app_offer, Some(false));
+    let accepted: Preferences = toml::from_str("default_mail_app_offer = true").unwrap();
+    assert_eq!(accepted.default_mail_app_offer, Some(true));
 }
 
 #[test]

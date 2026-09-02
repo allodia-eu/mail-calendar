@@ -19,6 +19,14 @@ that same file.
   A second cost of the same move: a `private` fixture that becomes `internal` is now visible to
   every other test in the package, and generic names (`NOW`, `block`, `page`) collide with
   identically-named privates elsewhere. Prefix them for the file they came from.
+- **A `*/` inside a Rust doc comment on a UniFFI-exported item breaks the generated Kotlin.**
+  UniFFI copies our doc text into the bindings, and Kotlin's are `/** … */` blocks, so the first
+  `*/` in the prose closes the comment and the rest of it becomes top-level Kotlin. Writing that a
+  wildcard media type is refused, with the wildcard spelled out, cost an hour: `mailcal-bindings`
+  compiled, `cargo doc` was clean, the C# generator was happy, and only `:app:test` failed, 200
+  lines into a 20,000-line generated file, with `Parameter name expected`. Swift and C# take `///`
+  line comments and never see it, which is what makes this Kotlin's alone. Describe the sequence
+  rather than typing it.
 - **In the Android composer's WebView, viewport units compute to `0px`.** Compose lays an
   `AndroidView` out *after* the page loads, so Chromium fixes the layout viewport at zero height and
   `100vh` / `100%` silently do nothing. Size from `document.documentElement.clientHeight` and
