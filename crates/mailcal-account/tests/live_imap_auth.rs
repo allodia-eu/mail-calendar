@@ -22,7 +22,9 @@ use mailcal_account::{ConnectionSecurity, ImapAuth, ImapAuthQuery, decide_imap_a
 
 /// The harness address, or `None` when this run is not gated on.
 fn harness() -> Option<String> {
-    std::env::var("MAILCAL_HARNESS_IMAP").ok().filter(|addr| !addr.is_empty())
+    std::env::var("MAILCAL_HARNESS_IMAP")
+        .ok()
+        .filter(|addr| !addr.is_empty())
 }
 
 #[tokio::test]

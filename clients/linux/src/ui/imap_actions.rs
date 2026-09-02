@@ -26,15 +26,15 @@ const PROBE_DEADLINE: Duration = Duration::from_secs(10);
 impl AppModel {
     /// Asks the core what this server accepts. Blocking, and fail-soft: any failure is the
     /// password field, which works everywhere.
-    pub(super) fn probe_imap_sign_in(&mut self, form: ImapForm, sender: relm4::Sender<AppInput>) {
+    pub(super) fn probe_imap_sign_in(&mut self, form: &ImapForm, sender: relm4::Sender<AppInput>) {
         let Some(app) = self.app.clone() else {
             // With no core there is nothing to ask, and the card must not wait for an answer
             // that can never come.
-            sender.emit(password_only(&form));
+            sender.emit(password_only(form));
             return;
         };
-        deny_after_deadline(&form, &sender);
-        let request = imap_signin::login_request(&form);
+        deny_after_deadline(form, &sender);
+        let request = imap_signin::login_request(form);
         let (email, host) = (form.email.clone(), form.imap_host.clone());
         std::thread::spawn(move || {
             let offer = app.imap_auth_options(request);
@@ -53,7 +53,7 @@ impl AppModel {
         sender: relm4::Sender<AppInput>,
     ) {
         if let Some(form) = self.setup.adopt_manual_imap(form) {
-            self.probe_imap_sign_in(form.into(), sender);
+            self.probe_imap_sign_in(&form.into(), sender);
         }
     }
 
@@ -66,7 +66,7 @@ impl AppModel {
         self.setup.imap_auth_answered(email, imap_host, offer);
     }
 
-    pub(super) fn start_imap_login(&mut self, form: ImapForm, sender: relm4::Sender<AppInput>) {
+    pub(super) fn start_imap_login(&mut self, form: &ImapForm, sender: relm4::Sender<AppInput>) {
         let (Some(app), Some(_)) = (self.app.clone(), self.secrets.clone()) else {
             return;
         };
@@ -77,7 +77,7 @@ impl AppModel {
         };
         let (attempt, _) = self.host_tasks.imap.start();
         self.setup.imap_signing_in();
-        let request = imap_signin::login_request(&form);
+        let request = imap_signin::login_request(form);
         std::thread::spawn(move || {
             let prepared = imap_signin::prepare(&app, loopback, request).map(Box::new);
             sender.emit(AppInput::ImapPrepared(attempt, prepared));

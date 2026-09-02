@@ -43,7 +43,9 @@ fn deny_after_deadline(email: &str, server_url: &str, sender: &relm4::Sender<App
 /// state (which borrows it) and run after.
 enum Probe {
     Jmap(String, String),
-    Imap(ImapForm),
+    /// Boxed: an `ImapForm` carries the detected server rows, which makes it several times the
+    /// size of the JMAP arm and the whole enum with it.
+    Imap(Box<ImapForm>),
     None,
 }
 
@@ -62,13 +64,13 @@ impl AppModel {
             SetupForm::Detected(DetectedForm::Jmap(form)) => {
                 Probe::Jmap(form.email.clone(), form.server_url.clone())
             }
-            SetupForm::Detected(DetectedForm::Imap(form)) => Probe::Imap(form.as_ref().clone()),
+            SetupForm::Detected(DetectedForm::Imap(form)) => Probe::Imap(form.clone()),
             _ => Probe::None,
         };
         self.setup.show_form(form);
         match probe {
             Probe::Jmap(email, server_url) => self.probe_jmap_sign_in(email, server_url, sender),
-            Probe::Imap(form) => self.probe_imap_sign_in(form, sender),
+            Probe::Imap(form) => self.probe_imap_sign_in(&form, sender),
             Probe::None => {}
         }
     }
@@ -106,7 +108,7 @@ impl AppModel {
     fn probe_manual(&mut self, probe: Option<ManualForm>, sender: relm4::Sender<AppInput>) {
         let Some(form) = probe else { return };
         if form.probes_imap_sign_in() {
-            self.probe_imap_sign_in(form.into(), sender);
+            self.probe_imap_sign_in(&form.into(), sender);
         } else {
             self.probe_jmap_sign_in(form.email, form.jmap_server, sender);
         }
