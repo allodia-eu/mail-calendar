@@ -6,10 +6,12 @@ use crate::{
 };
 
 mod colors;
+mod file_meta;
 mod inline_images;
 mod lists;
 mod mailto;
 mod quotes;
+mod share;
 mod signatures;
 
 fn aid(value: &str) -> AttachmentId {

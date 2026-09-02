@@ -35,9 +35,10 @@ pub use invitation::{AttendeeTally, InvitationCard, InvitationKind, ResponseStat
 pub use reading::{AttachmentRow, ReadingSnapshot};
 pub use sender::sender_label;
 pub use settings::{
-    AccountSignatureRow, AccountSyncRow, McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind,
-    SignatureRow, SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection,
-    SwipeSettings, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot,
+    AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
+    McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureRow, SignatureSlotKind,
+    SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow,
+    SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot,
 };
 pub use sync_progress::{AccountSyncProgress, SyncProgressSnapshot};
 pub use text::plain_text;

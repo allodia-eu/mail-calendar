@@ -91,6 +91,7 @@ mod records_repeat_summary;
 mod rendering;
 mod repeat_editor;
 mod setup;
+mod share;
 mod showcase;
 mod showcase_bodies;
 mod showcase_contacts;
@@ -138,10 +139,10 @@ pub use records::{
     SearchHorizon, SendStatus, SnapshotRow, SyncProgressSnapshot, ThreadMessage, ThreadRow,
     TimeZoneSnapshot, UnfiledCopy, ViewMode,
     settings::{
-        AccountSignatureRow, AccountSyncRow, McpAccountRow, McpSettings, QuoteSettings,
-        QuoteStyleKind, SignatureBody, SignatureRow, SignatureSlotKind, SignaturesSnapshot,
-        SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow, SyncSettingsSnapshot,
-        SyncStrategyKind,
+        AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
+        McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow,
+        SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings,
+        SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
 };
 pub use records_avatar::Avatar;
@@ -171,6 +172,9 @@ pub use rendering::{
 pub use repeat_editor::repeat_change_of;
 pub use setup::{
     AccountSetup, ConnectionSecurity, JmapSetup, account_config_toml, jmap_account_config_toml,
+};
+pub use share::{
+    RejectedShare, SharePrefill, ShareRejectionReason, ShareRequest, SharedFile, prefill_from_share,
 };
 pub use showcase_data::{
     ShowcaseInvitation, ShowcaseLocale, ShowcaseReply, showcase_invitation,
