@@ -312,6 +312,9 @@ public struct ContentView: View {
         // are attached here rather than to the `WindowGroup` because the model is this view's own
         // state, and a link has nowhere to go without it. See Mailcal.ComposeDraft.swift.
         .modifier(MailLinkRouting(model: model, open: openMailLink))
+        // The one-time offer to become the default mail app: when to raise it and the alert
+        // itself, both in the modifier (docs/os-integration.md).
+        .modifier(DefaultMailAppOfferDialog(model: model))
         // Clicking another message with an unsent draft in the pane: Discard, or Keep editing.
         .modifier(DiscardDraftDialog(
             isPresented: $confirmingDiscard,
