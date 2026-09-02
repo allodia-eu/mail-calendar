@@ -94,6 +94,7 @@ impl SetupWindow {
             Phase::GoogleSigningIn => setup_google::signing_in(sender),
             Phase::MicrosoftSigningIn => setup_microsoft::signing_in(sender),
             Phase::JmapSigningIn => setup_jmap::signing_in(sender),
+            Phase::ImapSigningIn => setup_imap::signing_in(sender),
         };
         window.set_child(Some(&content));
         window.present();
@@ -211,7 +212,7 @@ fn form_step(
         SetupForm::Detected(detected) => {
             content.append(&heading(l10n::setup_detect_found_title()));
             match detected {
-                DetectedForm::Imap(form) => Some(setup_imap::detected_fields(
+                DetectedForm::Imap(form) => setup_imap::detected_fields(
                     &content,
                     window,
                     form,
@@ -219,7 +220,7 @@ fn form_step(
                     certificate,
                     required,
                     sender,
-                )),
+                ),
                 DetectedForm::Jmap(form) => {
                     setup_jmap::detected_fields(&content, window, form, error, required, sender)
                 }

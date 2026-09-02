@@ -365,3 +365,80 @@ fn malformed_xml_is_reported() {
         ParseError::Xml(_)
     ));
 }
+
+/// The `<oAuth2>` block as the format writes it: a bare-host issuer beside endpoints and a
+/// client id we deliberately never read.
+const OAUTH_BLOCK: &str = r"    <oAuth2>
+      <issuer>login.example.com</issuer>
+      <authURL>https://login.example.com/authorize</authURL>
+      <tokenURL>https://login.example.com/token</tokenURL>
+      <scope>IMAP SMTP offline_access</scope>
+      <clientID>not-ours</clientID>
+    </oAuth2>
+";
+
+#[test]
+fn the_oauth_issuer_is_read_and_given_the_scheme_the_rfc_requires() {
+    // The format writes a bare hostname; RFC 8414 defines an issuer identifier as an HTTPS
+    // URL, and the whole well-known path is derived from it, so the scheme is added here
+    // rather than at four call sites that would each have to remember.
+    let parsed = parse(&MINIMAL.replace(
+        "  </emailProvider>",
+        &format!("{OAUTH_BLOCK}  </emailProvider>"),
+    ))
+    .expect("valid document");
+    assert_eq!(
+        parsed.oauth_issuer.as_deref(),
+        Some("https://login.example.com")
+    );
+    // The servers are unaffected: an OAuth block is extra information, not a different config.
+    assert_eq!(parsed.incoming.len(), 1);
+    assert_eq!(parsed.outgoing.len(), 1);
+}
+
+#[test]
+fn a_document_with_no_oauth_block_names_no_issuer() {
+    assert_eq!(parse(MINIMAL).expect("valid document").oauth_issuer, None);
+}
+
+#[test]
+fn an_issuer_written_as_a_full_https_url_is_kept() {
+    // Some documents write the identifier out in full. Prefixing it again would produce
+    // `https://https://…`, which fails discovery in a way that reads like a server fault.
+    let block = OAUTH_BLOCK.replace(
+        "<issuer>login.example.com</issuer>",
+        "<issuer>https://login.example.com/</issuer>",
+    );
+    let parsed =
+        parse(&MINIMAL.replace("  </emailProvider>", &format!("{block}  </emailProvider>")))
+            .expect("valid document");
+    assert_eq!(
+        parsed.oauth_issuer.as_deref(),
+        Some("https://login.example.com")
+    );
+}
+
+#[test]
+fn an_issuer_that_is_not_a_hostname_is_dropped_rather_than_half_understood() {
+    // An issuer decides which page a person types their password into. A value we cannot
+    // read as a host is not a smaller version of that decision, it is no decision, so the
+    // route is simply not offered and the password field stays.
+    for value in [
+        "http://login.example.com",
+        "not a host",
+        "",
+        "ftp://x.example",
+    ] {
+        let block = OAUTH_BLOCK.replace(
+            "<issuer>login.example.com</issuer>",
+            &format!("<issuer>{value}</issuer>"),
+        );
+        let parsed =
+            parse(&MINIMAL.replace("  </emailProvider>", &format!("{block}  </emailProvider>")))
+                .expect("valid document");
+        assert_eq!(
+            parsed.oauth_issuer, None,
+            "issuer {value:?} must be dropped"
+        );
+    }
+}

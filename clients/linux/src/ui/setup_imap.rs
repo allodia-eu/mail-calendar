@@ -9,13 +9,15 @@ use url::Url;
 use super::{
     AppInput,
     setup_manual::FormSnapshot,
-    setup_model::{AccountSubmission, DetectedServer, ImapForm, ImapSubmission, ManualForm},
+    setup_model::{
+        AccountSubmission, DetectedServer, ImapForm, ImapSignIn, ImapSubmission, ManualForm,
+    },
     setup_pane::{ConnectPane, connecting_readout},
     setup_server_field::ServerPair,
     setup_server_row::manual_server_row,
     setup_widgets::{
-        actions, caption, detected_row, edit_manually_button, entry, gate_connect, primary,
-        section, trust_approved, trust_gate,
+        actions, body, caption, detected_row, edit_manually_button, entry, gate_connect,
+        gate_on_trust, primary, section, show_error, trust_approved, trust_gate,
     },
 };
 use crate::l10n;
@@ -30,17 +32,25 @@ pub(super) fn detected_fields(
     certificate: Option<&RejectedCertificate>,
     required: bool,
     sender: &relm4::Sender<AppInput>,
-) -> ConnectPane {
+) -> Option<ConnectPane> {
     content.append(&section(l10n::setup_detect_section_email()));
     content.append(&server_row(&form.incoming));
     if let Some(outgoing) = &form.outgoing {
         content.append(&server_row(outgoing));
     }
-    content.append(&caption(l10n::setup_detect_app_password_hint()));
-    content.append(&caption(l10n::setup_credentials_note()));
+    sign_in_explanation(content, &form.sign_in);
+
+    // The trust gate belongs above whichever credential the user is about to hand over, and
+    // it gates the sign-in button too: an untrusted config decides which *server* the browser
+    // is sent to, so approving it matters at least as much there as for a typed password.
     let trust = trust_gate(content, form.trusted);
-    let password = entry(l10n::setup_field_password(), "", true);
-    content.append(&password);
+    let secret = form.sign_in.show_password().then(|| {
+        content.append(&caption(l10n::setup_detect_app_password_hint()));
+        content.append(&caption(l10n::setup_credentials_note()));
+        let password = entry(l10n::setup_field_password(), "", true);
+        content.append(&password);
+        password
+    });
 
     let calendar = calendar_section(content, &form.caldav_url);
     // Where a refusal draws itself, into the pane that asked; filled by `ConnectPane`.
@@ -49,37 +59,105 @@ pub(super) fn detected_fields(
 
     let actions = actions(window, required, sender);
     actions.append(&edit_manually_button(sender));
-    let connect = primary(l10n::action_connect(), window);
-    let readout = connecting_readout(l10n::status_connecting());
-    actions.append(&readout);
-    let gate = gate_connect(&connect, Some(&trust), form.trusted, &password);
-    let pane = ConnectPane::new(&feedback, gate, &connect, &readout, true);
-    pane.show_result(error, certificate);
-    let base = form.clone();
-    let refused = pane.accepted();
-    let input = sender.clone();
-    connect.connect_clicked(move |_| {
-        if !trust_approved(base.trusted, trust.is_active()) || password.text().is_empty() {
-            return;
-        }
-        input.emit(AppInput::SubmitAccount(Box::new(AccountSubmission::Imap(
-            ImapSubmission {
-                email: base.email.clone(),
-                imap_host: base.imap_host.clone(),
-                smtp_host: base.smtp_host.clone(),
-                caldav_url: calendar.effective_url(),
-                imap_security: base.imap_security,
-                smtp_security: base.smtp_security,
-                password: password.text().to_string(),
-                // Read now rather than captured when the pane was built: the pane outlives
-                // the refusal it is answering.
-                accepted_certificate: refused.borrow().clone(),
-            },
-        ))));
-    });
-    actions.append(&connect);
+    let mut pane: Option<ConnectPane> = None;
+    if form.sign_in.show_offer() {
+        let button = primary(l10n::setup_imap_signin_button(), window);
+        gate_on_trust(&trust, &button, form.trusted);
+        let base = form.clone();
+        let input = sender.clone();
+        let approved = trust.clone();
+        button.connect_clicked(move |_| {
+            if trust_approved(base.trusted, approved.is_active()) {
+                input.emit(AppInput::StartImapLogin(Box::new(base.clone())));
+            }
+        });
+        actions.append(&button);
+    }
+    if let Some(password) = secret {
+        // Secondary once a sign-in is on offer: the same two controls, in the order the
+        // provider's own answer puts them in.
+        let connect = if form.sign_in.show_offer() {
+            gtk::Button::with_label(l10n::setup_imap_signin_password_instead())
+        } else {
+            primary(l10n::action_connect(), window)
+        };
+        let readout = connecting_readout(l10n::status_connecting());
+        actions.append(&readout);
+        let gate = gate_connect(&connect, Some(&trust), form.trusted, &password);
+        let connected = ConnectPane::new(&feedback, gate, &connect, &readout, true);
+        let base = form.clone();
+        let refused = connected.accepted();
+        let input = sender.clone();
+        connect.connect_clicked(move |_| {
+            if !trust_approved(base.trusted, trust.is_active()) || password.text().is_empty() {
+                return;
+            }
+            input.emit(AppInput::SubmitAccount(Box::new(AccountSubmission::Imap(
+                ImapSubmission {
+                    email: base.email.clone(),
+                    imap_host: base.imap_host.clone(),
+                    smtp_host: base.smtp_host.clone(),
+                    caldav_url: calendar.effective_url(),
+                    imap_security: base.imap_security,
+                    smtp_security: base.smtp_security,
+                    password: password.text().to_string(),
+                    // Read now rather than captured when the pane was built: the pane outlives
+                    // the refusal it is answering.
+                    accepted_certificate: refused.borrow().clone(),
+                },
+            ))));
+        });
+        actions.append(&connect);
+        pane = Some(connected);
+    }
     content.append(&actions);
+    match &pane {
+        Some(pane) => pane.show_result(error, certificate),
+        // A card that only offers the sign-in has no Connect to answer for; what the sign-in's
+        // own connect said still needs somewhere to land.
+        None => show_error(&feedback, error),
+    }
     pane
+}
+
+/// Asks again whenever the user leaves a field the answer depends on.
+fn probe_on_leave(field: &gtk::Entry, snapshot: &FormSnapshot, sender: &relm4::Sender<AppInput>) {
+    let focus = gtk::EventControllerFocus::new();
+    let snapshot = Rc::clone(snapshot);
+    let input = sender.clone();
+    focus.connect_leave(move |_| {
+        input.emit(AppInput::ProbeManualImapSignIn(Box::new(snapshot())));
+    });
+    field.add_controller(focus);
+}
+
+/// The screen shown while the browser holds the sign-in, with the one action left: cancel.
+pub(super) fn signing_in(sender: &relm4::Sender<AppInput>) -> gtk::Box {
+    super::setup_widgets::waiting(
+        l10n::setup_imap_signin_button(),
+        || AppInput::CancelImapLogin,
+        sender,
+    )
+}
+
+/// The line that says what the server answered, when it says something.
+///
+/// Silent in the ordinary case, which is a provider that takes a password and always did:
+/// there is nothing to explain and a line saying so would be noise on every setup.
+fn sign_in_explanation(content: &gtk::Box, sign_in: &ImapSignIn) {
+    match sign_in {
+        ImapSignIn::Checking => content.append(&caption(l10n::setup_imap_signin_checking())),
+        ImapSignIn::Offered { .. } => content.append(&body(l10n::setup_imap_signin_note())),
+        ImapSignIn::RegistrationNeeded => {
+            content.append(&body(l10n::setup_imap_signin_registration_needed()));
+        }
+        ImapSignIn::Failed => {
+            let message = body(l10n::setup_imap_signin_failed());
+            message.add_css_class("error");
+            content.append(&message);
+        }
+        ImapSignIn::Password => {}
+    }
 }
 
 /// The manual form: every field typed by hand, for a server autodetection could not find.
@@ -115,6 +193,9 @@ pub(super) fn manual_fields(
     let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
     content.append(&feedback);
 
+    // Leaving either field asks the server what it accepts for what is typed now. The
+    // password field stays put throughout, so an answer can only ever *add* a sign-in button
+    // or a line of explanation: rebuilding over a password being typed would erase it.
     let snapshot: FormSnapshot = {
         let base = form.clone();
         let (email, caldav) = (email.clone(), caldav.clone());
@@ -131,6 +212,20 @@ pub(super) fn manual_fields(
             ..base.clone()
         })
     };
+
+    for field in [&email, &imap.host] {
+        probe_on_leave(field, &snapshot, sender);
+    }
+    sign_in_explanation(content, &form.imap_sign_in);
+    if form.imap_sign_in.show_offer() {
+        let button = gtk::Button::with_label(l10n::setup_imap_signin_button());
+        let snapshot = Rc::clone(&snapshot);
+        let input = sender.clone();
+        button.connect_clicked(move |_| {
+            input.emit(AppInput::StartImapLogin(Box::new(snapshot().into())));
+        });
+        content.append(&button);
+    }
 
     let actions = actions(window, required, sender);
     let connect = primary(l10n::action_connect(), window);

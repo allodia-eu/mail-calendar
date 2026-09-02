@@ -1,10 +1,11 @@
 //! State regressions for the account-setup window.
 
-use mailcal_bindings::SetupRecommendation;
+use mailcal_bindings::{ConnectionSecurity, DetectedServerRow, ImapAuthOffer, SetupRecommendation};
 
 use super::{Phase, SetupState};
 use crate::ui::setup_model::{
-    AccountKind, DetectedForm, JmapSignIn, ManualForm, SetupForm, manual_form, recommendation_form,
+    AccountKind, DetectedForm, ImapSignIn, JmapSignIn, ManualForm, SetupForm, manual_form,
+    recommendation_form,
 };
 
 #[test]
@@ -215,6 +216,165 @@ fn jmap_form() -> SetupForm {
         SetupRecommendation::Jmap {
             email: "alice@example.test".to_owned(),
             server_url: "https://jmap.example.test".to_owned(),
+            is_trusted: true,
+            source: "fixture".to_owned(),
+        },
+        String::new(),
+    )
+}
+
+#[test]
+fn only_the_first_imap_answer_for_a_server_counts() {
+    // The deadline races the probe, exactly as it does for JMAP. A late real answer must not
+    // reopen a card the user is already acting on: they may have started typing a password
+    // into it, and rebuilding would take it away.
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(imap_form());
+
+    assert!(state.imap_auth_answered(
+        "alice@example.test",
+        "imap.example.test:993",
+        ImapAuthOffer::Password
+    ));
+    assert!(!state.imap_auth_answered(
+        "alice@example.test",
+        "imap.example.test:993",
+        ImapAuthOffer::SignIn {
+            issuer: "https://login.example.test".to_owned(),
+            provider_label: None,
+            password_also_works: true,
+        }
+    ));
+    assert_eq!(detected_imap_sign_in(&state), ImapSignIn::Password);
+}
+
+#[test]
+fn a_slow_imap_probe_cannot_change_a_newer_setup_form() {
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(imap_form());
+
+    assert!(!state.imap_auth_answered(
+        "bob@other.test",
+        "imap.other.test:993",
+        ImapAuthOffer::Password
+    ));
+    assert_eq!(detected_imap_sign_in(&state), ImapSignIn::Checking);
+}
+
+#[test]
+fn every_imap_answer_redraws_the_detected_card() {
+    // The card shows neither a button nor a password field while it asks, so "a password, as
+    // before" changes what is on screen every bit as much as an offer does.
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(imap_form());
+    let rendered = state.generation;
+
+    assert!(state.imap_auth_answered(
+        "alice@example.test",
+        "imap.example.test:993",
+        ImapAuthOffer::Password
+    ));
+    assert_ne!(state.generation, rendered);
+    assert!(detected_imap_sign_in(&state).show_password());
+}
+
+#[test]
+fn the_manual_pane_only_redraws_when_the_answer_adds_something() {
+    // Its password field is already on screen and stays whatever the answer is, so a rebuild
+    // would erase a password being typed to say nothing. An offer, or the line explaining a
+    // closed sign-in, is new and worth the rebuild.
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(SetupForm::Manual(typed_imap("alice@example.test")));
+    let rendered = state.generation;
+
+    assert!(state.imap_auth_answered(
+        "alice@example.test",
+        "imap.example.test",
+        ImapAuthOffer::Password
+    ));
+    assert_eq!(
+        state.generation, rendered,
+        "a password answer changes nothing on the manual pane"
+    );
+
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(SetupForm::Manual(typed_imap("alice@example.test")));
+    let rendered = state.generation;
+    assert!(state.imap_auth_answered(
+        "alice@example.test",
+        "imap.example.test",
+        ImapAuthOffer::RegistrationNeeded {
+            password_also_works: true
+        }
+    ));
+    assert_ne!(
+        state.generation, rendered,
+        "the line explaining a closed sign-in is new"
+    );
+}
+
+#[test]
+fn the_manual_imap_pre_flight_runs_once_per_server() {
+    // Leaving the field a second time must not spend another dial at the provider.
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(SetupForm::Manual(typed_imap("alice@example.test")));
+
+    assert!(
+        state
+            .adopt_manual_imap(typed_imap("alice@example.test"))
+            .is_none(),
+        "nothing typed has changed"
+    );
+    let probe = state
+        .adopt_manual_imap(ManualForm {
+            email: "bob@example.test".to_owned(),
+            ..typed_imap("alice@example.test")
+        })
+        .expect("a new address is worth asking about");
+    assert_eq!(probe.email, "bob@example.test");
+    assert_eq!(manual(&state).imap_sign_in, ImapSignIn::Checking);
+}
+
+fn typed_imap(email: &str) -> ManualForm {
+    ManualForm {
+        kind: AccountKind::Imap,
+        email: email.to_owned(),
+        imap_host: "imap.example.test".to_owned(),
+        ..ManualForm::default()
+    }
+}
+
+fn detected_imap_sign_in(state: &SetupState) -> ImapSignIn {
+    let Some(SetupForm::Detected(DetectedForm::Imap(form))) = state.form.as_ref() else {
+        panic!("expected the detected IMAP form");
+    };
+    form.sign_in.clone()
+}
+
+fn imap_form() -> SetupForm {
+    recommendation_form(
+        SetupRecommendation::Imap {
+            email: "alice@example.test".to_owned(),
+            imap_host: "imap.example.test:993".to_owned(),
+            smtp_host: None,
+            imap_security: ConnectionSecurity::ImplicitTls,
+            smtp_security: ConnectionSecurity::ImplicitTls,
+            incoming: DetectedServerRow {
+                protocol: "IMAP".to_owned(),
+                hostname: "imap.example.test".to_owned(),
+                port: 993,
+                security: "SSL/TLS".to_owned(),
+                username: "alice@example.test".to_owned(),
+            },
+            outgoing: None,
+            caldav_url: None,
+            oauth_issuer: None,
             is_trusted: true,
             source: "fixture".to_owned(),
         },

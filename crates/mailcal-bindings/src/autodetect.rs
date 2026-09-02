@@ -171,6 +171,11 @@ pub enum SetupRecommendation {
         /// connect, reusing the IMAP credentials, when `None`, it offers an opt-in manual
         /// CalDAV field. The engine does the real authenticated discovery at connect.
         caldav_url: Option<String>,
+        /// The OAuth issuer the provider's **own** autoconfig named, or `None`. The host
+        /// passes it straight back on [`crate::ImapLoginRequest`], where it is the first
+        /// authorization server tried; `None` is the ordinary case and the well-known probe
+        /// answers instead.
+        oauth_issuer: Option<String>,
         /// Whether every step that produced this config was tamper-resistant: every hop
         /// was HTTPS (CA-validated TLS). DNS-derived results (MX/SRV) are trusted on that
         /// TLS alone; DNSSEC is not required.
@@ -267,6 +272,9 @@ fn showcase_recommendation(email: &str) -> SetupRecommendation {
     let imap_host = format!("imap.{domain}");
     let smtp_host = format!("smtp.{domain}");
     SetupRecommendation::Imap {
+        // The showcase's canned detection stands in for a provider that names none: the
+        // password field is the screen the documentation pictures.
+        oauth_issuer: None,
         email: email.to_owned(),
         imap_host: imap_host.clone(),
         smtp_host: Some(smtp_host.clone()),
@@ -405,6 +413,7 @@ fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecomme
             email,
             imap_host,
             smtp_host,
+            oauth_issuer,
             imap_security,
             smtp_security,
             incoming,
@@ -421,6 +430,7 @@ fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecomme
             incoming: convert_row(incoming),
             outgoing: outgoing.map(convert_row),
             caldav_url,
+            oauth_issuer,
             is_trusted,
             source,
         },

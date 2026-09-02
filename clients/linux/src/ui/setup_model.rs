@@ -2,7 +2,7 @@
 //! autodetection recommendation.
 
 use mailcal_bindings::{
-    AccountSetup, ConnectionSecurity, DetectedServerRow, JmapSetup, MissReason,
+    AccountSetup, ConnectionSecurity, DetectedServerRow, ImapAuthOffer, JmapSetup, MissReason,
     RejectedCertificate, SetupRecommendation, account_config_toml, jmap_account_config_toml,
 };
 
@@ -98,6 +98,11 @@ pub(crate) struct ImapForm {
     pub(super) trusted: bool,
     pub(super) incoming: DetectedServer,
     pub(super) outgoing: Option<DetectedServer>,
+    /// The issuer the provider's own autoconfig named, passed straight back to the core when
+    /// the sign-in pre-flight runs. `None` is the ordinary case.
+    pub(super) oauth_issuer: Option<String>,
+    /// What the mail server said it accepts, as answered by the core's fail-soft pre-flight.
+    pub(super) sign_in: ImapSignIn,
 }
 
 /// A server detection found. The FFI record it comes from is not cloneable and the form is,
@@ -134,6 +139,123 @@ pub(crate) struct JmapForm {
 #[derive(Clone)]
 pub(crate) struct OAuthForm {
     pub(super) email: String,
+}
+
+/// What an IMAP server said it accepts, as answered by the core's fail-soft pre-flight.
+///
+/// Three answers rather than a flag, because they are three screens. The middle one is why:
+/// a provider that admits only applications registered with it in advance is not the same as
+/// one that offers no sign-in, and showing the same bare password form for both leaves
+/// someone wondering why the button their colleague has is missing.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ImapSignIn {
+    /// The server has not answered yet. Nothing is offered and no password field is drawn:
+    /// a field that appears and is then taken away reads as the app changing its mind.
+    #[default]
+    Checking,
+    /// Sign-in is on offer.
+    Offered {
+        /// The provider's name for the button, when this build's registration names one.
+        label: Option<String>,
+        /// Whether a password still works, so "use a password instead" is worth offering.
+        password_also_works: bool,
+    },
+    /// The provider's sign-in exists but is not open to this application.
+    RegistrationNeeded,
+    /// No sign-in here: the password form, as it always was.
+    Password,
+    /// A sign-in was started and did not finish. The password field comes back, because that
+    /// is the route left, and the reason is said rather than left to be guessed at.
+    Failed,
+}
+
+impl ImapSignIn {
+    /// Whether the sign-in button belongs on screen.
+    pub(super) const fn show_offer(&self) -> bool {
+        matches!(self, Self::Offered { .. })
+    }
+
+    /// Whether the password field belongs on screen.
+    ///
+    /// Not while the server is still being asked, and not when it said a password is refused:
+    /// on a provider that has switched password auth off, that field is a dead end and the
+    /// user would find out only after typing one.
+    pub(super) const fn show_password(&self) -> bool {
+        match self {
+            Self::Checking => false,
+            Self::Offered {
+                password_also_works,
+                ..
+            } => *password_also_works,
+            Self::RegistrationNeeded | Self::Password | Self::Failed => true,
+        }
+    }
+
+    /// Whether to explain that this provider admits only pre-registered applications.
+    pub(super) const fn explains_registration(&self) -> bool {
+        matches!(self, Self::RegistrationNeeded)
+    }
+}
+
+/// How a detected row names a connection's security.
+const fn security_label(security: ConnectionSecurity) -> &'static str {
+    match security {
+        ConnectionSecurity::ImplicitTls => "SSL/TLS",
+        ConnectionSecurity::StartTls => "STARTTLS",
+    }
+}
+
+impl From<ManualForm> for ImapForm {
+    /// The typed fields as the account shape the pre-flight and the sign-in both take.
+    ///
+    /// The manual form has no detected servers to summarise and no trust question to answer:
+    /// nothing was fetched, so there is no untrusted hop to approve, and the rows on the
+    /// detected card exist to be recognised rather than retyped. The one thing carried
+    /// across is what the user typed.
+    fn from(form: ManualForm) -> Self {
+        let (imap, smtp) = (&form.servers.imap, &form.servers.smtp);
+        Self {
+            // `host:port`, the shape a detected server carries its port in.
+            imap_host: imap.dial(&form.imap_host),
+            smtp_host: smtp.dial(&form.smtp_host),
+            imap_security: imap.security(),
+            smtp_security: smtp.security(),
+            trusted: true,
+            incoming: DetectedServer {
+                protocol: "IMAP".to_owned(),
+                port: imap.port().parse().unwrap_or(993),
+                security: security_label(imap.security()).to_owned(),
+                hostname: form.imap_host,
+            },
+            email: form.email,
+            caldav_url: form.caldav_url,
+            outgoing: None,
+            // Nothing was detected, so no provider named an issuer for itself; the core's
+            // well-known probe is what answers here.
+            oauth_issuer: None,
+            sign_in: form.imap_sign_in,
+        }
+    }
+}
+
+impl From<ImapAuthOffer> for ImapSignIn {
+    fn from(offer: ImapAuthOffer) -> Self {
+        match offer {
+            ImapAuthOffer::SignIn {
+                provider_label,
+                password_also_works,
+                // The issuer is shown by the core's own log rather than on the card: a URL
+                // beside a button asks the user to make a judgement they have no basis for,
+                // and the server it names is the one their provider published.
+                ..
+            } => Self::Offered {
+                label: provider_label,
+                password_also_works,
+            },
+            ImapAuthOffer::RegistrationNeeded { .. } => Self::RegistrationNeeded,
+            ImapAuthOffer::Password => Self::Password,
+        }
+    }
 }
 
 /// Whether this JMAP server's own metadata advertises sign-in, as answered by the core's
@@ -174,6 +296,10 @@ pub(crate) struct ManualForm {
     /// Each server's port and connection security. The host fields above hold the name alone;
     /// the port sits beside it, where the user can see and change it.
     pub(super) servers: ServerPair,
+    /// What the typed IMAP server said it accepts. The manual pane keeps its password field
+    /// throughout (it is already on screen, and rebuilding over a secret being typed would
+    /// erase it), so this only ever *adds* a sign-in button or a line of explanation.
+    pub(super) imap_sign_in: ImapSignIn,
     /// Why detection sent the user here, when it did.
     pub(super) note: Option<String>,
 }
@@ -184,6 +310,17 @@ impl ManualForm {
         self.kind == AccountKind::Jmap
             && self.sign_in == JmapSignIn::Checking
             && !self.email.trim().is_empty()
+    }
+
+    /// Whether an IMAP auth pre-flight is worth running for what is typed now.
+    ///
+    /// A server is required as well as an address: the question is what *that server*
+    /// accepts, and there is nothing to dial without one.
+    pub(super) fn probes_imap_sign_in(&self) -> bool {
+        self.kind == AccountKind::Imap
+            && self.imap_sign_in == ImapSignIn::Checking
+            && !self.email.trim().is_empty()
+            && !self.imap_host.trim().is_empty()
     }
 }
 
@@ -279,6 +416,7 @@ pub(super) fn recommendation_form(
             incoming,
             outgoing,
             caldav_url,
+            oauth_issuer,
             is_trusted,
             ..
         } => SetupForm::Detected(DetectedForm::Imap(Box::new(ImapForm {
@@ -291,6 +429,8 @@ pub(super) fn recommendation_form(
             trusted: is_trusted,
             incoming: incoming.into(),
             outgoing: outgoing.map(Into::into),
+            oauth_issuer,
+            sign_in: ImapSignIn::Checking,
         }))),
         SetupRecommendation::Microsoft { email } => {
             SetupForm::Detected(DetectedForm::Microsoft(OAuthForm { email }))
@@ -333,6 +473,9 @@ pub(super) fn edit_manually(form: &DetectedForm) -> SetupForm {
                 smtp_host: split_host(&imap.smtp_host).0.to_owned(),
                 caldav_url: imap.caldav_url.clone(),
                 servers,
+                // The card already asked this server; the manual pane asks again for whatever
+                // the user edits the server to.
+                imap_sign_in: imap.sign_in.clone(),
                 ..ManualForm::default()
             }
         }

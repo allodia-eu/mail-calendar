@@ -103,6 +103,18 @@ pub(super) const fn trust_approved(detected_trusted: bool, user_approved: bool) 
     detected_trusted || user_approved
 }
 
+/// Holds a button that needs only the untrusted-settings approval closed until the box is
+/// ticked: a sign-in, which takes no secret here and so has nothing else to wait for. The click
+/// handler re-checks [`trust_approved`]: this is the affordance, not the gate.
+pub(super) fn gate_on_trust(trust: &gtk::CheckButton, button: &gtk::Button, trusted: bool) {
+    if trusted {
+        return;
+    }
+    button.set_sensitive(false);
+    let gated = button.clone();
+    trust.connect_toggled(move |choice| gated.set_sensitive(choice.is_active()));
+}
+
 /// The certificate a server offered that could not be verified, and the confirmation that
 /// unlocks Connect. Drawn only once a connect has actually been refused for one; the checkbox
 /// comes back so the submit path can read it (`docs/certificate-exceptions.md`).

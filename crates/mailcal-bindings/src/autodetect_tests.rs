@@ -67,6 +67,7 @@ fn a_tls_build_error_folds_to_a_network_manual() {
 #[test]
 fn a_discovered_caldav_endpoint_survives_the_ffi_conversion() {
     let detected = Detected::Mail(DetectedMailSettings {
+        oauth_issuer: None,
         incoming: vec![DetectedServer {
             hostname: "imap.soverin.net".to_owned(),
             port: 993,
