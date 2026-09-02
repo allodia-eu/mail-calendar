@@ -37,9 +37,9 @@ pub(crate) fn media_type_for(file_name: &str) -> String {
 
 /// The share a command line carries, or `None` when it names no readable file.
 ///
-/// `arguments` is the whole argv, argv[0] included, as GApplication's `command-line` signal hands
-/// it over. A mail link is **not** a share and is left for [`crate::mail_link`]: `main` asks that
-/// question first, and this one only sees what it declined.
+/// `arguments` is the whole argv, the program name included, as GApplication's `command-line`
+/// signal hands it over. A mail link is **not** a share and is left for [`crate::mail_link`]:
+/// `main` asks that question first, and this one only sees what it declined.
 pub(crate) fn prefill_arguments(arguments: &[OsString]) -> Option<SharePrefill> {
     let mut files = Vec::new();
     let mut arguments = arguments.iter().skip(1);
