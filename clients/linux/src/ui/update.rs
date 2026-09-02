@@ -362,7 +362,7 @@ impl AppModel {
                 self.imap_auth_answered(&email, &imap_host, *offer);
             }
             AppInput::StartImapLogin(form) => {
-                self.start_imap_login(*form, sender.input_sender().clone());
+                self.start_imap_login(&form, sender.input_sender().clone());
             }
             AppInput::CancelImapLogin => self.cancel_imap_login(),
             AppInput::ImapPrepared(attempt, prepared) => {
