@@ -237,6 +237,13 @@ assert_symbols_kept() {
   # does exist is still searched and still prints, and the emptiness check below reports a real miss.
   binary="$(/usr/bin/find "$app/Contents/MacOS" "$app" -maxdepth 1 -type f -perm -u+x 2>/dev/null | head -1)" || true
   [[ -n "$binary" ]] || fail "no executable found inside $app to check for symbols."
+  # Say so rather than die of it. `nm` is macOS's own and is always here on the machine that
+  # packages, but the count below is a command substitution under `set -e` with `pipefail`, so a
+  # `nm` that cannot run ends the entire packaging run at this line with **no diagnostic at all**,
+  # exit 127 and nothing on either stream. That is the one outcome this guard exists to rule out,
+  # and it is what a bash that is not macOS's does with it.
+  [[ -x /usr/bin/nm ]] \
+    || fail "/usr/bin/nm is not on this machine, so the packaged binary's symbols cannot be counted."
   count="$(/usr/bin/nm "$binary" 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
   [[ "$count" -ge 20000 ]] \
     || fail "the packaged binary carries only $count symbols, STRIP_STYLE is back to Apple's 'all' default, and a crash stack in the user's log will name no function (clients/apple/project.yml, docs/logging.md)."

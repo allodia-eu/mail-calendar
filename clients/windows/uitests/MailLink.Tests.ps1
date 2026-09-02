@@ -48,7 +48,11 @@ function Open-MailLink {
 function Get-ComposerRecipients {
   Get-UiaTree (Get-MailcalWindow) |
     Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button } |
-    Where-Object { $_.Current.Name -match '^(?<address>[^\s@]+@[^\s@]+)\s' } |
+    # A pill's accessible name is "<address>, Remove recipient" (RecipientPillItem.RemoveLabel),
+    # which names the recipient rather than repeating a bare "Remove" (docs/contacts.md §4). So the
+    # address ends at the comma, and a class that merely excludes whitespace takes the comma with
+    # it and every assertion below compares "bob@example.com," against "bob@example.com".
+    Where-Object { $_.Current.Name -match '^(?<address>[^\s@,]+@[^\s@,]+),\s' } |
     ForEach-Object {
       [pscustomobject]@{
         Address = $Matches.address

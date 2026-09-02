@@ -30,7 +30,17 @@ $Done = 3
 $Total = 12
 # Named so it cannot collide with a local inside a case Body: PowerShell variables are
 # case-INSENSITIVE, so a `$expected` assigned in a Body IS this variable.
-$ExpectedHint = "Syncing $Account — $Done of $Total folders"
+#
+# Filled in from the catalog rather than spelled out here. A copy of the sentence goes stale the
+# moment the wording moves and nothing notices, because this suite runs on no CI machine: it needs
+# a Windows desktop session. It had gone stale, against a separator the dash-hygiene sweep changed
+# from an em dash to a colon.
+$SyncHintCatalog = Get-Content (Join-Path $PSScriptRoot '../../../messages/en.json') -Raw |
+  ConvertFrom-Json
+$ExpectedHint = $SyncHintCatalog.sync_hint_account.
+  Replace('{account}', $Account).
+  Replace('{done}', "$Done").
+  Replace('{total}', "$Total")
 
 <#
 .SYNOPSIS

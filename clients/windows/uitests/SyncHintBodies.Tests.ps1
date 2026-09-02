@@ -18,7 +18,15 @@ $Account = 'eva.jansen@example.com'
 # Deliberately over a thousand, so the caption cannot pass without the client's thousands
 # separator, the runner pins the showcase locale to `en`, which fixes it to a comma.
 $Bodies = 2022
-$ExpectedHint = "Syncing $Account — 2,022 messages so far"
+# From the catalog, never a copy of the sentence: this suite runs on no CI machine (it needs a
+# Windows desktop session), so a spelled-out copy goes stale silently. It had, against a separator
+# the dash-hygiene sweep changed from an em dash to a colon. The count keeps its thousands
+# separator, which is the client's own formatting and the half worth asserting.
+$SyncBodiesCatalog = Get-Content (Join-Path $PSScriptRoot '../../../messages/en.json') -Raw |
+  ConvertFrom-Json
+$ExpectedHint = $SyncBodiesCatalog.sync_hint_bodies.
+  Replace('{account}', $Account).
+  Replace('{done}', '2,022')
 
 $Suite = @{
   Dataset = 'showcase'

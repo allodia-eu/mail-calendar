@@ -288,7 +288,25 @@ def resolve_version(current, fragments, requested):
     return requested, None
 
 
+def print_utf8():
+    """Put stdout and stderr into UTF-8, whatever the console's code page is.
+
+    Everything this script prints is release copy: seven languages and the odd emoji. Python picks
+    the encoding for a stream from the locale, which on Windows is a legacy code page (cp1252
+    here), so a dry run does not print a mangled note, it raises `UnicodeEncodeError` partway
+    through one and cuts no release. Every file written below already names `utf-8` explicitly;
+    this is the same decision for the streams.
+
+    Guarded because a caller may have replaced either stream with something that has no
+    `reconfigure`, which is not a reason to refuse to run.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
+
 def main(argv=None):
+    print_utf8()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("version", nargs="?", help="X.Y.Z: computed from the fragments if omitted")
     parser.add_argument(
