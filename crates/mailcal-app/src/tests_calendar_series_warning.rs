@@ -51,6 +51,7 @@ fn nothing() -> EventEdit {
         location: None,
         recurrence: None,
         occurrence: None,
+        times_from_occurrence: None,
     }
 }
 

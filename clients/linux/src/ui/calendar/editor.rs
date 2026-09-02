@@ -277,6 +277,11 @@ impl EventEditor {
                 recurrence: (!this_occurrence_only)
                     .then(|| self.repeat_change(form))
                     .flatten(),
+                // The clocks above are this occurrence's, so a save meant for the series says
+                // where they came from and the core shifts the series by that much rather than
+                // moving its start onto this occurrence, which would delete every earlier one.
+                times_from_occurrence: (!this_occurrence_only && !detail.occurrence.is_empty())
+                    .then(|| detail.occurrence.clone()),
             });
         }
         let choice = usize::try_from(form.calendar_index)

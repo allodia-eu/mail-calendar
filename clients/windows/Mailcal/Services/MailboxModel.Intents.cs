@@ -228,7 +228,7 @@ public sealed partial class MailboxModel
     internal void UpdateEvent(UpdateArgs args) =>
         _app?.Dispatch(new Intent.UpdateEvent(
             args.Account, args.Key, args.Title, args.Start, args.End, args.Notes, args.Location,
-            args.Occurrence, args.Recurrence));
+            args.Occurrence, args.Recurrence, args.TimesFromOccurrence));
 
     /// <summary>
     /// What saving <paramref name="args"/> over the whole series would cost the occurrences the

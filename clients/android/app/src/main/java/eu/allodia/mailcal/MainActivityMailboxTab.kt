@@ -132,6 +132,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.location,
                                             args.occurrence,
                                             args.recurrence,
+                                            args.timesFromOccurrence,
                                         ),
                                     )
                                 },

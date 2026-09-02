@@ -343,7 +343,8 @@ extension MailboxModel {
                 notes: args.notes,
                 location: args.location,
                 occurrence: args.occurrence,
-                recurrence: args.recurrence
+                recurrence: args.recurrence,
+                timesFromOccurrence: args.timesFromOccurrence
             )
         )
     }

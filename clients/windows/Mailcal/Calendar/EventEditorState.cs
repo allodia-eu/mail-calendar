@@ -72,7 +72,13 @@ internal sealed record UpdateArgs(
     /// the rule, <c>Clear</c> makes the event a single one. Never sent beside an
     /// <see cref="Occurrence"/>: a rule belongs to the series, and the core refuses the
     /// pairing.</summary>
-    RecurrenceChange? Recurrence);
+    RecurrenceChange? Recurrence,
+    /// <summary>The occurrence <see cref="Start"/> and <see cref="End"/> were read from, when this
+    /// save means the series but the dialog was opened on one occurrence. The core turns the edit
+    /// into the shift the user made rather than writing an occurrence's clocks onto the series;
+    /// without it a rule change from a later occurrence moves the series' start there and every
+    /// earlier occurrence stops existing.</summary>
+    string? TimesFromOccurrence = null);
 
 /// <summary>
 /// What a save should send for the repeat rule, decided by the core: see
@@ -280,7 +286,12 @@ internal sealed class EventEditorState
                 : null,
             // A rule belongs to the series, so it never travels with an occurrence. The dialog does
             // not offer that combination, and this is the second place it cannot happen.
-            Recurrence: thisOccurrenceOnly ? null : RepeatChange);
+            Recurrence: thisOccurrenceOnly ? null : RepeatChange,
+            // The clocks above are this occurrence's, so a save meant for the series says where
+            // they came from and the core shifts the series by that much instead of moving it.
+            TimesFromOccurrence: !thisOccurrenceOnly && !string.IsNullOrEmpty(target.Occurrence)
+                ? target.Occurrence
+                : null);
     }
 
     /// <summary>The core's own answer. The default everywhere but a test.</summary>

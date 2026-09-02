@@ -204,6 +204,7 @@ impl TryFrom<Intent> for AppIntent {
                 location,
                 occurrence,
                 recurrence,
+                times_from_occurrence,
             } => Self::UpdateEvent {
                 event: event(account, key)?,
                 edit: EventEdit {
@@ -214,6 +215,7 @@ impl TryFrom<Intent> for AppIntent {
                     location,
                     recurrence: recurrence.map(Into::into),
                     occurrence: parse_local(occurrence)?,
+                    times_from_occurrence: parse_local(times_from_occurrence)?,
                 },
             },
             Intent::MoveEvent {

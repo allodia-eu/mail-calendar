@@ -75,6 +75,58 @@ import Testing
         #expect(editor.updateArgs(thisOccurrenceOnly: false).recurrence == nil)
     }
 
+    /// The bug this pins. An editor opened on a later occurrence holds **that** occurrence's
+    /// clocks, and a rule change makes the save mean the series. Sending them as the series' own
+    /// moved its start to that occurrence, so every earlier one stopped existing. Naming where
+    /// they were read from is what makes the core treat the edit as a shift instead.
+    @Test func aSeriesSaveFromOneOccurrenceSaysWhereItsClocksCameFrom() {
+        var editor = EventEditorState.edit(
+            detail(
+                isRecurring: true,
+                recurrence: .simple(rule: weeklyRule()),
+                repeatDraft: weeklyDraft(),
+                occurrenceStart: "2026-09-04T09:00:00"
+            ),
+            calendarName: "Work"
+        )
+        editor.repeatDraft?.interval = 2
+
+        let args = editor.updateArgs(thisOccurrenceOnly: false)
+        #expect(args.occurrence == nil)
+        #expect(args.timesFromOccurrence == "2026-09-04T09:00:00")
+    }
+
+    /// An editor opened on the series shows the series' own clocks, so there is nothing to shift.
+    @Test func aSeriesSaveOpenedOnTheSeriesNamesNoOccurrence() {
+        var editor = EventEditorState.edit(
+            detail(
+                isRecurring: true,
+                recurrence: .simple(rule: weeklyRule()),
+                repeatDraft: weeklyDraft()
+            ),
+            calendarName: "Work"
+        )
+        editor.repeatDraft?.interval = 3
+        #expect(editor.updateArgs(thisOccurrenceOnly: false).timesFromOccurrence == nil)
+    }
+
+    /// A save scoped to the one occurrence lands on the clocks it already describes, so it says
+    /// nothing about a shift; the core would ignore it, and sending it would be a second story.
+    @Test func anOccurrenceScopedSaveCarriesNoShift() {
+        let editor = EventEditorState.edit(
+            detail(
+                isRecurring: true,
+                recurrence: .simple(rule: weeklyRule()),
+                repeatDraft: weeklyDraft(),
+                occurrenceStart: "2026-09-04T09:00:00"
+            ),
+            calendarName: "Work"
+        )
+        let args = editor.updateArgs(thisOccurrenceOnly: true)
+        #expect(args.occurrence == "2026-09-04T09:00:00")
+        #expect(args.timesFromOccurrence == nil)
+    }
+
     @Test func aChangedRepeatIsSentAsASet() {
         var editor = EventEditorState.edit(
             detail(

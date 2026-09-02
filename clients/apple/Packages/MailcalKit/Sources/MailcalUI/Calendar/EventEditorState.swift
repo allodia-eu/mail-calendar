@@ -70,6 +70,11 @@ struct UpdateArgs: Equatable {
     /// `.clear` makes the event a single one. Never sent beside an `occurrence`: a rule belongs
     /// to the series, and the core refuses the pairing.
     let recurrence: RecurrenceChange?
+    /// The occurrence `start` and `end` were read from, when this save means the series but the
+    /// editor was opened on one occurrence. The core turns the edit into the shift the user made
+    /// rather than writing an occurrence's clocks onto the series; without it a rule change from
+    /// a later occurrence moves the series' start there and deletes every earlier one.
+    let timesFromOccurrence: String?
 }
 
 struct EventEditorState: Identifiable {
@@ -181,6 +186,11 @@ struct EventEditorState: Identifiable {
     /// `thisOccurrenceOnly` splits an override out of the series instead of rewriting it. Both
     /// edges always travel: an occurrence's own times are not the series', so a single-occurrence
     /// edit that named neither would move it onto the master's clock.
+    ///
+    /// A save that means the **series** while the editor was opened on one occurrence carries
+    /// `timesFromOccurrence` as well, because those same clocks are that occurrence's and not the
+    /// series'. The core then applies the user's shift to the series' own clock instead of writing
+    /// the occurrence's times onto the master, which would delete every occurrence before it.
     func updateArgs(thisOccurrenceOnly: Bool) -> UpdateArgs {
         let target = editing!
         let startStr = allDay ? Self.dateOnly(start) : Self.wallClock(start)
@@ -197,7 +207,8 @@ struct EventEditorState: Identifiable {
             occurrence: thisOccurrenceOnly && !target.occurrence.isEmpty ? target.occurrence : nil,
             // A rule belongs to the series, so it never travels with an occurrence. `save()` does
             // not offer that combination, and this is the second place it cannot happen.
-            recurrence: thisOccurrenceOnly ? nil : repeatChange
+            recurrence: thisOccurrenceOnly ? nil : repeatChange,
+            timesFromOccurrence: thisOccurrenceOnly ? nil : target.occurrence.isEmpty ? nil : target.occurrence
         )
     }
 

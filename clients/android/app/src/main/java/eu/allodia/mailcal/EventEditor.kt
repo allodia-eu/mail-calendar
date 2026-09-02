@@ -95,6 +95,15 @@ internal data class UpdateArgs(
      * the series, and the core refuses the pairing.
      */
     val recurrence: RecurrenceChange?,
+    /**
+     * The occurrence [start] and [end] were read from, when this save means the series but the
+     * editor was opened on one occurrence.
+     *
+     * The core turns the edit into the shift the user made rather than writing an occurrence's
+     * clocks onto the series; without it a rule change from a later occurrence moves the series'
+     * start there and every earlier occurrence stops existing.
+     */
+    val timesFromOccurrence: String?,
 )
 
 /**
@@ -255,6 +264,9 @@ internal class EventEditorState private constructor(
             // A rule belongs to the series, so it never travels with an occurrence. The screen
             // does not offer that combination, and this is the second place it cannot happen.
             recurrence = if (thisOccurrenceOnly) null else repeatChange,
+            // The clocks above are this occurrence's, so a save meant for the series says where
+            // they came from and the core shifts the series by that much instead of moving it.
+            timesFromOccurrence = target.occurrence.takeIf { !thisOccurrenceOnly && it.isNotEmpty() },
         )
     }
 
