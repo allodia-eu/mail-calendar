@@ -27,6 +27,13 @@ that same file.
   lines into a 20,000-line generated file, with `Parameter name expected`. Swift and C# take `///`
   line comments and never see it, which is what makes this Kotlin's alone. Describe the sequence
   rather than typing it.
+- **`Path.GetInvalidFileNameChars()` answers differently per host, and `Mailcal.Tests` is not a
+  Windows assembly.** On Windows it returns the familiar set; on Linux, `/` and NUL alone, so `:`,
+  `*`, `?` and `\` all come back as legal. The Windows client only ever *runs* on Windows, but its
+  unit suite is plain `net10.0` and the gate runs it on whatever host is to hand, so a rule built
+  on that call passes on one and fails on the other, and the test cannot state what the rule is.
+  Name the reserved set explicitly. The same caution applies to any `Path`, `Environment` or
+  culture API whose answer is the host's: in that assembly, the host is not the product's.
 - **In the Android composer's WebView, viewport units compute to `0px`.** Compose lays an
   `AndroidView` out *after* the page loads, so Chromium fixes the layout viewport at zero height and
   `100vh` / `100%` silently do nothing. Size from `document.documentElement.clientHeight` and
