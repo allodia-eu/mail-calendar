@@ -71,6 +71,26 @@ that same file.
   than *"The application launch failed"*, which reads as the file being broken. Write it under
   `glib::user_cache_dir()`, a real host path in both shapes. Same trap as the API: correct on
   `--host`, wrong only where it ships.
+- **On Linux, `ashpd`'s session-bus connection is process-global, so no portal caller may own its
+  own Tokio runtime.** `ashpd` caches one `zbus::Connection` in a `OnceLock`, and zbus drives that
+  connection from whichever runtime opened it. A runtime built per call, or owned by one service,
+  takes the connection's reader with it when it is dropped while the connection itself stays
+  cached: **every later portal call then awaits a reply that can never arrive**. No error, no
+  timeout, a thread parked for the life of the process, and whatever state machine that thread was
+  serving parked with it.
+
+  Two services here reach the portal, and neither one looks like the other's problem: new-mail
+  notifications, and the secure store, because inside a sandbox `oo7` asks
+  `org.freedesktop.portal.Secret` for the keyring key. A store whose keyring **fails** to open is
+  the nastiest shape, since it seeds the shared connection and then drops its runtime on the way
+  out, so the first notification of the session hangs and the cause is three files away. Everything
+  goes through [`host_runtime`](clients/linux/src/host_runtime.rs), which owns the one runtime and
+  never drops it.
+
+  **The tell is that it works exactly once.** The first portal call of the process succeeds, so a
+  manual check passes and a screenshot proves nothing; only the second one hangs. Bound every
+  portal exchange with a timeout as well, so a portal that stops answering costs one pass rather
+  than the session.
 - **Linux libadwaita rows parse titles _and subtitles_ as Pango markup by default.**
   `adw::ActionRow` / `PreferencesRow` text may hold localised ampersands or untrusted subjects, so
   set `use_markup(false)` unless the string was deliberately produced as escaped markup. A row that
