@@ -26,6 +26,10 @@ struct AccountSetupDetectView: View {
     let jmapOAuthAvailable: (String, String) async -> Bool
     /// Runs the JMAP browser sign-in and, on success, adds + stores the account.
     let signInJmap: (String, String) async -> JmapSignInOutcome
+    /// Asks the mail server what it accepts, before any credential field is drawn.
+    let imapAuthOptions: (ImapLoginRequest) async -> ImapAuthOffer
+    /// Runs the IMAP browser sign-in and, on success, adds + stores the account.
+    let signInImap: (ImapLoginRequest) async -> ImapSignInOutcome
     /// Runs the (blocking) core lookup; the caller hops off the main thread.
     let detect: (String) async -> SetupRecommendation
     /// The address an account offered by one of the person's other devices is for, filling the
@@ -75,6 +79,10 @@ struct AccountSetupDetectView: View {
     @State private var googleEarlyAccessConfirmed = false
     /// Whether the detected JMAP server advertises OAuth sign-in, as answered by `jmapOAuthProbe`.
     @State private var jmapSignInOffered = false
+    /// What the detected IMAP server said it accepts. `.checking` until it answers, so the card
+    /// draws no credential field in the meantime: one that appears and is then taken away reads
+    /// as the app changing its mind (docs/mail-oauth.md rule 8).
+    @State private var imapAuth: ImapAuthState = .checking
 
     var body: some View {
         // The manual form brings its own scaffold (it *is* AccountSetupView), so it is not wrapped
@@ -265,21 +273,67 @@ struct AccountSetupDetectView: View {
                         submitJmap(jmapEmail, serverURL, password)
                     }
                 }
-            case let .imap(imapEmail, imapHost, smtpHost, imapSecurity, smtpSecurity, incoming, outgoing, caldavURL, _, _, _):
+            case let .imap(
+                imapEmail, imapHost, smtpHost, imapSecurity, smtpSecurity, incoming, outgoing,
+                caldavURL, oauthIssuer, _, _
+            ):
                 SetupCard(title: L10n.setup_detect_section_email(), systemImage: "envelope") {
                     serverRow(incoming)
                     if let outgoing { serverRow(outgoing) }
-                    Text(L10n.setup_detect_app_password_hint()).font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    ImapAuthExplanation(state: imapAuth)
                     approvalControls(form)
-                    SecureField(L10n.setup_field_password(), text: $password).setupField(.password)
-                    certificateControls(form)
+                    if imapAuth.offersSignIn {
+                        ImapSignInButton(
+                            request: imapLoginRequest(
+                                email: imapEmail, imapHost: imapHost, smtpHost: smtpHost,
+                                caldavURL: form.effectiveCaldavURL, imapSecurity: imapSecurity,
+                                smtpSecurity: smtpSecurity, oauthIssuer: oauthIssuer
+                            ),
+                            signIn: signInImap,
+                            failed: { imapAuth = .failed }
+                        )
+                    }
+                    if imapAuth.showsPassword {
+                        Text(L10n.setup_detect_app_password_hint())
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        SecureField(L10n.setup_field_password(), text: $password)
+                            .setupField(.password)
+                        certificateControls(form)
+                    }
+                }
+                .task(id: "\(imapEmail)|\(imapHost)") {
+                    imapAuth = .checking
+                    // The card shows nothing to act on while it asks, so a server that never
+                    // answers must not be able to hold somebody here. Whichever answer lands
+                    // first decides: both apply themselves only while the state is still
+                    // `.checking`, so the loser is dropped rather than rebuilding a card the
+                    // person has started using (docs/mail-oauth.md rule 8).
+                    let deadline = Task { @MainActor in
+                        try? await Task.sleep(for: ImapAuthState.deadline)
+                        if case .checking = imapAuth { imapAuth = .password }
+                    }
+                    let offer = await imapAuthOptions(
+                        imapLoginRequest(
+                            email: imapEmail, imapHost: imapHost, smtpHost: smtpHost,
+                            caldavURL: nil, imapSecurity: imapSecurity,
+                            smtpSecurity: smtpSecurity, oauthIssuer: oauthIssuer
+                        )
+                    )
+                    deadline.cancel()
+                    // The person may have edited the address while the (blocking,
+                    // uncancellable) call ran; `.task(id:)` has already restarted for the
+                    // server they moved on to.
+                    guard !Task.isCancelled else { return }
+                    if case .checking = imapAuth { imapAuth = ImapAuthState(offer) }
                 }
                 calendarSection(discovered: caldavURL)
                 inlineError(suppressed: form.refusedCertificate != nil)
-                footer {
-                    connectButton(enabled: form.canConnect) {
-                        submit(imapHost, imapEmail, password, smtpHost ?? "", form.effectiveCaldavURL ?? "", imapSecurity, smtpSecurity, form.acceptedCertificate)
+                if imapAuth.showsPassword {
+                    footer {
+                        connectButton(enabled: form.canConnect) {
+                            submit(imapHost, imapEmail, password, smtpHost ?? "", form.effectiveCaldavURL ?? "", imapSecurity, smtpSecurity, form.acceptedCertificate)
+                        }
                     }
                 }
             case .manual:
@@ -307,6 +361,8 @@ struct AccountSetupDetectView: View {
             submitJmap: submitJmap,
             jmapOAuthAvailable: jmapOAuthAvailable,
             signInJmap: signInJmap,
+            imapAuthOptions: imapAuthOptions,
+            signInImap: signInImap,
             initialKind: prefill.kind,
             prefillEmail: prefill.email,
             prefillImapHost: prefill.imapHost,

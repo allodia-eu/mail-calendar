@@ -1,6 +1,6 @@
 # Sign in to a mail account instead of typing a password
 
-Platforms: linux
+Platforms: linux, macos, ios
 Bump: minor
 
 > The setup screen asks the mail server what it accepts before it draws a field, so which

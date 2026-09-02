@@ -88,6 +88,15 @@ struct AccountSetupView: View {
     var note: String? = nil
 
     @State private var kind: AccountKind
+    /// What the typed mail server said it accepts. `.password` until it answers, because this
+    /// pane's password field is already on screen and must not be taken away to say nothing.
+    @State private var imapAuth: ImapAuthState = .password
+    /// Asks the mail server what it accepts. `nil` where there is no core to ask, which is a
+    /// preview or a test: the pane then simply never offers a sign-in.
+    let imapAuthOptions: ((ImapLoginRequest) async -> ImapAuthOffer)?
+    /// Runs the IMAP browser sign-in and, on success, adds + stores the account.
+    let signInImap: ((ImapLoginRequest) async -> ImapSignInOutcome)?
+
     @State private var imapHost: String
     @State private var username: String
     @State private var password = ""
@@ -123,6 +132,8 @@ struct AccountSetupView: View {
         submitJmap: @escaping (String, String, String) -> Void,
         jmapOAuthAvailable: @escaping (String, String) async -> Bool,
         signInJmap: @escaping (String, String) async -> JmapSignInOutcome,
+        imapAuthOptions: ((ImapLoginRequest) async -> ImapAuthOffer)? = nil,
+        signInImap: ((ImapLoginRequest) async -> ImapSignInOutcome)? = nil,
         initialKind: AccountKind = .imap,
         prefillEmail: String = "",
         prefillImapHost: String = "",
@@ -143,6 +154,8 @@ struct AccountSetupView: View {
         self.submitJmap = submitJmap
         self.jmapOAuthAvailable = jmapOAuthAvailable
         self.signInJmap = signInJmap
+        self.imapAuthOptions = imapAuthOptions
+        self.signInImap = signInImap
         self.note = note
         _kind = State(initialValue: initialKind)
         _imapHost = State(initialValue: prefillImapHost)
@@ -295,8 +308,21 @@ struct AccountSetupView: View {
                     field: $servers.imap)
                 TextField(L10n.setup_field_email(), text: $username)
                     .setupField(.email)
+                if imapAuth.offersSignIn || imapAuth.explainsRegistration {
+                    ImapAuthExplanation(state: imapAuth)
+                }
+                if imapAuth.offersSignIn, let signInImap {
+                    ImapSignInButton(
+                        request: typedImapRequest,
+                        signIn: signInImap,
+                        failed: { imapAuth = .failed }
+                    )
+                }
                 SecureField(L10n.setup_field_password(), text: $password)
                     .setupField(.password)
+            }
+            .task(id: "\(username)|\(imapHost)") {
+                await askTypedImapServer()
             }
             SetupCard(title: L10n.setup_section_advanced(), systemImage: "slider.horizontal.3") {
                 serverRow(
@@ -370,5 +396,40 @@ struct AccountSetupView: View {
             GoogleEarlyAccessGate(confirmed: $googleEarlyAccessConfirmed)
         }
         .padding(.vertical, 8)
+    }
+}
+
+extension AccountSetupView {
+    /// The account the typed fields describe, as the pre-flight and the sign-in both take it.
+    var typedImapRequest: ImapLoginRequest {
+        imapLoginRequest(
+            email: username,
+            imapHost: servers.imap.dial(imapHost),
+            smtpHost: smtpHost.isEmpty ? nil : servers.smtp.dial(smtpHost),
+            caldavURL: caldavURL.isEmpty ? nil : caldavURL,
+            // The port and security the person chose for each server, as the Connect button
+            // submits them.
+            imapSecurity: servers.imap.security,
+            smtpSecurity: servers.smtp.security,
+            // Nothing was detected, so no provider named an issuer for itself: the core's
+            // well-known probe is what answers here.
+            oauthIssuer: nil
+        )
+    }
+
+    /// Asks again whenever the address or the server changes, debounced so a network round trip
+    /// does not go out per keystroke.
+    func askTypedImapServer() async {
+        imapAuth = .password
+        guard let imapAuthOptions, kind == .imap,
+              JmapOAuthProbe.looksLikeAddress(username), !imapHost.isEmpty
+        else { return }
+        try? await Task.sleep(for: JmapOAuthProbe.debounce)
+        guard !Task.isCancelled else { return }
+        let offer = await imapAuthOptions(typedImapRequest)
+        // The person kept typing while the (blocking, uncancellable) call ran: its answer is
+        // about a server they have already moved on from.
+        guard !Task.isCancelled else { return }
+        imapAuth = ImapAuthState(offer)
     }
 }

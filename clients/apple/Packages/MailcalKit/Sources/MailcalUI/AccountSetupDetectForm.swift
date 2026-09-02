@@ -59,6 +59,9 @@ struct DetectedConnectForm {
     var canConnect: Bool {
         switch recommendation {
         case .jmap: return !password.isEmpty && approvalOK && certificateOK
+        // On the IMAP route the password field is only on screen when the server takes one; when
+        // it does not, Connect is not the action either (the sign-in button is), so gating on a
+        // password would disable a button nobody is looking at.
         case .imap: return !password.isEmpty && approvalOK && certificateOK
         default: return false
         }
