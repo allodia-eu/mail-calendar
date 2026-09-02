@@ -10,10 +10,10 @@ writes the **canonical metadata tree** the `asc` CLI applies
 decided without an App Store Connect account is decided here.
 
 **It reads the document through the checker's own scraper**, exactly as
-[`msstore_payload.py`](msstore_payload.py) does and for the same reason: `store-copy` already parses
+[`store_payload.py`](store_payload.py) does and for the same reason: `store-copy` already parses
 this file to measure it, and a second parser would be a second reading of one document; with the
 one that reaches a store console being the one nobody tested. The screenshot layout and the gallery
-order come from `msstore_payload` rather than being restated, since which capture leads a listing is
+order come from `store_payload` rather than being restated, since which capture leads a listing is
 a product decision and not a per-store one.
 
 **The canonical tree is `asc`'s, not ours.** `asc metadata push` reads
@@ -55,7 +55,7 @@ from check_store_copy_length import (  # noqa: E402
 # The capture naming convention, the gallery order and the PNG reader, imported rather than
 # restated. `showcase-screenshots/<platform>/` uses one layout for every store, and "which
 # screen leads the listing" is a decision about the product, not about Apple.
-from msstore_payload import (  # noqa: E402
+from store_payload import (  # noqa: E402
     ListingError,
     collect_screenshots,
     descriptions,
@@ -210,7 +210,7 @@ def short_fields(listing: str) -> dict:
 def shared_fields(listing: str) -> dict:
     """The "Console-side metadata" -> "Shared fields" table, as `lowercased label -> value`.
 
-    The same table `msstore_payload.copyright_line` reads one row of; a test asserts the two agree
+    The same table `store_payload.copyright_line` reads one row of; a test asserts the two agree
     on the copyright, so the overlap is a check rather than a second source of truth.
     """
     found = {}

@@ -57,11 +57,11 @@ from check_store_copy_length import (  # noqa: E402
     whats_new_caps,
 )
 
-# The title and the description bodies are read by the SAME functions the Microsoft Store publisher
-# uses; `descriptions(listing, store)` even applies the right `{KEYSTORE}` word per store. Writing
-# a second reader here would be the exact failure `changelog_fragments` warns about: two parsers for
+# The title and the description bodies are read by the SAME functions every other publisher uses;
+# `descriptions(listing, store)` even applies the right `{KEYSTORE}` word per store. Writing a
+# second reader here would be the exact failure `changelog_fragments` warns about: two parsers for
 # one document, agreeing until the day the document is reshaped.
-from msstore_payload import (  # noqa: E402
+from store_payload import (  # noqa: E402
     SCREEN_ORDER,
     ListingError,
     descriptions,

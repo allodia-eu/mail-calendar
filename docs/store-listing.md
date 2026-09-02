@@ -41,9 +41,8 @@ section. Edit the shared body and it changes everywhere by construction.
 
 1. **The shared description body is edited in one place** (the listing file's "Shared description"
    section) and used **verbatim** in every store. Do not hand-edit the body inside a store console.
-   On the Microsoft Store it is not retyped at all:
-   [`scripts/dev/msstore_listing.py`](../scripts/dev/msstore_listing.py) pushes the listing file
-   into the submission.
+   On the Microsoft Store it is not retyped either: the tooling that holds the Partner Center
+   account pushes this file into the submission.
 2. **Cover every store, in every catalog locale.** A change to what the app does that touches the
    copy updates **all three** stores and **every** catalog language, in the same change.
 3. **The copy may not out-run the matrix.** A capability appears in a store's listing only if the
@@ -206,7 +205,9 @@ capability that changes what would be advertised:
 5. Run the length check before you push: `python3 scripts/ci/check_store_copy_length.py`. It is
    the one part of this contract a machine can hold, and it is the part whose failure otherwise
    arrives from a store console.
-6. When the change reaches a live listing, push all three stores from that file rather than typing
-   any of them: `scripts/dev/msstore_listing.py`, `scripts/dev/appstore_listing.py` and
-   `scripts/dev/publish_play.py`, each with its own runbook beside the copy. Read the plan first,
-   then `--apply` / `--commit`; pressing Submit stays a human's job in every console.
+6. When the change reaches a live listing, push each store from that file rather than typing any
+   of them. `scripts/dev/appstore_listing.py` and `scripts/dev/publish_play.py` do that here, each
+   with its own runbook beside the copy; read the plan first, then `--apply` / `--commit`, and
+   pressing Submit stays a human's job in every console. The Microsoft Store push is not built
+   here: it belongs to whoever holds the Partner Center account, and it reads this same file
+   through a checkout of this repository.

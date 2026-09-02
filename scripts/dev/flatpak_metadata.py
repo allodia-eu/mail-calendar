@@ -25,7 +25,7 @@ filtered down to a subset nobody has reviewed. Closing that is a deliberate edit
 consequence of a matrix cell flipping.
 
 The documents are read through the checker's own scrapers (`scripts/ci/check_store_copy_length.py`,
-`scripts/ci/changelog_fragments.py`) for the reason `msstore_payload.py` gives: a second reading of
+`scripts/ci/changelog_fragments.py`) for the reason `store_payload.py` gives: a second reading of
 one document would be the reading nobody tested.
 """
 

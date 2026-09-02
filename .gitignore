@@ -45,7 +45,10 @@ showcase-screenshots/
 # Every location is merged rather than the first one winning, so these coexist.
 .env
 # Per-tool alternatives, for a secret you want kept apart from the shared file:
-# Partner Center — the key it holds can publish to the Store listing.
+# Partner Center. Nothing in this repository reads it any more: the Microsoft Store push is not
+# built here, and the credentials went with it. The line stays because the file did not: a checkout
+# that has published before still has one, holding a key that can publish to the Store listing, and
+# dropping the pattern would put it in front of the next `git add -A`.
 .msstore.env
 # ALLODIA_DOCS_UPLOAD_TOKEN — publishes documentation screenshots to allodia.eu.
 .docs.env
