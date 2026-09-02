@@ -111,4 +111,47 @@ struct AccountSetupDetectTests {
         form.calendarURLEntry = "caldav.example.com"
         #expect(form.effectiveCaldavURL == "caldav.example.com")
     }
+
+    // What the setup card asks for once the server has answered. Three states rather than a flag,
+    // and the middle one is the reason: a provider whose sign-in is closed to this application is
+    // not the same as one that offers none.
+
+    @Test func nothingIsAskedForWhileTheServerIsStillBeingAsked() {
+        // A credential field that appears and is then taken away reads as the app changing its
+        // mind, and the answer decides whether it belongs there at all.
+        let state = ImapAuthState.checking
+        #expect(!state.showsPassword)
+        #expect(!state.offersSignIn)
+    }
+
+    @Test func aProviderOfferingSignInKeepsThePasswordRouteWhereItWorks() {
+        let state = ImapAuthState(
+            .signIn(issuer: "https://login.example.com", providerLabel: nil, passwordAlsoWorks: true)
+        )
+        #expect(state.offersSignIn)
+        #expect(state.showsPassword)
+    }
+
+    @Test func aServerThatRefusesPasswordsIsNotOfferedAPasswordField() {
+        // Microsoft 365's shape: OAuth only. That field would be a dead end nobody finds until
+        // they have typed one into it.
+        let state = ImapAuthState(
+            .signIn(issuer: "https://login.example.com", providerLabel: nil, passwordAlsoWorks: false)
+        )
+        #expect(state.offersSignIn)
+        #expect(!state.showsPassword)
+    }
+
+    @Test func aClosedSignInStillLeadsToThePasswordField() {
+        // The explanation is what differs from `.password`; the route offered is the same one.
+        let state = ImapAuthState(.registrationNeeded(passwordAlsoWorks: true))
+        #expect(!state.offersSignIn)
+        #expect(state.showsPassword)
+    }
+
+    @Test func aFailedSignInBringsThePasswordFieldBack() {
+        // It is the route left, so it must be there, and the line beside it says why.
+        #expect(ImapAuthState.failed.showsPassword)
+        #expect(!ImapAuthState.failed.offersSignIn)
+    }
 }
