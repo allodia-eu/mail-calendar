@@ -323,9 +323,22 @@ fn unknown_elements_are_skipped() {
 }
 
 #[test]
+fn predefined_entities_and_character_references_resolve_in_text() {
+    // The reader hands each `&…;` back on its own, so resolving them is the parser's
+    // job: a value split across literal runs and references must come back whole.
+    let parsed = parse_with(
+        "<username>%EMAILADDRESS%</username>",
+        "<username>a&#108;ice&amp;billing@%EMAILDOMAIN%</username>",
+    )
+    .unwrap();
+    assert_eq!(parsed.incoming[0].username, "alice&billing@example.com");
+    assert_eq!(parsed.outgoing[0].username, "alice&billing@example.com");
+}
+
+#[test]
 fn a_custom_entity_does_not_expand() {
-    // A DTD-defined entity reference must not expand (no billion-laughs); quick-xml
-    // rejects the unknown entity, which we surface as a plain XML error.
+    // A DTD-defined entity reference must not expand (no billion-laughs): it is
+    // undeclared as far as this parser is concerned, and the document is refused.
     let xml = r#"<?xml version="1.0"?>
 <!DOCTYPE clientConfig [<!ENTITY lol "haha">]>
 <clientConfig version="1.1">
@@ -334,10 +347,7 @@ fn a_custom_entity_does_not_expand() {
   </emailProvider>
 </clientConfig>"#;
     let err = parse(xml).unwrap_err();
-    assert!(
-        matches!(err, ParseError::Xml(_) | ParseError::NoValidDomain),
-        "unexpected {err:?}"
-    );
+    assert!(matches!(err, ParseError::Xml(_)), "unexpected {err:?}");
 }
 
 #[test]

@@ -233,28 +233,28 @@ mailcal-telemetry = { path = "crates/mailcal-telemetry" }
 # `.cargo/config.toml` in the directory ABOVE this checkout — see `.cargo/config.toml`, which is
 # tracked (it pins the Windows static-CRT rustflags) and so is no longer the place for it.
 # Re-pin: bump `rev` on every line below to the new engine commit (keep them identical).
-engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
-engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
-engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "10901dc2af82c2a46705431098609790084941d5" }
+engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "10901dc2af82c2a46705431098609790084941d5" }
+engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "10901dc2af82c2a46705431098609790084941d5" }
 # The one host-selected TLS policy shared across IMAP/CalDAV/JMAP/Graph.
-engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1", features = ["tls-native-certs"] }
+engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "10901dc2af82c2a46705431098609790084941d5", features = ["tls-native-certs"] }
 # Concrete provider adapters the account layer connects. IMAP first; CalDAV for calendar.
-provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
-provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "10901dc2af82c2a46705431098609790084941d5" }
+provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "10901dc2af82c2a46705431098609790084941d5" }
 # The Microsoft Graph mail read/sync + writes adapter (bearer-token): metadata/body sync
 # plus mail edits (mark-read/flag, move, permanent delete). The account layer builds a
 # token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
-provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "10901dc2af82c2a46705431098609790084941d5" }
 # The Google (Gmail + Google Calendar) native-API read/sync + write adapter (bearer-token),
 # the cloud-API counterpart of provider-graph. Gmail mail sync is account-global (one provider,
 # no per-folder fan-out); Google Calendar is IANA-native. The account layer builds a
 # token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
-provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "10901dc2af82c2a46705431098609790084941d5" }
 # The JMAP mail read/sync + submission + calendar-read adapter (RFC 8620/8621). Takes a
 # base URL + credentials (HTTP Basic username/password, or an OAuth bearer token) and
 # discovers everything else from the session. The account layer injects the shared TLS policy
 # before connecting it directly.
-provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "e6bb9da07837ed09250c9f93a271deb50149ebf1" }
+provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "10901dc2af82c2a46705431098609790084941d5" }
 # JSON Schema derivation for the MCP tool surface (crates/mailcal-mcp). MCP requires a
 # draft-2020-12 `inputSchema` per tool; deriving it from the same struct the handler deserializes
 # is what stops a client sending exactly what a tool documented and getting a parse error.
@@ -311,7 +311,7 @@ ammonia = "4"
 # Streaming pull-parser for the Mozilla autoconfig XML (mailcal-autodetect). Pinned to the
 # minor version provider-caldav already locks, so it adds no new transitive crates; it does
 # not expand custom entities, so hostile config files can't balloon in memory.
-quick-xml = "0.40"
+quick-xml = "0.42"
 # Mozilla's Public Suffix List, compiled in — derives a provider's registrable ("base")
 # domain from an MX hostname for the autodetect MX fallback. No platform exposes a PSL API,
 # and a stale list only ever costs a missed/extra HTTPS probe, never a trust decision.
