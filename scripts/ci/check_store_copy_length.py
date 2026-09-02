@@ -145,9 +145,10 @@ def sections(lines: list[str], level: int, pattern: re.Pattern[str]):
     A section ends at the next heading of the same or a higher level, so a `##` section carries its
     `###` children with it.
 
-    Public, along with `fenced_blocks` and `one_section`, because `scripts/dev/msstore_listing.py`
-    reads the same document to *push* the copy that this check *measures*. Two scrapers would be
-    two readings of one file, and the one that pastes into a store console would be the one nobody
+    Public, along with `fenced_blocks` and `one_section`, because every store publisher reads the
+    same document to *push* the copy that this check *measures*; including the Microsoft Store's,
+    which is not built here and imports this module across two checkouts. Two scrapers would be two
+    readings of one file, and the one that pastes into a store console would be the one nobody
     tested; so there is one, here, next to its tests.
     """
     prefix_len = level
@@ -267,9 +268,9 @@ def search_term_words(terms) -> list:
     Case-folded and stripped of surrounding punctuation; that part is cosmetic now that nothing
     is de-duplicated, but it keeps the reported word list readable when the budget is blown.
 
-    Lives here, next to the check that enforces the budget, and is imported by
-    `scripts/dev/msstore_listing.py`: a push that counted words differently from the gate would
-    pass CI and be rejected by the console, which is the exact failure this file exists to prevent.
+    Lives here, next to the check that enforces the budget, and is imported by the Microsoft Store
+    push, which is not built here: a push that counted words differently from the gate would pass
+    CI and be rejected by the console, which is the exact failure this file exists to prevent.
     """
     words = []
     for term in terms:

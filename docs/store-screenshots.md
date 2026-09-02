@@ -8,7 +8,7 @@ uploads them from there. The set became seven locales × seven captures in Augus
 ~25 MB for macOS alone, ~100 MB across five platforms), and every one of them is **reproducible from
 a script and a seeded dataset**, so git was storing a large binary artefact it could regenerate on
 demand and that the store itself holds a copy of. What a reviewer actually needs is the *recipe*
-(`showcase.sh`, the showcase seeds, the gallery order in `msstore_payload.SCREEN_ORDER`), and that
+(`showcase.sh`, the showcase seeds, the gallery order in `store_payload.SCREEN_ORDER`), and that
 is all in git. This page is that recipe.
 
 The cost of the change is honest: a capture is now only as reproducible as the client that took it,
@@ -34,8 +34,8 @@ same guarantee.
 - **Screens (7):** `list`, `list-dark`, `reply`, `settings`, `add-account`, `calendar`,
   `invitation`. The order they appear in a store gallery is a separate decision, and one that is
   written down: `SCREEN_ORDER` in
-  [`scripts/dev/msstore_payload.py`](../../scripts/dev/msstore_payload.py), which both publishers
-  apply (alphabetical would open every listing on `add-account`).
+  [`scripts/dev/store_payload.py`](../../scripts/dev/store_payload.py), which every publisher
+  applies (alphabetical would open every listing on `add-account`).
 
 **`invitation`** is the one screen that shows mail and calendar working as one product: a meeting
 request open in the reading view, with Accept / Maybe / Decline over a preview of the day it would
@@ -139,9 +139,11 @@ Then push, from the same directory:
 
 ```sh
 scripts/dev/appstore_listing.py --apply  --screenshots showcase-screenshots/macos
-scripts/dev/msstore_listing.py  --apply  --screenshots showcase-screenshots/windows
 scripts/dev/publish_play.py     --commit --screenshots showcase-screenshots/android
 ```
+
+The Microsoft Store push is not in this repository; it belongs to whoever holds the Partner Center
+account, and it is pointed at `showcase-screenshots/windows/` in a checkout of this one.
 
 The Play push reads all four slots out of the one Android directory (`phone-`, `tablet-7-`,
 `tablet-10-` and the feature graphic) and **replaces each slot**, because Play appends to a gallery

@@ -20,8 +20,8 @@ App Store Connect asks for a name, a subtitle, promotional text, keywords, a des
 and a screenshot gallery **per language**, and we ship seven; 49 form fields, each of which can
 drift from the file it was copied out of without anyone noticing. The resolved listing
 (`branding/<brand>-listing.md`, via `brand.listing_source()`) is the source of truth for that copy;
-this makes the console agree with it, the way [`msstore_listing.py`](msstore_listing.py) already
-does for the Microsoft Store.
+this makes the console agree with it, the way the Microsoft Store push already does for its own
+console.
 
 **Nothing is written without `--apply`.** The default run measures every field locally, then asks
 `asc metadata push --dry-run` what it would change, and prints that. This is AGENTS.md's "a store

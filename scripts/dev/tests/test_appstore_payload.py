@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Unit tests for the macOS App Store listing payload.
 
-The risk here is the same one `test_msstore_payload.py` opens with, sharpened by how Apple fails: a
+The risk here is the same one `test_store_payload.py` opens with, sharpened by how Apple fails: a
 push to a locale the store does not offer, or a gallery uploaded in the wrong order, **reports
 success**. So most of what is asserted is that the tool refuses, that a language's copy is keyed to
 that language, and that the two orderings a human cannot see; the locale codes and the gallery
@@ -34,7 +34,7 @@ from check_store_copy_length import LIMITS_PATH, listing_path, parse_limits  # n
 import appstore_listing as cli  # noqa: E402
 import brand  # noqa: E402
 import appstore_payload as subject  # noqa: E402
-import msstore_payload  # noqa: E402
+import store_payload  # noqa: E402
 from check_store_copy_length import listing_promises_per_store_fields  # noqa: E402
 
 # Every "the real copy is complete" assertion below is a claim about a **branded** listing. An
@@ -137,7 +137,7 @@ def png(width: int, height: int) -> bytes:
     ihdr = struct.pack(">II", width, height) + bytes([8, 6, 0, 0, 0])
     chunk = struct.pack(">I", len(ihdr)) + b"IHDR" + ihdr
     chunk += struct.pack(">I", zlib.crc32(b"IHDR" + ihdr) & 0xFFFFFFFF)
-    return msstore_payload.PNG_MAGIC + chunk
+    return store_payload.PNG_MAGIC + chunk
 
 
 class Fixture(unittest.TestCase):
@@ -250,7 +250,7 @@ class Copyright(Fixture):
         # drifts, they stop agreeing here rather than in two different consoles.
         text = listing_path().read_text(encoding="utf-8")
         self.assertEqual(
-            subject.shared_fields(text)["copyright"], msstore_payload.copyright_line(text)
+            subject.shared_fields(text)["copyright"], store_payload.copyright_line(text)
         )
 
 

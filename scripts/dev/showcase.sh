@@ -486,7 +486,8 @@ case "$SCREEN_ARG" in
 esac
 
 # The set each store publisher reads is `showcase-screenshots/<platform>/`; appstore_listing.py,
-# msstore_listing.py and publish_play.py are all pointed at one of these directories, and that
+# publish_play.py and the Microsoft Store push are all pointed at one of these
+# directories, and that
 # directory IS the set (there is no copy or rename step). Keyed on `platform`, not `TARGET`, so the
 # three Android form factors land together under their prefixes.
 if [[ "$SET_ARG" == "docs" ]]; then
