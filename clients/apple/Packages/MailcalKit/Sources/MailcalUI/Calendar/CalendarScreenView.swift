@@ -175,14 +175,14 @@ struct CalendarScreenView: View {
         }
         // The create/edit editor. One form, both jobs.
         //
-        // The binding falls back to the value `.sheet(item:)` handed us rather than force-unwrapping
-        // `$editor`. SwiftUI evaluates this content closure while the presentation is still settling
-        // including on the frame where `editor` has just been cleared, or where opening the editor
-        // from the detail sheet dismisses one sheet and presents another in the same update. A
-        // `Binding($editor)!` traps on exactly that frame, which is what made "Edit" kill the app.
+        // `sheetItemBinding` for both halves of the presentation lifecycle: the read falls back to
+        // the value `.sheet(item:)` handed us, because SwiftUI evaluates this closure on the frame
+        // where `editor` has just been cleared and a `Binding($editor)!` traps there (which is what
+        // made "Edit" kill the app); and the write refuses to run once `editor` is nil, because the
+        // dismissing content still writes and handing that value back re-presented the sheet.
         .sheet(item: $editor) { presented in
             EventEditorView(
-                editor: Binding(get: { editor ?? presented }, set: { editor = $0 }),
+                editor: sheetItemBinding($editor, presented: presented),
                 calendars: currentCalendars(pager: pager, anchor: anchor),
                 onCancel: { editor = nil },
                 onCreate: { model.createEvent($0); editor = nil },
