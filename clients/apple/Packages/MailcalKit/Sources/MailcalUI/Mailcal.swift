@@ -308,6 +308,10 @@ public struct ContentView: View {
             model.pendingAgentDraft = nil
             openDraft(request)
         }
+        // The OS handing us a `mailto:` link, and the link that had to wait for an account. Both
+        // are attached here rather than to the `WindowGroup` because the model is this view's own
+        // state, and a link has nowhere to go without it. See Mailcal.ComposeDraft.swift.
+        .modifier(MailLinkRouting(model: model, open: openMailLink))
         // Clicking another message with an unsent draft in the pane: Discard, or Keep editing.
         .modifier(DiscardDraftDialog(
             isPresented: $confirmingDiscard,

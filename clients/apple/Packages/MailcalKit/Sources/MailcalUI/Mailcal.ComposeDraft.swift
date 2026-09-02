@@ -113,6 +113,23 @@ extension ContentView {
         #endif
     }
 
+    /// Opens a `mailto:` link in the composer, pre-filled (docs/os-integration.md).
+    ///
+    /// Behind the same discard guard a message click uses, for the same reason the assistant's
+    /// draft is: a link arrives unprompted, from a web page or another app, and must not be able
+    /// to throw away a half-written message. Linux and Windows guard it identically.
+    ///
+    /// A link arriving before there is an account to send from is put back on the model, and the
+    /// shell opens it once accounts exist: the alternative is a composer with nothing in its From
+    /// dropdown, which cannot send and cannot explain why.
+    func openMailLink(_ request: MailLinkRequest) {
+        guard !model.accounts.isEmpty else {
+            model.pendingMailLink = request
+            return
+        }
+        openGuardingDraft { compose = .mailLink(request) }
+    }
+
     /// Opens an assistant's draft in the composer, unsent (docs/mcp.md).
     ///
     /// Behind the same discard guard a message click uses. An assistant asking to open a draft
@@ -153,5 +170,35 @@ struct DiscardDraftDialog: ViewModifier {
         } message: {
             Text(L10n.compose_discard_message())
         }
+    }
+}
+
+/// The two ways a `mailto:` link reaches the composer: the OS handing the shell one, and one that
+/// arrived before there was an account to send from opening as soon as there is.
+///
+/// The URI is opaque and comes from somewhere we do not control, so the shared core decodes it:
+/// only To/Cc/Bcc/Subject/Body are honoured and every other header a link may name is dropped
+/// (docs/composer-security.md, Gate 12). Anything that is not a mail link is ignored rather than
+/// opening a blank composer over whatever the user was doing.
+///
+/// `onOpenURL` is the only URL hook in the app. The OAuth redirects never reach it: each is
+/// captured inside its own `ASWebAuthenticationSession`, which is why there is no scheme dispatch
+/// here of the kind Windows, Linux and Android each need to keep a sign-in from being mistaken
+/// for a link.
+struct MailLinkRouting: ViewModifier {
+    let model: MailboxModel
+    let open: (MailLinkRequest) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onOpenURL { url in
+                guard let prefill = parseMailtoUri(uri: url.absoluteString) else { return }
+                open(MailLinkRequest(prefill: prefill))
+            }
+            .onChange(of: model.accounts.count) { _, count in
+                guard count > 0, let request = model.pendingMailLink else { return }
+                model.pendingMailLink = nil
+                open(request)
+            }
     }
 }
