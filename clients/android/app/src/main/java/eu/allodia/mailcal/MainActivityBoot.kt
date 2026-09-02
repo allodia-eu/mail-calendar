@@ -192,6 +192,7 @@ internal fun MainActivity.completeOAuthRedirect(data: Uri) {
         OAuthRedirect.GOOGLE -> completeGoogleLogin(data.toString())
         OAuthRedirect.MICROSOFT -> completeMicrosoftLogin(data.toString())
         OAuthRedirect.ALLODIA -> completeAllodiaSignIn(data.toString())
+        OAuthRedirect.IMAP -> completeImapSignIn(data.toString())
         // One host, two flows: a first sign-in from the setup form and a re-authentication
         // from the expired-sign-in banner. `pendingJmapReauthAccount` is what tells them apart.
         OAuthRedirect.JMAP -> when (val account = pendingJmapReauthAccount) {
