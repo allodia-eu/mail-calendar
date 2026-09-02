@@ -32,6 +32,7 @@
         <Grid Grid.Column="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -71,7 +72,19 @@
                 </Button>
             </Grid>
 
-            <ListView x:Name="PeopleList" Grid.Row="1" Padding="8,0,8,8"
+            <!-- The write status: a word about the most recent save, beside the list rather than
+                 in the detail pane, because a create is made with no one open and the pane is
+                 collapsed then. "Couldn't confirm" is not "rejected": the change has already
+                 landed on the server and the next sync heals the local copy (§3). -->
+            <TextBlock Grid.Row="1" Margin="16,0,16,8"
+                       Text="{x:Bind Model.ContactWriteStatusText, Mode=OneWay}"
+                       Visibility="{x:Bind Model.ContactWriteStatusVisibility, Mode=OneWay}"
+                       TextWrapping="Wrap"
+                       AutomationProperties.AutomationId="ContactWriteStatus"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+            <ListView x:Name="PeopleList" Grid.Row="2" Padding="8,0,8,8"
                       AutomationProperties.AutomationId="ContactsList"
                       AutomationProperties.Name="{x:Bind l10n:L10n.ContactsTitle()}"
                       ItemsSource="{x:Bind Model.Contacts, Mode=OneWay}"
@@ -128,7 +141,7 @@
 
             <!-- The two empty states are deliberately different sentences: telling someone who has
                  just searched "No contacts yet" reads as though theirs had vanished. -->
-            <StackPanel Grid.Row="1" Spacing="8" Padding="32"
+            <StackPanel Grid.Row="2" Spacing="8" Padding="32"
                         HorizontalAlignment="Center" VerticalAlignment="Center"
                         AutomationProperties.AutomationId="ContactsEmpty"
                         Visibility="{x:Bind Model.ContactsEmptyVisibility, Mode=OneWay}">
@@ -212,15 +225,6 @@
                 </StackPanel>
 
                 <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-                <!-- The write status: a word about the most recent save. "Couldn't confirm" is not
-                     "rejected", the change has already landed on the server and the next sync
-                     heals the local copy. -->
-                <TextBlock Text="{x:Bind Model.ContactWriteStatusText, Mode=OneWay}"
-                           Visibility="{x:Bind Model.ContactWriteStatusVisibility, Mode=OneWay}"
-                           TextWrapping="Wrap"
-                           AutomationProperties.AutomationId="ContactWriteStatus"
-                           Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <!-- The edit affordance is conditional on there being a card to write, and the note
                      is what stands in its place: a person nothing here can change says so in as
                      many words rather than leaving it to be inferred from an absence, or, worse,

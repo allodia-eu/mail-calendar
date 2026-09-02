@@ -158,6 +158,10 @@ company contact reads as its company rather than as a blank row.
   there is something to correct and retrying unchanged would be refused the same way. The client
   states it under the form the user is still looking at, and nowhere else.
 
+The first three belong **beside the list**, never inside the detail pane: a create is made with
+nobody open, so a line drawn there is one the user who just created a contact cannot read, and
+`Failed` is the value it costs most to lose.
+
 Neither write is durable offline yet: a failed save stays failed rather than queueing, which is the
 same shortfall the calendar writes have.
 
@@ -324,23 +328,39 @@ change updates in every catalog locale.
   the difference either, because a popup owns its own root and reports its bounds as (0, 0). So the
   Android half asserts the position *decision* (`RecipientPopupPositionTest`) and the rendering was
   confirmed on an emulator.
-- **The Linux UI suite drives the editor up to the write and no further.**
-  [`test-linux-ui.sh`](../scripts/dev/test-linux-ui.sh) runs against the shared harness and the app
-  offers no delete, so an actual create would leave a card behind and accumulate one per run. It
-  asserts the half a screenshot cannot: that the create affordance is offered at all (it is hidden
-  unless the core reports a writable address book, so its presence *is* the write-destination
-  binding working), that the form opens, and that Save on an empty form refuses rather than closing
-  over a card nobody could find again. The write itself is gated in `mailcal-app`'s contacts suite
-  against a real engine, and was driven by hand against the harness (above).
+- **The Linux and Windows UI suites drive the editor up to the write and no further.**
+  [`test-linux-ui.sh`](../scripts/dev/test-linux-ui.sh) and
+  [`ContactEditor.Tests.ps1`](../clients/windows/uitests/ContactEditor.Tests.ps1) run against the
+  shared harness and the app offers no delete, so an actual create would leave a card behind and
+  accumulate one per run. They assert the half a screenshot cannot: that the create affordance is
+  offered at all (it is hidden unless the core reports a writable address book, so its presence
+  *is* the write-destination binding working), that the form opens, and that Save on an empty form
+  refuses rather than closing over a card nobody could find again. The Windows suite adds the
+  editor's row geometry, for the reason its header gives. The write itself is gated in
+  `mailcal-app`'s contacts suite against a real engine, and was driven by hand against the harness
+  (above).
 - **Contacts cannot be deleted.** The engine supports it through the same outbox the create and the
   edit ride, so this is scope rather than a missing capability: a delete is the one contacts write
   a user cannot undo, and it wants a confirmation and an account-naming step of its own, on the
   same terms the calendar's delete already has.
-- **The write paths were driven on Linux and Android against the harness on 2026-09-02**, over
-  JMAP: create and edit, each read back off the server. The **Apple** and **Windows** halves are
-  written to the same contract and are unverified against a running client. What is gated on every
-  platform is the pure layer (which card an edit names, what a form is refused for, which fields a
-  patch carries), which is where the silent failures are.
+- **The write paths were driven on Linux, Android and Windows against the harness on 2026-09-02**,
+  over JMAP: create and edit, each read back off the server. The **Apple** half is written to the
+  same contract and is unverified against a running client. What is gated on every platform is the
+  pure layer (which card an edit names, what a form is refused for, which fields a patch carries),
+  which is where the silent failures are.
+
+  The Windows run also proved the half a unit test cannot reach: that an edit carries only the
+  fields it changed. Editing the seeded Iris Jansen's organisation alone left her photo
+  byte-identical, her address's `work` context and her number's `mobile` feature intact, and her
+  card's own property keys in place, which is a patch built **on top of** what the card held rather
+  than a replacement assembled from the form.
+
+- **The contact write status is not gated on Windows**, and the reason generalises. The line is
+  collapsed until a write settles, and a collapsed element is absent from the automation tree, so
+  there is nothing for [`ContactEditor.Tests.ps1`](../clients/windows/uitests/ContactEditor.Tests.ps1)
+  to assert on without performing a write it cannot undo. Its placement (§3) was verified by hand.
+  Gating it wants a `MAILCAL_*` hook that stages a `ContactWriteStatus` in the **core**, the way
+  `MAILCAL_FAKE_REPLY_DELIVERY` stages a calendar server's verdict.
 
   **Read a JMAP write back over JMAP.** Stalwart renders the same stored card for both protocols
   and the two disagree after a `ContactCard/set`: over CardDAV the card comes back holding `FN` and

@@ -64,11 +64,11 @@ public sealed class ContactEditorDialog : ContentDialog
         _title.Text = seed.Title;
         foreach (var value in ContactEditing.ValueRows(seed.Emails))
         {
-            AddValueRow(_emailRows, L10n.ContactsSectionEmails(), L10n.ContactsRemoveEmail(), value);
+            AddValueRow(_emailRows, EmailField(), value);
         }
         foreach (var value in ContactEditing.ValueRows(seed.Phones))
         {
-            AddValueRow(_phoneRows, L10n.ContactsSectionPhones(), L10n.ContactsRemovePhone(), value);
+            AddValueRow(_phoneRows, PhoneField(), value);
         }
 
         Content = new ScrollViewer { Content = BuildForm(), MinWidth = 420, MaxHeight = 520 };
@@ -128,18 +128,10 @@ public sealed class ContactEditorDialog : ContentDialog
         form.Children.Add(_title);
         form.Children.Add(Heading(L10n.ContactsSectionEmails()));
         form.Children.Add(_emailRows);
-        form.Children.Add(AddButton(
-            L10n.ContactsAddEmail(),
-            _emailRows,
-            L10n.ContactsSectionEmails(),
-            L10n.ContactsRemoveEmail()));
+        form.Children.Add(AddButton(L10n.ContactsAddEmail(), _emailRows, EmailField()));
         form.Children.Add(Heading(L10n.ContactsSectionPhones()));
         form.Children.Add(_phoneRows);
-        form.Children.Add(AddButton(
-            L10n.ContactsAddPhone(),
-            _phoneRows,
-            L10n.ContactsSectionPhones(),
-            L10n.ContactsRemovePhone()));
+        form.Children.Add(AddButton(L10n.ContactsAddPhone(), _phoneRows, PhoneField()));
         // Only a create files a contact somewhere new, and only when there is a choice to make:
         // one address book is a fact, not a decision.
         if (_editing is null && _books.Count > 1)
@@ -160,34 +152,31 @@ public sealed class ContactEditorDialog : ContentDialog
         return form;
     }
 
-    private Button AddButton(string label, StackPanel rows, string field, string removeLabel)
+    private Button AddButton(string label, StackPanel rows, ValueField field)
     {
         var add = new Button { Content = label, HorizontalAlignment = HorizontalAlignment.Left };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(add, label);
         add.Click += (_, _) =>
         {
-            var box = AddValueRow(rows, field, removeLabel, string.Empty);
+            var box = AddValueRow(rows, field, string.Empty);
             box.Focus(FocusState.Programmatic);
         };
         return add;
     }
 
     /// <summary>Appends one value row, returning its text box.</summary>
-    private static TextBox AddValueRow(
-        StackPanel rows,
-        string field,
-        string removeLabel,
-        string value)
+    private static TextBox AddValueRow(StackPanel rows, ValueField field, string value)
     {
-        var box = Field(field, null);
+        var box = Field(field.Label, field.ValueId, header: false);
         box.Text = value;
         var remove = new Button
         {
             Content = new FontIcon { Glyph = "", FontSize = 14 },
             VerticalAlignment = VerticalAlignment.Center,
         };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(remove, removeLabel);
-        ToolTipService.SetToolTip(remove, removeLabel);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(remove, field.RemoveLabel);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(remove, field.RemoveId);
+        ToolTipService.SetToolTip(remove, field.RemoveLabel);
         var row = new Grid { ColumnSpacing = 6 };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -200,13 +189,54 @@ public sealed class ContactEditorDialog : ContentDialog
         return box;
     }
 
+    /// <summary>
+    /// One repeating value field: what its rows are called, and what a test addresses them by.
+    /// </summary>
+    /// <remarks>
+    /// The ids repeat down the field, one pair per row, which is what makes "the rows of this
+    /// field" a query. They exist because the labels are localised, so a UI assertion written
+    /// against a name asserts the app's language as much as its layout.
+    /// </remarks>
+    private sealed record ValueField(
+        string Label,
+        string RemoveLabel,
+        string ValueId,
+        string RemoveId);
+
+    private static ValueField EmailField() => new(
+        L10n.ContactsSectionEmails(),
+        L10n.ContactsRemoveEmail(),
+        "ContactEmailValue",
+        "ContactEmailRemove");
+
+    private static ValueField PhoneField() => new(
+        L10n.ContactsSectionPhones(),
+        L10n.ContactsRemovePhone(),
+        "ContactPhoneValue",
+        "ContactPhoneRemove");
+
     /// <summary>The values in one repeating field, in the order they are drawn.</summary>
     private static IEnumerable<string> Values(StackPanel rows) =>
         rows.Children.OfType<Grid>().Select(row => row.Children.OfType<TextBox>().First().Text);
 
-    private static TextBox Field(string label, string? automationId)
+    /// <summary>
+    /// A text box labelled <paramref name="label"/>, headed by it unless the field already
+    /// carries a heading of its own.
+    /// </summary>
+    /// <remarks>
+    /// A repeating field's rows take <c>header: false</c>. The section heading above them names
+    /// the field once, so a header per row repeats it, and it also makes the row taller than the
+    /// box: the remove button centres on the whole cell and ends up level with the label rather
+    /// than with the value it removes. The accessible name stays either way, so a row is still
+    /// announced as what it holds.
+    /// </remarks>
+    private static TextBox Field(string label, string? automationId, bool header = true)
     {
-        var box = new TextBox { PlaceholderText = label, Header = label };
+        var box = new TextBox { PlaceholderText = label };
+        if (header)
+        {
+            box.Header = label;
+        }
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box, label);
         if (automationId is not null)
         {

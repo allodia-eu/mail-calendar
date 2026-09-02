@@ -150,7 +150,7 @@ public sealed partial class MailboxModel
         }
     }
 
-    /// <summary>What the contacts header says about the most recent write.</summary>
+    /// <summary>What the contacts list says about the most recent write.</summary>
     public string ContactWriteStatusText => ContactWriteStatus switch
     {
         uniffi.mailcal_bindings.ContactWriteStatus.Saving => L10n.ContactsSaving(),
