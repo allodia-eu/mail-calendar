@@ -23,6 +23,7 @@ public class AccountDetectFormTests
             Row("IMAP", "imap.example.com", 993),
             withSmtp ? Row("SMTP", "smtp.example.com", 465) : null,
             caldavUrl,
+            // No issuer: nothing here is testing what a provider named for itself.
             null,
             trusted, "https://autoconfig.example.com/mail/config-v1.1.xml");
 
@@ -128,5 +129,22 @@ public class AccountDetectFormTests
         Assert.True(AccountDetectForm.CanConnect(
             DetectTab.Jmap, needsApproval: false, approved: false,
             "", "alice@example.com", "", "tok_123"));
+    }
+
+    [Fact]
+    public void An_issuer_a_provider_named_for_itself_reaches_the_setup_form()
+    {
+        // Detection is where the autoconfig document is read; the setup form's pre-flight is where
+        // the issuer is used. Dropped in between, the well-known probe runs for a provider that
+        // already told us the answer, and a provider whose authorization server lives on another
+        // domain is never offered sign-in at all.
+        var route = AccountDetectForm.Route(new SetupRecommendation.Imap(
+            "alice@example.com", "imap.example.com", null,
+            ConnectionSecurity.ImplicitTls, ConnectionSecurity.ImplicitTls,
+            Row("IMAP", "imap.example.com", 993), null, null,
+            "https://login.example.com",
+            true, "https://autoconfig.example.com/mail/config-v1.1.xml"));
+
+        Assert.Equal("https://login.example.com", route.OauthIssuer);
     }
 }

@@ -80,6 +80,39 @@
                              TextChanged="OnFieldChanged" />
                     <TextBox x:Name="Username" Header="{x:Bind l10n:L10n.SetupFieldEmail()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail()}"
                              TextChanged="OnFieldChanged" />
+
+                    <!-- What this mail server said it accepts, and the button where it accepts a
+                         sign-in. Shown only once the core has ASKED the server (imapAuthOptions),
+                         so the button can never dead-end, and the password field below is never
+                         removed where a password works: on a provider whose sign-in is closed to
+                         us the line explains that and the field stays, and a failed sign-in hands
+                         it straight back. What is on screen comes from ImapSignInGate, which is
+                         WinUI-free and unit-tested; AccountSetupView.ImapSignIn.cs drives it. -->
+                    <StackPanel x:Name="ImapSignInPanel" Spacing="8" Visibility="Collapsed">
+                        <TextBlock
+                            Text="{x:Bind l10n:L10n.SetupImapSigninNote()}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button x:Name="ImapSignInButton" Content="{x:Bind l10n:L10n.SetupImapSigninButton()}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                HorizontalAlignment="Left" Click="OnSignInImap" />
+                        <InfoBar x:Name="ImapSignInFailedBar" IsOpen="False" IsClosable="False"
+                                 Severity="Warning"
+                                 Message="{x:Bind l10n:L10n.SetupImapSigninFailed()}" />
+                    </StackPanel>
+
+                    <!-- Said rather than left to be guessed at. Without this line, a provider
+                         whose sign-in exists but admits only pre-registered applications looks
+                         exactly like one with no sign-in at all, and somebody who has seen the
+                         button elsewhere is left wondering where theirs went. -->
+                    <TextBlock x:Name="ImapRegistrationNeededNote"
+                               Text="{x:Bind l10n:L10n.SetupImapSigninRegistrationNeeded()}"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
                     <PasswordBox x:Name="Password" Header="{x:Bind l10n:L10n.SetupFieldPassword()}" PasswordChanged="OnPasswordChanged" />
 
                     <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAdvanced()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />

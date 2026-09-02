@@ -93,6 +93,7 @@
     <!-- The same form's "Sign in with your provider" gate: whether the button is offered at all,
          and that a failed sign-in never takes the password/API-token field away. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\JmapSignInGate.cs" Link="Services\JmapSignInGate.cs" />
+    <Compile Include="..\Mailcal\Services\ImapSignInGate.cs" Link="Services\ImapSignInGate.cs" />
     <!-- Browser sign-in serialization: a second request supersedes an attempt abandoned in the
          browser, instead of being refused behind a guard that only clears on the 5-minute cap.
          WinUI-free on purpose, the flows it runs stay in MailboxModel. Pure BCL. -->

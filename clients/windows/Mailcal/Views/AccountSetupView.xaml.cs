@@ -23,6 +23,12 @@ public sealed partial class AccountSetupView : UserControl
     // Whether the currently-shown settings were obtained untrustably and so need the user's
     // explicit approval before Connect (a non-HTTPS hop, e.g. an http autoconfig).
     private bool _needsApproval;
+    // What the detected route said the account's transports are, and the issuer its provider named
+    // for itself. Read by the IMAP pre-flight and the sign-in, which must describe the SAME
+    // account the connect will dial.
+    private ConnectionSecurity _detectedImapSecurity = ConnectionSecurity.ImplicitTls;
+    private ConnectionSecurity _detectedSmtpSecurity = ConnectionSecurity.ImplicitTls;
+    private string? _detectedOauthIssuer;
     // The connection security detection found, remembered across the connect click (there is no
     // security field in the form, the manual form is implicit-TLS only). Defaults to implicit TLS.
     private ConnectionSecurity _imapSecurity = ConnectionSecurity.ImplicitTls;
@@ -118,6 +124,9 @@ public sealed partial class AccountSetupView : UserControl
         _needsApproval = route.NeedsApproval;
         _imapSecurity = route.ImapSecurity;
         _smtpSecurity = route.SmtpSecurity;
+        _detectedImapSecurity = route.ImapSecurity;
+        _detectedSmtpSecurity = route.SmtpSecurity;
+        _detectedOauthIssuer = route.OauthIssuer;
         // Whether the JMAP fields are a detected result or the manual form decides whether an
         // offered sign-in stands beside the secret field or replaces it. Set before the tab is
         // selected below, since selecting one lays the section out immediately.
@@ -197,7 +206,18 @@ public sealed partial class AccountSetupView : UserControl
         UpdateCanConnect();
     }
 
-    private void OnFieldChanged(object sender, TextChangedEventArgs e) => UpdateCanConnect();
+    private void OnFieldChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateCanConnect();
+        // TextChanged can fire while the tree is still being built, before the later fields exist.
+        if (ImapSignInPanel is null)
+        {
+            return;
+        }
+        _imapSignIn.FieldsChanged(Username.Text, ImapHost.Text);
+        UpdateImapSignIn();
+        ScheduleImapProbe();
+    }
 
     private void OnPasswordChanged(object sender, RoutedEventArgs e) => UpdateCanConnect();
 
@@ -221,7 +241,10 @@ public sealed partial class AccountSetupView : UserControl
             ? JmapSetupForm.CanConnect(JmapEmail.Text, JmapPassword.Password)
             : !string.IsNullOrWhiteSpace(ImapHost.Text)
                 && !string.IsNullOrWhiteSpace(Username.Text)
-                && !string.IsNullOrEmpty(Password.Password);
+                // Only where a password is what the account is going to use. On a server that
+                // refuses passwords the field is not on screen, and gating Connect on it would
+                // disable a button nobody is looking at anyway.
+                && (!_imapSignIn.ShowPassword || !string.IsNullOrEmpty(Password.Password));
         ConnectButton.IsEnabled = approvalOk && fieldsOk;
     }
 
@@ -369,6 +392,7 @@ public sealed partial class AccountSetupView : UserControl
         JmapPassword.Password = string.Empty;
         JmapServer.Text = string.Empty;
         ResetJmapSignIn();
+        ResetImapSignIn();
         GoogleEarlyAccessCheck.IsChecked = false;
         ConnectButton.IsEnabled = false;
     }
