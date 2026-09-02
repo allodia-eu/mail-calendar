@@ -198,6 +198,9 @@ internal static class EventRepeatEditor
             // The button shows an initial; a screen reader gets the whole word.
             AutomationProperties.SetName(
                 toggle, culture.DateTimeFormat.GetDayName(EventRepeatChoices.DayOf(day)));
+            // Shared by all seven, because what a test needs to find is the ROW: the names are
+            // localised and the order is the locale's, so neither can identify it.
+            AutomationProperties.SetAutomationId(toggle, "EventRepeatWeekday");
             toggle.Click += (_, _) =>
             {
                 if (state.RepeatDraft is { } held)

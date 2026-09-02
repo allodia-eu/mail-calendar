@@ -1,5 +1,6 @@
-# What an event's Repeat row actually says (docs/calendar.md §10, "Which sentence a repeat rule
-# gets is decided once; the words are each client's").
+# What an event's Repeat row actually says on the detail, and what its controls open on in the
+# editor (docs/calendar.md §10, "Which sentence a repeat rule gets is decided once; the words are
+# each client's", and "A rule is editable exactly when it can be stated").
 #
 # WHY THIS SUITE EXISTS. The decisions are pinned in Mailcal.Tests (EventRepeatFormatTests): which
 # frame a rule reaches, and the weekday and month names that go in it. What that assembly cannot
@@ -7,6 +8,11 @@
 # TFM it has not got. So a frame wired to the wrong string (the every-period one where the
 # every-N-periods one belongs, say) compiles, passes `dotnet test`, and puts a plain untruth on
 # screen. This suite is the only machine that looks at the sentence.
+#
+# The editor's controls are the same argument twice over. EventRepeatEditorTests pins what a save
+# SENDS, but a control seeded from the wrong end of the rule sends exactly what it was seeded with,
+# so no assertion there can see it: a fortnightly series whose interval box opens on 1 is a form
+# proposing to make it weekly, and both halves are WinUI, which Mailcal.Tests cannot link.
 #
 # WHY THE HARNESS. The showcase seed carries no recurrence at all, so there is no repeating event to
 # open there. These rules arrive over JMAP from Stalwart, and the core summarises what the server
@@ -20,7 +26,10 @@
 #     an id is the only way to find this row in any language;
 #   * the sentences compared to EACH OTHER, and to the DIGITS in them. A number is written the same
 #     way in all seven catalog languages, and "these four rules say four different things" is exactly
-#     what the old one-word summary could not do.
+#     what the old one-word summary could not do;
+#   * for the editor's CONTROLS, those three plus what is on screen at all. Which controls a
+#     frequency draws, how many weekday buttons are ticked, and the digits a spinner opens on are
+#     all readable without knowing a word of the language the app is in.
 #
 # THE SEEDED RULES (docker/stalwart/seed-calendar-week.sh, the `repeating` block):
 #   Team sync        FREQ=WEEKLY;BYDAY=MO,WE     -> names two weekdays
@@ -179,6 +188,91 @@ function Get-RepeatSentence {
   return $text
 }
 
+<#
+.SYNOPSIS
+Open the EDITOR over an agenda event, and return the editor's dialog.
+.DESCRIPTION
+Two dialogs deep: the agenda opens the detail, and the detail's primary button opens the editor over
+it. Get-DialogRoot then finds the editor rather than the detail because a ContentDialog opened over
+another sorts ahead of it, which is also why every case here closes what it opened.
+#>
+function Open-EventEditor {
+  param([Parameter(Mandatory)] [string] $Title)
+  $null = Open-EventDetail $Title
+  $edit = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button
+  if (-not $edit) { throw "'$Title' offered no Edit button, the harness calendar should be writable" }
+  Invoke-UiaElement $edit -SettleMs 1500
+  return Get-DialogRoot
+}
+
+<#
+.SYNOPSIS
+The text a repeat picker is currently showing, for the seeded event $Title.
+.DESCRIPTION
+Read off the SELECTION, never off the ComboBox's own Name: WinUI puts the control's HEADER there
+("Repeat", "Ends"), so a picker opened on the wrong choice would still answer "Repeat" and every
+comparison between two events would pass. Leaves the dialog closed.
+#>
+function Get-SelectedChoice {
+  param(
+    [Parameter(Mandatory)] [string] $Title,
+    [Parameter(Mandatory)] [string] $AutomationId
+  )
+  $dialog = Open-EventEditor $Title
+  $combo = Find-UiaElement -AutomationId $AutomationId -Root $dialog
+  if (-not $combo) { throw "'$Title' shows no $AutomationId control" }
+  $pattern = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern)
+  $selected = @($pattern.Current.GetSelection())
+  if ($selected.Count -ne 1) {
+    throw "$AutomationId on '$Title' has $($selected.Count) selected items, a picker showing nothing states no rule at all"
+  }
+  $text = $selected[0].Current.Name
+  Close-Dialog
+  if (-not $text) { throw "$AutomationId on '$Title' shows an empty choice, which says nothing to the reader" }
+  return $text
+}
+
+<#
+.SYNOPSIS
+The NUMBER a repeat spinner is showing, for the seeded event $Title.
+.DESCRIPTION
+A NumberBox is a Spinner wrapping an Edit, and only the Edit carries ValuePattern. The Spinner's own
+Name is its localised header ("Every 2 weeks"), so reading the number off the wrapper would be
+reading the catalog. Returns the value as its string, digits being language-free.
+#>
+function Get-SpinnerValue {
+  param(
+    [Parameter(Mandatory)] [string] $Title,
+    [Parameter(Mandatory)] [string] $AutomationId
+  )
+  $dialog = Open-EventEditor $Title
+  $spinner = Find-UiaElement -AutomationId $AutomationId -Root $dialog
+  if (-not $spinner) { throw "'$Title' shows no $AutomationId control" }
+  $box = Find-UiaElement -Type Edit -Root $spinner
+  if (-not $box) { throw "$AutomationId on '$Title' has no editable field, so its number cannot be read or typed" }
+  $value = Get-UiaText $box
+  Close-Dialog
+  return $value
+}
+
+<#
+.SYNOPSIS
+How many weekday buttons are ticked in the editor for the seeded event $Title.
+.DESCRIPTION
+A count rather than a set of names, because the names are localised: what is assertable in any
+language is HOW MANY days a rule opens with, which is what separates BYDAY=MO,WE from the implicit
+single day, and what catches a row that opens with none.
+#>
+function Get-CheckedWeekdays {
+  param([Parameter(Mandatory)] [string] $Title)
+  $dialog = Open-EventEditor $Title
+  $days = @(Find-UiaElements -AutomationId 'EventRepeatWeekday' -Root $dialog)
+  if ($days.Count -eq 0) { throw "'$Title' is a weekly rule and shows no weekday row" }
+  $checked = @($days | Where-Object { Get-UiaToggle $_ }).Count
+  Close-Dialog
+  return $checked
+}
+
 $Suite = @{
   Dataset = 'harness'
   Cases   = @(
@@ -248,22 +342,108 @@ $Suite = @{
       }
     },
     @{
-      Name = 'the editor shows the same sentence as the detail'
+      Name = 'the editor opens the rule as controls, not as the sentence the detail shows'
       Body = {
-        # Two surfaces, one function, so a reader who opens the editor is not told a different
-        # thing about the same event. They are separate call sites, which is what makes this
-        # assertable rather than obvious.
-        $detail = Get-RepeatSentence $Fortnightly
-        $null = Open-EventDetail $Fortnightly
-        $edit = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button
-        if (-not $edit) { throw 'the detail offered no Edit button, the harness calendar should be writable' }
-        Invoke-UiaElement $edit -SettleMs 1500
-        $dialog = Get-DialogRoot
-        $value = Find-UiaElement -AutomationId 'EventRepeatValue' -Type Text -Root $dialog
-        if (-not $value) { throw 'the editor shows no repeat row, an edit would be made blind to how the event repeats' }
-        Assert-Equal $detail $value.Current.Name `
-          'the editor and the detail read the same rule, so they say the same sentence'
+        # The detail READS a rule and the editor SETS one, so the editor is the one surface that
+        # must not settle for the sentence: a reader who can only be told "every 2 weeks" has no
+        # way to make it every third. EventRepeatValue is the detail's row, and its ABSENCE here is
+        # the assertion.
+        $dialog = Open-EventEditor $Fortnightly
+        if (-not (Find-UiaElement -AutomationId 'EventRepeatFrequency' -Root $dialog)) {
+          throw 'the editor offers no frequency control, so the rule cannot be changed at all'
+        }
+        Assert-True (-not (Find-UiaElement -AutomationId 'EventRepeatValue' -Type Text -Root $dialog)) `
+          'the editor states the rule as a read-only sentence, which is the surface it replaced'
         Close-Dialog
+      }
+    },
+    @{
+      Name = 'the frequency opens on the rule the event has, not on the first choice'
+      Body = {
+        # The failure this catches is a picker that opens at index 0 ("Does not repeat") whatever
+        # the event does: every control below it is then seeded from nothing, and a save stops the
+        # series the user came to adjust. Language-free by comparing the three to EACH OTHER, the
+        # handle the sentence cases already use.
+        $weekly = Get-SelectedChoice $Fortnightly 'EventRepeatFrequency'
+        $monthly = Get-SelectedChoice $MonthlyNth 'EventRepeatFrequency'
+        $none = Get-SelectedChoice $Plain 'EventRepeatFrequency'
+        Assert-True ($weekly -ne $monthly) `
+          "a weekly and a monthly rule cannot open on the same frequency (both say '$weekly')"
+        Assert-True ($weekly -ne $none) `
+          "a repeating event cannot open on the choice an event with no rule opens on (both say '$none')"
+        Assert-True ($monthly -ne $none) `
+          "a monthly rule cannot open on the choice an event with no rule opens on (both say '$none')"
+      }
+    },
+    @{
+      Name = 'an event with no rule offers the frequency alone, and nothing to configure'
+      Body = {
+        # Every control below the picker describes a rule, so on an event that has none they would
+        # be describing one the user never asked for. The panel drops them; this says it did.
+        $dialog = Open-EventEditor $Plain
+        Assert-True (-not (Find-UiaElement -AutomationId 'EventRepeatInterval' -Root $dialog)) `
+          'an event that does not repeat offers an interval, setting a period on a rule that does not exist'
+        Assert-True (-not (Find-UiaElement -AutomationId 'EventRepeatEnds' -Root $dialog)) `
+          'an event that does not repeat offers an end condition, ending a rule that does not exist'
+        Close-Dialog
+      }
+    },
+    @{
+      Name = 'the interval box opens on the number of periods the rule skips'
+      Body = {
+        # THE bug of this whole surface, moved from the sentence to the control: a fortnightly rule
+        # seeded into a box reading 1 is a form quietly proposing to make it weekly, and the user
+        # finds out after saving. Digits are written the same way in all seven catalog languages.
+        Assert-Equal '2' (Get-SpinnerValue $Fortnightly 'EventRepeatInterval') `
+          'the fortnightly rule is seeded INTERVAL=2, so its interval box opens on 2'
+        Assert-Equal '1' (Get-SpinnerValue $Weekly 'EventRepeatInterval') `
+          'a rule with no INTERVAL repeats every period, so its box opens on 1'
+      }
+    },
+    @{
+      Name = 'a rule that stops after a fixed number opens on that number'
+      Body = {
+        # The end is part of the rule, and a count seeded as anything else rewrites how long the
+        # series runs. The count box exists only while "Ends" is on the after-N choice, so its
+        # presence is half of what is asserted here.
+        $dialog = Open-EventEditor $Counted
+        if (-not (Find-UiaElement -AutomationId 'EventRepeatEndCount' -Root $dialog)) {
+          throw 'a rule seeded COUNT=10 opens with no count control, so its end is not on screen at all'
+        }
+        Close-Dialog
+        Assert-Equal '10' (Get-SpinnerValue $Counted 'EventRepeatEndCount') `
+          'a rule seeded COUNT=10 opens on 10, not on a default the control invented'
+      }
+    },
+    @{
+      Name = 'the weekday row belongs to a weekly rule and to no other'
+      Body = {
+        # A day of the week means nothing in a monthly rule, and the panel rebuilds per frequency to
+        # say so. Found by id rather than by name: the day names are localised and the order is the
+        # locale's, so neither one identifies the row.
+        $weeklyDialog = Open-EventEditor $Weekly
+        $days = @(Find-UiaElements -AutomationId 'EventRepeatWeekday' -Root $weeklyDialog)
+        Assert-Equal 7 $days.Count 'a weekly rule offers the whole week, one button per day'
+        Close-Dialog
+
+        $monthlyDialog = Open-EventEditor $MonthlyNth
+        $absent = @(Find-UiaElements -AutomationId 'EventRepeatWeekday' -Root $monthlyDialog)
+        Assert-Equal 0 $absent.Count `
+          'a monthly rule draws the weekday row, offering to set a day its frequency cannot use'
+        Close-Dialog
+      }
+    },
+    @{
+      Name = 'the weekday row opens with the rule''s own days ticked, and never with none'
+      Body = {
+        # Two silent failures at once. A row ticked from the wrong end of the week (DayOfWeek counts
+        # Sunday as 0, the core counts from Monday) still draws a plausible row, so the COUNT of
+        # ticked days is what separates BYDAY=MO,WE from a single day. And a weekly rule naming no
+        # day is one the core refuses, which reads in the app as a save that simply did nothing.
+        Assert-Equal 2 (Get-CheckedWeekdays $Weekly) `
+          'the rule seeded BYDAY=MO,WE opens with exactly those two days ticked'
+        Assert-Equal 1 (Get-CheckedWeekdays $Fortnightly) `
+          "a weekly rule naming no day takes the event's own weekday, so exactly one day is ticked"
       }
     }
   )
