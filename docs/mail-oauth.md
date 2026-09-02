@@ -189,6 +189,11 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   and somewhere else: a dropped `redirect_uri` is rejected on the next refresh, a dropped
   `issuer` silently stops checking RFC 9207, a dropped STARTTLS flag connects the account to a
   port the provider may not have open.
+- **Live, harness-gated** (`mailcal-account/tests/live_imap_auth.rs`): the decision against a real
+  server, which is the one thing the offline suite cannot show. It needs the harness CA and the
+  hostname the certificate actually carries; both are in the file's header, because getting
+  either wrong fail-softs to "ask for a password", which is indistinguishable from the code being
+  broken.
 - **Clients**: Linux drives the three screens through a real widget tree under Xvfb, asserting
   the half a screenshot cannot check: that no credential field is on screen while the server is
   being asked, that the offer and the password route appear together when both work, and that
