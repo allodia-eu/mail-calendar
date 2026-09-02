@@ -198,9 +198,9 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | Quoted-original sanitisation | shared core re-sanitises every quote body on submit (`rich_draft`); the host editor is never trusted | (same: shared core) | (same: shared core) | same shared-core `rich_draft` re-sanitisation |
 | Signature sanitisation + `data:`→`cid:` | shared core sanitises on store **and** on submit, then rewrites inline `data:` images to `cid:` parts | (same: shared core) | (same: shared core) | (same: shared core) |
 | `initial_text` is plain text | host passes only `showcase_reply(locale).text`; the shared editor assigns it as `textContent` | (same: shared editor) | (same: shared editor) | (same: shared editor) |
-| `mailto:` link decoded by the core, never the client | ⬜ not yet registered as a mail-link handler | `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` → `parseMailtoUri` (`MailtoLaunch` gates action + scheme so an OAuth redirect is never mistaken for a link) | MSIX `windows.protocol` `mailto` → `ParseMailtoUri` (`MailLink` gates the scheme, for the same reason; the URI reaches the core as `OriginalString`, still percent-encoded) | desktop `MimeType=x-scheme-handler/mailto` + raw GApplication command-line activation → `parse_mailto_uri`; cold and redirected warm activations share one broker path |
-| `Cc`/`Bcc` collapsed by default, revealed when pre-filled | `revealsCcBcc(cc:bcc:)` seeds `showsCcBcc`; held by a `MailcalUITests` case | `revealsCcBcc(cc, bcc)` opens the row; held by a JVM test | `RecipientTokens.RevealsCcBcc` sets the chevron's `IsChecked`; the rule is held by `Mailcal.Tests` and the collapse itself by a UI test that asks the running window for the fields, plus the mail-link suite that reads the pre-filled pills off it | `reveals_cc_bcc` sets the chevron; held by the crate's GTK test, which reads the row's visibility off the widget |
-| `mailto:` body seeded as text | n/a | `window.setPlainText` (shared editor) assigns one paragraph per line via `textContent` | (same: shared editor, the same call the assistant-draft path uses) | (same: shared editor; the body is JSON-encoded data, never script) |
+| `mailto:` link decoded by the core, never the client | `CFBundleURLTypes` scheme `mailto` → the shell's `onOpenURL` → `parseMailtoUri`. No scheme gate is needed: the OAuth redirects are captured inside their own `ASWebAuthenticationSession` and never reach it. **macOS only in practice**: iOS routes a mail link to the *default* mail app alone, which needs an Apple-granted entitlement ([`os-integration.md`](os-integration.md)) | `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` → `parseMailtoUri` (`MailtoLaunch` gates action + scheme so an OAuth redirect is never mistaken for a link) | MSIX `windows.protocol` `mailto` → `ParseMailtoUri` (`MailLink` gates the scheme, for the same reason; the URI reaches the core as `OriginalString`, still percent-encoded) | desktop `MimeType=x-scheme-handler/mailto` + raw GApplication command-line activation → `parse_mailto_uri`; cold and redirected warm activations share one broker path |
+| `Cc`/`Bcc` collapsed by default, revealed when pre-filled | `revealsCcBcc(cc:bcc:)` seeds `showsCcBcc`; held by `RecipientTokenTests`, and on a mail link's own shape by `MailLinkTests` | `revealsCcBcc(cc, bcc)` opens the row; held by a JVM test | `RecipientTokens.RevealsCcBcc` sets the chevron's `IsChecked`; the rule is held by `Mailcal.Tests` and the collapse itself by a UI test that asks the running window for the fields, plus the mail-link suite that reads the pre-filled pills off it | `reveals_cc_bcc` sets the chevron; held by the crate's GTK test, which reads the row's visibility off the widget |
+| `mailto:` body seeded as text | `initialBody` → the shared editor's `setPlainText`, as `textContent` | `window.setPlainText` (shared editor) assigns one paragraph per line via `textContent` | (same: shared editor, the same call the assistant-draft path uses) | (same: shared editor; the body is JSON-encoded data, never script) |
 | Shared files named and typed by the core (Gate 13) | ⬜ no share target registered | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` → `prefillFromShare`; `ShareLaunch` gates the action, the bytes are copied out of the sender's provider into app cache first | ⬜ no `windows.shareTarget` extension | desktop `MimeType=` + `%U` and `--attach` → `prefill_from_share`; the composer opens holding `ComposeRequest::files` |
 
 ## Known gaps / follow-ups
@@ -269,12 +269,19 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   attachments, and reads bytes in Rust from host-selected/staged paths. Inline image insertion
   remains a follow-up; the editor schema and original `ComposerBlob` path still support inline CID
   images, but clients do not yet expose an inline-image picker.
-- **`mailto:` handling ships on Android, Windows and Linux (Gate 12); Apple is ⬜.** Linux registers
+- **`mailto:` handling ships on macOS, Windows, Android and Linux (Gate 12); iOS/iPadOS is
+  registered but gated.** Linux registers
   `MimeType=x-scheme-handler/mailto` in its generated desktop entry and handles both a cold launch
   and a URI forwarded to the existing GApplication instance. A link received before the first
   account is kept through setup; a link arriving over Settings, Calendar or Contacts brings the
-  mail composer to the front. Apple still needs `CFBundleURLTypes` plus
-  `LSSetDefaultHandlerForURLScheme` before it can fill its cells.
+  mail composer to the front. Apple registers `CFBundleURLTypes` and takes the link at the
+  shell's `onOpenURL`, holding one that arrives before the first account until there is somewhere
+  to send it from. That path is live on macOS and inert on iOS/iPadOS, which hands `mailto:` to the
+  *default* mail app and nothing else: until Apple grants
+  `com.apple.developer.mail-client`, the app cannot be that, so `onOpenURL` never fires there. The
+  declaration is the prerequisite, kept so the entitlement is the only thing left to add. Being
+  *offered* as a handler is not being chosen as one either: what each platform can do about that is
+  [`os-integration.md`](os-integration.md).
 - **A link arriving over an open draft is answered differently across the shipped platforms, and Android's
   answer is the one to revisit.** Windows asks: the same "Discard draft? / Keep editing" prompt an
   assistant's draft raises, which is the identical situation: an unprompted request to open a

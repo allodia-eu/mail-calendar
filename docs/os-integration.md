@@ -87,8 +87,8 @@ must meet are Gate 12 and Gate 13 in [`composer-security.md`](composer-security.
 
 | Platform | `mailto:` registration | Share ingress | Can it ask to be the default? |
 |---|---|---|---|
-| **macOS** | ⬜ `CFBundleURLTypes` + `LSHandlerRank` | ⬜ Share Extension (`com.apple.share-services`) | **Developer ID only.** `NSWorkspace.setDefaultApplication(at:toOpenURLsWithScheme:)`, which shows a system consent alert. The **App Store build cannot**: the sandbox refuses it, and there is no replacement for `LSSetDefaultHandlerForURLScheme`. |
-| **iOS / iPadOS** | ⬜ `CFBundleURLTypes` | ⬜ Share Extension | **Only with Apple's grant.** The `com.apple.developer.mail-client` entitlement is requested by email and excludes the browser entitlement. There is no prompt API; the app deep-links to Settings → Apps → Default Apps. |
+| **macOS** | ✅ `CFBundleURLTypes` + `LSHandlerRank: Alternate` | ⬜ Share Extension (`com.apple.share-services`) | **Developer ID only.** `NSWorkspace.setDefaultApplication(at:toOpenURLsWithScheme:)`, which shows a system consent alert. The **App Store build cannot**: the sandbox refuses it, and there is no replacement for `LSSetDefaultHandlerForURLScheme`. |
+| **iOS / iPadOS** | 🚧 `CFBundleURLTypes` declared, and inert until the entitlement lands | ⬜ Share Extension | **Only with Apple's grant.** The `com.apple.developer.mail-client` entitlement is requested by email and excludes the browser entitlement. There is no prompt API; the app deep-links to Settings → Apps → Default Apps. |
 | **Windows** | ✅ MSIX `windows.protocol` `mailto` | ⬜ `windows.shareTarget` extension | **Deep link only**, by design since Windows 10: register under `HKCU\Software\RegisteredApplications` and open `ms-settings:defaultapps?registeredAppUser=…`. |
 | **Android** | ✅ `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` | ✅ `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` | **No, and nothing to add.** There is no `ROLE_EMAIL` in `RoleManager`; the chooser is the mechanism, and it already works. |
 | **Linux** | ✅ desktop `MimeType=x-scheme-handler/mailto` | ✅ curated `MimeType=` ("Open With") + a local `--attach`, both through `Exec=mailcal %U` | **No, and it cannot even tell.** No default-apps portal was ever shipped, and inside a Flatpak `GAppInfo` has no host application database to ask, which is why [`check-desktop-handoff.sh`](../scripts/ci/check-desktop-handoff.sh) already bans those calls. The desktop entry declares the handler; the user chooses it in their desktop's settings. |
@@ -102,12 +102,19 @@ must meet are Gate 12 and Gate 13 in [`composer-security.md`](composer-security.
   PDF also makes this app selectable as a PDF handler. The list is therefore kept to what a person
   plausibly emails, a test pins it exactly, and widening it is a decision about what a user picking
   us for that type should expect, not a formality.
-- **Apple registers for nothing.** No `CFBundleURLTypes`, no URL handling anywhere in
-  `clients/apple/`, so a mail link cannot reach it at all. It is the one platform where the
-  ordinary `mailto:` case does not work, and it blocks the default-app offer behind it.
-- **iOS cannot be a default mail app without Apple's approval**, and that is a request by email,
-  not a change to this tree. Until it is granted, iOS can register for `mailto:` and be chosen from
-  a share sheet, but will not appear in Default Apps. Nothing in a PR closes this.
+- **No client offers to become the default mail app yet.** The core decides when to ask and
+  remembers the answer; what is missing is the platform call and the Settings → General row on
+  macOS, Windows and iOS. Linux and Android are `Unsupported` and never will have one.
+- **⚠️ On iOS, declaring the `mailto` scheme buys nothing on its own.** Unlike every other
+  platform here, iOS does not offer a chooser for a mail link: it routes `mailto:` to the app set as
+  the **default** mail app and to nothing else. Being set as that needs
+  `com.apple.developer.mail-client`, which Apple grants only by request to
+  `default-app-requests@apple.com`, after checking the app can genuinely send *and* receive mail;
+  it is also mutually exclusive with the browser entitlement. So the declaration is a prerequisite,
+  not the feature, and `onOpenURL` never fires for a mail link on iOS until the entitlement is in
+  the provisioning profile. It is kept in place so that entitlement is the only thing left to add.
+  **Nothing in a PR closes this**, and no copy may claim mail links work on iPhone or iPad until it
+  is granted and checked on a device.
 - **Linux has no share portal to use.** "Open With" plus a local `--attach` is the closest
   equivalent a desktop offers, and it is reached by the user naming this app, so it satisfies the
   user-action rule above. A file manager's "Send to → Email" reaches us only where it is configured

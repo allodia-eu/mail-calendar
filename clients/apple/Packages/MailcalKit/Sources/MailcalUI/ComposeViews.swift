@@ -43,6 +43,7 @@ enum ComposeContext: Identifiable {
     case replyAll(account: String, key: String, to: String, cc: String, quote: String?, quoteStyle: QuoteStyleKind)
     case forward(account: String, key: String, quote: String?, quoteStyle: QuoteStyleKind)
     case agentDraft(AgentDraftRequest)
+    case mailLink(MailLinkRequest)
 
     var id: String {
         switch self {
@@ -51,6 +52,19 @@ enum ComposeContext: Identifiable {
         case .replyAll(_, let key, _, _, _, _): return "replyAll:\(key)"
         case .forward(_, let key, _, _): return "forward:\(key)"
         case .agentDraft(let request): return "agent:\(request.id)"
+        case .mailLink(let request): return "mailLink:\(request.id)"
         }
     }
+}
+
+/// One `mailto:` link the OS handed us, already decoded by the shared core.
+///
+/// Carries its own id for the same reason `AgentDraftRequest` does: tapping the same link twice
+/// must open the composer twice, and without an id the second request would compare equal to the
+/// first and appear to do nothing.
+struct MailLinkRequest: Identifiable, Equatable {
+    let id = UUID()
+    let prefill: MailtoPrefill
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 }
