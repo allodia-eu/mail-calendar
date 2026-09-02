@@ -99,8 +99,14 @@ public sealed partial class MailboxModel
     internal IReadOnlyList<ContactCardChoice> EditableCardsOf(ContactDetailItem person) =>
         ContactEditing.Cards(person.EditableCards, ContactAccountLabels());
 
-    /// <summary>Dispatches a contact write the editor already built and validated.</summary>
-    public void SaveContact(Intent intent)
+    /// <summary>
+    /// Dispatches a contact write the editor already built and validated.
+    /// </summary>
+    /// <remarks>
+    /// <c>internal</c>, like every member here whose signature names a generated FFI type: those
+    /// are <c>internal</c>, and a public member carrying one does not compile.
+    /// </remarks>
+    internal void SaveContact(Intent intent)
     {
         Log.Info(
             intent is Intent.CreateContact ? "contact create requested" : "contact edit requested");
@@ -127,8 +133,11 @@ public sealed partial class MailboxModel
     /// server call succeeded and whose reconcile did not has already landed, and the next sync
     /// heals the local copy. <c>Invalid</c> is stated under the form the user is still looking at,
     /// so nothing repeats it out of context here.
+    ///
+    /// <c>internal</c> because the generated enum is; the view binds the two public members
+    /// below, which are a string and a <c>Visibility</c>.
     /// </remarks>
-    public ContactWriteStatus ContactWriteStatus
+    internal ContactWriteStatus ContactWriteStatus
     {
         get => _contactWriteStatus;
         private set

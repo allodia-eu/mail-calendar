@@ -15,6 +15,7 @@ using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Views;
 
