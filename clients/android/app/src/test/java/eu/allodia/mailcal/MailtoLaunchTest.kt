@@ -50,7 +50,8 @@ class MailtoLaunchTest {
         assertFalse(MailtoLaunch.carriesMailLink(Intent.ACTION_MAIN, null))
         assertFalse(MailtoLaunch.carriesMailLink(Intent.ACTION_VIEW, "https"))
         assertFalse(MailtoLaunch.carriesMailLink(null, "mailto"))
-        // ACTION_SEND is share-a-file/text, a different feature we do not claim.
+        // ACTION_SEND is a share, which is a different door: ShareLaunch answers for it, and
+        // the two must not both claim one intent (ShareLaunchTest asserts the other half).
         assertFalse(MailtoLaunch.carriesMailLink(Intent.ACTION_SEND, "mailto"))
     }
 
