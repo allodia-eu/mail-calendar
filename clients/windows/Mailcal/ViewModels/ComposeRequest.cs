@@ -6,7 +6,9 @@
 // The Windows twin of the Apple client's `ComposeContext` (Mailcal.swift's `@State var compose`),
 // deliberately the same shape, an optional request, not a presented modal.
 
+using System.Collections.Generic;
 using Allodia.Mailcal.Dialogs;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.ViewModels;
 
@@ -39,6 +41,11 @@ namespace Allodia.Mailcal.ViewModels;
 /// <param name="SeedsSignature">Whether the account's signature is seeded and the picker offered.
 /// False for an assistant's draft, which arrives with a body someone else wrote and its own
 /// sign-off, matching macOS, which passes the composer no signature library at all in that case.</param>
+/// <param name="Attachments">Files the composer opens already holding, from a share
+/// (<c>docs/os-integration.md</c>). Each is the shared core's answer about one shared item, name
+/// and media type included, so the list is displayed as given and never re-derived. Empty for
+/// every other route: the picker fills it. Removable like any picked file, a share proposes an
+/// attachment, it does not impose one.</param>
 public sealed record ComposeRequest(
     RichComposeKind Kind,
     string? Account,
@@ -52,7 +59,8 @@ public sealed record ComposeRequest(
     string InitialBcc = "",
     string InitialSubject = "",
     string? InitialBody = null,
-    bool SeedsSignature = true)
+    bool SeedsSignature = true,
+    IReadOnlyList<ComposerFileAttachment>? Attachments = null)
 {
     /// <summary>The composer's heading, the action it is performing.</summary>
     public string Title => Kind switch

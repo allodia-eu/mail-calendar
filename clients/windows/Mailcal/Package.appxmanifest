@@ -95,6 +95,30 @@
           </uap:Protocol>
         </uap:Extension>
 
+        <!-- Sharing into the app: "share this by email" from Windows' own share sheet
+             (docs/os-integration.md; docs/composer-security.md, Gate 13). The app appears
+             wherever Windows offers to share, and a composer opens holding what was shared.
+
+             `SupportsAnyFileType` on purpose: what we do with a shared file is attach it, and a
+             mail client that took a PDF but not a `.dwg` would be refusing on a distinction it
+             never acts on. `Text` and `WebLink` ride the same extension, which is how a shared
+             selection or URL reaches the body.
+
+             The payload is decoded by the shared core (`PrefillFromShare`), which names and types
+             every file and reports what it would not attach. A share pre-fills an editable
+             composer, never a send, and it cannot address a message: only shared text that is
+             itself a mail link reaches the recipient fields. -->
+        <uap:Extension Category="windows.shareTarget">
+          <uap:ShareTarget>
+            <uap:SupportedFileTypes>
+              <uap:SupportsAnyFileType />
+            </uap:SupportedFileTypes>
+            <uap:DataFormat>Text</uap:DataFormat>
+            <uap:DataFormat>WebLink</uap:DataFormat>
+            <uap:DataFormat>StorageItems</uap:DataFormat>
+          </uap:ShareTarget>
+        </uap:Extension>
+
         <!-- The MCP stdio relay (docs/mcp.md), reachable by name. An MCP client spawns its server
              as a child process, and a packaged app installs under C:\Program Files\WindowsApps\,
              whose ACLs deny execution to an ordinary process, so a config naming an absolute path

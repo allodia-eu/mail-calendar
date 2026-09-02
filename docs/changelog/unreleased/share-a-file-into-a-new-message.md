@@ -1,12 +1,17 @@
 # Share a file into a new message
 
-Platforms: android, linux
+Platforms: windows, android, linux
 Bump: minor
 
-> The shared half is `mailcal_composer::share`, so Apple and Windows will inherit the naming, the
-> typing, the cap and the refusal reporting rather than each deciding again. Linux went first
-> because it is the one client a Linux workstation can actually run, which is where the design got
-> its first real exercise; Android followed, and its JVM suite gates the intent half.
+> The shared half is `mailcal_composer::share`, so each client inherits the naming, the typing,
+> the cap and the refusal reporting rather than deciding again. Linux went first because it is the
+> one client a Linux workstation can actually run, which is where the design got its first real
+> exercise; Android and Windows followed, each gating its own half (the intent, the staged name)
+> in a suite that needs no device. Apple is still to come: it needs a Share Extension target.
+>
+> Windows stages the shared bytes before its `ShareOperation` reports complete, because that is
+> when its access to them ends; a path taken straight from one would be unreadable by the time the
+> user pressed Send.
 >
 > Linux has no share portal, so "Open With" plus a local `--attach` is what a desktop actually
 > offers. That has a cost worth stating: a `MimeType=` entry reads as "this app opens that type",

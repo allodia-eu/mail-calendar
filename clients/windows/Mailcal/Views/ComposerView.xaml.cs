@@ -64,6 +64,21 @@ public sealed partial class ComposerView : UserControl
     {
         _model = model;
         _request = request;
+        // A share opens the composer already holding its files; every other route starts empty
+        // and fills this from the picker (docs/os-integration.md). Seeded here rather than in the
+        // loaded handler so the rows are there on the first render.
+        foreach (var file in request.Attachments ?? [])
+        {
+            _attachments.Add(new PickedComposerAttachment(file));
+        }
+        // `_attachments` is a plain list and the ListView is not bound to it in XAML, so the
+        // picker re-assigns ItemsSource after every change. A seeded list needs the same
+        // assignment, or the rows exist only in the list and the user sees, and can remove,
+        // nothing of what they shared.
+        if (_attachments.Count > 0)
+        {
+            AttachmentList.ItemsSource = _attachments;
+        }
         _onDone = onDone;
 
         TitleText.Text = request.Title;
