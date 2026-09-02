@@ -156,6 +156,21 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.productivity
+        # Register as a mail-link handler, which is what makes the OS offer this app for a
+        # `mailto:` at all (docs/os-integration.md). The URI arrives at the shell's `onOpenURL`
+        # and is decoded by the shared core, never here.
+        #
+        # `LSHandlerRank: Alternate` is the honest rank: `Owner` claims to be the type's
+        # originator, which Mail is, and macOS uses the rank only to order the candidates it
+        # offers. It does not make this app the default; that is the user's choice, and on the
+        # Mac App Store build the sandbox refuses to let the app even ask.
+        #
+        # No `CFBundleURLName`: it names a *custom* scheme's owner, and `mailto` is a registered
+        # scheme nobody owns.
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [mailto]
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
         NSHumanReadableCopyright: "© 2026 Allodia"
         # The app's only cryptography is standard TLS (IMAP/SMTP/JMAP/CalDAV/HTTPS over the OS
         # stack), which is exempt, so this is `false` ("no NON-exempt encryption"). It answers the
