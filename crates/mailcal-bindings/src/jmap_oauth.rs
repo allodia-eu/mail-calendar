@@ -35,7 +35,7 @@
 //! through the setup form: [`reauth`] re-runs the *same* authorisation against the account's
 //! **persisted** grant and swaps the result in place. See that module.
 
-use mailcal_account::{JmapAccountConfig, JmapOAuth, Secret};
+use mailcal_account::{JmapAccountConfig, OAuthGrant, Secret};
 use mailcal_oauth::OAuthClient;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -81,6 +81,9 @@ struct PendingJmapLogin {
     /// The RFC 8707 resource indicator discovered for this server, carried across the browser
     /// hop so the exchange can name the same target the authorization request did.
     resource: Option<String>,
+    /// The issuer the redirect's `iss` must name (RFC 9207), when the server advertised that it
+    /// sends one. Carried across the hop because the check happens on the way back.
+    issuer: Option<String>,
     state: String,
     verifier: String,
 }
@@ -89,8 +92,8 @@ impl PendingJmapLogin {
     /// Rebuilds the grant this pending login will become, given the tokens it was exchanged
     /// for. Kept next to the struct so the fields carried across the browser hop and the
     /// fields persisted afterwards cannot drift apart.
-    fn into_grant(self, refresh_token: String) -> (String, String, JmapOAuth) {
-        let grant = JmapOAuth {
+    fn into_grant(self, refresh_token: String) -> (String, String, OAuthGrant) {
+        let grant = OAuthGrant {
             client_id: self.client_id,
             client_secret: self.client_secret.map(Secret::new),
             refresh_token: Secret::new(refresh_token),
@@ -99,6 +102,7 @@ impl PendingJmapLogin {
             redirect_uri: self.redirect_uri,
             scopes: self.scopes,
             resource: self.resource,
+            issuer: self.issuer,
         };
         (self.email, self.base_url, grant)
     }
@@ -115,7 +119,7 @@ impl PendingJmapLogin {
 fn start_login(
     email: String,
     base_url: String,
-    grant: &JmapOAuth,
+    grant: &OAuthGrant,
 ) -> Result<JmapLoginStart, MailcalError> {
     let oauth = OAuthClient::new(grant.provider_config())
         .map_err(|err| MailcalError::Config(err.to_string()))?;
@@ -134,6 +138,7 @@ fn start_login(
         redirect_uri: grant.redirect_uri.clone(),
         scopes: grant.scopes.clone(),
         resource: grant.resource.clone(),
+        issuer: grant.issuer.clone(),
         state: request.state,
         verifier: request.pkce.verifier().to_owned(),
     };
@@ -223,7 +228,7 @@ impl MailcalApp {
             .runtime
             .block_on(discover_and_register(&base_url, &redirect_uri))?;
 
-        let grant = JmapOAuth {
+        let grant = OAuthGrant {
             client_id: client.client_id,
             client_secret: client.client_secret.map(Secret::new),
             // Not yet issued: a placeholder purely so the provider config can be built from
@@ -234,6 +239,11 @@ impl MailcalApp {
             redirect_uri,
             scopes,
             resource,
+            // Only when the server said it sends one: absent then means "nothing to compare",
+            // while a `None` here on a server that does send one would skip the check.
+            issuer: metadata
+                .issuer_parameter_supported
+                .then(|| metadata.issuer.clone()),
         };
         log::info!("jmap oauth: opening the authorization page; awaiting the redirect");
         start_login(email, base_url, &grant)
@@ -281,7 +291,7 @@ impl MailcalApp {
     ) -> Result<JmapAccountConfig, MailcalError> {
         let pending: PendingJmapLogin =
             serde_json::from_str(&pending).map_err(|err| MailcalError::Config(err.to_string()))?;
-        let grant_shell = JmapOAuth {
+        let grant_shell = OAuthGrant {
             client_id: pending.client_id.clone(),
             client_secret: pending.client_secret.clone().map(Secret::new),
             refresh_token: Secret::new(String::new()),
@@ -290,6 +300,7 @@ impl MailcalApp {
             redirect_uri: pending.redirect_uri.clone(),
             scopes: pending.scopes.clone(),
             resource: pending.resource.clone(),
+            issuer: pending.issuer.clone(),
         };
         let oauth = OAuthClient::new(grant_shell.provider_config())
             .map_err(|err| MailcalError::Config(err.to_string()))?;
@@ -357,6 +368,7 @@ mod tests {
             redirect_uri: "eu.allodia.mailcal://jmap-oauth".to_owned(),
             scopes: vec!["offline_access".to_owned()],
             resource: Some("https://api.example.com/jmap/session".to_owned()),
+            issuer: None,
             state: "state-xyz".to_owned(),
             verifier: "verifier".to_owned(),
         }

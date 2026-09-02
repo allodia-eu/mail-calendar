@@ -45,6 +45,23 @@ pub(crate) type Redial = Box<
         + Sync,
 >;
 
+/// Whether re-dialing this account can change the answer to an **authentication** failure.
+///
+/// A retryable transport failure is always worth one re-dial: the socket is dead and the
+/// command never reached the server. An authentication failure is not, and which it is depends
+/// entirely on where the credential comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AuthRenewal {
+    /// A password account. The re-dial would present the same password to the same server that
+    /// just refused it, so it can only fail again, at a provider that may be counting attempts
+    /// toward a lockout, and while the user waits.
+    Impossible,
+    /// An OAuth account. The re-dial mints a fresh access token, and a token that expired
+    /// during a long-lived IMAP session is the ordinary case rather than a fault: the engine
+    /// deliberately does not refresh one itself, leaving exactly this to the host.
+    MintsAFreshToken,
+}
+
 /// Wraps an IMAP mail provider and reconnects it after a dropped connection. Bound to one
 /// mailbox (its email scope), mirroring the engine's `ImapProvider`.
 pub(crate) struct ReconnectingImapProvider {
@@ -56,6 +73,8 @@ pub(crate) struct ReconnectingImapProvider {
     /// Captured once from the initial connect, so the wrapper can still report data-domain
     /// support while no live session is cached.
     capabilities: Capabilities,
+    /// Whether an authentication failure is worth one re-dial (see [`AuthRenewal`]).
+    renewal: AuthRenewal,
     /// The live delegate, or `None` after a retryable failure invalidated it (the next call
     /// re-dials). Held behind a std mutex read only to clone the `Arc`; never across an
     /// `.await`; like `RefreshingGraphProvider`'s `cached`.
@@ -74,14 +93,35 @@ impl core::fmt::Debug for ReconnectingImapProvider {
 impl ReconnectingImapProvider {
     /// Adopts an already-connected `initial` provider bound to `mailbox`, capturing its
     /// capabilities and the `redial` closure that rebuilds a fresh session after a drop. No
-    /// second connect happens: the initial session is used until it fails.
-    pub(crate) fn adopt(initial: Arc<dyn Provider>, mailbox: MailboxId, redial: Redial) -> Self {
+    /// second connect happens: the initial session is used until it fails. `renewal` says
+    /// whether an authentication failure is one of the ones a re-dial can fix.
+    pub(crate) fn adopt(
+        initial: Arc<dyn Provider>,
+        mailbox: MailboxId,
+        redial: Redial,
+        renewal: AuthRenewal,
+    ) -> Self {
         let capabilities = initial.connection_info().capabilities;
         Self {
             redial,
             mailbox,
             capabilities,
+            renewal,
             cached: Mutex::new(Some(initial)),
+        }
+    }
+
+    /// Whether `class` is worth dropping the session and trying once more.
+    ///
+    /// [`Retryable`](FailureClass::Retryable) always is: the socket is dead and the command
+    /// never reached the server. [`Authentication`](FailureClass::Authentication) is only worth
+    /// it on an OAuth account, where the re-dial mints a new token; on a password account the
+    /// same secret would go back to the same server, which is not a retry but a second refusal.
+    fn worth_redialing(&self, class: FailureClass) -> bool {
+        match class {
+            FailureClass::Retryable => true,
+            FailureClass::Authentication => self.renewal == AuthRenewal::MintsAFreshToken,
+            _ => false,
         }
     }
 
@@ -104,11 +144,12 @@ impl ReconnectingImapProvider {
         *self.cached.lock().expect("imap delegate mutex poisoned") = None;
     }
 
-    /// Runs `op` on the live delegate; on a [`FailureClass::Retryable`] failure (a dead
-    /// socket), drops the session, re-dials, and retries `op` **once** on the fresh session.
-    /// Only idempotent reads/edits use this: a dead socket means the command never reached
-    /// the server, so a single retry is safe. `op` takes an owned `Arc`, so the retry holds
-    /// nothing borrowed across the `.await`.
+    /// Runs `op` on the live delegate; on a failure a re-dial could fix
+    /// ([`worth_redialing`](Self::worth_redialing)), drops the session, re-dials, and retries
+    /// `op` **once** on the fresh session. Only idempotent reads/edits use this: a dead socket
+    /// means the command never reached the server, and a refused token means it reached the
+    /// server and was not acted on, so a single retry is safe either way. `op` takes an owned
+    /// `Arc`, so the retry holds nothing borrowed across the `.await`.
     async fn with_reconnect<T, F, Fut>(&self, op: F) -> ProviderResult<T>
     where
         F: Fn(Arc<dyn Provider>) -> Fut + Send,
@@ -116,7 +157,7 @@ impl ReconnectingImapProvider {
     {
         let provider = self.delegate().await?;
         match op(Arc::clone(&provider)).await {
-            Err(err) if err.class() == FailureClass::Retryable => {
+            Err(err) if self.worth_redialing(err.class()) => {
                 self.invalidate();
                 let provider = self.delegate().await?;
                 op(provider).await

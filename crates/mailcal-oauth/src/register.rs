@@ -63,11 +63,25 @@ pub struct RegisteredClient {
 /// to key on. Never change it.
 const SOFTWARE_ID: &str = "df16a4a8-25e5-428c-907a-a789a3a7b52e";
 
+/// This build's version, sent as RFC 7591 `software_version` beside [`SOFTWARE_ID`].
+///
+/// The pair is what lets a server tell "the same software, a newer release" from "different
+/// software": the id never moves, the version moves every release. One version for the whole
+/// product ([`docs/versioning.md`](../../../docs/versioning.md)), so the crate's own is it.
+const SOFTWARE_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// The RFC 7591 registration request body.
+///
+/// `draft-ietf-mailmaint-oauth-public` also lists `client_uri`, `logo_uri`, `tos_uri` and
+/// `policy_uri`: the branded links a consent screen shows beside the client name. This tree
+/// does not hold them: publisher URLs travel with the brand rather than with the source
+/// ([`docs/branding.md`](../../../docs/branding.md), "Publisher metadata"), and inventing ones
+/// that may 404 on somebody's consent screen is worse than sending none.
 #[derive(Serialize)]
 struct RegistrationRequest<'a> {
     client_name: &'a str,
     software_id: &'a str,
+    software_version: &'a str,
     redirect_uris: Vec<&'a str>,
     grant_types: Vec<&'a str>,
     response_types: Vec<&'a str>,
@@ -151,6 +165,7 @@ pub async fn register_client(
     let request = RegistrationRequest {
         client_name,
         software_id: SOFTWARE_ID,
+        software_version: SOFTWARE_VERSION,
         redirect_uris: vec![redirect_uri],
         grant_types: vec!["authorization_code", "refresh_token"],
         response_types: vec!["code"],
@@ -198,6 +213,7 @@ mod tests {
             scopes_supported: scopes.iter().map(|s| (*s).to_owned()).collect(),
             end_session_endpoint: None,
             prompt_values_supported: Vec::new(),
+            issuer_parameter_supported: false,
         }
     }
 

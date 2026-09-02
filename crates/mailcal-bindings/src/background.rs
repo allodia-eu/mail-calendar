@@ -185,12 +185,12 @@ async fn watch_loop(
         // Don't even attempt a connect while the device is offline; park until it returns,
         // so an overnight outage doesn't retry every few seconds against a dead resolver.
         await_online(&mut online).await;
-        let Some(config) = registry.imap_config(&account_id) else {
+        let Some((config, tokens)) = registry.imap_config(&account_id) else {
             // The account's config is gone (removed), or it's a Microsoft account (Graph
             // has no IMAP IDLE; it polls), nothing to watch here.
             return;
         };
-        match mailcal_account::connect_imap_watcher(&config, &folder_key).await {
+        match mailcal_account::connect_imap_watcher(&config, tokens.as_ref(), &folder_key).await {
             Ok(mut watch) => {
                 let connected_at = Instant::now();
                 // Sync once before trusting the watch, to catch anything that changed while

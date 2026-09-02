@@ -247,14 +247,17 @@ mod tests {
         assert_eq!(config.imap.username, "me@example.net");
         // The password survives TOML escaping exactly (no plaintext seed file needed).
         assert_eq!(
-            config.imap.password.expose(),
+            config.imap.password.as_ref().unwrap().expose(),
             "p@ss\"with'quotes\\and=signs"
         );
         let caldav = config.caldav.unwrap();
         assert_eq!(caldav.base_url, "https://dav.example.net");
         // CalDAV reuses the IMAP credentials.
         assert_eq!(caldav.username, "me@example.net");
-        assert_eq!(caldav.password.expose(), "p@ss\"with'quotes\\and=signs");
+        assert_eq!(
+            caldav.password.as_ref().unwrap().expose(),
+            "p@ss\"with'quotes\\and=signs"
+        );
     }
 
     #[test]

@@ -85,6 +85,7 @@ mod tests {
             redirect_uri: "eu.allodia.mailcal://oauth".to_owned(),
             scopes: vec!["offline_access".to_owned()],
             resource: None,
+            expected_issuer: None,
             style: AuthStyle::Microsoft,
         })
         .unwrap()

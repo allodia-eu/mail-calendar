@@ -25,7 +25,6 @@ use provider_jmap::{Credentials, JmapConfig};
 use serde::Deserialize;
 
 mod connect;
-mod oauth;
 mod refreshing;
 mod refreshing_contacts;
 mod refreshing_provider;
@@ -35,10 +34,11 @@ pub use connect::{
     connect_jmap_calendar_providers, connect_jmap_contact_providers, connect_jmap_folder,
     connect_jmap_mail_providers,
 };
-pub use oauth::{JmapOAuth, jmap_token_source};
 pub use setup::{JmapSetup, build_jmap_config_toml, jmap_base_url};
 
-use crate::{ConfigError, Secret, connect_log::connect_logger, throttle::account_retry};
+use crate::{
+    ConfigError, OAuthGrant, Secret, connect_log::connect_logger, throttle::account_retry,
+};
 
 /// The id-scheme tag woven into a JMAP account's [`AccountId`], so a JMAP account
 /// never collides with an IMAP or Microsoft account for the same address on the
@@ -81,7 +81,7 @@ pub struct JmapAccountConfig {
     /// practice, and takes precedence: a fresh access token is minted from it for every
     /// connection, so nothing long-lived is presented to the server.
     #[serde(default)]
-    pub oauth: Option<JmapOAuth>,
+    pub oauth: Option<OAuthGrant>,
 }
 
 impl JmapAccountConfig {

@@ -48,6 +48,7 @@ const DISCOVERY_DEADLINE: Duration = Duration::from_secs(10);
 /// account set up before this feature existed gains contacts with no re-entry of anything.
 pub(crate) async fn connect_caldav_contacts(
     config: &AccountConfig,
+    tokens: mailcal_account::ImapTokens<'_>,
 ) -> Vec<Box<dyn ContactsProvider>> {
     if config.caldav.is_none() {
         log::info!("carddav: contacts skipped; account has no caldav endpoint to derive one from");
@@ -56,7 +57,7 @@ pub(crate) async fn connect_caldav_contacts(
     let started = Instant::now();
     match tokio::time::timeout(
         DISCOVERY_DEADLINE,
-        mailcal_account::connect_carddav_contact_providers(config),
+        mailcal_account::connect_carddav_contact_providers(config, tokens),
     )
     .await
     {
