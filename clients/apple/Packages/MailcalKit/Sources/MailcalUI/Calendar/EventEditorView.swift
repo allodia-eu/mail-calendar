@@ -37,7 +37,31 @@ struct EventEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField(L10n.event_title_label(), text: $editor.title)
+                // `labelsHidden` is load-bearing, and it is the only thing here that is.
+                //
+                // A labelled `TextField` is a macOS Form's *value*, which the form lays out
+                // trailing-aligned and sized to its content. Trailing whitespace is not counted
+                // in either, so a typed space had no width, the field did not grow and the caret
+                // did not move: the space read as a keystroke the app had swallowed, until the
+                // next word pushed it into view. Hiding the label takes the field out of that
+                // treatment, and it fills the row leading-aligned like the setup screens' fields.
+                //
+                // Measured, because three plausible fixes are not fixes:
+                // `multilineTextAlignment(.leading)` never reaches the field, `roundedBorder`
+                // changes the border and not the alignment, and `frame(maxWidth: .infinity)`
+                // widens the box while leaving the text against its trailing edge. The label is
+                // still read by VoiceOver; `labelsHidden` hides it from the eye only, and the
+                // placeholder carries it for everyone else.
+                // The hidden label leaves the empty field saying nothing, so the same string is
+                // its `prompt`: the placeholder API, which a hidden label does not become.
+                TextField(
+                    L10n.event_title_label(),
+                    text: $editor.title,
+                    prompt: Text(L10n.event_title_label())
+                )
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: .infinity)
                     .focused($titleFocused)
 
                 // All-day is set at create and frozen on edit (the patcher refuses a form change).
@@ -61,8 +85,23 @@ struct EventEditorView: View {
                     .buttonStyle(.plain)
 
                 // Location: settable on create and edit alike, the engine's create draft carries it.
-                TextField(L10n.event_location(), text: $editor.location)
-                TextField(L10n.event_notes(), text: $editor.notes, axis: .vertical)
+                TextField(
+                    L10n.event_location(),
+                    text: $editor.location,
+                    prompt: Text(L10n.event_location())
+                )
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: .infinity)
+                TextField(
+                    L10n.event_notes(),
+                    text: $editor.notes,
+                    prompt: Text(L10n.event_notes()),
+                    axis: .vertical
+                )
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: .infinity)
 
                 // Reminder: shown, not yet editable. The repeat is a set of controls when the
                 // core handed over a draft, and the sentence it already decided when it did not.

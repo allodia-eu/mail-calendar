@@ -182,6 +182,10 @@ struct EventRepeatSection: View {
                         .frame(maxWidth: .infinity, minHeight: 30)
                         .background(on ? Color.accentColor : Color.clear, in: Capsule())
                         .foregroundStyle(on ? Color.white : Color.primary)
+                        // A plain button hit-tests its label's own shape, and a `Text` is only as
+                        // wide as its glyph: without this the cell draws full width and answers a
+                        // click on one letter, which reads as a control that ignores you.
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(weekdayFullName(day))
