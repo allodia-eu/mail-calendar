@@ -45,6 +45,7 @@ import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.ReadingSnapshot
 import uniffi.mailcal_bindings.ReplyPrompt
 import uniffi.mailcal_bindings.SearchHorizon
+import uniffi.mailcal_bindings.SharePrefill
 import uniffi.mailcal_bindings.UnfiledCopy
 import uniffi.mailcal_bindings.SendStatus
 import uniffi.mailcal_bindings.SignaturesSnapshot
@@ -291,6 +292,8 @@ class MainActivity : AppCompatActivity() {
     // like the deep-link above, parsing is pure and account-free, and the mailbox (which hosts
     // the composer) is only composed once the core is up anyway.
     internal var pendingMailto by mutableStateOf<MailtoPrefill?>(null)
+    // The same, for a share (docs/os-integration.md): set once its files have been staged.
+    internal var pendingShare by mutableStateOf<SharePrefill?>(null)
     // True while a Microsoft sign-in is running (browser + token exchange), so the form shows
     // progress instead of looking idle.
     internal var signingInMicrosoft by mutableStateOf(false)
@@ -432,31 +435,13 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    // A Microsoft or Google OAuth redirect returns here (singleTask + the manifest intent-filters):
-    // if this intent is one of our custom-scheme callbacks, complete that sign-in with the
-    // captured URL, dispatching by the redirect scheme.
+    // Everything the OS can hand a running app arrives here (singleTask, so a second launch is
+    // delivered rather than starting a second instance). The routing itself sits beside the other
+    // intent helpers in MainActivityBoot.kt.
     override fun onNewIntent(intent: AndroidIntent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        // A notification tap while the app is already running: open the message immediately if
-        // the Rust app is ready, otherwise queue it for the connect() drain.
-        notificationDeepLink(intent)?.let { (accountId, messageKey) ->
-            val current = app
-            if (current != null) {
-                openMessageByKey(current, accountId, messageKey)
-            } else {
-                pendingNotificationOpen = Pair(accountId, messageKey)
-            }
-            return
-        }
-        // A mail link tapped while the app is already running (singleTask brings it here rather
-        // than starting a second instance).
-        mailLinkPrefill(intent)?.let { prefill ->
-            openMailLink(prefill)
-            return
-        }
-        val data = intent.data ?: return
-        completeOAuthRedirect(data)
+        routeNewIntent(intent)
     }
 
 }

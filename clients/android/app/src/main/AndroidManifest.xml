@@ -58,6 +58,31 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mailto" />
             </intent-filter>
+            <!-- Sharing into the app: "share this by email" from any other app. SEND carries one
+                 item, SEND_MULTIPLE several, and the two are separate actions rather than one
+                 filter because Android dispatches them separately.
+
+                 `*/*` accepts anything, which is deliberate: what we do with a shared file is
+                 attach it, and a mail client that could attach a PDF but not a `.dwg` would be
+                 refusing on a distinction it does not act on. `text/plain` rides the same filter,
+                 which is how a shared URL or selection reaches the body.
+
+                 No BROWSABLE: a share arrives from an app the user picked us from, never from a
+                 web page. The payload is decoded by the shared core (prefillFromShare), which
+                 names and types every file and reports what it would not attach
+                 (docs/os-integration.md; docs/composer-security.md, Gate 13). A share pre-fills an
+                 editable composer, never a send, and it cannot address a message: only shared text
+                 that is itself a mailto link reaches the recipient fields. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
             <!-- The Microsoft OAuth redirect (MSAL Android format: msauth://<package>/<hash>),
                  which the activity captures and hands back to the core. Must match the redirect
                  registered in the Azure app; android:path uses the *decoded* signature hash

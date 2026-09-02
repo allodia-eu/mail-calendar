@@ -1,12 +1,12 @@
 # Share a file into a new message
 
-Platforms: linux
+Platforms: android, linux
 Bump: minor
 
-> The shared half is `mailcal_composer::share`, so the three clients still to come inherit the
-> naming, the typing, the cap and the refusal reporting rather than each deciding again. Linux is
-> first because it is the only one that can be run and proved from a Linux workstation, which is
-> where the design gets its first real exercise.
+> The shared half is `mailcal_composer::share`, so Apple and Windows will inherit the naming, the
+> typing, the cap and the refusal reporting rather than each deciding again. Linux went first
+> because it is the one client a Linux workstation can actually run, which is where the design got
+> its first real exercise; Android followed, and its JVM suite gates the intent half.
 >
 > Linux has no share portal, so "Open With" plus a local `--attach` is what a desktop actually
 > offers. That has a cost worth stating: a `MimeType=` entry reads as "this app opens that type",
@@ -19,48 +19,48 @@ Bump: minor
 **English**
 
 ```
-Send a file straight from your file manager: pick Allodia Mail & Calendar under "Open With" and a
-new message opens with it already attached.
+Share a file to Allodia Mail & Calendar from any other app, and a new message opens with it
+already attached.
 ```
 
 **Nederlands**
 
 ```
-Stuur een bestand rechtstreeks vanuit je bestandsbeheer: kies Allodia Mail & Calendar bij "Openen
-met" en er opent een nieuw bericht met het bestand er al aan.
+Deel een bestand vanuit een andere app met Allodia Mail & Calendar, en er opent een nieuw bericht
+met het bestand er al aan.
 ```
 
 **Deutsch**
 
 ```
-Senden Sie eine Datei direkt aus Ihrer Dateiverwaltung: Wählen Sie unter "Öffnen mit" Allodia Mail
-& Calendar, und eine neue Nachricht öffnet sich mit der Datei bereits im Anhang.
+Teilen Sie eine Datei aus einer anderen App mit Allodia Mail & Calendar, und eine neue Nachricht
+öffnet sich mit der Datei bereits im Anhang.
 ```
 
 **Français**
 
 ```
-Envoyez un fichier directement depuis votre gestionnaire de fichiers : choisissez Allodia Mail &
-Calendar dans "Ouvrir avec" et un nouveau message s'ouvre avec le fichier déjà joint.
+Partagez un fichier depuis une autre application vers Allodia Mail & Calendar, et un nouveau
+message s'ouvre avec le fichier déjà joint.
 ```
 
 **Español**
 
 ```
-Envía un archivo directamente desde tu gestor de archivos: elige Allodia Mail & Calendar en "Abrir
-con" y se abre un mensaje nuevo con el archivo ya adjunto.
+Comparte un archivo desde otra aplicación con Allodia Mail & Calendar y se abre un mensaje nuevo
+con el archivo ya adjunto.
 ```
 
 **Italiano**
 
 ```
-Invia un file direttamente dal tuo gestore di file: scegli Allodia Mail & Calendar in "Apri con" e
-si apre un nuovo messaggio con il file già allegato.
+Condividi un file da un'altra app con Allodia Mail & Calendar e si apre un nuovo messaggio con il
+file già allegato.
 ```
 
 **Português**
 
 ```
-Envie um ficheiro diretamente do seu gestor de ficheiros: escolha Allodia Mail & Calendar em "Abrir
-com" e abre-se uma mensagem nova com o ficheiro já anexado.
+Partilhe um ficheiro de outra aplicação com o Allodia Mail & Calendar e abre-se uma mensagem nova
+com o ficheiro já anexado.
 ```
