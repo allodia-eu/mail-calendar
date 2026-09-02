@@ -161,9 +161,15 @@ class SymbolsKept(unittest.TestCase):
         app = self.root / "AllodiaMail.app"
         exe = app / "Contents" / "MacOS" / "AllodiaMail" if shape == "macos" else app / "AllodiaMail"
         exe.parent.mkdir(parents=True, exist_ok=True)
-        # A real Mach-O rather than a script: the guard counts what `nm` reports, and a text file
+        # A real binary rather than a script: the guard counts what `nm` reports, and a text file
         # would make the count zero for a reason that has nothing to do with stripping.
-        shutil.copy("/bin/ls", exe)
+        #
+        # The interpreter running this test, rather than `/bin/ls`: that path is a POSIX fact, and
+        # the class is gated on bash rather than on the platform, so on Windows (where Git Bash
+        # satisfies the gate but native Python cannot open `/bin/ls`) both cases ended in a
+        # FileNotFoundError from the fixture. `sys.executable` is a real executable wherever this
+        # test can run at all.
+        shutil.copy(sys.executable, exe)
         return app
 
     def run_guard(self, app):

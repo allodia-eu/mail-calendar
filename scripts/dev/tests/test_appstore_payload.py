@@ -28,7 +28,11 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "ci"))
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "dev"))
 
-from changelog_fragments import DocumentShapeError, catalog_locales, parse_release  # noqa: E402
+from changelog_fragments import (  # noqa: E402
+    DocumentShapeError,
+    catalog_locales,
+    load_releases,
+)
 from check_store_copy_length import LIMITS_PATH, listing_path, parse_limits  # noqa: E402
 
 import appstore_listing as cli  # noqa: E402
@@ -399,17 +403,23 @@ class AgainstTheRealDocuments(unittest.TestCase):
     def test_a_mac_release_note_is_the_macos_section_not_the_ios_one(self) -> None:
         # Both platforms are pasted into the same store, but they are separate *versions* there,
         # `store_targets` would hand the Mac an iOS note describing a build it is not shipping.
-        version = (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
-        path = REPO_ROOT / "docs" / "changelog" / "released" / f"{version}.md"
-        sections = {
-            platform: section
-            for section in parse_release(path.read_text(encoding="utf-8"), version)
-            for platform in section.platforms
-        }
-        notes = subject.release_notes(version)
-        self.assertEqual(notes["English"], sections["macos"].notes["English"])
-        if "ios" in sections:
-            self.assertNotEqual(notes["English"], sections["ios"].notes["English"])
+        #
+        # Against the newest release that actually shipped a Mac build, rather than against
+        # whatever `/VERSION` holds. A release may legitimately reach one platform (0.7.0 and
+        # 0.7.1 were Linux only), and reading `/VERSION` made this fail for that, which is the
+        # release process working rather than `release_notes` misbehaving.
+        for version, parsed in reversed(load_releases()):
+            sections = {
+                platform: section for section in parsed for platform in section.platforms
+            }
+            if "macos" not in sections:
+                continue
+            notes = subject.release_notes(version)
+            self.assertEqual(notes["English"], sections["macos"].notes["English"])
+            if "ios" in sections:
+                self.assertNotEqual(notes["English"], sections["ios"].notes["English"])
+            return
+        self.skipTest("no released note reaches macos, so there is no Mac What's new to compare")
 
     def test_the_bundle_id_is_the_one_the_build_is_branded_with(self) -> None:
         # Not a literal: pushing this app's copy onto a different app's listing is not a mistake

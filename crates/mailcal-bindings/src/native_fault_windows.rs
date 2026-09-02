@@ -329,6 +329,8 @@ unsafe fn write_all(file: HANDLE, mut bytes: &[u8]) {
 mod faulting {
     use std::{fs, process::Command};
 
+    use super::{ACCESS_VIOLATION, ACCESSING, SUFFIX, code_name, fault_prefix};
+
     /// Set on the child, holding the log it should write to. Absent in the parent.
     const FAULT_CHILD: &str = "MAILCAL_NATIVE_FAULT_CHILD";
 
@@ -380,12 +382,17 @@ mod faulting {
             written.starts_with(EXISTING),
             "the record was written OVER the log instead of after it:\n{written}"
         );
+        // Through the constants the record is BUILT from, never through a copy of the text. A
+        // copy drifts the moment the wording moves, and this test runs on no CI machine (the
+        // workspace suite runs on Linux and this file is `cfg(windows)`), so the drift surfaces
+        // on whichever developer next runs `cargo test` on Windows. It had: the tail was spelled
+        // here with a trailing space where the writer emits `SUFFIX`.
         assert!(
-            written.contains("unhandled native fault, an access violation at "),
+            written.contains(&fault_prefix(code_name(ACCESS_VIOLATION))),
             "no record in:\n{written}"
         );
         assert!(
-            written.contains(", accessing 0x0 "),
+            written.contains(&format!("{ACCESSING}0x0{SUFFIX}")),
             "the record does not name the address that faulted:\n{written}"
         );
 
