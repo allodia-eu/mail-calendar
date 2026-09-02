@@ -28,6 +28,7 @@ mod composer_draft;
 mod composer_header;
 mod composer_model;
 mod composer_open;
+mod composer_share;
 mod composer_signature;
 mod connectivity;
 mod contacts;
@@ -152,6 +153,8 @@ pub(crate) struct AppModel {
     pending_navigation: Option<PendingNavigation>,
     /// A mail link received before an account exists. Account setup completing opens it.
     pending_mailto: Option<mailcal_bindings::MailtoPrefill>,
+    /// A share received before an account exists, held on the same terms as a mail link.
+    pending_share: Option<mailcal_bindings::SharePrefill>,
     /// The navigation the guard must answer, and the counter it is drawn from. Its own sequence,
     /// not the composer's: two navigations away from one draft: the second after a "Keep editing"
     /// ; must each get an answer, and reusing the composer's generation would make the pane treat
@@ -326,6 +329,7 @@ impl SimpleComponent for AppModel {
             composer_error: false,
             pending_navigation: None,
             pending_mailto: None,
+            pending_share: None,
             draft_check: None,
             draft_check_seq: 0,
             discard_prompt: false,

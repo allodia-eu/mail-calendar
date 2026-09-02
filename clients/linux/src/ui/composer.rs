@@ -15,7 +15,7 @@ use webkit6::prelude::WebViewExt;
 
 use super::{
     AppInput,
-    composer_attach::{connect_file_picker, install_drop_target, show_in_message},
+    composer_attach::{connect_file_picker, install_drop_target, render_files, show_in_message},
     composer_draft::{DraftGuard, HeaderValues},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
     composer_model::{
@@ -133,7 +133,10 @@ impl ComposerPane {
         let file_list = gtk::ListBox::new();
         file_list.add_css_class("boxed-list");
         content.append(&file_list);
-        let files = Rc::new(RefCell::new(Vec::<PickedFile>::new()));
+        // A share opens the composer already holding its files; every other route starts
+        // empty and fills this from the picker or a drop below (docs/os-integration.md).
+        let files = Rc::new(RefCell::new(request.files.clone()));
+        render_files(&file_list, &files);
         connect_file_picker(&attach, &file_list, &files, window);
 
         let error = gtk::Label::new(Some(l10n::compose_prepare_error()));

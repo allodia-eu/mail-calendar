@@ -293,6 +293,7 @@ mod tests {
                 quote: None,
                 initial_from: Some(account.clone()),
                 seeds_signature: true,
+                files: Vec::new(),
             },
             to: recipients.to,
             cc: recipients.cc,

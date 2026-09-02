@@ -238,6 +238,7 @@ impl AppModel {
                 }
                 self.ask_sender_name(account, sender);
                 self.try_open_pending_mailto();
+                self.try_open_pending_share();
             }
             Err(error) => self
                 .setup

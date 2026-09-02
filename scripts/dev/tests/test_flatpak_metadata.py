@@ -235,9 +235,41 @@ class GeneratedFiles(unittest.TestCase):
         self.assertIn("Name=%s" % name, self.desktop)
 
     def test_the_desktop_entry_claims_nothing_the_client_cannot_do(self):
-        self.assertIn("MimeType=x-scheme-handler/mailto;", self.desktop)
-        self.assertIn("Exec=mailcal %u", self.desktop)
+        # `%U`, plural: an "Open With" on several files is one launch carrying all of them, and
+        # the client reads every argument (docs/os-integration.md).
+        self.assertIn("Exec=mailcal %U", self.desktop)
         self.assertIn(f"Icon={meta.APP_ID}", self.desktop)
+
+        mime = next(
+            line[len("MimeType=") :]
+            for line in self.desktop.splitlines()
+            if line.startswith("MimeType=")
+        )
+        types = [entry for entry in mime.split(";") if entry]
+        self.assertEqual(types[0], "x-scheme-handler/mailto")
+        # A desktop reads every other entry as "this app can open that", so each one is this app
+        # offering itself as a handler. The list stays what a person plausibly emails; anything
+        # here that the composer would not attach is a claim the client cannot meet.
+        self.assertEqual(
+            types[1:],
+            [
+                "application/pdf",
+                "image/png",
+                "image/jpeg",
+                "image/gif",
+                "image/webp",
+                "text/plain",
+                "text/csv",
+                "application/zip",
+                "application/vnd.oasis.opendocument.text",
+                "application/vnd.oasis.opendocument.spreadsheet",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "message/rfc822",
+                "text/calendar",
+                "text/vcard",
+            ],
+        )
 
     def test_no_unsubstituted_placeholder_survives(self):
         self.assertNotIn("@", self.metainfo.split("<description>")[0].replace("allodia.eu", ""))
