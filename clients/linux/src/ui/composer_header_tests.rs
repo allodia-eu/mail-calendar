@@ -123,6 +123,7 @@ fn request(initial_cc: &str) -> ComposeRequest {
         quote: None,
         initial_from: None,
         seeds_signature: true,
+        files: Vec::new(),
     }
 }
 

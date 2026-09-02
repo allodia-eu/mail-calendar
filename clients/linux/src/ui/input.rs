@@ -4,7 +4,7 @@ use std::{fmt, path::PathBuf};
 
 use mailcal_bindings::{
     AgentDraft, ContactDetail, ContactEdit, ContactTarget, Intent, MailtoPrefill, SearchScope,
-    SetupRecommendation, Surface,
+    SetupRecommendation, SharePrefill, Surface,
 };
 
 use super::{
@@ -118,6 +118,7 @@ pub(crate) enum AppInput {
     LoadRemoteImages,
     RetryOpen,
     OpenMailto(Box<MailtoPrefill>),
+    OpenShare(Box<SharePrefill>),
     OpenAgentDraft(Box<AgentDraft>),
     BeginNew,
     BeginReply(bool),
@@ -278,6 +279,7 @@ impl fmt::Debug for AppInput {
             Self::LoadRemoteImages => "LoadRemoteImages",
             Self::RetryOpen => "RetryOpen",
             Self::OpenMailto(_) => "OpenMailto",
+            Self::OpenShare(_) => "OpenShare",
             Self::OpenAgentDraft(_) => "OpenAgentDraft",
             Self::BeginNew => "BeginNew",
             Self::BeginReply(_) => "BeginReply",

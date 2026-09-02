@@ -440,6 +440,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         quote: None,
         initial_from: Some("fixture".to_owned()),
         seeds_signature: true,
+        files: Vec::new(),
     };
     pane.show(
         42,
