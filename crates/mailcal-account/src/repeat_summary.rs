@@ -278,7 +278,7 @@ fn date_part(wall_clock: &str) -> Option<String> {
 }
 
 /// The weekday an event starting on `start` falls on.
-fn start_weekday(start: CalendarDate) -> RecurrenceWeekday {
+pub(crate) fn start_weekday(start: CalendarDate) -> RecurrenceWeekday {
     match weekday(day_number(start)) {
         0 => RecurrenceWeekday::Monday,
         1 => RecurrenceWeekday::Tuesday,
@@ -291,7 +291,7 @@ fn start_weekday(start: CalendarDate) -> RecurrenceWeekday {
 }
 
 /// Monday-first order, so a listed set of weekdays reads as a week rather than as it arrived.
-fn week_order(day: RecurrenceWeekday) -> u8 {
+pub(crate) fn week_order(day: RecurrenceWeekday) -> u8 {
     match day {
         RecurrenceWeekday::Monday => 0,
         RecurrenceWeekday::Tuesday => 1,

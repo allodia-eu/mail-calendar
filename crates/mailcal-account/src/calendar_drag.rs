@@ -320,6 +320,40 @@ fn order(at: LocalDateTime) -> (i64, i64, i64) {
 /// Civil-day arithmetic, so a move across a DST boundary keeps the clock reading: +1 day from
 /// 10:00 is 10:00 the next day, whether that day is 23, 24 or 25 hours long. Seconds ride
 /// along untouched, so an event at `:30` past does not quietly lose them.
+/// The series' own `(start, end)` after an edit whose clocks were read from one occurrence.
+///
+/// An editor opened on one occurrence shows **that** occurrence's times, so an edit meant for the
+/// whole series carries the shift the user made rather than the times themselves. Applying it to
+/// the series' own clock is what [`apply_event_drag`] already does for a drag on a series, and the
+/// numbers are the same in either zone for the same reason.
+///
+/// The end follows the edited **duration** rather than its own delta, so a resize done on one
+/// occurrence resizes the series by the same amount.
+///
+/// # Errors
+///
+/// Returns [`AccountError::CalendarWrite`] if the event's own times are not representable, or if
+/// the shifted clock falls out of range.
+pub(crate) fn series_bounds_after(
+    event: &Event,
+    read_from: LocalDateTime,
+    edited_start: LocalDateTime,
+    edited_end: LocalDateTime,
+) -> Result<(LocalDateTime, LocalDateTime), AccountError> {
+    let (series_start, _) = own_bounds(event)?;
+    let (days, minutes) = between(read_from, edited_start);
+    let start = shift(series_start, days, minutes)?;
+    let (span_days, span_minutes) = between(edited_start, edited_end);
+    Ok((start, shift(start, span_days, span_minutes)?))
+}
+
+/// How far `to` is from `from`, in whole days and minutes: the same pair a drag carries.
+fn between(from: LocalDateTime, to: LocalDateTime) -> (i64, i64) {
+    let (from_day, from_minute, _) = order(from);
+    let (to_day, to_minute, _) = order(to);
+    (to_day - from_day, to_minute - from_minute)
+}
+
 fn shift(local: LocalDateTime, days: i64, minutes: i64) -> Result<LocalDateTime, AccountError> {
     let total = i64::from(local.hour()) * 60 + i64::from(local.minute()) + minutes;
     let day =

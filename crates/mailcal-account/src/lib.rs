@@ -30,6 +30,7 @@ mod microsoft;
 mod preferences;
 mod reconnect;
 mod recurrence_shape;
+mod repeat_draft;
 mod repeat_summary;
 mod series_warning;
 mod setup;
@@ -88,6 +89,7 @@ pub use recurrence_shape::{
     RecurrenceWeekday, SimpleRecurrence, describe_recurrence, recurrence_rule_of,
     undrawable_reason,
 };
+pub use repeat_draft::{RepeatDraft, recurrence_change_of, repeat_draft_of, rule_from_draft};
 pub use repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary, summarize_repeat};
 pub use series_warning::{
     SeriesEditTouches, SeriesEditWarning, series_edit_touches, series_edit_warning,

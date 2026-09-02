@@ -33,6 +33,9 @@ internal sealed record EditTarget(
     EventRecurrence? Recurrence,
     /// <summary>The rule as a sentence's parts, decided by the core, see EventRepeatText.</summary>
     RepeatSummary? RepeatSummary,
+    /// <summary>The rule as the editor's controls hold it, or null when the core would not open
+    /// it: a rule too rich to state, or one whose controls this app does not have.</summary>
+    RepeatDraft? SeededRepeat,
     /// <summary>The occurrence this editor was opened on, as the core resolved it, or empty when
     /// it was opened on the series. Non-empty is what makes Save ask which occurrences it
     /// meant.</summary>
@@ -51,7 +54,9 @@ internal sealed record CreateArgs(
     bool AllDay,
     string? Timezone,
     string? Notes,
-    string? Location);
+    string? Location,
+    /// <summary>The rule a new event starts with, or null for a one-off.</summary>
+    SimpleRecurrence? Recurrence);
 
 /// <summary>The arguments an edit dispatches (<c>Intent.UpdateEvent</c>).</summary>
 internal sealed record UpdateArgs(
@@ -62,7 +67,29 @@ internal sealed record UpdateArgs(
     string? End,
     string? Notes,
     string? Location,
-    string? Occurrence);
+    string? Occurrence,
+    /// <summary>What happens to the repeat rule: null leaves the series alone, <c>Set</c> replaces
+    /// the rule, <c>Clear</c> makes the event a single one. Never sent beside an
+    /// <see cref="Occurrence"/>: a rule belongs to the series, and the core refuses the
+    /// pairing.</summary>
+    RecurrenceChange? Recurrence,
+    /// <summary>The occurrence <see cref="Start"/> and <see cref="End"/> were read from, when this
+    /// save means the series but the dialog was opened on one occurrence. The core turns the edit
+    /// into the shift the user made rather than writing an occurrence's clocks onto the series;
+    /// without it a rule change from a later occurrence moves the series' start there and every
+    /// earlier occurrence stops existing.</summary>
+    string? TimesFromOccurrence = null);
+
+/// <summary>
+/// What a save should send for the repeat rule, decided by the core: see
+/// <c>mailcal_account::recurrence_change_of</c>.
+/// </summary>
+/// <remarks>
+/// Taken as a delegate rather than called directly so <see cref="EventEditorState"/> stays a plain
+/// class <c>Mailcal.Tests</c> can drive, and a test can state the client's own rules without the
+/// native library the real one needs.
+/// </remarks>
+internal delegate RecurrenceChange? RepeatChangeOf(RepeatDraft? draft, bool wasRepeating);
 
 /// <summary>
 /// The mutable state of an open editor. Construct via <see cref="Create"/> or <see cref="Edit"/>; the
@@ -85,8 +112,12 @@ internal sealed class EventEditorState
         DateTime end,
         string location,
         string notes,
-        CalendarChoice? calendar)
+        CalendarChoice? calendar,
+        RepeatDraft? repeat,
+        RepeatChangeOf repeatChangeOf)
     {
+        _repeatChangeOf = repeatChangeOf;
+        RepeatDraft = repeat;
         Editing = editing;
         Zone = zone;
         Title = title;
@@ -97,6 +128,15 @@ internal sealed class EventEditorState
         Notes = notes;
         Calendar = calendar;
     }
+
+    private readonly RepeatChangeOf _repeatChangeOf;
+
+    /// <summary>
+    /// What the repeat controls hold, or null for "does not repeat". Seeded from the core and
+    /// passed back to it. The <c>Stored</c> rule it carries is what tells a rule that changed from
+    /// one that did not, and what keeps the parts no control here models.
+    /// </summary>
+    internal RepeatDraft? RepeatDraft { get; set; }
 
     /// <summary>The event being edited, or <c>null</c> when creating.</summary>
     internal EditTarget? Editing { get; }
@@ -156,7 +196,8 @@ internal sealed class EventEditorState
                 AllDay: true,
                 Timezone: null,
                 Notes: string.IsNullOrEmpty(Notes) ? null : Notes,
-                Location: string.IsNullOrEmpty(Location) ? null : Location);
+                Location: string.IsNullOrEmpty(Location) ? null : Location,
+                Recurrence: NewRule());
         }
         return new CreateArgs(
             Title.Trim(),
@@ -168,14 +209,57 @@ internal sealed class EventEditorState
             // A wall clock in the device's zone, so the event is created there, not in UTC.
             Timezone: string.IsNullOrEmpty(Zone) ? null : Zone,
             Notes: string.IsNullOrEmpty(Notes) ? null : Notes,
-            Location: string.IsNullOrEmpty(Location) ? null : Location);
+            Location: string.IsNullOrEmpty(Location) ? null : Location,
+            Recurrence: NewRule());
     }
 
     /// <summary>
     /// Whether saving has to ask "this event, or all of them?" first, true exactly when this
     /// editor was opened on one occurrence of a series.
     /// </summary>
-    internal bool AsksAboutTheSeries => !string.IsNullOrEmpty(Editing?.Occurrence);
+    /// <remarks>
+    /// A changed repeat settles the question, so it is not put: a rule belongs to the series, and
+    /// one occurrence is an instance of a rule rather than a holder of one. The controls say so
+    /// before the user touches them.
+    /// </remarks>
+    internal bool AsksAboutTheSeries =>
+        !string.IsNullOrEmpty(Editing?.Occurrence) && RepeatChange is null;
+
+    /// <summary>
+    /// Whether the repeat controls are offered at all. An event that does not repeat can always be
+    /// given a rule; one that already repeats can only be changed when the core handed over a
+    /// draft, which it does not for a rule it could not state in full.
+    /// </summary>
+    internal bool CanEditRepeat =>
+        Editing is null || !Editing.IsRecurring || Editing.SeededRepeat is not null;
+
+    /// <summary>
+    /// What this save should send for the repeat rule, or null to leave the series alone. The core
+    /// decides it: a repeat changed and changed back is not a change, and the parts no control here
+    /// models are put back by the same call.
+    /// </summary>
+    internal RecurrenceChange? RepeatChange
+    {
+        get
+        {
+            if (!CanEditRepeat)
+            {
+                return null;
+            }
+            // Nothing chosen on an event that does not repeat. There is no question to put, which
+            // is also why a test that says nothing about a repeat needs no native library.
+            if (RepeatDraft is null && Editing?.SeededRepeat is null)
+            {
+                return null;
+            }
+            return _repeatChangeOf(RepeatDraft, Editing?.SeededRepeat is not null);
+        }
+    }
+
+    /// <summary>The rule a create sends: whatever the controls hold, as a plain rule rather than
+    /// one of the three answers an edit gives.</summary>
+    private SimpleRecurrence? NewRule() =>
+        RepeatChange is RecurrenceChange.Set set ? set.Rule : null;
 
     /// <summary>The update-intent arguments for the current fields. Valid only while editing.</summary>
     /// <remarks>
@@ -199,11 +283,27 @@ internal sealed class EventEditorState
             Location: Location,
             Occurrence: thisOccurrenceOnly && !string.IsNullOrEmpty(target.Occurrence)
                 ? target.Occurrence
+                : null,
+            // A rule belongs to the series, so it never travels with an occurrence. The dialog does
+            // not offer that combination, and this is the second place it cannot happen.
+            Recurrence: thisOccurrenceOnly ? null : RepeatChange,
+            // The clocks above are this occurrence's, so a save meant for the series says where
+            // they came from and the core shifts the series by that much instead of moving it.
+            TimesFromOccurrence: !thisOccurrenceOnly && !string.IsNullOrEmpty(target.Occurrence)
+                ? target.Occurrence
                 : null);
     }
 
+    /// <summary>The core's own answer. The default everywhere but a test.</summary>
+    private static RecurrenceChange? CoreRepeatChangeOf(RepeatDraft? draft, bool wasRepeating) =>
+        MailcalBindingsMethods.RepeatChangeOf(draft, wasRepeating);
+
     /// <summary>A fresh editor: start at the next whole hour, one hour long, in the default calendar.</summary>
-    internal static EventEditorState Create(CalendarChoice? defaultCalendar, string zone, DateTime now)
+    internal static EventEditorState Create(
+        CalendarChoice? defaultCalendar,
+        string zone,
+        DateTime now,
+        RepeatChangeOf? repeatChangeOf = null)
     {
         // The next whole hour: +1h, then drop minutes/seconds. Building the DateTime from the parts
         // avoids searching *forward* to the next minute-zero (which from 10:15 lands on 11:00, not
@@ -220,11 +320,16 @@ internal sealed class EventEditorState
             end: start.AddHours(1),
             location: string.Empty,
             notes: string.Empty,
-            calendar: defaultCalendar);
+            calendar: defaultCalendar,
+            repeat: null,
+            repeatChangeOf: repeatChangeOf ?? CoreRepeatChangeOf);
     }
 
     /// <summary>An editor prefilled from a stored event's detail.</summary>
-    internal static EventEditorState Edit(EventDetail detail, string calendarName)
+    internal static EventEditorState Edit(
+        EventDetail detail,
+        string calendarName,
+        RepeatChangeOf? repeatChangeOf = null)
     {
         var start = ParseWall(detail.Start);
         // The detail's all-day end is exclusive; show the inclusive last day.
@@ -238,6 +343,7 @@ internal sealed class EventEditorState
                 detail.ReminderMinutes,
                 detail.Recurrence,
                 detail.RepeatSummary,
+                detail.RepeatDraft,
                 detail.OccurrenceStart,
                 detail.Attendees),
             zone: detail.Timezone,
@@ -247,7 +353,9 @@ internal sealed class EventEditorState
             end: end,
             location: detail.Location ?? string.Empty,
             notes: detail.Notes ?? string.Empty,
-            calendar: new CalendarChoice(detail.Account, detail.Calendar, calendarName));
+            calendar: new CalendarChoice(detail.Account, detail.Calendar, calendarName),
+            repeat: detail.RepeatDraft,
+            repeatChangeOf: repeatChangeOf ?? CoreRepeatChangeOf);
     }
 
     private static string WallClock(DateTime dt) =>

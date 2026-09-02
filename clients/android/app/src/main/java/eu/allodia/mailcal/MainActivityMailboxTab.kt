@@ -116,6 +116,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.timezone,
                                             args.notes,
                                             args.location,
+                                            args.recurrence,
                                         ),
                                     )
                                 },
@@ -130,6 +131,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.notes,
                                             args.location,
                                             args.occurrence,
+                                            args.recurrence,
+                                            args.timesFromOccurrence,
                                         ),
                                     )
                                 },
@@ -168,7 +171,10 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             end = args.end,
                                             notes = args.notes,
                                             location = args.location,
-                                            recurrence = null,
+                                            // The real one: a rule change is the edit two of the
+                                            // four providers answer by discarding every override,
+                                            // so the warning has to be asked knowing about it.
+                                            recurrence = args.recurrence,
                                         ),
                                     )
                                 },

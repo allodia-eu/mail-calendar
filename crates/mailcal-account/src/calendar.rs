@@ -185,6 +185,19 @@ pub struct EventEdit {
     /// the *first* occurrence's times, not this one's); pass them unchanged if the edit is
     /// not a move.
     pub occurrence: Option<LocalDateTime>,
+    /// The occurrence [`start`](Self::start) and [`end`](Self::end) were **read from**, when
+    /// this edit is scoped to the series but its editor was opened on one occurrence.
+    ///
+    /// An editor opened on one occurrence shows that occurrence's times, so writing them onto
+    /// the master would move the series' start to that occurrence and every earlier one would
+    /// stop existing. Naming where the clocks came from turns the edit into the *shift* the
+    /// user made, applied to the series' own clock, which is what a drag on a series does.
+    ///
+    /// `None` means the clocks are the series' own, which is what an editor opened on the
+    /// series shows. Ignored when [`occurrence`](Self::occurrence) is set, since that edit
+    /// lands on the occurrence its clocks already describe. Setting it requires **both** edges:
+    /// a shift is not a shift with one end of it missing.
+    pub times_from_occurrence: Option<LocalDateTime>,
 }
 
 /// Builds a calendar event **patch** from `edit` against the stored `event`.
@@ -216,10 +229,31 @@ pub fn build_event_patch(
     if let Some(title) = &edit.title {
         patch = patch.summary(title);
     }
-    if let Some(start) = edit.start {
+    // Clocks read from one occurrence, on an edit meant for the series, are a shift rather than
+    // the series' own times; see `EventEdit::times_from_occurrence` for why writing them straight
+    // through deletes every occurrence before the one the editor was opened on.
+    let (start, end) = match (edit.times_from_occurrence, edit.occurrence) {
+        (Some(read_from), None) => {
+            let (Some(edited_start), Some(edited_end)) = (edit.start, edit.end) else {
+                return Err(AccountError::CalendarWrite(
+                    "an edit shifted from an occurrence needs both its start and its end"
+                        .to_owned(),
+                ));
+            };
+            let (start, end) = crate::calendar_drag::series_bounds_after(
+                event,
+                read_from,
+                edited_start,
+                edited_end,
+            )?;
+            (Some(start), Some(end))
+        }
+        _ => (edit.start, edit.end),
+    };
+    if let Some(start) = start {
         patch = patch.start(in_event_form(&event.start, start)?);
     }
-    if let Some(end) = edit.end {
+    if let Some(end) = end {
         patch = patch.end(in_event_form(&event.start, end)?);
     }
     if let Some(notes) = &edit.notes {
@@ -373,6 +407,10 @@ fn in_event_form(
 #[cfg(test)]
 #[path = "calendar_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "calendar_series_shift_tests.rs"]
+mod series_shift_tests;
 
 #[cfg(test)]
 #[path = "calendar_recurrence_tests.rs"]

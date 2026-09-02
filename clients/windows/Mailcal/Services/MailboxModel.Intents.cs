@@ -215,7 +215,7 @@ public sealed partial class MailboxModel
     internal void CreateEvent(CreateArgs args) =>
         _app?.Dispatch(new Intent.CreateEvent(
             args.Title, args.Start, args.End, args.Account, args.Calendar, args.AllDay, args.Timezone,
-            args.Notes, args.Location, Recurrence: null));
+            args.Notes, args.Location, args.Recurrence));
 
     /// <summary>
     /// Edit a stored calendar event from the editor's payload, then refresh.
@@ -228,7 +228,7 @@ public sealed partial class MailboxModel
     internal void UpdateEvent(UpdateArgs args) =>
         _app?.Dispatch(new Intent.UpdateEvent(
             args.Account, args.Key, args.Title, args.Start, args.End, args.Notes, args.Location,
-            args.Occurrence, Recurrence: null));
+            args.Occurrence, args.Recurrence, args.TimesFromOccurrence));
 
     /// <summary>
     /// What saving <paramref name="args"/> over the whole series would cost the occurrences the
@@ -241,7 +241,9 @@ public sealed partial class MailboxModel
     /// </remarks>
     internal SeriesEditWarning? SeriesEditWarning(UpdateArgs args) =>
         _app?.SeriesEditWarning(args.Account, args.Key, new ProposedEdit(
-            args.Title, args.Start, args.End, args.Notes, args.Location, Recurrence: null));
+            // The real one: a rule change is the edit two of the four providers answer by
+            // discarding every override, so the warning has to be asked knowing about it.
+            args.Title, args.Start, args.End, args.Notes, args.Location, args.Recurrence));
 
     /// <summary>Delete a calendar event by its owning account + provider key, then refresh the
     /// agenda. <paramref name="occurrence"/> names a single occurrence of a repeating event,

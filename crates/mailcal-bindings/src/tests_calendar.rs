@@ -213,6 +213,7 @@ fn an_update_event_intent_parses_into_a_typed_edit() {
         location: Some("Room 2".to_owned()),
         occurrence: Some("2026-01-05T09:30:00".to_owned()),
         recurrence: None,
+        times_from_occurrence: None,
     })
     .expect("a well-formed edit converts");
 
@@ -247,6 +248,7 @@ fn an_update_event_leaves_empty_required_fields_and_rejects_a_bad_time() {
         location: None,
         occurrence: None,
         recurrence: None,
+        times_from_occurrence: None,
     })
     .expect("empty required fields are valid; they change nothing");
     let mailcal_app::Intent::UpdateEvent { edit, .. } = left_alone else {
@@ -264,6 +266,7 @@ fn an_update_event_leaves_empty_required_fields_and_rejects_a_bad_time() {
         location: None,
         occurrence: None,
         recurrence: None,
+        times_from_occurrence: None,
     });
     assert!(rejected.is_err(), "a malformed wall-clock drops the intent");
 }
@@ -337,6 +340,7 @@ fn an_edit_keeps_leaving_a_rule_alone_distinct_from_removing_it() {
             location: None,
             occurrence: None,
             recurrence: change,
+            times_from_occurrence: None,
         })
         .expect("a well-formed edit converts");
         let mailcal_app::Intent::UpdateEvent { edit, .. } = converted else {
@@ -393,5 +397,62 @@ fn a_delete_names_one_occurrence_or_the_whole_series() {
     assert!(
         occurrence_of(Some("next Tuesday")).is_err(),
         "a malformed token drops the intent rather than deleting the series"
+    );
+}
+
+/// A draft the editor never touched asks for no write at all, and one whose frequency moved on
+/// leaves behind the part that belonged to the old frequency. Both decisions are the core's, and
+/// this is the boundary they have to survive: a client sends the draft it holds and nothing else.
+#[test]
+fn a_repeat_draft_decides_the_same_thing_on_both_sides_of_the_boundary() {
+    let stored = SimpleRecurrence {
+        frequency: RecurrenceFrequency::Monthly,
+        interval: 1,
+        days: Vec::new(),
+        // The month's last day: a rule no control models, so it has to be carried.
+        month_days: vec![-1],
+        months: Vec::new(),
+        end: RecurrenceEnd::Never,
+    };
+    let draft = RepeatDraft {
+        frequency: RecurrenceFrequency::Monthly,
+        interval: 1,
+        weekdays: vec![RecurrenceWeekday::Tuesday],
+        end: RecurrenceEnd::Never,
+        stored: Some(stored.clone()),
+    };
+
+    assert_eq!(
+        crate::repeat_change_of(Some(draft.clone()), true),
+        None,
+        "an untouched repeat asks for no write"
+    );
+
+    let mut ended = draft.clone();
+    ended.end = RecurrenceEnd::AfterCount { count: 10 };
+    let Some(RecurrenceChange::Set { rule }) = crate::repeat_change_of(Some(ended), true) else {
+        panic!("a changed repeat is a Set");
+    };
+    assert_eq!(
+        rule.month_days,
+        vec![-1],
+        "the last day survives the crossing"
+    );
+
+    let mut weekly = draft;
+    weekly.frequency = RecurrenceFrequency::Weekly;
+    let Some(RecurrenceChange::Set { rule }) = crate::repeat_change_of(Some(weekly), true) else {
+        panic!("a changed repeat is a Set");
+    };
+    assert!(
+        rule.month_days.is_empty(),
+        "a day of the month means nothing in a week"
+    );
+    assert_eq!(
+        rule.days,
+        vec![RecurrenceDay {
+            day: RecurrenceWeekday::Tuesday,
+            nth: None
+        }]
     );
 }

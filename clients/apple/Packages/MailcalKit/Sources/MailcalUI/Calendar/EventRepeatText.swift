@@ -138,6 +138,17 @@ func isoWeekday(_ day: RecurrenceWeekday) -> Int {
     }
 }
 
+/// The weekday's initial for the repeat editor's row: one or two letters, from the platform's
+/// own list rather than sliced off its name (several languages do not abbreviate by truncating).
+func weekdayInitial(_ day: RecurrenceWeekday, locale: Locale = L10n.appLocale) -> String {
+    symbols(locale).veryShortWeekdaySymbols[isoWeekday(day) % 7]
+}
+
+/// The weekday's full name, which is what a screen reader gets for a control showing an initial.
+func weekdayFullName(_ day: RecurrenceWeekday, locale: Locale = L10n.appLocale) -> String {
+    weekdayName(day, locale: locale)
+}
+
 /// The weekday's name in `locale`, the platform's word for it, not one of ours.
 private func weekdayName(_ day: RecurrenceWeekday, locale: Locale) -> String {
     // `weekdaySymbols` is indexed from Sunday, so an ISO number maps in by taking Sunday's 7 to 0.

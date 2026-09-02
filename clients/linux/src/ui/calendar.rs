@@ -13,6 +13,7 @@ pub(in crate::ui) mod paint;
 mod pane;
 mod reference;
 mod repeat;
+mod repeat_editor;
 mod views;
 
 pub(crate) use drag::CreateSlot;

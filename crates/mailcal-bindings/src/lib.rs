@@ -87,6 +87,7 @@ mod records_invitation;
 mod records_recurrence;
 mod records_repeat_summary;
 mod rendering;
+mod repeat_editor;
 mod setup;
 mod showcase;
 mod showcase_bodies;
@@ -154,10 +155,11 @@ pub use records_invitation::{
 };
 pub use records_recurrence::{
     EventRecurrence, ProposedEdit, RecurrenceChange, RecurrenceDay, RecurrenceEnd,
-    RecurrenceFrequency, RecurrenceWeekday, SeriesEditWarning, SimpleRecurrence,
+    RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
 pub use rendering::{render_message_html, should_open_external_link};
+pub use repeat_editor::repeat_change_of;
 pub use setup::{
     AccountSetup, ConnectionSecurity, JmapSetup, account_config_toml, jmap_account_config_toml,
 };

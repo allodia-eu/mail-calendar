@@ -289,6 +289,20 @@ pub enum Intent {
         /// [`RecurrenceChange`].
         #[uniffi(default = None)]
         recurrence: Option<RecurrenceChange>,
+        /// The occurrence `start` and `end` were **read from**, when this edit is meant for the
+        /// series but the editor was opened on one occurrence: `EventDetail::occurrence_start`,
+        /// handed straight back.
+        ///
+        /// An editor opened on one occurrence shows **that** occurrence's clocks, so sending
+        /// them as the series' own moves the series to that occurrence and every earlier one
+        /// stops existing. Naming where they came from makes the edit the *shift* the user
+        /// made, applied to the series' own clock, which is what a drag on a series does.
+        ///
+        /// Send it whenever `occurrence` is `None` and the editor was opened on one; leave it
+        /// `None` for an editor opened on the series, whose clocks are already the series'. It
+        /// is ignored when `occurrence` is set. Setting it needs **both** `start` and `end`.
+        #[uniffi(default = None)]
+        times_from_occurrence: Option<String>,
     },
     /// Move or resize a stored calendar event by **dragging** it on the grid, then refresh the
     /// agenda.

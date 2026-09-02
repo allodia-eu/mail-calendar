@@ -91,6 +91,7 @@ class EventAttendeesTest {
             reminderMinutes = null,
             recurrence = null,
             repeatSummary = null,
+            repeatDraft = null,
             isRecurring = false,
             canWrite = true,
             occurrenceStart = "",

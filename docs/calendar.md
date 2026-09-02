@@ -1163,6 +1163,35 @@ does. Both are worse than a write that fails, so both fail instead. What is refu
 The list is **measured against the engine that ships**, not copied from it, and a test re-measures
 every entry: if the engine grows to cover one, that test goes red and this table loses a row.
 
+### A rule is editable exactly when it can be stated, and four controls is not a rule
+
+An editor puts four controls on screen: how often, how many periods to skip, which weekdays, and
+what ends it. `SimpleRecurrence` says more than that: a monthly series pinned to the month's
+**last day**, or to a weekday's **position** in it, is a rule no control there offers.
+
+So `EventDetail::repeat_draft` carries what the controls hold, and two rules decide the rest:
+
+- **A rule the core could not state is never offered for editing.** The draft is absent for
+  exactly the rules `repeat_summary` is absent for: a client that cannot say what a rule is must
+  not offer to change it, which is the judgement `Simple` against `Complex` makes one layer up,
+  made again about the form beside the sentence.
+- **What the controls do not model, they keep.** The draft carries the rule it was read from, and
+  the parts no control here holds are put back on save, for exactly as long as the **frequency is
+  still the one they were read under**. Change monthly to weekly and they go, which is right: a day
+  of the month means nothing in a week.
+
+Rebuilding from the four controls alone would drop that part and write a different series: "the
+last day of the month" quietly becoming "the 31st", which skips every short month. So a client does
+not rebuild the rule at all: it hands the draft back and the core answers with one of
+[the three](#a-repeat-rule-is-structure-and-what-we-cannot-model-is-read-only), or with nothing,
+which is the fourth answer and the one a save that never touched the repeat gives.
+
+**A changed repeat settles which occurrences a save meant.** A rule belongs to the series, so an
+editor opened on one occurrence does not ask *This event · All events* once the rule has moved;
+it says so under the controls instead, before the user touches them. The core refuses a rule paired
+with an `occurrence` in any case; no client builds that payload, and the refusal is the second
+place it cannot happen.
+
 ### Which sentence a repeat rule gets is decided once; the words are each client's
 
 A frequency word cannot tell "every week" from "every second week", so a summary needs the rule's
@@ -1431,7 +1460,7 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | **Drag to move · resize** an event, gated on `can_move` (your own appointments and the meetings you organise) ¹⁰ | ✅ | ✅ | ✅ | ⬜ | ✅ | ⬜ |
 | A drag on a **repeating** event asks *This event · All events* ¹⁰ | ✅ | ✅ | ✅ | ⬜ | ✅ | ⬜ |
 | A repeat rule **summarised in full**: every second Tuesday, until 3 June, rather than one word ¹³ | ✅ (structure) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Writing** a repeat rule: set one, change one, stop the repeat ¹³ | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Writing** a repeat rule: set one, change one, stop the repeat ¹³ ¹⁶ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A **delete** on a repeating event asks *This event · All events* ¹³ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An **edit** on a repeating event asks *This event · All events* ¹³ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A detail opened on one occurrence reports **that occurrence's** times, not the series' ¹⁴ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -1480,8 +1509,9 @@ its account (`Account · Calendar`) rather than a list in per-account sections.
 create-with-picker → detail → edit → delete flow was driven end-to-end against the Stalwart harness
 (real CalDAV, each write reconciled), including a real touch tap on the drawn grid. Two engine-bounded
 v1 limits, on every platform: **all-day and the calendar are set at create and are display-only on
-edit** (the patcher refuses a form or calendar change), and **reminders and the repeat rule are display-only**
-(read-only: see "Known gaps").
+edit** (the patcher refuses a form or calendar change), and **reminders are display-only**
+(read-only: see "Known gaps"). The repeat rule is editable; what its controls do not reach is
+under "Known gaps" too.
 
 ⁷ **A desktop scrolls a calendar; it does not drag it.** The grid holds its own scroll offsets rather
 than living in a scroll view (§7, a pinch has to *move* them mid-gesture, which no scroll view
@@ -1590,11 +1620,10 @@ median, 16.672 ms p90, 16.675 ms p99, and **zero** gaps over 1.5 refresh interva
 presentation gap is counted, including stalls of 60 ms or longer. The test asserts that semantic
 nodes are absent on the sighted path; the AT-SPI suite separately runs with them on.
 
-¹³ **The repeat contract is whole in the core, and each ⬜ is a client that has not been written
-yet rather than a contract that is missing.** The rule crosses the FFI structurally in both
-directions, an edit and a delete carry an `occurrence` exactly as a drag does, and
-`MailcalApp::series_edit_warning` says, for the edit in hand, when a series edit is about to
-discard a per-occurrence change.
+¹³ **The rule crosses the FFI structurally, in both directions.** An edit and a delete carry an
+`occurrence` exactly as a drag does, and `MailcalApp::series_edit_warning` says, for the edit in
+hand, when a series edit is about to discard a per-occurrence change, a **rule change** among
+them, which is the edit two of the four providers answer by discarding every override.
 
 ¹⁴ **This is what the edit question was waiting on, and it was a wrong date on screen in its own
 right.** A detail projected without the occurrence carries the *series'* own start and end, which
@@ -1619,6 +1648,17 @@ needs a Microsoft or Google account with a series one of whose occurrences has b
 renamed. What is machine-checked instead is the pair either side of it: the core's decision
 (`series_warning_tests.rs` and `tests_calendar_series_warning.rs`, every combination including
 the narrowing) and each client's mapping from verdict to sentence.
+
+¹⁶ **Four controls, and one decision none of the five clients makes.** The editor offers a
+frequency, an interval, a weekday row and an end condition. Which rules it may open, what a save
+should send, and which parts of a rule survive an edit that never touched them are all
+`EventDetail::repeat_draft` plus `repeat_change_of`: one answer, so five clients cannot disagree
+about it, the same argument `repeat_summary` settles for the sentence. What stays each client's is
+the **wording**, the platform's own weekday names, and the order its locale starts a week in.
+
+The interval control never repeats the frequency word the picker above it already shows: a stepper
+reading "Monthly" under a picker reading "Monthly" states nothing, so it reads "Every month" and
+"Every 2 months" instead.
 
 ---
 
@@ -1737,12 +1777,20 @@ Stated, not buried.
   client reads `EventDetail::series_edit_warning` and puts it between Save and the write. The one
   thing to know about it is that **no local harness can raise it** (note ¹⁵): the transports that
   destroy overrides are the two no fixture speaks.
-- **No client writes a repeat rule yet.** Every client now *states* one in full:
-  `EventDetail::repeat_summary` arrives decided, and all five render the interval, the weekdays,
-  the day or the weekday's position in the month, the date in the year, and what ends it. The
-  **rule-writing** half of the contract above is implemented and tested in the core: a rule on
-  create and edit, and the three refusals, but no client offers an editor for it, so every client
-  still sends `None` for the rule itself.
+- ~~**No client writes a repeat rule yet.**~~ Closed: all five now offer the controls, seeded
+  from `EventDetail::repeat_draft`.
+- **The repeat controls cannot express a monthly or yearly rule's anchor.** "The last day of the
+  month" and "the second Monday" are rules the editor **keeps** but does not offer: open such a
+  series and the frequency, interval and end are editable while the anchor rides along untouched,
+  and changing the frequency drops it. Nothing on screen names the anchor, so a user who wanted to
+  move "the second Monday" to "the third" has no way to say so and no way to see why. Closing it
+  is a control (a *day of the month* row for monthly, a *position* row for monthly and yearly),
+  not a contract change: `SimpleRecurrence` already carries both, and the round trip that decides
+  `Simple` against `Complex` already lets them through.
+- **A rule too rich to state cannot be stopped either.** `EventRecurrence::Complex` gets the
+  sentence and no controls, which is right for *changing* a rule the client only half sees. But
+  the core allows a `Clear` over one, because stopping a repeat needs no knowledge of the rule it
+  stops. No client offers that, so the only way out of a complex series is to delete it.
 - **On Windows the scope question is a UI suite case, but its destructive answer is not.**
   `uitests/EventSeriesScope.Tests.ps1` drives the drawn grid the way the wheel suite does: the
   event peer publishes a live physical-pixel rect and the click is injected at the OS level, since
