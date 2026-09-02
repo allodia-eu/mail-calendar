@@ -323,6 +323,9 @@ public struct ContentView: View {
             model.pendingMailLink = nil
             openMailLink(request)
         }
+        // The one-time offer to become the default mail app: when to raise it and the alert
+        // itself, both in the modifier (docs/os-integration.md).
+        .modifier(DefaultMailAppOfferDialog(model: model))
         // Clicking another message with an unsent draft in the pane: Discard, or Keep editing.
         .modifier(DiscardDraftDialog(
             isPresented: $confirmingDiscard,

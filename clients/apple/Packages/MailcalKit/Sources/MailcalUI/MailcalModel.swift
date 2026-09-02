@@ -202,6 +202,11 @@ final class MailboxModel {
     /// A draft an assistant asked to open in the composer, unsent. Set by `AgentComposerBridge`
     /// on the main actor; the shell watches it, opens the composer, and clears it.
     var pendingAgentDraft: AgentDraftRequest?
+    /// Whether the one-time "make this your default mail app" offer is on screen.
+    ///
+    /// Raised only from `offerDefaultMailAppIfDue`, which asks the core; answered by
+    /// `recordDefaultMailAppOffer`, so the answer outlives this launch.
+    var offeringDefaultMailApp = false
     /// A `mailto:` link the OS handed us, waiting for a composer to open in. Set by the scene's
     /// `onOpenURL`; the shell watches it, opens the composer, and clears it.
     ///

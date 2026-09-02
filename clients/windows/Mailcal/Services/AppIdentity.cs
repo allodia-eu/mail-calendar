@@ -65,4 +65,31 @@ internal static class AppIdentity
     /// version (<c>docs/versioning.md</c>).
     /// </summary>
     public static string? PackageVersion => Version.Value;
+
+    // The same read again, for the Application User Model ID. Here for the reason the version is:
+    // every `Package.Current` touch stays in this one file, so the plain net10.0 test suite can
+    // reach everything around it.
+    private static readonly Lazy<string?> ModelId = new(() =>
+    {
+        try
+        {
+            return Windows.ApplicationModel.Core.AppListEntry.GetDefault()?.AppUserModelId
+                ?? Windows.ApplicationModel.AppInfo.Current?.AppUserModelId;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    });
+
+    /// <summary>
+    /// This app's Application User Model ID when packaged, or <c>null</c> for the unpackaged dev
+    /// loop, which has none.
+    /// </summary>
+    /// <remarks>
+    /// It is what deep-links Windows' Default apps page to this app rather than to the top of the
+    /// list (<see cref="DefaultMailApp"/>). A <c>null</c> costs the deep link and nothing else:
+    /// the page still opens.
+    /// </remarks>
+    public static string? Aumid => ModelId.Value;
 }

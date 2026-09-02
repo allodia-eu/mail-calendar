@@ -89,7 +89,7 @@ must meet are Gate 12 and Gate 13 in [`composer-security.md`](composer-security.
 |---|---|---|---|
 | **macOS** | ✅ `CFBundleURLTypes` + `LSHandlerRank: Alternate` | ⬜ Share Extension (`com.apple.share-services`) | **Developer ID only.** `NSWorkspace.setDefaultApplication(at:toOpenURLsWithScheme:)`, which shows a system consent alert. The **App Store build cannot**: the sandbox refuses it, and there is no replacement for `LSSetDefaultHandlerForURLScheme`. |
 | **iOS / iPadOS** | 🚧 `CFBundleURLTypes` declared, and inert until the entitlement lands | ⬜ Share Extension | **Only with Apple's grant.** The `com.apple.developer.mail-client` entitlement is requested by email and excludes the browser entitlement. There is no prompt API; the app deep-links to Settings → Apps → Default Apps. |
-| **Windows** | ✅ MSIX `windows.protocol` `mailto` | ⬜ `windows.shareTarget` extension | **Deep link only**, by design since Windows 10: register under `HKCU\Software\RegisteredApplications` and open `ms-settings:defaultapps?registeredAppUser=…`. |
+| **Windows** | ✅ MSIX `windows.protocol` `mailto` | ⬜ `windows.shareTarget` extension | **Deep link only**, by design since Windows 10: open `ms-settings:defaultapps?registeredAUMID=…`, the parameter for a packaged app. (`registeredApp` / `registeredAppUser` name an installer's own `RegisteredApplications` key, which this app does not write.) An AUMID is absent in an unpackaged build, and the plain page opens instead. |
 | **Android** | ✅ `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` | ✅ `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` | **No, and nothing to add.** There is no `ROLE_EMAIL` in `RoleManager`; the chooser is the mechanism, and it already works. |
 | **Linux** | ✅ desktop `MimeType=x-scheme-handler/mailto` | ✅ curated `MimeType=` ("Open With") + a local `--attach`, both through `Exec=mailcal %U` | **No, and it cannot even tell.** No default-apps portal was ever shipped, and inside a Flatpak `GAppInfo` has no host application database to ask, which is why [`check-desktop-handoff.sh`](../scripts/ci/check-desktop-handoff.sh) already bans those calls. The desktop entry declares the handler; the user chooses it in their desktop's settings. |
 
@@ -102,9 +102,14 @@ must meet are Gate 12 and Gate 13 in [`composer-security.md`](composer-security.
   PDF also makes this app selectable as a PDF handler. The list is therefore kept to what a person
   plausibly emails, a test pins it exactly, and widening it is a decision about what a user picking
   us for that type should expect, not a formality.
-- **No client offers to become the default mail app yet.** The core decides when to ask and
-  remembers the answer; what is missing is the platform call and the Settings → General row on
-  macOS, Windows and iOS. Linux and Android are `Unsupported` and never will have one.
+- **iOS/iPadOS offers nothing yet, and cannot until Apple grants the entitlement.** It reports
+  `Unsupported`, so no offer is put and no Settings row is drawn: sending someone to Default Apps
+  to pick an app that is not in the list is worse than staying quiet. macOS and Windows both ship
+  the offer and the row.
+- **The Mac App Store build reports `Unsupported` at runtime**, from the sandbox container
+  variable, so one binary's worth of source behaves correctly in both signings. That is the only
+  place this repo decides something from the *signing* rather than the platform, and it is why
+  `DefaultMailApp.support` is a computed property rather than a constant.
 - **⚠️ On iOS, declaring the `mailto` scheme buys nothing on its own.** Unlike every other
   platform here, iOS does not offer a chooser for a mail link: it routes `mailto:` to the app set as
   the **default** mail app and to nothing else. Being set as that needs

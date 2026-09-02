@@ -255,7 +255,39 @@ public sealed partial class SettingsDialog : ContentDialog
             panel.Children.Add(timeFormat);
         }
 
+        // The permanent way back from the one-time offer to become the default mail app, and the
+        // only way in for someone who dismissed it (docs/os-integration.md). Windows can only
+        // take the user to its own Default apps page; setting a handler from code has not been
+        // possible since Windows 10, by design.
+        panel.Children.Add(DefaultMailAppGroup());
+
         return panel;
+    }
+
+    // The default-mail-app row: one button to Windows' own settings, plus a line saying where
+    // things stand when the offer was turned down. Nothing is said when it has not been put yet,
+    // "you have not been asked" is not something to tell someone, and nothing when it was taken,
+    // since Windows' own page is what shows whether it took effect.
+    private UIElement DefaultMailAppGroup()
+    {
+        var stack = new StackPanel { Spacing = 4 };
+        var open = new Button { Content = L10n.SettingsDefaultMailAppOpenSettings() };
+        open.Click += (_, _) =>
+        {
+            MainWindow.OpenDefaultAppsSettings();
+            _model.RecordDefaultMailAppOffer(DefaultMailAppOutcome.Accepted);
+        };
+        stack.Children.Add(open);
+        if (_model.DefaultMailAppOffer == false)
+        {
+            stack.Children.Add(new TextBlock
+            {
+                Text = L10n.SettingsDefaultMailAppDeclined(),
+                Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            });
+        }
+        return Group(
+            L10n.SettingsDefaultMailAppHeading(), L10n.SettingsDefaultMailAppDescription(), stack);
     }
 
     // The light/dark picker. The core persists the choice; the window is repainted here, because
