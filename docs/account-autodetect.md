@@ -62,21 +62,30 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
    honouring the device's real DNS configuration (private DNS, a VPN). A client that passes no
    resolver simply skips the MX fallback.
 
-7. **OAuth endpoints are never taken from a fetched config.** The ISPDB's `<oAuth2>` block is
-   ignored; a **Microsoft- or Google-family** provider routes to the app's own browser OAuth
-   for that provider, and a provider that offers only OAuth we don't integrate routes to manual
-   (never a broken sign-in). **Google is a native-API integration** (Gmail + Google Calendar,
-   not IMAP/CalDAV), so a Google address short-circuits detection entirely; see the Routing
-   section and rule 10.
+7. **OAuth endpoints are never taken from a fetched config.** No `authURL`, `tokenURL` or
+   `clientID` from any document is ever used: a **Microsoft- or Google-family** provider routes
+   to the app's own browser OAuth for that provider. **Google is a native-API integration**
+   (Gmail + Google Calendar, not IMAP/CalDAV), so a Google address short-circuits detection
+   entirely; see the Routing section and rule 10.
 
-   The **one** OAuth configuration ever taken from the network is a JMAP server's own published
-   metadata, and it is not taken from a *fetched autoconfig* at all: it comes from the server the
-   user is connecting to, over the RFC 9728 → RFC 8414 chain, after detection has already routed
-   to JMAP. It is bound by the same discipline as everything else here: every hop HTTPS, only
-   the domain disclosed, and a failure is silent and falls back rather than dead-ending, plus
-   two of its own: the metadata's `issuer` must match the issuer asked about (RFC 8414 §3.3),
-   and the server must advertise S256 PKCE. See [`jmap.md`](jmap.md) rule 3. Detection itself
-   never runs this; it is a **setup-form** step, gated on the user having chosen JMAP.
+   **One field is taken, and only from the provider itself: `<oAuth2><issuer>`.** An issuer is
+   a name to look up, not an endpoint to post to: the endpoints that answer to it come from
+   that issuer's own RFC 8414 metadata over HTTPS, which is what makes the difference safe.
+   It is honoured only from the provider's **own** autoconfig (`autoconfig.{domain}`, the
+   `/.well-known/autoconfig/…` variant, or the MX-derived one) over a **trusted** hop. The
+   ISPDB's block is still dropped, and so is an issuer on an `http://` hop: the approval rule 3
+   asks for covers where a credential is *sent*, not where one is *typed*. What the setup
+   screen does with it is [`mail-oauth.md`](mail-oauth.md).
+
+   The **other** OAuth configuration taken from the network is a JMAP server's own published
+   metadata, over the RFC 9728 → RFC 8414 chain, after detection has already routed to JMAP.
+   See [`jmap.md`](jmap.md) rule 3.
+
+   Both are bound by the same discipline as everything else here: every hop HTTPS, only the
+   domain disclosed, a failure silent and falling back rather than dead-ending, plus two of
+   their own: the metadata's `issuer` must match the issuer asked about (RFC 8414 §3.3), and
+   the server must advertise S256 PKCE. Detection itself runs neither; both are **setup-form**
+   steps, after a route has been chosen.
 
 8. **A found IMAP config gets a CalDAV follow-on probe.** Autoconfig/ISPDB describe **mail
    only** (they carry no calendar endpoint), so once IMAP settings are found the core
@@ -190,15 +199,21 @@ engine can connect, so it lives in `mailcal-account`, not the protocol-neutral d
   Access gate** before sign-in (see [`provider-oauth.md`](provider-oauth.md) → "## Google"). This
   is native-API only, Gmail + Calendar over Google's own session, so it never falls back to
   IMAP/CalDAV.
-- **Otherwise the first TLS-or-STARTTLS + password incoming** → the IMAP form, host fields
-  prefilled and the detected connection security (implicit TLS or STARTTLS) carried through to
-  connect; the outgoing server likewise, or none when the provider has no SMTP the engine can
-  use (send stays unconfigured rather than blocking mail-read). An `_imaps`/`_imap` /
-  `_submissions`/`_submission` SRV result (rule 9) lands here too. A CalDAV endpoint found by the
-  follow-on probe (rule 8) rides along on this route, offered as pre-selected calendar sync
-  that reuses the IMAP credentials.
-- **OAuth-only (non-Microsoft, non-Google)** / **nothing found** / **offline** → manual setup,
-  with a plain-language reason line.
+- **Otherwise the first TLS-or-STARTTLS incoming** → the IMAP form, host fields prefilled and
+  the detected connection security (implicit TLS or STARTTLS) carried through to connect; the
+  outgoing server likewise, or none when the provider has no SMTP the engine can use (send
+  stays unconfigured rather than blocking mail-read). An `_imaps`/`_imap` /
+  `_submissions`/`_submission` SRV result (rule 9) lands here too. A CalDAV endpoint found by
+  the follow-on probe (rule 8) rides along on this route, offered as pre-selected calendar sync
+  that reuses the account's credential. Any issuer the provider named for itself (rule 7) rides
+  along too, and the form asks the server what it accepts before drawing a credential field
+  ([`mail-oauth.md`](mail-oauth.md)).
+
+  **A document listing only `OAuth2` lands here now.** It used to route to manual setup as an
+  "OAuth-only provider", which was a fact about this client rather than about the provider, and
+  stopped being true when IMAP gained OAuth. What a document *claims* is a routing hint either
+  way: which credential is actually asked for is settled against the live server.
+- **Nothing found** / **offline** → manual setup, with a plain-language reason line.
 
 **A route the build cannot start is never recommended.** The Microsoft and Google sign-ins need
 that provider's OAuth client registration, which is injected at build time
@@ -244,6 +259,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | DNSSEC AD bit read (reserved for a future "require DNSSEC" opt-in) | ✅ | n/a | n/a | ✅ | n/a |
 | CalDAV follow-on discovery (RFC 6764) | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | JMAP OAuth metadata chain (RFC 9728 → 8414 → 7591), offered only when advertised | ✅ | ✅ | 🚧 | ✅ | ✅ |
+| `<oAuth2><issuer>` read from the provider's own trusted autoconfig, carried to setup | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 
 The **CalDAV follow-on** offers the discovered calendar as an ✉ Email / 📅 Calendar sectioned
 card on macOS/iOS/Android/Linux (a pre-checked opt-out toggle when found, an opt-in manual field
