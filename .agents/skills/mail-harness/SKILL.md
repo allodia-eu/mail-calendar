@@ -49,6 +49,13 @@ because a specific real message/provider behaviour triggers the bug. It's the sa
   so the dev account can use `127.0.0.1` consistently on emulators and physical devices.
 - These credentials are throwaway loopback test fixtures, safe to hardcode and log; they never
   touch real data.
+- **Verify a contact write over the protocol the app wrote it with.** Stalwart stores one card and
+  renders it for both protocols, and the two renderings do not agree after a JMAP write: read the
+  card back over **CardDAV** and `ORG`, `TITLE` and `EMAIL` are simply absent, leaving `FN` and a
+  `JSPROP` line. Over JMAP (`ContactCard/get`) the same card is intact. So a `ContactCard/set` that
+  patched one property reads as data loss through the wrong door, which is exactly the shape of the
+  bug someone verifying a contacts edit is looking for, and costs an afternoon. The default dev
+  account is JMAP, so read it back with JMAP.
 - **A reset invalidates every client store, and the client cannot tell.** Stalwart mints its ids
   deterministically from an empty database, so the server that comes back hands out the *same* ids
   for a *different* set of messages, and a client that kept its cached bodies then opens somebody

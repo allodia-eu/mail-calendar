@@ -91,16 +91,75 @@ means the person is genuinely gone, never merely renumbered.
 
 ---
 
-## 3. Read-only, and it says so
+## 3. A write names a card, never a person
 
-This release **reads** contacts. It does not create, edit or delete them.
+Contacts can be **created and edited**. Deleting them is not offered yet ("Known gaps").
 
-A client must therefore **not** show edit affordances that do nothing. Saying "Contacts are
-read-only in this version" in as many words is better than a disabled pencil the user will press
-twice and then doubt.
+Everything else on this screen is about people, and a write is not: the engine joins several
+accounts' cards into one person (§1), so saving the values on screen without choosing one of those
+cards would file the work account's details in the personal account's address book, and the result
+would look perfectly right. So:
 
-The core's write path exists (the engine supports creates, patches and deletes through an outbox),
-so this is a product decision about scope, not a missing capability: see "Known gaps".
+- **An edit carries `(person, account, card)`**, from `ContactDetail::editable_cards`. The person
+  is there so a row held across a merge still resolves; the account and the card are what the write
+  actually goes to.
+- **The editor is seeded from that card**, through `contact_card`, never from the merged detail the
+  user was just looking at. A merged person's addresses belong to different cards, and offering
+  them all for saving into one is the same mistake in another form.
+- **The client asks which card when there is more than one**, naming the account. One card opens
+  straight into the form.
+
+### Both affordances are conditional, and each answers a different question
+
+| Affordance | Shown when | Because |
+|---|---|---|
+| Create | `contact_targets()` is non-empty | A destination is a **writable** address book. A directory, a suggested-contacts source and a shared book the account may only read are places contacts come *from*; offering one produces a save that fails on the server after the user has typed everything in. |
+| Edit | `editable_cards` is non-empty | Same rule, per person. |
+
+A person with **no** editable card says so ("This contact can't be edited here"), in as many words,
+rather than leaving it to be inferred from an absence or, worse, from a disabled pencil the user
+presses twice and then doubts.
+
+### What is editable, and what an edit must not destroy
+
+The editable set is exactly what the detail screen **shows**: given name, surname, organisation,
+role, the email addresses and the phone numbers. Nothing is editable that the app will not display
+back afterwards.
+
+A card holds far more than that, and an edit must leave all of it alone. Two rules carry that:
+
+- **A patch names only the fields that changed.** Every field a patch names is *replaced*, and a
+  replacement built from a form loses whatever the form cannot show: an address's `TYPE=work`, an
+  organisation's departments, whether a title was recorded as a `TITLE` or a `ROLE`. A changed field
+  is therefore rebuilt **on top of** the property the card already carried, and an unchanged one is
+  left out entirely. An edit that changed nothing sends nothing.
+- **A structured name (`N`) is written only when there is a surname.** A card may legitimately carry
+  a formatted name and no structured one, and the form seeds such a card by putting the whole name
+  in the first-name field. Emitting components from that would file "Ada Lovelace" as a first name
+  with no surname, in every other client the user owns, on a save that changed nothing.
+
+The **order** of the addresses is the order on the card, because the first one is the person's
+primary address: what the avatar and the list row are keyed on (`avatars.md`).
+
+### A card must be findable again
+
+A create is refused unless it names something to file the card under: a name, an organisation, or
+an email address. The formatted name is derived from the first of those that is present, so a
+company contact reads as its company rather than as a blank row.
+
+### What the status means
+
+`ContactWriteStatus` has the same shape as the calendar's, plus one value:
+
+- **`Failed` does not mean "rejected".** A write whose server call succeeded but whose post-write
+  reconcile came back busy or failed has **landed on the server**; only the local copy is briefly
+  stale, and the next sync heals it. The client says "we could not confirm this saved".
+- **`Invalid` is a different sentence**: the core refused the form *before* sending anything, so
+  there is something to correct and retrying unchanged would be refused the same way. The client
+  states it under the form the user is still looking at, and nowhere else.
+
+Neither write is durable offline yet: a failed save stays failed rather than queueing, which is the
+same shortfall the calendar writes have.
 
 ---
 
@@ -213,6 +272,10 @@ change updates in every catalog locale.
 | Cross-account dedup + the "In N accounts" disclosure | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Contact detail: emails / phones / org / title, with per-value provenance | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Contacts search (matched in the core) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Create a contact, into a chosen writable address book | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Edit one **source card** of a person, chosen when there are several | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Both write affordances hidden where no write could land | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Delete a contact | — | — | — | — | — | — |
 | Composer recipient autosuggest (contacts **+** sent-mail history) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer recipients as **pills**, with per-recipient removal | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions **float**: the form below them does not move | — | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -261,8 +324,41 @@ change updates in every catalog locale.
   the difference either, because a popup owns its own root and reports its bounds as (0, 0). So the
   Android half asserts the position *decision* (`RecipientPopupPositionTest`) and the rendering was
   confirmed on an emulator.
-- **Contacts are read-only** on every platform. Create / edit / delete are not wired, though the
-  engine supports all three through its outbox. §3 covers what a client must therefore not show.
+- **The Linux UI suite drives the editor up to the write and no further.**
+  [`test-linux-ui.sh`](../scripts/dev/test-linux-ui.sh) runs against the shared harness and the app
+  offers no delete, so an actual create would leave a card behind and accumulate one per run. It
+  asserts the half a screenshot cannot: that the create affordance is offered at all (it is hidden
+  unless the core reports a writable address book, so its presence *is* the write-destination
+  binding working), that the form opens, and that Save on an empty form refuses rather than closing
+  over a card nobody could find again. The write itself is gated in `mailcal-app`'s contacts suite
+  against a real engine, and was driven by hand against the harness (above).
+- **Contacts cannot be deleted.** The engine supports it through the same outbox the create and the
+  edit ride, so this is scope rather than a missing capability: a delete is the one contacts write
+  a user cannot undo, and it wants a confirmation and an account-naming step of its own, on the
+  same terms the calendar's delete already has.
+- **The write paths were driven on Linux and Android against the harness on 2026-09-02**, over
+  JMAP: create and edit, each read back off the server. The **Apple** and **Windows** halves are
+  written to the same contract and are unverified against a running client. What is gated on every
+  platform is the pure layer (which card an edit names, what a form is refused for, which fields a
+  patch carries), which is where the silent failures are.
+
+  **Read a JMAP write back over JMAP.** Stalwart renders the same stored card for both protocols
+  and the two disagree after a `ContactCard/set`: over CardDAV the card comes back holding `FN` and
+  a `JSPROP` line, with `ORG`, `TITLE` and `EMAIL` gone, while `ContactCard/get` shows it intact.
+  Verifying through the wrong door therefore reads as exactly the data loss a contacts edit is
+  most likely to cause (`.agents/skills/mail-harness`).
+- **A JMAP account writes into one address book.** The adapter is account-global and its bound book
+  decides where a write lands, so the connect binds it to the account's default writable book (else
+  the first) and offers that one destination. CardDAV, whose adapters are already one per book,
+  offers each of them. A JMAP account with several books can therefore read them all and write to
+  one.
+- **Postal addresses, notes, anniversaries and photos are not editable**, and are carried through an
+  edit untouched (§3). Adding them means a wider form on four platforms and, for addresses, a
+  structured one; the field set stops where the detail screen does deliberately.
+- **A contact's kind is always `individual` on create.** A company contact is filed as an
+  individual carrying an organisation, which is what its `FN` reads as. Offering the kind is a
+  picker nobody has asked for yet; the engine models every kind and preserves the one a card
+  already has.
 - **Microsoft Graph and Google contacts do not sync yet: the scope half is done, the binding is
   not.** Sign-in now requests the contact scopes for both families (`provider.rs`), but the core
   still binds no contacts adapter for either (`contact_providers: Vec::new()` on every

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run the Linux reading/composer + search + calendar + invitations + contacts + mail actions +
+# Run the Linux reading/composer + search + calendar + invitations + contacts (incl. the editor's
+# refusal) + mail actions +
 # signatures + MCP + cross-account merge acceptance path on a private X11 + D-Bus session. Controls
 # are selected through GTK's AT-SPI tree, never by screen coordinates. The only mailbox is the local
 # Stalwart fixture, and every screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
@@ -792,6 +793,24 @@ PY
     --name "Sofie Vermeulen" --role "list item" --enabled --showing --timeout 30
   "$PYTHON" "$ATSPI" wait --name "Ahmed El Amrani" --role "list item" --absent --timeout 30
   capture contacts-searched
+
+  # The editor. Driven up to the point of a write and no further: this suite runs against the
+  # shared harness and the app offers no delete, so an actual create would leave a card behind and
+  # accumulate one per run. What it does assert is the half a screenshot cannot: that the create
+  # affordance is offered at all (it is hidden unless the core reports a writable address book, so
+  # its presence is the JMAP write-destination binding working), that the form opens seeded and
+  # empty, and that Save on an empty form REFUSES rather than closing over a card nobody could
+  # find again. The write itself is gated in `mailcal-app`'s contacts suite against a real engine.
+  "$PYTHON" "$ATSPI" set-text --name "Search contacts" --text "" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "New contact" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "First name" --role text --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Save" --timeout 20
+  # Still open, and saying why: the message is the client's, because the core has no locale.
+  "$PYTHON" "$ATSPI" wait \
+    --name "Enter a name, an organisation or an email address." --showing --timeout 20
+  capture contacts-editor
+  "$PYTHON" "$ATSPI" activate --name "Cancel" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "First name" --role text --absent --timeout 20
 
   # Autosuggest, last: it reads the same people index the contacts leg above has just synced, so a
   # seeded contact is a deterministic query. The list arriving at all is the assertion; it is the

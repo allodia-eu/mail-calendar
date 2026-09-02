@@ -26,7 +26,7 @@ pub use attendee::{EventAttendee, effective_response, event_attendees};
 pub use avatar::Avatar;
 pub use calendar::{CalendarSnapshot, EventRow};
 pub use connectivity::ConnectivitySnapshot;
-pub use contacts::{ContactDetail, ContactRow, ContactValue, ContactsSnapshot};
+pub use contacts::{ContactCardRef, ContactDetail, ContactRow, ContactValue, ContactsSnapshot};
 pub use folders::{
     AccountFolderRow, FolderRole, FolderRow, folder_role, inbox_unread, sorted_folder_rows,
 };

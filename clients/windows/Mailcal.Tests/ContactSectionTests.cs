@@ -22,7 +22,8 @@ public class ContactSectionTests
 
     private static ContactDetail Detail(params string[] accounts) =>
         new(Id: "p1", DisplayName: "Ada", Avatar: AvatarFixture.Core("A"),
-            Emails: [], Phones: [], Organizations: [], Titles: [], Accounts: accounts);
+            Emails: [], Phones: [], Organizations: [], Titles: [], Accounts: accounts,
+            EditableCards: []);
 
     [Fact]
     public void TheFirstRowAlwaysCarriesItsSectionHeader()

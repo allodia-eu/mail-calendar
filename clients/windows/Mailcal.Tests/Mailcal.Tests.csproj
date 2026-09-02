@@ -182,6 +182,14 @@
          disclosure, the account-id -> address provenance labels, and which of the two empty states
          applies. It reads the generated ContactRow/ContactDetail, so it needs the bindings below. -->
     <Compile Include="..\Mailcal\Services\ContactSections.cs" Link="Services\ContactSections.cs" />
+    <!-- The contacts editor's decisions: which books a create may offer, which card an edit goes
+         to, what a form is refused for, and the intent it becomes. WinUI-free on purpose (the
+         dialog is Dialogs/ContactEditorDialog.cs), because two of its failures are silent: an
+         edit that named the PERSON rather than one of their cards would file the work address
+         book's details in the personal one and look right, and a form reaching the core with one
+         empty address row would be refused as malformed and the user told to correct a row they
+         can see is blank. -->
+    <Compile Include="..\Mailcal\Services\ContactEditing.cs" Link="Services\ContactEditing.cs" />
     <!-- The composer's signature rules (docs/signatures.md): which of an account's two slots a
          compose kind seeds from, the resolution precedence that makes an explicit per-message choice
          survive a From change, and the seed payload's key names. All three fail SILENTLY in the app

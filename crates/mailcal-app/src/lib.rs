@@ -43,6 +43,7 @@ mod calendar_unexpandable;
 mod connectivity;
 mod connector;
 mod contacts;
+mod contacts_write;
 mod dispatch;
 mod display_settings;
 mod folder_pane;
@@ -117,6 +118,7 @@ pub use background_sync::{AccountNewMail, BackgroundNewMail, NewMailPreview};
 pub use calendar_cache::{CalendarPage, MonthPage};
 use calendar_prefs::CalendarPrefsState;
 pub use connector::MailboxConnector;
+pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;
 use display_settings::DisplaySettingsState;
 pub use html::{render_document, should_open_external_link};
@@ -127,8 +129,8 @@ pub use mailcal_account::EventDetail;
 use mcp_settings::McpSettingsState;
 pub use prefetch::default_prefetch_size_limit;
 pub use protocol::{
-    AppObserver, CalendarWriteStatus, ComposerBlob, Intent, RecipientSuggestion, SearchScope,
-    SendStatus, Surface,
+    AppObserver, CalendarWriteStatus, ComposerBlob, ContactWriteStatus, Intent,
+    RecipientSuggestion, SearchScope, SendStatus, Surface,
 };
 pub use query::{MessageDetail, MessagePage};
 use quote_settings::QuoteSettingsState;
@@ -292,6 +294,10 @@ pub struct App<P> {
     /// The most recent calendar write's status, surfaced via [`Surface::CalendarStatus`] so a
     /// host can show a spinner while it settles and a warning when it could not be confirmed.
     calendar_write_status: Mutex<CalendarWriteStatus>,
+    /// The most recent contact write's status, surfaced via [`Surface::ContactsStatus`]. Its
+    /// own slot rather than the calendar's, so the contacts editor does not spin because a
+    /// calendar write is settling elsewhere.
+    contact_write_status: Mutex<ContactWriteStatus>,
     /// Aggregated background-sync download progress, surfaced via [`Surface::SyncProgress`].
     sync_progress: Mutex<SyncProgressState>,
     /// The host-injected port for on-demand "sync the folder you open"; `None` disables it

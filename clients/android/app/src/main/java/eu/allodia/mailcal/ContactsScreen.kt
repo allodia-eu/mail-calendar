@@ -6,8 +6,9 @@
 // cross-platform product rule, not a decoration: a user who filed a contact twice and now sees it
 // once must be able to find out why (docs/contacts.md).
 //
-// Read-only in this version. The screen says that in as many words rather than showing edit
-// affordances that do nothing.
+// Contacts can be created and edited here, and both affordances are CONDITIONAL: the create
+// button only where there is a writable address book to file one in, the edit button only where
+// this person has a card that can be written (docs/contacts.md §3).
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.background
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,62 +64,102 @@ internal fun ContactsScreen(
     detailFor: (String) -> ContactDetail?,
     // Account id -> the address the user knows it by, for the detail sheet's provenance labels.
     accountLabels: Map<String, String> = emptyMap(),
+    // Whether there is anywhere at all to save a contact. No writable address book, no create
+    // button: offering one produces a save that fails after the user has typed everything in.
+    canCreate: Boolean = false,
+    onCreate: () -> Unit = {},
+    // A word about the most recent write, or null when there is nothing to say. "Couldn't confirm"
+    // is not "rejected": the change has landed and the next sync heals the local copy.
+    writeLine: String? = null,
+    // Editing one card of the open person. The screen has already resolved *which* card, or
+    // asked, before this is called.
+    onEdit: (ContactDetail) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val ctx = LocalContext.current
     var query by remember { mutableStateOf("") }
     var openContact by remember { mutableStateOf<ContactDetail?>(null) }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { typed ->
-                query = typed
-                onSearch(typed)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .testTag("contacts-search"),
-            singleLine = true,
-            label = { Text(L10n.contacts_search_placeholder(ctx)) },
-            leadingIcon = {
-                Icon(painterResource(R.drawable.ic_search), contentDescription = null)
-            },
-            trailingIcon = {
-                if (query.isNotEmpty()) {
-                    IconButton(
-                        onClick = {
-                            query = ""
-                            // Clearing resets the filter in the CORE as well as the field, so a
-                            // narrowing the user can no longer see can never shrink the next
-                            // search (the rule mail search follows, docs/search.md).
-                            onSearch("")
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_close),
-                            contentDescription = L10n.contacts_search_clear(ctx),
-                        )
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { typed ->
+                    query = typed
+                    onSearch(typed)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .testTag("contacts-search"),
+                singleLine = true,
+                label = { Text(L10n.contacts_search_placeholder(ctx)) },
+                leadingIcon = {
+                    Icon(painterResource(R.drawable.ic_search), contentDescription = null)
+                },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                query = ""
+                                // Clearing resets the filter in the CORE as well as the field, so
+                                // a narrowing the user can no longer see can never shrink the next
+                                // search (the rule mail search follows, docs/search.md).
+                                onSearch("")
+                            },
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_close),
+                                contentDescription = L10n.contacts_search_clear(ctx),
+                            )
+                        }
                     }
-                }
-            },
-        )
+                },
+            )
 
-        when {
-            rows.isNotEmpty() -> ContactList(rows = rows) { row ->
-                openContact = detailFor(row.id)
+            if (writeLine != null) {
+                Text(
+                    text = writeLine,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 8.dp)
+                        .testTag("contacts-write-status"),
+                )
             }
-            // An empty list means two different things, and saying the wrong one is unhelpful:
-            // "no contacts yet" to someone who searched reads as though their contacts vanished.
-            query.isNotEmpty() -> EmptyState(
-                title = L10n.contacts_no_results(ctx),
-                body = null,
-            )
-            else -> EmptyState(
-                title = L10n.contacts_empty(ctx),
-                body = L10n.contacts_empty_body(ctx),
-            )
+
+            when {
+                rows.isNotEmpty() -> ContactList(rows = rows) { row ->
+                    openContact = detailFor(row.id)
+                }
+                // An empty list means two different things, and saying the wrong one is
+                // unhelpful: "no contacts yet" to someone who searched reads as though their
+                // contacts vanished.
+                query.isNotEmpty() -> EmptyState(
+                    title = L10n.contacts_no_results(ctx),
+                    body = null,
+                )
+                else -> EmptyState(
+                    title = L10n.contacts_empty(ctx),
+                    body = L10n.contacts_empty_body(ctx),
+                )
+            }
+        }
+
+        if (canCreate) {
+            FloatingActionButton(
+                onClick = onCreate,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+                    .testTag("contacts-new"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_add),
+                    contentDescription = L10n.contacts_new(ctx),
+                )
+            }
         }
     }
 
@@ -126,6 +168,10 @@ internal fun ContactsScreen(
             detail = detail,
             accountLabels = accountLabels,
             onDismiss = { openContact = null },
+            onEdit = {
+                openContact = null
+                onEdit(detail)
+            },
         )
     }
 }

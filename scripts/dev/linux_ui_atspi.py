@@ -72,6 +72,12 @@ def walk(node: Any) -> Iterator[Any]:
         yield from walk(child)
 
 
+# How many same-named nodes a text command scans before giving up. A labelled field is two or
+# three (libadwaita's entry row draws its title twice); more than this and the name is too
+# ambiguous to drive by anyway.
+TEXT_SCAN = 8
+
+
 def _matches(value: str, expected: str | None) -> bool:
     return expected is None or value.casefold() == expected.casefold()
 
@@ -212,6 +218,19 @@ def set_node_text(node: Any, value: str) -> bool:
     try:
         editable = node.queryEditableText()
         return bool(editable.setTextContents(value))
+    except Exception:
+        return False
+
+
+def node_editable(node: Any) -> bool:
+    """Whether a node is a *field* rather than a label that merely has text.
+
+    A GTK label answers the text interface too, so "read the contents of X" has to prefer the
+    editable one or it reads the field's own label back at the caller.
+    """
+    try:
+        node.queryEditableText()
+        return True
     except Exception:
         return False
 
@@ -442,6 +461,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f'absent name="{args.name or args.name_substring or ""}" role="{args.role or ""}"')
             return 0
+        # A text command names a *field*, and a labelled field is several nodes sharing one
+        # name: libadwaita's `AdwEntryRow` draws its title as a label beside the entry, and the
+        # label comes first in the tree. Asking for one match would therefore resolve "type
+        # into the field called X" to a label, which can never accept text. So scan a few and
+        # take the first that actually has the interface. An explicit --index still names the
+        # nth match exactly, for the caller who has already looked at the tree.
+        scanning = args.command in ("set-text", "read-text") and args.index == 0
         matches = wait_for_nodes(
             lambda: wait_for_application(args.timeout),
             name=args.name,
@@ -454,17 +480,29 @@ def main(argv: list[str] | None = None) -> int:
             enabled_only=args.command in ("activate", "measure") or args.enabled,
             showing_only=args.command in ("activate", "measure") or args.showing,
             timeout=args.timeout,
-            result_limit=args.index + 1,
+            result_limit=TEXT_SCAN if scanning else args.index + 1,
         )
         if args.index < 0 or args.index >= len(matches):
             raise IndexError(f"target index {args.index} is outside {len(matches)} matches")
         target = matches[args.index]
         if args.command == "read-text":
-            value = read_node_text(target)
-            if value is None:
-                raise RuntimeError("target has no readable text interface")
-            print(value, end="")
-            return 0
+            candidates = [target]
+            if scanning:
+                fields = [node for node in matches if node_editable(node)]
+                candidates = fields or matches
+            for candidate in candidates:
+                value = read_node_text(candidate)
+                if value is not None:
+                    print(value, end="")
+                    return 0
+            raise RuntimeError("target has no readable text interface")
+        if args.command == "set-text":
+            candidates = matches if scanning else [target]
+            for candidate in candidates:
+                if set_node_text(candidate, args.text):
+                    print(f'{node_role(candidate)} name="{node_name(candidate)}"')
+                    return 0
+            raise RuntimeError("target has no enabled editable-text interface")
         print(
             f'{node_role(target)} name="{node_name(target)}"'
             f'{f" description={node_description(target)!r}" if node_description(target) else ""}'
@@ -507,8 +545,6 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "activate" and not activate_node(target):
             raise RuntimeError("target has no enabled activate/click/press/open action")
-        if args.command == "set-text" and not set_node_text(target, args.text):
-            raise RuntimeError("target has no enabled editable-text interface")
         return 0
     except (IndexError, RuntimeError, TimeoutError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)

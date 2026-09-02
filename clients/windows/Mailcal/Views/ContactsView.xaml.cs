@@ -9,6 +9,8 @@
 // network-free but blocks on the core's runtime and lands on the store's connection thread, so a
 // click made while a sync holds that connection would otherwise stall the window.
 
+using System.Threading.Tasks;
+using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
@@ -56,7 +58,81 @@ public sealed partial class ContactsView : UserControl
         SearchBox.Text = string.Empty;
         _settingSearchText = false;
         ClearSearchButton.Visibility = Visibility.Collapsed;
+        // Read here rather than when the New button is pressed, because the answer decides
+        // whether that button exists at all. Fire-and-forget: it hops off the UI thread.
+        _ = Model?.LoadContactBooksAsync();
     }
+
+    private async void OnNewContact(object sender, RoutedEventArgs e)
+    {
+        if (Model is null)
+        {
+            return;
+        }
+        await ShowEditorAsync(null, Blank(), Model.ContactBooks);
+    }
+
+    /// <summary>
+    /// The Edit button beside an open person.
+    /// </summary>
+    /// <remarks>
+    /// One editable card opens straight into the form. Several is a question only the user can
+    /// answer, because a person is several accounts' cards and an edit writes to exactly one of
+    /// them (docs/contacts.md §3).
+    /// </remarks>
+    private async void OnEditContact(object sender, RoutedEventArgs e)
+    {
+        if (Model?.OpenedContact is not { } person)
+        {
+            return;
+        }
+        var cards = Model.EditableCardsOf(person);
+        if (cards.Count == 0)
+        {
+            return;
+        }
+        var card = cards[0];
+        if (cards.Count > 1)
+        {
+            var chooser = new ContactCardChoiceDialog(cards) { XamlRoot = XamlRoot };
+            if (await DialogHelper.ShowAsync(chooser) != ContentDialogResult.Primary
+                || chooser.Picked is not { } picked)
+            {
+                return;
+            }
+            card = picked;
+        }
+        // Seeded from the CARD and never from the person on screen: the person is a merge, so its
+        // values belong to different accounts' cards, and saving them into one would file the work
+        // address book's details in the personal one. A card that has gone since the click opens
+        // no editor: seeding one from nothing would offer to save a blank card over it.
+        var seed = await Model.ContactCardAsync(person.Id, card.Account, card.Card);
+        if (seed is null)
+        {
+            return;
+        }
+        await ShowEditorAsync(
+            new EditedCard(person.Id, card.Account, card.Card),
+            seed,
+            System.Array.Empty<ContactBookChoice>());
+    }
+
+    private async Task ShowEditorAsync(
+        EditedCard? editing,
+        ContactEdit seed,
+        System.Collections.Generic.IReadOnlyList<ContactBookChoice> books)
+    {
+        var editor = new ContactEditorDialog(editing, seed, books) { XamlRoot = XamlRoot };
+        if (await DialogHelper.ShowAsync(editor) == ContentDialogResult.Primary
+            && editor.Intent is { } intent)
+        {
+            Model?.SaveContact(intent);
+        }
+    }
+
+    /// <summary>An empty form. The core's own defaults; nothing here invents a value.</summary>
+    private static ContactEdit Blank() =>
+        new(string.Empty, string.Empty, string.Empty, string.Empty, [], []);
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e)
     {

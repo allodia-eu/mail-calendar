@@ -21,6 +21,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -40,6 +41,9 @@ internal fun ContactDetailSheet(
     // a leak of how ids are built. Falls back to the id if an account has since been removed.
     accountLabels: Map<String, String>,
     onDismiss: () -> Unit,
+    // Editing one of this person's cards. Absent from the sheet entirely when the person has no
+    // writable card: a directory contact, or a shared book this account may only read.
+    onEdit: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     ModalBottomSheet(
@@ -110,11 +114,21 @@ internal fun ContactDetailSheet(
 
             HorizontalDivider()
             Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = L10n.contacts_read_only(ctx),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // The edit affordance is conditional on there being a card to write, and the note
+            // is what stands in its place: a person nothing here can change says so in as many
+            // words rather than leaving it to be inferred from an absence (docs/contacts.md §3).
+            if (detail.editableCards.isEmpty()) {
+                Text(
+                    text = L10n.contacts_not_editable(ctx),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("contact-not-editable"),
+                )
+            } else {
+                TextButton(onClick = onEdit, modifier = Modifier.testTag("contact-edit")) {
+                    Text(L10n.contacts_edit(ctx))
+                }
+            }
         }
     }
 }

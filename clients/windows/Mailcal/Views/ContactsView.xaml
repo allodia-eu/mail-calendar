@@ -18,8 +18,9 @@
          three so that four clients cannot disagree about them; search is pushed INTO the core, which
          is what lets a person beyond the 200-row page cap still be found.
 
-         Read-only in this version, the detail says so in as many words rather than offering an
-         edit affordance that does nothing (§3). -->
+         Contacts can be created and edited here, and both affordances are CONDITIONAL: the New
+         button only where there is a writable address book to file one in, the Edit button only
+         where this person has a card that can be written (§3). -->
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="2*" MinWidth="280" />
@@ -39,6 +40,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
                            Style="{StaticResource SubtitleTextBlockStyle}"
@@ -56,6 +58,16 @@
                         AutomationProperties.Name="{x:Bind l10n:L10n.ContactsSearchClear()}"
                         ToolTipService.ToolTip="{x:Bind l10n:L10n.ContactsSearchClear()}">
                     <FontIcon Glyph="&#xE711;" FontSize="14" />
+                </Button>
+                <!-- Hidden until the core says there is a writable address book: offering a create
+                     with nowhere to file it produces a save that fails on the server after the user
+                     has typed everything in. -->
+                <Button x:Name="NewContactButton" Grid.Column="3" Click="OnNewContact"
+                        Visibility="{x:Bind Model.CreateContactVisibility, Mode=OneWay}"
+                        AutomationProperties.AutomationId="ContactsNew"
+                        AutomationProperties.Name="{x:Bind l10n:L10n.ContactsNew()}"
+                        ToolTipService.ToolTip="{x:Bind l10n:L10n.ContactsNew()}">
+                    <FontIcon Glyph="&#xE710;" FontSize="14" />
                 </Button>
             </Grid>
 
@@ -200,10 +212,27 @@
                 </StackPanel>
 
                 <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-                <!-- Said in as many words, rather than left for the user to infer from the absence
-                     of an edit button, or, worse, from a disabled one they press twice (§3). -->
-                <TextBlock Text="{x:Bind l10n:L10n.ContactsReadOnly()}" TextWrapping="Wrap"
-                           AutomationProperties.AutomationId="ContactsReadOnly"
+                <!-- The write status: a word about the most recent save. "Couldn't confirm" is not
+                     "rejected", the change has already landed on the server and the next sync
+                     heals the local copy. -->
+                <TextBlock Text="{x:Bind Model.ContactWriteStatusText, Mode=OneWay}"
+                           Visibility="{x:Bind Model.ContactWriteStatusVisibility, Mode=OneWay}"
+                           TextWrapping="Wrap"
+                           AutomationProperties.AutomationId="ContactWriteStatus"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <!-- The edit affordance is conditional on there being a card to write, and the note
+                     is what stands in its place: a person nothing here can change says so in as
+                     many words rather than leaving it to be inferred from an absence, or, worse,
+                     from a disabled button they press twice (§3). -->
+                <Button x:Name="EditContactButton" Click="OnEditContact"
+                        Content="{x:Bind l10n:L10n.ContactsEdit()}"
+                        Visibility="{x:Bind Model.OpenedContact.EditVisibility, Mode=OneWay}"
+                        AutomationProperties.AutomationId="ContactEdit"
+                        AutomationProperties.Name="{x:Bind l10n:L10n.ContactsEdit()}" />
+                <TextBlock Text="{x:Bind l10n:L10n.ContactsNotEditable()}" TextWrapping="Wrap"
+                           Visibility="{x:Bind Model.OpenedContact.NotEditableVisibility, Mode=OneWay}"
+                           AutomationProperties.AutomationId="ContactsNotEditable"
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </StackPanel>

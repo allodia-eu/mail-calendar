@@ -29,6 +29,9 @@
 #   scripts/dev/control.sh macos ui-dump              # the live Accessibility tree (assertion oracle)
 #   scripts/dev/control.sh linux activate "Reply"      # semantic AT-SPI action, no pixel coordinates
 #   scripts/dev/control.sh linux set-text "Title" "Team planning"
+#   scripts/dev/control.sh linux read-text "Title"     # a field's CONTENTS, which the tree does not
+#                                                     #   carry: an entry's accessible name is its
+#                                                     #   label, so a dump cannot say what is in it
 #   scripts/dev/control.sh linux ui-dump               # the live GTK accessibility tree
 #   scripts/dev/control.sh windows open-first|calendar|home   # relaunch into a known state (launch hooks)
 #   scripts/dev/control.sh windows ui-dump            # the live window's UI Automation tree
@@ -163,7 +166,10 @@ EOF
       set-text)
         [[ $# -ge 2 ]] || die "set-text <accessible name> <value>"
         exec "$python" "$script" set-text --name "$1" --text "$2" ;;
-      *) die "unknown linux action '$action' (activate|find|set-text|ui-dump)" ;;
+      read-text)
+        [[ $# -ge 1 ]] || die "read-text <accessible name>"
+        exec "$python" "$script" read-text --name "$1" ;;
+      *) die "unknown linux action '$action' (activate|find|read-text|set-text|ui-dump)" ;;
     esac
     ;;
   windows)

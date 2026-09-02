@@ -59,6 +59,7 @@ impl AppModel {
             }
             Surface::Calendar => self.calendar.refresh(&app),
             Surface::Contacts => self.contacts.refresh(&app),
+            Surface::ContactsStatus => self.contacts.refresh_write_status(&app),
             Surface::CalendarStatus => self.calendar.refresh_write_status(&app),
             Surface::Settings => self.calendar.refresh_settings(&app),
             Surface::Connectivity => {
@@ -82,9 +83,15 @@ impl AppModel {
             }
             AppInput::SurfaceChanged(surface) => {
                 let collect_new_mail = matches!(surface, Surface::MailboxList);
+                let contacts_arrived = matches!(surface, Surface::Contacts);
                 self.pull(&surface);
                 if collect_new_mail {
                     sender.input_sender().emit(AppInput::CollectNewMail);
+                }
+                // Once the rows exist, and not before: the hook names a person, and the list is
+                // filled asynchronously after the surface is entered.
+                if contacts_arrived {
+                    self.apply_debug_open_contact_hook(sender.input_sender().clone());
                 }
             }
             AppInput::NetworkReachabilityChanged(reachable) => {
@@ -112,7 +119,7 @@ impl AppModel {
             }
             AppInput::ShowMail => self.primary = PrimaryView::Mail,
             AppInput::ShowCalendar => self.show_calendar(),
-            AppInput::ShowContacts => self.show_contacts(),
+            AppInput::ShowContacts => self.show_contacts(sender.input_sender().clone()),
             AppInput::RefreshContacts => self.dispatch(Intent::RefreshContacts),
             AppInput::SearchContacts(query) => self.search_contacts(query),
             AppInput::OpenContact(id) => {
@@ -121,6 +128,19 @@ impl AppModel {
             AppInput::ContactOpened(lookup, detail) => {
                 self.contact_opened(lookup, detail.as_deref());
             }
+            AppInput::ContactTargetsLoaded(targets) => self.contact_targets_loaded(&targets),
+            AppInput::BeginNewContact => self.begin_new_contact(),
+            AppInput::EditOpenContact => {
+                self.edit_open_contact(sender.input_sender().clone());
+            }
+            AppInput::BeginEditContact(account, card) => {
+                self.begin_edit_contact(account, card, sender.input_sender().clone());
+            }
+            AppInput::ContactCardLoaded(target, seed) => {
+                self.contact_card_loaded(target, seed.map(|seed| *seed));
+            }
+            AppInput::SubmitContactForm(intent) => self.submit_contact_form(*intent),
+            AppInput::DismissContactEditor => self.dismiss_contact_editor(),
             AppInput::SetCalendarMode(mode) => {
                 if let Some(app) = &self.app {
                     self.calendar.set_mode(app, mode);

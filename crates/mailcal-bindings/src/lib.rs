@@ -147,7 +147,8 @@ pub use records_connectivity::{
     AccountProvider, ConnectionInfo, ConnectivitySnapshot, HttpVersion, TlsVersion,
 };
 pub use records_contacts::{
-    ContactDetail, ContactRow, ContactValue, ContactsSnapshot, RecipientMatch,
+    ContactCardRef, ContactDetail, ContactEdit, ContactRow, ContactTarget, ContactValue,
+    ContactWriteStatus, ContactsSnapshot, RecipientMatch,
 };
 pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,

@@ -291,6 +291,7 @@ public sealed partial class MailboxModel
             Accounts = spans
                 ? [.. detail.Accounts.Select(id => ContactSections.AccountLabel(id, labels))]
                 : [],
+            EditableCards = detail.EditableCards,
         };
     }
 

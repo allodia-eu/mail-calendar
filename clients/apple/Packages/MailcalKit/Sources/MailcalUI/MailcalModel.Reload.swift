@@ -76,6 +76,13 @@ extension MailboxModel {
         // Contacts screen says "no contacts yet", which reads as *your contacts are gone*, the
         // exact misreading its two distinct empty states exist to avoid. (The core keeps the last
         // snapshot on a failed store read for the same reason.)
+        // A write-status signal only moves the line under the contacts search field; the list
+        // arrives on its own `.contacts` signal. Its own branch rather than falling through to
+        // the mailbox path below, which would re-pull every row for a word.
+        if case .contactsStatus = surface {
+            contactWriteStatus = app?.contactWriteStatus() ?? .idle
+            return
+        }
         if case .contacts = surface {
             if let snapshot = app?.contactList() { contacts = snapshot.rows }
             return

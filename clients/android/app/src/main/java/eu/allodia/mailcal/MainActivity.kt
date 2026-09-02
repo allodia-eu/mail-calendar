@@ -193,6 +193,11 @@ class MainActivity : AppCompatActivity() {
     // The contacts list, one row per unified PERSON (the core merges cards sharing an address,
     // across accounts), pulled on a CONTACTS surface change and when switching to the tab.
     internal var contacts by mutableStateOf<List<ContactRow>>(emptyList())
+    // Everything the contacts surface needs to WRITE: the books a create may file into, the open
+    // editor, the "which account?" question before it, and the last write's outcome. One holder
+    // (MainActivityContacts.kt) rather than five slots here, because they are one feature and
+    // they change together.
+    internal val contactWrites = ContactWriteState()
     // The calendar agenda rows, pulled from the core on a CALENDAR surface change (and when
     // switching to the calendar tab). Soonest first, as ordered by the engine.
     internal var events by mutableStateOf<List<EventRow>>(emptyList())
@@ -382,6 +387,10 @@ class MainActivity : AppCompatActivity() {
                         calendarVersion += 1
                     }
                     CoreSurface.CONTACTS -> contacts = app.contactList().rows
+                    // A write-status signal only moves the editor's own feedback; the list
+                    // arrives on its own CONTACTS signal.
+                    CoreSurface.CONTACTS_STATUS ->
+                        contactWrites.status = app.contactWriteStatus()
                     // A write-status signal only moves the small header badge (spinner → check /
                     // warning); the grid/agenda arrive on their own CALENDAR signal.
                     CoreSurface.CALENDAR_STATUS -> calendarWriteStatus = app.calendarWriteStatus()

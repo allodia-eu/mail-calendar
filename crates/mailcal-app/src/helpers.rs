@@ -49,9 +49,20 @@ pub(crate) fn generated_content_id(seq: usize) -> String {
 /// process-wide counter guards against same-tick collisions; a production host would
 /// mint a UUID.
 pub(crate) fn generated_uid() -> String {
+    unique("evt")
+}
+
+/// A unique, URL-safe **contact** uid, on the same terms as [`generated_uid`]: it becomes the
+/// CardDAV resource href, so nothing in it may be percent-encoded.
+pub(crate) fn generated_contact_uid() -> String {
+    unique("ctc")
+}
+
+/// The shared minting: the wall clock, plus a process-wide counter for same-tick collisions.
+fn unique(prefix: &str) -> String {
     static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    format!("evt-{}-{seq}", wall_nanos())
+    format!("{prefix}-{}-{seq}", wall_nanos())
 }
 
 /// The reply subject for `original`: `Re: <subject>`, not doubled if it already is one.

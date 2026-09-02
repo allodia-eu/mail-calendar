@@ -8,8 +8,12 @@
 //! the "In N accounts" disclosure only where there is a merge to disclose, and the localised copy
 //! the core deliberately does not carry.
 
-use mailcal_bindings::{AccountRow, ContactDetail, ContactRow, ContactValue, MailcalApp};
+use mailcal_bindings::{
+    AccountRow, ContactDetail, ContactEdit, ContactRow, ContactTarget, ContactValue,
+    ContactWriteStatus, MailcalApp,
+};
 
+use super::editor::{BookChoice, ContactEditor, EditTarget};
 use crate::{l10n, ui::avatar::AvatarData};
 
 /// What the list column has to show. The two empty states are deliberately different sentences:
@@ -42,11 +46,24 @@ pub(crate) struct PersonRow {
 /// One person's detail: every value, grouped, with the accounts that supplied it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PersonDetail {
+    /// The person's id, which an edit carries so a card retired by a merge still resolves.
+    pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) avatar: AvatarData,
     pub(crate) groups: Vec<ValueGroup>,
     /// The accounts named under "Also in": empty unless this person really is a merge.
     pub(crate) accounts: Vec<String>,
+    /// The cards this person can be edited through. Empty means every source is read-only,
+    /// and the detail says so instead of offering an edit that would fail on press.
+    pub(crate) editable: Vec<CardChoice>,
+}
+
+/// One card an edit could go to, labelled by the account the user knows it by.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CardChoice {
+    pub(crate) account: String,
+    pub(crate) card: String,
+    pub(crate) label: String,
 }
 
 /// One headed group of values (the emails, the phone numbers, …).
@@ -72,6 +89,19 @@ pub(crate) struct ContactsModel {
     query: String,
     opened: Option<PersonDetail>,
     lookup: u64,
+    /// Where a new contact could be filed. Empty means nowhere, and the surface offers no
+    /// create at all rather than one that cannot succeed.
+    targets: Vec<BookChoice>,
+    /// The open editor, and a counter the pane compares against so one editor is presented
+    /// once. The same shape the calendar's dialog uses, for the same reason: `render` runs on
+    /// every model change, and a dialog keyed on `Some`/`None` alone would be re-presented by
+    /// an unrelated one.
+    editor: Option<ContactEditor>,
+    editor_generation: u64,
+    /// The "which account?" question, when a merged person has more than one editable card.
+    card_choice: Option<Vec<CardChoice>>,
+    choice_generation: u64,
+    write_status: ContactWriteStatus,
 }
 
 impl ContactsModel {
@@ -85,6 +115,31 @@ impl ContactsModel {
 
     pub(crate) fn query(&self) -> &str {
         &self.query
+    }
+
+    /// Whether the surface may offer to create a contact: only with somewhere to put one.
+    pub(crate) fn can_create(&self) -> bool {
+        !self.targets.is_empty()
+    }
+
+    pub(crate) fn write_status(&self) -> ContactWriteStatus {
+        self.write_status
+    }
+
+    pub(crate) fn editor(&self) -> Option<&ContactEditor> {
+        self.editor.as_ref()
+    }
+
+    pub(crate) fn editor_generation(&self) -> u64 {
+        self.editor_generation
+    }
+
+    pub(crate) fn card_choice(&self) -> Option<&[CardChoice]> {
+        self.card_choice.as_deref()
+    }
+
+    pub(crate) fn choice_generation(&self) -> u64 {
+        self.choice_generation
     }
 
     pub(crate) fn state(&self) -> ListState {
@@ -101,6 +156,74 @@ impl ContactsModel {
     /// Reads the snapshot the core just published.
     pub(crate) fn refresh(&mut self, app: &MailcalApp) {
         self.rows = people(&app.contact_list().rows);
+    }
+
+    /// Reads the write status the core just published.
+    pub(crate) fn refresh_write_status(&mut self, app: &MailcalApp) {
+        self.write_status = app.contact_write_status();
+    }
+
+    /// Files the writable address books, read off the UI thread when the surface opened.
+    pub(crate) fn set_targets(&mut self, targets: &[ContactTarget], accounts: &[AccountRow]) {
+        // The account's address is what a user recognises; the book's name only matters when
+        // one account offers several, where the address alone would repeat.
+        let mut per_account = std::collections::BTreeMap::new();
+        for target in targets {
+            *per_account.entry(target.account.clone()).or_insert(0_usize) += 1;
+        }
+        self.targets = targets
+            .iter()
+            .map(|target| {
+                let account = account_label(&target.account, accounts);
+                let label = if per_account.get(&target.account).copied().unwrap_or(0) > 1
+                    && !target.name.is_empty()
+                {
+                    format!("{account} ({})", target.name)
+                } else {
+                    account
+                };
+                BookChoice {
+                    account: target.account.clone(),
+                    book: target.address_book.clone(),
+                    label,
+                    is_default: target.is_default,
+                }
+            })
+            .collect();
+    }
+
+    /// Opens the create form. The caller has already checked there is somewhere to file it.
+    pub(crate) fn begin_create(&mut self) {
+        self.open_editor(ContactEditor::create(self.targets.clone()));
+    }
+
+    /// Opens the edit form on one card, seeded with what that card holds.
+    pub(crate) fn begin_edit(&mut self, target: EditTarget, seed: ContactEdit) {
+        self.open_editor(ContactEditor::edit(target, seed));
+    }
+
+    /// Raises the "which account?" question for a person filed in several.
+    pub(crate) fn ask_which_card(&mut self, choices: Vec<CardChoice>) {
+        self.card_choice = Some(choices);
+        self.choice_generation = self.choice_generation.wrapping_add(1);
+    }
+
+    /// The person the detail is showing, and the cards it can be edited through.
+    pub(crate) fn open_person(&self) -> Option<(&str, &[CardChoice])> {
+        self.opened
+            .as_ref()
+            .map(|person| (person.id.as_str(), person.editable.as_slice()))
+    }
+
+    pub(crate) fn close_editor(&mut self) {
+        self.editor = None;
+        self.card_choice = None;
+    }
+
+    fn open_editor(&mut self, editor: ContactEditor) {
+        self.card_choice = None;
+        self.editor = Some(editor);
+        self.editor_generation = self.editor_generation.wrapping_add(1);
     }
 
     /// Entering the surface. The query is dropped here **and** dispatched as an empty
@@ -207,6 +330,16 @@ fn build_detail(detail: &ContactDetail, accounts: &[AccountRow]) -> PersonDetail
         }
     }
     PersonDetail {
+        id: detail.id.clone(),
+        editable: detail
+            .editable_cards
+            .iter()
+            .map(|card| CardChoice {
+                account: card.account.clone(),
+                card: card.card.clone(),
+                label: account_label(&card.account, accounts),
+            })
+            .collect(),
         name: display_name(&detail.display_name),
         avatar: AvatarData::from(&detail.avatar),
         groups,
@@ -284,6 +417,16 @@ impl ContactsModel {
         let lookup = model.begin_lookup();
         model.finish_lookup(lookup, opened, accounts);
         model
+    }
+
+    /// The same fixture, with somewhere a contact could be saved.
+    pub(super) fn with_targets(
+        mut self,
+        targets: &[ContactTarget],
+        accounts: &[AccountRow],
+    ) -> Self {
+        self.set_targets(targets, accounts);
+        self
     }
 }
 

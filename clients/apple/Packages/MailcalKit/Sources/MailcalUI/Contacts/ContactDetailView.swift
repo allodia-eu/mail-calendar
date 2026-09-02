@@ -14,6 +14,9 @@ struct ContactDetailView: View {
     /// (`alice@test.local@jmap:127.0.0.1:18080`); showing one is both ugly and a leak of how ids
     /// are built. Falls back to the id if an account has since been removed.
     let accountLabels: [String: String]
+    /// Editing one of this person's cards. Absent from the screen entirely when the person has no
+    /// writable card: a directory contact, or a shared book this account may only read.
+    var onEdit: (() -> Void)?
 
     /// How many accounts the whole person spans. With only one there is nothing to disambiguate,
     /// so the per-value account tags are suppressed rather than repeating the same account name
@@ -50,12 +53,17 @@ struct ContactDetailView: View {
                 }
 
                 Divider()
-                // Said in as many words, rather than left for the user to infer from the absence
-                // of an edit button, or, worse, from a disabled one they press twice
-                // (docs/contacts.md §3).
-                Text(L10n.contacts_read_only())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // The edit affordance is conditional on there being a card to write, and the note
+                // is what stands in its place: a person nothing here can change says so in as many
+                // words rather than leaving it to be inferred from an absence, or, worse, from a
+                // disabled button they press twice (docs/contacts.md §3).
+                if detail.editableCards.isEmpty {
+                    Text(L10n.contacts_not_editable())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if let onEdit {
+                    Button(L10n.contacts_edit(), action: onEdit)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)

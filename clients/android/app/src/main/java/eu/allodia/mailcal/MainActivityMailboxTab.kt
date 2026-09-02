@@ -9,8 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import uniffi.mailcal_bindings.AccountProvider
+import uniffi.mailcal_bindings.ContactDetail
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
@@ -19,6 +25,11 @@ private const val TAG = "Mailcal"
 
 @Composable
 internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
+    // The contacts reads below are network-free but not free: each blocks on the core's runtime
+    // and lands on the store's connection thread, so a call made while a sync holds it waits for
+    // it. Off the UI thread, therefore, unlike the detail read this screen already does inline.
+    val scope = rememberCoroutineScope()
+    val accountLabels = accounts.associate { it.id to it.email }
     Column(modifier = Modifier.fillMaxSize()) {
                           // A launch outage no longer shows a raw error dump here (it overflowed the
                           // status bar): accounts that can't connect are kept, badged unreachable,
@@ -47,6 +58,16 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                         // longer see" failure docs/search.md exists to prevent.
                                         instance.dispatch(Intent.SearchContacts(""))
                                         contacts = instance.contactList().rows
+                                        // Read on entering the tab rather than when the create
+                                        // button is pressed, because the answer decides whether
+                                        // that button exists at all.
+                                        scope.launch {
+                                            val targets = withContext(Dispatchers.IO) {
+                                                instance.contactTargets()
+                                            }
+                                            contactWrites.targets =
+                                                ContactBookChoice.from(targets, accountLabels)
+                                        }
                                         instance.dispatch(Intent.RefreshContacts)
                                     }
                                 }
@@ -74,8 +95,31 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 // The detail sheet names the accounts a merged contact came from.
                                 // The core's ids are internal, so map them to the addresses the
                                 // user actually recognises.
-                                accountLabels = accounts.associate { it.id to it.email },
+                                accountLabels = accountLabels,
+                                writeLine = contactWrites.line(LocalContext.current),
+                                canCreate = contactWrites.targets.isNotEmpty(),
+                                onCreate = {
+                                    contactWrites.editor =
+                                        ContactEditorState.create(contactWrites.targets)
+                                },
+                                // One editable card opens straight into the form. Several is a
+                                // question only the user can answer: a person is several
+                                // accounts' cards and an edit writes to exactly one of them
+                                // (docs/contacts.md §3).
+                                onEdit = { detail ->
+                                    val cards = ContactCardChoice.from(
+                                        detail.editableCards,
+                                        accountLabels,
+                                    )
+                                    if (cards.size == 1) {
+                                        openContactEditor(instance, scope, detail.id, cards[0])
+                                    } else {
+                                        contactWrites.cardChoice = cards
+                                        contactWrites.person = detail.id
+                                    }
+                                },
                             )
+                            ContactWriteSheets(instance, scope)
                           } else if (destination == AppDestination.CALENDAR) {
                             CalendarScreen(
                                 // The grid's page query: synchronous, cheap, and never touching the
