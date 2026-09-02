@@ -26,6 +26,7 @@ mod event_detail;
 mod google;
 mod graph;
 mod imap;
+mod imap_auth;
 mod jmap;
 mod log_handle;
 mod microsoft;
@@ -69,6 +70,7 @@ pub use imap::{
     ImapTokens, connect_imap_mailbox, connect_imap_watcher, connect_mail_providers,
     imap_credentials,
 };
+pub use imap_auth::{ImapAuth, ImapAuthQuery, decide_imap_auth, imap_issuer, log_smtp_auth};
 pub use jmap::{
     JmapAccountConfig, JmapSetup, build_jmap_config_toml, connect_jmap_calendar_providers,
     connect_jmap_contact_providers, connect_jmap_folder, connect_jmap_mail_providers,
@@ -97,7 +99,7 @@ pub use repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary, summarize_repe
 pub use series_warning::{
     SeriesEditTouches, SeriesEditWarning, series_edit_touches, series_edit_warning,
 };
-pub use setup::{AccountSetup, build_config_toml};
+pub use setup::{AccountSetup, SetupCredential, build_config_toml};
 pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,

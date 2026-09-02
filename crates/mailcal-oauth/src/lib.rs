@@ -31,6 +31,7 @@
 pub mod credentials;
 mod discovery;
 mod grant;
+mod mail_providers;
 mod pkce;
 mod provider;
 mod reach;
@@ -44,6 +45,7 @@ pub use discovery::{
     discover_protected_resource, discovery_client,
 };
 pub use grant::{GrantRefusal, GrantedScopes};
+pub use mail_providers::{StaticMailProvider, provider_for_host, static_mail_providers};
 pub use pkce::{Pkce, random_state};
 pub use provider::{AuthStyle, GOOGLE_SCOPES, MICROSOFT_GRAPH_SCOPES, OAuthProviderConfig};
 pub use reach::TokenRequestReach;

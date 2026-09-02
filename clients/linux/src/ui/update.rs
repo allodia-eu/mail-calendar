@@ -351,6 +351,29 @@ impl AppModel {
             AppInput::StartJmapLogin(email, server_url) => {
                 self.start_jmap_login(email, server_url, sender.input_sender().clone());
             }
+            AppInput::ProbeManualImapSignIn(form) => {
+                self.probe_manual_imap_sign_in(*form, sender.input_sender().clone());
+            }
+            AppInput::ImapAuthAnswered {
+                email,
+                imap_host,
+                offer,
+            } => {
+                self.imap_auth_answered(&email, &imap_host, *offer);
+            }
+            AppInput::StartImapLogin(form) => {
+                self.start_imap_login(*form, sender.input_sender().clone());
+            }
+            AppInput::CancelImapLogin => self.cancel_imap_login(),
+            AppInput::ImapPrepared(attempt, prepared) => {
+                self.imap_prepared(attempt, prepared, sender.input_sender().clone());
+            }
+            AppInput::ImapCallbackReceived(attempt) => {
+                self.imap_callback_received(attempt);
+            }
+            AppInput::ImapFinished(attempt, outcome) => {
+                self.imap_finished(attempt, outcome, sender.input_sender().clone());
+            }
             AppInput::CancelJmapLogin => self.cancel_jmap_login(),
             AppInput::JmapPrepared(attempt, prepared) => {
                 self.jmap_prepared(attempt, prepared, sender.input_sender().clone());

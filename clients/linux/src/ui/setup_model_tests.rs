@@ -153,6 +153,7 @@ fn jmap_form() -> SetupForm {
 fn imap_form() -> SetupForm {
     recommendation_form(
         SetupRecommendation::Imap {
+            oauth_issuer: None,
             email: "alice@example.test".to_owned(),
             imap_host: "imap.example.test:143".to_owned(),
             smtp_host: Some("smtp.example.test:587".to_owned()),

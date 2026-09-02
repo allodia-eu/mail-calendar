@@ -18,6 +18,7 @@ const BUDGET: Duration = Duration::from_secs(4);
 /// the provider domain the probe derives).
 fn settings(imap_host: &str) -> DetectedMailSettings {
     DetectedMailSettings {
+        oauth_issuer: None,
         incoming: vec![DetectedServer {
             hostname: imap_host.to_owned(),
             port: 993,
