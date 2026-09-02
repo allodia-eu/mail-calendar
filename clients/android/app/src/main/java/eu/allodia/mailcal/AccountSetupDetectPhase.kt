@@ -12,22 +12,31 @@ internal sealed interface DetectPhase {
     object Email : DetectPhase
     object Detecting : DetectPhase
 
-    // `signInOffered` is resolved *before* this phase is entered, so the card renders in its
-    // final shape. Resolving it afterwards meant the secret field appeared for a second and then
-    // vanished under the user, the flash this design exists to prevent.
-    data class Found(val recommendation: SetupRecommendation, val signInOffered: Boolean) :
-        DetectPhase
+    // `signInOffered` and `imapAuth` are both resolved *before* this phase is entered, so the
+    // card renders in its final shape. Resolving either afterwards meant the secret field
+    // appeared for a second and then vanished under the user, the flash this design exists to
+    // prevent, and it is the same reason `imapAuth` has no "still asking" state here: the
+    // "Looking…" spinner is what somebody sees while the server is being asked.
+    data class Found(
+        val recommendation: SetupRecommendation,
+        val signInOffered: Boolean,
+        val imapAuth: ImapAuthState = ImapAuthState.Password,
+    ) : DetectPhase
 
     data class Manual(val reason: MissReason?, val edit: SetupRecommendation?) : DetectPhase
 }
 
 // Routes a detection result: a Manual result drops to the manual form with its reason;
 // everything else shows a routed card.
-internal fun route(recommendation: SetupRecommendation, signInOffered: Boolean): DetectPhase =
+internal fun route(
+    recommendation: SetupRecommendation,
+    signInOffered: Boolean,
+    imapAuth: ImapAuthState = ImapAuthState.Password,
+): DetectPhase =
     when (recommendation) {
         is SetupRecommendation.Manual ->
             DetectPhase.Manual(reason = recommendation.reason, edit = null)
-        else -> DetectPhase.Found(recommendation, signInOffered)
+        else -> DetectPhase.Found(recommendation, signInOffered, imapAuth)
     }
 
 // The localised line explaining why detection sent the user to manual setup.

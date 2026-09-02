@@ -119,6 +119,11 @@ internal fun AccountSetupScreen(
     // Starts the JMAP browser sign-in for the typed email + server.
     onSignInJmap: (String, String) -> Unit = { _, _ -> },
     signingInJmap: Boolean = false,
+    // Asks the typed mail server what it accepts. Null where there is no core to ask, which is a
+    // preview or a test: the pane then simply never offers a sign-in.
+    onCheckImapAuth: (suspend (uniffi.mailcal_bindings.ImapLoginRequest) -> uniffi.mailcal_bindings.ImapAuthOffer)? = null,
+    onSignInImap: ((uniffi.mailcal_bindings.ImapLoginRequest) -> Unit)? = null,
+    signingInImap: Boolean = false,
     initialKind: AccountKind = AccountKind.PASSWORD,
     // Which account types the picker shows, [AccountKind.offered] for what this build carries.
     // Passed in rather than read here so the form stays renderable without the core: every kind
@@ -162,6 +167,8 @@ internal fun AccountSetupScreen(
     // same thing in the reader's language and with the certificate beside it. A refusal on a
     // route that cannot carry an exception keeps its message, because nothing else would say it.
     val error = failure?.takeIf { it.certificate == null || kind != AccountKind.PASSWORD }?.message
+    // What the typed mail server said it accepts.
+    var imapAuth by remember { mutableStateOf<ImapAuthState>(ImapAuthState.Password) }
     val ctx = LocalContext.current
 
     val canConnect = imapHost.isNotBlank() && username.isNotBlank() && password.isNotBlank()
@@ -180,6 +187,25 @@ internal fun AccountSetupScreen(
             }
             kotlinx.coroutines.delay(JMAP_SIGNIN_PROBE_DEBOUNCE_MS)
             jmapSignInOffered = onCheckJmapSignIn(username, jmapServer)
+        }
+    }
+
+    // The same question of the typed mail server, debounced the same way. This pane's password
+    // field stays on screen throughout (it is already there, and taking it away would erase a
+    // password somebody is in the middle of typing), so an answer can only ever *add* the button
+    // or a line of explanation.
+    if (onCheckImapAuth != null) {
+        androidx.compose.runtime.LaunchedEffect(kind, username, imapHost) {
+            imapAuth = ImapAuthState.Password
+            if (kind != AccountKind.PASSWORD || !username.contains('@') || imapHost.isBlank()) {
+                return@LaunchedEffect
+            }
+            kotlinx.coroutines.delay(JMAP_SIGNIN_PROBE_DEBOUNCE_MS)
+            imapAuth = ImapAuthState.of(
+                onCheckImapAuth(
+                    typedImapLoginRequest(username, imapHost, smtpHost, caldavBaseUrl)
+                )
+            )
         }
     }
 
@@ -271,6 +297,23 @@ internal fun AccountSetupScreen(
                     ctx = ctx,
                 )
                 SetupField(username, { username = it }, L10n.setup_field_email(ctx), keyboardType = KeyboardType.Email)
+                if (imapAuth.offersSignIn || imapAuth.explainsRegistration) {
+                    ImapAuthExplanation(imapAuth)
+                }
+                // Offered above the password field, but never instead of it: the manual pane is
+                // where somebody lands when nothing was detected, and a server that declines
+                // sign-in must still be connectable from here.
+                if (imapAuth.offersSignIn && onSignInImap != null) {
+                    SignInButton(
+                        enabled = !signingInImap,
+                        signingIn = signingInImap,
+                        label = L10n.setup_imap_signin_button(ctx),
+                    ) {
+                        onSignInImap(
+                            typedImapLoginRequest(username, imapHost, smtpHost, caldavBaseUrl)
+                        )
+                    }
+                }
                 PasswordField(password, { password = it }, L10n.setup_field_password(ctx))
                 ServerRow(
                     host = smtpHost,
@@ -364,104 +407,6 @@ internal fun AccountSetupScreen(
             TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
                 Text(L10n.action_cancel(ctx))
             }
-        }
-    }
-}
-
-// The Early Access notice + mandatory confirmation that gates Google sign-in. Google is in Early
-// Access while it reviews the app and hard-blocks anyone not on the app's OAuth test-user
-// allow-list, so the user must sign up first (the link) and confirm they've done so (the
-// checkbox) before we open the browser, or they'd hit Google's block screen instead of ours. The
-// caller keeps [confirmed] and disables its "Sign in with Google" button until it is true. Shared
-// by the manual picker (AccountSetupScreen) and the detected-account card (AccountSetupDetect).
-@androidx.compose.runtime.Composable
-internal fun GoogleEarlyAccessInfo(
-    confirmed: Boolean,
-    onConfirmedChange: (Boolean) -> Unit,
-) {
-    val ctx = LocalContext.current
-    val uriHandler = LocalUriHandler.current
-    Text(
-        text = L10n.setup_google_early_access_title(ctx),
-        style = MaterialTheme.typography.titleSmall,
-    )
-    Text(
-        text = L10n.setup_google_early_access_body(ctx),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    TextButton(onClick = { uriHandler.openUri(L10n.setup_google_early_access_url(ctx)) }) {
-        Text(L10n.setup_google_early_access_link(ctx))
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = confirmed, onCheckedChange = onConfirmedChange)
-        Text(
-            text = L10n.setup_google_early_access_confirm(ctx),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-}
-
-// The "Sign in with Google" button, shared by the manual picker and the detected-account card.
-// [enabled] must already fold in the Early Access confirmation (the caller gates it), so this
-// button can never start a sign-in Google would hard-block. Shows a spinner + "Signing in…" while
-// the browser sign-in is in flight.
-@androidx.compose.runtime.Composable
-internal fun GoogleSignInButton(
-    enabled: Boolean,
-    signingIn: Boolean,
-    onClick: () -> Unit,
-) {
-    val ctx = LocalContext.current
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-        if (signingIn) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                Text(L10n.setup_google_signing_in(ctx))
-            }
-        } else {
-            Text(L10n.setup_google_signin(ctx))
-        }
-    }
-}
-
-// The "Sign in with your provider" offer for a JMAP account: a note plus the button, shown only
-// when the core confirmed this server advertises discoverable OAuth. Hidden entirely otherwise:
-// an always-visible button that fails for most servers is worse than no button.
-@androidx.compose.runtime.Composable
-private fun JmapSignInOffer(offered: Boolean, signingIn: Boolean, onClick: () -> Unit) {
-    if (!offered) return
-    val ctx = LocalContext.current
-    Text(
-        text = L10n.setup_jmap_signin_note(ctx),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    ConnectButton(
-        enabled = !signingIn,
-        connecting = signingIn,
-        label = L10n.setup_jmap_signin_button(ctx),
-        onClick = onClick,
-    )
-}
-
-// The Connect button shared by the IMAP and JMAP branches: a spinner while the (blocking)
-// connect + first sync runs so an impatient user can't fire it twice and sees it's working.
-@androidx.compose.runtime.Composable
-internal fun ConnectButton(
-    enabled: Boolean,
-    connecting: Boolean,
-    label: String,
-    onClick: () -> Unit,
-) {
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-        if (connecting) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp))
-        } else {
-            Text(label)
         }
     }
 }
