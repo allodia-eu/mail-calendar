@@ -12,6 +12,13 @@ use mailcal_account::{
     MicrosoftConfig,
 };
 
+/// An IMAP account's config, connections and (for an OAuth account) token source, borrowed.
+pub(crate) type ImapParts<'a> = (
+    &'a AccountConfig,
+    &'a Arc<ImapConnections>,
+    Option<&'a Arc<GraphTokenSource>>,
+);
+
 /// One connected account's re-connection state, kept so the on-demand [`HostConnector`]
 /// and a sync-depth change can re-open a provider for any of its folders after the fact.
 /// An IMAP account carries its config; a Microsoft account carries its config plus the
@@ -19,13 +26,17 @@ use mailcal_account::{
 /// Both hold credentials in memory only (never logged; their `Debug` redacts secrets).
 #[derive(Debug)]
 pub(crate) enum ConnectedAccount {
-    /// An IMAP/SMTP/CalDAV (password) account and its connections.
+    /// An IMAP/SMTP/CalDAV account and its connections.
     Imap {
-        /// The persisted config.
+        /// The persisted config (its refresh token is updated in place on rotation).
         config: AccountConfig,
         /// The account's IMAP connections, shared by every folder provider and push watch, so
         /// the account's socket count is the engine's budget however many folders are bound.
         connections: Arc<ImapConnections>,
+        /// The shared token source every connection, watch and calendar of an **OAuth** account
+        /// mints access tokens from; `None` for a password account, which has nothing to
+        /// refresh.
+        tokens: Option<Arc<GraphTokenSource>>,
     },
     /// A Microsoft 365 (Graph/OAuth) account and its shared token source.
     Microsoft {
@@ -103,21 +114,29 @@ impl ConnectedAccount {
 
     /// A newly registered IMAP account, with connections of its own: nothing is connected until
     /// the first dial or watch.
-    pub(crate) fn imap_account(config: AccountConfig) -> Self {
+    pub(crate) fn imap_account(
+        config: AccountConfig,
+        tokens: Option<Arc<GraphTokenSource>>,
+    ) -> Self {
         Self::Imap {
             config,
             connections: ImapConnections::new(),
+            tokens,
         }
     }
 
-    /// The IMAP config and connections, or `None` for a Microsoft/JMAP account: so an IMAP-only
-    /// path (an `IDLE` watch) can skip non-IMAP entries.
-    pub(crate) fn imap(&self) -> Option<(&AccountConfig, &Arc<ImapConnections>)> {
+    /// The IMAP config, connections and token source, or `None` for a Microsoft/JMAP account: so
+    /// an IMAP-only path (an `IDLE` watch) can skip non-IMAP entries.
+    ///
+    /// They travel together because every IMAP dial needs all three: a watch that took the
+    /// config alone would authenticate an OAuth account with nothing at all.
+    pub(crate) fn imap(&self) -> Option<ImapParts<'_>> {
         match self {
             Self::Imap {
                 config,
                 connections,
-            } => Some((config, connections)),
+                tokens,
+            } => Some((config, connections, tokens.as_ref())),
             Self::Microsoft { .. } | Self::Google { .. } | Self::Jmap { .. } => None,
         }
     }

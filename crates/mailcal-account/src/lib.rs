@@ -26,9 +26,11 @@ mod event_detail;
 mod google;
 mod graph;
 mod imap;
+mod imap_credentials;
 mod jmap;
 mod log_handle;
 mod microsoft;
+mod oauth_grant;
 mod pass_folders;
 mod preferences;
 mod reconnect;
@@ -70,13 +72,15 @@ pub use graph::{
 pub use imap::{
     ImapConnections, connect_imap_mailbox, connect_imap_watcher, connect_mail_providers,
 };
+pub use imap_credentials::{ImapTokens, OAuthCredentialSource, imap_credential_source};
 pub use jmap::{
-    JmapAccountConfig, JmapOAuth, JmapSetup, build_jmap_config_toml,
-    connect_jmap_calendar_providers, connect_jmap_contact_providers, connect_jmap_folder,
-    connect_jmap_mail_providers, jmap_base_url, jmap_token_source, load_jmap_str,
+    JmapAccountConfig, JmapSetup, build_jmap_config_toml, connect_jmap_calendar_providers,
+    connect_jmap_contact_providers, connect_jmap_folder, connect_jmap_mail_providers,
+    jmap_base_url, load_jmap_str,
 };
 pub use log_handle::account_log_handle;
 pub use microsoft::{MicrosoftConfig, fetch_primary_address, load_microsoft_str};
+pub use oauth_grant::{OAuthGrant, oauth_token_source};
 pub use pass_folders::pass_syncs;
 pub use preferences::{
     AccountSyncSettings, Appearance, CalendarLayout, CalendarPrefs, DEFAULT_POLL_INTERVAL,
@@ -106,6 +110,39 @@ pub use signatures::{
 
 use crate::{setup::normalize_caldav_base_url, tls::account_tls};
 
+/// The CalDAV credential for `account`: HTTP Basic from the stored password, or the mail
+/// grant's bearer token when the account signs in with OAuth.
+///
+/// A discovered calendar rides on the mail account's own credential (`docs/mail-oauth.md`),
+/// so an OAuth account has no password to reuse here and presents the same token instead:
+/// the `calendars` scope is requested at sign-in precisely so this works. The token is minted
+/// per connect, like the mail one.
+///
+/// # Errors
+///
+/// Returns [`AccountError::SigninRejected`] if the grant no longer mints a token, or
+/// [`AccountError::NoCalDav`] if the account carries no CalDAV endpoint.
+pub(crate) async fn caldav_credentials(
+    account: &AccountConfig,
+    tokens: ImapTokens<'_>,
+) -> Result<Credentials, AccountError> {
+    let caldav = account.caldav.as_ref().ok_or(AccountError::NoCalDav)?;
+    if account.is_oauth() {
+        let tokens = tokens.ok_or(AccountError::MissingCredential(
+            imap_credentials::NO_TOKEN_SOURCE,
+        ))?;
+        return Ok(Credentials::Bearer(tokens.access_token().await?));
+    }
+    let password = caldav
+        .password
+        .as_ref()
+        .ok_or_else(|| AccountError::CalDavDiscovery("no calendar credential stored".to_owned()))?;
+    Ok(Credentials::Basic {
+        username: caldav.username.clone(),
+        password: password.expose().to_owned(),
+    })
+}
+
 /// Connects to the CalDAV endpoint of `account`, discovering the calendar home and
 /// binding to the calendar to sync events from, returning the provider boxed for the
 /// app to sync.
@@ -121,17 +158,18 @@ use crate::{setup::normalize_caldav_base_url, tls::account_tls};
 ///
 /// Returns [`AccountError`] if `account` has no `[caldav]` section, the
 /// connection/discovery fails, or no calendar collection is discovered.
-pub async fn connect_caldav(account: &AccountConfig) -> Result<Box<dyn Provider>, AccountError> {
+pub async fn connect_caldav(
+    account: &AccountConfig,
+    tokens: ImapTokens<'_>,
+) -> Result<Box<dyn Provider>, AccountError> {
+    let credentials = caldav_credentials(account, tokens).await?;
     let caldav = account.caldav.as_ref().ok_or(AccountError::NoCalDav)?;
     let tls = account_tls(account)?;
     let config = CalDavConfig::new(
         // Tolerate a stored bare host (a scheme-less base URL from an earlier setup) by
         // defaulting it to https:// here too, so existing configs connect without re-entry.
         normalize_caldav_base_url(&caldav.base_url),
-        Credentials::Basic {
-            username: caldav.username.clone(),
-            password: caldav.password.expose().to_owned(),
-        },
+        credentials,
     )
     .with_tls(tls)
     // Ungated, for the reason `connect_carddav_contact_providers` gives: no DAV adapter
@@ -183,7 +221,7 @@ mod tests {
         )
         .expect("valid config");
         assert!(matches!(
-            connect_caldav(&config).await,
+            connect_caldav(&config, None).await,
             Err(AccountError::NoCalDav)
         ));
     }

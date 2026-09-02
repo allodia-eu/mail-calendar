@@ -101,6 +101,11 @@ pub enum AccountError {
     /// values are content, and this reaches the diagnostic log (`docs/logging.md`).
     #[error("contact write: {0}")]
     ContactWrite(String),
+    /// The account names no credential this connect can present: it signs in with OAuth but
+    /// was connected without its token source, or stores neither a password nor a grant. A
+    /// stored config makes both impossible and a hand-edited one does not.
+    #[error("no usable credential: {0}")]
+    MissingCredential(&'static str),
 }
 
 impl AccountError {

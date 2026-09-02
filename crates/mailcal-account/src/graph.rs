@@ -35,6 +35,8 @@ mod token_source;
 
 pub use calendar::connect_graph_calendar_providers;
 pub use contacts::connect_graph_contact_providers;
+#[cfg(test)]
+pub(crate) use token_source::test_support;
 pub use token_source::{CredentialOrigin, GraphTokenSource, TokenSink};
 
 use crate::{AccountError, log_handle::account_log_handle, pass_syncs, tls::tls_with};

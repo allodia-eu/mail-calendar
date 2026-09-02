@@ -38,7 +38,15 @@ use std::{
 };
 
 use engine_api::AccountId;
-use mailcal_account::{AccountConfig, ImapConnections, Secret};
+use mailcal_account::{AccountConfig, GraphTokenSource, ImapConnections, Secret};
+
+/// One IMAP account's config, connections and (for an OAuth account) token source, as a watch
+/// needs them.
+pub(crate) type ImapEntry = (
+    AccountConfig,
+    Arc<ImapConnections>,
+    Option<Arc<GraphTokenSource>>,
+);
 
 use crate::{AccountProvider, ConnectedAccount};
 
@@ -163,22 +171,25 @@ impl AccountRegistry {
             .collect()
     }
 
-    /// `id`'s IMAP config and connections, or `None` for an account with no IMAP half: the filter
-    /// a standing `IDLE` watch needs, since Graph and Google poll instead.
-    pub(crate) fn imap(&self, id: &str) -> Option<(AccountConfig, Arc<ImapConnections>)> {
+    /// `id`'s IMAP config, connections and (for an OAuth account) token source, or `None` for an
+    /// account with no IMAP half: the filter a standing `IDLE` watch needs, since Graph and Google
+    /// poll instead.
+    pub(crate) fn imap(&self, id: &str) -> Option<ImapEntry> {
         self.entries
             .lock()
             .expect("account registry mutex poisoned")
             .get(id)
             .and_then(ConnectedAccount::imap)
-            .map(|(config, connections)| (config.clone(), Arc::clone(connections)))
+            .map(|(config, connections, tokens)| {
+                (config.clone(), Arc::clone(connections), tokens.cloned())
+            })
     }
 
     /// Drops every IMAP account's resting connections, for a device that has just come back
     /// online: the sockets from before look open and are not, and finding that out one call at a
     /// time costs a failed call each.
     pub(crate) fn invalidate_imap_connections(&self) {
-        for (_, connections) in self
+        for (_, connections, _) in self
             .entries
             .lock()
             .expect("account registry mutex poisoned")
@@ -225,6 +236,11 @@ impl AccountRegistry {
             .map_err(|_| "the account registry is unavailable".to_owned())?
             .get(id)
         {
+            // An OAuth IMAP account is repaired by signing in again, not by a typed secret:
+            // `with_password` would be a silent no-op, so refuse plainly instead.
+            Some(ConnectedAccount::Imap { config, .. }) if config.is_oauth() => {
+                Err("this account must be repaired through browser sign-in".to_owned())
+            }
             Some(ConnectedAccount::Imap { config, .. }) => config
                 .with_password(secret)
                 .to_toml()

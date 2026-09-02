@@ -347,3 +347,46 @@ async fn seeding_a_fresh_sign_in_clears_a_remembered_dead_grant() {
     );
     assert!(source.last_failure().is_none());
 }
+
+/// A server that refuses a token before its stated expiry (revoked, or clocks that disagree)
+/// is asked again with a new one, not the cached one it just turned down.
+#[tokio::test]
+async fn a_refused_token_is_replaced_before_its_stated_expiry() {
+    let (endpoint, hits) = ratcheting_token_endpoint("initial-refresh");
+    let source = source_at(endpoint, None);
+
+    assert_eq!(source.access_token().await.unwrap(), "AT-1");
+    assert_eq!(source.access_token_replacing("AT-1").await.unwrap(), "AT-2");
+    assert_eq!(hits.load(Ordering::SeqCst), 2);
+}
+
+/// A refusal of a token that has already been replaced costs nothing: the replacement is served
+/// from the cache, so a connection renewing late never presents the refresh token again.
+#[tokio::test]
+async fn renewing_a_token_already_replaced_takes_the_replacement() {
+    let (endpoint, hits) = ratcheting_token_endpoint("initial-refresh");
+    let source = source_at(endpoint, None);
+
+    source.access_token().await.unwrap();
+    source.access_token_replacing("AT-1").await.unwrap();
+    assert_eq!(source.access_token_replacing("AT-1").await.unwrap(), "AT-2");
+    assert_eq!(hits.load(Ordering::SeqCst), 2);
+}
+
+/// Several connections refused with the same token renew it with one refresh between them.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_renewals_of_one_refused_token_refresh_once() {
+    let (endpoint, hits) = ratcheting_token_endpoint("initial-refresh");
+    let source = source_at(endpoint, None);
+    source.access_token().await.unwrap();
+
+    let mut tasks = tokio::task::JoinSet::new();
+    for _ in 0..6 {
+        let source = Arc::clone(&source);
+        tasks.spawn(async move { source.access_token_replacing("AT-1").await });
+    }
+    for result in tasks.join_all().await {
+        assert_eq!(result.unwrap(), "AT-2");
+    }
+    assert_eq!(hits.load(Ordering::SeqCst), 2);
+}

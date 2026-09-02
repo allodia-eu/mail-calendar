@@ -52,6 +52,7 @@ fn provider_at(token_endpoint: String) -> OAuthProviderConfig {
         redirect_uri: "eu.allodia.mailcal://oauth".to_owned(),
         scopes: vec!["offline_access".to_owned(), "openid".to_owned()],
         resource: None,
+        expected_issuer: None,
         style: crate::provider::AuthStyle::Microsoft,
     }
 }

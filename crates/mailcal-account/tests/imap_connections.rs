@@ -148,7 +148,7 @@ async fn a_dial_binds_every_folder_the_account_lists() {
     let config = account(port, &served);
     let connections = ImapConnections::new();
 
-    let providers = connect_mail_providers(&connections, &config, &account_id())
+    let providers = connect_mail_providers(&connections, &config, None, &account_id())
         .await
         .expect("the dial");
 
@@ -172,10 +172,10 @@ async fn a_dial_binds_every_folder_over_one_login() {
     let config = account(port, &served);
     let connections = ImapConnections::new();
 
-    let providers = connect_mail_providers(&connections, &config, &account_id())
+    let providers = connect_mail_providers(&connections, &config, None, &account_id())
         .await
         .expect("the dial");
-    let opened = connect_imap_mailbox(&connections, &config, "Projects")
+    let opened = connect_imap_mailbox(&connections, &config, None, "Projects")
         .await
         .expect("a folder opened on demand");
 
@@ -193,11 +193,11 @@ async fn a_watch_takes_the_accounts_resting_connection_rather_than_dialling() {
     let (port, served, accepted) = imap_server().await;
     let config = account(port, &served);
     let connections = ImapConnections::new();
-    connect_mail_providers(&connections, &config, &account_id())
+    connect_mail_providers(&connections, &config, None, &account_id())
         .await
         .expect("the dial");
 
-    let _watch = connect_imap_watcher(&connections, &config, "INBOX")
+    let _watch = connect_imap_watcher(&connections, &config, None, "INBOX")
         .await
         .expect("the server offers IDLE");
 
@@ -212,7 +212,7 @@ async fn folders_opened_together_before_any_dial_connect_the_account_once() {
 
     let opened = futures::future::join_all(
         ["INBOX", "Sent", "Projects"]
-            .map(|mailbox| connect_imap_mailbox(&connections, &config, mailbox)),
+            .map(|mailbox| connect_imap_mailbox(&connections, &config, None, mailbox)),
     )
     .await;
 
@@ -233,7 +233,7 @@ async fn every_dial_logs_in_afresh() {
     let connections = ImapConnections::new();
 
     for _ in 0..2 {
-        connect_mail_providers(&connections, &config, &account_id())
+        connect_mail_providers(&connections, &config, None, &account_id())
             .await
             .expect("the dial");
     }
@@ -246,7 +246,7 @@ async fn invalidating_the_connections_makes_the_next_call_dial() {
     let (port, served, accepted) = imap_server().await;
     let config = account(port, &served);
     let connections = ImapConnections::new();
-    let providers = connect_mail_providers(&connections, &config, &account_id())
+    let providers = connect_mail_providers(&connections, &config, None, &account_id())
         .await
         .expect("the dial");
 

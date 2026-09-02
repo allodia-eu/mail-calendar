@@ -77,7 +77,7 @@ async fn server_refusing_login_with(refusal: &'static str) -> AccountConfig {
 async fn first_login(config: &AccountConfig) -> AccountError {
     let id = AccountId::try_from("someone@127.0.0.1").expect("account id");
     let connections = mailcal_account::ImapConnections::new();
-    match mailcal_account::connect_mail_providers(&connections, config, &id).await {
+    match mailcal_account::connect_mail_providers(&connections, config, None, &id).await {
         Ok(_) => panic!("the server refuses every LOGIN"),
         Err(err) => err,
     }

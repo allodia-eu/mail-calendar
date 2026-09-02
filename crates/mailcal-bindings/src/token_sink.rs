@@ -138,7 +138,7 @@ mod token_sink_tests {
 
     use engine_api::AccountId;
     use mailcal_account::{
-        GoogleConfig, GraphTokenSource, JmapAccountConfig, JmapOAuth, MicrosoftConfig, Secret,
+        GoogleConfig, GraphTokenSource, JmapAccountConfig, MicrosoftConfig, OAuthGrant, Secret,
         TokenSink,
     };
 
@@ -175,7 +175,7 @@ mod token_sink_tests {
             base_url: "https://api.example.com".to_owned(),
             password: None,
             token: None,
-            oauth: Some(JmapOAuth {
+            oauth: Some(OAuthGrant {
                 client_id: "client-abc".to_owned(),
                 client_secret: None,
                 refresh_token: Secret::new("original-refresh".to_owned()),
@@ -184,6 +184,7 @@ mod token_sink_tests {
                 redirect_uri: "eu.allodia.mailcal://jmap-oauth".to_owned(),
                 scopes: vec!["offline_access".to_owned()],
                 resource: None,
+                issuer: None,
             }),
         };
         let id = config.account_id().expect("a valid account id");
