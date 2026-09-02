@@ -14,6 +14,14 @@ internal static class DialogHelper
 {
     private static bool _open;
 
+    /// <summary>Whether a dialog is on screen, so a second show would be dropped.</summary>
+    /// <remarks>
+    /// A dropped show returns <c>None</c>, which is the same answer the close button gives, so a
+    /// caller whose question may be asked only once cannot tell the two apart afterwards. It asks
+    /// this first instead, and comes back later.
+    /// </remarks>
+    public static bool IsShowing => _open;
+
     /// <summary>Shows <paramref name="dialog"/>, or returns <c>None</c> if one is already open.</summary>
     public static async Task<ContentDialogResult> ShowAsync(ContentDialog dialog)
     {

@@ -77,6 +77,9 @@ public sealed partial class MainWindow : Window
             // A mail link that arrived before there was an account to send from is held rather than
             // dropped, so the first account to appear is what finally opens it.
             TryOpenPendingMailLink();
+            // The earliest honest moment to offer to become the machine's mail app: the core
+            // refuses to offer before an account exists, and this is when one appears.
+            OfferDefaultMailAppIfDue();
         };
         Model.Folders.CollectionChanged += (_, _) => SyncNavItems();
         // Connectivity changes re-badge accounts (an unreachable warning). Raised on the UI thread

@@ -66,6 +66,19 @@ struct SettingsCategoryDetail: View {
             ) {
                 TimeFormatPicker(model: model)
             }
+            // The permanent way back from the one-time offer, and the only way in for someone who
+            // dismissed it. Drawn **only where the build can act on it**: a sandboxed Mac App
+            // Store build cannot set the handler and iOS cannot appear in Default Apps without an
+            // entitlement Apple grants by request, so the row is absent there rather than present
+            // and inert (docs/os-integration.md).
+            if DefaultMailApp.support != .unsupported {
+                settingsGroup(
+                    L10n.settings_default_mail_app_heading(),
+                    L10n.settings_default_mail_app_description()
+                ) {
+                    DefaultMailAppRow(model: model)
+                }
+            }
         }
     }
 
