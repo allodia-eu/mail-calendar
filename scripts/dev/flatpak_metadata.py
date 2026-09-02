@@ -222,9 +222,14 @@ def desktop_entry(name: str, summary_by_locale: dict[str, str], locales: list[st
     matches that against the desktop file's own basename. Setting it to anything is how that
     association gets broken, not kept.
 
-    `%u` passes one raw URI through GApplication's command-line signal. The `mailto` MIME
-    declaration is what lets a desktop offer this app as a handler; the shared core still decides
-    whether that URI is valid.
+    `%U` passes the raw URIs through GApplication's command-line signal: `%u` (one) would have
+    done for a `mailto:` link, but an "Open With" on several files is one launch carrying all of
+    them, and the plural form costs a mail link nothing.
+
+    The `MimeType` set is what a desktop reads to offer this app at all. `x-scheme-handler/mailto`
+    is the mail-link half; the file types are the share half, since Linux has no share portal and
+    "Open With" is what a desktop offers instead (`docs/os-integration.md`). The shared core still
+    decides what a URI or a file means.
     """
     lines = [
         "[Desktop Entry]",
@@ -238,7 +243,7 @@ def desktop_entry(name: str, summary_by_locale: dict[str, str], locales: list[st
         if locale != "en" and locale in summary_by_locale
     ]
     lines += [
-        "Exec=mailcal %u",
+        "Exec=mailcal %U",
         f"Icon={APP_ID}",
         "Terminal=false",
         # One MAIN category. `Network` and `Office` are both main ones, and an entry naming two is
@@ -247,7 +252,32 @@ def desktop_entry(name: str, summary_by_locale: dict[str, str], locales: list[st
         # are additional categories and `Office` satisfies each, so this says the same thing about
         # the app and places it once.
         "Categories=Office;Email;Calendar;",
-        "MimeType=x-scheme-handler/mailto;",
+        # Deliberately a short list of what people actually email, not everything openable: a
+        # desktop reads this as "can open", so every entry is also this app offering itself as a
+        # handler for that type. Kept to documents, pictures, archives and the three mail-native
+        # types, and never widened without asking what a user picking us for that type expects.
+        "MimeType="
+        + "".join(
+            f"{mime};"
+            for mime in (
+                "x-scheme-handler/mailto",
+                "application/pdf",
+                "image/png",
+                "image/jpeg",
+                "image/gif",
+                "image/webp",
+                "text/plain",
+                "text/csv",
+                "application/zip",
+                "application/vnd.oasis.opendocument.text",
+                "application/vnd.oasis.opendocument.spreadsheet",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "message/rfc822",
+                "text/calendar",
+                "text/vcard",
+            )
+        ),
         "Keywords=email;mail;calendar;imap;jmap;caldav;smtp;",
         "StartupNotify=true",
         "",

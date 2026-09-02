@@ -32,11 +32,14 @@ const RESPONSE_CANCEL: &str = "cancel";
 /// send, plus the name and media type the outgoing MIME part carries.
 pub(super) fn picked_file(path: &Path) -> Option<PickedFile> {
     let file_name = path.file_name()?.to_str()?.to_owned();
-    let (content_type, _) = gio::content_type_guess(Some(Path::new(&file_name)), None);
-    let media_type = gio::content_type_get_mime_type(&content_type).map_or_else(
-        || "application/octet-stream".to_owned(),
-        |value| value.to_string(),
-    );
+    // The same guess a shared file gets, so a file attached by "Open With" and the same file
+    // attached from the dialog are typed identically. Unlike a share, which offers the core a
+    // blank when the desktop has no answer, this one names a type: it goes straight into the
+    // outgoing part with nothing left to fill it in.
+    let media_type = match crate::share::media_type_for(&file_name) {
+        guessed if guessed.is_empty() => "application/octet-stream".to_owned(),
+        guessed => guessed,
+    };
     Some(PickedFile {
         path: path.to_string_lossy().into_owned(),
         file_name,

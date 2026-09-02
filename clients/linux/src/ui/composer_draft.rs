@@ -278,13 +278,13 @@ impl AppModel {
         }
     }
 
-    fn queue_navigation(&mut self, navigation: PendingNavigation) {
+    pub(super) fn queue_navigation(&mut self, navigation: PendingNavigation) {
         self.pending_navigation = Some(navigation);
         self.draft_check_seq = self.draft_check_seq.wrapping_add(1);
         self.draft_check = Some(self.draft_check_seq);
     }
 
-    fn commit_composer(&mut self, request: ComposeRequest) {
+    pub(super) fn commit_composer(&mut self, request: ComposeRequest) {
         self.primary = PrimaryView::Mail;
         self.composer_generation = self.composer_generation.wrapping_add(1);
         self.composer_error = false;

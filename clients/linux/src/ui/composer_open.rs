@@ -78,6 +78,8 @@ impl AppModel {
                 app.default_send_account(),
             ),
             seeds_signature: true,
+            // Nothing pre-attached: only a share opens a composer already holding files.
+            files: Vec::new(),
         });
     }
 }
