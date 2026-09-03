@@ -367,6 +367,20 @@ change updates in every catalog locale.
   a `JSPROP` line, with `ORG`, `TITLE` and `EMAIL` gone, while `ContactCard/get` shows it intact.
   Verifying through the wrong door therefore reads as exactly the data loss a contacts edit is
   most likely to cause (`.agents/skills/mail-harness`).
+- **`Failed` means two different things, and says the gentler one.** A write that never left the
+  device (no writable book, a card that has gone, an engine call that failed outright) and a write
+  that reached the server but whose reconcile did not settle both land on
+  `ContactWriteStatus::Failed`, and every client renders it as "Saved, but we couldn't confirm it".
+  Saving while offline therefore reassures the user about a card that was never
+  written. `contacts_save_failed` is
+  already in all seven catalogs and is rendered nowhere, waiting for the status to be split; doing
+  that changes the FFI enum and four clients at once, so it is a decision rather than a patch.
+- **`Invalid` is never seen, and is currently unreachable rather than handled.** Every client
+  validates the form itself (the same rules `ContactEdit::validate` holds) and closes the editor
+  before dispatching, so the core's own refusal has no form left to be stated under. That the two
+  agree is an invariant kept in four languages with nothing testing it, and a `ContactId` the core
+  cannot parse bypasses the client check entirely. What it wants is the editor staying open until
+  the core has accepted the write, which is a change to how all four present the editor.
 - **A JMAP account writes into one address book.** The adapter is account-global and its bound book
   decides where a write lands, so the connect binds it to the account's default writable book (else
   the first) and offers that one destination. CardDAV, whose adapters are already one per book,
