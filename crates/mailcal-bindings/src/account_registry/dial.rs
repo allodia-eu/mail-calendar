@@ -120,7 +120,12 @@ pub(crate) struct DialOutcome {
 /// module's header for why that matters.
 pub(crate) enum AccountDial {
     /// An IMAP/SMTP/CalDAV account: dial from its config.
-    Imap(AccountConfig),
+    Imap {
+        /// The persisted config.
+        config: AccountConfig,
+        /// The shared token source, for an OAuth account only.
+        tokens: Option<Arc<GraphTokenSource>>,
+    },
     /// A Microsoft account: bind its Graph folder providers through the shared token source.
     Microsoft {
         /// The shared, self-refreshing token source every folder provider uses.
@@ -151,7 +156,10 @@ impl AccountDial {
     /// thing that may build one.
     pub(super) fn from_entry(entry: &ConnectedAccount) -> Self {
         match entry {
-            ConnectedAccount::Imap(config) => Self::Imap(config.clone()),
+            ConnectedAccount::Imap { config, tokens } => Self::Imap {
+                config: config.clone(),
+                tokens: tokens.clone(),
+            },
             ConnectedAccount::Microsoft { config, tokens } => Self::Microsoft {
                 tokens: Arc::clone(tokens),
                 identity: config.identity(),
@@ -171,7 +179,7 @@ impl AccountDial {
     /// the account type, not an endpoint or a user identity.
     pub(crate) const fn account_type(&self) -> &'static str {
         match self {
-            Self::Imap(_) => "imap",
+            Self::Imap { .. } => "imap",
             Self::Microsoft { .. } => "graph",
             Self::Google { .. } => "google",
             Self::Jmap { .. } => "jmap",
@@ -183,7 +191,7 @@ impl AccountDial {
     /// so carrying the address here is fine: the logs use `account[{index}]`.
     pub(crate) fn label(&self) -> String {
         match self {
-            Self::Imap(config) => config.imap.username.clone(),
+            Self::Imap { config, .. } => config.imap.username.clone(),
             Self::Microsoft { identity, .. } | Self::Google { identity, .. } => {
                 identity.email.clone()
             }
@@ -201,9 +209,11 @@ impl AccountDial {
     /// the same way. That was the fifth copy.
     pub(crate) async fn connect_folder(self, mailbox_key: &str) -> Option<Box<dyn Provider>> {
         match self {
-            Self::Imap(config) => mailcal_account::connect_imap_mailbox(&config, mailbox_key, None)
-                .await
-                .ok(),
+            Self::Imap { config, tokens } => {
+                mailcal_account::connect_imap_mailbox(&config, tokens.as_ref(), mailbox_key, None)
+                    .await
+                    .ok()
+            }
             // Graph binds the folder unwindowed; the app passes the depth per sync.
             Self::Microsoft { tokens, .. } => {
                 mailcal_account::connect_graph_folder(tokens, mailbox_key, None).ok()
@@ -238,10 +248,11 @@ impl AccountDial {
         display_zone: TimeZoneId,
     ) -> Result<DialOutcome, ConnectFailure> {
         match self {
-            Self::Imap(config) => {
-                let providers = mailcal_account::connect_mail_providers(&config, id, None)
-                    .await
-                    .map_err(ConnectFailure::from)?;
+            Self::Imap { config, tokens } => {
+                let providers =
+                    mailcal_account::connect_mail_providers(&config, tokens.as_ref(), id, None)
+                        .await
+                        .map_err(ConnectFailure::from)?;
                 // Calendar and contacts are optional side quests off the mail path, and both talk
                 // to the same CalDAV host: so run them CONCURRENTLY rather than
                 // making the mailbox wait for one and then the other.
@@ -249,7 +260,7 @@ impl AccountDial {
                     async {
                         let mut calendar_error = None;
                         let providers: Vec<Box<dyn Provider>> = if config.caldav.is_some() {
-                            match mailcal_account::connect_caldav(&config).await {
+                            match mailcal_account::connect_caldav(&config, tokens.as_ref()).await {
                                 Ok(provider) => vec![provider],
                                 Err(err) => {
                                     calendar_error =
@@ -262,7 +273,7 @@ impl AccountDial {
                         };
                         (providers, calendar_error)
                     },
-                    boot::connect_caldav_contacts(&config),
+                    boot::connect_caldav_contacts(&config, tokens.as_ref()),
                 );
                 let (calendar_providers, calendar_error) = calendar;
                 Ok(DialOutcome {

@@ -8,7 +8,7 @@
 //! boot path is the exact shape of the bug this all came from.
 
 use mailcal_account::{
-    AccountError, GoogleConfig, JmapAccountConfig, JmapOAuth, MicrosoftConfig, Secret,
+    AccountError, GoogleConfig, JmapAccountConfig, MicrosoftConfig, OAuthGrant, Secret,
 };
 use provider_imap::ImapError;
 
@@ -21,7 +21,7 @@ fn jmap_entry(refresh: &str) -> (String, ConnectedAccount) {
         base_url: "https://api.example.com".to_owned(),
         password: None,
         token: None,
-        oauth: Some(JmapOAuth {
+        oauth: Some(OAuthGrant {
             client_id: "client-abc".to_owned(),
             client_secret: None,
             refresh_token: Secret::new(refresh.to_owned()),
@@ -30,6 +30,7 @@ fn jmap_entry(refresh: &str) -> (String, ConnectedAccount) {
             redirect_uri: "eu.allodia.mailcal://jmap-oauth".to_owned(),
             scopes: vec!["offline_access".to_owned()],
             resource: None,
+            issuer: None,
         }),
     };
     let id = config
@@ -168,7 +169,13 @@ fn a_password_account_has_nothing_to_rotate() {
         .expect("a valid account id")
         .as_str()
         .to_owned();
-    let _registered = registry.pre_register(id.clone(), ConnectedAccount::Imap(config));
+    let _registered = registry.pre_register(
+        id.clone(),
+        ConnectedAccount::Imap {
+            config,
+            tokens: None,
+        },
+    );
 
     let rotation = registry.rotate_refresh_token(&account_id(&id), "new");
 
@@ -202,7 +209,13 @@ fn replacement_credentials_are_built_for_password_and_secret_jmap_accounts_only(
     )
     .expect("a valid IMAP config");
     let imap_id = imap.account_id().unwrap().as_str().to_owned();
-    let _imap = registry.pre_register(imap_id.clone(), ConnectedAccount::Imap(imap));
+    let _imap = registry.pre_register(
+        imap_id.clone(),
+        ConnectedAccount::Imap {
+            config: imap,
+            tokens: None,
+        },
+    );
 
     let jmap_config = JmapAccountConfig {
         email: "jane@example.com".to_owned(),
@@ -226,8 +239,14 @@ fn replacement_credentials_are_built_for_password_and_secret_jmap_accounts_only(
         .replacement_secret_toml(&imap_id, "new-imap")
         .expect("IMAP passwords can be replaced");
     let parsed_imap = mailcal_account::load_str(&imap_toml).expect("valid IMAP TOML");
-    assert_eq!(parsed_imap.imap.password.expose(), "new-imap");
-    assert_eq!(parsed_imap.caldav.unwrap().password.expose(), "new-imap");
+    assert_eq!(
+        parsed_imap.imap.password.as_ref().unwrap().expose(),
+        "new-imap"
+    );
+    assert_eq!(
+        parsed_imap.caldav.unwrap().password.unwrap().expose(),
+        "new-imap"
+    );
 
     let jmap_toml = registry
         .replacement_secret_toml(&jmap_id, "new-jmap")

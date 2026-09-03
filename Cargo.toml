@@ -233,28 +233,28 @@ mailcal-telemetry = { path = "crates/mailcal-telemetry" }
 # `.cargo/config.toml` in the directory ABOVE this checkout — see `.cargo/config.toml`, which is
 # tracked (it pins the Windows static-CRT rustflags) and so is no longer the place for it.
 # Re-pin: bump `rev` on every line below to the new engine commit (keep them identical).
-engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "ae2c7153cc6b9eb1ec4ebed1cad6a99b0c6e112f" }
-engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "ae2c7153cc6b9eb1ec4ebed1cad6a99b0c6e112f" }
-engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "ae2c7153cc6b9eb1ec4ebed1cad6a99b0c6e112f" }
+engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "76a43524333a3fc1c42aba39a4ef57fba0bb2f5f" }
+engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "76a43524333a3fc1c42aba39a4ef57fba0bb2f5f" }
+engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "76a43524333a3fc1c42aba39a4ef57fba0bb2f5f" }
 # The one host-selected TLS policy shared across IMAP/CalDAV/JMAP/Graph.
-engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "ae2c7153cc6b9eb1ec4ebed1cad6a99b0c6e112f", features = ["tls-native-certs"] }
+engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "76a43524333a3fc1c42aba39a4ef57fba0bb2f5f", features = ["tls-native-certs"] }
 # Concrete provider adapters the account layer connects. IMAP first; CalDAV for calendar.
-provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "ae2c7153cc6b9eb1ec4ebed1cad6a99b0c6e112f" }
-provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "ae2c7153cc6b9eb1ec4ebed1cad6a99b0c6e112f" }
+provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "76a43524333a3fc1c42aba39a4ef57fba0bb2f5f" }
+provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "76a43524333a3fc1c42aba39a4ef57fba0bb2f5f" }
 # The Microsoft Graph mail read/sync + writes adapter (bearer-token): metadata/body sync
 # plus mail edits (mark-read/flag, move, permanent delete). The account layer builds a
 # token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
-provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "ae2c7153cc6b9eb1ec4ebed1cad6a99b0c6e112f" }
+provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "76a43524333a3fc1c42aba39a4ef57fba0bb2f5f" }
 # The Google (Gmail + Google Calendar) native-API read/sync + write adapter (bearer-token),
 # the cloud-API counterpart of provider-graph. Gmail mail sync is account-global (one provider,
 # no per-folder fan-out); Google Calendar is IANA-native. The account layer builds a
 # token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
-provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "ae2c7153cc6b9eb1ec4ebed1cad6a99b0c6e112f" }
+provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "76a43524333a3fc1c42aba39a4ef57fba0bb2f5f" }
 # The JMAP mail read/sync + submission + calendar-read adapter (RFC 8620/8621). Takes a
 # base URL + credentials (HTTP Basic username/password, or an OAuth bearer token) and
 # discovers everything else from the session. The account layer injects the shared TLS policy
 # before connecting it directly.
-provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "ae2c7153cc6b9eb1ec4ebed1cad6a99b0c6e112f" }
+provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "76a43524333a3fc1c42aba39a4ef57fba0bb2f5f" }
 # JSON Schema derivation for the MCP tool surface (crates/mailcal-mcp). MCP requires a
 # draft-2020-12 `inputSchema` per tool; deriving it from the same struct the handler deserializes
 # is what stops a client sending exactly what a tool documented and getting a parse error.

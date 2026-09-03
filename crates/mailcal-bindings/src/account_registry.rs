@@ -38,7 +38,7 @@ use std::{
 };
 
 use engine_api::AccountId;
-use mailcal_account::{AccountConfig, Secret};
+use mailcal_account::{AccountConfig, GraphTokenSource, Secret};
 
 use crate::{AccountProvider, ConnectedAccount};
 
@@ -163,14 +163,18 @@ impl AccountRegistry {
             .collect()
     }
 
-    /// `id`'s IMAP config, or `None` for an account with no IMAP half: the filter a standing
-    /// `IDLE` watch needs, since Graph and Google poll instead.
-    pub(crate) fn imap_config(&self, id: &str) -> Option<AccountConfig> {
+    /// `id`'s IMAP config and token source, or `None` for an account with no IMAP half: the
+    /// filter a standing `IDLE` watch needs, since Graph and Google poll instead.
+    pub(crate) fn imap_config(
+        &self,
+        id: &str,
+    ) -> Option<(AccountConfig, Option<Arc<GraphTokenSource>>)> {
         self.entries
             .lock()
             .expect("account registry mutex poisoned")
             .get(id)
-            .and_then(|entry| entry.imap().cloned())
+            .and_then(|entry| entry.imap())
+            .map(|(config, tokens)| (config.clone(), tokens.cloned()))
     }
 
     /// `id`'s registered JMAP config, cloned: the precondition the JMAP re-authentication path
@@ -209,7 +213,12 @@ impl AccountRegistry {
             .map_err(|_| "the account registry is unavailable".to_owned())?
             .get(id)
         {
-            Some(ConnectedAccount::Imap(config)) => config
+            // An OAuth IMAP account is repaired by signing in again, not by a typed secret:
+            // `with_password` would be a silent no-op, so refuse plainly instead.
+            Some(ConnectedAccount::Imap { config, .. }) if config.is_oauth() => {
+                Err("this account must be repaired through browser sign-in".to_owned())
+            }
+            Some(ConnectedAccount::Imap { config, .. }) => config
                 .with_password(secret)
                 .to_toml()
                 .map_err(|error| error.to_string()),
@@ -247,7 +256,7 @@ impl AccountRegistry {
         let mut configs = std::collections::BTreeMap::new();
         for (id, entry) in entries.iter() {
             let serialized = match entry {
-                ConnectedAccount::Imap(config) => config.to_toml(),
+                ConnectedAccount::Imap { config, .. } => config.to_toml(),
                 ConnectedAccount::Microsoft { config, .. } => config.to_toml(),
                 ConnectedAccount::Google { config, .. } => config.to_toml(),
                 ConnectedAccount::Jmap { config, .. } => config.to_toml(),
@@ -282,7 +291,7 @@ impl AccountRegistry {
             Some(ConnectedAccount::Microsoft { config, .. }) => config.to_toml(),
             Some(ConnectedAccount::Google { config, .. }) => config.to_toml(),
             Some(ConnectedAccount::Jmap { config, .. }) => config.to_toml(),
-            Some(ConnectedAccount::Imap(_)) | None => {
+            Some(ConnectedAccount::Imap { .. }) | None => {
                 return Err(format!(
                     "no registered OAuth account to persist for id {id}"
                 ));
@@ -326,7 +335,7 @@ impl AccountRegistry {
             },
             // A password account has nothing that can rotate; reaching here at all would be a bug
             // in the caller, not a lost credential.
-            Some(ConnectedAccount::Imap(_)) => {
+            Some(ConnectedAccount::Imap { .. }) => {
                 return Rotation::Nothing {
                     encode_error: None,
                     family: "imap",

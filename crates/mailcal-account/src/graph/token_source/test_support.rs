@@ -238,6 +238,7 @@ pub(crate) fn source_for(
         client_id: "client-abc".to_owned(),
         client_secret: None,
         redirect_uri: "eu.allodia.mailcal://oauth".to_owned(),
+        expected_issuer: None,
         scopes: vec!["offline_access".to_owned()],
         resource: None,
         style: mailcal_oauth::AuthStyle::Microsoft,

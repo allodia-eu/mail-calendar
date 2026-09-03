@@ -194,6 +194,11 @@ pub struct Endpoints {
     /// the authorization request did.
     #[serde(default)]
     pub scopes: Vec<String>,
+    /// The issuer the redirect's `iss` must name (RFC 9207), when the service advertised that it
+    /// sends one. `None` for a handle minted before this was carried, which is the
+    /// pre-RFC-9207 status quo rather than a fault.
+    #[serde(default)]
+    pub issuer: Option<String>,
 }
 
 /// Which first step the person needs.
@@ -240,6 +245,11 @@ pub(crate) async fn discovered_client(
         // refuses anything not minted for itself -- so this is not optional, and omitting it fails
         // as a `401` that names neither cause.
         resource: resource.resource.or_else(|| Some(api_url())),
+        // RFC 9207, and only when the service says it sends the parameter: a mix-up defence is
+        // worth having on the one flow that names a *person*, not a mailbox.
+        expected_issuer: metadata
+            .issuer_parameter_supported
+            .then(|| metadata.issuer.clone()),
         // Discovered, not integrated: send only what RFC 6749 and RFC 7636 define. Nothing here
         // may guess at an extension the server has not advertised.
         style: AuthStyle::Discovered,
@@ -325,6 +335,7 @@ impl SignIn {
                 endpoints.scopes.clone()
             },
             resource: endpoints.resource,
+            expected_issuer: endpoints.issuer,
             style: AuthStyle::Discovered,
         })?;
         Ok(Self {
@@ -348,6 +359,7 @@ impl SignIn {
             end_session_endpoint: self.end_session_endpoint.clone(),
             prompt_values_supported: self.prompt_values_supported.clone(),
             scopes: provider.scopes.clone(),
+            issuer: provider.expected_issuer.clone(),
         }
     }
 

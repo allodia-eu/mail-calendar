@@ -115,8 +115,12 @@ async fn retries_once_on_a_fresh_session_after_a_retryable_drop() {
     let redials = Arc::new(AtomicUsize::new(0));
     // The adopted session fails once with a dead-socket error…
     let initial = FakeDelegate::arc(Arc::new(AtomicUsize::new(0)), Some(FailureClass::Retryable));
-    let provider =
-        ReconnectingImapProvider::adopt(initial, mailbox(), healthy_redial(Arc::clone(&redials)));
+    let provider = ReconnectingImapProvider::adopt(
+        initial,
+        mailbox(),
+        healthy_redial(Arc::clone(&redials)),
+        AuthRenewal::Impossible,
+    );
 
     // …and the call still succeeds, because the wrapper re-dialed and retried.
     let result = provider.sync_mailboxes(&account(), None).await;
@@ -151,6 +155,7 @@ async fn connection_info_tracks_the_current_session_after_redial() {
         initial,
         mailbox(),
         healthy_redial_with_info(Arc::clone(&redials), redial_info),
+        AuthRenewal::Impossible,
     );
 
     assert_eq!(
@@ -172,8 +177,12 @@ async fn does_not_reconnect_on_a_non_retryable_error() {
         Arc::new(AtomicUsize::new(0)),
         Some(FailureClass::Authentication),
     );
-    let provider =
-        ReconnectingImapProvider::adopt(initial, mailbox(), healthy_redial(Arc::clone(&redials)));
+    let provider = ReconnectingImapProvider::adopt(
+        initial,
+        mailbox(),
+        healthy_redial(Arc::clone(&redials)),
+        AuthRenewal::Impossible,
+    );
 
     let result = provider.sync_mailboxes(&account(), None).await;
     assert!(result.is_err(), "an auth error is not a transport drop");
@@ -189,8 +198,12 @@ async fn a_send_is_never_blind_retried() {
     let redials = Arc::new(AtomicUsize::new(0));
     let submits = Arc::new(AtomicUsize::new(0));
     let initial = FakeDelegate::arc(Arc::clone(&submits), Some(FailureClass::Retryable));
-    let provider =
-        ReconnectingImapProvider::adopt(initial, mailbox(), healthy_redial(Arc::clone(&redials)));
+    let provider = ReconnectingImapProvider::adopt(
+        initial,
+        mailbox(),
+        healthy_redial(Arc::clone(&redials)),
+        AuthRenewal::Impossible,
+    );
 
     let draft = Draft::new(
         MessageIdHeader::new("m@example.com").expect("valid message id"),
@@ -210,5 +223,86 @@ async fn a_send_is_never_blind_retried() {
         redials.load(Ordering::SeqCst),
         0,
         "submit invalidates but does not re-dial"
+    );
+}
+
+#[tokio::test]
+async fn an_oauth_account_re_dials_once_on_an_authentication_failure() {
+    // The mid-session expiry an OAuth account meets routinely: the engine deliberately does
+    // not refresh a token itself, so the only thing that recovers a session whose token aged
+    // out is this re-dial, which mints a fresh one. Without it the user sees "sign in again"
+    // for an account whose grant is perfectly valid.
+    let redials = Arc::new(AtomicUsize::new(0));
+    let initial = FakeDelegate::arc(
+        Arc::new(AtomicUsize::new(0)),
+        Some(FailureClass::Authentication),
+    );
+    let provider = ReconnectingImapProvider::adopt(
+        initial,
+        mailbox(),
+        healthy_redial(Arc::clone(&redials)),
+        AuthRenewal::MintsAFreshToken,
+    );
+
+    let result = provider.sync_mailboxes(&account(), None).await;
+    assert!(
+        result.is_ok(),
+        "the re-dialled session should serve the call"
+    );
+    assert_eq!(
+        redials.load(Ordering::SeqCst),
+        1,
+        "exactly once: a second attempt would present the same fresh token"
+    );
+}
+
+#[tokio::test]
+async fn a_password_account_never_re_dials_on_an_authentication_failure() {
+    // The same failure, the other credential shape. A re-dial would send the same password
+    // back to the server that just refused it, which is not a retry but a second refusal, at a
+    // provider that may be counting them toward a lockout.
+    let redials = Arc::new(AtomicUsize::new(0));
+    let initial = FakeDelegate::arc(
+        Arc::new(AtomicUsize::new(0)),
+        Some(FailureClass::Authentication),
+    );
+    let provider = ReconnectingImapProvider::adopt(
+        initial,
+        mailbox(),
+        healthy_redial(Arc::clone(&redials)),
+        AuthRenewal::Impossible,
+    );
+
+    assert!(provider.sync_mailboxes(&account(), None).await.is_err());
+    assert_eq!(redials.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn an_oauth_send_is_still_never_blind_retried() {
+    // Renewal widens which *failures* are worth a re-dial, never which *operations* may be
+    // repeated: a submission whose outcome is unknown must not be sent twice, whatever
+    // refused it (`docs/sending.md`).
+    let redials = Arc::new(AtomicUsize::new(0));
+    let submits = Arc::new(AtomicUsize::new(0));
+    let initial = FakeDelegate::arc(Arc::clone(&submits), Some(FailureClass::Authentication));
+    let provider = ReconnectingImapProvider::adopt(
+        initial,
+        mailbox(),
+        healthy_redial(Arc::clone(&redials)),
+        AuthRenewal::MintsAFreshToken,
+    );
+
+    let draft = Draft::new(
+        MessageIdHeader::new("m@example.com").expect("valid message id"),
+        EmailAddress::new("from@example.com"),
+        vec![EmailAddress::new("to@example.com")],
+        "Subject",
+        "Body",
+    );
+    assert!(provider.submit_email(&account(), &draft).await.is_err());
+    assert_eq!(
+        submits.load(Ordering::SeqCst),
+        1,
+        "the message must reach the server at most once"
     );
 }

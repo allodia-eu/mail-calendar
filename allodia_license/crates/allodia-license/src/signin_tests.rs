@@ -128,6 +128,7 @@ fn a_handle_round_trips_what_the_server_said_about_logout_and_prompts() {
         end_session_endpoint: Some("https://as.example.com/end-session".to_owned()),
         prompt_values_supported: advertised(&["create"]),
         scopes: advertised(&["openid", "offline_access"]),
+        issuer: Some("https://as.example.com".to_owned()),
     };
     let text = serde_json::to_string(&endpoints).unwrap();
     let read: Endpoints = serde_json::from_str(&text).unwrap();

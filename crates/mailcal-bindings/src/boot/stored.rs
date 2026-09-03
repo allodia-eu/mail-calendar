@@ -91,7 +91,10 @@ pub(crate) fn prepare_stored_account(
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
         let identity = EmailAddress::new(config.imap.username.clone());
-        (id, identity, ConnectedAccount::Imap(config))
+        // An OAuth IMAP account's token source builds without a live socket; a password
+        // account has nothing to refresh and gets none.
+        let tokens = imap_tokens(&config, &id, sink, origin)?;
+        (id, identity, ConnectedAccount::Imap { config, tokens })
     };
     Ok(PreparedAccount {
         account: Account {
@@ -165,6 +168,30 @@ pub(crate) async fn connect_graph_calendars(
 ///
 /// Returns [`MailcalError::Connect`] if the OAuth HTTP client cannot be built; fatal for that
 /// account, exactly as it is for a Microsoft one.
+/// The shared, self-refreshing token source for an **OAuth** IMAP account, or `None` for a
+/// password one (which has nothing to refresh). Built without a live socket.
+///
+/// The IMAP twin of [`jmap_tokens`], and the same shape for the same reason: both are the
+/// standards flow against a discovered server, so both persist the same grant.
+///
+/// # Errors
+///
+/// Returns [`MailcalError::Connect`] if the OAuth HTTP client cannot be built; fatal for that
+/// account, exactly as it is for a Microsoft one.
+pub(super) fn imap_tokens(
+    config: &mailcal_account::AccountConfig,
+    id: &engine_api::AccountId,
+    sink: &Arc<dyn TokenSink>,
+    origin: CredentialOrigin,
+) -> Result<Option<Arc<GraphTokenSource>>, MailcalError> {
+    let Some(grant) = config.imap.oauth.as_ref() else {
+        return Ok(None);
+    };
+    mailcal_account::oauth_token_source(grant, id.clone(), Some(Arc::clone(sink)), origin, "imap")
+        .map(Some)
+        .map_err(|err| MailcalError::Connect(err.to_string()))
+}
+
 pub(super) fn jmap_tokens(
     config: &mailcal_account::JmapAccountConfig,
     id: &engine_api::AccountId,
@@ -174,7 +201,7 @@ pub(super) fn jmap_tokens(
     let Some(grant) = config.oauth.as_ref() else {
         return Ok(None);
     };
-    mailcal_account::jmap_token_source(grant, id.clone(), Some(Arc::clone(sink)), origin)
+    mailcal_account::oauth_token_source(grant, id.clone(), Some(Arc::clone(sink)), origin, "jmap")
         .map(Some)
         .map_err(|err| MailcalError::Connect(err.to_string()))
 }

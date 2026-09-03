@@ -164,6 +164,19 @@ pub struct OAuthProviderConfig {
     /// It must ride on the authorization request, the code exchange, and every refresh; omitting
     /// it from the refresh alone would break the account about an hour after setup.
     pub resource: Option<String>,
+    /// The issuer the authorization response's `iss` parameter must name (RFC 9207), when the
+    /// server advertised that it sends one
+    /// ([`issuer_parameter_supported`](crate::AuthServerMetadata::issuer_parameter_supported)).
+    ///
+    /// This is the mix-up defence, and it only bites where a user has accounts at more than one
+    /// provider: a malicious authorization server relays the request to an honest one, the
+    /// honest one's code comes back to the client, and without `iss` the client cannot tell
+    /// which server issued it and posts the code to the attacker's token endpoint.
+    ///
+    /// `None` for the integrated providers, whose issuer is fixed at build time and cannot be
+    /// substituted, and for any discovered server that does not advertise the parameter: there
+    /// is then nothing to compare, which is the pre-RFC-9207 status quo rather than a fault.
+    pub expected_issuer: Option<String>,
     /// How to shape the authorization request (provider-specific params + account targeting).
     pub style: AuthStyle,
 }
@@ -195,6 +208,8 @@ impl OAuthProviderConfig {
             scopes: scopes.iter().map(|s| (*s).to_owned()).collect(),
             // Microsoft scopes tokens by scope, not by RFC 8707 resource indicator.
             resource: None,
+            // Microsoft's issuer is fixed at build time; there is no substitution to detect.
+            expected_issuer: None,
             style: AuthStyle::Microsoft,
         }
     }
@@ -224,6 +239,8 @@ impl OAuthProviderConfig {
             scopes: scopes.iter().map(|s| (*s).to_owned()).collect(),
             // Google likewise uses scopes alone.
             resource: None,
+            // As for Microsoft: a fixed, integrated issuer.
+            expected_issuer: None,
             style: AuthStyle::Google,
         }
     }

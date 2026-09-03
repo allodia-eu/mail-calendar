@@ -56,6 +56,16 @@ const OIDC_WELL_KNOWN: &str = "/.well-known/openid-configuration";
 /// panic surfaces as "this server doesn't support sign-in" rather than as anything diagnosable.
 /// Callers must use this rather than rolling their own client.
 ///
+/// **Redirects are not followed.** `draft-ietf-mailmaint-oauth-public` requires it of a
+/// metadata fetch, and the reason is that a redirect moves the document to a URL the issuer
+/// did not name: the issuer-match check (RFC 8414 §3.3) would then be validating a document
+/// that arrived from somewhere else. A redirect is treated exactly as an error response.
+///
+/// The policy is set on the whole client rather than per fetch, which reqwest has no way to
+/// express, so it also covers the resource probe that opens the chain. That costs nothing: a
+/// redirected resource URL simply yields no `WWW-Authenticate` challenge, and the chain falls
+/// back to the RFC 9728 well-known location as it does for every server that sends none.
+///
 /// # Errors
 ///
 /// Returns [`OAuthError::Tls`] if the shared TLS policy cannot be built, or
@@ -63,7 +73,10 @@ const OIDC_WELL_KNOWN: &str = "/.well-known/openid-configuration";
 pub fn discovery_client() -> Result<reqwest::Client, OAuthError> {
     let tls = engine_tls::client_config(&engine_tls::TlsPolicy::bundled_and_system())
         .map_err(OAuthError::Tls)?;
-    tls.reqwest_builder().build().map_err(OAuthError::Transport)
+    tls.reqwest_builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(OAuthError::Transport)
 }
 
 /// A failure anywhere in the discovery chain. Every variant means the same thing to a caller
@@ -141,6 +154,19 @@ pub struct AuthServerMetadata {
     /// sends no `prompt`: an unadvertised value is a guess, and a server is free to reject the
     /// request outright rather than ignore it.
     pub prompt_values_supported: Vec<String>,
+    /// Whether the server returns an `iss` parameter on the authorization response (RFC 9207).
+    ///
+    /// When it does, a client **must** check that value against
+    /// [`issuer`](Self::issuer) before sending the code anywhere
+    /// ([`parse_callback`](crate::parse_callback)): it is what defeats the mix-up attack, where
+    /// a user with two accounts is sent to a malicious authorization server that relays the
+    /// request to an honest one and gets the honest server's code delivered to it.
+    /// `draft-ietf-mailmaint-oauth-public` requires the parameter of a conforming server.
+    ///
+    /// `false` for a server that does not advertise it, and the check is then not merely
+    /// skipped but *impossible*: there is nothing to compare. That is the pre-RFC-9207 status
+    /// quo and not a reason to refuse a grant.
+    pub issuer_parameter_supported: bool,
 }
 
 /// The raw RFC 8414 document, before validation.
@@ -159,6 +185,8 @@ struct RawAuthServerMetadata {
     end_session_endpoint: Option<String>,
     #[serde(default)]
     prompt_values_supported: Vec<String>,
+    #[serde(default)]
+    authorization_response_iss_parameter_supported: bool,
 }
 
 /// The raw RFC 9728 protected-resource document.
@@ -409,6 +437,7 @@ fn validate(
             .map(require_https)
             .transpose()?,
         prompt_values_supported: raw.prompt_values_supported,
+        issuer_parameter_supported: raw.authorization_response_iss_parameter_supported,
     })
 }
 

@@ -20,7 +20,7 @@
 use engine_api::AccountId;
 use engine_core::sync::SyncUpdate;
 use engine_provider::{ContactSourceSync, ContactsProvider, Provider};
-use provider_caldav::{CardDavConfig, CardDavProvider, Credentials};
+use provider_caldav::{CardDavConfig, CardDavProvider};
 
 use crate::{
     AccountConfig, AccountError, setup::normalize_caldav_base_url, throttle::account_retry,
@@ -47,17 +47,18 @@ const DISCOVERY_ACCOUNT: &str = "carddav-discovery";
 /// cannot be built, or the *discovery* connection itself fails.
 pub async fn connect_carddav_contact_providers(
     account: &AccountConfig,
+    tokens: crate::ImapTokens<'_>,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
+    // The same credential the account's calendar uses: Basic from the stored password, or the
+    // mail grant's bearer token on an OAuth account.
+    let credentials = crate::caldav_credentials(account, tokens).await?;
     let caldav = account.caldav.as_ref().ok_or(AccountError::NoCalDav)?;
     let tls = account_tls()?;
     let config = CardDavConfig::new(
         // Tolerate a stored bare host the same way `connect_caldav` does, so an account
         // set up before scheme normalisation still connects.
         normalize_caldav_base_url(&caldav.base_url),
-        Credentials::Basic {
-            username: caldav.username.clone(),
-            password: caldav.password.expose().to_owned(),
-        },
+        credentials,
     )
     .with_tls(tls)
     .with_retry(account_retry());
