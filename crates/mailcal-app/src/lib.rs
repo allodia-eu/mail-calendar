@@ -121,7 +121,7 @@ pub use connector::MailboxConnector;
 pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;
 use display_settings::DisplaySettingsState;
-pub use html::{render_document, should_open_external_link};
+pub use html::{Canvas, MESSAGE_CANVAS, render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;
 pub use mail_ops::result::{MailActionError, SendActionError};

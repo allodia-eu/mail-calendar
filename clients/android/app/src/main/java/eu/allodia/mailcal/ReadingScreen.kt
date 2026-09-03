@@ -16,6 +16,7 @@ import kotlin.concurrent.thread
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,14 +29,18 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +65,7 @@ import uniffi.mailcal_bindings.Recipients
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.RecipientSuggestion
 import uniffi.mailcal_bindings.ThreadMessage
+import uniffi.mailcal_bindings.messageCanvas
 
 // The header context for an opened message (the row the user tapped). The body itself is
 // pulled from the core's `reading` snapshot, matched by `key`. `account` is the owning
@@ -365,41 +371,62 @@ internal fun ReadingScreen(
         // child it could overlap the fixed header/toolbar on the first inflation. Only show the
         // body once the snapshot for *this* message has arrived (ignore a stale one for a
         // previously-opened message).
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                // Nothing yet, and too soon to say so: the core announces a wait only once
-                // one has run long enough to notice, so a fast open draws no spinner at all
-                // rather than flashing one. The header above is already filled from the row.
-                body == null -> Unit
-                // Carries no body, this has to precede the branches that read one.
-                body.pending -> CenteredMessage { CircularProgressIndicator() }
-                body.loadError -> CenteredMessage {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = L10n.reading_load_error(ctx),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        TextButton(onClick = onRetry) { Text(L10n.action_retry(ctx)) }
+        // The page a message is drawn on, for every state of an open (the gap before the body
+        // lands, the spinner, a plain-text body, a load error) so a body arriving changes what is
+        // written on the page and never the page itself. Left transparent, the gap punched a hole
+        // in it: in dark theme the body area went white, black, white on every message opened,
+        // which reads as a flicker rather than as a message opening (docs/sync-progress.md). The
+        // colour is the core's, the same one it gives the HTML document, and it is this page in
+        // both themes because mail is authored for a white one, hence the ink to go with it, since
+        // the dark theme's own content colour over this would be white on white. The two accented
+        // controls drawn on it, the spinner and Retry, take the light scheme's own primary for the
+        // same reason: the dark scheme's is the pale lavender Material 3 pairs with a near-black
+        // surface, and on this page it is barely there.
+        //
+        // Resolved once: the record crosses the FFI, and the page cannot change while the app runs.
+        val canvas = remember { messageCanvas() }
+        val page = remember(canvas) { parseHexColor(canvas.background) }
+        val ink = remember(canvas) { parseHexColor(canvas.foreground) }
+        val accent = remember { lightColorScheme().primary }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(page),
+        ) {
+            CompositionLocalProvider(LocalContentColor provides ink) {
+                when {
+                    // Nothing yet, and too soon to say so: the core announces a wait only once
+                    // one has run long enough to notice, so a fast open draws no spinner at all
+                    // rather than flashing one. The header above is already filled from the row.
+                    body == null -> Unit
+                    // Carries no body, this has to precede the branches that read one.
+                    body.pending -> CenteredMessage { CircularProgressIndicator(color = accent) }
+                    body.loadError -> CenteredMessage {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(text = L10n.reading_load_error(ctx), color = LocalContentColor.current)
+                            TextButton(
+                                onClick = onRetry,
+                                colors = ButtonDefaults.textButtonColors(contentColor = accent),
+                            ) { Text(L10n.action_retry(ctx)) }
+                        }
                     }
-                }
-                !body.html.isNullOrEmpty() ->
-                    HtmlBody(fragment = body.html!!, loadRemoteImages = loadRemoteImages)
-                !body.plain.isNullOrEmpty() -> Text(
-                    text = body.plain!!,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                else -> CenteredMessage {
-                    Text(
-                        text = L10n.reading_no_content(ctx),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    !body.html.isNullOrEmpty() ->
+                        HtmlBody(fragment = body.html!!, loadRemoteImages = loadRemoteImages)
+                    !body.plain.isNullOrEmpty() -> Text(
+                        text = body.plain!!,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
                     )
+                    else -> CenteredMessage {
+                        Text(text = L10n.reading_no_content(ctx), color = LocalContentColor.current)
+                    }
                 }
             }
         }

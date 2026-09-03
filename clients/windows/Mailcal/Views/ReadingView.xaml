@@ -204,8 +204,22 @@
                 <Button Grid.Column="1" Content="{x:Bind l10n:L10n.ActionLoadImages()}" Click="OnLoadRemoteImages" />
             </Grid>
 
-            <!-- Body: a spinner until the snapshot arrives, then the HTML WebView or plain text. -->
-            <Grid Grid.Row="4">
+            <!-- Body: a spinner until the snapshot arrives, then the HTML WebView or plain text.
+
+                 The whole area is the page a message is drawn on, in both themes, so every state
+                 of an open (the gap before the body lands, the spinner, a plain-text body, a load
+                 error, "no content") sits on one page and a body arriving changes what is written
+                 on it rather than the page itself. Left to the pane's own background, the gap
+                 punched a hole in the page and the body area went white, black, white on every
+                 message opened in dark theme (docs/sync-progress.md).
+
+                 The colour is the CORE's (MessageCanvas, set in the code-behind), the same one it
+                 gives the HTML document, not a ThemeResource, because base_css pins that document
+                 to `color-scheme:light; background:#fff` in every theme: mail is authored for a
+                 white page. RequestedTheme="Light" is what goes with it, so the text and glyphs
+                 over this page resolve light rather than the dark theme's own white-on-white. The
+                 chrome around it (header, toolbar, remote-images bar) stays themed. -->
+            <Grid Grid.Row="4" x:Name="BodyArea" RequestedTheme="Light">
                 <ProgressRing x:Name="LoadingRing" IsActive="False" Width="36" Height="36"
                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                 <controls:WebView2 x:Name="Body" Visibility="Collapsed" />
@@ -215,19 +229,14 @@
                      line to cap-height→baseline, that crowds the lines and drops descenders onto
                      the caps below.)
 
-                     Everything here mirrors the shared HTML reading document (BASE_CSS in
-                     mailcal-app) so the two body kinds are one surface, not two: 15px / line-height
-                     1.5, on that document's white canvas with its near-black ink. The canvas is
-                     LITERAL, not a ThemeResource, precisely because BASE_CSS pins the HTML body to
-                     `color-scheme:light; background:#fff` in every theme, mail is authored for
-                     white, so a themed brush here would drift from the HTML pane the moment the
-                     system went dark, and a themed *foreground* over this canvas would go
-                     white-on-white. The message canvas is light in both themes; the pane's chrome
-                     around it (header, toolbar, empty/error states) stays themed. -->
-                <ScrollViewer x:Name="PlainScroller" Visibility="Collapsed" Padding="16"
-                              Background="#FFFFFFFF">
+                     The size and leading mirror the shared reading document (base_css in
+                     mailcal-app), so a plain-text body and an HTML one read at the same scale on
+                     the same page. The ink is the light theme's own, not the document's `#1a1a1a`:
+                     it is a WinUI text block, so it coordinates with the selection highlight and
+                     the secondary text around it, and the two body kinds never appear together. -->
+                <ScrollViewer x:Name="PlainScroller" Visibility="Collapsed" Padding="16">
                     <TextBlock x:Name="PlainText" IsTextSelectionEnabled="True" TextWrapping="Wrap"
-                               FontSize="15" LineHeight="22" Foreground="#FF1A1A1A" />
+                               FontSize="15" LineHeight="22" />
                 </ScrollViewer>
                 <TextBlock x:Name="EmptyText" Visibility="Collapsed"
                            HorizontalAlignment="Center" VerticalAlignment="Center"

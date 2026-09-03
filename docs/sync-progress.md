@@ -164,12 +164,46 @@ The threshold covers the *whole* open, including the bounded retry a cold open d
 account is still dialing: timing only the first fetch would leave a genuine multi-second wait
 silent.
 
-| Platform | Draws nothing until `pending` | Indicator |
-|---|---|---|
-| macOS · iPadOS · iOS | `Color.clear` in `ReadingView.content` | `ProgressView` + `reading_loading` |
-| Windows | `ShowState()` with every state off | `LoadingRing` |
-| Android | `body == null -> Unit` | `CircularProgressIndicator` |
-| Linux | the `blank` stack page | the `loading` stack page |
+### Empty is a blank page, not a hole in one
+
+Drawing nothing is only half the rule, and on its own it produced the flicker by a different
+route. The body area is the **page a message is drawn on**, and it is that page for the whole of
+an open (the gap before the body lands, the spinner, a plain-text body, a load error, a message
+with no content) so a body arriving changes what is written on the page and never the page
+itself. Left transparent, the gap punched a hole in it: against a dark theme the body area went
+white, black, white on every message opened, for as long as the open took (75–82 ms, measured over
+a real account). Every client painted a hole, because every client had only been told what *not*
+to draw.
+
+The colour is the core's, `MESSAGE_CANVAS`
+([`html/mod.rs`](../crates/mailcal-app/src/html/mod.rs), reaching a client as `message_canvas`),
+and it is the same constant `base_css` gives the reading document, so the sheet a client paints and
+the page a web view paints inside it cannot drift into two whites. It is that colour in **both**
+themes because the base stylesheet pins the document to `color-scheme: light` (mail is authored for
+a white page). So the ink over it has to be light too, or the dark theme's own label colours are
+white on white, and each client reaches that its own way: Apple and Windows force a light
+appearance over the area and let the platform resolve every colour in it, Android and Linux set the
+content colour from the record's `foreground` and let their toolkit inherit it down. Either way it
+is the accent as well as the text: a Material dark scheme's `primary` is a pale lavender that all
+but disappears on this page, and the spinner and the retry button are drawn in it. The chrome
+around the page stays themed: the header, the toolbar, the remote-images bar, and the "no message
+selected" state, which is not a message and so has no page.
+
+**A web view needs one thing more: it may not be revealed until it has painted.** The page it is
+about to render is white, but the surface it composites on is not: WebKitGTK presents a **black**
+frame until the document's first paint, which on a heavy message at full screen is 467 ms, and
+`webkit_web_view_set_background_color` does not reach it (that colour is what the *page* renders
+on, not what the compositor shows before there is a page). So the client holds the canvas and
+reveals the view only once its load reports finished. Across six navigations between heavy HTML
+messages at 3840×2000 the body area then stays between 230 and 235 of 255 throughout, where before
+it dropped to 16.
+
+| Platform | The page behind the body area | Draws nothing until `pending` | Indicator |
+|---|---|---|---|
+| macOS · iPadOS · iOS | `.background` + light `colorScheme` on `ReadingView.bodyArea` | `Color.clear` over it | `ProgressView` + `reading_loading` |
+| Windows | `BodyArea.Background` + `RequestedTheme="Light"` | `ShowState()` with every state off | `LoadingRing` |
+| Android | `.background` + `LocalContentColor` and the light scheme's `primary` on the body `Box` | `body == null -> Unit` | `CircularProgressIndicator` |
+| Linux | the `mailcal-message-canvas` class on the body stack | the `blank` stack page | the `loading` stack page |
 
 `a_fast_open_never_announces_a_wait` and
 `an_open_that_outlasts_the_threshold_announces_the_wait_first` (`mailcal-app`) hold both halves:
@@ -177,5 +211,16 @@ one publish for a fast open, and a `pending` one ahead of the body for a slow on
 
 ## Known gaps
 
+- **Only Linux holds its web view back until the document has painted.** The black first frame
+  above was measured on WebKitGTK. WKWebView, WebView2 and Android's WebView have not been measured
+  for one of their own; if any of them presents an unpainted surface the same way, the page will
+  flash there too, and only on messages heavy enough to be slow to lay out.
+- **Windows also holds the *whole* rendered pane for 300 ms**
+  ([`ReadingHandover`](../clients/windows/Mailcal/Services/ReadingHandover.cs)): header,
+  recipients, bar and body move together, so the pane changes once. That is a second answer to the
+  same question, and no other client implements it. The two do not conflict (the canvas covers what
+  the grace window does not: an open that outruns it, an error, a body-less message), but a client
+  that adopted the grace would be showing the previous message's header over actions that already
+  act on the new one, which is why it has not been made the rule.
 - **The hint is mail-only.** A calendar or contacts sync in the background says nothing, on any
   platform. Nothing reports per-account progress for those passes yet.

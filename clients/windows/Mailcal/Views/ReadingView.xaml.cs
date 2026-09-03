@@ -10,10 +10,13 @@
 //   ReadingView.Attachments.cs  the attachment strip (save / open via the OS handler)
 //   ReadingView.Invitation.cs   the meeting-invitation card and its Accept / Maybe / Decline
 
+using Allodia.Mailcal.Calendar;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Views;
 
@@ -34,7 +37,16 @@ public sealed partial class ReadingView : UserControl
     private DispatcherTimer? _handoverTimer;
 
     /// <summary>Initialises the control.</summary>
-    public ReadingView() => this.InitializeComponent();
+    public ReadingView()
+    {
+        this.InitializeComponent();
+        // The page every state of the body area is drawn on. Taken from the core so the sheet
+        // this pane paints and the document the WebView paints inside it are one colour rather
+        // than two whites that drift apart: the reason it is not a literal here any more, and
+        // not a ThemeResource either (see the BodyArea comment in the XAML).
+        BodyArea.Background = new SolidColorBrush(
+            CalendarColors.Parse(MailcalBindingsMethods.MessageCanvas().Background));
+    }
 
     /// <summary>Binds the view to the shared model and re-renders on reading-state changes.</summary>
     public void Init(MailboxModel model)

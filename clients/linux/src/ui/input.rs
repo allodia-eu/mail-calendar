@@ -145,6 +145,9 @@ pub(crate) enum AppInput {
     AttachmentOpenFailed,
     WebViewReady,
     WebViewUnavailable,
+    /// The reading document has painted, so the pane may reveal it. Carries nothing: its whole
+    /// job is to provoke the render that swaps the canvas for the page.
+    ReadingBodyPainted,
     OpenSettings,
     OpenAccountSetup,
     RestartAccountSetup,
@@ -294,6 +297,7 @@ impl fmt::Debug for AppInput {
             Self::AttachmentOpenFailed => "AttachmentOpenFailed",
             Self::WebViewReady => "WebViewReady",
             Self::WebViewUnavailable => "WebViewUnavailable",
+            Self::ReadingBodyPainted => "ReadingBodyPainted",
             Self::OpenSettings => "OpenSettings",
             Self::OpenAccountSetup => "OpenAccountSetup",
             Self::RestartAccountSetup => "RestartAccountSetup",

@@ -118,6 +118,35 @@ fn sanitizer() -> &'static Builder<'static> {
     })
 }
 
+/// The canvas a message is drawn on: the page's background, and the ink that stays legible
+/// on it. `#rrggbb`, the form every client already parses for a calendar chip and an avatar.
+///
+/// It is the same in both themes because HTML mail is designed for a white page and the base
+/// stylesheet pins one with `color-scheme: light`. That makes it **app chrome the client
+/// also has to draw**: the body area is this canvas from the moment a message is opened,
+/// while the body is still resolving, for a plain-text body, for a load error, so an open
+/// that resolves in tens of milliseconds changes the text on the page and never repaints the
+/// page itself. A client that left the gap transparent instead punched a hole in the canvas:
+/// on a dark theme the body area went white, black, white, which reads as a flicker rather
+/// than as a message opening (`docs/sync-progress.md`).
+///
+/// Shared rather than restated per client for the same reason the CSP is: the client's half
+/// and the document's half cannot drift into two slightly different whites. The base stylesheet
+/// interpolates this constant, so there is only ever one.
+pub const MESSAGE_CANVAS: Canvas = Canvas {
+    background: "#ffffff",
+    foreground: "#1a1a1a",
+};
+
+/// A background and the ink that stays legible on it, both `#rrggbb`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Canvas {
+    /// The page's fill.
+    pub background: &'static str,
+    /// The text colour on that fill.
+    pub foreground: &'static str,
+}
+
 /// The base stylesheet for the reading document: a readable default that the message's own
 /// CSS overrides. `color-scheme: light` keeps the canvas white (HTML mail is designed for a
 /// white background) rather than letting the WebView auto-darken it.
@@ -131,12 +160,26 @@ fn sanitizer() -> &'static Builder<'static> {
 /// horizontally. Auto height is always proportional scaling, so this never distorts an
 /// image; it only overrides an explicit height that the width constraint would otherwise
 /// fight.
-const BASE_CSS: &str = "\
-:root{color-scheme:light}\
-body{margin:0;padding:14px;background:#fff;color:#1a1a1a;\
-font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;\
-font-size:15px;line-height:1.5;overflow-wrap:break-word;-webkit-text-size-adjust:100%}\
-img{max-width:100%;height:auto!important}a{color:#2864d6}";
+///
+/// Built once rather than per render: it interpolates a constant, so every message would
+/// otherwise pay for the same string.
+fn base_css() -> &'static str {
+    static CSS: OnceLock<String> = OnceLock::new();
+    CSS.get_or_init(|| {
+        let Canvas {
+            background,
+            foreground,
+        } = MESSAGE_CANVAS;
+        format!(
+            ":root{{color-scheme:light}}\
+             body{{margin:0;padding:14px;background:{background};color:{foreground};\
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;\
+             font-size:15px;line-height:1.5;overflow-wrap:break-word;\
+             -webkit-text-size-adjust:100%}}\
+             img{{max-width:100%;height:auto!important}}a{{color:#2864d6}}"
+        )
+    })
+}
 
 /// Wraps a sanitised body fragment in a complete HTML document; with a strict
 /// Content-Security-Policy and base styling; ready for a host WebView to load. Shared in
@@ -158,6 +201,7 @@ pub fn render_document(body_fragment: &str, load_remote_images: bool) -> String 
     } else {
         "data:"
     };
+    let base_css = base_css();
     // `base-uri`/`form-action` do NOT fall back to `default-src`, so set them explicitly:
     // even if a `<base>` or `<form>` ever survived sanitisation, it can't rebase relative
     // URLs or POST data off-host.
@@ -167,7 +211,7 @@ pub fn render_document(body_fragment: &str, load_remote_images: bool) -> String 
          base-uri 'none', form-action 'none'; \
          img-src {img_src}; style-src 'unsafe-inline'; font-src data:\">\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
-         <style>{BASE_CSS}</style></head><body>{body_fragment}</body></html>"
+         <style>{base_css}</style></head><body>{body_fragment}</body></html>"
     )
 }
 
