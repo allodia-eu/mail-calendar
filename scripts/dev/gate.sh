@@ -139,6 +139,7 @@ if [ "$LIST_ONLY" -eq 1 ]; then
 4b branding        scripts/ci/check-branding.sh
 4c public hygiene  scripts/ci/check-public-hygiene.sh
 4ca desktop handoff scripts/ci/check-desktop-handoff.sh: portal launchers only
+4cb portal runtime scripts/ci/check-portal-runtime.sh: one shared Tokio runtime
 4d licence dir     scripts/ci/check-license-dir.sh: the default build stands alone
 4e reuse           reuse lint: required; the gate fails without it
 5  store copy      scripts/ci/check_store_copy_length.py
@@ -201,6 +202,9 @@ run "public hygiene (split content rules)" bash scripts/ci/check-public-hygiene.
 # works perfectly in a --host build and freezes the packaged one, so the only thing that can say so
 # before a release is a grep run on every change.
 run "desktop handoff (portal launchers)" bash scripts/ci/check-desktop-handoff.sh
+# The one Tokio runtime every portal caller shares. Invisible to the suite that would notice,
+# because the first portal call of the process succeeds: only the second one hangs.
+run "portal runtime (one shared Tokio runtime)" bash scripts/ci/check-portal-runtime.sh
 run "licence directory (default build stands alone)" bash scripts/ci/check-license-dir.sh
 # Licensing, stated once in REUSE.toml and checked per file. It fires on vendoring: a file with
 # its own SPDX header whose licence text is not in LICENSES/, and a text left there after what

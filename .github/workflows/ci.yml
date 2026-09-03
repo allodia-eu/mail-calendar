@@ -210,6 +210,12 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/ci/check-desktop-handoff.sh
 
+      # Same shape, one layer down: a portal caller that owns its Tokio runtime works exactly once
+      # and then parks a thread for the life of the process, which no run-time gate sees.
+      - name: One shared Tokio runtime for every portal caller
+        if: ${{ !cancelled() }}
+        run: scripts/ci/check-portal-runtime.sh
+
       # Every client still takes its name and application id from branding/ (docs/branding.md).
       - name: Every client derives its identity from the brand
         if: ${{ !cancelled() }}

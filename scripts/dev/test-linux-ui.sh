@@ -153,6 +153,39 @@ reopen_app_on() { # <subject> <log-prefix>
   "$PYTHON" "$ATSPI" wait --name "Message list" --role list --timeout 60
 }
 
+# Deliver <subject>, pull it in, and answer whether a notification for it reached the fake portal.
+#
+# The wait is the same either way round, so a "no" costs the full ten seconds rather than a guessed
+# settle: the disabled half of the notification leg asserts on this answer, and a sleep short
+# enough to keep the suite quick is a sleep that calls a slow notification an absent one.
+notified_for() { # <subject> <capture-file>
+  "$REPO_ROOT/scripts/dev/harness.sh" deliver --subject "$1" >/dev/null
+  "$PYTHON" "$ATSPI" activate --name "Refresh" --role "push button" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "$1" --role "list item" --showing --timeout 60
+  for _ in {1..200}; do
+    grep -Fq "$1" "$2" 2>/dev/null && return 0
+    sleep 0.05
+  done
+  return 1
+}
+
+# Open Settings → Notifications, flip the switch, and wait for the host preferences file to say so.
+# Reading it back matters: an activation that missed leaves the switch where it was, and every
+# assertion after it would then be testing the opposite of what it names.
+set_notifications() { # <true|false>
+  "$PYTHON" "$ATSPI" activate --name "Settings" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Notifications" --role "toggle button" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "New-mail notifications" --role switch --timeout 20
+  local wanted="\"notifications_enabled\": $1"
+  for _ in {1..100}; do
+    grep -Fq "$wanted" "$XDG_CONFIG_HOME/mailcal/host.json" 2>/dev/null && break
+    sleep 0.05
+  done
+  grep -Fq "$wanted" "$XDG_CONFIG_HOME/mailcal/host.json" ||
+    die "the new-mail notification switch did not persist $1"
+  "$PYTHON" "$ATSPI" activate --name "Done" --timeout 20
+}
+
 open_mail_message() { # <subject>
   "$PYTHON" "$ATSPI" activate --name "Mail" --timeout 20
   "$PYTHON" "$ATSPI" set-text --name "Search mail" --text "$1" --timeout 20
@@ -523,31 +556,7 @@ PY
   MCP_INPUT_FD=""
   MCP_OUTPUT_FD=""
 
-  # New-mail notifications, enabled half first, and the order is the point. The disabled half
-  # asserts an **absence**, which proves nothing on its own: a notification path that never fires
-  # passes it silently, and did, for as long as the portal call hung. So the enabled half runs
-  # first, on the shipped default, and its record in the capture file is the anchor the absence
-  # below is measured against.
-  #
-  # Twice, because the shape this leg exists to catch is a portal call that works **exactly
-  # once**: the process shares one connection, and a caller that owns the runtime it was opened on
-  # takes it down on the way out, so the first notification lands and every later one hangs for
-  # the life of the process (docs/client-traps.md). A single delivery reads as a pass over that.
-  local notification_on="Linux notification on $RANDOM-$RANDOM"
-  local notification_again="Linux notification again $RANDOM-$RANDOM"
-  local subject
-  for subject in "$notification_on" "$notification_again"; do
-    "$REPO_ROOT/scripts/dev/harness.sh" deliver --subject "$subject" >/dev/null
-    "$PYTHON" "$ATSPI" activate --name "Refresh" --role "push button" --timeout 20
-    "$PYTHON" "$ATSPI" wait --name "$subject" --role "list item" --showing --timeout 60
-    for _ in {1..200}; do
-      grep -Fq "$subject" "$portal_capture" 2>/dev/null && break
-      sleep 0.05
-    done
-    grep -Fq "$subject" "$portal_capture" ||
-      die "an enabled new-mail notification never reached the desktop portal: $subject"
-  done
-
+  # MCP off, on the way past: its socket must go with it.
   "$PYTHON" "$ATSPI" activate --name "Settings" --timeout 20
   "$PYTHON" "$ATSPI" activate --name "Advanced" --role "toggle button" --timeout 20
   "$PYTHON" "$ATSPI" activate \
@@ -558,28 +567,38 @@ PY
     sleep 0.05
   done
   [[ ! -e "$mcp_endpoint" ]] || die "turning MCP off left its socket behind"
-  "$PYTHON" "$ATSPI" activate --name "Notifications" --role "toggle button" --timeout 20
-  "$PYTHON" "$ATSPI" activate --name "New-mail notifications" --role switch --timeout 20
-  # Read the switch back off disk before trusting the leg below: an activation that missed leaves
-  # notifications on, and every assertion after it would then be testing the wrong state.
-  for _ in {1..100}; do
-    grep -q '"notifications_enabled": false' "$XDG_CONFIG_HOME/mailcal/host.json" 2>/dev/null &&
-      break
-    sleep 0.05
-  done
-  grep -q '"notifications_enabled": false' "$XDG_CONFIG_HOME/mailcal/host.json" ||
-    die "turning new-mail notifications off was not persisted"
   "$PYTHON" "$ATSPI" activate --name "Done" --timeout 20
+
+  # New-mail notifications: on (the shipped default), off, on again. The middle one asserts an
+  # **absence**, which proves nothing by itself. A path that never fires satisfies it silently, and
+  # did, for as long as the portal call hung; so the silence is only believed once a *later*
+  # notification has provably crossed, which is what the third delivery is for.
+  #
+  # That third delivery is also the second post of the session, and the second is where this
+  # breaks: the process shares one portal connection, and a caller owning the runtime it was
+  # opened on takes it down on the way out, so the first notification lands and every later one
+  # hangs for good (docs/client-traps.md). Checking the quiet subject only at the end is what
+  # makes both halves real, because a notification cannot still be in flight once a later one has
+  # arrived.
+  local notification_on="Linux notification on $RANDOM-$RANDOM"
   local notification_off="Linux notification off $RANDOM-$RANDOM"
-  "$REPO_ROOT/scripts/dev/harness.sh" deliver --subject "$notification_off" >/dev/null
-  "$PYTHON" "$ATSPI" activate --name "Refresh" --role "push button" --timeout 20
-  "$PYTHON" "$ATSPI" wait \
-    --name "$notification_off" --role "list item" --showing --timeout 60
-  sleep 1
-  grep -Fq "$notification_off" "$portal_capture" 2>/dev/null &&
+  local notification_after="Linux notification after $RANDOM-$RANDOM"
+
+  notified_for "$notification_on" "$portal_capture" ||
+    die "an enabled new-mail notification never reached the desktop portal"
+
+  set_notifications false
+  if notified_for "$notification_off" "$portal_capture"; then
     die "a notification crossed the portal while notifications were disabled"
-  grep -Fq "$notification_again" "$portal_capture" ||
-    die "the notification capture lost its anchor, so the silence above proves nothing"
+  fi
+
+  set_notifications true
+  notified_for "$notification_after" "$portal_capture" ||
+    die "new-mail notifications stopped after the first one, or after being switched back on"
+
+  if grep -Fq "$notification_off" "$portal_capture"; then
+    die "the disabled notification reached the portal late, once a later one had woken the path"
+  fi
   capture settings-feedback
 
   "$PYTHON" "$ATSPI" wait --name "Reply" --enabled --showing --timeout 30

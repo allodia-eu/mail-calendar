@@ -22,9 +22,10 @@ that same file.
 - **In the Android composer's WebView, viewport units compute to `0px`.** Compose lays an
   `AndroidView` out *after* the page loads, so Chromium fixes the layout viewport at zero height and
   `100vh` / `100%` silently do nothing. Size from `document.documentElement.clientHeight` and
-  re-measure on `resize` (`fillViewport` in [`editor.html`](clients/composer/dist/editor.html)). A WebView
-  layout bug cannot be caught by the JVM suite: Robolectric has no renderer; prove it against a real
-  WebView (`adb forward` to `webview_devtools_remote_<pid>` + CDP `Runtime.evaluate`).
+  re-measure on `resize` (`fillViewport` in [`editor.html`](../clients/composer/dist/editor.html)).
+  A WebView layout bug cannot be caught by the JVM suite: Robolectric has no renderer; prove it
+  against a real WebView (`adb forward` to `webview_devtools_remote_<pid>` + CDP
+  `Runtime.evaluate`).
 - **Each column of a `NavigationSplitView` reports its own `horizontalSizeClass`.** Read from
   inside a list row, an iPad's *list column* answers `.compact` while the window is regular, so
   any "is this the phone layout?" test written at the row decides the opposite of the one written
@@ -84,13 +85,14 @@ that same file.
   `org.freedesktop.portal.Secret` for the keyring key. A store whose keyring **fails** to open is
   the nastiest shape, since it seeds the shared connection and then drops its runtime on the way
   out, so the first notification of the session hangs and the cause is three files away. Everything
-  goes through [`host_runtime`](clients/linux/src/host_runtime.rs), which owns the one runtime and
-  never drops it.
+  goes through [`host_runtime`](../clients/linux/src/host_runtime.rs), which owns the one runtime
+  and never drops it; `check-portal-runtime.sh` refuses a second one anywhere else in the client.
 
   **The tell is that it works exactly once.** The first portal call of the process succeeds, so a
-  manual check passes and a screenshot proves nothing; only the second one hangs. Bound every
-  portal exchange with a timeout as well, so a portal that stops answering costs one pass rather
-  than the session.
+  manual check passes and a screenshot proves nothing; only the second one hangs. Bound a portal
+  exchange nobody is waiting on, so one that stops answering costs a single pass rather than the
+  session: `notifications::post` does. Unlocking the keyring is the exception and stays unbounded,
+  because it legitimately waits on the desktop's own password prompt.
 - **Linux libadwaita rows parse titles _and subtitles_ as Pango markup by default.**
   `adw::ActionRow` / `PreferencesRow` text may hold localised ampersands or untrusted subjects, so
   set `use_markup(false)` unless the string was deliberately produced as escaped markup. A row that
@@ -103,7 +105,7 @@ that same file.
   so the row still *reads* correctly and every rendering assertion passes, but the markup-parsed
   first attempt has already logged `Failed to set text … from markup` for every sender or subject
   with an ampersand, into the diagnostic log a user attaches to a support request. Build via
-  `plain_text_row()` ([`mailbox.rs`](clients/linux/src/ui/mailbox.rs)) and `set_title` /
+  `plain_text_row()` ([`mailbox.rs`](../clients/linux/src/ui/mailbox.rs)) and `set_title` /
   `set_subtitle` after.
 
   **Assert on the rendered label, not the property.** `ActionRow::title()` returns the string you
@@ -143,7 +145,7 @@ that same file.
   rendering assertion passes, but GTK's focus walk reaches it, `gtk_list_box_row_grab_focus`
   fails its own precondition, and the row and the control it carries are never focused. An
   `AdwPreferencesGroup` supplies the list. `every_row_belongs_to_a_list`
-  ([`mailbox_tests.rs`](clients/linux/src/ui/mailbox_tests.rs)) asserts a whole window at once:
+  ([`mailbox_tests.rs`](../clients/linux/src/ui/mailbox_tests.rs)) asserts a whole window at once:
   call it from any widget test that presents one.
 - **A GLib critical is diagnosed with a backtrace, never by reading widget code.** The message is
   raised by a check deep inside the toolkit that knows nothing about what you did, so reasoning

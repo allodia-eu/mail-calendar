@@ -10,6 +10,9 @@
 //! process**, and the state machine that thread was serving parked with it.
 //!
 //! So there is exactly one runtime, it is never dropped, and no other module may build its own.
+//! `check-portal-runtime.sh` enforces that last part. No unit test can: `OnceLock` makes "two
+//! calls hand back the same runtime" true by construction, whatever any other module does, so
+//! asserting it here would pin nothing. What has to hold is a fact about the source tree.
 
 use std::sync::OnceLock;
 
@@ -31,22 +34,4 @@ pub(crate) fn shared() -> Option<&'static Runtime> {
                 .ok()
         })
         .as_ref()
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn every_caller_shares_one_runtime() {
-        // The regression this pins: a runtime per caller is dropped when its caller finishes,
-        // taking the process-global portal connection's reader with it, and the next portal call
-        // hangs forever.
-        let first = super::shared().expect("a host runtime");
-        let second = super::shared().expect("a host runtime");
-
-        assert!(
-            std::ptr::eq(first, second),
-            "every portal caller must run on the same runtime, or the shared connection dies \
-             with the first one to finish"
-        );
-    }
 }
