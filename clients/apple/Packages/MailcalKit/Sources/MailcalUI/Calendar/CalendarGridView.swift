@@ -1,10 +1,15 @@
-// The time grid: day columns, an hour ruler, positioned event blocks, the all-day banner, and the
-// now line.
+// The time grid: day columns, a pinned hour ruler, positioned event blocks, the all-day banner, and
+// the now line.
 //
 // The core does the layout. It hands back geometry that carries no units at all, a day *index*, a
 // wall-clock *minute*, a column *fraction*, so everything here is a multiplication by this client's
 // hour height and column width. Nothing in this file decides where an event goes; it decides how big
 // an hour is on a phone.
+//
+// **The days are one strip, not a stack of week pages.** The weeks are laid end to end with no
+// gutter between them and the hour ruler is drawn once, pinned to the left edge, so a grid resting on
+// Wednesday-to-Tuesday is showing seven days rather than half of each of two pages. Where the strip
+// is, and what a gesture does to it, is `CalendarStrip`; this file only multiplies.
 //
 // The scroll offsets are held by hand rather than by a `ScrollView`, for one reason: a pinch has to
 // MOVE them, to keep the content under the fingers still. A SwiftUI ScrollView will not be told where
@@ -21,100 +26,117 @@ import SwiftUI
 let calendarGutter: CGFloat = 52
 let calendarLaneHeight: CGFloat = 24
 let calendarHours = 24
+/// The day headings' band, above the all-day banner.
+let calendarHeaderHeight: CGFloat = 56
 
-/// One page of the calendar, a whole week, of which the zoom decides how much is on screen.
-struct CalendarGridView: View {
+/// One week of the strip: which week it is, the core's page for it, and its dates.
+struct CalendarStripWeek: Identifiable {
+    let index: Int
     let page: CalendarPage
+    let days: [Date]
+
+    var id: Int { index }
+}
+
+/// The grid, drawn across however many weeks the strip currently has on screen.
+///
+/// `Animatable` on the strip position, which is what makes a landing correct rather than merely
+/// smooth: SwiftUI re-evaluates this body per frame with the interpolated value, so the weeks it
+/// *pulls and draws* are the ones the grid is sliding through. Interpolating only the offsets would
+/// draw a hole where the week arriving from the right should be.
+struct CalendarGridView: View, Animatable {
+    /// The week at an index, or nil when the core has no page for it. Called from inside the body,
+    /// deliberately: see the note on `Animatable` above.
+    let weekAt: (Int) -> CalendarStripWeek?
+    /// Bumped by the core whenever a sync changes what a page holds. Read as a plain property, not
+    /// applied as an `.id`: replacing the view on every sync would drop a drag in flight, re-run its
+    /// framing, and kill a landing part-way through it.
+    let calendarVersion: Int
+    /// `nonisolated` because `animatableData` is: SwiftUI interpolates it off the main actor, and
+    /// the strip is a pair of numbers, so there is nothing here for an actor to protect.
+    nonisolated var strip: CalendarStrip
     let today: Date
     let nowMinutes: Int
     let use24Hour: Bool
     let hourHeight: CGFloat
     let dayWidth: CGFloat
     let calendar: Calendar
-    let viewportWidth: CGFloat
+    /// The width the day columns scroll through: the surface, less the pinned hour ruler.
+    let dayViewport: CGFloat
     let viewportHeight: CGFloat
-    @Binding var dayOffset: CGFloat
-    @Binding var hourOffset: CGFloat
-    /// Bumped whenever the grid should re-centre on today and now, on open, and on "back to today".
-    let recentreToken: Int
+    let hourOffset: CGFloat
+    /// A pointer moved: how far the content travelled with it, on each axis.
+    let onScroll: (CGFloat, CGFloat) -> Void
+    /// The pointer let go: how much further its momentum would carry, on each axis. The day axis
+    /// lands on a day from there.
+    let onScrollEnded: (CGFloat, CGFloat) -> Void
     /// A tap on an event block or all-day band opens that event's detail.
     let onOpen: (EventRefID) -> Void
     /// Whether any calendar can take a new event, an empty-grid drag draws one out.
     let canCreateEvent: Bool
-    /// A drag ended: move or resize the event it held, or create the slot it drew.
-    let onDrop: (CalendarDragState) -> Void
+    /// A drag ended in a week: move or resize the event it held, or create the slot it drew.
+    let onDrop: (Int, CalendarDragState) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
-    /// Not `private`: CalendarGridView.Gesture.swift's `panGesture` reads and sets it too.
-    @State var dragStart: CGPoint?
-    /// The drag in flight, or nil. One place, written only by the gesture below and read only by
-    /// the grid body, a second copy of "what is the pointer doing" is a second thing that can
+    /// Where a one-finger pan had got to, so each frame reports its own delta rather than the whole
+    /// translation. iOS/iPadOS only; macOS scrolls (`CalendarScrollGesture`).
+    @State var panned: CGSize?
+    /// The drag in flight, and the week it began in. One place, written only by the gesture and read
+    /// only by the body: a second copy of "what is the pointer doing" is a second thing that can
     /// disagree with the first.
     ///
-    /// Not `private`: CalendarGridView.Gesture.swift reads and sets it too.
+    /// Not `private`: CalendarGridView.Gesture.swift reads and sets both.
     @State var drag: CalendarDragState?
+    @State var dragWeek: Int?
 
-    /// Not `private`: CalendarGridView.Gesture.swift's `beginDrag`/`updateDrag` read it too.
-    var days: [Date] {
-        page.days.compactMap { parseISODate($0.date, calendar: calendar) }
+    nonisolated var animatableData: CGFloat {
+        get { strip.weeks }
+        set { strip.weeks = newValue }
     }
 
-    private var todayIndex: Int? {
-        days.firstIndex { calendar.isDate($0, inSameDayAs: today) }
-    }
-
-    /// The week's whole width at this zoom. When the zoom shows all seven days this equals the
-    /// viewport and the horizontal pan has nowhere to go, the week is the boundary.
-    private var weekWidth: CGFloat { dayWidth * CGFloat(days.count) }
+    private var weekWidth: CGFloat { dayWidth * CGFloat(daysInWeek) }
     private var contentHeight: CGFloat { hourHeight * CGFloat(calendarHours) }
-    /// Not `private`: CalendarGridView.Gesture.swift's `panGesture` reads it too.
-    var maxDayOffset: CGFloat {
-        calendarMaxDayOffset(dayWidth: dayWidth, dayCount: days.count, viewportWidth: viewportWidth)
-    }
-    /// Not `private`, see `maxDayOffset`.
-    var maxHourOffset: CGFloat {
-        calendarMaxHourOffset(hourHeight: hourHeight, gridHeight: gridHeight)
-    }
 
-    /// What is left for the hour grid once the headings and the banner have taken their share.
-    private var gridHeight: CGFloat {
-        max(viewportHeight - headerHeight - bannerHeight, 1)
-    }
-
-    private var headerHeight: CGFloat { 56 }
-    private var bannerHeight: CGFloat {
-        page.allDayLanes > 0
-            ? calendarLaneHeight * CGFloat(
-                allDayBannerLanes(lanes: Int(page.allDayLanes), expanded: false)
-            )
-            : 0
+    /// The banner's height is the largest of the weeks **on screen**, not the anchor week's own.
+    ///
+    /// This is what a pinned ruler costs: the grid's `00:00` is where the ruler's `00:00` is, so a
+    /// seam with a three-lane week on one side and an empty one on the other must still have one
+    /// content top, or the hour lines would meet the ruler on one side and miss it on the other.
+    private func bannerLanes(_ weeks: [CalendarStripWeek]) -> Int {
+        weeks.map { Int($0.page.allDayLanes) }.max() ?? 0
     }
 
     private var dark: Bool { colorScheme == .dark }
 
     var body: some View {
-        VStack(spacing: 0) {
+        // Resolved **once** per frame and handed down, never re-read from a computed property.
+        // Every entry is a page pulled across the FFI, and a landing evaluates this body per frame
+        // (see `Animatable` above), so a computed `weeks` read by the headings, the banner, its lane
+        // count, the loading row and the grid rebuilds the same week five times for one picture.
+        let weeks = strip.visibleWeeks(dayViewport: dayViewport, dayWidth: dayWidth)
+            .compactMap(weekAt)
+        let lanes = bannerLanes(weeks)
+
+        return VStack(spacing: 0) {
             CalendarDayHeader(
-                days: days,
-                todayIndex: todayIndex,
+                weeks: weeks,
+                strip: strip,
+                today: today,
                 dayWidth: dayWidth,
-                weekWidth: weekWidth,
-                dayOffset: dayOffset,
                 calendar: calendar
             )
-            if page.allDayLanes > 0 {
+            if lanes > 0 {
                 CalendarAllDayBanner(
-                    page: page,
-                    dayCount: days.count,
+                    weeks: weeks,
+                    strip: strip,
+                    lanes: lanes,
                     dayWidth: dayWidth,
-                    weekWidth: weekWidth,
-                    dayOffset: dayOffset,
                     dark: dark,
                     onOpen: onOpen
                 )
             }
             Divider()
-            if !page.isMaterialized {
+            if weeks.contains(where: { !$0.page.isMaterialized }) {
                 // `isMaterialized == false` does NOT mean "no events", it means the engine has not
                 // expanded this far yet. Drawing a confidently empty week here would be a lie that
                 // looks exactly like a real answer, so the page says so, in words.
@@ -127,81 +149,68 @@ struct CalendarGridView: View {
                 .padding(.vertical, 3)
             }
             HStack(alignment: .top, spacing: 0) {
+                // Chrome, not content: drawn once and pinned, with the days scrolling past it. A
+                // ruler that belonged to a page would slide out with it, which is what made a week
+                // boundary the only frame the grid could explain.
                 CalendarHourRuler(use24Hour: use24Hour, hourHeight: hourHeight)
                     .offset(y: -hourOffset)
                     .frame(width: calendarGutter, alignment: .top)
                     .clipped()
-                gridBody
+                gridBody(weeks)
             }
             .frame(maxHeight: .infinity, alignment: .top)
             .clipped()
             .contentShape(Rectangle())
             .gesture(gridGesture)
-            // A desktop scrolls a calendar with the wheel or two fingers, not by dragging it. The
-            // offsets are held by hand (see the file header), so there is no ScrollView to do this
-            // for us, CalendarScrollGesture reads the raw events and clamps exactly as the pan does.
-            #if os(macOS)
-            .modifier(
-                CalendarScrollGesture(
-                    dayOffset: $dayOffset,
-                    hourOffset: $hourOffset,
-                    maxDayOffset: maxDayOffset,
-                    maxHourOffset: maxHourOffset
-                )
-            )
-            #endif
-        }
-        .onAppear { recentre() }
-        .onChange(of: recentreToken) { _, _ in recentre() }
-        // **The offsets have to be put back inside the content when the content changes size.**
-        //
-        // They are held by hand rather than by a `ScrollView` (see the file header), and every other
-        // clamp in this file lives inside a *gesture*, so until the user touched the grid, an offset
-        // could stay parked outside the content it addresses, and the whole week was scrolled off the
-        // screen. What was left looked like a calendar that had failed to load: the gutter, the
-        // all-day band, and nothing else.
-        //
-        // Three things resize the content under a settled offset, and none of them is a gesture:
-        // **the window** (shrink it and the hour height shrinks with it), **the zoom arriving late**
-        // (the persisted horizon and column count are read from the core, so a client that renders
-        // before they land recentres against the defaults and then re-seeds), and **the all-day
-        // banner** growing a lane. A `ScrollView` would do this for us; holding the offsets means
-        // doing it ourselves, which is what Android's `clampScroll(metrics)` and Windows'
-        // viewport-guarded `ApplyRecentre` already do. This is the Apple half of that contract.
-        .onChange(of: maxDayOffset) { _, limit in
-            dayOffset = dayOffset.clamped(to: 0...limit)
-        }
-        .onChange(of: maxHourOffset) { _, limit in
-            hourOffset = hourOffset.clamped(to: 0...limit)
+            // A desktop scrolls a calendar with the wheel or two fingers, not by dragging it, and so
+            // does an iPad with a trackpad. The offsets are held by hand (see the file header), so
+            // there is no ScrollView to do this for us: CalendarScrollGesture reads the raw events
+            // and reports them here.
+            .modifier(CalendarScrollGesture(onScroll: onScroll, onScrollEnded: onScrollEnded))
         }
     }
 
-    /// Opens on **today**, scrolled to roughly now.
-    ///
-    /// The page is a whole week, and at any zoom below seven columns today may be scrolled off the
-    /// side of it, landing on the right week but looking at Monday when it is Sunday is not landing
-    /// anywhere useful. So the day axis scrolls to today's column, and the hour axis to just before
-    /// now, with a little context above it.
-    private func recentre() {
-        withAnimation(.easeOut(duration: 0.2)) {
-            hourOffset = (CGFloat(max(nowMinutes - 90, 0)) / 60 * hourHeight)
-                .clamped(to: 0...maxHourOffset)
-            if let todayIndex {
-                dayOffset = (CGFloat(todayIndex) * dayWidth).clamped(to: 0...maxDayOffset)
+    private func gridBody(_ weeks: [CalendarStripWeek]) -> some View {
+        ZStack(alignment: .topLeading) {
+            // The strip's own space, so a week only has to say where it begins.
+            Color.clear
+            ForEach(weeks) { week in
+                weekBody(week)
+                    .frame(width: weekWidth, height: contentHeight, alignment: .topLeading)
+                    .offset(x: strip.origin(ofWeek: week.index, dayWidth: dayWidth), y: -hourOffset)
+            }
+            if let drag, let dragWeek {
+                CalendarDragBlock(
+                    drag: drag,
+                    page: weekAt(dragWeek)?.page,
+                    dayWidth: dayWidth,
+                    hourHeight: hourHeight,
+                    use24Hour: use24Hour,
+                    dark: dark
+                )
+                .frame(width: weekWidth, height: contentHeight, alignment: .topLeading)
+                .offset(x: strip.origin(ofWeek: dragWeek, dayWidth: dayWidth), y: -hourOffset)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .clipped()
     }
 
-    private var gridBody: some View {
+    /// One week's content, in its own coordinates: the strip decides where that lands.
+    @ViewBuilder
+    private func weekBody(_ week: CalendarStripWeek) -> some View {
+        let todayColumn = week.days.firstIndex { calendar.isDate($0, inSameDayAs: today) }
         ZStack(alignment: .topLeading) {
-            CalendarGridLines(dayCount: days.count, dayWidth: dayWidth, hourHeight: hourHeight)
-            ForEach(page.timed, id: \.rowID) { segment in
+            CalendarGridLines(
+                dayCount: week.days.count, dayWidth: dayWidth, hourHeight: hourHeight
+            )
+            ForEach(week.page.timed, id: \.rowID) { segment in
                 // The block being dragged is drawn once, by `CalendarDragBlock`, where the pointer
                 // has it, never twice. Leaving the original in place reads as a duplicate event.
-                if !isHeld(segment) {
+                if !isHeld(segment, in: week.index) {
                     CalendarTimedBlock(
                         segment: segment,
-                        calendars: page.calendars,
+                        calendars: week.page.calendars,
                         dayWidth: dayWidth,
                         hourHeight: hourHeight,
                         use24Hour: use24Hour,
@@ -218,198 +227,16 @@ struct CalendarGridView: View {
                     )
                 }
             }
-            if let todayIndex {
+            if let todayColumn {
                 CalendarNowLine(
                     nowMinutes: nowMinutes,
-                    todayIndex: todayIndex,
+                    todayIndex: todayColumn,
                     dayWidth: dayWidth,
                     hourHeight: hourHeight,
                     weekWidth: weekWidth
                 )
             }
-            if let drag {
-                CalendarDragBlock(
-                    drag: drag,
-                    page: page,
-                    dayWidth: dayWidth,
-                    hourHeight: hourHeight,
-                    use24Hour: use24Hour,
-                    dark: dark
-                )
-            }
         }
-        .frame(width: weekWidth, height: contentHeight, alignment: .topLeading)
-        .offset(x: -dayOffset, y: -hourOffset)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .clipped()
-    }
-
-}
-
-/// The block a drag has in its hand, drawn where the pointer has it, with the time it would land on
-/// written on it.
-///
-/// The label is the point: a quarter-hour snap is invisible on a zoomed-out grid (the block moves
-/// three points and the user has no way to know whether that was 15 minutes or 30).
-struct CalendarDragBlock: View {
-    let drag: CalendarDragState
-    let page: CalendarPage
-    let dayWidth: CGFloat
-    let hourHeight: CGFloat
-    let use24Hour: Bool
-    let dark: Bool
-
-    var body: some View {
-        // Two currencies, on purpose. The block is drawn from `livePreview()`, which follows the
-        // pointer to the minute, so the motion is smooth instead of stepping a quarter-hour at a
-        // time. The readout is drawn from `preview()`, which is snapped, it is the number that will
-        // be written, and a readout agreeing with the pixels instead would quote a minute the drop
-        // cannot honour.
-        let live = drag.livePreview()
-        let settled = drag.preview()
-        // A held block takes its whole column: the core's lane packing describes where it *was*, and
-        // re-solving overlaps per frame is work a gesture must not do.
-        let held = page.timed.first { segment in
-            guard let subject = drag.subject else { return false }
-            return segment.account == subject.account && segment.event == subject.event
-                && Int(segment.day) == subject.day
-        }
-        // A new slot wears the calendar it would be filed on; a held one keeps its own colours. The
-        // accent it used to fall back to is the one colour on the grid that means nothing: every
-        // other block says which calendar it belongs to, and the one being created, the only one
-        // whose calendar is still a choice, said "accent" on its way to a red calendar.
-        let swatch = held.flatMap { segment in
-            page.calendars.row(account: segment.account, calendar: segment.calendar)
-        }?.swatchOrFallback(dark: dark)
-            ?? page.calendars.first { $0.isDefault }?.color.swatch(dark: dark)
-
-        let blockWidth = max(dayWidth - 2, 0)
-        let blockHeight = max(hourHeight * CGFloat(live.minutes) / 60 - 2, 0)
-        let blockX = dayWidth * CGFloat(live.day) + 1
-        let blockY = hourHeight * CGFloat(live.startMinutes) / 60 + 1
-
-        ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(swatch.map { parseHexColor($0.background) } ?? Color.accentColor)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(
-                            swatch.map { parseHexColor($0.border) } ?? Color.accentColor,
-                            lineWidth: 2
-                        )
-                )
-                .frame(width: blockWidth, height: blockHeight)
-                .offset(x: blockX, y: blockY)
-
-            // The time floats beside the block rather than being written inside it. Inside, it was
-            // dropped exactly when it was needed most: a fifteen-minute slot at a zoomed-out horizon
-            // is a few points tall, and the one label that tells a 15-minute snap from a 30-minute
-            // one did not fit in it.
-            CalendarDragReadout(
-                text: timeRange(settled.startMinutes, settled.endMinutes, use24Hour: use24Hour),
-                dark: dark
-            )
-            .offset(x: blockX, y: max(blockY - dragReadoutGap, 0))
-        }
-        .allowsHitTesting(false)
-    }
-}
-
-/// The gap between the block and the readout floating above it.
-private let dragReadoutGap: CGFloat = 22
-
-/// The time a drag would land on, in a floating pill.
-///
-/// The inverse of the surface it sits on, the way a tooltip is, stated as two hexes rather than
-/// taken from a system colour, because the pair has to exist on macOS and iOS alike and the
-/// platform-specific ones do not.
-struct CalendarDragReadout: View {
-    let text: String
-    let dark: Bool
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 12, weight: .medium))
-            .lineLimit(1)
-            .fixedSize()
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .foregroundStyle(parseHexColor(dark ? "#1b1b1b" : "#f2f2f2"))
-            .background(parseHexColor(dark ? "#e3e3e3" : "#303030"), in: Capsule())
-    }
-}
-
-/// The hour ruler. Each label straddles its gridline so "09" reads as the 09:00 boundary rather than
-/// as a name for the band beneath it.
-struct CalendarHourRuler: View {
-    let use24Hour: Bool
-    let hourHeight: CGFloat
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(0..<calendarHours, id: \.self) { hour in
-                ZStack(alignment: .topTrailing) {
-                    Color.clear
-                    Text(hourLabel(hour, use24Hour: use24Hour))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .offset(y: -6)
-                        .padding(.trailing, 6)
-                }
-                .frame(width: calendarGutter, height: hourHeight)
-            }
-        }
-    }
-}
-
-/// The hour lines and the day dividers, drawn once rather than as ~30 composed views.
-struct CalendarGridLines: View {
-    let dayCount: Int
-    let dayWidth: CGFloat
-    let hourHeight: CGFloat
-
-    var body: some View {
-        Canvas { context, size in
-            let line = Color.secondary.opacity(0.25)
-            for hour in 1..<calendarHours {
-                let y = hourHeight * CGFloat(hour)
-                var path = Path()
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: size.width, y: y))
-                context.stroke(path, with: .color(line), lineWidth: 0.5)
-            }
-            guard dayCount > 1 else { return }
-            for day in 1..<dayCount {
-                let x = dayWidth * CGFloat(day)
-                var path = Path()
-                path.move(to: CGPoint(x: x, y: 0))
-                path.addLine(to: CGPoint(x: x, y: size.height))
-                context.stroke(path, with: .color(line), lineWidth: 0.5)
-            }
-        }
-    }
-}
-
-/// The red now line, with a dot on today's column.
-struct CalendarNowLine: View {
-    let nowMinutes: Int
-    let todayIndex: Int
-    let dayWidth: CGFloat
-    let hourHeight: CGFloat
-    let weekWidth: CGFloat
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            Rectangle()
-                .fill(Color.red)
-                .frame(width: weekWidth, height: 1.5)
-            Circle()
-                .fill(Color.red)
-                .frame(width: 8, height: 8)
-                .offset(x: dayWidth * CGFloat(todayIndex) - 4, y: -3)
-        }
-        .offset(y: hourHeight * (CGFloat(nowMinutes) / 60))
-        .accessibilityLabel(L10n.calendar_now())
     }
 }
 
@@ -422,3 +249,4 @@ extension TimedSegment {
 extension AllDayBand {
     var rowID: String { "\(account):\(event):\(day)" }
 }
+

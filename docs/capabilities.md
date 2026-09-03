@@ -66,8 +66,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar manager: per-calendar visibility + colour override, persisted ("Agenda's beheren") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Display settings: first day of the week, 12/24-hour clock (mail **and** calendar), **light or dark appearance** (follows the system by default, or pick one), calendar horizon | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar, pinch-to-zoom: hours, days, and **diagonal** (both at once) | — | ✅ | ✅ | ✅ | ✅ | ⬜ |
-| Calendar, **continuous day strip**: free horizontal scroll *across* weeks (trackpad/wheel), pinned hour ruler, coming to rest on a **day** at every zoom rather than paging by the week; a wheel notch asks for eased travel, so a mouse and a trackpad scroll alike ([`docs/calendar.md`](docs/calendar.md)) | — | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
-| Calendar, trackpad / mouse-wheel scrolling of the grid: hours **and** days, *within* the week (`Shift`+wheel pans days on a plain mouse) ([`docs/calendar.md`](docs/calendar.md)) | — | ✅ | ⬜ | ✅ | — | ⬜ |
+| Calendar, **continuous day strip**: a scroll or a swipe runs straight across the week boundary and comes to rest on a **day** at every zoom, with the hour ruler pinned beside it, rather than paging by the week; a wheel notch asks for eased travel, so a mouse and a trackpad scroll alike ([`docs/calendar.md`](docs/calendar.md)) | — | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| Calendar, scrolling the hours: trackpad, mouse wheel or finger (`Shift`+wheel reaches the days on a plain mouse) ([`docs/calendar.md`](docs/calendar.md)) | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: `< Today >` header navigation, stepping by the visible span (the work week steps a week) | — | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 | Calendar: the shape and horizon you left it in, restored on launch | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: your diary on screen from the store at launch, filled without opening it, so it is there offline | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
