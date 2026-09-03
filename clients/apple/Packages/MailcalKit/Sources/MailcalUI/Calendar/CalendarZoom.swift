@@ -105,13 +105,10 @@ struct CalendarZoom {
     func dayWidth(viewport: CGFloat) -> CGFloat { viewport / visibleDays }
 }
 
-/// How far the day axis can be scrolled: the week's whole width, less the viewport it is seen
-/// through. Zero when the zoom shows all seven days, the week is the page, so there is nowhere to go.
-func calendarMaxDayOffset(dayWidth: CGFloat, dayCount: Int, viewportWidth: CGFloat) -> CGFloat {
-    max(dayWidth * CGFloat(dayCount) - viewportWidth, 0)
-}
-
-/// The hour axis's twin: a whole day of content, less the height of the grid it is seen through.
+/// How far the hour axis can be scrolled: a whole day of content, less the grid it is seen through.
+///
+/// The day axis has no twin here, and deliberately: it is a strip measured in weeks
+/// (`CalendarStrip`), with no end to fall off and nothing to bound it.
 func calendarMaxHourOffset(hourHeight: CGFloat, gridHeight: CGFloat) -> CGFloat {
     max(hourHeight * CGFloat(calendarHours) - gridHeight, 0)
 }
@@ -126,8 +123,12 @@ func calendarMaxHourOffset(hourHeight: CGFloat, gridHeight: CGFloat) -> CGFloat 
 /// Without this the offset stays fixed in **points** while the scale changes, so the same offset maps
 /// to a different time, and the grid slides out from under the user's fingers, appearing to zoom
 /// about the top of the day rather than about their hand.
+///
+/// Unbounded, and the caller bounds it: the hours clamp to the day, the day axis to nothing at all,
+/// because the strip is endless and a bound there is what makes a pinch at the end of a week creep
+/// the days sideways.
 func focalPreservingScroll(scroll: CGFloat, focus: CGFloat, factor: CGFloat) -> CGFloat {
-    max((scroll + focus) * factor - focus, 0)
+    (scroll + focus) * factor - focus
 }
 
 extension Comparable {

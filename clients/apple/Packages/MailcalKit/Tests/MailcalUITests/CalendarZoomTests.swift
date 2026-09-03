@@ -68,8 +68,10 @@ import Testing
         #expect(abs(focalPreservingScroll(scroll: 2500, focus: 500, factor: 0.5) - 1000) < 0.01)
         // A zoom that changed nothing must not move the scroll at all.
         #expect(abs(focalPreservingScroll(scroll: 1234, focus: 400, factor: 1) - 1234) < 0.01)
-        // And it never scrolls above the top of the day.
-        #expect(focalPreservingScroll(scroll: 0, focus: 10, factor: 0.2) >= 0)
+        // The formula itself is unbounded, and the caller is what bounds it: the hour axis clamps to
+        // the top of the day, the day axis to nothing at all, because the strip is endless and a
+        // bound there is what makes a pinch at the end of a week creep the days sideways.
+        #expect(focalPreservingScroll(scroll: 0, focus: 10, factor: 0.2) < 0)
         // The degenerate case that proves it is anchored and not merely scaled.
         #expect(abs(focalPreservingScroll(scroll: 0, focus: 0, factor: 3)) < 0.01)
     }
@@ -243,45 +245,29 @@ import Testing
     }
 
     @Test func aZoomArrivingAfterTheFirstFrameCannotStrandTheDayAxis() {
-        // The other route into the same state, and the one behind the original report: the horizon
-        // and the column count are CORE settings, so a client can render, and recentre on today:
-        // before they arrive, then re-seed. Friday is column 4, so recentring at three columns parks
-        // the day axis 1.33 viewports along; re-seeding to the whole week makes the content exactly
-        // one viewport wide, and that offset now puts every single day off the left edge.
+        // The bug this replaces, and why it cannot come back. The horizon and the column count are
+        // CORE settings, so a client can render, and frame itself on today, before they arrive. When
+        // the day axis was an offset in POINTS bounded by the week's width, that framing was measured
+        // against the wrong geometry: recentring on Friday at three columns parked it 1.33 viewports
+        // along, re-seeding to the whole week made the content exactly one viewport wide, and the
+        // clamp then dragged every day off the left edge. The grid came up blank, which reads as a
+        // rendering crash and is really a stale offset.
+        //
+        // The strip is measured in **weeks**, and a week is a week at every zoom, so the same
+        // sequence leaves it on the day it was framed on and there is nothing left to strand.
         let viewport: CGFloat = 700
-        let todayIndex = 4  // Friday, on a Monday-start week
-
         var narrow = CalendarZoom(visibleHours: 12, visibleDays: 3)
-        var dayOffset = CGFloat(todayIndex) * narrow.dayWidth(viewport: viewport)
-        dayOffset = dayOffset.clamped(
-            to: 0...calendarMaxDayOffset(
-                dayWidth: narrow.dayWidth(viewport: viewport),
-                dayCount: daysInWeek,
-                viewportWidth: viewport
-            )
-        )
-        #expect(dayOffset > viewport, "recentring at three columns lands beyond one viewport")
+
+        var strip = CalendarStrip()
+        strip.frame(week: 0, column: 4)  // Friday, on a Monday-start week
+        let framed = strip.weeks
 
         narrow.resetDays(daysInWeek)
-        let weekLimit = calendarMaxDayOffset(
-            dayWidth: narrow.dayWidth(viewport: viewport),
-            dayCount: daysInWeek,
-            viewportWidth: viewport
+        #expect(strip.weeks == framed, "the seeded zoom moved the strip")
+        // And Friday is still the column against the grid's left edge, at the new width.
+        #expect(
+            strip.origin(ofWeek: 0, dayWidth: narrow.dayWidth(viewport: viewport))
+                == -4 * narrow.dayWidth(viewport: viewport)
         )
-        #expect(weekLimit == 0, "at seven columns the week IS the viewport, there is nowhere to pan")
-        #expect(dayOffset > weekLimit, "unclamped, the whole week sits off the left edge")
-
-        dayOffset = dayOffset.clamped(to: 0...weekLimit)
-        #expect(dayOffset == 0)
-    }
-
-    @Test func aMondayHidTheDayAxisBugForAsLongAsItLasted() {
-        // Why this survived: the day axis is only stranded when today is not the first column, so
-        // the grid opened correctly every Monday and was blank on a Friday. Worth pinning, it is
-        // the reason "it works on my machine" was true and useless.
-        let viewport: CGFloat = 700
-        let zoom = CalendarZoom(visibleHours: 12, visibleDays: 3)
-        #expect(CGFloat(0) * zoom.dayWidth(viewport: viewport) == 0)
-        #expect(CGFloat(4) * zoom.dayWidth(viewport: viewport) > 0)
     }
 }

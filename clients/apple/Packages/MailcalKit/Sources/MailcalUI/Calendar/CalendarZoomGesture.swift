@@ -40,8 +40,9 @@ func axisScale(before: CGFloat, after: CGFloat, minimum: CGFloat = minSpread) ->
 /// Applies a pinch to the grid's zoom, anchoring the content under the fingers.
 struct CalendarZoomGesture: ViewModifier {
     @Binding var zoom: CalendarZoom
-    @Binding var dayOffset: CGFloat
+    @Binding var strip: CalendarStrip
     @Binding var hourOffset: CGFloat
+    /// The width the day columns scroll through: the surface, less the pinned hour ruler.
     let viewportWidth: CGFloat
     let viewportHeight: CGFloat
     let onSettled: () -> Void
@@ -72,11 +73,19 @@ struct CalendarZoomGesture: ViewModifier {
             let newContent = zoom.hourHeight(viewport: viewportHeight) * CGFloat(calendarHours)
             hourOffset = min(max(target, 0), max(newContent - viewportHeight, 0))
         }
+        // The day axis anchors in the **day viewport**, past the pinned hour ruler, which is where
+        // the strip's own arithmetic begins. The fingers' point is reported over the whole grid, so
+        // the gutter comes off it first; without that the columns creep sideways under a pinch by
+        // the ruler's width, and no clamp is left to hide it.
+        let dayWidthBefore = zoom.dayWidth(viewport: viewportWidth)
         let horizontal = zoom.pinchHorizontal(xScale)
         if horizontal != 1 {
-            let target = focalPreservingScroll(scroll: dayOffset, focus: focus.x, factor: horizontal)
-            let newWeek = zoom.dayWidth(viewport: viewportWidth) * CGFloat(daysInWeek)
-            dayOffset = min(max(target, 0), max(newWeek - viewportWidth, 0))
+            strip.pinch(
+                factor: horizontal,
+                focus: focus.x - calendarGutter,
+                dayWidthBefore: dayWidthBefore,
+                dayWidthAfter: zoom.dayWidth(viewport: viewportWidth)
+            )
         }
     }
 }
@@ -117,10 +126,28 @@ struct CalendarZoomGesture: ViewModifier {
         }
 
         /// Never a hit-test target, so it costs the content below nothing.
+        ///
+        /// It does **ask for indirect touches**, and that request is what makes a diagonal pinch
+        /// possible at all. A magnify event carries the trackpad's `NSTouch` objects only while some
+        /// view in the window has asked for them; with nobody asking, `touches(matching:)` comes back
+        /// empty, the catcher falls through to the scalar `magnification` below, and a scalar can
+        /// only ever zoom one axis. The symptom is a pinch that changes the hours and leaves the
+        /// columns exactly as wide as they were, which reads as arithmetic rather than as a missing
+        /// request.
         final class PassthroughView: NSView {
             override func hitTest(_ point: NSPoint) -> NSView? { nil }
             /// Top-left origin, to match the SwiftUI coordinates the focal point is used in.
             override var isFlipped: Bool { true }
+
+            override func viewDidMoveToWindow() {
+                super.viewDidMoveToWindow()
+                allowedTouchTypes = [.indirect]
+                // And on the content view, because this one is deliberately not a hit-test target:
+                // the view the touches are delivered against is whatever the pointer is over, which
+                // is the grid's own content. The request has to be made somewhere that is always in
+                // the chain, whatever that is.
+                window?.contentView?.allowedTouchTypes.insert(.indirect)
+            }
         }
 
         /// Main-actor bound: everything it touches (the view, the event, the parent's callbacks)
@@ -134,12 +161,28 @@ struct CalendarZoomGesture: ViewModifier {
             private weak var view: NSView?
             private var monitor: Any?
             private var lastSpread: CGSize?
+            /// Whether the gesture in progress is a **pinch**, which only a `.magnify` says.
+            ///
+            /// `.beginGesture`/`.endGesture` bracket every trackpad gesture, a two-finger *scroll*
+            /// included, and the contacts ride on the `.gesture` stream either way. Without this
+            /// flag a plain sideways scroll reads as a spread, zooms the day axis, and then settles:
+            /// `onSettled` persists the horizon and the layout to the core, so scrolling the
+            /// calendar would rewrite the shape the user chose.
+            private var magnifying = false
 
             init(_ parent: PinchCatcher) { self.parent = parent }
 
             func watch(_ view: NSView) {
                 self.view = view
-                monitor = NSEvent.addLocalMonitorForEvents(matching: .magnify) { [weak self] event in
+                // **The touches and the magnification arrive on different events**, so both are
+                // watched. A `.magnify` carries a scalar and says when the gesture began and ended;
+                // the trackpad's individual contacts ride on the `.gesture` stream beside it, which
+                // is the only place the per-axis spread can be read. Watching magnify alone left
+                // `touches(matching:)` empty on every frame, so the catcher fell through to its
+                // scalar fallback and the pinch could only ever move the hours.
+                monitor = NSEvent.addLocalMonitorForEvents(
+                    matching: [.magnify, .gesture, .beginGesture, .endGesture]
+                ) { [weak self] event in
                     MainActor.assumeIsolated { self?.handle(event) }
                     return event
                 }
@@ -151,47 +194,63 @@ struct CalendarZoomGesture: ViewModifier {
             }
 
             private func handle(_ event: NSEvent) {
-                // The monitor sees every magnify in the app, so the grid only takes the ones aimed at
-                // it: same window, cursor over the grid.
+                // The monitor sees every gesture in the app, so the grid only takes the ones aimed
+                // at it: same window, cursor over the grid.
                 guard let view, let window = view.window, event.window === window else { return }
                 let focus = view.convert(event.locationInWindow, from: nil)
                 guard view.bounds.contains(focus) else { return }
 
-                if event.phase == .ended || event.phase == .cancelled {
+                if event.type == .beginGesture {
                     lastSpread = nil
-                    parent.onSettled()
+                    magnifying = false
                     return
                 }
 
-                let touches = event.touches(matching: .touching, in: nil)
-                guard touches.count == 2, let spread = axisSpread(of: touches) else {
-                    // Something is magnifying that is not two fingers on a trackpad, a Magic Mouse,
-                    // a tablet driver. There are no axes to read, so fall back to what a scalar can
-                    // still say: zoom the hours, which is the axis a desktop user reaches for anyway.
-                    let scale = 1 + event.magnification
-                    if scale > 0 { parent.onPinch(1, scale, focus) }
+                if event.type == .endGesture || event.phase == .ended || event.phase == .cancelled {
+                    lastSpread = nil
+                    // Only a gesture that actually magnified has a zoom to settle.
+                    if magnifying { parent.onSettled() }
+                    magnifying = false
                     return
                 }
-                defer { lastSpread = spread.gap }
-                guard event.phase != .began, let previous = lastSpread else { return }
 
-                let xScale = axisScale(
-                    before: previous.width, after: spread.gap.width,
-                    minimum: spread.device.width * minTrackpadSpread
-                )
-                let yScale = axisScale(
-                    before: previous.height, after: spread.gap.height,
-                    minimum: spread.device.height * minTrackpadSpread
-                )
-                if xScale != 1 || yScale != 1 {
-                    parent.onPinch(xScale, yScale, focus)
+                // macOS decides what a pair of fingers means, and says so with `.magnify`. Until it
+                // has, the contacts on the `.gesture` stream beside it belong to a scroll.
+                if event.type == .magnify { magnifying = true }
+                guard magnifying else { return }
+
+                // The contacts are the truth for **both** axes, whichever event brought them, so the
+                // zoom is applied from them and `magnification` is needed only when they are absent.
+                if let spread = axisSpread(of: event.allTouches()) {
+                    defer { lastSpread = spread.gap }
+                    guard let previous = lastSpread else { return }
+                    let xScale = axisScale(
+                        before: previous.width, after: spread.gap.width,
+                        minimum: spread.device.width * minTrackpadSpread
+                    )
+                    let yScale = axisScale(
+                        before: previous.height, after: spread.gap.height,
+                        minimum: spread.device.height * minTrackpadSpread
+                    )
+                    if xScale != 1 || yScale != 1 {
+                        parent.onPinch(xScale, yScale, focus)
+                    }
+                    return
                 }
+
+                // Something is magnifying that is not two fingers on a trackpad: a Magic Mouse, a
+                // tablet driver. There are no axes to read, so fall back to what a scalar can still
+                // say: zoom the hours, which is the axis a desktop user reaches for anyway.
+                guard event.type == .magnify else { return }
+                let scale = 1 + event.magnification
+                if scale > 0 { parent.onPinch(1, scale, focus) }
             }
 
             /// How far apart the two fingers are on each axis, in the trackpad's own units, and how
             /// big the trackpad is, which is the only thing that gives those units a meaning.
             private func axisSpread(of touches: Set<NSTouch>) -> (gap: CGSize, device: CGSize)? {
-                let pair = Array(touches)
+                let pair = Array(touches.filter { $0.phase != .ended && $0.phase != .cancelled })
+                guard pair.count == 2 else { return nil }
                 let device = pair[0].deviceSize
                 guard device.width > 0, device.height > 0 else { return nil }
                 let a = pair[0].normalizedPosition
