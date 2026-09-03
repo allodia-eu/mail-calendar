@@ -36,7 +36,11 @@ internal sealed record DetectRoute(
     // implicit TLS or STARTTLS to match. The manual/JMAP/Microsoft routes leave the implicit-TLS
     // default (the manual form offers implicit TLS only today).
     ConnectionSecurity ImapSecurity = ConnectionSecurity.ImplicitTls,
-    ConnectionSecurity SmtpSecurity = ConnectionSecurity.ImplicitTls);
+    ConnectionSecurity SmtpSecurity = ConnectionSecurity.ImplicitTls,
+    // The issuer the provider's own autoconfig named, when it named one. Carried so the setup
+    // form's pre-flight asks that server first rather than probing well-known paths for one the
+    // provider has already pointed at (docs/mail-oauth.md rule 4).
+    string? OauthIssuer = null);
 
 /// <summary>Pure routing + connect-gating for the detection flow (no WinUI types, so it's testable).</summary>
 internal static class AccountDetectForm
@@ -55,7 +59,8 @@ internal static class AccountDetectForm
             IsManual: false, Tab: DetectTab.Imap, Email: imap.Email,
             ImapHost: imap.ImapHost, SmtpHost: imap.SmtpHost ?? string.Empty, JmapServer: string.Empty,
             CaldavUrl: imap.CaldavUrl ?? string.Empty, NeedsApproval: !imap.IsTrusted, Reason: null,
-            ImapSecurity: imap.ImapSecurity, SmtpSecurity: imap.SmtpSecurity),
+            ImapSecurity: imap.ImapSecurity, SmtpSecurity: imap.SmtpSecurity,
+            OauthIssuer: imap.OauthIssuer),
 
         SetupRecommendation.Microsoft microsoft => new DetectRoute(
             IsManual: false, Tab: DetectTab.Microsoft, Email: microsoft.Email,

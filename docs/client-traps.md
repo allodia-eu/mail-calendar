@@ -46,6 +46,19 @@ that same file.
   `swift test` (there is no Apple UI-test target): prove it on a simulator whose own appearance is
   the *opposite* of the one under test, driving the picker with `idb` and flipping the host with
   `xcrun simctl ui <udid> appearance light|dark`.
+- **The C# bindings PascalCase every field, and nothing outside a Windows host compiles the code
+  that reads them.** `mailcal-bindgen-cs` emits `PasswordAlsoWorks` where Swift and Kotlin keep
+  `passwordAlsoWorks`, so a field name copied across from another client compiles on those two and
+  fails only here. `Mailcal.Tests` is plain `net10.0` and links no WinUI type, so the whole of
+  `clients/windows/Mailcal/` is invisible to it, and to `gate.sh --clients` on any other host: the
+  first thing that reads a name wrong is CI. Two habits pay for themselves: read the field out of
+  `clients/windows/Generated/mailcal_bindings.cs` rather than from the sibling client, and grep a
+  new file for a lowercase member access, which in this codebase is always either a namespace or a
+  mistake.
+- **A `MailboxModel` partial that disagrees about accessibility is reported as a broken
+  `MainWindow.xaml`.** C# rejects the class (`CS0262`), so every type in it disappears, and the
+  XAML compiler then lists a dozen `WMC0001: Unknown type` lines naming views nobody touched. The
+  one line that matters is the first error, not the loudest.
 - **On Linux, hand a URI or a file to the desktop through the portal launchers, never through
   `AppInfo`.** `gtk::UriLauncher` for a URI, `gtk::FileLauncher` for a file
   (`check-desktop-handoff.sh` catches the shapes a grep can decide).

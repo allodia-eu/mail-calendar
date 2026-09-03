@@ -139,21 +139,26 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Server asked before a credential field is drawn | ✅ | 🚧 | ⬜ | ✅ | ✅ |
-| Sign-in primary, password behind a secondary control | ✅ | 🚧 | ⬜ | ✅ | ✅ |
-| "Only pre-registered apps" explained rather than shown as a bare form | ✅ | 🚧 | ⬜ | ✅ | ✅ |
-| No password field where the server refuses passwords | ✅ | 🚧 | ⬜ | ✅ | ✅ |
-| Nothing to act on until the answer, with a deadline racing it | ✅ | 🚧 | ⬜ | ✅ under the spinner | ✅ |
-| Browser sign-in + redirect capture | n/a | 🚧 `ASWebAuthenticationSession` | ⬜ | ✅ Custom Tab | ✅ loopback |
+| Server asked before a credential field is drawn | ✅ | 🚧 | 🚧 | ✅ | ✅ |
+| Sign-in primary, password behind a secondary control | ✅ | 🚧 | 🚧 | ✅ | ✅ |
+| "Only pre-registered apps" explained rather than shown as a bare form | ✅ | 🚧 | 🚧 | ✅ | ✅ |
+| No password field where the server refuses passwords | ✅ | 🚧 | 🚧 | ✅ | ✅ |
+| Nothing to act on until the answer, with a deadline racing it | ✅ | 🚧 | 🚧 no deadline | ✅ under the spinner | ✅ |
+| Browser sign-in + redirect capture | n/a | 🚧 `ASWebAuthenticationSession` | 🚧 protocol activation | ✅ Custom Tab | ✅ loopback |
 | Grant stored with no password beside it | ✅ | n/a | n/a | n/a | ✅ |
 | One re-dial on an expired token | ✅ | n/a | n/a | n/a | n/a |
 
 ## Known gaps
 
-- **Windows still draws the password form only.** It carries the core's answer no further than
-  the binding: it connects an OAuth account correctly once one exists, and cannot yet create
-  one. Until it ships the surface, a person there sees exactly what they saw before, which is a
-  working password setup and not a broken screen.
+- **Windows has no deadline racing the pre-flight.** Its gate leaves the credential fields
+  absent until the server answers, and nothing yet brings the password field back if the server
+  never does. The core's own call is bounded by its TLS and HTTP timeouts, so the wait ends, but
+  it is longer than the ten seconds the other clients cap it at.
+- **Windows' surface is compiled and has never been run.** `ImapSignInGate` and the routing are
+  covered by `Mailcal.Tests`, plain `net10.0` and runnable on any host; the WinUI half (the XAML,
+  the view partial, the model's browser flow) compiles only on a Windows host, which CI is. What
+  no run has reached is the screen: `uitests/run-ui-tests.ps1` asserts against the running app,
+  and the three answers have not been through it.
 - **Android has no "still asking" state, deliberately.** It resolves the answer under the
   "Looking…" spinner that detection already shows, before the card exists, so the card renders
   in its final shape rather than settling into one. That is a stricter reading of rule 8 than a
