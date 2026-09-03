@@ -1814,8 +1814,19 @@ Stated, not buried.
   same reason. It is the one Apple input that cannot say when it has stopped.
 - **A Mac with no trackpad has no pinch at all** (a mouse sends no magnify events): the shape is a
   menu choice there. SwiftUI's `MagnifyGesture` is a scalar and cannot do this; the diagonal pinch
-  works by reading the `NSTouch` objects off the raw magnify event, which know where the fingers are
-  on the trackpad. A device that magnifies without reporting two touches falls back to hours-only.
+  works by reading the `NSTouch` objects, which know where the fingers are on the trackpad. A device
+  that magnifies without reporting two touches falls back to hours-only.
+
+  ⚠️ **The touches and the magnification are on different events, and believing otherwise is what
+  broke this for as long as it existed.** `.magnify` carries the scalar and the phase; the contacts
+  ride on the `.gesture` stream beside it, and they are there only while some view in the window has
+  asked for indirect touches. Watching `.magnify` alone leaves `touches(matching:)` empty on every
+  frame, so the catcher takes its documented scalar fallback and the pinch moves the hours and
+  nothing else, on every Mac, silently. This row read ✅ for a long time on that basis.
+  `.beginGesture`/`.endGesture` bracket **every** trackpad gesture, a two-finger scroll included, so
+  a catcher watching them has to know which kind it is in: settling on a scroll persists a horizon
+  and a layout the user never chose. Hand-verified on macOS on 2026-09-03, which is the only way it
+  can be: no injected event carries real `NSTouch` data.
 - ~~**Apple pages weeks by header chevrons, not by a swipe.**~~ Closed, and not by adding a pager: the
   hand-off at a week's edge that SwiftUI would not do for free stopped existing when the days became
   one strip (footnote ⁴). The chevrons remain, and step a **week** rather than the visible span, which
