@@ -81,6 +81,7 @@ mod time_zone;
 mod timestamps;
 mod unfiled_copy;
 mod update;
+mod update_signin;
 mod web_security;
 mod webview;
 mod welcome;

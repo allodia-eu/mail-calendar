@@ -328,68 +328,32 @@ impl AppModel {
                 // rather than at the next launch. A no-op when nobody is signed in.
                 self.sync_after_account_change(sender.input_sender().clone());
             }
-            AppInput::StartGoogleLogin(email) => {
-                self.start_google_login(email, sender.input_sender().clone());
-            }
-            AppInput::CancelGoogleLogin => self.cancel_google_login(),
-            AppInput::GoogleCallbackReceived(attempt) => {
-                self.google_callback_received(attempt);
-            }
-            AppInput::GoogleFinished(attempt, outcome) => {
-                self.google_finished(attempt, outcome, sender.input_sender().clone());
-            }
-            AppInput::StartMicrosoftLogin(email) => {
-                self.start_microsoft_login(email, sender.input_sender().clone());
-            }
-            AppInput::CancelMicrosoftLogin => self.cancel_microsoft_login(),
-            AppInput::MicrosoftCallbackReceived(attempt) => {
-                self.microsoft_callback_received(attempt);
-            }
-            AppInput::MicrosoftFinished(attempt, outcome) => {
-                self.microsoft_finished(attempt, outcome, sender.input_sender().clone());
-            }
-            AppInput::StartJmapLogin(email, server_url) => {
-                self.start_jmap_login(email, server_url, sender.input_sender().clone());
-            }
-            AppInput::ProbeManualImapSignIn(form) => {
-                self.probe_manual_imap_sign_in(*form, sender.input_sender().clone());
-            }
-            AppInput::ImapAuthAnswered {
-                email,
-                imap_host,
-                offer,
-            } => {
-                self.imap_auth_answered(&email, &imap_host, *offer);
-            }
-            AppInput::StartImapLogin(form) => {
-                self.start_imap_login(&form, sender.input_sender().clone());
-            }
-            AppInput::CancelImapLogin => self.cancel_imap_login(),
-            AppInput::ImapPrepared(attempt, prepared) => {
-                self.imap_prepared(attempt, prepared, sender.input_sender().clone());
-            }
-            AppInput::ImapCallbackReceived(attempt) => {
-                self.imap_callback_received(attempt);
-            }
-            AppInput::ImapFinished(attempt, outcome) => {
-                self.imap_finished(attempt, outcome, sender.input_sender().clone());
-            }
-            AppInput::CancelJmapLogin => self.cancel_jmap_login(),
-            AppInput::JmapPrepared(attempt, prepared) => {
-                self.jmap_prepared(attempt, prepared, sender.input_sender().clone());
-            }
-            AppInput::JmapCallbackReceived(attempt) => {
-                self.jmap_callback_received(attempt);
-            }
-            AppInput::JmapFinished(attempt, outcome) => {
-                self.jmap_finished(attempt, outcome, sender.input_sender().clone());
-            }
-            AppInput::JmapReauthPrepared(attempt, prepared) => {
-                self.jmap_reauth_prepared(attempt, prepared, sender.input_sender().clone());
-            }
-            AppInput::JmapReauthFinished(attempt, outcome) => {
-                self.jmap_reauth_finished(attempt, outcome);
-            }
+            // The four provider sign-ins, each the same shape: start, cancel, the redirect,
+            // the outcome. They are a quarter of this match and reached from nowhere else in it,
+            // so they live next door (`update_signin.rs`). Listed rather than caught by a
+            // wildcard, so a new input variant still has to be handled somewhere by name.
+            message @ (AppInput::StartGoogleLogin(_)
+            | AppInput::CancelGoogleLogin
+            | AppInput::GoogleCallbackReceived(_)
+            | AppInput::GoogleFinished(..)
+            | AppInput::StartMicrosoftLogin(_)
+            | AppInput::CancelMicrosoftLogin
+            | AppInput::MicrosoftCallbackReceived(_)
+            | AppInput::MicrosoftFinished(..)
+            | AppInput::StartJmapLogin(..)
+            | AppInput::CancelJmapLogin
+            | AppInput::JmapPrepared(..)
+            | AppInput::JmapCallbackReceived(_)
+            | AppInput::JmapFinished(..)
+            | AppInput::JmapReauthPrepared(..)
+            | AppInput::JmapReauthFinished(..)
+            | AppInput::ProbeManualImapSignIn(_)
+            | AppInput::ImapAuthAnswered { .. }
+            | AppInput::StartImapLogin(_)
+            | AppInput::CancelImapLogin
+            | AppInput::ImapPrepared(..)
+            | AppInput::ImapCallbackReceived(_)
+            | AppInput::ImapFinished(..)) => self.update_sign_in(message, sender),
             AppInput::StartAllodiaSignIn => {
                 self.start_allodia_sign_in(sender.input_sender().clone());
             }
