@@ -423,6 +423,16 @@
 	"setup_detect_calendar_add": "Questo account ha anche un calendario",
 
 	"settings_title": "Impostazioni",
+	"settings_default_mail_app_heading": "App di posta predefinita",
+	"settings_default_mail_app_description": "Scegli se i link e-mail su questo dispositivo si aprono in Allodia Mail & Calendar.",
+	"settings_default_mail_app_action": "Imposta come predefinita",
+	"settings_default_mail_app_open_settings": "Apri le impostazioni di sistema",
+	"settings_default_mail_app_declined": "Hai scelto di non impostarla come predefinita.",
+	"default_mail_app_offer_title": "Aprire qui i link e-mail?",
+	"default_mail_app_offer_message": "Imposta Allodia Mail & Calendar come app di posta predefinita e i link agli indirizzi e-mail apriranno un messaggio qui. Puoi cambiarlo in qualsiasi momento nelle impostazioni.",
+	"default_mail_app_offer_accept": "Imposta come predefinita",
+	"default_mail_app_offer_decline": "Non ora",
+
 	"settings_language_heading": "Lingua",
 	"settings_language_description": "Scegli la lingua che vuoi usare. Le modifiche vengono applicate dopo un riavvio.",
 	"settings_language_system": "Usa la lingua del sistema",

@@ -423,6 +423,16 @@
 	"setup_detect_calendar_add": "Dit account heeft ook een agenda",
 
 	"settings_title": "Instellingen",
+	"settings_default_mail_app_heading": "Standaard e-mailapp",
+	"settings_default_mail_app_description": "Kies of e-mailkoppelingen op dit apparaat in Allodia Mail & Calendar openen.",
+	"settings_default_mail_app_action": "Instellen als standaard",
+	"settings_default_mail_app_open_settings": "Systeeminstellingen openen",
+	"settings_default_mail_app_declined": "Je koos ervoor om dit niet als standaard in te stellen.",
+	"default_mail_app_offer_title": "E-mailkoppelingen hier openen?",
+	"default_mail_app_offer_message": "Stel Allodia Mail & Calendar in als je standaard e-mailapp, dan openen koppelingen naar e-mailadressen hier een bericht. Je kunt dit altijd wijzigen in Instellingen.",
+	"default_mail_app_offer_accept": "Instellen als standaard",
+	"default_mail_app_offer_decline": "Niet nu",
+
 	"settings_language_heading": "Taal",
 	"settings_language_description": "Kies de taal die je wilt gebruiken. Wijzigingen worden toegepast na een herstart.",
 	"settings_language_system": "Systeemtaal gebruiken",

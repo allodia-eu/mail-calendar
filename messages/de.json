@@ -423,6 +423,16 @@
 	"setup_detect_calendar_add": "Dieses Konto hat auch einen Kalender",
 
 	"settings_title": "Einstellungen",
+	"settings_default_mail_app_heading": "Standard-E-Mail-App",
+	"settings_default_mail_app_description": "Legen Sie fest, ob E-Mail-Links auf diesem Gerät in Allodia Mail & Calendar geöffnet werden.",
+	"settings_default_mail_app_action": "Als Standard festlegen",
+	"settings_default_mail_app_open_settings": "Systemeinstellungen öffnen",
+	"settings_default_mail_app_declined": "Sie haben sich dagegen entschieden.",
+	"default_mail_app_offer_title": "E-Mail-Links hier öffnen?",
+	"default_mail_app_offer_message": "Legen Sie Allodia Mail & Calendar als Standard-E-Mail-App fest, dann öffnen Links zu E-Mail-Adressen hier eine Nachricht. Sie können das jederzeit in den Einstellungen ändern.",
+	"default_mail_app_offer_accept": "Als Standard festlegen",
+	"default_mail_app_offer_decline": "Jetzt nicht",
+
 	"settings_language_heading": "Sprache",
 	"settings_language_description": "Wählen Sie die Sprache, die Sie verwenden möchten. Änderungen werden nach einem Neustart übernommen.",
 	"settings_language_system": "Systemsprache verwenden",

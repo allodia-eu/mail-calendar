@@ -225,6 +225,7 @@
     <Compile Include="..\Mailcal\ViewModels\SidebarItem.cs" Link="ViewModels\SidebarItem.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarTree.cs" Link="ViewModels\SidebarTree.cs" />
     <!-- CalendarLayout / WeekStart / JmapSetup come from here. Never invoked, no cdylib is loaded. -->
+    <Compile Include="..\Mailcal\Services\DefaultMailApp.cs" Link="Services\DefaultMailApp.cs" />
     <Compile Include="..\Generated\mailcal_bindings.cs" Link="Generated\mailcal_bindings.cs" />
     <!-- The shipped locale list, the dependency-free partial of L10n, which is why it is a file of
          its own: AppCulture resolves a language choice against the catalog rather than a hardcoded

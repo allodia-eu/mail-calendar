@@ -423,6 +423,16 @@
 	"setup_detect_calendar_add": "This account also has a calendar",
 
 	"settings_title": "Settings",
+	"settings_default_mail_app_heading": "Default mail app",
+	"settings_default_mail_app_description": "Choose whether mail links on this device open in Allodia Mail & Calendar.",
+	"settings_default_mail_app_action": "Make default",
+	"settings_default_mail_app_open_settings": "Open system settings",
+	"settings_default_mail_app_declined": "You chose not to make it the default.",
+	"default_mail_app_offer_title": "Open mail links here?",
+	"default_mail_app_offer_message": "Make Allodia Mail & Calendar your default mail app, and links to email addresses will open a message here. You can change this at any time in Settings.",
+	"default_mail_app_offer_accept": "Make default",
+	"default_mail_app_offer_decline": "Not now",
+
 	"settings_language_heading": "Language",
 	"settings_language_description": "Choose the language you want to use. Changes apply after a restart.",
 	"settings_language_system": "Use system language",
