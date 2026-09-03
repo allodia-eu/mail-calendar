@@ -119,6 +119,8 @@ public struct ContentView: View {
                     signInJmap: { email, serverURL in
                         await model.signInWithJmap(email: email, serverURL: serverURL)
                     },
+                    imapAuthOptions: { request in await model.imapAuthOptions(request) },
+                    signInImap: { request in await model.signInWithImap(request) },
                     detect: { email in await model.detectSetup(email: email) },
                     // The first account, so the recommendation is offered here and only here.
                     onboarding: model
@@ -453,6 +455,8 @@ public struct ContentView: View {
             signInJmap: { email, serverURL in
                 await model.signInWithJmap(email: email, serverURL: serverURL)
             },
+            imapAuthOptions: { request in await model.imapAuthOptions(request) },
+            signInImap: { request in await model.signInWithImap(request) },
             detect: { email in await model.detectSetup(email: email) },
             startEmail: model.setupStartEmail,
             startOffer: model.setupStartOffer,
