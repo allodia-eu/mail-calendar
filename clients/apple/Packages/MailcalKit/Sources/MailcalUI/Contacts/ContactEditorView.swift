@@ -88,15 +88,20 @@ struct ContactEditorView: View {
             // Indexed, because the row writes back by position, which is what keeps the order on
             // screen the order that is saved.
             ForEach(values.indices, id: \.self) { index in
-                HStack {
-                    TextField(heading, text: values[index])
-                    Button {
-                        values.wrappedValue.remove(at: index)
-                    } label: {
-                        Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                // Bounds-checked, because a row outlives the removal that shortened the list
+                // for one pass: the field's binding reads by position, and the last row's
+                // would be reading past the end while the focused editor commits its text.
+                if index < values.wrappedValue.count {
+                    HStack {
+                        TextField(heading, text: values[index])
+                        Button {
+                            values.wrappedValue.remove(at: index)
+                        } label: {
+                            Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(removeLabel)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(removeLabel)
                 }
             }
             Button(addLabel) { values.wrappedValue.append("") }

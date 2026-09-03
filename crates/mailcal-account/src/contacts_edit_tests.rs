@@ -362,3 +362,83 @@ fn a_card_without_components_seeds_its_whole_name() {
             .is_empty()
     );
 }
+
+/// The name is a field like any other: the form owns two of its components, and everything
+/// else the card recorded survives a rename. A name built from the form alone would drop an
+/// honorific, a middle name and the sort keys from every client the user owns, on an edit that
+/// only corrected a spelling.
+#[test]
+fn renaming_keeps_the_name_parts_the_form_never_showed() {
+    let mut card = stored();
+    card.name = Some(ContactName {
+        full: Some("Dr. Ada Byron Lovelace Jr.".into()),
+        components: vec![
+            NameComponent::new(NameComponentKind::Prefix, "Dr."),
+            NameComponent::new(NameComponentKind::Given, "Ada"),
+            NameComponent::new(NameComponentKind::Middle, "Byron"),
+            NameComponent::new(NameComponentKind::Surname, "Lovelace"),
+            NameComponent::new(NameComponentKind::Suffix, "Jr."),
+        ],
+        sort_as: [("surname".to_owned(), "Lovelace".to_owned())]
+            .into_iter()
+            .collect(),
+        ..ContactName::default()
+    });
+    let mut changed = ContactEdit::from_card(&card);
+    changed.surname = "King".into();
+
+    let patch = build_contact_patch(&card, &changed).expect("a valid patch");
+    let FieldPatch::Set(name) = &patch.fields[&ContactField::Name] else {
+        panic!("the name was cleared");
+    };
+    let name: ContactName = serde_json::from_value(name.clone()).expect("the name decodes");
+    assert_eq!(
+        name.components
+            .iter()
+            .map(|component| (component.kind.clone(), component.value.clone()))
+            .collect::<Vec<_>>(),
+        vec![
+            (NameComponentKind::Prefix, "Dr.".to_owned()),
+            (NameComponentKind::Given, "Ada".to_owned()),
+            (NameComponentKind::Middle, "Byron".to_owned()),
+            (NameComponentKind::Surname, "King".to_owned()),
+            (NameComponentKind::Suffix, "Jr.".to_owned()),
+        ],
+        "only the surname the form owns may change, and it keeps its place"
+    );
+    assert_eq!(
+        name.full.as_deref(),
+        Some("Dr. Ada Byron King Jr."),
+        "and the formatted name follows the components, rather than being rebuilt from the two \
+         fields the form showed, which would drop the honorific and the middle name from it"
+    );
+    assert_eq!(
+        name.sort_as.get("surname").map(String::as_str),
+        Some("Lovelace")
+    );
+}
+
+/// The exception: a card carrying only a formatted name puts the whole thing in the given-name
+/// field, and the form emits no components for it. Asking the engine to assemble a name from
+/// nothing would leave the card unnamed, so the typed text is written as it stands.
+#[test]
+fn renaming_an_unstructured_name_writes_what_was_typed() {
+    let mut card = stored();
+    card.name = Some(ContactName {
+        full: Some("Ada Lovelace".into()),
+        ..ContactName::default()
+    });
+    let mut changed = ContactEdit::from_card(&card);
+    changed.given_name = "Ada King".into();
+
+    let patch = build_contact_patch(&card, &changed).expect("a valid patch");
+    let FieldPatch::Set(name) = &patch.fields[&ContactField::Name] else {
+        panic!("the name was cleared");
+    };
+    let name: ContactName = serde_json::from_value(name.clone()).expect("the name decodes");
+    assert_eq!(name.full.as_deref(), Some("Ada King"));
+    assert!(
+        name.components.is_empty(),
+        "and no surname was invented for it"
+    );
+}

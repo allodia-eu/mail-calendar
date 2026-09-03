@@ -305,14 +305,14 @@ async fn saving_an_unchanged_form_sends_no_write() {
         &surfaces,
     );
     app.dispatch(Intent::RefreshContacts).await;
-    let row = app.contacts().rows.remove(0);
+    let row_id = app.contacts().rows.remove(0).id;
     let unchanged = app
-        .contact_card(&row.id, "personal", "c-personal")
+        .contact_card(&row_id, "personal", "c-personal")
         .await
         .expect("the card");
 
     app.dispatch(Intent::UpdateContact {
-        person: row.id,
+        person: row_id.clone(),
         account: "personal".into(),
         card: "c-personal".into(),
         edit: unchanged,
@@ -321,6 +321,28 @@ async fn saving_an_unchanged_form_sends_no_write() {
 
     assert!(writes.entries().is_empty(), "{:?}", writes.entries());
     assert_eq!(app.contact_write_status(), ContactWriteStatus::Saved);
+
+    // A second save that settles the way the first one did still tells the host something: the
+    // status signals on a *change*, so a run of saves with the same outcome would otherwise be
+    // one signal, and an editor waiting for the outcome of the save it just submitted would sit
+    // there. Every save therefore announces itself before anything can refuse it.
+    surfaces.lock().unwrap().clear();
+    let unchanged = app
+        .contact_card(&row_id, "personal", "c-personal")
+        .await
+        .expect("the card");
+    app.dispatch(Intent::UpdateContact {
+        person: row_id,
+        account: "personal".into(),
+        card: "c-personal".into(),
+        edit: unchanged,
+    })
+    .await;
+    assert_eq!(app.contact_write_status(), ContactWriteStatus::Saved);
+    assert!(
+        surfaces.lock().unwrap().contains(&Surface::ContactsStatus),
+        "the second save signalled nothing"
+    );
 }
 
 /// A refusal before anything is sent is its own status, because it is a different sentence on

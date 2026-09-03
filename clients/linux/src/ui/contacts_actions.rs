@@ -135,6 +135,19 @@ impl AppModel {
     }
 
     pub(super) fn contact_card_loaded(&mut self, target: EditTarget, seed: Option<ContactEdit>) {
+        // The read blocks on the core's runtime, so a second press, or a move to another
+        // person, lands while it is still out. An answer for a person no longer open belongs
+        // to nobody on screen, and a second answer would stack a *second* modal editor over
+        // the first: closing one then leaves the model believing there is none while the
+        // other still holds the pre-edit seed, and its Save would undo what was just saved.
+        if self.contacts.editor().is_some()
+            || self
+                .contacts
+                .open_person()
+                .is_none_or(|(person, _)| person != target.person)
+        {
+            return;
+        }
         // A card that has gone (a sync deleted it between the tap and the read) opens no
         // editor: seeding one from nothing would offer to save a blank card over it.
         if let Some(seed) = seed {

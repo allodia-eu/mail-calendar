@@ -286,7 +286,7 @@ pub fn build_contact_patch(
     let current = ContactEdit::from_card(base).trimmed();
 
     if edit.given_name != current.given_name || edit.surname != current.surname {
-        let name = edit.name().unwrap_or_default();
+        let name = patched_name(base.name.as_ref(), &edit);
         patch.fields.insert(
             ContactField::Name,
             FieldPatch::Set(
@@ -341,6 +341,58 @@ pub fn build_contact_patch(
         set(&mut patch, ContactField::Titles, &values)?;
     }
     Ok(patch)
+}
+
+/// The structured name this edit writes, built on top of the one the card carried.
+///
+/// The form owns two components and nothing else, so a prefix, a middle name, a suffix, the
+/// sort keys and the phonetic system all survive: correcting a surname is not a request to
+/// drop "Dr." and a middle name from every other client the user owns. The two the form does
+/// own are replaced **in place**, keeping the reading order the card recorded.
+///
+/// The **formatted** name follows the same rule, so a card whose components outnumber the
+/// form's keeps them in the one string most clients actually show. It is assembled by
+/// `ContactName::display`, the engine's own rule, rather than by a second one here. The
+/// exception is a name the form holds *unstructured*: without a surname it emits no components
+/// at all, so there is nothing to assemble from and the typed text is the whole name.
+fn patched_name(base: Option<&ContactName>, edit: &ContactEdit) -> ContactName {
+    let built = edit.name().unwrap_or_default();
+    let Some(base) = base else {
+        return built;
+    };
+    let structured = !built.components.is_empty();
+    let mut name = base.clone();
+    name.full = built.full;
+    let mut fresh = built.components;
+    // A kind the form emptied goes; see the module docs on why the form emits none at all
+    // without a surname.
+    name.components
+        .retain(|component| !form_owned(&component.kind) || has_kind(&fresh, &component.kind));
+    for component in &mut name.components {
+        if let Some(index) = fresh
+            .iter()
+            .position(|replacement| replacement.kind == component.kind)
+        {
+            component.value = fresh.remove(index).value;
+        }
+    }
+    // A kind the card did not carry has no place to be replaced into, so it goes on the end.
+    name.components.extend(fresh);
+    if structured {
+        name.full = None;
+        name.full = name.display();
+    }
+    name
+}
+
+/// Whether the editor's form is the authority on this component.
+fn form_owned(kind: &NameComponentKind) -> bool {
+    matches!(kind, NameComponentKind::Given | NameComponentKind::Surname)
+}
+
+/// Whether `components` carries one of `kind`.
+fn has_kind(components: &[NameComponent], kind: &NameComponentKind) -> bool {
+    components.iter().any(|component| &component.kind == kind)
 }
 
 /// Serialises one property map into the patch.

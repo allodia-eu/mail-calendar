@@ -113,7 +113,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                     )
                                     if (cards.size == 1) {
                                         openContactEditor(instance, scope, detail.id, cards[0])
-                                    } else {
+                                    } else if (cards.size > 1) {
                                         contactWrites.cardChoice = cards
                                         contactWrites.person = detail.id
                                     }

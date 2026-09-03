@@ -236,7 +236,10 @@ private fun ValueList(
         ) {
             OutlinedTextField(
                 value = value,
-                onValueChange = { values[index] = it },
+                // Bounds-checked: a row's callbacks capture the position they were composed
+                // at, and the IME flushes a composing region through them after the row it
+                // belonged to has been removed.
+                onValueChange = { if (index < values.size) values[index] = it },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = keyboard),
                 modifier = Modifier
@@ -245,7 +248,7 @@ private fun ValueList(
                     .testTag("$tag-$index"),
             )
             IconButton(
-                onClick = { values.removeAt(index) },
+                onClick = { if (index < values.size) values.removeAt(index) },
                 modifier = Modifier.testTag("$tag-remove-$index"),
             ) {
                 Icon(

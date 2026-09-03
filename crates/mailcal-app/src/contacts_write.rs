@@ -123,6 +123,11 @@ impl<P: Provider> App<P> {
         address_book: Option<String>,
         edit: ContactEdit,
     ) {
+        // Announced before anything can refuse it, because the status signals only on a
+        // *change*: a second save that settles the way the last one did would otherwise tell
+        // the host nothing, and an editor waiting for the outcome of the save it just
+        // submitted would sit there.
+        self.set_contact_write_status(ContactWriteStatus::Saving);
         let Some(target) = self.chosen_target(account, address_book).await else {
             log::warn!("create_contact: no writable address book, nothing was saved");
             self.set_contact_write_status(ContactWriteStatus::Failed);
@@ -162,7 +167,6 @@ impl<P: Provider> App<P> {
             self.set_contact_write_status(ContactWriteStatus::Failed);
             return;
         };
-        self.set_contact_write_status(ContactWriteStatus::Saving);
         let started = Instant::now();
         let status = match self
             .engine
@@ -202,6 +206,10 @@ impl<P: Provider> App<P> {
         card: String,
         edit: ContactEdit,
     ) {
+        // Before the first thing that can refuse it, for the reason `create_contact` states:
+        // the status signals on a change, and a save whose outcome matches the last one's has
+        // to be a change from *something* or the host never hears about it.
+        self.set_contact_write_status(ContactWriteStatus::Saving);
         let Some(base) = self.stored_card(&person, &account, &card).await else {
             log::warn!("update_contact: no such card in that account, nothing was saved");
             self.set_contact_write_status(ContactWriteStatus::Failed);
@@ -241,7 +249,6 @@ impl<P: Provider> App<P> {
             self.set_contact_write_status(ContactWriteStatus::Failed);
             return;
         };
-        self.set_contact_write_status(ContactWriteStatus::Saving);
         let started = Instant::now();
         let status = match self
             .engine
@@ -316,7 +323,6 @@ impl<P: Provider> App<P> {
             .map(|source| source.card)
     }
 
-    /// The destination the caller chose, or the first one on offer.
     /// The destination the caller chose.
     ///
     /// **A caller that names one and misses gets nothing**, never the first book on offer. The
