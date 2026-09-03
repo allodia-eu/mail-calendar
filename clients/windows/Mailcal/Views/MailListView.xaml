@@ -366,11 +366,16 @@
                   Loaded="OnRowsListLoaded"
                   Padding="12,0,12,0">
             <ListView.KeyboardAccelerators>
-                <!-- Scoped to the list, never the window: a focused search box or composer keeps
-                     its own Delete and Escape (docs/list-selection.md, rule 9). -->
-                <KeyboardAccelerator Key="Delete" Invoked="OnDeleteSelection" />
-                <KeyboardAccelerator Key="Back" Invoked="OnDeleteSelection" />
-                <KeyboardAccelerator Key="Escape" Invoked="OnClearSelection" />
+                <!-- ScopeOwner is what scopes these to the list: an accelerator without one is
+                     invoked for the whole window whatever has focus, so a focused search box or
+                     composer would lose its own Delete and Escape (docs/list-selection.md,
+                     rule 9). Declaring them here is not the scope; naming the owner is. -->
+                <KeyboardAccelerator Key="Delete" Invoked="OnDeleteSelection"
+                                     ScopeOwner="{x:Bind RowsList}" />
+                <KeyboardAccelerator Key="Back" Invoked="OnDeleteSelection"
+                                     ScopeOwner="{x:Bind RowsList}" />
+                <KeyboardAccelerator Key="Escape" Invoked="OnClearSelection"
+                                     ScopeOwner="{x:Bind RowsList}" />
             </ListView.KeyboardAccelerators>
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
