@@ -15,48 +15,53 @@ Bump: minor
 
 ```
 Pick several messages and deal with them together: archive, trash, mark read or unread, flag.
-Ctrl-click and Shift-click on a computer, or press and hold on a phone.
+Ctrl-click and Shift-click on a computer, Select or a long press on a phone.
 ```
 
 **Nederlands**
 
 ```
 Kies meerdere berichten en handel ze samen af: archiveren, weggooien, als gelezen of ongelezen
-markeren, markeren. Ctrl-klik en Shift-klik op een computer, of houd ingedrukt op een telefoon.
+markeren, markeren. Ctrl-klik en Shift-klik op een computer, Selecteren of lang indrukken op een
+telefoon.
 ```
 
 **Deutsch**
 
 ```
-Wählen Sie mehrere Nachrichten aus und erledigen Sie sie zusammen: archivieren, löschen, als
-gelesen oder ungelesen markieren, markieren. Strg-Klick und Umschalt-Klick am Computer, auf dem
-Telefon gedrückt halten.
+Wählen Sie mehrere Nachrichten aus und erledigen Sie sie zusammen: archivieren, löschen, als gelesen
+oder ungelesen markieren, markieren. Strg-Klick und Umschalt-Klick am Computer, auf dem Telefon
+Auswählen oder langes Drücken.
 ```
 
 **Français**
 
 ```
 Sélectionnez plusieurs messages et traitez-les ensemble : archiver, mettre à la corbeille, marquer
-comme lu ou non lu, signaler. Ctrl-clic et Maj-clic sur un ordinateur, appui long sur un téléphone.
+comme lu ou non lu, signaler. Ctrl-clic et Maj-clic sur un ordinateur, Sélectionner ou appui long
+sur un téléphone.
 ```
 
 **Español**
 
 ```
-Seleccione varios mensajes y resuélvalos juntos: archivar, mover a la papelera, marcar como leído
-o no leído, marcar. Ctrl-clic y Mayús-clic en un ordenador, o mantenga pulsado en un teléfono.
+Seleccione varios mensajes y resuélvalos juntos: archivar, mover a la papelera, marcar como leído o
+no leído, marcar. Ctrl-clic y Mayús-clic en un ordenador, Seleccionar o una pulsación larga en un
+teléfono.
 ```
 
 **Italiano**
 
 ```
 Seleziona più messaggi e gestiscili insieme: archivia, sposta nel cestino, segna come letto o non
-letto, contrassegna. Ctrl-clic e Maiusc-clic su un computer, tocca e tieni premuto su un telefono.
+letto, contrassegna. Ctrl-clic e Maiusc-clic su un computer, Seleziona o una pressione prolungata su
+un telefono.
 ```
 
 **Português**
 
 ```
 Selecione várias mensagens e trate-as em conjunto: arquivar, mover para o lixo, marcar como lida ou
-não lida, sinalizar. Ctrl-clique e Shift-clique num computador, ou toque sem soltar num telemóvel.
+não lida, sinalizar. Ctrl-clique e Shift-clique num computador, Selecionar ou toque longo num
+telemóvel.
 ```

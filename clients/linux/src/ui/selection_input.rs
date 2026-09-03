@@ -19,6 +19,10 @@ use super::{AppInput, AppModel, selection::SelectMode};
 /// model to start a fresh selection, so clicking a row still opens it.
 pub(super) fn selection_gesture(messages: &gtk::ListBox, sender: &relm4::Sender<AppInput>) {
     let click = gtk::GestureClick::new();
+    // The primary button only. A `GestureClick` listens to every button by default, so a
+    // right-click aimed at a row's menu, or a stray middle-click, would otherwise arrive here as a
+    // plain click and collapse a selection the user had just built.
+    click.set_button(gtk::gdk::BUTTON_PRIMARY);
     click.set_propagation_phase(gtk::PropagationPhase::Capture);
     let input = sender.clone();
     let list = messages.clone();

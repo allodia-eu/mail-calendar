@@ -3,6 +3,8 @@
 //! Pure state over the snapshot's row order, so the rules (`docs/list-selection.md`) are testable
 //! without a display. The widgets read it; they never hold a second copy.
 
+use std::collections::HashSet;
+
 use mailcal_bindings::{BulkAction, SelectedRow, SnapshotRow};
 
 /// One selected row's identity: the account, plus a message key or a thread id.
@@ -10,7 +12,7 @@ use mailcal_bindings::{BulkAction, SelectedRow, SnapshotRow};
 /// Account-scoped because a provider key is unique only within its account, and the unified list
 /// selects across accounts. Structured rather than the formatted string the reconciler matches
 /// rows by, since that one has to be parsed back to act on it and an id may contain a slash.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct RowKey {
     account: String,
     id: String,
@@ -157,7 +159,9 @@ impl Selection {
     /// left, a search that replaced the list. A selection outliving its list acts on rows nobody
     /// can see (rule 4).
     pub(crate) fn retain_listed(&mut self, rows: &[SnapshotRow]) {
-        let listed: Vec<RowKey> = rows.iter().map(RowKey::of).collect();
+        // A set, not a list: this runs on every snapshot the core publishes, and Select all over a
+        // long window would otherwise compare every selected row against every listed one.
+        let listed: HashSet<RowKey> = rows.iter().map(RowKey::of).collect();
         self.rows.retain(|row| listed.contains(row));
         if self
             .anchor

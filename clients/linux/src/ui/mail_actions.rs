@@ -280,7 +280,9 @@ fn delete_confirmation(
                 MailActionRequest::new(message.clone(), ActionKind::PermanentlyDelete),
             ))),
             DeleteTarget::Selection(_) => {
-                input.emit(AppInput::ActOnSelection(BulkAction::PermanentlyDelete));
+                input.emit(AppInput::PerformSelectionAction(
+                    BulkAction::PermanentlyDelete,
+                ));
             }
         }
         dialog.close();
@@ -314,11 +316,24 @@ impl AppModel {
         if self.selection.is_empty() {
             return;
         }
-        let rows = self.selection.selected_rows();
-        if action == BulkAction::PermanentlyDelete && self.pending_mail_delete.is_none() {
-            self.pending_mail_delete = Some(DeleteTarget::Selection(rows.len()));
+        if action == BulkAction::PermanentlyDelete {
+            self.pending_mail_delete = Some(DeleteTarget::Selection(
+                self.selection.selected_rows().len(),
+            ));
             return;
         }
+        self.perform_selection(action);
+    }
+
+    /// Runs the action the user has already agreed to. The confirmation's own button is the only
+    /// caller for a permanent delete: a *pending* confirmation is not consent, so
+    /// [`Self::act_on_selection`] can never fall through to this one by finding the dialog slot
+    /// occupied by some other row's confirmation.
+    pub(super) fn perform_selection(&mut self, action: BulkAction) {
+        if self.selection.is_empty() {
+            return;
+        }
+        let rows = self.selection.selected_rows();
         self.pending_mail_delete = None;
         let removes = matches!(
             action,
