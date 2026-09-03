@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -37,6 +38,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -376,29 +378,40 @@ internal fun ReadingScreen(
         // which reads as a flicker rather than as a message opening (docs/sync-progress.md). The
         // colour is the core's, the same one it gives the HTML document, and it is this page in
         // both themes because mail is authored for a white one, hence the ink to go with it, since
-        // the dark theme's own content colour over this would be white on white.
-        val canvas = messageCanvas()
+        // the dark theme's own content colour over this would be white on white. The two accented
+        // controls drawn on it, the spinner and Retry, take the light scheme's own primary for the
+        // same reason: the dark scheme's is the pale lavender Material 3 pairs with a near-black
+        // surface, and on this page it is barely there.
+        //
+        // Resolved once: the record crosses the FFI, and the page cannot change while the app runs.
+        val canvas = remember { messageCanvas() }
+        val page = remember(canvas) { parseHexColor(canvas.background) }
+        val ink = remember(canvas) { parseHexColor(canvas.foreground) }
+        val accent = remember { lightColorScheme().primary }
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .background(parseHexColor(canvas.background)),
+                .background(page),
         ) {
-            CompositionLocalProvider(LocalContentColor provides parseHexColor(canvas.foreground)) {
+            CompositionLocalProvider(LocalContentColor provides ink) {
                 when {
                     // Nothing yet, and too soon to say so: the core announces a wait only once
                     // one has run long enough to notice, so a fast open draws no spinner at all
                     // rather than flashing one. The header above is already filled from the row.
                     body == null -> Unit
                     // Carries no body, this has to precede the branches that read one.
-                    body.pending -> CenteredMessage { CircularProgressIndicator() }
+                    body.pending -> CenteredMessage { CircularProgressIndicator(color = accent) }
                     body.loadError -> CenteredMessage {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text(text = L10n.reading_load_error(ctx), color = LocalContentColor.current)
-                            TextButton(onClick = onRetry) { Text(L10n.action_retry(ctx)) }
+                            TextButton(
+                                onClick = onRetry,
+                                colors = ButtonDefaults.textButtonColors(contentColor = accent),
+                            ) { Text(L10n.action_retry(ctx)) }
                         }
                     }
                     !body.html.isNullOrEmpty() ->

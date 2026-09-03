@@ -160,18 +160,25 @@ pub struct Canvas {
 /// horizontally. Auto height is always proportional scaling, so this never distorts an
 /// image; it only overrides an explicit height that the width constraint would otherwise
 /// fight.
-fn base_css() -> String {
-    let Canvas {
-        background,
-        foreground,
-    } = MESSAGE_CANVAS;
-    format!(
-        ":root{{color-scheme:light}}\
-         body{{margin:0;padding:14px;background:{background};color:{foreground};\
-         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;\
-         font-size:15px;line-height:1.5;overflow-wrap:break-word;-webkit-text-size-adjust:100%}}\
-         img{{max-width:100%;height:auto!important}}a{{color:#2864d6}}"
-    )
+///
+/// Built once rather than per render: it interpolates a constant, so every message would
+/// otherwise pay for the same string.
+fn base_css() -> &'static str {
+    static CSS: OnceLock<String> = OnceLock::new();
+    CSS.get_or_init(|| {
+        let Canvas {
+            background,
+            foreground,
+        } = MESSAGE_CANVAS;
+        format!(
+            ":root{{color-scheme:light}}\
+             body{{margin:0;padding:14px;background:{background};color:{foreground};\
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;\
+             font-size:15px;line-height:1.5;overflow-wrap:break-word;\
+             -webkit-text-size-adjust:100%}}\
+             img{{max-width:100%;height:auto!important}}a{{color:#2864d6}}"
+        )
+    })
 }
 
 /// Wraps a sanitised body fragment in a complete HTML document; with a strict
