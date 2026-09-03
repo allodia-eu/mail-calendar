@@ -299,6 +299,30 @@ public struct ContentView: View {
             model.pendingAgentDraft = nil
             openDraft(request)
         }
+        // The OS handing us a `mailto:` link: a tap in a browser, a document, or another app
+        // (docs/os-integration.md). It is attached here rather than to the `WindowGroup` because
+        // the model is this view's own state, and a link has nowhere to go without it.
+        //
+        // The URI is opaque and comes from somewhere we do not control, so the shared core
+        // decodes it: only To/Cc/Bcc/Subject/Body are honoured and every other header a link may
+        // name is dropped (docs/composer-security.md, Gate 12). Anything that is not a mail link
+        // is ignored rather than opening a blank composer over whatever the user was doing.
+        //
+        // This is the only URL hook in the app. The OAuth redirects never reach it: each is
+        // captured inside its own `ASWebAuthenticationSession`, which is why there is no scheme
+        // dispatch here of the kind Windows, Linux and Android each need to keep a sign-in from
+        // being mistaken for a link.
+        .onOpenURL { url in
+            guard let prefill = parseMailtoUri(uri: url.absoluteString) else { return }
+            openMailLink(MailLinkRequest(prefill: prefill))
+        }
+        // A link that arrived before there was an account to send from, opened as soon as there
+        // is one. `openMailLink` is what put it back on the model; this is the other half.
+        .onChange(of: model.accounts.count) { _, count in
+            guard count > 0, let request = model.pendingMailLink else { return }
+            model.pendingMailLink = nil
+            openMailLink(request)
+        }
         // Clicking another message with an unsent draft in the pane: Discard, or Keep editing.
         .modifier(DiscardDraftDialog(
             isPresented: $confirmingDiscard,

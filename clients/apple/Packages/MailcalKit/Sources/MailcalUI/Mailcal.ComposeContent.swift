@@ -114,6 +114,31 @@ extension ContentView {
                 }
                 return false
             } cancel: { compose = nil }
+        case let .mailLink(request):
+            // A mail link opens a new message someone else addressed. The core has already
+            // dropped every header a link may not set (docs/composer-security.md, Gate 12), so
+            // what reaches here is only To/Cc/Bcc/Subject/Body, and every field stays editable.
+            // Nothing is sent: the user still presses Send.
+            RichComposeView(
+                title: L10n.compose_title_new(),
+                mode: .new,
+                accounts: model.accounts,
+                initialFrom: model.sendAccount(preferring: nil)?.id,
+                initialTo: request.prefill.to,
+                initialCc: request.prefill.cc,
+                initialBcc: request.prefill.bcc,
+                initialSubject: request.prefill.subject,
+                initialBody: request.prefill.body,
+                probe: draftProbe,
+                suggestionsFor: recipientSuggestions,
+                signatures: composerSignatures
+            ) { recipients, subject, documentJson, files, from in
+                if model.submitRich(recipients, subject, documentJson, files, from: from) {
+                    compose = nil
+                    return true
+                }
+                return false
+            } cancel: { compose = nil }
         case let .forward(account, key, quote, quoteStyle):
             RichComposeView(
                 title: L10n.action_forward(),

@@ -202,6 +202,15 @@ final class MailboxModel {
     /// A draft an assistant asked to open in the composer, unsent. Set by `AgentComposerBridge`
     /// on the main actor; the shell watches it, opens the composer, and clears it.
     var pendingAgentDraft: AgentDraftRequest?
+    /// A `mailto:` link the OS handed us, waiting for a composer to open in. Set by the scene's
+    /// `onOpenURL`; the shell watches it, opens the composer, and clears it.
+    ///
+    /// It is kept on the model rather than in the shell's own state because a link can arrive
+    /// during a cold launch, before the account list has loaded and before there is anywhere to
+    /// put a composer. `openMailLink` drops it back here in that case and the shell drains it
+    /// once accounts exist, which is what Windows's `MailLinkInbox` and Linux's `pending_mailto`
+    /// each do for the same reason.
+    var pendingMailLink: MailLinkRequest?
     /// Whether the usage-statistics question is settled, pulled once at connect. `asked == false`
     /// puts the welcome screen up, it is the first thing a new user sees, ahead of setup. Nil
     /// until the core answers, so the screen is never shown on a guess.

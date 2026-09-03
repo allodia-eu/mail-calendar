@@ -113,6 +113,23 @@ extension ContentView {
         #endif
     }
 
+    /// Opens a `mailto:` link in the composer, pre-filled (docs/os-integration.md).
+    ///
+    /// Behind the same discard guard a message click uses, for the same reason the assistant's
+    /// draft is: a link arrives unprompted, from a web page or another app, and must not be able
+    /// to throw away a half-written message. Linux and Windows guard it identically.
+    ///
+    /// A link arriving before there is an account to send from is put back on the model, and the
+    /// shell opens it once accounts exist: the alternative is a composer with nothing in its From
+    /// dropdown, which cannot send and cannot explain why.
+    func openMailLink(_ request: MailLinkRequest) {
+        guard !model.accounts.isEmpty else {
+            model.pendingMailLink = request
+            return
+        }
+        openGuardingDraft { compose = .mailLink(request) }
+    }
+
     /// Opens an assistant's draft in the composer, unsent (docs/mcp.md).
     ///
     /// Behind the same discard guard a message click uses. An assistant asking to open a draft
