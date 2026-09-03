@@ -1,10 +1,10 @@
 // Which sign-in an arriving custom-scheme redirect belongs to.
 //
-// Four browser flows come back to this activity, and two of them, JMAP and the Allodia account:
-// ride the SAME scheme, the application id. Only the redirect's host tells those two apart. A
-// dispatch on the scheme alone hands an Allodia redirect to the JMAP flow, which does not error:
-// the JMAP exchange is handed a code minted for a different client and the sign-in the user is
-// actually waiting on never comes back.
+// Five browser flows come back to this activity, and three of them, IMAP, JMAP and the Allodia
+// account, ride the SAME scheme: the application id. Only the redirect's host tells those apart. A
+// dispatch on the scheme alone hands one flow's redirect to another, which does not error: the
+// exchange is handed a code minted for a different client and the sign-in the person is actually
+// waiting on never comes back.
 //
 // Kept a pure function of what the intent carried so the JVM suite can assert it: the schemes the
 // two provider flows watch for are properties of the injected build (`oauthRoutes()`), which the
@@ -15,6 +15,7 @@ internal enum class OAuthRedirect {
     GOOGLE,
     MICROSOFT,
     ALLODIA,
+    IMAP,
     JMAP,
     ;
 
@@ -39,6 +40,7 @@ internal enum class OAuthRedirect {
                 microsoftScheme -> MICROSOFT
                 appScheme -> when (host) {
                     AllodiaOAuthConfig.REDIRECT_HOST -> ALLODIA
+                    ImapOAuthConfig.REDIRECT_HOST -> IMAP
                     else -> JMAP
                 }
                 else -> null

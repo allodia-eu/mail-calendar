@@ -139,21 +139,25 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Server asked before a credential field is drawn | ✅ | 🚧 | ⬜ | ⬜ | ✅ |
-| Sign-in primary, password behind a secondary control | ✅ | 🚧 | ⬜ | ⬜ | ✅ |
-| "Only pre-registered apps" explained rather than shown as a bare form | ✅ | 🚧 | ⬜ | ⬜ | ✅ |
-| No password field where the server refuses passwords | ✅ | 🚧 | ⬜ | ⬜ | ✅ |
-| Nothing to act on until the answer, with a deadline racing it | ✅ | 🚧 | ⬜ | ⬜ | ✅ |
-| Browser sign-in + redirect capture | n/a | 🚧 `ASWebAuthenticationSession` | ⬜ | ⬜ | ✅ loopback |
+| Server asked before a credential field is drawn | ✅ | 🚧 | ⬜ | ✅ | ✅ |
+| Sign-in primary, password behind a secondary control | ✅ | 🚧 | ⬜ | ✅ | ✅ |
+| "Only pre-registered apps" explained rather than shown as a bare form | ✅ | 🚧 | ⬜ | ✅ | ✅ |
+| No password field where the server refuses passwords | ✅ | 🚧 | ⬜ | ✅ | ✅ |
+| Nothing to act on until the answer, with a deadline racing it | ✅ | 🚧 | ⬜ | ✅ under the spinner | ✅ |
+| Browser sign-in + redirect capture | n/a | 🚧 `ASWebAuthenticationSession` | ⬜ | ✅ Custom Tab | ✅ loopback |
 | Grant stored with no password beside it | ✅ | n/a | n/a | n/a | ✅ |
 | One re-dial on an expired token | ✅ | n/a | n/a | n/a | n/a |
 
 ## Known gaps
 
-- **Two clients still draw the password form only.** Windows and Android carry the core's
-  answer no further than the binding: they connect an OAuth account correctly once one exists,
-  and cannot yet create one. Until each ships the surface, a person on those platforms sees
-  exactly what they saw before, which is a working password setup and not a broken screen.
+- **Windows still draws the password form only.** It carries the core's answer no further than
+  the binding: it connects an OAuth account correctly once one exists, and cannot yet create
+  one. Until it ships the surface, a person there sees exactly what they saw before, which is a
+  working password setup and not a broken screen.
+- **Android has no "still asking" state, deliberately.** It resolves the answer under the
+  "Looking…" spinner that detection already shows, before the card exists, so the card renders
+  in its final shape rather than settling into one. That is a stricter reading of rule 8 than a
+  `checking` state, not a weaker one.
 - **Apple's surface is compiled and has never been run.** CI builds it on a macOS runner, the
   package suite plus `xcodebuild` for macOS and iOS Simulator, which is the isolated-batch build
   the trap in [`AGENTS.md`](../AGENTS.md) warns `swift build` alone would not give. There is no

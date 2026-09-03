@@ -96,6 +96,19 @@
                 <data android:scheme="${applicationId}"
                       android:host="jmap-oauth" />
             </intent-filter>
+            <!-- The IMAP OAuth redirect. Same application-id scheme as the JMAP filter above,
+                 under its own host, for the reason OAuthRedirect records: `onNewIntent`
+                 dispatches by scheme AND host, and a redirect handed to the wrong flow fails by
+                 never coming back rather than by erroring. This exact URI is what the core sends
+                 as `redirect_uri` when it registers the client, so it MUST equal
+                 ImapOAuthConfig.REDIRECT_URI character for character. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${applicationId}"
+                      android:host="imap-oauth" />
+            </intent-filter>
             <!-- The Allodia account OAuth redirect. Same application-id scheme as the JMAP filter
                  above, under its own host: `onNewIntent` dispatches by scheme AND host, because a
                  redirect handed to the wrong flow fails by never coming back rather than by

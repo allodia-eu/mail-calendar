@@ -71,6 +71,14 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
                                 withContext(Dispatchers.IO) { jmapSignInAvailable(email, server) }
                             },
                             onSignInJmap = { email, server -> signInWithJmap(email, server) },
+                            // The same pair for a mail account: what the server accepts, hopped
+                            // off the main thread by the caller's coroutine, and the browser
+                            // sign-in it gates.
+                            onCheckImapAuth = { request ->
+                                withContext(Dispatchers.IO) { imapAuthOptions(request) }
+                            },
+                            onSignInImap = { request -> signInWithImap(request) },
+                            signingInImap = signingInImap,
                             onConnect = { setup ->
                                 try {
                                     val configToml = accountConfigToml(setup)

@@ -278,6 +278,9 @@ class MainActivity : AppCompatActivity() {
     // through the same redirect scheme, and only this tells the two apart, null means "a new
     // account". Set and cleared alongside `pendingJmapLogin`.
     internal var pendingJmapReauthAccount: String? = null
+    // The equivalent handle for an in-flight IMAP sign-in. Separate again, so no two flows can
+    // clobber each other. Not persisted, it carries the PKCE verifier.
+    internal var pendingImapLogin: String? = null
     // The equivalent handle for an in-flight Allodia account sign-in. Separate again. Not
     // persisted, it carries the PKCE verifier.
     internal var pendingAllodiaSignIn: String? = null
@@ -299,6 +302,9 @@ class MainActivity : AppCompatActivity() {
     // The same, for an in-flight JMAP sign-in, set while discovery + registration run and the
     // browser is open.
     internal var signingInJmap by mutableStateOf(false)
+    // The same, for an in-flight IMAP sign-in, set while discovery and registration run and the
+    // browser is open.
+    internal var signingInImap by mutableStateOf(false)
     // The same, for an in-flight Allodia account sign-in, set while the metadata read and the
     // browser hop run, and again from the redirect until the grant is stored.
     internal var signingInAllodia by mutableStateOf(false)
