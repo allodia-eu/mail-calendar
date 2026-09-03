@@ -215,6 +215,36 @@ fn render_document_forces_proportional_image_height() {
 }
 
 #[test]
+fn the_canvas_is_the_page_a_message_is_drawn_on() {
+    // The client paints `MESSAGE_CANVAS` behind the body area for the whole of an open, and
+    // the document paints its own page inside that. Two spellings of "white" would show as a
+    // seam on every message, and, because the client's half is also what fills the gap before
+    // the body lands, as a flicker on every open. So they are one constant, and this is what
+    // stops a future restyle from moving only one of them.
+    let doc = render_document("<p>hi</p>", false);
+    assert!(
+        doc.contains(&format!("background:{}", super::MESSAGE_CANVAS.background)),
+        "{doc}"
+    );
+    assert!(
+        doc.contains(&format!("color:{}", super::MESSAGE_CANVAS.foreground)),
+        "{doc}"
+    );
+    // `#rrggbb`, the one form every client's hex parser already reads. `#fff` would render
+    // identically here and reach three of the four clients as nothing at all.
+    for channel in [
+        super::MESSAGE_CANVAS.background,
+        super::MESSAGE_CANVAS.foreground,
+    ] {
+        assert_eq!(channel.len(), 7, "{channel}");
+        assert!(
+            channel.starts_with('#') && channel[1..].chars().all(|c| c.is_ascii_hexdigit()),
+            "{channel}"
+        );
+    }
+}
+
+#[test]
 fn render_document_gates_remote_images_on_the_flag() {
     // Blocked by default: only inline data: images.
     let blocked = render_document("<img src=\"https://x/a.png\">", false);

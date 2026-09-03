@@ -17,7 +17,7 @@ Defence in depth: each layer holds even if another is weakened. Layers 1–2 are
 (written once, identical for every client); layer 3 is the **native host renderer** (each client
 implements every gate).
 
-### Layer 1: Core sanitisation (shared) · `crates/mailcal-app/src/html.rs`
+### Layer 1: Core sanitisation (shared) · `crates/mailcal-app/src/html/mod.rs`
 
 The engine returns the raw `text/html` part **unsanitized** by design (it is hostile input). The
 core sanitises it **once** for every client (never re-implemented per platform):
@@ -185,7 +185,7 @@ Source of truth per client:
 ## Known gaps / follow-ups
 
 - **Inline-image height pin is overridden globally.** The reading document's base CSS uses
-  `img { max-width: 100%; height: auto !important }` (`html.rs`, `BASE_CSS`) so a width-pinned image
+  `img { max-width: 100%; height: auto !important }` (`html/mod.rs`, `base_css`) so a width-pinned image
   can't keep a fixed height while `max-width` shrinks its width: the squashed-aspect-ratio fix. The
   `!important` is deliberately broad, so it *also* overrides a message that pins **only** the height
   (e.g. a signature `<img style="height:32px">` with auto width): such an image renders at its full

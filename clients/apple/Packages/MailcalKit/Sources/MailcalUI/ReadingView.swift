@@ -249,8 +249,40 @@ struct ReadingView: View {
         .accessibilityLabel(title)
     }
 
+    /// Whether the pane offers to load this message's blocked remote images: only over a body
+    /// that has some, and only until the user says yes.
+    private var remoteImagesOffered: Bool {
+        guard let body = bodySnapshot, !body.pending, !body.loadError, !loadRemoteImages,
+            let html = body.html, !html.isEmpty
+        else { return false }
+        return body.hasRemoteImages
+    }
+
+    /// The body area, on the page the core says a message is drawn on.
+    ///
+    /// The page is the same for every state of an open (the gap before the body lands, the
+    /// spinner, a plain-text body, a load error) so a body arriving changes what is written on
+    /// the page and never the page itself. Leaving the gap `Color.clear` punched a hole in it:
+    /// against a dark appearance the body area went white, black, white on every message opened,
+    /// which reads as a flicker rather than as a message opening (docs/sync-progress.md).
+    ///
+    /// The light appearance goes with the page rather than decorating it. The canvas is white in
+    /// both themes because `base_css` pins the document to `color-scheme: light` (mail is authored
+    /// for a white page) so the dark appearance's own label colours over it would be white on
+    /// white. The chrome around it (header, toolbar, the remote-images banner) stays themed.
     @ViewBuilder
     private var content: some View {
+        if remoteImagesOffered {
+            RemoteImagesBanner { loadRemoteImages = true }
+        }
+        bodyArea
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(parseHexColor(messageCanvas().background))
+            .environment(\.colorScheme, .light)
+    }
+
+    @ViewBuilder
+    private var bodyArea: some View {
         if let body = bodySnapshot {
             if body.pending {
                 // The core publishes this only once an open has run long enough to be worth
@@ -270,9 +302,6 @@ struct ReadingView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let html = body.html, !html.isEmpty {
-                if body.hasRemoteImages && !loadRemoteImages {
-                    RemoteImagesBanner { loadRemoteImages = true }
-                }
                 SanitizedHTMLView(fragment: html, loadRemoteImages: loadRemoteImages)
             } else if let plain = body.plain, !plain.isEmpty {
                 ScrollView {
@@ -288,8 +317,8 @@ struct ReadingView: View {
         } else {
             // Opened, and nothing to say yet. Not a spinner: the body usually arrives within a
             // few milliseconds, and one drawn on every open flickers rather than reassures. The
-            // header above is already filled from the row that was tapped, so the pane reads as
-            // the message opening rather than as empty.
+            // header above is already filled from the row that was tapped, and the page is
+            // already drawn, so the pane reads as the message opening rather than as empty.
             Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
