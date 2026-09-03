@@ -54,25 +54,27 @@ export function isShowableImage(mediaType: string): boolean {
 
 /// The image files a paste or a drop carried, in the order the platform listed them.
 ///
-/// `items` rather than `files` for the clipboard: a screenshot pasted from the system clipboard
-/// arrives as an item with no file list on some engines. Both are read, and anything that is not
-/// a showable picture is left alone: a pasted `.docx` is not something the body can show, and
-/// neither is an SVG.
+/// Anything that is not a showable picture is left alone: a pasted `.docx` is not something the
+/// body can show, and neither is an SVG.
+///
+/// ⚠️ **`files` is a fallback, never a second source.** The two channels describe the same
+/// pictures, and `getAsFile()` mints a fresh `File` on every call, so reading both and deduplicating
+/// by object identity let one Ctrl+V through twice: two `cid:` parts and two `<img>` tags for a
+/// single pasted screenshot. `items` is read first rather than dropped because some engines expose
+/// a clipboard image through it alone, with no file list beside it.
 export function imageFilesFrom(transfer: DataTransfer | null | undefined): File[] {
   if (!transfer) return [];
-  const files: File[] = [];
-  const seen = new Set<File>();
-  const take = (file: File | null) => {
-    if (file && isShowableImage(file.type) && !seen.has(file)) {
-      seen.add(file);
-      files.push(file);
-    }
-  };
-  for (const item of Array.from(transfer.items ?? [])) {
-    if (item.kind === "file") take(item.getAsFile());
-  }
-  for (const file of Array.from(transfer.files ?? [])) take(file);
-  return files;
+  const fromItems = showable(
+    Array.from(transfer.items ?? [])
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile()),
+  );
+  return fromItems.length > 0 ? fromItems : showable(Array.from(transfer.files ?? []));
+}
+
+/// The pictures among `candidates`, in order, dropping what a message body may not carry.
+function showable(candidates: (File | null)[]): File[] {
+  return candidates.filter((file): file is File => file !== null && isShowableImage(file.type));
 }
 
 /// Reads one image file into a `data:` URI. Resolves to `null` for anything that is not a

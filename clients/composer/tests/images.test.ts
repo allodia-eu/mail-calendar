@@ -95,6 +95,33 @@ describe("a captured picture", () => {
     expect(imageFilesFrom(transfer)).toEqual([png]);
   });
 
+  test("is taken once when the clipboard offers it through both channels", () => {
+    // A real clipboard populates `items` AND `files` for the same picture, and `getAsFile()` mints
+    // a FRESH `File` each call, so the two channels never hand back the same object. Reading both
+    // put one Ctrl+V into the message twice: two `cid:` parts, two `<img>` tags, one screenshot.
+    // Observed against WebView2 with a single image format on the clipboard, so it is the reading
+    // and not the platform offering two pictures.
+    const png = new File(["x"], "shot.png", { type: "image/png" });
+    const transfer = {
+      items: [{ kind: "file", getAsFile: () => new File(["x"], "shot.png", { type: "image/png" }) }],
+      files: [png],
+    } as unknown as DataTransfer;
+
+    expect(imageFilesFrom(transfer)).toHaveLength(1);
+  });
+
+  test("still reads a clipboard that exposes a picture through `items` alone", () => {
+    // The reason `items` is read first rather than dropped: some engines carry a pasted screenshot
+    // there with no file list beside it, and preferring `files` would find nothing to paste.
+    const png = new File(["x"], "shot.png", { type: "image/png" });
+    const transfer = {
+      items: [{ kind: "file", getAsFile: () => png }],
+      files: [],
+    } as unknown as DataTransfer;
+
+    expect(imageFilesFrom(transfer)).toEqual([png]);
+  });
+
   test("gets a fresh id per picture, so two pastes are two parts", () => {
     const { editor, caret } = harness("<p>x</p>");
     caret("p");

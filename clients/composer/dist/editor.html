@@ -1244,21 +1244,11 @@
   function imageFilesFrom(transfer) {
     if (!transfer)
       return [];
-    const files = [];
-    const seen = new Set;
-    const take = (file) => {
-      if (file && isShowableImage(file.type) && !seen.has(file)) {
-        seen.add(file);
-        files.push(file);
-      }
-    };
-    for (const item of Array.from(transfer.items ?? [])) {
-      if (item.kind === "file")
-        take(item.getAsFile());
-    }
-    for (const file of Array.from(transfer.files ?? []))
-      take(file);
-    return files;
+    const fromItems = showable(Array.from(transfer.items ?? []).filter((item) => item.kind === "file").map((item) => item.getAsFile()));
+    return fromItems.length > 0 ? fromItems : showable(Array.from(transfer.files ?? []));
+  }
+  function showable(candidates) {
+    return candidates.filter((file) => file !== null && isShowableImage(file.type));
   }
   function readImageFile(file) {
     if (!isShowableImage(file.type) || file.size > MAX_CAPTURED_BYTES) {
