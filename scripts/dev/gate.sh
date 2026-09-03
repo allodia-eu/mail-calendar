@@ -382,7 +382,14 @@ if [ "$RUN_CLIENTS" -eq 1 ]; then
   # Linux's GTK client is excluded from the workspace gate on every other host.
   if [ "$(uname -s)" = "Linux" ]; then
     run "linux (clippy)" cargo clippy -p mailcal-linux --all-targets --all-features -- -D warnings
-    run "linux (tests)" xvfb-run --auto-servernum cargo test -p mailcal-linux --all-features
+    # `GDK_BACKEND=x11` is what makes `xvfb-run` mean anything. GDK prefers Wayland whenever
+    # `WAYLAND_DISPLAY` is set, and xvfb-run does not clear it, so on a Wayland desktop the suite
+    # ignores the X server it just started and drives the developer's live compositor instead:
+    # windows flash on screen, and a test that pumps the main loop dispatches Wayland events for
+    # surfaces an earlier test already destroyed, which segfaults inside libwayland-client. CI has
+    # no session at all, so this only ever bites the person running the gate by hand.
+    run "linux (tests)" \
+      env GDK_BACKEND=x11 xvfb-run --auto-servernum cargo test -p mailcal-linux --all-features
     run "linux (docs)" cargo doc -p mailcal-linux --no-deps
   else
     skip "linux (mailcal-linux)" "needs a Linux host with GTK 4.14+/libadwaita 1.5+"

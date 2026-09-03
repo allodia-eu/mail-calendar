@@ -249,7 +249,7 @@ impl AppModel {
             AppInput::AttachmentOpenFailed => {
                 self.notice = Some(l10n::attachment_open_failed().to_owned());
             }
-            AppInput::WebViewReady => {}
+            AppInput::WebViewReady | AppInput::ReadingBodyPainted => {}
             AppInput::WebViewUnavailable => {
                 self.webview_available = false;
                 self.composer_error = self.composer.is_some();
