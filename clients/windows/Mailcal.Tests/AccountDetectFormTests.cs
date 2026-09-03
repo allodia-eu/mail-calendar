@@ -23,6 +23,7 @@ public class AccountDetectFormTests
             Row("IMAP", "imap.example.com", 993),
             withSmtp ? Row("SMTP", "smtp.example.com", 465) : null,
             caldavUrl,
+            null,
             trusted, "https://autoconfig.example.com/mail/config-v1.1.xml");
 
     [Fact]
