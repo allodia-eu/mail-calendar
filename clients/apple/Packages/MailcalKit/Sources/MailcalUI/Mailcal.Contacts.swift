@@ -27,6 +27,9 @@ extension ContentView {
             writeLine: model.contactWriteLine
         )
         .task { await loadContactTargets() }
+        // The list is a snapshot and the detail is a pull, so refreshing the rows leaves the pane
+        // beside them showing what the person held before the save that published them.
+        .onChange(of: model.contacts) { _, _ in reopenContact() }
         .sheet(item: $contactEditor) { editor in
             ContactEditorView(
                 model: editor,
@@ -89,6 +92,19 @@ extension ContentView {
     func openContact(_ row: ContactRow) {
         Task { @MainActor in
             let detail = await model.contactDetail(row.id)
+            openedContact = detail.map(OpenedContact.init(detail:))
+        }
+    }
+
+    /// Re-reads whatever person is open, on the same terms as `openContact`.
+    ///
+    /// A refresh of what is on screen, never a reason to change who is: an answer that arrives
+    /// after the user has picked someone else is dropped rather than drawn over them.
+    func reopenContact() {
+        guard let id = openedContact?.id else { return }
+        Task { @MainActor in
+            let detail = await model.contactDetail(id)
+            guard openedContact?.id == id else { return }
             openedContact = detail.map(OpenedContact.init(detail:))
         }
     }

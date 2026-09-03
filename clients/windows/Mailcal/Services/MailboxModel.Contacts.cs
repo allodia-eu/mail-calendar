@@ -254,6 +254,14 @@ public sealed partial class MailboxModel
         }
         Reconcile(Contacts, items, item => item.Id, SameContact);
         RaiseContactsListState();
+        // The list is a snapshot and the detail is a pull, so refreshing the rows leaves the pane
+        // beside them showing what the person held before the save that published this. Off the
+        // UI thread like every other detail read; a person whose last card has gone reads as null
+        // and closes the pane.
+        if (OpenedContact is { } open)
+        {
+            _ = OpenContactAsync(open.Id);
+        }
         Log.Info($"contacts: {Contacts.Count} row(s)");
     }
 

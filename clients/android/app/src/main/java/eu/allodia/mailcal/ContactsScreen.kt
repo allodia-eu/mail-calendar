@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +80,12 @@ internal fun ContactsScreen(
     val ctx = LocalContext.current
     var query by remember { mutableStateOf("") }
     var openContact by remember { mutableStateOf<ContactDetail?>(null) }
+    // The rows are a snapshot and the detail is a pull, so refreshing the list leaves the
+    // sheet over it showing what the person held before the save that refreshed it. A
+    // person whose last card has gone reads as null, which closes the sheet.
+    LaunchedEffect(rows) {
+        openContact = openContact?.let { open -> detailFor(open.id) }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {

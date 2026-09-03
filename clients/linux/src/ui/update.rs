@@ -87,6 +87,12 @@ impl AppModel {
                 if collect_new_mail {
                     sender.input_sender().emit(AppInput::CollectNewMail);
                 }
+                // The list is a snapshot and the detail is a pull, so refreshing the rows leaves
+                // the pane beside them showing what the person held before the save that
+                // published this.
+                if matches!(surface, Surface::Contacts) {
+                    self.reopen_contact(sender.input_sender().clone());
+                }
                 // Once the rows exist, and not before: the hook names a person, and the list is
                 // filled asynchronously after the surface is entered.
                 #[cfg(any(debug_assertions, feature = "dev-harness"))]

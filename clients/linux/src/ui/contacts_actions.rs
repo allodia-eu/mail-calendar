@@ -53,6 +53,19 @@ impl AppModel {
         });
     }
 
+    /// Re-reads whatever person the detail pane is showing, if any.
+    ///
+    /// The lookup generation `open_contact` mints is what makes this safe to fire on every
+    /// contacts signal: an answer that arrives after the user has moved on is dropped rather
+    /// than drawn over whoever they moved to.
+    pub(super) fn reopen_contact(&mut self, sender: relm4::Sender<AppInput>) {
+        let Some((person, _)) = self.contacts.open_person() else {
+            return;
+        };
+        let person = person.to_owned();
+        self.open_contact(person, sender);
+    }
+
     pub(super) fn contact_opened(&mut self, lookup: u64, detail: Option<&ContactDetail>) {
         self.contacts
             .finish_lookup(lookup, detail, &self.snapshot.accounts);
