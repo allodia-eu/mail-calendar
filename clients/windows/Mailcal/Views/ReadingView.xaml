@@ -227,8 +227,13 @@
                      own breaks carry the paragraphing, so each line box must keep the font's
                      natural leading. (It must NOT set TextLineBounds="Tight", which trims every
                      line to cap-height→baseline, that crowds the lines and drops descenders onto
-                     the caps below.) The metrics mirror the shared reading document (base_css in
-                     mailcal-app) so the two body kinds are one surface, not two. -->
+                     the caps below.)
+
+                     The size and leading mirror the shared reading document (base_css in
+                     mailcal-app), so a plain-text body and an HTML one read at the same scale on
+                     the same page. The ink is the light theme's own, not the document's `#1a1a1a`:
+                     it is a WinUI text block, so it coordinates with the selection highlight and
+                     the secondary text around it, and the two body kinds never appear together. -->
                 <ScrollViewer x:Name="PlainScroller" Visibility="Collapsed" Padding="16">
                     <TextBlock x:Name="PlainText" IsTextSelectionEnabled="True" TextWrapping="Wrap"
                                FontSize="15" LineHeight="22" />

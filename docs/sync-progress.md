@@ -180,10 +180,14 @@ The colour is the core's, `MESSAGE_CANVAS`
 and it is the same constant `base_css` gives the reading document, so the sheet a client paints and
 the page a web view paints inside it cannot drift into two whites. It is that colour in **both**
 themes because the base stylesheet pins the document to `color-scheme: light` (mail is authored for
-a white page) so the ink over it comes from the same record and each client resolves its own text,
-glyphs and controls in a **light** appearance there; the dark theme's own label colours over this
-page are white on white. The chrome around the page stays themed: the header, the toolbar, the
-remote-images bar, and the "no message selected" state, which is not a message and so has no page.
+a white page). So the ink over it has to be light too, or the dark theme's own label colours are
+white on white, and each client reaches that its own way: Apple and Windows force a light
+appearance over the area and let the platform resolve every colour in it, Android and Linux set the
+content colour from the record's `foreground` and let their toolkit inherit it down. Either way it
+is the accent as well as the text: a Material dark scheme's `primary` is a pale lavender that all
+but disappears on this page, and the spinner and the retry button are drawn in it. The chrome
+around the page stays themed: the header, the toolbar, the remote-images bar, and the "no message
+selected" state, which is not a message and so has no page.
 
 **A web view needs one thing more: it may not be revealed until it has painted.** The page it is
 about to render is white, but the surface it composites on is not: WebKitGTK presents a **black**
@@ -198,7 +202,7 @@ it dropped to 16.
 |---|---|---|---|
 | macOS · iPadOS · iOS | `.background` + light `colorScheme` on `ReadingView.bodyArea` | `Color.clear` over it | `ProgressView` + `reading_loading` |
 | Windows | `BodyArea.Background` + `RequestedTheme="Light"` | `ShowState()` with every state off | `LoadingRing` |
-| Android | `.background` + `LocalContentColor` on the body `Box` | `body == null -> Unit` | `CircularProgressIndicator` |
+| Android | `.background` + `LocalContentColor` and the light scheme's `primary` on the body `Box` | `body == null -> Unit` | `CircularProgressIndicator` |
 | Linux | the `mailcal-message-canvas` class on the body stack | the `blank` stack page | the `loading` stack page |
 
 `a_fast_open_never_announces_a_wait` and

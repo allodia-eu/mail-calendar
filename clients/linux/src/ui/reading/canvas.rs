@@ -80,19 +80,27 @@ pub(super) fn painted_hex(widget: &impl IsA<gtk::Widget>, x: usize, y: usize) ->
     renderer
         .realize(gtk::gdk::Surface::NONE)
         .expect("a Cairo renderer needs no surface");
+    // Sized from the texture rather than from `SIZE`: `render_texture` renders the node's own
+    // bounds, which a widget drawing outside its allocation makes larger than what was asked
+    // for, and `download` writes `stride * height` bytes whatever the buffer holds.
     let painted = snapshot.to_node().map(|node| {
         let texture = renderer.render_texture(&node, None);
-        let mut pixels = vec![0u8; SIZE * SIZE * 4];
-        texture.download(&mut pixels, SIZE * 4);
-        pixels
+        let stride = usize::try_from(texture.width()).expect("a texture width fits a usize") * 4;
+        let height = usize::try_from(texture.height()).expect("a texture height fits a usize");
+        let mut pixels = vec![0u8; stride * height];
+        texture.download(&mut pixels, stride);
+        (pixels, stride)
     });
     // A realised renderer aborts the process on drop, so this runs before any early return.
     renderer.unrealize();
     // Nothing painted, or a pixel no one painted: the widget drew no page of its own.
-    let Some(pixels) = painted else {
+    let Some((pixels, stride)) = painted else {
         return String::new();
     };
-    let at = (y * SIZE + x) * 4;
+    let at = y * stride + x * 4;
+    if at + 3 >= pixels.len() {
+        return String::new();
+    }
     if pixels[at + 3] == 0 {
         return String::new();
     }
