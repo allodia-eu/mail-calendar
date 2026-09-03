@@ -7,181 +7,16 @@
 //! engine's join and this crate's projection, and a test that stubbed either half would prove
 //! only that the half it kept still compiles. These drive the same path the app does.
 
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
-};
+#[path = "tests_contacts_fake.rs"]
+mod fake;
 
-use async_trait::async_trait;
-use engine_api::{AccountId, EmailAddress, Engine, TimeZoneId};
-use engine_core::{
-    contact::{
-        AddressBook, ContactCard, ContactEmail, ContactName, ContactProperty, ContactSourceClass,
-        PropertyId,
-    },
-    ids::{AddressBookId, ContactId},
-    membership::Memberships,
-    sync::{SyncState, SyncUpdate},
-};
-use engine_provider::{
-    Capabilities, ConnectionInfo, ContactSourceSync, ContactsProvider, Provider, ProviderError,
-    ProviderResult, ScopeSync,
-};
+use std::sync::{Arc, Mutex};
 
-use crate::{Account, App, AppObserver, Surface, Telemetry, TimeZoneInit};
+// Re-exported, not merely imported: the child modules below read the same fixtures through
+// `use super::*`.
+pub(crate) use fake::{ContactWriteRecord, FakeContacts, WriteLog, account, app, card};
 
-/// Records the surfaces the app signals.
-struct RecordingObserver {
-    surfaces: Arc<Mutex<Vec<Surface>>>,
-}
-
-impl AppObserver for RecordingObserver {
-    fn surface_changed(&self, surface: Surface) {
-        self.surfaces.lock().unwrap().push(surface);
-    }
-}
-
-/// A minimal mail provider, so an account can exist. Contacts ride on a separate adapter.
-struct MailOnly;
-
-#[async_trait]
-impl Provider for MailOnly {
-    fn connection_info(&self) -> ConnectionInfo {
-        ConnectionInfo::new(Capabilities::none().with_mail())
-    }
-}
-
-/// A contacts adapter serving one address book of canned cards.
-///
-/// `fails` makes every sync error, which is how the "one bad source must not cost the user
-/// the sources that worked" behaviour is exercised.
-struct FakeContacts {
-    book: AddressBookId,
-    cards: Vec<ContactCard>,
-    fails: bool,
-}
-
-impl FakeContacts {
-    fn new(book: &str, cards: Vec<ContactCard>) -> Self {
-        Self {
-            book: AddressBookId::try_from(book).unwrap(),
-            cards,
-            fails: false,
-        }
-    }
-
-    fn failing(book: &str) -> Self {
-        Self {
-            book: AddressBookId::try_from(book).unwrap(),
-            cards: Vec::new(),
-            fails: true,
-        }
-    }
-}
-
-#[async_trait]
-impl Provider for FakeContacts {
-    fn connection_info(&self) -> ConnectionInfo {
-        ConnectionInfo::new(Capabilities::none().with_contacts())
-    }
-}
-
-#[async_trait]
-impl ContactsProvider for FakeContacts {
-    async fn sync_address_books(
-        &self,
-        _account: &AccountId,
-        _cursor: Option<&SyncState>,
-    ) -> ProviderResult<ContactSourceSync<AddressBook>> {
-        if self.fails {
-            return Err(ProviderError::retryable("address book listing unavailable"));
-        }
-        Ok(ContactSourceSync::Available {
-            sync: ScopeSync::new(
-                SyncUpdate::snapshot(
-                    vec![AddressBook::new(
-                        self.book.clone(),
-                        "Personal",
-                        ContactSourceClass::Personal,
-                    )],
-                    [self.book.key().clone()].into_iter().collect(),
-                ),
-                SyncState::new("books-1"),
-            ),
-            cursor_recovered: false,
-        })
-    }
-
-    async fn sync_contacts(
-        &self,
-        _account: &AccountId,
-        _cursor: Option<&SyncState>,
-    ) -> ProviderResult<ContactSourceSync<ContactCard>> {
-        if self.fails {
-            return Err(ProviderError::retryable("card sync unavailable"));
-        }
-        Ok(ContactSourceSync::Available {
-            sync: ScopeSync::new(
-                SyncUpdate::snapshot(
-                    self.cards.clone(),
-                    self.cards
-                        .iter()
-                        .map(|card| card.id.key().clone())
-                        .collect(),
-                ),
-                SyncState::new("cards-1"),
-            ),
-            cursor_recovered: false,
-        })
-    }
-}
-
-/// A card with `name` and `email`, filed in `book`.
-fn card(id: &str, book: &str, name: &str, email: &str) -> ContactCard {
-    let mut card = ContactCard::new(
-        ContactId::try_from(id).unwrap(),
-        Memberships::of_one(AddressBookId::try_from(book).unwrap()),
-    );
-    card.name = Some(ContactName {
-        full: Some(name.to_owned()),
-        ..ContactName::default()
-    });
-    let mut emails = BTreeMap::new();
-    emails.insert(
-        PropertyId::new("e1").unwrap(),
-        ContactProperty::new(ContactEmail::new(email)),
-    );
-    card.emails = emails;
-    card
-}
-
-/// An account with `id`, a mail provider, and the given contacts adapters.
-fn account(id: &str, contacts: Vec<Box<dyn ContactsProvider>>) -> Account<MailOnly> {
-    Account {
-        id: AccountId::try_from(id).unwrap(),
-        providers: vec![MailOnly],
-        calendar_providers: Vec::new(),
-        contact_providers: contacts,
-        identity: EmailAddress::new(format!("me@{id}.local")),
-    }
-}
-
-/// An in-memory app over `accounts`.
-fn app(accounts: Vec<Account<MailOnly>>, surfaces: &Arc<Mutex<Vec<Surface>>>) -> App<MailOnly> {
-    App::new(
-        Engine::open_in_memory().unwrap(),
-        accounts,
-        TimeZoneInit {
-            device_zone: TimeZoneId::utc(),
-            prefs_path: None,
-        },
-        None,
-        Arc::new(RecordingObserver {
-            surfaces: Arc::clone(surfaces),
-        }),
-        Telemetry::off(None),
-    )
-}
+use crate::Surface;
 
 #[tokio::test]
 async fn one_person_in_two_accounts_becomes_one_contact_row() {
@@ -395,3 +230,6 @@ async fn autosuggest_matches_a_synced_contact() {
 /// fixtures above; its own file to keep both within the 500-line limit.
 #[path = "tests_contacts_logging.rs"]
 mod logging;
+
+#[path = "tests_contacts_write.rs"]
+mod write;

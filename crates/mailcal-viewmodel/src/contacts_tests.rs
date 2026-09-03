@@ -11,8 +11,8 @@
 use std::collections::BTreeSet;
 
 use engine_api::{
-    AccountId, CanonicalEmail, ContactId, ContactKind, Person, PersonId, PersonSourceId,
-    SourcedValue,
+    AccountId, CanonicalEmail, ContactCard, ContactId, ContactKind, ContactSourceClass, Person,
+    PersonId, PersonSource, PersonSourceId, SourcedValue,
 };
 
 use super::*;
@@ -22,6 +22,22 @@ fn source(account: &str, contact: &str) -> PersonSourceId {
     PersonSourceId::new(
         AccountId::try_from(account).unwrap(),
         ContactId::try_from(contact).unwrap(),
+    )
+}
+
+/// A live source record for `id`, writable or not.
+///
+/// The engine reads these separately from the person, because a person says only that *some*
+/// source is writable and an edit has to name one.
+fn stored(id: &PersonSourceId, writable: bool) -> PersonSource {
+    PersonSource::new(
+        id.account.clone(),
+        ContactCard::new(
+            id.contact.clone(),
+            engine_api::Memberships::of_one(engine_api::AddressBookId::try_from("book").unwrap()),
+        ),
+        ContactSourceClass::Personal,
+        writable,
     )
 }
 
@@ -208,7 +224,7 @@ fn detail_reports_which_accounts_carry_each_value() {
         sources: both,
     });
 
-    let detail = detail(&merged);
+    let detail = detail(&merged, &[]);
     assert_eq!(detail.accounts, vec!["alice", "bob"]);
     // The shared address lists both accounts; the work-only one lists just its own.
     assert_eq!(detail.emails[0].value, "ada@example.test");
@@ -266,4 +282,38 @@ fn a_person_with_both_an_individual_and_a_group_source_survives() {
         .into_iter()
         .collect();
     assert_eq!(build(&[mixed]).rows.len(), 1);
+}
+
+/// An edit names a **card**, so the detail carries the writable ones and nothing else: a
+/// directory card, or a shared book the account may only read, is a place the contact came
+/// from and not a place an edit may go.
+#[test]
+fn the_detail_offers_only_the_cards_that_can_be_edited() {
+    let personal = source("alice", "card-a");
+    let directory = source("work", "card-b");
+    let person = person(
+        1,
+        "Ada Lovelace",
+        "ada@example.test",
+        &[personal.clone(), directory.clone()],
+    );
+    let editable = detail(
+        &person,
+        &[stored(&personal, true), stored(&directory, false)],
+    );
+    assert_eq!(
+        editable
+            .editable_cards
+            .iter()
+            .map(|card| (card.account.clone(), card.card.clone()))
+            .collect::<Vec<_>>(),
+        vec![("alice".to_owned(), "card-a".to_owned())]
+    );
+
+    // Every source read-only: no edit is offered at all, rather than one that fails on press.
+    let read_only = detail(
+        &person,
+        &[stored(&personal, false), stored(&directory, false)],
+    );
+    assert!(read_only.editable_cards.is_empty());
 }

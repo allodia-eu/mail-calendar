@@ -19,6 +19,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use engine_core::ids::AddressBookId;
 use engine_provider::{Capabilities, Provider, ProviderError, ProviderResult};
 use engine_tls::TlsClientConfig;
 use provider_jmap::{Credentials, JmapConfig, JmapProvider};
@@ -40,6 +41,10 @@ pub(crate) struct RefreshingJmapProvider {
     capabilities: Capabilities,
     /// The account's shared TLS policy, cloned into each rebuilt client.
     tls: TlsClientConfig,
+    /// The address book a contact write lands in, re-applied to every rebuilt delegate. A
+    /// JMAP adapter advertises no write destination until it has one, so a rebuild that
+    /// dropped it would turn contacts read-only an hour into the session.
+    contact_book: Option<AddressBookId>,
     /// The built delegate, cached by the access token it was built with. Rebuilt only when a
     /// refresh produced a new token; never per request, which would re-run session discovery
     /// and open a fresh TLS connection every single call.
@@ -71,12 +76,14 @@ impl RefreshingJmapProvider {
         access_token: String,
         initial: JmapProvider,
         capabilities: Capabilities,
+        contact_book: Option<AddressBookId>,
     ) -> Self {
         Self {
             base_url,
             tokens,
             capabilities,
             tls,
+            contact_book,
             cached: Mutex::new(Some((access_token, Arc::new(initial)))),
         }
     }
@@ -143,11 +150,15 @@ impl RefreshingJmapProvider {
             .with_tls(self.tls.clone())
             .with_retry(account_retry())
             .with_connect_observer(connect_logger("jmap"));
-        let provider = Arc::new(
-            JmapProvider::connect(config)
-                .await
-                .map_err(|err| ProviderError::retryable(err.to_string()))?,
-        );
+        let rebuilt = JmapProvider::connect(config)
+            .await
+            .map_err(|err| ProviderError::retryable(err.to_string()))?;
+        // Re-bound, because a delegate that forgot its address book advertises no write
+        // destination: contacts would quietly become read-only an hour into the session.
+        let provider = Arc::new(match self.contact_book.clone() {
+            Some(book) => rebuilt.with_contact_address_book(book),
+            None => rebuilt,
+        });
         *self.cached.lock().expect("jmap delegate mutex poisoned") =
             Some((token, Arc::clone(&provider)));
         Ok(provider)

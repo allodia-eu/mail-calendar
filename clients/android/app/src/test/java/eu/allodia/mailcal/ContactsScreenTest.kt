@@ -20,6 +20,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import uniffi.mailcal_bindings.ContactCardRef
 import uniffi.mailcal_bindings.ContactDetail
 import uniffi.mailcal_bindings.ContactRow
 import uniffi.mailcal_bindings.ContactValue
@@ -173,6 +174,7 @@ class ContactsScreenTest {
             organizations = emptyList(),
             titles = emptyList(),
             accounts = listOf("work", "home"),
+            editableCards = emptyList(),
         )
         compose.setContent {
             ContactsScreen(
@@ -186,9 +188,45 @@ class ContactsScreenTest {
         compose.onNodeWithText("ada@work.test").assertIsDisplayed()
         // "Also in" is the explanation behind the list row's badge.
         compose.onNodeWithText("Also in").assertIsDisplayed()
-        // And this release says plainly that it cannot edit, rather than offering dead buttons.
-        compose.onNodeWithText("Contacts are read-only in this version.")
+        // Every source of this person is read-only, so the sheet says so rather than offering an
+        // edit that would fail on press.
+        compose.onNodeWithText("This contact can't be edited here.")
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    /**
+     * Both write affordances are conditional, and each answers a different question: the create
+     * button asks whether there is anywhere at all to file a contact, the edit button whether
+     * *this* person has a card that can be written.
+     */
+    @Test
+    fun `the write affordances appear only where a write could land`() {
+        val detail = ContactDetail(
+            id = "1",
+            displayName = "Ada Lovelace",
+            avatar = stubAvatar("AL"),
+            emails = listOf(ContactValue("ada@example.test", listOf("work"))),
+            phones = emptyList(),
+            organizations = emptyList(),
+            titles = emptyList(),
+            accounts = listOf("work"),
+            editableCards = listOf(ContactCardRef(account = "work", card = "c-work")),
+        )
+        var edited: ContactDetail? = null
+        compose.setContent {
+            ContactsScreen(
+                rows = listOf(row("1", "Ada Lovelace")),
+                onSearch = {},
+                detailFor = { detail },
+                canCreate = true,
+                onEdit = { edited = it },
+            )
+        }
+        compose.onNodeWithTag("contacts-new").assertIsDisplayed()
+        compose.onNodeWithText("Ada Lovelace").performClick()
+        compose.onNodeWithTag("contact-edit").performScrollTo().performClick()
+        // The edit names the person whose card it is; which card is resolved above this screen.
+        assertEquals("1", edited?.id)
     }
 }

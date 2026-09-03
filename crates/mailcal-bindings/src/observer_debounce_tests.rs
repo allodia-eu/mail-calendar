@@ -27,6 +27,7 @@ fn to_app(surface: Surface) -> AppSurface {
         Surface::Connectivity => AppSurface::Connectivity,
         Surface::CalendarStatus => AppSurface::CalendarStatus,
         Surface::Contacts => AppSurface::Contacts,
+        Surface::ContactsStatus => AppSurface::ContactsStatus,
         Surface::InvitationReply => AppSurface::InvitationReply,
         Surface::UnfiledCopy => AppSurface::UnfiledCopy,
     }

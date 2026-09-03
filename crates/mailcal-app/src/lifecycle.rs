@@ -18,13 +18,13 @@ use mailcal_viewmodel::ContactsSnapshot;
 use tokio::sync::{RwLock, watch};
 
 use crate::{
-    Account, App, AppObserver, CalendarWriteStatus, MailboxConnector, PAGE, SearchScope, Surface,
-    Telemetry, TimeZoneInit, background_sync::NotifyMarksState, calendar_cache,
-    calendar_prefs::CalendarPrefsState, display_settings::DisplaySettingsState, folder_pane,
-    load_view_mode, mcp_settings::McpSettingsState, quote_settings::QuoteSettingsState,
-    scope::Scope, send_settings::SendSettingsState, signatures::SignatureState, surfaced::Surfaced,
-    swipe_settings::SwipeSettingsState, sync, sync_progress::SyncProgressState,
-    sync_settings::SyncSettingsState, timezone::TimeZoneState,
+    Account, App, AppObserver, CalendarWriteStatus, ContactWriteStatus, MailboxConnector, PAGE,
+    SearchScope, Surface, Telemetry, TimeZoneInit, background_sync::NotifyMarksState,
+    calendar_cache, calendar_prefs::CalendarPrefsState, display_settings::DisplaySettingsState,
+    folder_pane, load_view_mode, mcp_settings::McpSettingsState,
+    quote_settings::QuoteSettingsState, scope::Scope, send_settings::SendSettingsState,
+    signatures::SignatureState, surfaced::Surfaced, swipe_settings::SwipeSettingsState, sync,
+    sync_progress::SyncProgressState, sync_settings::SyncSettingsState, timezone::TimeZoneState,
 };
 
 impl<P: Provider> App<P> {
@@ -103,6 +103,7 @@ impl<P: Provider> App<P> {
             telemetry,
             send_status: Surfaced::new(Surface::Sending, Arc::clone(&observer)),
             calendar_write_status: Mutex::new(CalendarWriteStatus::default()),
+            contact_write_status: Mutex::new(ContactWriteStatus::default()),
             sync_progress: Mutex::new(SyncProgressState::default()),
             connector,
             attempted_folders: Mutex::new(HashSet::new()),

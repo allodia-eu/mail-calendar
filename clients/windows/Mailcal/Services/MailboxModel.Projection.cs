@@ -82,6 +82,13 @@ public sealed partial class MailboxModel
             PullContacts();
             return;
         }
+        // A write-status signal only moves the contacts header's line; the list arrives on its
+        // own Contacts signal.
+        if (changed == Surface.ContactsStatus)
+        {
+            PullContactWriteStatus();
+            return;
+        }
         // Time the snapshot pull (the FFI marshalling of every row) separately from the
         // reconcile, so the "render leg" cost is attributable against the core's own timing.
         var reloadSw = System.Diagnostics.Stopwatch.StartNew();

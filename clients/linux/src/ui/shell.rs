@@ -187,7 +187,7 @@ impl AppWidgets {
         inner.set_resize_start_child(false);
         inner.set_shrink_start_child(false);
         let calendar = CalendarPane::new(&root, sender.clone());
-        let contacts = ContactsPane::new(sender.clone());
+        let contacts = ContactsPane::new(&root, sender.clone());
         let primary = gtk::Stack::new();
         primary.set_transition_type(gtk::StackTransitionType::Crossfade);
         primary.add_named(&inner, Some("mail"));

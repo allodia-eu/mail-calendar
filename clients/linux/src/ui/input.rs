@@ -3,7 +3,8 @@
 use std::{fmt, path::PathBuf};
 
 use mailcal_bindings::{
-    AgentDraft, ContactDetail, MailtoPrefill, SearchScope, SetupRecommendation, Surface,
+    AgentDraft, ContactDetail, ContactEdit, ContactTarget, Intent, MailtoPrefill, SearchScope,
+    SetupRecommendation, Surface,
 };
 
 use super::{
@@ -11,6 +12,7 @@ use super::{
     allodia_sync::AllodiaSyncOutcome,
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
     composer_model::ComposerSubmission,
+    contacts::EditTarget,
     folder_pane::SidebarTarget,
     google::GoogleOutcome,
     invitation::InvitationAnswer,
@@ -45,6 +47,20 @@ pub(crate) enum AppInput {
     /// One detail lookup's answer, tagged with the lookup it belongs to so a slower earlier one
     /// cannot land on top of the person the user opened since. `None` means the person is gone.
     ContactOpened(u64, Option<Box<ContactDetail>>),
+    /// The writable address books, read off the UI thread when the surface opened; they decide
+    /// whether a create is offered at all.
+    ContactTargetsLoaded(Vec<ContactTarget>),
+    BeginNewContact,
+    /// The Edit button beside the open person: straight into the form with one editable card,
+    /// into the "which account?" question with several.
+    EditOpenContact,
+    /// Edit one named card: from the Edit button, or from the question's answer.
+    BeginEditContact(String, String),
+    /// One card's values, read off the UI thread. `None` means the card has gone since.
+    ContactCardLoaded(EditTarget, Option<Box<ContactEdit>>),
+    /// The editor's Save, carrying the intent the editor already built and validated.
+    SubmitContactForm(Box<Intent>),
+    DismissContactEditor,
     SetCalendarMode(CalendarMode),
     StepCalendar(i32),
     CalendarToday,
@@ -223,6 +239,13 @@ impl fmt::Debug for AppInput {
             Self::SearchContacts(_) => "SearchContacts",
             Self::OpenContact(_) => "OpenContact",
             Self::ContactOpened(..) => "ContactOpened",
+            Self::ContactTargetsLoaded(_) => "ContactTargetsLoaded",
+            Self::BeginNewContact => "BeginNewContact",
+            Self::EditOpenContact => "EditOpenContact",
+            Self::BeginEditContact(..) => "BeginEditContact",
+            Self::ContactCardLoaded(..) => "ContactCardLoaded",
+            Self::SubmitContactForm(_) => "SubmitContactForm",
+            Self::DismissContactEditor => "DismissContactEditor",
             Self::SetCalendarMode(_) => "SetCalendarMode",
             Self::StepCalendar(_) => "StepCalendar",
             Self::CalendarToday => "CalendarToday",

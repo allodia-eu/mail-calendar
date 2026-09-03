@@ -36,7 +36,7 @@ impl log::Log for Capture {
     fn log(&self, record: &log::Record<'_>) {
         if matches!(
             record.target(),
-            "mailcal_app::contacts" | "mailcal_app::recipients"
+            "mailcal_app::contacts" | "mailcal_app::contacts_write" | "mailcal_app::recipients"
         ) {
             self.0.lock().unwrap().push(record.args().to_string());
         }
@@ -124,17 +124,18 @@ async fn the_contacts_log_never_carries_a_name_or_an_address() {
     let app = app(
         vec![account(
             "work",
-            vec![Box::new(FakeContacts::new(
-                "work-book",
-                vec![card("c1", "work-book", NAME, EMAIL)],
-            ))],
+            vec![Box::new(
+                FakeContacts::new("work-book", vec![card("c1", "work-book", NAME, EMAIL)])
+                    .writable(),
+            )],
         )],
         &surfaces,
     );
     let _ = captured();
 
-    // Drive every path that touches a card, including the two that take user-typed text;
-    // a search term and a composer token are themselves a name and an address.
+    // Drive every path that touches a card, including the three that take user-typed text;
+    // a search term, a composer token and an editor's fields are themselves names and
+    // addresses.
     app.dispatch(crate::Intent::RefreshContacts).await;
     let row = app.contacts().rows.remove(0);
     app.dispatch(crate::Intent::SearchContacts {
@@ -143,6 +144,40 @@ async fn the_contacts_log_never_carries_a_name_or_an_address() {
     .await;
     app.contact_detail(&row.id).await;
     app.recipient_suggestions(EMAIL).await;
+    // The writes, including the two refusals: a validation message is the likeliest place for
+    // a value to be quoted back, because quoting it is what makes such a message helpful.
+    let typed = mailcal_account::ContactEdit {
+        given_name: "Zelphina".into(),
+        surname: "Quorrix".into(),
+        emails: vec![EMAIL.to_owned()],
+        ..mailcal_account::ContactEdit::default()
+    };
+    app.dispatch(crate::Intent::CreateContact {
+        account: None,
+        address_book: None,
+        edit: typed.clone(),
+    })
+    .await;
+    app.dispatch(crate::Intent::CreateContact {
+        account: None,
+        address_book: None,
+        edit: mailcal_account::ContactEdit {
+            emails: vec![NAME.to_owned()],
+            ..mailcal_account::ContactEdit::default()
+        },
+    })
+    .await;
+    app.dispatch(crate::Intent::UpdateContact {
+        person: row.id.clone(),
+        account: "work".to_owned(),
+        card: "c1".to_owned(),
+        edit: mailcal_account::ContactEdit {
+            given_name: "Zelphina".into(),
+            surname: "Quorrix-Vane".into(),
+            ..typed
+        },
+    })
+    .await;
 
     for line in lines() {
         for secret in ["Zelphina", "Quorrix", "zelphina", "carbuncle"] {

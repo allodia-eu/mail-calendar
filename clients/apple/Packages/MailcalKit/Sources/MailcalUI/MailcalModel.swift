@@ -114,6 +114,10 @@ final class MailboxModel {
     /// "could not confirm the local view", not "your change was rejected", the write reached the
     /// server and a refresh reconciles it. Drives the small header badge.
     var calendarWriteStatus: CalendarWriteStatus = .idle
+    /// The most recent contact write's status (pulled on a `Surface::ContactsStatus` signal), on
+    /// the same terms: `.failed` means "we could not confirm this saved", never "rejected". Its
+    /// own slot rather than the calendar's, so the contacts list does not report a calendar save.
+    var contactWriteStatus: ContactWriteStatus = .idle
     /// The unanswered question raised when a calendar server that promised to tell the organizer
     /// reported that it could not (pulled on a `Surface::InvitationReply` signal). Non-`nil`
     /// presents the modal; the core clears it the moment it is answered, so `nil` is also what

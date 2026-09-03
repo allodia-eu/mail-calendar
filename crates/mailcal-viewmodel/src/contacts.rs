@@ -18,7 +18,7 @@
 
 use std::collections::BTreeSet;
 
-use engine_api::{ContactKind, Person, PersonSourceId};
+use engine_api::{ContactKind, Person, PersonSource, PersonSourceId};
 
 /// An immutable contacts snapshot for a host to render, ordered for an A–Z list.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -76,6 +76,27 @@ pub struct ContactDetail {
     /// The distinct accounts this person was assembled from, sorted. The detail screen
     /// lists these under "Also in", which is the *explanation* of a merged row.
     pub accounts: Vec<String>,
+    /// The source cards behind this person that can be edited **where they live**.
+    ///
+    /// An edit names a card, never a person, and this is why: a person is several cards, and
+    /// writing the values on screen back without choosing one would file the work account's
+    /// details in the personal account's address book. Empty for a person every source of
+    /// which is read-only (a directory, a suggested-contacts source, a shared book the
+    /// account may only read), and a client shows no edit affordance then rather than one
+    /// that fails on press. More than one is a merge the user has to resolve: the client asks
+    /// which card, naming the account.
+    pub editable_cards: Vec<ContactCardRef>,
+}
+
+/// One source card, named the way a write names it: the account, then the card.
+///
+/// A card id is unique only within its account, which is why neither half travels alone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContactCardRef {
+    /// The account holding the card.
+    pub account: String,
+    /// The card's provider id.
+    pub card: String,
 }
 
 /// One value on a contact, and the accounts it came from.
@@ -140,8 +161,13 @@ fn row(person: &Person) -> ContactRow {
 }
 
 /// Projects one person into the detail view.
+///
+/// `sources` is the engine's list of the live cards behind this person, which carries the one
+/// thing the `Person` cannot: which of them the user may edit. It is read separately rather
+/// than inferred from [`Person::is_writable`], which says only that *some* source is writable
+/// and so cannot name the card an edit would go to.
 #[must_use]
-pub fn detail(person: &Person) -> ContactDetail {
+pub fn detail(person: &Person, sources: &[PersonSource]) -> ContactDetail {
     let display_name = display_name(person);
     let avatar = avatar::resolve(
         &display_name,
@@ -176,6 +202,14 @@ pub fn detail(person: &Person) -> ContactDetail {
             .map(|title| value(&title.value, &title.sources))
             .collect(),
         accounts: accounts(&person.sources),
+        editable_cards: sources
+            .iter()
+            .filter(|source| source.writable)
+            .map(|source| ContactCardRef {
+                account: source.id.account.as_str().to_owned(),
+                card: source.id.contact.as_str().to_owned(),
+            })
+            .collect(),
     }
 }
 

@@ -48,6 +48,28 @@ extension MailboxModel {
         return await Task.detached(priority: .userInitiated) { app.contactDetail(id: id) }.value
     }
 
+    /// Every address book a new contact could be saved into, across every account.
+    ///
+    /// The "save to…" picker, and the answer to whether a create may be offered at all: an empty
+    /// list means this user has nowhere to put one. Off the main thread for the same reason as
+    /// `contactDetail`.
+    func contactTargets() async -> [ContactTarget] {
+        guard let app else { return [] }
+        return await Task.detached(priority: .userInitiated) { app.contactTargets() }.value
+    }
+
+    /// The editable values of one source card, for seeding an editor.
+    ///
+    /// Read from the **card**, never from the person the detail showed: the person is a merge, so
+    /// seeding an editor from it would offer another account's values for saving into this one's
+    /// address book.
+    func contactCard(person: String, account: String, card: String) async -> ContactEdit? {
+        guard let app else { return nil }
+        return await Task.detached(priority: .userInitiated) {
+            app.contactCard(person: person, account: account, card: card)
+        }.value
+    }
+
     /// Ranked address suggestions for a partially-typed recipient.
     ///
     /// Draws on synced contacts **and** on people the user has written to before (the engine mines
@@ -59,6 +81,21 @@ extension MailboxModel {
         return await Task.detached(priority: .userInitiated) {
             app.recipientSuggestions(query: query)
         }.value
+    }
+
+    /// What the contacts list says about the most recent create or edit.
+    ///
+    /// `.failed` means "we could not confirm this saved", never "rejected": a write whose server
+    /// call succeeded and whose reconcile did not has already landed, and the next sync heals the
+    /// local copy. `.invalid` is stated under the form the user is still looking at, so nothing
+    /// repeats it here.
+    var contactWriteLine: String? {
+        switch contactWriteStatus {
+        case .saving: L10n.contacts_saving()
+        case .saved: L10n.contacts_saved()
+        case .failed: L10n.contacts_save_unconfirmed()
+        default: nil
+        }
     }
 
     /// Account id → the address the user knows that account by, for the detail view's provenance

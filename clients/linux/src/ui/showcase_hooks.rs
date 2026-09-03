@@ -1,5 +1,5 @@
 //! The debug-only hooks that drive a client to a named screen: the screenshot run
-//! (`MAILCAL_SHOWCASE`) and the `MAILCAL_OPEN_SUBJECT` open hook.
+//! (`MAILCAL_SHOWCASE`) and the `MAILCAL_OPEN_SUBJECT` / `MAILCAL_OPEN_CONTACT` open hooks.
 //!
 //! Compiled out of a release build with the rest of that path, and kept beside the model rather
 //! than inside it so the shell's own file stays the shell's.
@@ -101,6 +101,39 @@ impl AppModel {
             self.open_row(index);
         }
     }
+
+    /// Opens the person named by `MAILCAL_OPEN_CONTACT`, once.
+    ///
+    /// A GTK list row exposes no AT-SPI action, so the driver cannot open a person, and
+    /// everything the detail leads to (the "Also in" explanation, the edit affordance, the
+    /// editor itself) would be unreachable from a test. This is the same escape hatch
+    /// `MAILCAL_OPEN_SUBJECT` is for the reading pane, and for the same reason.
+    ///
+    /// Matched on the **displayed** name, which is what a test can read off the screen: a
+    /// nameless card carries the client's placeholder there, and so does this.
+    pub(super) fn apply_debug_open_contact_hook(&mut self, sender: relm4::Sender<AppInput>) {
+        if self.contacts.opened().is_some() {
+            return;
+        }
+        let Some(requested) = std::env::var("MAILCAL_OPEN_CONTACT")
+            .ok()
+            .filter(|name| !name.is_empty())
+        else {
+            return;
+        };
+        if let Some(id) = debug_open_contact_id(self.contacts.rows(), &requested) {
+            self.open_contact(id, sender);
+        }
+    }
+}
+
+fn debug_open_contact_id(
+    rows: &[crate::ui::contacts::PersonRow],
+    requested: &str,
+) -> Option<String> {
+    rows.iter()
+        .find(|row| row.name == requested)
+        .map(|row| row.id.clone())
 }
 
 fn debug_open_subject_index(
@@ -115,7 +148,7 @@ fn debug_open_subject_index(
 mod tests {
     use mailcal_bindings::{FlatRow, SnapshotRow};
 
-    use super::debug_open_subject_index;
+    use super::{debug_open_contact_id, debug_open_subject_index};
 
     fn row(subject: &str) -> SnapshotRow {
         SnapshotRow::Flat {
@@ -143,5 +176,24 @@ mod tests {
             Some(1)
         );
         assert_eq!(debug_open_subject_index(&rows, "HTML message"), None);
+    }
+
+    #[test]
+    fn the_debug_contact_hook_selects_only_an_exact_name() {
+        let person = |id: &str, name: &str| crate::ui::contacts::PersonRow {
+            id: id.to_owned(),
+            name: name.to_owned(),
+            email: format!("{id}@example.test"),
+            avatar: (&crate::ui::model::blank_avatar()).into(),
+            section: None,
+            accounts: None,
+        };
+        let rows = [person("1", "Ada Lovelace"), person("2", "Grace Hopper")];
+
+        assert_eq!(
+            debug_open_contact_id(&rows, "Grace Hopper").as_deref(),
+            Some("2")
+        );
+        assert_eq!(debug_open_contact_id(&rows, "Grace"), None);
     }
 }

@@ -95,7 +95,10 @@ extension ContentView {
                 .navigationDestination(item: $openedContact) { opened in
                     ContactDetailView(
                         detail: opened.detail,
-                        accountLabels: model.contactAccountLabels
+                        accountLabels: model.contactAccountLabels,
+                        onEdit: opened.detail.editableCards.isEmpty
+                            ? nil
+                            : { beginEditContact(opened.detail) }
                     )
                     .navigationTitle(
                         opened.detail.displayName.isEmpty

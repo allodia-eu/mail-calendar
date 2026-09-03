@@ -193,6 +193,11 @@ class MainActivity : AppCompatActivity() {
     // The contacts list, one row per unified PERSON (the core merges cards sharing an address,
     // across accounts), pulled on a CONTACTS surface change and when switching to the tab.
     internal var contacts by mutableStateOf<List<ContactRow>>(emptyList())
+    // Everything the contacts surface needs to WRITE: the books a create may file into, the open
+    // editor, the "which account?" question before it, and the last write's outcome. One holder
+    // (MainActivityContacts.kt) rather than five slots here, because they are one feature and
+    // they change together.
+    internal val contactWrites = ContactWriteState()
     // The calendar agenda rows, pulled from the core on a CALENDAR surface change (and when
     // switching to the calendar tab). Soonest first, as ordered by the engine.
     internal var events by mutableStateOf<List<EventRow>>(emptyList())
@@ -364,7 +369,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Rust calls `surfaceChanged` from an internal runtime thread; hop to the main thread
-    // before touching Compose state, then pull the fresh immutable snapshot.
+    // before touching Compose state, then pull the fresh immutable snapshot. Which pull answers
+    // which signal is MainActivityObserver.kt's `pullFor`.
     internal val observer = object : Observer {
         override fun surfaceChanged(surface: CoreSurface) {
             mainHandler.post {
@@ -373,45 +379,7 @@ class MainActivity : AppCompatActivity() {
                 // showing (the prompt is an overlay), so refresh the timezone snapshot on
                 // every signal regardless of which surface changed.
                 timeZone = app.timezoneSettings()
-                when (surface) {
-                    CoreSurface.MAILBOX_LIST -> reload()
-                    // The agenda list is a snapshot; the grid is a pull, so the version bump is
-                    // what tells it to re-read whatever page is on screen.
-                    CoreSurface.CALENDAR -> {
-                        events = app.calendarList().events
-                        calendarVersion += 1
-                    }
-                    CoreSurface.CONTACTS -> contacts = app.contactList().rows
-                    // A write-status signal only moves the small header badge (spinner → check /
-                    // warning); the grid/agenda arrive on their own CALENDAR signal.
-                    CoreSurface.CALENDAR_STATUS -> calendarWriteStatus = app.calendarWriteStatus()
-                    // The answer is already saved; what failed is the message to the organiser.
-                    CoreSurface.INVITATION_REPLY -> replyPrompt = app.replyPrompt()
-                    // The message went out; its copy did not reach Sent, and nothing later
-                    // will find it. The user is offered the one repair there is.
-                    CoreSurface.UNFILED_COPY -> unfiledCopy = app.unfiledCopy()
-                    // A settings change refreshes the per-account sync-behaviour screen and the
-                    // default quote style (the timezone snapshot above already covers the
-                    // pending-zone prompt).
-                    CoreSurface.SETTINGS -> {
-                        syncSettings = app.syncSettings()
-                        quoteSettings = app.quoteSettings()
-                        swipeSettings = app.swipeSettings()
-                        defaultSendAccount = app.defaultSendAccount()
-                        displaySettings = app.displaySettings()
-                        signatures = app.signatures()
-                    }
-                    // The reading body (a potentially large HTML string) only changes on a
-                    // Reading signal, pull it just then, not on every other refresh.
-                    CoreSurface.READING -> reading = app.readingView()
-                    CoreSurface.SENDING -> updateSendStatus(app.sendStatus())
-                    // A sync-progress signal only updates the download bar; the rows it commits
-                    // arrive on their own MAILBOX_LIST signal.
-                    CoreSurface.SYNC_PROGRESS -> syncProgress = app.syncProgress()
-                    // A connectivity signal updates the offline banner, the per-account outage
-                    // badges, and the friendly connection-issues banner (names + details).
-                    CoreSurface.CONNECTIVITY -> refreshConnectivity()
-                }
+                pullFor(surface, app)
             }
         }
     }

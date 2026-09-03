@@ -113,8 +113,9 @@ impl<P: Provider> App<P> {
                             );
                         }
                     }
-                    // Counted and logged, never surfaced as an error state: contacts are a
-                    // read-only view here, and a half-synced list is still worth showing.
+                    // Counted and logged, never surfaced as an error state: this is a *sync*
+                    // pass, and a half-synced list is still worth showing. A failed **write**
+                    // does reach the user, through `ContactWriteStatus`.
                     Err(error) => {
                         failed += 1;
                         log::warn!(
@@ -159,6 +160,10 @@ impl<P: Provider> App<P> {
         // row in the snapshot it is about to build. It republishes the mail list too.
         self.forget_sender_photos();
         self.rebuild_contacts().await;
+        // A full refresh clears the last write's word, the way the calendar's does: "Saved" is a
+        // sentence about something the user just did, and one still on screen when they come back
+        // to Contacts an hour later is about nothing they remember.
+        self.set_contact_write_status(crate::ContactWriteStatus::Idle);
     }
 
     /// Rebuilds the contacts snapshot from the engine's unified people and signals the host.
@@ -282,12 +287,25 @@ impl<P: Provider> App<P> {
         let started = Instant::now();
         match self.engine.person(person).await {
             Ok(Some(found)) => {
+                // The live source cards, for the one thing the person cannot say: which card
+                // an edit would go to. `Person::is_writable` says only that *some* source is
+                // writable, and an edit has to name one.
+                let sources = self
+                    .engine
+                    .person_sources(person)
+                    .await
+                    .unwrap_or_else(|error| {
+                        log::warn!("contact_detail: source read failed, offering no edit: {error}");
+                        Vec::new()
+                    });
                 log::debug!(
-                    "contact_detail: person {person:?} resolved over {} account(s) in {}ms",
+                    "contact_detail: person {person:?} resolved over {} account(s), \
+                     {} editable card(s) in {}ms",
                     found.sources.len(),
+                    sources.iter().filter(|source| source.writable).count(),
                     started.elapsed().as_millis(),
                 );
-                let mut detail = contacts::detail(&found);
+                let mut detail = contacts::detail(&found, &sources);
                 // The photo the list already resolved, by the address the row was keyed on.
                 // Read-only, and queues nothing: this screen is opened from a row that is
                 // behind it, so whatever there was to know is known.

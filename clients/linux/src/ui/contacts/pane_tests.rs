@@ -7,7 +7,9 @@
 //! Called from the crate's single `gtk::init` test (see [`crate::ui::mailbox::tests`]).
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountRow, ContactDetail, ContactRow, ContactValue};
+use mailcal_bindings::{
+    AccountRow, ContactCardRef, ContactDetail, ContactRow, ContactTarget, ContactValue,
+};
 
 use super::{super::model::ContactsModel, ContactsPane};
 use crate::ui::{
@@ -37,7 +39,17 @@ fn value(value: &str, accounts: &[&str]) -> ContactValue {
 
 fn pane() -> (ContactsPane, relm4::Receiver<AppInput>) {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    (ContactsPane::new(sender), receiver)
+    (
+        ContactsPane::new(&adw::ApplicationWindow::builder().build(), sender),
+        receiver,
+    )
+}
+
+fn card(account: &str, card: &str) -> ContactCardRef {
+    ContactCardRef {
+        account: account.to_owned(),
+        card: card.to_owned(),
+    }
 }
 
 fn shown(pane: &ContactsPane) -> Vec<String> {
@@ -113,6 +125,7 @@ pub(crate) fn a_contacts_own_text_is_never_parsed_as_markup() {
         organizations: vec![value("Johnson & Johnson", &["work", "home"])],
         titles: Vec::new(),
         accounts: vec!["work".to_owned(), "home".to_owned()],
+        editable_cards: Vec::new(),
     };
     let accounts = [
         AccountRow {
@@ -182,6 +195,7 @@ pub(crate) fn the_detail_names_the_accounts_only_for_a_merge_and_says_it_is_read
         organizations: Vec::new(),
         titles: Vec::new(),
         accounts: vec!["work".to_owned()],
+        editable_cards: Vec::new(),
     };
 
     pane.render(&ContactsModel::fixture(&[], "", Some(&alone), &accounts));
@@ -197,7 +211,7 @@ pub(crate) fn the_detail_names_the_accounts_only_for_a_merge_and_says_it_is_read
     assert!(
         detail
             .iter()
-            .any(|label| label == "Contacts are read-only in this version."),
+            .any(|label| label == "This contact can't be edited here."),
         "the read-only note must be on screen: {detail:?}"
     );
     assert!(
@@ -301,4 +315,66 @@ pub(crate) fn activating_a_person_opens_them_by_id() {
         AppInput::OpenContact(id) => assert_eq!(id, "bram"),
         other => panic!("expected the second person, got {other:?}"),
     }
+}
+
+/// Both write affordances are conditional, and each answers a different question: the create
+/// button asks whether there is anywhere at all to file a contact, the edit button whether
+/// *this* person has a card that can be written. A directory contact answers no to the second
+/// and says so in as many words, because a button that fails on press is worse than none.
+pub(crate) fn the_write_affordances_appear_only_where_a_write_could_land() {
+    let (mut pane, _receiver) = pane();
+    let accounts = [AccountRow {
+        id: "work".to_owned(),
+        email: "eva@work.test".to_owned(),
+        expanded: true,
+    }];
+    let mut person = ContactDetail {
+        avatar: crate::ui::model::blank_avatar(),
+        id: "eva".to_owned(),
+        display_name: "Eva Meijer".to_owned(),
+        emails: vec![value("eva@work.test", &["work"])],
+        phones: Vec::new(),
+        organizations: Vec::new(),
+        titles: Vec::new(),
+        accounts: vec!["work".to_owned()],
+        editable_cards: Vec::new(),
+    };
+
+    // Nowhere to save, and nothing to edit.
+    pane.render(&ContactsModel::fixture(&[], "", Some(&person), &accounts));
+    assert!(
+        !pane.create.is_visible(),
+        "a create with nowhere to file it"
+    );
+    assert!(!pane.edit.is_visible(), "an edit with no writable card");
+    assert!(
+        detail_text(&pane)
+            .iter()
+            .any(|label| label == "This contact can't be edited here."),
+        "a person nothing here can write must say so: {:?}",
+        detail_text(&pane)
+    );
+
+    // A writable book, and a card this person can be edited through.
+    person.editable_cards = vec![card("work", "c-work")];
+    pane.render(
+        &ContactsModel::fixture(&[], "", Some(&person), &accounts).with_targets(
+            &[ContactTarget {
+                account: "work".to_owned(),
+                address_book: "book".to_owned(),
+                name: "Personal".to_owned(),
+                is_default: true,
+            }],
+            &accounts,
+        ),
+    );
+    assert!(pane.create.is_visible());
+    assert!(pane.edit.is_visible());
+    assert!(
+        !detail_text(&pane)
+            .iter()
+            .any(|label| label == "This contact can't be edited here."),
+        "an editable contact must not be told it is not: {:?}",
+        detail_text(&pane)
+    );
 }
