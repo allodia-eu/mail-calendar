@@ -4,6 +4,7 @@
 // Rust core; this dispatches intents through the callbacks.
 package eu.allodia.mailcal
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,11 +46,13 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.AccountRow
+import uniffi.mailcal_bindings.BulkAction
 import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.MailtoPrefill
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.RecipientSuggestion
 import uniffi.mailcal_bindings.Recipients
+import uniffi.mailcal_bindings.SelectedRow
 import uniffi.mailcal_bindings.SendStatus
 import uniffi.mailcal_bindings.SearchHorizon
 import uniffi.mailcal_bindings.SnapshotRow
@@ -96,7 +99,9 @@ internal fun MailboxScreen(
     inJunkFolder: Boolean,
     onMarkAsSpam: (account: String, key: String) -> Unit,
     onMarkAsNotSpam: (account: String, key: String) -> Unit,
-    onArchiveThread: (account: String, threadId: String) -> Unit,
+    // One action over every selected row, as a single batch in the core: one optimistic hide and
+    // one sync per account, rather than one of each per row (docs/list-selection.md, rule 8).
+    onActOnSelection: (rows: List<SelectedRow>, action: BulkAction) -> Unit,
     onReply: (
         account: String,
         key: String,
@@ -168,6 +173,20 @@ internal fun MailboxScreen(
     }
     val visibleRows = remember(rows, swipeUndo.hiddenRowKeys) { swipeUndo.visibleRows(rows) }
 
+    // The list's multi-selection. A long press enters it, a tap then adds or removes a row, and
+    // Back leaves it; the rules live in MailSelectionState (docs/list-selection.md).
+    val selection = remember { MailSelectionState() }
+    // A row that has left the list (archived, deleted, or filtered away by a folder change or a
+    // search) leaves the selection with it, so an action can never reach a message nobody can see.
+    LaunchedEffect(rows) { selection.retainListed(rows) }
+    BackHandler(enabled = selection.active) { selection.clear() }
+    val actOnSelection: (BulkAction) -> Unit = { action ->
+        onActOnSelection(selection.selectedRows(), action)
+        // A move empties the selection: the rows it named are leaving. A keyword edit keeps it,
+        // because the user is usually part-way through working through the set.
+        if (action.removesRows()) selection.clear()
+    }
+
     SwipeUndoEffect(
         pending = swipeUndo.pending,
         snackbarHostState = snackbarHostState,
@@ -202,52 +221,27 @@ internal fun MailboxScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             SendStatusBanner(sendStatus, ctx)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (search.open) {
-                    SearchField(state = search, modifier = Modifier.weight(1f))
-                } else {
-                    // Hamburger always opens the folder navigation drawer.
-                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_menu),
-                            contentDescription = L10n.a11y_open_folders(ctx),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    // The account switcher keeps a guaranteed share of the width so it never
-                    // collapses behind the search + settings icons on a narrow phone.
-                    AccountSwitcher(
-                        accounts = accounts,
-                        selectedAccount = selectedAccount,
-                        unreachableAccounts = unreachableAccounts,
-                        onSelectAccount = onSelectAccount,
-                        onAddAccount = onAddAccount,
-                        onRemoveAccount = onRemoveAccount,
-                        modifier = Modifier.weight(1f),
-                    )
-                    // Search collapses to a magnifier to save space, expanding to the field on tap.
-                    IconButton(onClick = search::openSearch) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_search),
-                            contentDescription = L10n.search_placeholder(ctx),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    // Conversation grouping, language, time zone, per-account fetch depth + sync
-                    // behaviour, the default quote style, and the database reset live in Settings.
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_settings),
-                            contentDescription = L10n.settings_title(ctx),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+            // While rows are selected the contextual bar takes this row's place: a phone has no
+            // modifier keys, so selecting is a mode, and the bar is how it says so and how it is
+            // left (docs/list-selection.md).
+            if (selection.active) {
+                MailSelectionBar(
+                    selection = selection,
+                    rows = visibleRows,
+                    onAct = actOnSelection,
+                )
+            } else {
+                MailboxTopBar(
+                    search = search,
+                    accounts = accounts,
+                    selectedAccount = selectedAccount,
+                    unreachableAccounts = unreachableAccounts,
+                    onSelectAccount = onSelectAccount,
+                    onAddAccount = onAddAccount,
+                    onRemoveAccount = onRemoveAccount,
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onOpenSettings = onOpenSettings,
+                )
             }
             // While searching, the scope filter sits under the field: "this folder" (whatever the
             // list was showing) or all mail. It is offered from the first keystroke, so narrowing
@@ -332,6 +326,9 @@ internal fun MailboxScreen(
                                 swipe = swipe,
                                 onSwipe = onSwipe,
                                 accounts = accounts,
+                                selected = selection.contains(row),
+                                selecting = selection.active,
+                                onToggleSelect = { selection.toggle(row) },
                                 onOpen = onOpen,
                                 onSetRead = onSetRead,
                                 onSetFlagged = onSetFlagged,
@@ -348,12 +345,12 @@ internal fun MailboxScreen(
                             is SnapshotRow.Thread -> ThreadConversationRow(
                                 thread = row.row,
                                 activeZoneId = timeZone?.active,
+                                selected = selection.contains(row),
+                                selecting = selection.active,
+                                onToggleSelect = { selection.toggle(row) },
                                 // Open the conversation's latest message; the reading screen shows
                                 // the older ones as a strip that opens each on tap.
                                 onOpenThread = { onOpenThread(row.row) },
-                                onArchiveThread = {
-                                    onArchiveThread(row.row.account, row.row.threadId)
-                                },
                             )
                         }
                     }

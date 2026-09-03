@@ -54,6 +54,15 @@ public struct ContentView: View {
     @State var contactEditor: ContactEditorModel?
     @State var contactCardChoice: [ContactCardChoice]?
     @State var expandedThreads: Set<String> = [] // keyed `account/threadId` → conversation sub-rows
+    /// The rows picked out to act on together. View state, like the disclosure above it:
+    /// transient, never persisted, and read by nothing outside this list
+    /// (`docs/list-selection.md`, rule 1).
+    @State var selection = MailSelection()
+    #if os(iOS)
+    /// Whether the list is in selection mode. A phone has no modifier keys, so picking several
+    /// messages is a mode the toolbar's Select enters and Done leaves.
+    @State var selectingRows = false
+    #endif
     @State var accountToRemove: AccountRow? // the account a remove-confirmation is open for
     @State var sceneRestorationComplete = false
     @State var hasActivatedScene = false

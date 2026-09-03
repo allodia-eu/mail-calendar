@@ -13,9 +13,10 @@ use engine_provider::{
 };
 use mailcal_account::{EventDrag, EventEdge as AppEventEdge, EventEdit};
 use mailcal_app::{
-    CalendarWriteStatus as AppCalendarWriteStatus, ContactWriteStatus as AppContactWriteStatus,
-    EventRef, FolderRef, Intent as AppIntent, InvitationResponse as AppInvitationResponse,
-    MessageRef, RecipientSuggestion as AppRecipientSuggestion, SearchScope as AppSearchScope,
+    BulkAction as AppBulkAction, CalendarWriteStatus as AppCalendarWriteStatus,
+    ContactWriteStatus as AppContactWriteStatus, EventRef, FolderRef, Intent as AppIntent,
+    InvitationResponse as AppInvitationResponse, MessageRef,
+    RecipientSuggestion as AppRecipientSuggestion, RowRef, SearchScope as AppSearchScope,
     SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
 };
 use mailcal_viewmodel::{
@@ -26,10 +27,10 @@ use mailcal_viewmodel::{
 };
 
 use crate::{
-    AccountSyncProgress, AttachmentRow, CalendarSnapshot, CalendarWriteStatus, ConnectionInfo,
-    ConnectivitySnapshot, ContactWriteStatus, EventEdge, EventRow, HttpVersion, Intent,
-    InvitationResponse, ReadingSnapshot, RecipientSuggestion, SearchScope, SendStatus, Surface,
-    SyncProgressSnapshot, TlsVersion,
+    AccountSyncProgress, AttachmentRow, BulkAction, CalendarSnapshot, CalendarWriteStatus,
+    ConnectionInfo, ConnectivitySnapshot, ContactWriteStatus, EventEdge, EventRow, HttpVersion,
+    Intent, InvitationResponse, ReadingSnapshot, RecipientSuggestion, SearchScope, SelectedRow,
+    SendStatus, Surface, SyncProgressSnapshot, TlsVersion,
 };
 
 impl From<AppSurface> for Surface {
@@ -56,6 +57,20 @@ impl From<SearchScope> for AppSearchScope {
         match scope {
             SearchScope::AllFolders => Self::AllFolders,
             SearchScope::CurrentFolder => Self::CurrentFolder,
+        }
+    }
+}
+
+impl From<BulkAction> for AppBulkAction {
+    fn from(action: BulkAction) -> Self {
+        match action {
+            BulkAction::MarkRead => Self::MarkRead,
+            BulkAction::MarkUnread => Self::MarkUnread,
+            BulkAction::Flag => Self::Flag,
+            BulkAction::Unflag => Self::Unflag,
+            BulkAction::Archive => Self::Archive,
+            BulkAction::Delete => Self::Delete,
+            BulkAction::PermanentlyDelete => Self::PermanentlyDelete,
         }
     }
 }
@@ -197,6 +212,24 @@ impl TryFrom<Intent> for AppIntent {
             },
             Intent::ArchiveThread { account, thread_id } => Self::ArchiveThread {
                 thread: thread(account, thread_id)?,
+            },
+            Intent::ActOnSelection { rows, action } => Self::ActOnSelection {
+                // A malformed row drops the whole intent rather than acting on the rest: a
+                // selection is one command, and archiving four of five rows silently is worse
+                // than archiving none.
+                rows: rows
+                    .into_iter()
+                    .map(|row| match row {
+                        SelectedRow::Message { account, key } => {
+                            message(account, key).map(RowRef::Message)
+                        }
+                        SelectedRow::Thread {
+                            account,
+                            thread_id: id,
+                        } => thread(account, id).map(RowRef::Thread),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                action: action.into(),
             },
             Intent::MarkAsSpam { account, key } => Self::MarkAsSpam {
                 message: message(account, key)?,

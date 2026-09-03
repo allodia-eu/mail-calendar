@@ -4,7 +4,7 @@ use adw::prelude::*;
 use mailcal_bindings::{FolderRole, FolderRow, Intent};
 
 use super::{
-    ActionKind, MailActionRequest, MessageTarget, PermanentDeleteDialog, actions_for,
+    ActionKind, DeleteTarget, MailActionRequest, MessageTarget, PermanentDeleteDialog, actions_for,
     in_junk_folder, message_menu_button, thread_menu_button,
 };
 use crate::{
@@ -178,7 +178,7 @@ pub(crate) fn permanent_delete_is_confirmed_before_it_dispatches() {
     parent.present();
     let (sender, receiver) = relm4::channel::<AppInput>();
     let mut confirmation = PermanentDeleteDialog::default();
-    confirmation.render(Some(&target()), &parent, &sender);
+    confirmation.render(Some(&DeleteTarget::Message(target())), &parent, &sender);
     let window = confirmation.window.as_ref().expect("confirmation window");
     assert!(
         labels(window.upcast_ref::<gtk::Widget>())

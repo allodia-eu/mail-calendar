@@ -8,6 +8,7 @@ use super::{
     AppInput, AppModel, PrimaryView,
     composer_model::ComposeKind,
     connectivity::{ConnectivityState, ExpiredResolution},
+    mail_actions::DeleteTarget,
     model, settings,
     setup_model::{self, DetectedForm, OAuthForm, SetupForm},
     unfiled_copy::UnfiledCopyNotice,
@@ -219,10 +220,17 @@ impl AppModel {
                     reply_subject: Some(reply_subject),
                 });
             }
+            AppInput::SelectRow { index, mode } => {
+                self.selection.click(&self.snapshot.rows, index, mode);
+            }
+            AppInput::SelectAllRows => self.selection.select_all(&self.snapshot.rows),
+            AppInput::ClearSelection => self.selection.clear(),
+            AppInput::ActOnSelection(action) => self.act_on_selection(action),
+            AppInput::PerformSelectionAction(action) => self.perform_selection(action),
             AppInput::PerformMailAction(request) => self.perform_mail_action(*request),
             AppInput::PerformOpenedMailAction(action) => self.perform_opened_mail_action(action),
             AppInput::RequestPermanentDelete(target) => {
-                self.pending_mail_delete = Some(target);
+                self.pending_mail_delete = Some(DeleteTarget::Message(target));
             }
             AppInput::DismissPermanentDelete => self.pending_mail_delete = None,
             AppInput::ArchiveThread { account, thread_id } => {

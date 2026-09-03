@@ -54,6 +54,9 @@ internal fun SwipeableFlatMessageRow(
     swipe: SwipeSettings,
     onSwipe: (account: String, key: String, action: SwipeActionKind) -> Unit,
     accounts: List<AccountRow>,
+    selected: Boolean,
+    selecting: Boolean,
+    onToggleSelect: () -> Unit,
     onOpen: (OpenedMessage) -> Unit,
     onSetRead: (account: String, key: String, read: Boolean) -> Unit,
     onSetFlagged: (account: String, key: String, flagged: Boolean) -> Unit,
@@ -126,6 +129,9 @@ internal fun SwipeableFlatMessageRow(
     SwipeToDismissBox(
         state = dismissState,
         onDismiss = onDismiss,
+        // No swiping while rows are being selected: the drag that picks a set of messages and the
+        // drag that trashes one are the same gesture, and only one of them can win.
+        gesturesEnabled = !selecting,
         // The background shows the action THAT direction will run, rather than one icon standing in
         // for both. `dismissDirection` is state-backed, so reading it here re-renders as the drag
         // crosses the middle.
@@ -143,6 +149,9 @@ internal fun SwipeableFlatMessageRow(
             activeZoneId = activeZoneId,
             inJunkFolder = inJunkFolder,
             accounts = accounts,
+            selected = selected,
+            selecting = selecting,
+            onToggleSelect = onToggleSelect,
             onOpen = onOpen,
             onSetRead = onSetRead,
             onSetFlagged = onSetFlagged,

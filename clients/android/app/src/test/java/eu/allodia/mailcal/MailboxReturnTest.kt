@@ -95,7 +95,7 @@ private fun TestMailbox(position: MailListPosition, search: SearchBarState) {
         inJunkFolder = false,
         onMarkAsSpam = { _, _ -> },
         onMarkAsNotSpam = { _, _ -> },
-        onArchiveThread = { _, _ -> },
+        onActOnSelection = { _, _ -> },
         onReply = { _, _, _, _, _, _ -> true },
         onForward = { _, _, _, _, _, _ -> true },
         replyRecipients = { _, _, _ -> null },

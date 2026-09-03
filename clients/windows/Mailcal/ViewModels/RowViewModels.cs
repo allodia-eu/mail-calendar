@@ -18,7 +18,7 @@ namespace Allodia.Mailcal.ViewModels;
 /// One mailbox-list row, a single message (flat) or a conversation (threaded), flattened
 /// for display. <see cref="Key"/> is the message key (flat) or thread id (threaded).
 /// </summary>
-public sealed class MailRow : INotifyPropertyChanged
+public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.ISelectableRow
 {
     /// <summary>Stable list identity ("m:&lt;key&gt;" / "t:&lt;thread&gt;") for diffing.</summary>
     public required string Id { get; init; }
