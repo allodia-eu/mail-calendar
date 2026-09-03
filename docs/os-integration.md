@@ -91,13 +91,17 @@ must meet are Gate 12 and Gate 13 in [`composer-security.md`](composer-security.
 | **iOS / iPadOS** | ⬜ `CFBundleURLTypes` | ⬜ Share Extension | **Only with Apple's grant.** The `com.apple.developer.mail-client` entitlement is requested by email and excludes the browser entitlement. There is no prompt API; the app deep-links to Settings → Apps → Default Apps. |
 | **Windows** | ✅ MSIX `windows.protocol` `mailto` | ⬜ `windows.shareTarget` extension | **Deep link only**, by design since Windows 10: register under `HKCU\Software\RegisteredApplications` and open `ms-settings:defaultapps?registeredAppUser=…`. |
 | **Android** | ✅ `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` | ⬜ `ACTION_SEND` / `ACTION_SEND_MULTIPLE` | **No, and nothing to add.** There is no `ROLE_EMAIL` in `RoleManager`; the chooser is the mechanism, and it already works. |
-| **Linux** | ✅ desktop `MimeType=x-scheme-handler/mailto` | ⬜ curated `MimeType=` ("Open With") + a local `--attach` | **No, and it cannot even tell.** No default-apps portal was ever shipped, and inside a Flatpak `GAppInfo` has no host application database to ask, which is why [`check-desktop-handoff.sh`](../scripts/ci/check-desktop-handoff.sh) already bans those calls. The desktop entry declares the handler; the user chooses it in their desktop's settings. |
+| **Linux** | ✅ desktop `MimeType=x-scheme-handler/mailto` | ✅ curated `MimeType=` ("Open With") + a local `--attach`, both through `Exec=mailcal %U` | **No, and it cannot even tell.** No default-apps portal was ever shipped, and inside a Flatpak `GAppInfo` has no host application database to ask, which is why [`check-desktop-handoff.sh`](../scripts/ci/check-desktop-handoff.sh) already bans those calls. The desktop entry declares the handler; the user chooses it in their desktop's settings. |
 
 ## Known gaps
 
-- **Only the shared core exists so far.** `prefill_from_share` and the offer policy are
-  implemented and tested; every ⬜ above is a client that has not been wired to them yet, which is
-  why [`capabilities.md`](capabilities.md) claims neither row on any platform.
+- **Share ships on Linux; the other three are wired to nothing yet.** Every ⬜ above is a client
+  that has not been given its registration and its seeded attachment list.
+- **A `MimeType=` entry is a claim to *open* that type, and Linux has no way to say otherwise.**
+  There is no key for "I will attach this but not display it", so appearing in "Open With" for a
+  PDF also makes this app selectable as a PDF handler. The list is therefore kept to what a person
+  plausibly emails, a test pins it exactly, and widening it is a decision about what a user picking
+  us for that type should expect, not a formality.
 - **Apple registers for nothing.** No `CFBundleURLTypes`, no URL handling anywhere in
   `clients/apple/`, so a mail link cannot reach it at all. It is the one platform where the
   ordinary `mailto:` case does not work, and it blocks the default-app offer behind it.

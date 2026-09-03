@@ -235,6 +235,7 @@ impl AppModel {
             AppInput::LoadRemoteImages => self.reading.load_remote_images = true,
             AppInput::RetryOpen => self.retry_open(),
             AppInput::OpenMailto(prefill) => self.open_mailto(*prefill),
+            AppInput::OpenShare(prefill) => self.open_share(*prefill),
             AppInput::OpenAgentDraft(draft) => {
                 self.open_agent_draft(*draft);
                 if let Some(window) = relm4::main_adw_application().active_window() {

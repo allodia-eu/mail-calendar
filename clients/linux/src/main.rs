@@ -21,6 +21,7 @@ mod mail_link;
 mod observer;
 mod preferences;
 mod secrets;
+mod share;
 mod showcase;
 mod ui;
 
@@ -65,9 +66,19 @@ fn main() {
         .flags(gtk::gio::ApplicationFlags::HANDLES_COMMAND_LINE)
         .build();
     application.connect_command_line(|application, command_line| {
-        if let Some(prefill) = mail_link::prefill_arguments(&command_line.arguments()) {
+        let arguments = command_line.arguments();
+        // A mail link first: it is the narrower question, and a `mailto:` argument is not a file,
+        // so asking the other way round would let a link fall through to the share parser.
+        if let Some(prefill) = mail_link::prefill_arguments(&arguments) {
             log::info!("mail link received");
             APP_BROKER.send(ui::AppInput::OpenMailto(Box::new(prefill)));
+        } else if let Some(prefill) = share::prefill_arguments(&arguments) {
+            log::info!(
+                "share received: {} file(s), {} refused",
+                prefill.attachments.len(),
+                prefill.rejected.len()
+            );
+            APP_BROKER.send(ui::AppInput::OpenShare(Box::new(prefill)));
         }
         application.activate();
         gtk::glib::ExitCode::SUCCESS

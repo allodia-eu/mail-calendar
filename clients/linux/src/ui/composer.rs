@@ -3,7 +3,6 @@
 use std::{
     cell::{Cell, RefCell},
     fmt::Write as _,
-    path::Path,
     rc::Rc,
     sync::Arc,
 };
@@ -131,7 +130,10 @@ impl ComposerPane {
         let file_list = gtk::ListBox::new();
         file_list.add_css_class("boxed-list");
         content.append(&file_list);
-        let files = Rc::new(RefCell::new(Vec::<PickedFile>::new()));
+        // A share opens the composer already holding its files; every other route starts
+        // empty and fills this from the picker below (docs/os-integration.md).
+        let files = Rc::new(RefCell::new(request.files.clone()));
+        render_files(&file_list, &files);
         connect_file_picker(&attach, &file_list, &files, window);
 
         let error = gtk::Label::new(Some(l10n::compose_prepare_error()));
@@ -438,11 +440,7 @@ fn connect_file_picker(
                     .and_then(|name| name.to_str())
                     .unwrap_or("attachment")
                     .to_owned();
-                let (content_type, _) = gio::content_type_guess(Some(Path::new(&file_name)), None);
-                let media_type = gio::content_type_get_mime_type(&content_type).map_or_else(
-                    || "application/octet-stream".to_owned(),
-                    |value| value.to_string(),
-                );
+                let media_type = crate::share::media_type_for(&file_name);
                 files.borrow_mut().push(PickedFile {
                     path: path.to_string_lossy().into_owned(),
                     file_name,

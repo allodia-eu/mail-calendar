@@ -30,6 +30,9 @@ pub(crate) struct ComposeRequest {
     pub(crate) initial_from: Option<String>,
     /// Whether this client owns the body and should seed and offer its signature library.
     pub(crate) seeds_signature: bool,
+    /// Files the composer opens already holding, from a share (`docs/os-integration.md`). Empty
+    /// for every other route: the picker fills the list itself.
+    pub(crate) files: Vec<PickedFile>,
 }
 
 impl ComposeRequest {
@@ -46,6 +49,7 @@ impl ComposeRequest {
             quote: None,
             initial_from,
             seeds_signature: true,
+            files: Vec::new(),
         }
     }
 
@@ -62,6 +66,7 @@ impl ComposeRequest {
             quote: None,
             initial_from,
             seeds_signature: false,
+            files: Vec::new(),
         }
     }
 

@@ -227,6 +227,7 @@ impl AppModel {
                     self.snapshot = app.mailbox_list();
                 }
                 self.try_open_pending_mailto();
+                self.try_open_pending_share();
             }
             Err(error) => self
                 .setup
