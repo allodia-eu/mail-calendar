@@ -89,14 +89,14 @@ must meet are Gate 12 and Gate 13 in [`composer-security.md`](composer-security.
 |---|---|---|---|
 | **macOS** | ✅ `CFBundleURLTypes` + `LSHandlerRank: Alternate` | ⬜ Share Extension (`com.apple.share-services`) | **Developer ID only.** `NSWorkspace.setDefaultApplication(at:toOpenURLsWithScheme:)`, which shows a system consent alert. The **App Store build cannot**: the sandbox refuses it, and there is no replacement for `LSSetDefaultHandlerForURLScheme`. |
 | **iOS / iPadOS** | 🚧 `CFBundleURLTypes` declared, and inert until the entitlement lands | ⬜ Share Extension | **Only with Apple's grant.** The `com.apple.developer.mail-client` entitlement is requested by email and excludes the browser entitlement. There is no prompt API; the app deep-links to Settings → Apps → Default Apps. |
-| **Windows** | ✅ MSIX `windows.protocol` `mailto` | ⬜ `windows.shareTarget` extension | **Deep link only**, by design since Windows 10: open `ms-settings:defaultapps?registeredAUMID=…`, the parameter for a packaged app. (`registeredApp` / `registeredAppUser` name an installer's own `RegisteredApplications` key, which this app does not write.) An AUMID is absent in an unpackaged build, and the plain page opens instead. |
+| **Windows** | ✅ MSIX `windows.protocol` `mailto` | ✅ `windows.shareTarget` (any file type, plus Text and WebLink) | **Deep link only**, by design since Windows 10: open `ms-settings:defaultapps?registeredAUMID=…`, the parameter for a packaged app. (`registeredApp` / `registeredAppUser` name an installer's own `RegisteredApplications` key, which this app does not write.) An AUMID is absent in an unpackaged build, and the plain page opens instead. |
 | **Android** | ✅ `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` | ✅ `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` | **No, and nothing to add.** There is no `ROLE_EMAIL` in `RoleManager`; the chooser is the mechanism, and it already works. |
 | **Linux** | ✅ desktop `MimeType=x-scheme-handler/mailto` | ✅ curated `MimeType=` ("Open With") + a local `--attach`, both through `Exec=mailcal %U` | **No, and it cannot even tell.** No default-apps portal was ever shipped, and inside a Flatpak `GAppInfo` has no host application database to ask, which is why [`check-desktop-handoff.sh`](../scripts/ci/check-desktop-handoff.sh) already bans those calls. The desktop entry declares the handler; the user chooses it in their desktop's settings. |
 
 ## Known gaps
 
-- **Share ships on Android and Linux; Apple and Windows are wired to nothing yet.** Each ⬜ above
-  is a client that has not been given its registration and its seeded attachment list.
+- **Share ships everywhere but Apple**, which still needs a Share Extension target and a
+  composer that can be seeded with attachments.
 - **A `MimeType=` entry is a claim to *open* that type, and Linux has no way to say otherwise.**
   There is no key for "I will attach this but not display it", so appearing in "Open With" for a
   PDF also makes this app selectable as a PDF handler. The list is therefore kept to what a person

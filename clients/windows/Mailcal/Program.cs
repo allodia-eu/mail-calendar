@@ -22,6 +22,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
 using Windows.ApplicationModel.Activation;
+using Windows.ApplicationModel.DataTransfer.ShareTarget;
 
 namespace Allodia.Mailcal;
 
@@ -73,6 +74,15 @@ public static class Program
         // account list to send from, so MainWindow drains it once the core is up (MainWindow.MailLink.cs).
         MailLinkInbox.Pending = MailLinkFrom(activation) ?? MailLink.FromArguments(Environment.GetCommandLineArgs());
 
+        // A cold start FROM a share. Read here rather than held as the activation is, because a
+        // ShareOperation's access to what was shared ends when the operation reports completion,
+        // which reading it does: by the time the window drains this, the bytes are already staged
+        // and the paths are ones this app can still open (Services/ShareIntake.cs).
+        if (ShareOperationFrom(activation) is { } sharing)
+        {
+            ShareInbox.Pending = ShareIntake.ReadAsync(sharing).GetAwaiter().GetResult();
+        }
+
         Application.Start(p =>
         {
             var context = new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread());
@@ -122,6 +132,15 @@ public static class Program
         // than starting a second process. Checked before the OAuth delivery below, and gated on the
         // SCHEME: both arrive as protocol activations, and mistaking one for the other would either
         // swallow a sign-in or open a composer over it.
+        // A share while the app is already running. Ahead of the mail-link and OAuth branches
+        // because it is decided on the activation KIND, which neither of those can be: they are
+        // both protocol activations and are told apart by their scheme.
+        if (ShareOperationFrom(activation) is { } sharing)
+        {
+            _ = HandleShareAsync(sharing);
+            return;
+        }
+
         if (MailLinkFrom(activation) is { } link)
         {
             // Parked rather than dropped when the window is not reachable yet: an activation can
@@ -173,6 +192,36 @@ public static class Program
             => MailLink.FromArgumentLine(launch.Arguments),
         _ => null,
     };
+
+    // The share operation an activation carries, or null when it is not a share. Only a packaged
+    // build is ever activated this way: `windows.shareTarget` is an MSIX manifest extension, so
+    // the unpackaged dev loop never appears in the share sheet at all.
+    private static ShareOperation? ShareOperationFrom(AppActivationArguments activation) =>
+        activation.Kind == ExtendedActivationKind.ShareTarget
+            && activation.Data is IShareTargetActivatedEventArgs share
+            ? share.ShareOperation
+            : null;
+
+    // Reads a share that arrived at a running app and hands it to the window, or parks it when the
+    // window is not reachable yet. The read is awaited off the activation callback: it copies the
+    // shared bytes, and Windows keeps the SHARING app's UI blocked until the operation completes,
+    // so doing it inline would freeze that app rather than this one.
+    private static async Task HandleShareAsync(ShareOperation sharing)
+    {
+        var prefill = await ShareIntake.ReadAsync(sharing);
+        if (prefill is null)
+        {
+            return;
+        }
+        if (App.Shell is MainWindow shareWindow)
+        {
+            shareWindow.DispatcherQueue.TryEnqueue(() => shareWindow.OpenShare(prefill));
+        }
+        else
+        {
+            ShareInbox.Pending = prefill;
+        }
+    }
 
     private static void RegisterProtocolForUnpackaged()
     {

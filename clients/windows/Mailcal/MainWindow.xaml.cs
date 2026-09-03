@@ -77,6 +77,8 @@ public sealed partial class MainWindow : Window
             // A mail link that arrived before there was an account to send from is held rather than
             // dropped, so the first account to appear is what finally opens it.
             TryOpenPendingMailLink();
+            // The same for a share, which is held on identical terms.
+            TryOpenPendingShare();
             // The earliest honest moment to offer to become the machine's mail app: the core
             // refuses to offer before an account exists, and this is when one appears.
             OfferDefaultMailAppIfDue();
@@ -121,6 +123,10 @@ public sealed partial class MainWindow : Window
         {
             OpenMailLink(mailLink);
         }
+
+        // A cold start FROM a share, on the same terms: Program staged and decoded it, this opens
+        // it, and it stays parked until there is an account to send from.
+        TakePendingShare();
 
         Log.Info("window launched");
     }
