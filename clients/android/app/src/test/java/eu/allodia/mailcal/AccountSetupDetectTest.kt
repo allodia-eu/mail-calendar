@@ -33,6 +33,7 @@ class AccountSetupDetectTest {
         incoming = DetectedServerRow("IMAP", "imap.example.com", 993u, "SSL/TLS", "alice@example.com"),
         outgoing = if (withSmtp) DetectedServerRow("SMTP", "smtp.example.com", 465u, "SSL/TLS", "alice@example.com") else null,
         caldavUrl = caldavUrl,
+        oauthIssuer = null,
         isTrusted = isTrusted,
         source = "https://autoconfig.example.com/mail/config-v1.1.xml",
     )
