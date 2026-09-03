@@ -5,20 +5,29 @@
 //! than a decoration: a user who filed a contact twice and now sees it once must be able to find
 //! out why (`docs/contacts.md` §1). The detail's "Also in" is that explanation.
 //!
-//! Read-only in this release, and it says so in as many words rather than offering an edit
-//! affordance that does nothing (§3).
+//! Contacts can be created and edited here, and both affordances are **conditional**: the
+//! create button only where there is a writable address book to file one in, the edit button
+//! only where this person has a card that can be written. A person whose every source is
+//! read-only says so in as many words rather than offering a button that fails on press (§3).
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
+use mailcal_bindings::ContactWriteStatus;
 
 use super::{
     super::{AppInput, avatar, destinations::CONTACTS_ICON, mailbox},
+    dialog,
     model::{ContactsModel, ListState, PersonDetail, PersonRow, ValueGroup},
 };
 use crate::l10n;
 
 pub(crate) struct ContactsPane {
     root: gtk::Paned,
+    create: gtk::Button,
+    status: gtk::Box,
+    status_spinner: gtk::Spinner,
+    status_label: gtk::Label,
+    edit: gtk::Button,
     search: gtk::SearchEntry,
     /// Kept so [`ContactsPane::render`] can put the model's query in the box **without** it: the
     /// query is the core's, and echoing it back as a fresh search would dispatch a narrowing
@@ -29,13 +38,16 @@ pub(crate) struct ContactsPane {
     empty: adw::StatusPage,
     detail: gtk::Box,
     detail_stack: gtk::Stack,
+    parent: adw::ApplicationWindow,
     sender: relm4::Sender<AppInput>,
     rendered_rows: Option<Vec<PersonRow>>,
     rendered_detail: Option<PersonDetail>,
+    shown_editor_generation: u64,
+    shown_choice_generation: u64,
 }
 
 impl ContactsPane {
-    pub(crate) fn new(sender: relm4::Sender<AppInput>) -> Self {
+    pub(crate) fn new(parent: &adw::ApplicationWindow, sender: relm4::Sender<AppInput>) -> Self {
         mailbox::install_styles();
 
         let header = adw::HeaderBar::new();
@@ -48,6 +60,25 @@ impl ContactsPane {
         let input = sender.clone();
         refresh.connect_clicked(move |_| input.emit(AppInput::RefreshContacts));
         header.pack_end(&refresh);
+        // Hidden until the core says there is a writable address book: offering a create with
+        // nowhere to file it produces a save that fails after the user has typed everything in.
+        let create = gtk::Button::from_icon_name("list-add-symbolic");
+        create.set_tooltip_text(Some(l10n::contacts_new()));
+        create.update_property(&[AccessibleProperty::Label(l10n::contacts_new())]);
+        create.set_visible(false);
+        let input = sender.clone();
+        create.connect_clicked(move |_| input.emit(AppInput::BeginNewContact));
+        header.pack_start(&create);
+        // The same strip the calendar carries, for the same reason: a write is awaited, and a
+        // save that could not be confirmed has to say so somewhere the user is looking.
+        let status = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        status.set_valign(gtk::Align::Center);
+        status.set_visible(false);
+        let status_spinner = gtk::Spinner::new();
+        let status_label = gtk::Label::new(None);
+        status.append(&status_spinner);
+        status.append(&status_label);
+        header.pack_end(&status);
 
         // The narrowing runs in the **core**, over name, email, phone, organisation and title, so
         // every client narrows identically; and a person beyond the loaded page is still
@@ -105,7 +136,15 @@ impl ContactsPane {
         let detail_toolbar = adw::ToolbarView::new();
         // The rightmost pane carries the window controls, as the reading pane does beside the
         // mail list.
-        detail_toolbar.add_top_bar(&adw::HeaderBar::new());
+        let detail_header = adw::HeaderBar::new();
+        // Hidden until a person with an editable card is open; a directory contact has none.
+        let edit = gtk::Button::with_label(l10n::contacts_edit());
+        edit.update_property(&[AccessibleProperty::Label(l10n::contacts_edit())]);
+        edit.set_visible(false);
+        let input = sender.clone();
+        edit.connect_clicked(move |_| input.emit(AppInput::EditOpenContact));
+        detail_header.pack_start(&edit);
+        detail_toolbar.add_top_bar(&detail_header);
         detail_toolbar.set_content(Some(&detail_stack));
 
         let root = gtk::Paned::new(gtk::Orientation::Horizontal);
@@ -117,6 +156,11 @@ impl ContactsPane {
 
         Self {
             root,
+            create,
+            status,
+            status_spinner,
+            status_label,
+            edit,
             search,
             search_handler,
             list,
@@ -124,9 +168,12 @@ impl ContactsPane {
             empty,
             detail,
             detail_stack,
+            parent: parent.clone(),
             sender,
             rendered_rows: None,
             rendered_detail: None,
+            shown_editor_generation: 0,
+            shown_choice_generation: 0,
         }
     }
 
@@ -145,6 +192,8 @@ impl ContactsPane {
             self.rendered_rows = Some(model.rows().to_vec());
         }
         self.render_state(model.state());
+        self.create.set_visible(model.can_create());
+        self.render_status(model.write_status());
         if self.rendered_detail.as_ref() != model.opened() {
             match model.opened() {
                 Some(person) => {
@@ -153,7 +202,59 @@ impl ContactsPane {
                 }
                 None => self.detail_stack.set_visible_child_name("placeholder"),
             }
+            self.edit.set_visible(
+                model
+                    .opened()
+                    .is_some_and(|person| !person.editable.is_empty()),
+            );
             self.rendered_detail = model.opened().cloned();
+        }
+        // Presented on a generation change, never on `Some`: `render` runs on every model
+        // change, so a dialog keyed on presence alone is re-presented by an unrelated one.
+        if model.choice_generation() != self.shown_choice_generation {
+            self.shown_choice_generation = model.choice_generation();
+            if let Some(choices) = model.card_choice() {
+                dialog::present_card_choice(&self.parent, choices, &self.sender);
+            }
+        }
+        if model.editor_generation() != self.shown_editor_generation {
+            self.shown_editor_generation = model.editor_generation();
+            if let Some(editor) = model.editor() {
+                dialog::present_editor(&self.parent, editor, self.sender.clone());
+            }
+        }
+    }
+
+    /// The write strip: a spinner while a save settles, then a word about how it went.
+    ///
+    /// `Failed` says "we could not confirm this", never "rejected": a write whose server call
+    /// succeeded and whose reconcile did not has already landed, and the next sync heals the
+    /// local copy.
+    fn render_status(&self, status: ContactWriteStatus) {
+        self.status_spinner.stop();
+        match status {
+            // `Invalid` is stated under the form the user is still looking at, so the strip
+            // stays quiet rather than repeating it out of context.
+            ContactWriteStatus::Idle | ContactWriteStatus::Invalid => {
+                self.status.set_visible(false);
+            }
+            ContactWriteStatus::Saving => {
+                self.status.set_visible(true);
+                self.status_spinner.start();
+                self.status_spinner.set_visible(true);
+                self.status_label.set_label(l10n::contacts_saving());
+            }
+            ContactWriteStatus::Saved => {
+                self.status.set_visible(true);
+                self.status_spinner.set_visible(false);
+                self.status_label.set_label(l10n::contacts_saved());
+            }
+            ContactWriteStatus::Failed => {
+                self.status.set_visible(true);
+                self.status_spinner.set_visible(false);
+                self.status_label
+                    .set_label(l10n::contacts_save_unconfirmed());
+            }
         }
     }
 
@@ -256,14 +357,17 @@ fn render_detail(container: &gtk::Box, person: &PersonDetail) {
         container.append(&group);
     }
 
-    // Said in as many words, rather than left for the user to infer from the absence of an edit
-    // button; or, worse, from a disabled one they press twice.
-    let read_only = gtk::Label::new(Some(l10n::contacts_read_only()));
-    read_only.set_xalign(0.0);
-    read_only.set_wrap(true);
-    read_only.add_css_class("caption");
-    read_only.add_css_class("dim-label");
-    container.append(&read_only);
+    // Only for a person nothing here can write: a directory card, a shared book this account
+    // may only read. Said in as many words, rather than left for the user to infer from the
+    // absence of an edit button; or, worse, from a disabled one they press twice.
+    if person.editable.is_empty() {
+        let read_only = gtk::Label::new(Some(l10n::contacts_not_editable()));
+        read_only.set_xalign(0.0);
+        read_only.set_wrap(true);
+        read_only.add_css_class("caption");
+        read_only.add_css_class("dim-label");
+        container.append(&read_only);
+    }
 }
 
 /// One headed group of values. A value's provenance is its **subtitle**, never a second column:

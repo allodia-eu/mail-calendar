@@ -62,6 +62,12 @@ internal class SearchBarState(
     var scope by mutableStateOf(SearchScope.ALL_FOLDERS)
         private set
 
+    // What the core was last asked for. The debounce effect in [SearchField] is keyed on the
+    // query, so it re-arms every time the field enters composition, and this state outlives the
+    // mailbox screen (MainActivity holds it): without this, coming back from a message would
+    // re-run a search the core is already applying.
+    private var dispatched: String? = null
+
     /** The magnifier was tapped: reveal the field (the query and scope start clean). */
     fun openSearch() {
         open = true
@@ -77,13 +83,16 @@ internal class SearchBarState(
 
     /** Dispatch what is currently typed, called once typing has settled. */
     fun commitQuery() {
-        if (query.isNotBlank()) onSearch(query)
+        if (query.isBlank() || query == dispatched) return
+        dispatched = query
+        onSearch(query)
     }
 
     /** The field's clear (×) button: empty the query but stay in search, ready for the next one. */
     fun clearQuery() {
         query = ""
         scope = SearchScope.ALL_FOLDERS
+        dispatched = null
         onSearch(null)
     }
 

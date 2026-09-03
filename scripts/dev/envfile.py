@@ -12,9 +12,15 @@ same three places, in this order:
 
 **Every existing location is read and merged, first wins per key**; not "first file found wins".
 That distinction is the whole reason `.env` can be added in front of files that already work: a
-`.env` holding only `ALLODIA_DOCS_*` must not hide the `MSSTORE_*` keys sitting in `.msstore.env`
-next to it. Stopping at the first file would do exactly that, silently, and the failure would look
-like a credential that had gone missing.
+`.env` holding only one tool's keys must not hide another tool's sitting in a per-tool file next to
+it. Stopping at the first file would do exactly that, silently, and the failure would look like a
+credential that had gone missing.
+
+**Most of this now runs elsewhere.** The scripts that push to the Microsoft Store or to a content
+store are not built here any more, and they carry their own copy of this module; what still reads it
+*here* is `brand.py`, which needs only `parse_env_file` to read `branding/<brand>.env`. The
+searching half is kept rather than trimmed because the two copies are compared, and a copy that has
+been half deleted is worse than either having it or not.
 
 Naming an explicit file (a `--env-file` flag, or the tool's `*_ENV_FILE` variable) means *that file
 and nothing else*; asking for one and being handed a merge of three is how you publish with the

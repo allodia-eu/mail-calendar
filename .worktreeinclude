@@ -31,3 +31,9 @@ clients/android/local.properties
 # This session's own permissions. Not build config — a worktree works without it — but a fresh one
 # re-asks for every command that was already allowed in the checkout beside it.
 .claude/settings.local.json
+
+# For the Allodia team working with worktrees
+branding/allodia.env
+branding/allodia-icon.png
+branding/allodia-listing.md
+branding/allodia-welcome.png

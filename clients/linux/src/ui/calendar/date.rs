@@ -117,6 +117,20 @@ pub(super) fn weekday_full(iso: u8) -> String {
     native_format(date, "%A").unwrap_or_else(|| iso.to_string())
 }
 
+/// An ISO weekday's own abbreviation in the process locale, the sibling of [`weekday_full`].
+///
+/// The locale's abbreviation rather than the first letter of its name: several languages do not
+/// abbreviate by truncating, so slicing a character off `%A` produces a label that is wrong in a
+/// way nobody reading English would notice.
+pub(super) fn weekday_abbrev(iso: u8) -> String {
+    let Ok(anchor) = Date::from_calendar_date(2026, Month::January, 5) else {
+        return iso.to_string();
+    };
+    let from_monday = i64::from(anchor.weekday().number_days_from_monday());
+    let date = add_days(anchor, i64::from(iso.saturating_sub(1)) - from_monday);
+    native_format(date, "%a").unwrap_or_else(|| iso.to_string())
+}
+
 /// The full name of a month number (1–12), in the process locale. Standalone form (`%OB`), the
 /// one a sentence names a month in rather than dates it with.
 pub(super) fn month_full(month: u32) -> String {

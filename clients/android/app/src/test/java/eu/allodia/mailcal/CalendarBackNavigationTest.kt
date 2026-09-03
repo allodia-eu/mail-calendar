@@ -69,6 +69,7 @@ private fun eventDetail() = EventDetail(
     reminderMinutes = null,
     recurrence = null,
     repeatSummary = null,
+    repeatDraft = null,
     isRecurring = false,
     canWrite = true,
     occurrenceStart = "",

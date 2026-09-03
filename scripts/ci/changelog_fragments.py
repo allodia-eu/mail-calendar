@@ -158,8 +158,8 @@ def catalog_locales():
     source of the language list (AGENTS.md), and a note set that lags it is not a stale document,
     it is a release some users get in a language the app speaks and the store does not.
 
-    Codes rather than names because a store console is keyed on them: `msstore_listing.py` needs
-    `nl` to reach Partner Center's `nl-nl`, while the documents these fragments live in are labelled
+    Codes rather than names because a store console is keyed on them: the Microsoft Store push
+    needs `nl` to reach Partner Center's `nl-nl`, while the documents these fragments live in are labelled
     with the endonym. Both readings come from this one list.
     """
     settings = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))

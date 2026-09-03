@@ -10,7 +10,7 @@
 //! top-level `<oAuth2>` endpoint block, are skipped, because OAuth endpoints come from
 //! the app's own trusted table, never from a fetched file.
 
-use quick_xml::{Reader, escape::unescape, events::Event, name::QName};
+use quick_xml::{Reader, escape::resolve_predefined_entity, events::Event, name::QName};
 
 use crate::{
     hostname::valid_host_or_ip,
@@ -87,7 +87,7 @@ pub(crate) fn parse_autoconfig(
     // fine, but the first *element* is decisive: a nested clientConfig doesn't count.
     loop {
         match read(&mut reader)? {
-            Event::Start(e) if local_name(&e.name()) == b"clientConfig" => {
+            Event::Start(e) if local_name(&e.name()) == "clientConfig" => {
                 return parse_client_config(&mut reader, email);
             }
             Event::Start(_) | Event::Empty(_) | Event::Eof => {
@@ -106,8 +106,8 @@ fn parse_client_config(
 ) -> Result<ParsedServers, ParseError> {
     loop {
         match read(reader)? {
-            Event::Start(e) if local_name(&e.name()) == b"emailProvider" => {
-                let id = attribute(&e, b"id").ok_or(ParseError::MissingProviderId)?;
+            Event::Start(e) if local_name(&e.name()) == "emailProvider" => {
+                let id = attribute(&e, "id").ok_or(ParseError::MissingProviderId)?;
                 let id = substitute(&id, email);
                 if !valid_host_or_ip(&id) {
                     return Err(ParseError::InvalidProviderId(id));
@@ -133,17 +133,17 @@ fn parse_email_provider(
         match read(reader)? {
             Event::Start(e) => {
                 let name = local_name(&e.name());
-                match name.as_slice() {
-                    b"domain" => {
+                match name.as_str() {
+                    "domain" => {
                         let value = substitute(read_text(reader, &name)?.trim(), email);
                         has_valid_domain |= valid_host_or_ip(&value);
                     }
-                    b"incomingServer" => {
+                    "incomingServer" => {
                         if let Some(server) = parse_server(reader, &e, email, "imap", &name)? {
                             incoming.push(server);
                         }
                     }
-                    b"outgoingServer" => {
+                    "outgoingServer" => {
                         if let Some(server) = parse_server(reader, &e, email, "smtp", &name)? {
                             outgoing.push(server);
                         }
@@ -151,7 +151,7 @@ fn parse_email_provider(
                     _ => skip(reader, &name)?,
                 }
             }
-            Event::End(e) if local_name(&e.name()) == b"emailProvider" => break,
+            Event::End(e) if local_name(&e.name()) == "emailProvider" => break,
             Event::Eof => break,
             _ => {}
         }
@@ -177,9 +177,9 @@ fn parse_server(
     start: &quick_xml::events::BytesStart<'_>,
     email: &EmailParts,
     wanted_type: &str,
-    tag: &[u8],
+    tag: &str,
 ) -> Result<Option<DetectedServer>, ParseError> {
-    if attribute(start, b"type").as_deref() != Some(wanted_type) {
+    if attribute(start, "type").as_deref() != Some(wanted_type) {
         skip(reader, tag)?;
         return Ok(None);
     }
@@ -194,16 +194,16 @@ fn parse_server(
         match read(reader)? {
             Event::Start(e) => {
                 let child = local_name(&e.name());
-                match child.as_slice() {
-                    b"hostname" => {
+                match child.as_str() {
+                    "hostname" => {
                         hostname = Some(substitute(read_text(reader, &child)?.trim(), email));
                     }
-                    b"port" => port_text = Some(read_text(reader, &child)?.trim().to_owned()),
-                    b"socketType" => socket = Some(read_text(reader, &child)?.trim().to_owned()),
-                    b"username" => {
+                    "port" => port_text = Some(read_text(reader, &child)?.trim().to_owned()),
+                    "socketType" => socket = Some(read_text(reader, &child)?.trim().to_owned()),
+                    "username" => {
                         username = Some(substitute(read_text(reader, &child)?.trim(), email));
                     }
-                    b"authentication" => {
+                    "authentication" => {
                         if let Some(kind) = parse_auth(read_text(reader, &child)?.trim()) {
                             auth.push(kind);
                         }
@@ -282,22 +282,33 @@ fn substitute(value: &str, email: &EmailParts) -> String {
 
 /// Reads the text content of the element named `name` up to its closing tag,
 /// concatenating text nodes and ignoring any nested markup.
-fn read_text(reader: &mut Reader<&[u8]>, name: &[u8]) -> Result<String, ParseError> {
+fn read_text(reader: &mut Reader<&[u8]>, name: &str) -> Result<String, ParseError> {
     let mut text = String::new();
     loop {
         match read(reader)? {
-            Event::Text(bytes) => {
-                let decoded = bytes.decode().map_err(|e| ParseError::Xml(e.to_string()))?;
-                let chunk = unescape(&decoded).map_err(|e| ParseError::Xml(e.to_string()))?;
-                text.push_str(&chunk);
-            }
-            // A custom DTD entity surfaces as a general reference; unescaping an unknown
-            // one errors: so a "billion laughs" document is rejected, never expanded.
-            Event::GeneralRef(bytes) => {
-                let decoded = bytes.decode().map_err(|e| ParseError::Xml(e.to_string()))?;
-                let reference = format!("&{decoded};");
-                let chunk = unescape(&reference).map_err(|e| ParseError::Xml(e.to_string()))?;
-                text.push_str(&chunk);
+            // A `Text` run is already the literal characters: the reader hands every
+            // `&…;` back separately as `GeneralRef`, so a run can never hold one.
+            Event::Text(chunk) => text.push_str(&chunk),
+            Event::GeneralRef(reference) => {
+                let resolved = reference
+                    .resolve_char_ref()
+                    .map_err(|e| ParseError::Xml(e.to_string()))?;
+                match resolved {
+                    Some(character) => text.push(character),
+                    // The document's DTD is never read, so only the five predefined
+                    // entities resolve and whatever a `<!ENTITY>` declared is undeclared
+                    // to us: refused, never expanded, so a "billion laughs" cannot
+                    // balloon here.
+                    None => match resolve_predefined_entity(&reference) {
+                        Some(expansion) => text.push_str(expansion),
+                        None => {
+                            return Err(ParseError::Xml(format!(
+                                "undeclared entity `&{};`",
+                                &*reference
+                            )));
+                        }
+                    },
+                }
             }
             Event::Start(e) => skip(reader, &local_name(&e.name()))?,
             Event::End(e) if local_name(&e.name()) == name => break,
@@ -309,7 +320,7 @@ fn read_text(reader: &mut Reader<&[u8]>, name: &[u8]) -> Result<String, ParseErr
 }
 
 /// Skips to the closing tag of the currently-open element named `name`.
-fn skip(reader: &mut Reader<&[u8]>, name: &[u8]) -> Result<(), ParseError> {
+fn skip(reader: &mut Reader<&[u8]>, name: &str) -> Result<(), ParseError> {
     reader
         .read_to_end(QName(name))
         .map(|_| ())
@@ -324,17 +335,16 @@ fn read<'a>(reader: &mut Reader<&'a [u8]>) -> Result<Event<'a>, ParseError> {
 }
 
 /// The local name (after any `prefix:`) of a qualified element name.
-fn local_name(name: &QName<'_>) -> Vec<u8> {
-    name.local_name().as_ref().to_vec()
+fn local_name(name: &QName<'_>) -> String {
+    name.local_name().as_ref().to_owned()
 }
 
-/// The value of `start`'s attribute named `key`, if present and UTF-8.
-fn attribute(start: &quick_xml::events::BytesStart<'_>, key: &[u8]) -> Option<String> {
-    start.attributes().flatten().find_map(|attr| {
-        (attr.key.as_ref() == key)
-            .then(|| String::from_utf8(attr.value.into_owned()).ok())
-            .flatten()
-    })
+/// The value of `start`'s attribute named `key`, if present.
+fn attribute(start: &quick_xml::events::BytesStart<'_>, key: &str) -> Option<String> {
+    start
+        .attributes()
+        .flatten()
+        .find_map(|attr| (attr.key.as_ref() == key).then(|| attr.value.into_owned()))
 }
 
 #[cfg(test)]

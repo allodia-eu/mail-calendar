@@ -13,9 +13,9 @@ use engine_provider::{
 };
 use mailcal_account::{EventDrag, EventEdge as AppEventEdge, EventEdit};
 use mailcal_app::{
-    CalendarWriteStatus as AppCalendarWriteStatus, EventRef, FolderRef, Intent as AppIntent,
-    InvitationResponse as AppInvitationResponse, MessageRef,
-    RecipientSuggestion as AppRecipientSuggestion, SearchScope as AppSearchScope,
+    CalendarWriteStatus as AppCalendarWriteStatus, ContactWriteStatus as AppContactWriteStatus,
+    EventRef, FolderRef, Intent as AppIntent, InvitationResponse as AppInvitationResponse,
+    MessageRef, RecipientSuggestion as AppRecipientSuggestion, SearchScope as AppSearchScope,
     SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
 };
 use mailcal_viewmodel::{
@@ -27,9 +27,9 @@ use mailcal_viewmodel::{
 
 use crate::{
     AccountSyncProgress, AttachmentRow, CalendarSnapshot, CalendarWriteStatus, ConnectionInfo,
-    ConnectivitySnapshot, EventEdge, EventRow, HttpVersion, Intent, InvitationResponse,
-    ReadingSnapshot, RecipientSuggestion, SearchScope, SendStatus, Surface, SyncProgressSnapshot,
-    TlsVersion,
+    ConnectivitySnapshot, ContactWriteStatus, EventEdge, EventRow, HttpVersion, Intent,
+    InvitationResponse, ReadingSnapshot, RecipientSuggestion, SearchScope, SendStatus, Surface,
+    SyncProgressSnapshot, TlsVersion,
 };
 
 impl From<AppSurface> for Surface {
@@ -44,6 +44,7 @@ impl From<AppSurface> for Surface {
             AppSurface::Connectivity => Self::Connectivity,
             AppSurface::CalendarStatus => Self::CalendarStatus,
             AppSurface::Contacts => Self::Contacts,
+            AppSurface::ContactsStatus => Self::ContactsStatus,
             AppSurface::InvitationReply => Self::InvitationReply,
             AppSurface::UnfiledCopy => Self::UnfiledCopy,
         }
@@ -67,6 +68,18 @@ impl From<AppSendStatus> for SendStatus {
             AppSendStatus::Sent => Self::Sent,
             AppSendStatus::SentNotFiled => Self::SentNotFiled,
             AppSendStatus::Failed => Self::Failed,
+        }
+    }
+}
+
+impl From<AppContactWriteStatus> for ContactWriteStatus {
+    fn from(status: AppContactWriteStatus) -> Self {
+        match status {
+            AppContactWriteStatus::Idle => Self::Idle,
+            AppContactWriteStatus::Saving => Self::Saving,
+            AppContactWriteStatus::Saved => Self::Saved,
+            AppContactWriteStatus::Failed => Self::Failed,
+            AppContactWriteStatus::Invalid => Self::Invalid,
         }
     }
 }
@@ -141,6 +154,26 @@ impl TryFrom<Intent> for AppIntent {
             Intent::RefreshCalendar => Self::RefreshCalendar,
             Intent::RefreshContacts => Self::RefreshContacts,
             Intent::SearchContacts { query } => Self::SearchContacts { query },
+            Intent::CreateContact {
+                account,
+                address_book,
+                edit,
+            } => Self::CreateContact {
+                account,
+                address_book,
+                edit: edit.into(),
+            },
+            Intent::UpdateContact {
+                person,
+                account,
+                card,
+                edit,
+            } => Self::UpdateContact {
+                person,
+                account,
+                card,
+                edit: edit.into(),
+            },
             Intent::MarkRead { account, key, read } => Self::MarkRead {
                 message: message(account, key)?,
                 read,
@@ -204,6 +237,7 @@ impl TryFrom<Intent> for AppIntent {
                 location,
                 occurrence,
                 recurrence,
+                times_from_occurrence,
             } => Self::UpdateEvent {
                 event: event(account, key)?,
                 edit: EventEdit {
@@ -214,6 +248,7 @@ impl TryFrom<Intent> for AppIntent {
                     location,
                     recurrence: recurrence.map(Into::into),
                     occurrence: parse_local(occurrence)?,
+                    times_from_occurrence: parse_local(times_from_occurrence)?,
                 },
             },
             Intent::MoveEvent {

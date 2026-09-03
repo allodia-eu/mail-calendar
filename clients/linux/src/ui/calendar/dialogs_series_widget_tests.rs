@@ -118,6 +118,7 @@ fn recurring_detail(occurrence: &str) -> EventDetails {
         reminder_minutes: None,
         recurrence: None,
         repeat_summary: None,
+        repeat_draft: None,
         is_recurring: true,
         can_write: true,
         occurrence: occurrence.to_owned(),

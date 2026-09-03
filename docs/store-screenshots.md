@@ -8,7 +8,7 @@ uploads them from there. The set became seven locales × seven captures in Augus
 ~25 MB for macOS alone, ~100 MB across five platforms), and every one of them is **reproducible from
 a script and a seeded dataset**, so git was storing a large binary artefact it could regenerate on
 demand and that the store itself holds a copy of. What a reviewer actually needs is the *recipe*
-(`showcase.sh`, the showcase seeds, the gallery order in `msstore_payload.SCREEN_ORDER`), and that
+(`showcase.sh`, the showcase seeds, the gallery order in `store_payload.SCREEN_ORDER`), and that
 is all in git. This page is that recipe.
 
 The cost of the change is honest: a capture is now only as reproducible as the client that took it,
@@ -34,8 +34,8 @@ same guarantee.
 - **Screens (7):** `list`, `list-dark`, `reply`, `settings`, `add-account`, `calendar`,
   `invitation`. The order they appear in a store gallery is a separate decision, and one that is
   written down: `SCREEN_ORDER` in
-  [`scripts/dev/msstore_payload.py`](../../scripts/dev/msstore_payload.py), which both publishers
-  apply (alphabetical would open every listing on `add-account`).
+  [`scripts/dev/store_payload.py`](../../scripts/dev/store_payload.py), which every publisher
+  applies (alphabetical would open every listing on `add-account`).
 
 **`invitation`** is the one screen that shows mail and calendar working as one product: a meeting
 request open in the reading view, with Accept / Maybe / Decline over a preview of the day it would
@@ -55,9 +55,9 @@ product from the one the other six locales show.
 
 One dark capture, not a dark set, and it is the mailbox list because that is the screen a listing
 opens on: the pair reads as the same inbox in either theme rather than as two unrelated screens.
-Google Play takes at most **8** images per slot (`MAX_PER_SLOT` in
-[`scripts/dev/play_listing.py`](../../scripts/dev/play_listing.py)), so a second dark capture would
-put the set one under the ceiling for every locale at once.
+Google Play takes at most **8** images per slot, so a second dark capture would put the set one
+under the ceiling for every locale at once. The push enforces that where it lives, which is not
+this repository; the number is here because it decides what to capture.
 
 ⚠️ **On the three-pane clients the dark capture carries a white panel, and that is the product, not
 the capture.** macOS, Windows, Linux and iPad show the reading pane on this screen, and a message's
@@ -135,18 +135,14 @@ scripts/dev/showcase.sh android-tablet-10           # boots the Pixel_Tablet AVD
 scripts/dev/showcase.sh windows                     # on a Windows host
 ```
 
-Then push, from the same directory:
+Then push. **No store push is in this repository**: each belongs to whoever holds that console's
+account, and each is pointed at one of these directories in a checkout of this one. What this
+repository owns is the capture, and the layout the pushes read.
 
-```sh
-scripts/dev/appstore_listing.py --apply  --screenshots showcase-screenshots/macos
-scripts/dev/msstore_listing.py  --apply  --screenshots showcase-screenshots/windows
-scripts/dev/publish_play.py     --commit --screenshots showcase-screenshots/android
-```
-
-The Play push reads all four slots out of the one Android directory (`phone-`, `tablet-7-`,
-`tablet-10-` and the feature graphic) and **replaces each slot**, because Play appends to a gallery
-rather than overwriting it. Run it without `--commit` first: that uploads everything, asks Play to
-validate it, and deletes the edit.
+The Play push in particular reads all four slots out of the one Android directory (`phone-`,
+`tablet-7-`, `tablet-10-` and the feature graphic) and **replaces each slot**, because Play appends
+to a gallery rather than overwriting it, so the directory has to hold a complete set per form
+factor rather than only what changed.
 
 The three Android targets write into one `showcase-screenshots/android/` with the form-factor prefix
 already applied (`phone-en-list.png`, `tablet-10-nl-calendar.png`), which is the layout Play's flat

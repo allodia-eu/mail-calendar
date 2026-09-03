@@ -11,8 +11,9 @@ use mailcal_app::Intent as AppIntent;
 
 use crate::{
     AccountProvider, CalendarSnapshot, CalendarWriteStatus, ConnectionInfo, ConnectivitySnapshot,
-    Intent, MailboxListSnapshot, MailcalApp, QuoteSettings, QuoteStyleKind, ReadingSnapshot,
-    ReplyPrompt, SendStatus, SyncProgressSnapshot, TimeZoneSnapshot, UnfiledCopy, joined,
+    ContactWriteStatus, Intent, MailboxListSnapshot, MailcalApp, QuoteSettings, QuoteStyleKind,
+    ReadingSnapshot, ReplyPrompt, SendStatus, SyncProgressSnapshot, TimeZoneSnapshot, UnfiledCopy,
+    joined,
 };
 
 #[uniffi::export]
@@ -189,6 +190,13 @@ impl MailcalApp {
     /// "rejected"; see [`CalendarWriteStatus`].
     pub fn calendar_write_status(&self) -> CalendarWriteStatus {
         self.app.calendar_write_status().into()
+    }
+
+    /// The most recent contact write's outcome, pulled after a `Surface::ContactsStatus`
+    /// signal. See [`ContactWriteStatus`]; in particular `Failed` means "we could not confirm
+    /// this saved", never "rejected", and `Invalid` is a form to correct rather than a retry.
+    pub fn contact_write_status(&self) -> ContactWriteStatus {
+        self.app.contact_write_status().into()
     }
 
     /// The unanswered question raised when a calendar server reported it could not deliver an

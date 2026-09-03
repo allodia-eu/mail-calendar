@@ -203,6 +203,7 @@ pub(super) fn series_warning_for(
         end,
         notes,
         location,
+        recurrence,
         ..
     }) = editor.intent(form, false)
     else {
@@ -217,7 +218,9 @@ pub(super) fn series_warning_for(
             end,
             notes,
             location,
-            recurrence: None,
+            // The real one: a rule change is the edit two of the four providers answer by
+            // discarding every override, so the warning has to be asked knowing about it.
+            recurrence,
         },
     )
 }

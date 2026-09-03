@@ -388,6 +388,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     contacts::the_detail_names_the_accounts_only_for_a_merge_and_says_it_is_read_only();
     contacts::the_pane_swaps_between_people_an_empty_state_and_the_placeholder();
     contacts::activating_a_person_opens_them_by_id();
+    contacts::the_write_affordances_appear_only_where_a_write_could_land();
 
     composer_header::a_new_message_keeps_cc_and_bcc_behind_the_chevron();
     composer_header::a_reply_all_opens_with_its_cc_on_screen();

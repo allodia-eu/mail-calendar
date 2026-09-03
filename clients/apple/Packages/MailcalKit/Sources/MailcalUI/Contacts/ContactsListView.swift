@@ -5,8 +5,9 @@
 // cross-platform product rule rather than a decoration: a user who filed a contact twice and now
 // sees it once must be able to find out why (docs/contacts.md §1).
 //
-// Read-only in this version. The detail says so in as many words rather than offering edit
-// affordances that do nothing.
+// Contacts can be created and edited here, and both affordances are CONDITIONAL: the create
+// button only where there is a writable address book to file one in, the edit button only where
+// this person has a card that can be written (docs/contacts.md §3).
 
 import MailcalBindings
 import SwiftUI
@@ -27,12 +28,26 @@ struct ContactsListView: View {
     /// window and nothing else names it; false inside a navigation stack, whose bar already does:
     /// two "Contacts" one above the other is chrome, not information.
     var showsTitle = true
+    /// Whether there is anywhere at all to save a contact. No writable address book, no create
+    /// button: offering one produces a save that fails after the user has typed everything in.
+    var canCreate = false
+    var onCreate: (() -> Void)?
+    /// A word about the most recent write, or `nil` when there is nothing to say.
+    var writeLine: String?
 
     @State private var query = ""
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            if let writeLine {
+                Text(writeLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+            }
             Divider()
             if rows.isEmpty {
                 emptyState
@@ -71,6 +86,11 @@ struct ContactsListView: View {
                 }
             }
             .frame(maxWidth: showsTitle ? nil : .infinity)
+            if canCreate, let onCreate {
+                Button(action: onCreate) { Image(systemName: "plus") }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(L10n.contacts_new())
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

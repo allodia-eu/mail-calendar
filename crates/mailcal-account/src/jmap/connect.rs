@@ -19,7 +19,8 @@
 
 use std::sync::Arc;
 
-use engine_provider::{ContactsProvider, Provider};
+use engine_core::{ids::AddressBookId, sync::SyncUpdate};
+use engine_provider::{ContactSourceSync, ContactsProvider, Provider};
 use provider_jmap::{Credentials, JmapConfig, JmapProvider};
 
 use super::{JmapAccountConfig, refreshing::RefreshingJmapProvider};
@@ -58,7 +59,7 @@ pub async fn connect_jmap_mail_providers(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    Ok(vec![connect_one(config, tokens).await?])
+    Ok(vec![connect_one(config, tokens, None).await?])
 }
 
 /// Connects the JMAP contacts provider an account syncs its address books through.
@@ -80,13 +81,55 @@ pub async fn connect_jmap_contact_providers(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
-    let provider = connect_one(config, tokens).await?;
-    if provider.connection_info().capabilities.contacts() {
-        Ok(vec![provider])
-    } else {
+    let discovery = connect_one(config, tokens, None).await?;
+    if !discovery.connection_info().capabilities.contacts() {
         log::info!("jmap: session advertises no contacts support; skipping address books");
-        Ok(Vec::new())
+        return Ok(Vec::new());
     }
+    // Reconnected bound to a book, because a JMAP adapter advertises **no write destination
+    // until it has one**: reading works either way, so an unbound provider looks exactly like
+    // a server that refuses writes, and the client would hide its "new contact" button for a
+    // server that would have accepted one. A second connect is a session GET, the same
+    // throwaway discovery the CardDAV path already does.
+    let book = default_address_book(discovery.as_ref()).await;
+    if book.is_none() {
+        log::info!("jmap: no address book to write into; contacts will be read-only");
+    }
+    Ok(vec![connect_one(config, tokens, book).await?])
+}
+
+/// The account's default **writable** address book, else the first writable one it lists, else
+/// `None`. A book the account may only read is no write destination.
+///
+/// Never an error: an account whose books cannot be listed still *reads* contacts, and losing
+/// that over a failed write-destination lookup would be a worse outcome than an account whose
+/// contacts are read-only for this session.
+async fn default_address_book(provider: &dyn ContactsProvider) -> Option<AddressBookId> {
+    // Any id scopes the listing; it is not account-scoped by this value. The same throwaway
+    // the CardDAV discovery uses.
+    let account = engine_core::ids::AccountId::try_from("jmap-discovery").ok()?;
+    let books = match provider.sync_address_books(&account, None).await {
+        Ok(ContactSourceSync::Available { sync, .. }) => match sync.update {
+            SyncUpdate::Snapshot { objects, .. } => objects,
+            SyncUpdate::Delta { changed, .. } => changed,
+        },
+        Ok(ContactSourceSync::Unavailable(unavailable)) => {
+            log::info!(
+                "jmap: address-book listing unavailable: {}",
+                unavailable.reason
+            );
+            return None;
+        }
+        Err(error) => {
+            log::warn!("jmap: address-book listing failed: {error}");
+            return None;
+        }
+    };
+    books
+        .iter()
+        .find(|book| book.is_default && book.is_writable)
+        .or_else(|| books.iter().find(|book| book.is_writable))
+        .map(|book| book.id.clone())
 }
 
 /// Connects an on-demand JMAP provider for a folder of a JMAP account. JMAP's one
@@ -107,7 +150,7 @@ pub async fn connect_jmap_folder(
     // Upcast: `ContactsProvider: Provider`, so the contacts-shaped box this connect returns
     // is a mail provider too. Explicit because a coercion site in tail position is not one
     // Rust infers.
-    Ok(connect_one(config, tokens).await?)
+    Ok(connect_one(config, tokens, None).await?)
 }
 
 /// Connects the JMAP calendar provider a JMAP account syncs its agenda through:
@@ -126,7 +169,7 @@ pub async fn connect_jmap_calendar_providers(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    Ok(vec![connect_one(config, tokens).await?])
+    Ok(vec![connect_one(config, tokens, None).await?])
 }
 
 /// Connects a single JMAP provider from `config`, boxed behind the neutral
@@ -136,16 +179,21 @@ pub async fn connect_jmap_calendar_providers(
 /// implement it and `ContactsProvider: Provider`, so the mail and calendar callers upcast to
 /// `Box<dyn Provider>` for free. The alternative: a second near-identical connect that
 /// differed only in its box, is exactly the pair that drifts.
+///
+/// `contact_book` binds the provider's contact **write** destination. Only the contacts
+/// connect passes one; the mail and calendar paths never write a card, and a destination they
+/// carried would be one more thing to keep in step for nothing.
 async fn connect_one(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
+    contact_book: Option<AddressBookId>,
 ) -> Result<Box<dyn ContactsProvider>, AccountError> {
     let tls = account_tls()?;
     let Some(tokens) = tokens.filter(|_| config.is_oauth()) else {
         let provider = JmapProvider::connect(config.engine_config(tls))
             .await
             .map_err(|err| AccountError::from_jmap_connect(&err))?;
-        return Ok(Box::new(provider));
+        return Ok(Box::new(bind_book(provider, contact_book)));
     };
 
     // Mint a token and connect once here rather than lazily: it proves the grant still works
@@ -169,7 +217,18 @@ async fn connect_one(
         Arc::clone(tokens),
         tls,
         access_token,
-        provider,
+        bind_book(provider, contact_book.clone()),
         capabilities,
+        // The wrapper rebuilds its delegate on every token change, so it has to be told the
+        // book too: a rebuilt delegate that forgot it would silently stop advertising a write
+        // destination an hour into the session.
+        contact_book,
     )))
+}
+
+fn bind_book(provider: JmapProvider, book: Option<AddressBookId>) -> JmapProvider {
+    match book {
+        Some(book) => provider.with_contact_address_book(book),
+        None => provider,
+    }
 }

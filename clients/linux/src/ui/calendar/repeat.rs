@@ -149,7 +149,7 @@ fn alt_weekdays(entry: &str) -> Vec<u8> {
 
 /// The core's weekday as its ISO number; Monday 1 through Sunday 7, which is what the catalog's
 /// alternative-form sets are written in.
-const fn iso_weekday(day: &RecurrenceWeekday) -> u8 {
+pub(super) const fn iso_weekday(day: &RecurrenceWeekday) -> u8 {
     match day {
         RecurrenceWeekday::Monday => 1,
         RecurrenceWeekday::Tuesday => 2,

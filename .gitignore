@@ -45,7 +45,10 @@ showcase-screenshots/
 # Every location is merged rather than the first one winning, so these coexist.
 .env
 # Per-tool alternatives, for a secret you want kept apart from the shared file:
-# Partner Center — the key it holds can publish to the Store listing.
+# Partner Center. Nothing in this repository reads it any more: the Microsoft Store push is not
+# built here, and the credentials went with it. The line stays because the file did not: a checkout
+# that has published before still has one, holding a key that can publish to the Store listing, and
+# dropping the pattern would put it in front of the next `git add -A`.
 .msstore.env
 # ALLODIA_DOCS_UPLOAD_TOKEN — publishes documentation screenshots to allodia.eu.
 .docs.env
@@ -58,3 +61,9 @@ scripts/dev/devices.local.sh
 
 # One machine, one developer: notes that are not a repo fact.
 AGENTS.local.md
+
+# The branded identity: the name, application id and artwork a build takes when it is Allodia's
+# rather than the unbranded default (docs/branding.md). Ignored rather than tracked because a fork
+# building this repository is not Allodia, and because a build carrying it opens the real account
+# store: committing one would hand every checkout the production credential namespace.
+branding/allodia*

@@ -46,6 +46,13 @@ public struct ContentView: View {
     /// The contact whose detail is open. Fetched once when a row is picked (the lookup blocks on
     /// the core's runtime, so it runs off the main thread) rather than re-read on every render.
     @State var openedContact: OpenedContact?
+    /// Where a new contact could be filed, read off the main thread when the surface is entered.
+    /// Empty means nowhere, and no create is offered rather than one that cannot succeed.
+    @State var contactTargets: [ContactBookChoice] = []
+    /// The open contact editor, and the "which account?" question that precedes it for a person
+    /// filed in more than one. `nil` for neither.
+    @State var contactEditor: ContactEditorModel?
+    @State var contactCardChoice: [ContactCardChoice]?
     @State var expandedThreads: Set<String> = [] // keyed `account/threadId` → conversation sub-rows
     @State var accountToRemove: AccountRow? // the account a remove-confirmation is open for
     @State var sceneRestorationComplete = false

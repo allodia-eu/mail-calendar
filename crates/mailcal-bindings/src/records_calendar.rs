@@ -414,6 +414,10 @@ pub struct EventDetail {
     /// when the event has no rule, or one too rich to state exactly (then say only that it
     /// repeats). See [`RepeatSummary`](crate::RepeatSummary).
     pub repeat_summary: Option<crate::RepeatSummary>,
+    /// The rule as an editor's **controls** hold it, or `None` when the editor may not open
+    /// it: no rule, one too rich to state, or one whose controls this app does not have.
+    /// Then show the summary and offer no edit. See [`RepeatDraft`](crate::RepeatDraft).
+    pub repeat_draft: Option<crate::RepeatDraft>,
     /// Whether the event recurs: so the editor can tell the user an edit hits the whole series.
     pub is_recurring: bool,
     /// Whether the calendar can be written; gates the edit and delete affordances.

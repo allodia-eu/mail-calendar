@@ -54,7 +54,7 @@ public class AttendeeSummaryTests
         var attendees = new[] { Attendee("Anna Jansen", "anna@example.com") };
         var detail = new EventDetail(
             "acct", "/cal/e.ics", "work", "Standup", false, "Europe/Amsterdam",
-            "2026-01-05T09:30:00", "2026-01-05T10:00:00", null, null, null, null, null, false,
+            "2026-01-05T09:30:00", "2026-01-05T10:00:00", null, null, null, null, null, null, false,
             true, string.Empty, attendees);
 
         var editor = EventEditorState.Edit(detail, "Work");

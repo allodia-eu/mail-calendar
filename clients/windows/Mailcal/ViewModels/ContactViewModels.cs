@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.ViewModels;
 
@@ -119,4 +120,24 @@ public sealed class ContactDetailItem
     /// <summary>Show the "Also in" section only for an actual merge.</summary>
     public Visibility AccountsVisibility =>
         Accounts.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>
+    /// The source cards this person can be edited through.
+    /// </summary>
+    /// <remarks>
+    /// <b>Internal</b> because the generated FFI record is: the view binds the two visibilities
+    /// below and the model reads the list. Empty means every source is read-only (a directory
+    /// card, a shared book this account may only read), and the pane then says so rather than
+    /// offering an edit that would fail on press.
+    /// </remarks>
+    internal IReadOnlyList<ContactCardRef> EditableCards { get; init; } =
+        Array.Empty<ContactCardRef>();
+
+    /// <summary>Show the Edit button only where there is a card a write could land in.</summary>
+    public Visibility EditVisibility =>
+        EditableCards.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>And the "this cannot be edited here" note exactly where there is not.</summary>
+    public Visibility NotEditableVisibility =>
+        EditableCards.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 }

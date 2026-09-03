@@ -86,6 +86,7 @@ fn detail(is_recurring: bool) -> EventDetails {
             },
         }),
         repeat_summary: None,
+        repeat_draft: None,
         is_recurring,
         can_write: true,
         occurrence: String::new(),

@@ -3,7 +3,7 @@
 //! of `lib.rs` to keep it under the 500-line limit; these derive the UniFFI scaffolding
 //! (so the generated Swift/Kotlin see them) and `lib.rs` re-exports them at the crate root.
 
-use crate::{EventEdge, RecurrenceChange, SimpleRecurrence, ViewMode};
+use crate::{ContactEdit, EventEdge, RecurrenceChange, SimpleRecurrence, ViewMode};
 
 /// A surface a host observes and pulls a snapshot for.
 #[derive(uniffi::Enum)]
@@ -29,6 +29,10 @@ pub enum Surface {
     CalendarStatus,
     /// The contacts list: the unified people snapshot (pulled via `MailcalApp::contact_list`).
     Contacts,
+    /// Contact write status: the outcome of the most recent create or edit (pulled via
+    /// `MailcalApp::contact_write_status`); drives the editor's "saving…" state and the
+    /// message a refused or unconfirmed write earns.
+    ContactsStatus,
     /// A pending question about an invitation reply the calendar server could not deliver
     /// (pulled via `MailcalApp::reply_prompt`); drives the modal offering to email the
     /// organiser ourselves. `None` means there is nothing to ask.
@@ -152,6 +156,42 @@ pub enum Intent {
     SearchContacts {
         /// The search text; empty clears the filter.
         query: String,
+    },
+    /// Save a new contact into one address book, then refresh the list.
+    ///
+    /// `account`/`address_book` are the picker's choice, from `MailcalApp::contact_targets`;
+    /// both `None` files it in the first writable book on offer, which is the whole picker for
+    /// a user with one account. Awaited inline, its outcome surfaced through
+    /// `MailcalApp::contact_write_status`.
+    CreateContact {
+        /// The chosen book's owning account, or `None` for the first on offer.
+        account: Option<String>,
+        /// The chosen book's provider id, or `None` for the first on offer.
+        address_book: Option<String>,
+        /// The values the form holds.
+        edit: ContactEdit,
+    },
+    /// Edit one **source card** of a person, then refresh the list.
+    ///
+    /// Named by a card and not by a person, which is the load-bearing half: a person is
+    /// several accounts' cards joined on a shared address, and saving the merged values would
+    /// file one account's details in another's address book. Take the pair from
+    /// [`ContactDetail::editable_cards`](crate::ContactDetail::editable_cards), asking the user
+    /// which card when there is more than one.
+    ///
+    /// A **patch**: only the fields the form actually changed are sent, so an address's label,
+    /// an organisation's departments, a postal address and a photo all survive an edit that did
+    /// not touch them. An edit that changed nothing sends nothing.
+    UpdateContact {
+        /// The person whose card this is (the row's `id`). The card is looked up among that
+        /// person's sources, so a row held across a merge still opens the card it meant.
+        person: String,
+        /// The account holding the card.
+        account: String,
+        /// The card's provider id.
+        card: String,
+        /// The values the form holds.
+        edit: ContactEdit,
     },
     /// Mark a message read (`read = true`) or unread, by key.
     MarkRead {
@@ -289,6 +329,20 @@ pub enum Intent {
         /// [`RecurrenceChange`].
         #[uniffi(default = None)]
         recurrence: Option<RecurrenceChange>,
+        /// The occurrence `start` and `end` were **read from**, when this edit is meant for the
+        /// series but the editor was opened on one occurrence: `EventDetail::occurrence_start`,
+        /// handed straight back.
+        ///
+        /// An editor opened on one occurrence shows **that** occurrence's clocks, so sending
+        /// them as the series' own moves the series to that occurrence and every earlier one
+        /// stops existing. Naming where they came from makes the edit the *shift* the user
+        /// made, applied to the series' own clock, which is what a drag on a series does.
+        ///
+        /// Send it whenever `occurrence` is `None` and the editor was opened on one; leave it
+        /// `None` for an editor opened on the series, whose clocks are already the series'. It
+        /// is ignored when `occurrence` is set. Setting it needs **both** `start` and `end`.
+        #[uniffi(default = None)]
+        times_from_occurrence: Option<String>,
     },
     /// Move or resize a stored calendar event by **dragging** it on the grid, then refresh the
     /// agenda.

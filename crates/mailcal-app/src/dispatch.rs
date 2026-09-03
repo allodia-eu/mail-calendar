@@ -107,6 +107,17 @@ impl<P: Provider> App<P> {
             Intent::RefreshCalendar => self.refresh_calendar().await,
             Intent::RefreshContacts => self.refresh_contacts().await,
             Intent::SearchContacts { query } => self.search_contacts(query).await,
+            Intent::CreateContact {
+                account,
+                address_book,
+                edit,
+            } => self.create_contact(account, address_book, edit).await,
+            Intent::UpdateContact {
+                person,
+                account,
+                card,
+                edit,
+            } => self.update_contact(person, account, card, edit).await,
             // The mail-mutation handlers report whether the edit applied, for the agent adapter
             // (`mail_ops::result`). An intent stays fire-and-forget: the interactive surface
             // learns the outcome from the optimistic hide being undone and the re-sync, not from

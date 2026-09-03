@@ -178,20 +178,32 @@ public sealed class EventEditorDialog : ContentDialog
         notes.TextChanged += (_, _) => _state.Notes = notes.Text;
         panel.Children.Add(notes);
 
-        // Reminder + recurrence: shown, not yet editable (display-only in v1). On create the state has
-        // none, so these read "None" / "Does not repeat".
+        // Reminder: shown, not yet editable. On create the state has none, so it reads "None".
         panel.Children.Add(ReadOnlyRow(L10n.EventReminder(), CalendarEventText.Reminder(_state.Editing?.ReminderMinutes)));
-        panel.Children.Add(ReadOnlyRow(
-            L10n.EventRepeat(),
-            EventRepeatText.Summary(
-                _state.Editing?.RepeatSummary,
-                _state.Editing?.IsRecurring ?? false,
-                CultureInfo.CurrentCulture),
-            "EventRepeatValue"));
+
+        // The repeat is a set of controls when the core handed over a draft, and the sentence it
+        // already decided when it did not.
+        if (_state.CanEditRepeat)
+        {
+            panel.Children.Add(EventRepeatEditor.Build(_state, CaptionText));
+        }
+        else
+        {
+            panel.Children.Add(ReadOnlyRow(
+                L10n.EventRepeat(),
+                EventRepeatText.Summary(
+                    _state.Editing?.RepeatSummary,
+                    _state.Editing?.IsRecurring ?? false,
+                    CultureInfo.CurrentCulture),
+                "EventRepeatValue"));
+            panel.Children.Add(CaptionText(L10n.EventRepeatLocked()));
+        }
+
         // Only when the answer is settled. An editor opened on one occurrence asks at Save which
         // occurrences were meant, so stating the answer up here would tell the user something the
         // next dialog contradicts.
-        if (_state.Editing?.IsRecurring == true && !_state.AsksAboutTheSeries)
+        if (_state.Editing?.IsRecurring == true && !_state.AsksAboutTheSeries
+            && string.IsNullOrEmpty(_state.Editing?.Occurrence))
         {
             panel.Children.Add(new TextBlock
             {
@@ -250,6 +262,15 @@ public sealed class EventEditorDialog : ContentDialog
 
     // `automationId` names the VALUE, not the row: a label is localised, so a test that finds this
     // row by its caption passes or fails by the language the developer's machine is in.
+    /// <summary>Secondary explanatory text, as every note under a field in this dialog draws it.</summary>
+    internal static UIElement CaptionText(string text) => new TextBlock
+    {
+        Text = text,
+        Style = Caption(),
+        Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+        TextWrapping = TextWrapping.Wrap,
+    };
+
     private static StackPanel ReadOnlyRow(string label, string value, string? automationId = null)
     {
         var text = new TextBlock { Text = value };

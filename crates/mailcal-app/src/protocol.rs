@@ -12,7 +12,7 @@ mod intent;
 mod status;
 
 pub use intent::Intent;
-pub use status::{CalendarWriteStatus, SendStatus};
+pub use status::{CalendarWriteStatus, ContactWriteStatus, SendStatus};
 
 /// A surface a host observes and pulls an immutable snapshot for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +42,10 @@ pub enum Surface {
     /// The contacts list: the unified people snapshot (pulled via `App::contacts`).
     /// Signalled after a contacts sync and after a search narrows the list.
     Contacts,
+    /// Contact write status: the outcome of the most recent create or edit (pulled via
+    /// `App::contact_write_status`); drives the editor's "saving…" state and the message a
+    /// refused or unconfirmed write earns.
+    ContactsStatus,
     /// A pending question about an invitation reply the calendar server could not deliver
     /// (pulled via `App::reply_prompt`); drives the modal that offers to email the organizer
     /// ourselves. `None` means there is nothing to ask.

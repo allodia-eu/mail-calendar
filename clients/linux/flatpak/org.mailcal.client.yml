@@ -86,7 +86,15 @@ modules:
 
       # The desktop entry and the metainfo carry no copy or version of their own; they are emitted
       # here from branding/<brand>-listing.md, /VERSION and docs/changelog/released/.
-      - python3 scripts/dev/flatpak_metadata.py --out-dir metadata
+      #
+      # The gallery is passed when the checkout carries one, the same way the brand is: the images
+      # are addressed by URL and that URL names a host, so `branding/screenshots.json` belongs with
+      # the identity rather than in a public tree. Without it the generator emits no `<screenshots>`
+      # at all, deliberately, because an empty element is invalid AppStream; a software centre then
+      # shows "No Screenshots" beside an otherwise complete listing.
+      - if [ -f branding/screenshots.json ]; then python3 scripts/dev/flatpak_metadata.py
+        --out-dir metadata --screenshots branding/screenshots.json; else python3
+        scripts/dev/flatpak_metadata.py --out-dir metadata; fi
       - install -Dm644 metadata/org.mailcal.client.desktop
         /app/share/applications/org.mailcal.client.desktop
       - install -Dm644 metadata/org.mailcal.client.metainfo.xml

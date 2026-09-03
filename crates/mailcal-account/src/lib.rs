@@ -16,6 +16,7 @@ mod calendar_drag;
 mod config;
 mod connect_log;
 mod contacts;
+mod contacts_edit;
 mod delegate_info;
 /// Dev-only extra-CA trust for the local test harness; compiled out of production builds (present
 /// in a debug build, or a release build with the `dev-harness` feature for the Android dev loop).
@@ -30,6 +31,7 @@ mod microsoft;
 mod preferences;
 mod reconnect;
 mod recurrence_shape;
+mod repeat_draft;
 mod repeat_summary;
 mod series_warning;
 mod setup;
@@ -48,6 +50,7 @@ pub use config::{
     SmtpAccount, default_path, load, load_str,
 };
 pub use contacts::connect_carddav_contact_providers;
+pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
 use engine_core::{
     error::FailureClass,
     ids::{AccountId, MailboxId},
@@ -88,6 +91,7 @@ pub use recurrence_shape::{
     RecurrenceWeekday, SimpleRecurrence, describe_recurrence, recurrence_rule_of,
     undrawable_reason,
 };
+pub use repeat_draft::{RepeatDraft, recurrence_change_of, repeat_draft_of, rule_from_draft};
 pub use repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary, summarize_repeat};
 pub use series_warning::{
     SeriesEditTouches, SeriesEditWarning, series_edit_touches, series_edit_warning,
@@ -400,6 +404,13 @@ pub enum AccountError {
     /// Building a calendar event-write failed (a bad uid, time, or href).
     #[error("calendar write: {0}")]
     CalendarWrite(String),
+    /// Building a contact write failed: the edit named nothing to file the card under, or
+    /// carried a value that is not an email address.
+    ///
+    /// The message states the *shape* that was wrong and never quotes the value: a contact's
+    /// values are content, and this reaches the diagnostic log (`docs/logging.md`).
+    #[error("contact write: {0}")]
+    ContactWrite(String),
 }
 
 impl AccountError {

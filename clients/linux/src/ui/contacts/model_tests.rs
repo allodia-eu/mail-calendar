@@ -40,6 +40,7 @@ fn detail(name: &str, accounts: &[&str]) -> ContactDetail {
         organizations: Vec::new(),
         titles: Vec::new(),
         accounts: accounts.iter().map(|id| (*id).to_owned()).collect(),
+        editable_cards: Vec::new(),
     }
 }
 

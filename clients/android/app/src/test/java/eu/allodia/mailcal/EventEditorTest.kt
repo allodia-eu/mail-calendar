@@ -40,6 +40,7 @@ private fun detail(
     reminderMinutes = reminderMinutes,
     recurrence = recurrence,
     repeatSummary = null,
+    repeatDraft = null,
     isRecurring = isRecurring,
     canWrite = true,
     occurrenceStart = "",

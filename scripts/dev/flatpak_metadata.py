@@ -25,7 +25,7 @@ filtered down to a subset nobody has reviewed. Closing that is a deliberate edit
 consequence of a matrix cell flipping.
 
 The documents are read through the checker's own scrapers (`scripts/ci/check_store_copy_length.py`,
-`scripts/ci/changelog_fragments.py`) for the reason `msstore_payload.py` gives: a second reading of
+`scripts/ci/changelog_fragments.py`) for the reason `store_payload.py` gives: a second reading of
 one document would be the reading nobody tested.
 """
 
@@ -322,14 +322,30 @@ def build(
     out_dir: Path, *, repo_root: Path = REPO_ROOT, screenshots: Path | None = None
 ) -> list[Path]:
     """Write both files into `out_dir`, and return what was written."""
-    listing = brand.listing_source().read_text(encoding="utf-8")
+    listing_file = brand.listing_source()
+    listing = listing_file.read_text(encoding="utf-8")
     version = (repo_root / "VERSION").read_text(encoding="utf-8").strip()
     template_path = repo_root / "clients" / "linux" / "flatpak" / "metainfo.xml.in"
     locales = list(catalog_locales())
 
     name = brand.value("MAILCAL_APP_NAME")
-    summary_by_locale = summaries(listing)
-    paragraphs = descriptions(listing)
+    # Name the file a missing section is missing FROM. A listing resolves as a whole file, the
+    # branded one over the neutral default (`docs/store-listing.md`), so a section the default
+    # carries and a brand does not fails here with a shape error naming neither, on the one
+    # machine that has a brand. Which reads as the tooling being broken rather than as the copy
+    # being short a section.
+    try:
+        summary_by_locale = summaries(listing)
+        paragraphs = descriptions(listing)
+    except DocumentShapeError as missing:
+        # `relative_to` only when it is: a caller may pass a `repo_root` the resolved brand
+        # directory is not under, and a ValueError raised inside this handler would replace the
+        # shape error with a path error, which is the opposite of the point.
+        try:
+            where = listing_file.relative_to(repo_root).as_posix()
+        except ValueError:
+            where = listing_file.as_posix()
+        raise DocumentShapeError(f"{where}: {missing}") from missing
     history = releases(repo_root / "docs" / "changelog" / "released")
     # Named by the caller, and out of this tree by default. A gallery is a set of URLs to images
     # of a *branded* build on the publisher's own host, so a copy committed here would survive the
