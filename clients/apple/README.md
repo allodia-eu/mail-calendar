@@ -287,9 +287,9 @@ goes in the repo. Apple lets you download it exactly once; keep the copy you hav
 
 Both ids are on one page: App Store Connect ▸ **Users and Access** ▸ **Integrations** ▸ **App Store
 Connect API**. "Issuer ID" sits above the key table (one per account); the Key ID is the key's own
-row. These are the same credentials the `asc` CLI uses for the listing push
-([`scripts/dev/appstore_listing.py`](../../scripts/dev/appstore_listing.py)), but `asc` keeps its
-copy in the system keychain and does not expose the issuer, so the two are configured separately.
+row. These are the same credentials the `asc` CLI uses for the listing push, which is not built
+here and belongs to whoever holds the App Store Connect account, but `asc` keeps its copy in the
+system keychain and does not expose the issuer, so the two are configured separately.
 
 **Why automatic signing here (and not Flow B's manual pass).** Flow B signs the whole app tree by
 hand because macOS `-exportArchive` **skips nested SPM resource bundles** (ITMS-90284). That is a

@@ -110,8 +110,8 @@ store_extra_for() { # <platform>: offered only when named explicitly
 #
 # One screen carries the dark set, and it is the mailbox list: it is what a listing opens on, so the
 # pair reads as the same inbox in either theme rather than as two unrelated screens. Adding a second
-# is one entry here; mind Google Play's ceiling of 8 images per slot (play_listing.MAX_PER_SLOT),
-# which 7 now sits one under.
+# is one entry here; mind Google Play's ceiling of 8 images per slot, which 7 now sits one under.
+# The push enforces that ceiling where it lives, which is not this repository.
 DARK_SCREENS=(list)
 
 appearances_for() { # <set> <screen>: the appearances one screen is captured in
@@ -485,9 +485,8 @@ case "$SCREEN_ARG" in
     ;;
 esac
 
-# The set each store publisher reads is `showcase-screenshots/<platform>/`; appstore_listing.py,
-# publish_play.py and the Microsoft Store push are all pointed at one of these
-# directories, and that
+# The set each store publisher reads is `showcase-screenshots/<platform>/`. No publisher is in this
+# repository: all three are pointed at one of these directories from a checkout of it, and that
 # directory IS the set (there is no copy or rename step). Keyed on `platform`, not `TARGET`, so the
 # three Android form factors land together under their prefixes.
 if [[ "$SET_ARG" == "docs" ]]; then
