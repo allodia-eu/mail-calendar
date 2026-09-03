@@ -1237,13 +1237,17 @@
 
   // src/images.ts
   var MAX_CAPTURED_BYTES = 20 * 1024 * 1024;
+  var SHOWABLE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+  function isShowableImage(mediaType) {
+    return SHOWABLE_TYPES.includes(mediaType.trim().toLowerCase().split(";")[0] ?? "");
+  }
   function imageFilesFrom(transfer) {
     if (!transfer)
       return [];
     const files = [];
     const seen = new Set;
     const take = (file) => {
-      if (file && file.type.startsWith("image/") && !seen.has(file)) {
+      if (file && isShowableImage(file.type) && !seen.has(file)) {
         seen.add(file);
         files.push(file);
       }
@@ -1257,7 +1261,7 @@
     return files;
   }
   function readImageFile(file) {
-    if (!file.type.startsWith("image/") || file.size > MAX_CAPTURED_BYTES) {
+    if (!isShowableImage(file.type) || file.size > MAX_CAPTURED_BYTES) {
       return Promise.resolve(null);
     }
     return new Promise((resolve) => {
@@ -1265,14 +1269,14 @@
       reader.onerror = () => resolve(null);
       reader.onload = () => {
         const url = typeof reader.result === "string" ? reader.result : "";
-        resolve(url.startsWith("data:image/") ? { data_url: url, file_name: file.name, media_type: file.type } : null);
+        resolve(isShowableImage(mediaTypeOf(url)) ? { data_url: url, file_name: file.name, media_type: file.type } : null);
       };
       reader.readAsDataURL(file);
     });
   }
   function insertCapturedImage(editor, attachments, image, saved = null) {
     const url = String(image.data_url ?? "");
-    if (!url.startsWith("data:image/"))
+    if (!url.startsWith("data:") || !isShowableImage(mediaTypeOf(url)))
       return false;
     const id = attachments.addCapturedImage({
       data_url: url,

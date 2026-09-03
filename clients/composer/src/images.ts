@@ -11,7 +11,7 @@
 // inline `data:image/…`, and a regular file attachment always stays a host-staged path so a large
 // PDF is streamed from disk rather than base64'd through a JavaScript string.
 
-import { type Attachments, insertAtCaret } from "./attachments";
+import { type Attachments, insertAtCaret, mediaTypeOf } from "./attachments";
 import {
   caretInto,
   documentOf,
@@ -40,17 +40,30 @@ export interface CapturedImage {
   width_px?: number | null;
 }
 
+/// The picture formats a message body may carry: the raster set every platform decodes natively,
+/// and the same closed list the core sniffs a dropped file against
+/// (`mailcal_app::composer_image::raster_media_type`). SVG is deliberately absent, on the clipboard
+/// exactly as on a drop: it is script-capable, and nothing script-capable belongs behind an `<img>`
+/// the core turns into a `cid:` part.
+const SHOWABLE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+/// Whether `mediaType` names one of the formats above, parameters and casing aside.
+export function isShowableImage(mediaType: string): boolean {
+  return SHOWABLE_TYPES.includes(mediaType.trim().toLowerCase().split(";")[0] ?? "");
+}
+
 /// The image files a paste or a drop carried, in the order the platform listed them.
 ///
 /// `items` rather than `files` for the clipboard: a screenshot pasted from the system clipboard
 /// arrives as an item with no file list on some engines. Both are read, and anything that is not
-/// an image is left alone: a pasted `.docx` is not something the body can show.
+/// a showable picture is left alone: a pasted `.docx` is not something the body can show, and
+/// neither is an SVG.
 export function imageFilesFrom(transfer: DataTransfer | null | undefined): File[] {
   if (!transfer) return [];
   const files: File[] = [];
   const seen = new Set<File>();
   const take = (file: File | null) => {
-    if (file && file.type.startsWith("image/") && !seen.has(file)) {
+    if (file && isShowableImage(file.type) && !seen.has(file)) {
       seen.add(file);
       files.push(file);
     }
@@ -63,9 +76,9 @@ export function imageFilesFrom(transfer: DataTransfer | null | undefined): File[
 }
 
 /// Reads one image file into a `data:` URI. Resolves to `null` for anything that is not a
-/// readable image within the size cap, so a caller can simply skip it.
+/// readable picture of a showable format within the size cap, so a caller can simply skip it.
 export function readImageFile(file: File): Promise<CapturedImage | null> {
-  if (!file.type.startsWith("image/") || file.size > MAX_CAPTURED_BYTES) {
+  if (!isShowableImage(file.type) || file.size > MAX_CAPTURED_BYTES) {
     return Promise.resolve(null);
   }
   return new Promise((resolve) => {
@@ -74,7 +87,7 @@ export function readImageFile(file: File): Promise<CapturedImage | null> {
     reader.onload = () => {
       const url = typeof reader.result === "string" ? reader.result : "";
       resolve(
-        url.startsWith("data:image/")
+        isShowableImage(mediaTypeOf(url))
           ? { data_url: url, file_name: file.name, media_type: file.type }
           : null,
       );
@@ -96,8 +109,9 @@ export function insertCapturedImage(
 ): boolean {
   const url = String(image.data_url ?? "");
   // The same check the core repeats on submit: a `data:text/html` here would be an executable
-  // document, and only a picture may end up behind the `cid:` an `<img>` points at.
-  if (!url.startsWith("data:image/")) return false;
+  // document, and only a picture of a showable format may end up behind the `cid:` an `<img>`
+  // points at. An SVG fails it too, which is why the test is the closed list and not `image/`.
+  if (!url.startsWith("data:") || !isShowableImage(mediaTypeOf(url))) return false;
 
   const id = attachments.addCapturedImage({
     data_url: url,

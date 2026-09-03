@@ -21,7 +21,8 @@ struct ComposerDropModifier: ViewModifier {
     @Binding var attachments: [PickedAttachment]
     /// Pictures waiting on the question below; non-empty only between a drop and its answer.
     @Binding var droppedPictures: [URL]
-    @Binding var prepareError: Bool
+    /// The composer's shared error line, which this writes the picture-specific message into.
+    @Binding var composerError: String?
     let editor: RichComposerEditor
 
     func body(content: Content) -> some View {
@@ -84,7 +85,7 @@ struct ComposerDropModifier: ViewModifier {
             }
         }
         if !unreadable.isEmpty {
-            prepareError = true
+            composerError = L10n.compose_image_failed()
             attachments.append(contentsOf: unreadable.map { PickedAttachment(url: $0) })
         }
     }

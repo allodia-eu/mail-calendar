@@ -102,13 +102,19 @@ pub(super) struct DroppedFiles {
 /// bytes before anything is shown ([`mailcal_bindings::composer_image_data_url`]), so a
 /// mislabelled file still cannot become an `<img>`.
 pub(super) fn sort_drop(paths: Vec<PathBuf>) -> DroppedFiles {
+    // One `picked_file` per path: it guesses a media type from the name, and asking three times
+    // for the same answer is three guesses that could in principle disagree.
     let (pictures, attach) = paths
         .into_iter()
-        .filter(|path| picked_file(path).is_some())
-        .partition(|path| {
-            picked_file(path).is_some_and(|file| file.media_type.starts_with("image/"))
-        });
-    DroppedFiles { attach, pictures }
+        .filter_map(|path| {
+            let is_picture = picked_file(&path)?.media_type.starts_with("image/");
+            Some((path, is_picture))
+        })
+        .partition::<Vec<_>, _>(|(_, is_picture)| *is_picture);
+    DroppedFiles {
+        attach: attach.into_iter().map(|(path, _)| path).collect(),
+        pictures: pictures.into_iter().map(|(path, _)| path).collect(),
+    }
 }
 
 /// Accepts files dragged onto the composer. The question a picture raises is asked once for the

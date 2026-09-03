@@ -205,7 +205,7 @@ public sealed partial class ComposerView : UserControl
             var from = (FromBox.SelectedItem as AccountItem)?.Id;
             if (string.IsNullOrEmpty(documentJson) || !Submit(recipients, documentJson, files, from))
             {
-                PrepareError.Visibility = Visibility.Visible;
+                ShowError(L10n.ComposePrepareError());
                 SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);
                 return;
             }
@@ -215,9 +215,18 @@ public sealed partial class ComposerView : UserControl
         catch (Exception ex)
         {
             Log.Warn($"composer: couldn't prepare document ({ex.GetType().Name})");
-            PrepareError.Visibility = Visibility.Visible;
+            ShowError(L10n.ComposePrepareError());
             SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);
         }
+    }
+
+    /// <summary>The one error line under the composer, which more than one failure writes to: a
+    /// send that couldn't be prepared, and a dropped picture that couldn't be shown. Each states
+    /// which failure it is rather than leaving the previous message standing.</summary>
+    internal void ShowError(string message)
+    {
+        PrepareError.Text = message;
+        PrepareError.Visibility = Visibility.Visible;
     }
 
     // Route the rendered document to the submit call this request is for. A reply/forward carries
@@ -288,7 +297,7 @@ public sealed partial class ComposerView : UserControl
         catch (Exception ex)
         {
             Log.Warn($"composer: couldn't load WebView2 editor ({ex.GetType().Name})");
-            PrepareError.Visibility = Visibility.Visible;
+            ShowError(L10n.ComposePrepareError());
         }
     }
 

@@ -164,8 +164,11 @@ port:
       editor as a captured picture, the paste path again) or *send it as a file* (the ordinary
       attachment path). A picture the core cannot read as one is attached rather than dropped.
     - **The in-document form is narrow, and Rust holds it.** `data_url` is accepted only on an
-      **inline** attachment and only as `data:image/…`; a document naming both a blob handle and a
-      `data:` URI, or neither, is rejected. Host-read pictures go through
+      **inline** attachment and only as a base64 `data:` URI of the same closed raster set a
+      dropped file is sniffed against (PNG, JPEG, GIF, WebP; **never SVG**, which is
+      script-capable); a document naming both a blob handle and a `data:` URI, or neither, is
+      rejected. The bundle refuses the same set on the clipboard, where nothing can sniff bytes, so
+      a paste and a drop admit exactly the same formats. Host-read pictures go through
       `composer_image_data_url`, which **sniffs the bytes** (PNG/JPEG/GIF/WebP by magic number,
       never the file name, never SVG) and holds one size cap for every client. So a document can
       never smuggle arbitrary bytes past the host, and a mislabelled file cannot become the part an
@@ -179,7 +182,9 @@ port:
     WebView ships a default menu built for browsing, and the composer must not offer what is on it:
     opening a link (navigation is blocked, so the item would silently do nothing), downloading one,
     reloading the document, and the web inspector. Each host therefore **filters its own menu** down
-    to one set: **Cut, Copy, Paste**, and **Copy link** when the click landed on one.
+    to the editing actions: **Cut, Copy, Paste**, **Copy link** when the click landed on one, and
+    **Select All** where the platform's own menu carries it (Windows and Linux; macOS and the iOS
+    edit menu do not).
 
     Filtering rather than drawing our own is deliberate: each surviving item keeps the platform's
     label, keyboard equivalent and behaviour, so it is already in the user's language and does what
@@ -241,9 +246,14 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   FFI as one string; over that, the paste does nothing and there is nowhere in the editor chrome to
   say so. A file that large is still attachable, which is the answer for one that big. The dropped
   path has somewhere to report it and does, through the client's own prepare-error line.
-- **A dropped picture is read on the calling thread on Linux and Windows.** Android and Apple read
-  it off the main thread; the two desktop hosts read it inline, which is a stall of tens of
-  milliseconds for a file within the cap and has not been worth a thread yet.
+- **A picture pasted inside the quoted original ships as a `data:` URI, not a `cid:` part.** A
+  quote travels as raw HTML rather than as document nodes, so its `<img>` is never emitted as an
+  inline image and its manifest entry is pruned (which is what keeps the send working). The bytes
+  then stay in the body, and the readers that refuse `data:` images show a gap. Pasting into the
+  message itself, which is where a reply is written, is unaffected.
+- **A dropped picture is read on the main thread everywhere except Android.** Android stages and
+  reads off it; Apple, Windows and Linux read inline from the dialog's answer, which is a stall of
+  tens of milliseconds for a file within the cap and has not been worth a thread yet.
 - **Pasted text stays plain text.** Formatting from Word, Outlook or a browser is dropped on paste,
   which is the strict reading of Gate 7 rather than an oversight. Mapping pasted HTML onto the closed
   document schema is its own piece of work.

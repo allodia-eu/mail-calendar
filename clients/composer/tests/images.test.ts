@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { Attachments } from "../src/attachments";
 import { documentBlocks, referencedAttachmentIds } from "../src/document";
-import { insertCapturedImage } from "../src/images";
+import { imageFilesFrom, insertCapturedImage } from "../src/images";
 import type { DraftAttachment } from "../src/types";
 import { harness } from "./support";
 
@@ -72,7 +72,27 @@ describe("a captured picture", () => {
     expect(insertCapturedImage(editor, attachments, { data_url: "https://x.test/a.png" })).toBe(
       false,
     );
+    // An SVG is a picture to the platform and script-capable to a reader, so it is not one of the
+    // formats a body may carry. Nothing sniffs bytes on the clipboard, so the check is the type.
+    expect(
+      insertCapturedImage(editor, attachments, {
+        data_url: "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+      }),
+    ).toBe(false);
     expect(attachments.list()).toHaveLength(0);
+  });
+
+  test("is not read off the clipboard when its format is not one a body may carry", () => {
+    // `imageFilesFrom` is the paste path's filter: an SVG on the clipboard is left to the plain
+    // text branch rather than becoming an inline part.
+    const svg = new File(["<svg/>"], "logo.svg", { type: "image/svg+xml" });
+    const png = new File(["x"], "shot.png", { type: "image/png" });
+    const transfer = {
+      items: [],
+      files: [svg, png],
+    } as unknown as DataTransfer;
+
+    expect(imageFilesFrom(transfer)).toEqual([png]);
   });
 
   test("gets a fresh id per picture, so two pastes are two parts", () => {

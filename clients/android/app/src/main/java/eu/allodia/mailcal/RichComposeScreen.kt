@@ -129,7 +129,10 @@ internal fun RichComposeMessageDialog(
     // the To row. Opened from the start when either arrives pre-filled, so those addresses are
     // never hidden behind a tap the user doesn't know to make.
     var showCcBcc by remember { mutableStateOf(revealsCcBcc(initialCc, initialBcc)) }
-    var prepareError by remember { mutableStateOf(false) }
+    // The one error line under the composer, which more than one failure writes to: a send that
+    // couldn't be prepared, and a dropped picture that couldn't be shown. It carries the message
+    // rather than a flag, so each failure says which one it is.
+    var composerError by remember { mutableStateOf<String?>(null) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     // The single-scroll model: the WebView owns the one scroll (so its native caret-following and
     // drag-to-scroll just work), and the address-field header is a native overlay drawn on top of
@@ -144,7 +147,7 @@ internal fun RichComposeMessageDialog(
     var droppedPictures by remember { mutableStateOf<List<PickedComposerFile>>(emptyList()) }
     val pickAttachments = rememberAttachmentPicker(
         onStaged = { attachments = attachments + it },
-        onFailed = { prepareError = true },
+        onFailed = { composerError = L10n.compose_prepare_error(ctx) },
     )
     // The per-message style override of the persisted default, re-styles the quoted original in
     // place without disturbing the user's typed message.
@@ -207,10 +210,10 @@ internal fun RichComposeMessageDialog(
     }
 
     val send = send@{
-        prepareError = false
+        composerError = null
         val webViewOrNull = webView
         if (webViewOrNull == null) {
-            prepareError = true
+            composerError = L10n.compose_prepare_error(ctx)
             return@send
         }
         webViewOrNull.evaluateJavascript("composerDocument()") { encoded ->
@@ -226,7 +229,7 @@ internal fun RichComposeMessageDialog(
             ) {
                 onDismiss()
             } else {
-                prepareError = true
+                composerError = L10n.compose_prepare_error(ctx)
             }
         }
     }
@@ -408,7 +411,6 @@ internal fun RichComposeMessageDialog(
                             onBcc = { bcc = it },
                             subject = subject,
                             onSubject = { subject = it },
-
                             showCcBcc = showCcBcc,
                             onToggleCcBcc = { showCcBcc = !showCcBcc },
                             style = style.takeIf {
@@ -431,28 +433,27 @@ internal fun RichComposeMessageDialog(
                                 File(attachment.path).delete()
                             },
                         )
-                        if (prepareError) {
+                        composerError?.let { message ->
                             Text(
-                                text = L10n.compose_prepare_error(ctx),
+                                text = message,
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.padding(bottom = 8.dp),
                             )
                         }
                     }
-                    // Inside the composer's own Dialog, so its window is created after this one and
-                    // stacks above it, and so back reaches the confirmation (keep editing) rather
-                    // than the composer underneath.
-                    // The dropped-picture question. Drawn inside the composer's own Dialog for the
-                    // same reason the discard prompt is: its window then stacks above, and back
-                    // reaches the question rather than the composer under it.
+                    // The dropped-picture question. Drawn inside the composer's own Dialog so its
+                    // window is created after this one and stacks above it, and so back reaches the
+                    // question rather than the composer under it.
                     ComposerDroppedPictureQuestion(
                         pictures = droppedPictures,
                         webView = webView,
                         onAttach = { attachments = attachments + it },
-                        onUnreadable = { prepareError = true },
+                        onUnreadable = { composerError = L10n.compose_image_failed(ctx) },
                         onAnswered = { droppedPictures = emptyList() },
                     )
+                    // Inside the composer's own Dialog for the same reason, so back reaches the
+                    // confirmation (keep editing) rather than the composer underneath.
                     if (confirmingDiscard) {
                         DiscardDraftDialog(
                             onDiscard = {

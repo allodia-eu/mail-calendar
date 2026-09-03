@@ -37,9 +37,10 @@ pub enum ComposerError {
         /// Attachment id.
         id: AttachmentId,
     },
-    /// A `data:` attachment is not an inline `data:image/…`, the only shape the editor may carry
-    /// bytes for. A regular file attachment is staged by the host and referenced by handle, and a
-    /// `data:` URI of any other media type would attach a document behind an `<img>`.
+    /// A `data:` attachment is not an inline base64 PNG, JPEG, GIF or WebP, the only shape the
+    /// editor may carry bytes for. A regular file attachment is staged by the host and referenced
+    /// by handle; any other media type would attach a document, or a script-capable SVG, behind
+    /// an `<img>`.
     UnsupportedInlineData {
         /// Attachment id.
         id: AttachmentId,
@@ -102,7 +103,7 @@ impl fmt::Display for ComposerError {
             ),
             Self::UnsupportedInlineData { id } => write!(
                 f,
-                "attachment {} carries inline data that is not an inline image",
+                "attachment {} carries inline data that is not a showable inline picture",
                 id.as_str()
             ),
             Self::MissingInlineAttachment { id } => {
@@ -210,6 +211,19 @@ fn index_attachments(
     Ok(indexed)
 }
 
+/// The only `data:` URIs an attachment may carry its bytes in: base64 payloads of the raster set
+/// every platform decodes natively, the same closed list the core sniffs a dropped file against.
+///
+/// SVG is deliberately absent. It is script-capable, so it has no business behind the `<img>` a
+/// `cid:` part is rendered by, and `image/…` alone would have let one in through a paste, where
+/// nothing sniffs the bytes.
+const SHOWABLE_DATA_PREFIXES: [&str; 4] = [
+    "data:image/png;base64,",
+    "data:image/jpeg;base64,",
+    "data:image/gif;base64,",
+    "data:image/webp;base64,",
+];
+
 /// Every attachment names its bytes exactly once, and the in-document form is narrow.
 ///
 /// A host-staged file arrives as a blob handle; a picture the editor captured (a paste, or the
@@ -231,7 +245,11 @@ fn check_attachment_bytes(attachment: &DraftAttachment) -> ComposerResult<()> {
         }),
         (None, Some(data_url)) => {
             let inline = matches!(attachment.disposition, AttachmentDisposition::Inline { .. });
-            if inline && data_url.starts_with("data:image/") {
+            if inline
+                && SHOWABLE_DATA_PREFIXES
+                    .iter()
+                    .any(|p| data_url.starts_with(p))
+            {
                 Ok(())
             } else {
                 Err(ComposerError::UnsupportedInlineData {

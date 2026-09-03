@@ -92,8 +92,8 @@ extension MailboxModel {
                 recipients: recipients,
                 documentJson: documentJson,
                 files: files,
-                subject: subject,
-                from: from
+                from: from,
+                subject: subject
             )
             return true
         } catch {

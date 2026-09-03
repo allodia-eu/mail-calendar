@@ -27,16 +27,12 @@ final class EditorWebView: WKWebView {
         "WKMenuItemIdentifierCopyLink",
     ]
 
+    /// Separators carry no identifier, so the one filter takes them out with everything else: a
+    /// right-click that lands on nothing keeps an empty menu, which AppKit does not open, rather
+    /// than a box of dividers.
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         for item in menu.items where !Self.allowed.contains(item.identifier?.rawValue ?? "") {
             menu.removeItem(item)
-        }
-        // A menu emptied to nothing still opens, as an empty grey box; better to open none.
-        while menu.items.first?.isSeparatorItem == true {
-            menu.removeItem(at: 0)
-        }
-        while menu.items.last?.isSeparatorItem == true {
-            menu.removeItem(at: menu.items.count - 1)
         }
     }
 }

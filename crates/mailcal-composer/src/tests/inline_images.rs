@@ -248,6 +248,16 @@ fn in_document_bytes_are_only_ever_an_inline_image() {
         render(&pasted_document(regular)),
         Err(ComposerError::UnsupportedInlineData { .. })
     ));
+
+    // An SVG is an `image/…` and still refused: it is script-capable, and nothing sniffs bytes on
+    // the clipboard, so the media type is the only thing standing between a pasted SVG and a
+    // `cid:` part an `<img>` renders.
+    let mut vector = pasted_attachment("img-1", "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=");
+    vector.media_type = "image/svg+xml".to_owned();
+    assert!(matches!(
+        render(&pasted_document(vector)),
+        Err(ComposerError::UnsupportedInlineData { .. })
+    ));
 }
 
 #[test]

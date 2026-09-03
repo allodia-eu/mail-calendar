@@ -60,7 +60,7 @@ public sealed partial class ComposerView
         catch (Exception ex)
         {
             Log.Warn($"composer: couldn't take a dropped file ({ex.GetType().Name})");
-            PrepareError.Visibility = Visibility.Visible;
+            ShowError(L10n.ComposeImageFailed());
         }
         finally
         {
@@ -133,7 +133,7 @@ public sealed partial class ComposerView
         }
         if (unreadable.Count > 0)
         {
-            PrepareError.Visibility = Visibility.Visible;
+            ShowError(L10n.ComposeImageFailed());
             Attach(unreadable);
         }
     }

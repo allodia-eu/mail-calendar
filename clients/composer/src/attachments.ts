@@ -120,7 +120,7 @@ function mintContentId(seq: number): string {
 }
 
 /// The media type a `data:` URI declares, or an empty string when it declares none.
-function mediaTypeOf(dataUrl: string): string {
+export function mediaTypeOf(dataUrl: string): string {
   const head = dataUrl.slice(0, dataUrl.indexOf(","));
   return head.startsWith("data:") ? head.slice("data:".length).split(";")[0] ?? "" : "";
 }

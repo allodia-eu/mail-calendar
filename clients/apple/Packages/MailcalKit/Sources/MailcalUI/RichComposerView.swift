@@ -112,8 +112,11 @@ struct RichComposeView: View {
     /// Whether the Cc/Bcc rows are revealed. Collapsed unless the caller pre-filled one.
     @State private var showsCcBcc: Bool
     @State private var subject: String
+    /// The one error line under the composer, which more than one failure writes to: a send that
+    /// could not be prepared, and a dropped picture that could not be shown. It carries the
+    /// message rather than a flag, so each failure says which one it is.
     /// Not `private`: RichComposerView.Drop.swift sets it when a dropped picture cannot be shown.
-    @State var prepareError = false
+    @State var composerError: String?
     /// Pictures dropped on the composer, waiting on the one question they raise. Held rather than
     /// acted on, because the answer decides whether they become body content or attachments.
     /// Not `private`: RichComposerView.Drop.swift owns the question.
@@ -277,7 +280,7 @@ struct RichComposeView: View {
         ComposerDropModifier(
             attachments: $attachments,
             droppedPictures: $droppedPictures,
-            prepareError: $prepareError,
+            composerError: $composerError,
             editor: editor
         )
     }
@@ -365,8 +368,8 @@ struct RichComposeView: View {
     /// The attachment list and the prepare-failure note, everything below the editor.
     @ViewBuilder private var composerFooter: some View {
         attachmentList
-        if prepareError {
-            Text(L10n.compose_prepare_error())
+        if let composerError {
+            Text(composerError)
                 .font(.caption)
                 .foregroundStyle(.red)
         }
@@ -415,17 +418,17 @@ struct RichComposeView: View {
     }
 
     private func prepareAndSend() {
-        prepareError = false
+        composerError = nil
         editor.documentJSON { result in
             switch result {
             case .success(let documentJson):
                 let recipients = Recipients(to: to, cc: cc, bcc: bcc)
                 let files = attachments.map(\.composerFile)
                 if !send(recipients, subject, documentJson, files, resolvedFrom) {
-                    prepareError = true
+                    composerError = L10n.compose_prepare_error()
                 }
             case .failure:
-                prepareError = true
+                composerError = L10n.compose_prepare_error()
             }
         }
     }
