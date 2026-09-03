@@ -66,12 +66,22 @@ fn unique(prefix: &str) -> String {
 }
 
 /// The reply subject for `original`: `Re: <subject>`, not doubled if it already is one.
-pub(crate) fn reply_subject(original: Option<&str>) -> String {
+///
+/// Public because the composer's Subject field is editable on a reply, so a client must open it
+/// with exactly the subject this would otherwise have sent; a client re-deriving it is how the
+/// field and the wire come to disagree.
+///
+/// The prefix is **not** localised, deliberately: it is what threads the conversation in every
+/// other mail client, and a translated one groups nothing.
+#[must_use]
+pub fn reply_subject(original: Option<&str>) -> String {
     prefixed_subject("Re:", original)
 }
 
-/// The forward subject for `original`: `Fwd: <subject>`, not doubled.
-pub(crate) fn forward_subject(original: Option<&str>) -> String {
+/// The forward subject for `original`: `Fwd: <subject>`, not doubled. Public on the same terms as
+/// [`reply_subject`].
+#[must_use]
+pub fn forward_subject(original: Option<&str>) -> String {
     prefixed_subject("Fwd:", original)
 }
 

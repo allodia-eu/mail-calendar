@@ -272,6 +272,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::composer_draft::widget_tests::the_draft_question_discards_only_on_the_discard_button(
     );
     crate::ui::composer_draft::widget_tests::each_navigation_gets_its_own_answer();
+    crate::ui::composer_attach::tests::the_drop_target_listens_ahead_of_the_web_view();
     crate::ui::calendar::attendees::tests::attendee_rows_never_parse_a_name_as_markup();
     crate::ui::calendar::widget_tests::
         the_create_drag_owns_the_primary_pointer_before_event_buttons();

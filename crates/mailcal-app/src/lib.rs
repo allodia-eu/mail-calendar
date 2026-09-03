@@ -40,6 +40,7 @@ mod calendar_refresh;
 mod calendar_scope;
 mod calendar_status;
 mod calendar_unexpandable;
+mod composer_image;
 mod connectivity;
 mod connector;
 mod contacts;
@@ -77,6 +78,7 @@ mod itip;
 mod lifecycle;
 mod live_mailbox;
 mod mail_compose;
+mod mail_compose_quote;
 mod mail_compose_signature;
 // The per-account message-size cap: what this account keeps offline, and what a change to it
 // does to the mail already cached.
@@ -117,10 +119,12 @@ use background_sync::NotifyMarksState;
 pub use background_sync::{AccountNewMail, BackgroundNewMail, NewMailPreview};
 pub use calendar_cache::{CalendarPage, MonthPage};
 use calendar_prefs::CalendarPrefsState;
+pub use composer_image::image_data_url;
 pub use connector::MailboxConnector;
 pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;
 use display_settings::DisplaySettingsState;
+pub use helpers::{forward_subject, reply_subject};
 pub use html::{render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;

@@ -77,8 +77,8 @@ private fun TestSwipeRow(
         onPermanentlyDelete = { _, _ -> },
         onMarkAsSpam = { _, _ -> },
         onMarkAsNotSpam = { _, _ -> },
-        onReply = { _, _, _, _, _, _ -> true },
-        onForward = { _, _, _, _, _, _ -> true },
+        onReply = { _, _, _, _, _, _, _ -> true },
+        onForward = { _, _, _, _, _, _, _ -> true },
         replyRecipients = { _, _, _ -> null },
     )
 }

@@ -144,7 +144,7 @@ public sealed partial class ReadingView : UserControl
         {
             return;
         }
-        App.Shell?.ComposeReply(opened.Account, opened.Key, replyAll);
+        App.Shell?.ComposeReply(opened.Account, opened.Key, replyAll, opened.RawSubject);
     }
 
     private void OnForward(object sender, RoutedEventArgs e)
@@ -153,7 +153,7 @@ public sealed partial class ReadingView : UserControl
         {
             return;
         }
-        App.Shell?.ComposeForward(opened.Account, opened.Key);
+        App.Shell?.ComposeForward(opened.Account, opened.Key, opened.RawSubject);
     }
 
     // Archive/delete move the open message out of the folder, so the pane cannot keep showing it,

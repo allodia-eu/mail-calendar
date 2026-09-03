@@ -39,6 +39,11 @@ public sealed class MailRow : INotifyPropertyChanged
     /// </summary>
     public required string LatestKey { get; init; }
 
+    /// <summary>The subject exactly as the message carries it, empty and all. What the row
+    /// SHOWS is <see cref="Title"/>, which substitutes a placeholder; a composer must not open
+    /// with "Re: (no subject)" in a field the user is about to send.</summary>
+    public string RawSubject { get; init; } = string.Empty;
+
     /// <summary>The subject, with a placeholder when empty.</summary>
     public required string Title { get; init; }
 
@@ -212,6 +217,9 @@ public sealed class ThreadMessageItem
 
     /// <summary>The conversation's subject, the header shown when this message opens.</summary>
     public required string Subject { get; init; }
+
+    /// <summary>The subject exactly as the conversation carries it; see MailRow.RawSubject.</summary>
+    public string RawSubject { get; init; } = string.Empty;
 
     /// <summary>The sender address, with a placeholder when empty.</summary>
     public required string FromText { get; init; }

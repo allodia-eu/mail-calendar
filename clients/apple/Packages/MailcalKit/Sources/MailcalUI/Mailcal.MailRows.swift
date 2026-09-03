@@ -7,20 +7,27 @@ import MailcalBindings
 extension ContentView {
     /// Opens the reply (or reply-all) composer for a message, computing the core's suggested
     /// recipients once and carrying them in the compose context.
-    func beginReply(_ account: String, _ key: String, all: Bool) {
+    ///
+    /// The Subject the composer opens with is derived by the CORE, not here: the field is
+    /// editable, so what it opens with is what gets sent unless the user changes it, and a
+    /// client-side `"Re: " + subject` differs from the core's on a reply to a reply.
+    func beginReply(_ account: String, _ key: String, subject: String, all: Bool) {
         let prefill = model.replyRecipients(account, key, all)
         let seed = quoteSeed(account, key, isForward: false)
+        let replySubject = MailcalBindings.replySubject(original: subject)
         compose = all
             ? .replyAll(account: account, key: key, to: prefill?.to ?? "", cc: prefill?.cc ?? "",
-                        quote: seed.quote, quoteStyle: seed.style)
+                        subject: replySubject, quote: seed.quote, quoteStyle: seed.style)
             : .reply(account: account, key: key, to: prefill?.to ?? "", cc: prefill?.cc ?? "",
-                     quote: seed.quote, quoteStyle: seed.style)
+                     subject: replySubject, quote: seed.quote, quoteStyle: seed.style)
     }
 
     /// Opens the forward composer, seeding the quoted original the same way as a reply.
-    func beginForward(_ account: String, _ key: String) {
+    func beginForward(_ account: String, _ key: String, subject: String) {
         let seed = quoteSeed(account, key, isForward: true)
-        compose = .forward(account: account, key: key, quote: seed.quote, quoteStyle: seed.style)
+        compose = .forward(account: account, key: key,
+                           subject: MailcalBindings.forwardSubject(original: subject),
+                           quote: seed.quote, quoteStyle: seed.style)
     }
 
     /// The quoted-original seed for a reply/forward of `(account, key)`, plus the default style.
@@ -197,13 +204,13 @@ extension ContentView {
             Label(L10n.action_open(), systemImage: "envelope.open")
         }
         Divider()
-        Button { beginReply(message.account, message.key, all: false) } label: {
+        Button { beginReply(message.account, message.key, subject: message.subject, all: false) } label: {
             Label(L10n.action_reply(), systemImage: "arrowshape.turn.up.left")
         }
-        Button { beginReply(message.account, message.key, all: true) } label: {
+        Button { beginReply(message.account, message.key, subject: message.subject, all: true) } label: {
             Label(L10n.action_reply_all(), systemImage: "arrowshape.turn.up.left.2")
         }
-        Button { beginForward(message.account, message.key) } label: {
+        Button { beginForward(message.account, message.key, subject: message.subject) } label: {
             Label(L10n.action_forward(), systemImage: "arrowshape.turn.up.right")
         }
         Divider()

@@ -54,7 +54,14 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
         configuration.defaultWebpagePreferences = preferences
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.websiteDataStore = .nonPersistent()
+        // On macOS an `EditorWebView`, which filters its context menu down to the editing actions
+        // (EditorWebViewMenu.swift). iOS/iPadOS need no subclass: an editable web view already
+        // offers Cut/Copy/Paste in the system edit menu.
+        #if os(macOS)
+        webView = EditorWebView(frame: .zero, configuration: configuration)
+        #else
         webView = WKWebView(frame: .zero, configuration: configuration)
+        #endif
         super.init()
         webView.navigationDelegate = self
         webView.allowsBackForwardNavigationGestures = false
@@ -210,6 +217,20 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
         #else
         webView.window?.makeFirstResponder(webView)
         #endif
+    }
+
+    /// Shows a picture at the caret. The shared editor records the inline attachment behind it and
+    /// carries the bytes in the document, so the core can turn it into the `cid:` part the sent
+    /// body points at; the same path a pasted screenshot takes, so a dropped and a pasted picture
+    /// cannot behave differently.
+    func insertImage(dataUrl: String, fileName: String) {
+        let payload = ["data_url": dataUrl, "file_name": fileName]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8)
+        else {
+            return
+        }
+        webView.evaluateJavaScript("window.insertComposerImage(\(Self.jsString(json)))")
     }
 
     /// Re-styles the quoted original in place without disturbing the user's typed message, the

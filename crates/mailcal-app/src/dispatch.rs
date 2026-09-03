@@ -150,10 +150,11 @@ impl<P: Provider> App<P> {
                 to,
                 cc,
                 bcc,
+                subject,
                 document,
                 blobs,
             } => {
-                self.submit_rich_reply(message, from, to, cc, bcc, document, blobs)
+                self.submit_rich_reply(message, from, to, cc, bcc, subject, document, blobs)
                     .await;
             }
             Intent::SubmitRichForward {
@@ -162,10 +163,11 @@ impl<P: Provider> App<P> {
                 to,
                 cc,
                 bcc,
+                subject,
                 document,
                 blobs,
             } => {
-                self.submit_rich_forward(message, from, to, cc, bcc, document, blobs)
+                self.submit_rich_forward(message, from, to, cc, bcc, subject, document, blobs)
                     .await;
             }
             Intent::CreateEvent {

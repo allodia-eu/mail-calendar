@@ -117,7 +117,7 @@ extension ContentView {
               compose == nil, readingKey != nil, let opened = openedMessage
         else { return }
         didShowcaseReply = true
-        beginReply(opened.account, opened.key, all: false)
+        beginReply(opened.account, opened.key, subject: opened.subject, all: false)
     }
 
     /// Opens the showcase's designated message. It is a standalone (unthreaded) message in both

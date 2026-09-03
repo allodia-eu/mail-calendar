@@ -265,6 +265,7 @@ async fn rich_reply_threads_and_carries_the_composer_html() {
         to: "reply@remote.test".to_owned(),
         cc: String::new(),
         bcc: "discreet@remote.test".to_owned(),
+        subject: None,
         document,
         blobs,
     };
@@ -319,6 +320,7 @@ async fn rich_forward_sets_fwd_subject_and_threads_on_references() {
         to: "dest@forward.test".to_owned(),
         cc: "watcher@forward.test".to_owned(),
         bcc: String::new(),
+        subject: None,
         document,
         blobs,
     };
@@ -452,6 +454,7 @@ async fn rich_reply_with_no_recipients_fails_without_sending() {
         to: String::new(),
         cc: "   ".to_owned(),
         bcc: String::new(),
+        subject: None,
         document,
         blobs,
     };
@@ -470,3 +473,7 @@ mod quote;
 // live in their own file, as a child module reusing this module's two-provider fixtures.
 #[path = "mail_ops_from_tests.rs"]
 mod from_account;
+
+// The editable-subject tests, likewise a child module on this file's fixtures.
+#[path = "mail_ops_reply_subject_tests.rs"]
+mod subject;

@@ -52,18 +52,18 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                             // core derives the Re:/Fwd: subject + threading from the original.
                             // `from` is the account picked in the composer's From dropdown; the
                             // core sends as, and through, it, defaulting to `account`.
-                            onReply = { account, key, from, recipients, documentJson, files ->
+                            onReply = { account, key, from, recipients, subject, documentJson, files ->
                                 try {
-                                    instance.submitRichReplyWithFiles(account, key, recipients, documentJson, files, from)
+                                    instance.submitRichReplyWithFiles(account, key, recipients, documentJson, files, from, subject)
                                     true
                                 } catch (e: MailcalException) {
                                     Log.w(TAG, "rich reply submit failed: ${e.javaClass.simpleName}")
                                     false
                                 }
                             },
-                            onForward = { account, key, from, recipients, documentJson, files ->
+                            onForward = { account, key, from, recipients, subject, documentJson, files ->
                                 try {
-                                    instance.submitRichForwardWithFiles(account, key, recipients, documentJson, files, from)
+                                    instance.submitRichForwardWithFiles(account, key, recipients, documentJson, files, from, subject)
                                     true
                                 } catch (e: MailcalException) {
                                     Log.w(TAG, "rich forward submit failed: ${e.javaClass.simpleName}")

@@ -8,11 +8,7 @@
 // button routes to onDismissRequest, full-screen chrome without restructuring navigation.
 package eu.allodia.mailcal
 
-import android.os.Handler
-import android.os.Looper
 import android.webkit.WebView
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +48,6 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import java.io.File
-import kotlin.concurrent.thread
 import org.json.JSONObject
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.ComposerFileAttachment
@@ -134,7 +129,10 @@ internal fun RichComposeMessageDialog(
     // the To row. Opened from the start when either arrives pre-filled, so those addresses are
     // never hidden behind a tap the user doesn't know to make.
     var showCcBcc by remember { mutableStateOf(revealsCcBcc(initialCc, initialBcc)) }
-    var prepareError by remember { mutableStateOf(false) }
+    // The one error line under the composer, which more than one failure writes to: a send that
+    // couldn't be prepared, and a dropped picture that couldn't be shown. It carries the message
+    // rather than a flag, so each failure says which one it is.
+    var composerError by remember { mutableStateOf<String?>(null) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     // The single-scroll model: the WebView owns the one scroll (so its native caret-following and
     // drag-to-scroll just work), and the address-field header is a native overlay drawn on top of
@@ -144,25 +142,13 @@ internal fun RichComposeMessageDialog(
     var scrollY by remember { mutableIntStateOf(0) }
     var headerHeightPx by remember { mutableIntStateOf(0) }
     var attachments by remember { mutableStateOf<List<PickedComposerFile>>(emptyList()) }
-    val pickAttachments = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris ->
-        if (uris.isEmpty()) {
-            return@rememberLauncherForActivityResult
-        }
-        // Copy each picked file (content resolver → app cache) off the main thread; a large
-        // selection would otherwise block the UI. Apply the result back on the main thread.
-        thread(name = "mailcal-stage-attachments") {
-            val staged = uris.mapNotNull { uri -> stageComposerFile(ctx, uri) }
-            Handler(Looper.getMainLooper()).post {
-                if (staged.isEmpty()) {
-                    prepareError = true
-                } else {
-                    attachments = attachments + staged
-                }
-            }
-        }
-    }
+    // Pictures dropped on the composer, waiting on the one question they raise. Held rather than
+    // acted on, because the answer decides whether they become body content or attachments.
+    var droppedPictures by remember { mutableStateOf<List<PickedComposerFile>>(emptyList()) }
+    val pickAttachments = rememberAttachmentPicker(
+        onStaged = { attachments = attachments + it },
+        onFailed = { composerError = L10n.compose_prepare_error(ctx) },
+    )
     // The per-message style override of the persisted default, re-styles the quoted original in
     // place without disturbing the user's typed message.
     var style by remember { mutableStateOf(quoteStyle) }
@@ -224,10 +210,10 @@ internal fun RichComposeMessageDialog(
     }
 
     val send = send@{
-        prepareError = false
+        composerError = null
         val webViewOrNull = webView
         if (webViewOrNull == null) {
-            prepareError = true
+            composerError = L10n.compose_prepare_error(ctx)
             return@send
         }
         webViewOrNull.evaluateJavascript("composerDocument()") { encoded ->
@@ -243,7 +229,7 @@ internal fun RichComposeMessageDialog(
             ) {
                 onDismiss()
             } else {
-                prepareError = true
+                composerError = L10n.compose_prepare_error(ctx)
             }
         }
     }
@@ -350,7 +336,17 @@ internal fun RichComposeMessageDialog(
                         webView?.setComposerSignature(signature)
                     }
                 }
-                Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        // A dropped file is resolved natively: web code sees a `File` with no path,
+                        // so only the host can stage it for Rust and list it for removal.
+                        .composerDropTarget { dropped ->
+                            attachments = attachments + dropped.attach
+                            droppedPictures = dropped.pictures
+                        },
+                ) {
                     // The WebView fills the surface and owns the scroll (its toolbar pins above the
                     // keyboard via position:fixed in editor.html). It reports its scroll offset so
                     // the header overlay above can track it.
@@ -415,7 +411,6 @@ internal fun RichComposeMessageDialog(
                             onBcc = { bcc = it },
                             subject = subject,
                             onSubject = { subject = it },
-                            showsSubject = mode.showsSubject,
                             showCcBcc = showCcBcc,
                             onToggleCcBcc = { showCcBcc = !showCcBcc },
                             style = style.takeIf {
@@ -438,18 +433,27 @@ internal fun RichComposeMessageDialog(
                                 File(attachment.path).delete()
                             },
                         )
-                        if (prepareError) {
+                        composerError?.let { message ->
                             Text(
-                                text = L10n.compose_prepare_error(ctx),
+                                text = message,
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.padding(bottom = 8.dp),
                             )
                         }
                     }
-                    // Inside the composer's own Dialog, so its window is created after this one and
-                    // stacks above it, and so back reaches the confirmation (keep editing) rather
-                    // than the composer underneath.
+                    // The dropped-picture question. Drawn inside the composer's own Dialog so its
+                    // window is created after this one and stacks above it, and so back reaches the
+                    // question rather than the composer under it.
+                    ComposerDroppedPictureQuestion(
+                        pictures = droppedPictures,
+                        webView = webView,
+                        onAttach = { attachments = attachments + it },
+                        onUnreadable = { composerError = L10n.compose_image_failed(ctx) },
+                        onAnswered = { droppedPictures = emptyList() },
+                    )
+                    // Inside the composer's own Dialog for the same reason, so back reaches the
+                    // confirmation (keep editing) rather than the composer underneath.
                     if (confirmingDiscard) {
                         DiscardDraftDialog(
                             onDiscard = {

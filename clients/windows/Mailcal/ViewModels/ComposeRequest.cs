@@ -33,7 +33,9 @@ namespace Allodia.Mailcal.ViewModels;
 /// which is the only case where the composer shows a style picker at all.</param>
 /// <param name="InitialBcc">The pre-filled Bcc recipients. Only an assistant's draft
 /// (docs/mcp.md) fills this, the user's own compose paths open it empty.</param>
-/// <param name="InitialSubject">The pre-filled Subject, for a kind that shows one.</param>
+/// <param name="InitialSubject">The Subject the composer opens with. Editable in every kind: a
+/// reply and a forward open with the core's derived <c>Re:</c>/<c>Fwd:</c>, and what the field
+/// holds on Send is what goes out.</param>
 /// <param name="InitialBody">A plain-text body to seed the editor with, or <c>null</c>. Mutually
 /// exclusive with <paramref name="Quote"/> in practice: an assistant's draft is a new message.</param>
 /// <param name="SeedsSignature">Whether the account's signature is seeded and the picker offered.
@@ -62,10 +64,6 @@ public sealed record ComposeRequest(
         RichComposeKind.Forward => L10n.ActionForward(),
         _ => L10n.ComposeTitleNew(),
     };
-
-    /// <summary>Only a new message edits the Subject, a reply/forward derives <c>Re:</c>/<c>Fwd:</c>
-    /// in the core, so showing an editable field would imply an override that doesn't exist.</summary>
-    public bool ShowsSubject => Kind == RichComposeKind.New;
 
     /// <summary>Whether the composer shows the per-message quote-style picker: there is a quoted
     /// original to style, and the user opted into per-message styling in Settings.</summary>

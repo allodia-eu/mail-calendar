@@ -213,3 +213,32 @@ export function documentBlocks(editor: HTMLElement): Block[] {
   collectBlocks(editor, blocks);
   return blocks.length > 0 ? blocks : [{ Paragraph: { content: [] } }];
 }
+
+/// The attachment ids the emitted blocks actually reference, so the manifest can be pruned to
+/// them (`Attachments.list`).
+///
+/// Read off the blocks rather than off the DOM: an `<img>` inside a quoted original or a
+/// signature is emitted as part of that block's raw HTML, never as an `InlineContent::Image`, and
+/// an inline attachment nothing references fails Rust's validation.
+export function referencedAttachmentIds(blocks: Block[]): Set<string> {
+  const ids = new Set<string>();
+  const fromInlines = (content: InlineContent[]) => {
+    for (const inline of content) {
+      if ("Image" in inline) ids.add(inline.Image.attachment_id);
+    }
+  };
+  const fromList = (list: ListValue) => {
+    for (const item of list.items) {
+      fromInlines(item.content);
+      if (item.child) fromList(item.child);
+    }
+  };
+  for (const block of blocks) {
+    if ("Paragraph" in block) fromInlines(block.Paragraph.content);
+    else if ("List" in block) fromList(block.List);
+    else if ("Table" in block) {
+      for (const row of block.Table.rows) for (const cell of row.cells) fromInlines(cell.content);
+    }
+  }
+  return ids;
+}

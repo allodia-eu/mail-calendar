@@ -24,9 +24,9 @@ extension ContentView {
         ReadingView(
             model: model,
             message: opened,
-            onReply: { beginReply(opened.account, opened.key, all: false) },
-            onReplyAll: { beginReply(opened.account, opened.key, all: true) },
-            onForward: { beginForward(opened.account, opened.key) },
+            onReply: { beginReply(opened.account, opened.key, subject: opened.subject, all: false) },
+            onReplyAll: { beginReply(opened.account, opened.key, subject: opened.subject, all: true) },
+            onForward: { beginForward(opened.account, opened.key, subject: opened.subject) },
             onArchive: {
                 // Chosen before the dispatch, while the row it is relative to is still on screen.
                 let next = stopAfterRemoving(opened)

@@ -13,6 +13,27 @@ use crate::{
     composer::{message_ref, send_account},
 };
 
+/// The `data:image/…;base64,…` URI for the picture at `path`, for a client to hand to the shared
+/// editor's `insertComposerImage` when the user chooses to show a dropped picture in the message
+/// rather than attach it.
+///
+/// The bytes are sniffed, never the file name: a host passes on whatever the user dropped, and an
+/// extension describes a file rather than proving it. Only the raster formats every platform
+/// decodes natively pass, and only up to the core's size cap.
+///
+/// # Errors
+///
+/// Returns [`MailcalError::Composer`] when the file is not a readable raster picture within the
+/// cap; a client then attaches it instead of showing it.
+///
+/// Reads the whole file, so call it off the thread that draws the window.
+#[uniffi::export]
+pub fn composer_image_data_url(path: String) -> Result<String, MailcalError> {
+    mailcal_app::image_data_url(std::path::Path::new(&path)).ok_or_else(|| {
+        MailcalError::Composer("the file is not a picture this app can show".to_owned())
+    })
+}
+
 /// A host-selected file to attach to a rich composer submission.
 #[derive(uniffi::Record)]
 pub struct ComposerFileAttachment {
@@ -77,7 +98,12 @@ impl MailcalApp {
 
     /// Replies with a rich composer document plus regular file attachments. `from` names the
     /// sending account (the composer's From dropdown); omit it to reply from `account`.
-    #[uniffi::method(default(from = None))]
+    /// `subject` is the composer's editable Subject field; omit it to derive `Re:`.
+    // Eight because a reply names eight things, not because two concerns are tangled: the
+    // original (account + key), the recipients, the subject, the body, its attachments, and the
+    // sending account. Bundling any of them into a record would only rename the arity.
+    #[allow(clippy::too_many_arguments)]
+    #[uniffi::method(default(from = None, subject = None))]
     pub fn submit_rich_reply_with_files(
         &self,
         account: String,
@@ -86,6 +112,7 @@ impl MailcalApp {
         document_json: String,
         files: Vec<ComposerFileAttachment>,
         from: Option<String>,
+        subject: Option<String>,
     ) -> Result<(), MailcalError> {
         let message = message_ref(&account, key)?;
         let prepared = prepare_with_files(&document_json, files)?;
@@ -98,6 +125,7 @@ impl MailcalApp {
                 to,
                 cc,
                 bcc,
+                subject,
                 document,
                 blobs,
             }
@@ -107,7 +135,12 @@ impl MailcalApp {
 
     /// Forwards with a rich composer document plus regular file attachments. `from` names the
     /// sending account (the composer's From dropdown); omit it to forward from `account`.
-    #[uniffi::method(default(from = None))]
+    /// `subject` is the composer's editable Subject field; omit it to derive `Fwd:`.
+    // Eight because a reply names eight things, not because two concerns are tangled: the
+    // original (account + key), the recipients, the subject, the body, its attachments, and the
+    // sending account. Bundling any of them into a record would only rename the arity.
+    #[allow(clippy::too_many_arguments)]
+    #[uniffi::method(default(from = None, subject = None))]
     pub fn submit_rich_forward_with_files(
         &self,
         account: String,
@@ -116,6 +149,7 @@ impl MailcalApp {
         document_json: String,
         files: Vec<ComposerFileAttachment>,
         from: Option<String>,
+        subject: Option<String>,
     ) -> Result<(), MailcalError> {
         let message = message_ref(&account, key)?;
         let prepared = prepare_with_files(&document_json, files)?;
@@ -128,6 +162,7 @@ impl MailcalApp {
                 to,
                 cc,
                 bcc,
+                subject,
                 document,
                 blobs,
             }
@@ -188,7 +223,8 @@ fn prepare_with_files(
     let mut used_handles = document
         .attachments
         .iter()
-        .map(|attachment| attachment.blob.as_str().to_owned())
+        .filter_map(|attachment| attachment.blob.as_ref())
+        .map(|blob| blob.as_str().to_owned())
         .collect::<HashSet<_>>();
     let mut pending = Vec::with_capacity(files.len());
     for file in files {
@@ -208,11 +244,12 @@ fn prepare_with_files(
         let media_type = safe_media_type(&file.media_type);
         document.attachments.push(ComposerAttachment {
             id,
-            blob: handle.clone(),
+            blob: Some(handle.clone()),
             file_name,
             media_type,
             size: Some(size),
             disposition: AttachmentDisposition::Attachment,
+            data_url: None,
         });
         pending.push(PendingFile {
             handle,
@@ -232,10 +269,16 @@ fn prepare_with_files(
         .iter()
         .chain(output.attachments.iter())
     {
-        if !supplied.contains(attachment.blob.as_str()) {
+        // An attachment with no handle carries its own bytes in the document (a pasted or
+        // dropped picture): there is nothing for this call to supply, and validation has
+        // already held it to an inline `data:image/…`.
+        let Some(blob) = attachment.blob.as_ref() else {
+            continue;
+        };
+        if !supplied.contains(blob.as_str()) {
             return Err(MailcalError::Composer(format!(
                 "missing bytes for composer blob {}",
-                attachment.blob.as_str()
+                blob.as_str()
             )));
         }
     }

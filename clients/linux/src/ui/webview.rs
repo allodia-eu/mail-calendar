@@ -4,8 +4,9 @@ use std::{cell::Cell, rc::Rc};
 
 use gtk::{gio, glib, prelude::*};
 use webkit6::{
-    NavigationPolicyDecision, NetworkSession, PolicyDecisionType, Settings, UserContentFilter,
-    UserContentFilterStore, UserContentManager, WebView, prelude::*,
+    ContextMenuAction, ContextMenuItem, NavigationPolicyDecision, NetworkSession,
+    PolicyDecisionType, Settings, UserContentFilter, UserContentFilterStore, UserContentManager,
+    WebView, prelude::*,
 };
 
 use super::{
@@ -133,6 +134,46 @@ impl SecureWebView {
     }
 }
 
+/// The composer's right-click menu, rebuilt from stock editing actions rather than shown as
+/// WebKit's own. Returning `true` suppresses the menu, which is what the reading view gets.
+///
+/// The default menu carries items this composer must not offer: opening a link (navigation is
+/// blocked), downloading one, reloading the document, and Inspect Element. So it is emptied and
+/// re-filled with the actions that make sense in a message being written.
+///
+/// **The link item is the one that has to be here.** A link inside a quoted original cannot be
+/// clicked open in the composer, so without a way to copy its address it is text the user can see
+/// and not use. Every client offers the same set; the labels are the toolkit's own, so they are
+/// already in the user's language.
+fn build_context_menu(
+    kind: DocumentKind,
+    menu: &webkit6::ContextMenu,
+    hit_test: &webkit6::HitTestResult,
+) -> bool {
+    if kind != DocumentKind::Composer {
+        return true;
+    }
+    menu.remove_all();
+    if hit_test.context_is_link() {
+        menu.append(&ContextMenuItem::from_stock_action(
+            ContextMenuAction::CopyLinkToClipboard,
+        ));
+        menu.append(&ContextMenuItem::new_separator());
+    }
+    for action in [
+        ContextMenuAction::Cut,
+        ContextMenuAction::Copy,
+        ContextMenuAction::Paste,
+    ] {
+        menu.append(&ContextMenuItem::from_stock_action(action));
+    }
+    menu.append(&ContextMenuItem::new_separator());
+    menu.append(&ContextMenuItem::from_stock_action(
+        ContextMenuAction::SelectAll,
+    ));
+    false
+}
+
 fn hardened_settings(kind: DocumentKind) -> Settings {
     let settings = Settings::new();
     settings.set_enable_javascript(kind == DocumentKind::Composer);
@@ -151,7 +192,7 @@ fn hardened_settings(kind: DocumentKind) -> Settings {
 }
 
 fn install_navigation_gates(view: &WebView, kind: DocumentKind, expecting_load: Rc<Cell<bool>>) {
-    view.connect_context_menu(|_, _, _| true);
+    view.connect_context_menu(move |_, menu, hit_test| build_context_menu(kind, menu, hit_test));
     view.connect_create(|_, _| None);
     view.connect_permission_request(|_, request| {
         request.deny();

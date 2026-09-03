@@ -21,6 +21,18 @@ internal fun WebView.setComposerSignature(body: SignatureBody?) {
     evaluateJavascript("window.setComposerSignature($argument)", null)
 }
 
+// Shows a picture at the caret. The shared editor records the inline attachment behind it and
+// carries the bytes in the document, so the core can turn it into the `cid:` part the sent body
+// points at; the same path a pasted screenshot takes, so a dropped and a pasted picture cannot
+// behave differently.
+internal fun WebView.insertComposerImage(dataUrl: String, fileName: String) {
+    val payload = JSONObject().apply {
+        put("data_url", dataUrl)
+        put("file_name", fileName)
+    }
+    evaluateJavascript("window.insertComposerImage($payload)", null)
+}
+
 // The editor's localised chrome, as a JSON object literal for setComposerLabels. Built from the
 // l10n catalog so it follows the app's UI language; the keys mirror setComposerLabels in editor.html.
 internal fun composerLabelsJson(ctx: android.content.Context): String = JSONObject().apply {
@@ -112,6 +124,7 @@ internal fun WebView.configureComposerWebView(
 ) {
     // The shared hardening (EditorWebView.kt), the same gates the Settings signature editor gets.
     applyEditorSecuritySettings()
+    installEditorLinkMenu()
     // No inner scrollbar: the page scrolls as one and the native header overlay tracks this offset.
     isVerticalScrollBarEnabled = false
     setOnScrollChangeListener { _, _, scrollYNew, _, _ -> onScroll(scrollYNew) }

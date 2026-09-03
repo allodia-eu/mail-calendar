@@ -60,6 +60,8 @@ import uniffi.mailcal_bindings.Recipients
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.RecipientSuggestion
 import uniffi.mailcal_bindings.ThreadMessage
+import uniffi.mailcal_bindings.forwardSubject
+import uniffi.mailcal_bindings.replySubject
 
 // The header context for an opened message (the row the user tapped). The body itself is
 // pulled from the core's `reading` snapshot, matched by `key`. `account` is the owning
@@ -163,6 +165,7 @@ internal fun ReadingScreen(
         key: String,
         from: String?,
         recipients: Recipients,
+        subject: String,
         documentJson: String,
         files: List<ComposerFileAttachment>,
     ) -> Boolean,
@@ -171,6 +174,7 @@ internal fun ReadingScreen(
         key: String,
         from: String?,
         recipients: Recipients,
+        subject: String,
         documentJson: String,
         files: List<ComposerFileAttachment>,
     ) -> Boolean,
@@ -435,15 +439,23 @@ internal fun ReadingScreen(
             initialFrom = message.account,
             initialTo = prefill?.to ?: "",
             initialCc = prefill?.cc ?: "",
+            // Derived by the CORE, not here: the field is editable, so what it opens with is what
+            // gets sent unless the user changes it, and a client-side "Re: " + subject differs
+            // from the core's on a reply to a reply.
+            initialSubject = if (mode == RichComposeMode.Forward) {
+                forwardSubject(message.subject)
+            } else {
+                replySubject(message.subject)
+            },
             quote = quote,
             quoteStyle = quoteSettings.style,
             quoteStylePerMessage = quoteSettings.perMessage,
             onDismiss = { composing = null },
-            onSubmitRich = { from, recipients, _, documentJson, files ->
+            onSubmitRich = { from, recipients, subject, documentJson, files ->
                 val sent = if (mode == RichComposeMode.Forward) {
-                    onForward(message.account, message.key, from, recipients, documentJson, files)
+                    onForward(message.account, message.key, from, recipients, subject, documentJson, files)
                 } else {
-                    onReply(message.account, message.key, from, recipients, documentJson, files)
+                    onReply(message.account, message.key, from, recipients, subject, documentJson, files)
                 }
                 if (sent) {
                     composing = null

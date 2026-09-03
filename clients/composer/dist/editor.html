@@ -560,6 +560,7 @@
   // src/attachments.ts
   class Attachments {
     items = [];
+    captured = 0;
     remember(attachment) {
       const index = this.items.findIndex((item) => item.id === attachment.id);
       if (index >= 0)
@@ -567,8 +568,10 @@
       else
         this.items.push(attachment);
     }
-    list() {
-      return this.items.slice();
+    list(referenced) {
+      if (!referenced)
+        return this.items.slice();
+      return this.items.filter((item) => item.disposition === "Attachment" || referenced.has(item.id));
     }
     add(meta) {
       this.remember({
@@ -598,6 +601,35 @@
       focusEditor(editor);
       insertAtCaret(editor, image);
     }
+    addCapturedImage(meta) {
+      const seq = this.captured;
+      this.captured += 1;
+      const id = `captured-${seq}`;
+      this.remember({
+        id,
+        file_name: meta.file_name || `image-${seq}${extensionFor(meta.media_type)}`,
+        media_type: meta.media_type || mediaTypeOf(meta.data_url) || "image/png",
+        size: null,
+        disposition: { Inline: { cid: mintContentId(seq) } },
+        data_url: meta.data_url
+      });
+      return id;
+    }
+  }
+  function mintContentId(seq) {
+    return `img${seq}.${Date.now()}@allodia.local`;
+  }
+  function mediaTypeOf(dataUrl) {
+    const head = dataUrl.slice(0, dataUrl.indexOf(","));
+    return head.startsWith("data:") ? head.slice("data:".length).split(";")[0] ?? "" : "";
+  }
+  function extensionFor(mediaType) {
+    const subtype = mediaType.split("/")[1] ?? "";
+    if (subtype === "jpeg")
+      return ".jpg";
+    if (subtype === "svg+xml")
+      return ".svg";
+    return /^[a-z0-9]+$/.test(subtype) ? `.${subtype}` : ".img";
   }
   function safePreviewUrl(url) {
     return typeof url === "string" && (url.startsWith("data:image/") || url.startsWith("blob:")) ? url : "";
@@ -1067,6 +1099,34 @@
     collectBlocks(editor, blocks);
     return blocks.length > 0 ? blocks : [{ Paragraph: { content: [] } }];
   }
+  function referencedAttachmentIds(blocks) {
+    const ids = new Set;
+    const fromInlines = (content) => {
+      for (const inline of content) {
+        if ("Image" in inline)
+          ids.add(inline.Image.attachment_id);
+      }
+    };
+    const fromList = (list) => {
+      for (const item of list.items) {
+        fromInlines(item.content);
+        if (item.child)
+          fromList(item.child);
+      }
+    };
+    for (const block of blocks) {
+      if ("Paragraph" in block)
+        fromInlines(block.Paragraph.content);
+      else if ("List" in block)
+        fromList(block.List);
+      else if ("Table" in block) {
+        for (const row of block.Table.rows)
+          for (const cell of row.cells)
+            fromInlines(cell.content);
+      }
+    }
+    return ids;
+  }
 
   // src/format.ts
   function exec(editor, command, value) {
@@ -1173,6 +1233,75 @@
         doc.documentElement.style.setProperty("--composer-top-inset", `${Number.isFinite(px) && px > 0 ? px : 14}px`);
       }
     };
+  }
+
+  // src/images.ts
+  var MAX_CAPTURED_BYTES = 20 * 1024 * 1024;
+  var SHOWABLE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+  function isShowableImage(mediaType) {
+    return SHOWABLE_TYPES.includes(mediaType.trim().toLowerCase().split(";")[0] ?? "");
+  }
+  function imageFilesFrom(transfer) {
+    if (!transfer)
+      return [];
+    const fromItems = showable(Array.from(transfer.items ?? []).filter((item) => item.kind === "file").map((item) => item.getAsFile()));
+    return fromItems.length > 0 ? fromItems : showable(Array.from(transfer.files ?? []));
+  }
+  function showable(candidates) {
+    return candidates.filter((file) => file !== null && isShowableImage(file.type));
+  }
+  function readImageFile(file) {
+    if (!isShowableImage(file.type) || file.size > MAX_CAPTURED_BYTES) {
+      return Promise.resolve(null);
+    }
+    return new Promise((resolve) => {
+      const reader = new FileReader;
+      reader.onerror = () => resolve(null);
+      reader.onload = () => {
+        const url = typeof reader.result === "string" ? reader.result : "";
+        resolve(isShowableImage(mediaTypeOf(url)) ? { data_url: url, file_name: file.name, media_type: file.type } : null);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  function insertCapturedImage(editor, attachments, image, saved = null) {
+    const url = String(image.data_url ?? "");
+    if (!url.startsWith("data:") || !isShowableImage(mediaTypeOf(url)))
+      return false;
+    const id = attachments.addCapturedImage({
+      data_url: url,
+      file_name: typeof image.file_name === "string" ? image.file_name : "",
+      media_type: typeof image.media_type === "string" ? image.media_type : ""
+    });
+    const node = documentOf(editor).createElement("img");
+    node.dataset.attachmentId = id;
+    node.src = url;
+    node.alt = typeof image.alt_text === "string" ? image.alt_text : "";
+    if (image.width_px)
+      node.width = Number(image.width_px);
+    focusEditor(editor);
+    restoreSelection(editor, saved);
+    caretIntoMessage(editor);
+    insertAtCaret(editor, node);
+    return true;
+  }
+  function caretIntoMessage(editor) {
+    if (rangeWithin(editor))
+      return;
+    const message = Array.from(editor.children).filter((child) => !child.classList.contains("allodia-signature") && !child.classList.contains("allodia-quote"));
+    const last = message[message.length - 1];
+    if (last)
+      caretInto(last, false);
+  }
+  async function insertImageFiles(editor, attachments, files, saved = null) {
+    let inserted = 0;
+    for (const file of files) {
+      const image = await readImageFile(file);
+      if (image && insertCapturedImage(editor, attachments, image, inserted === 0 ? saved : null)) {
+        inserted += 1;
+      }
+    }
+    return inserted;
   }
 
   // src/labels.ts
@@ -1765,6 +1894,11 @@
   var chrome = installNativeChrome(editor, toolbarRoot);
   editor.addEventListener("paste", (event) => {
     event.preventDefault();
+    const images = imageFilesFrom(event.clipboardData);
+    if (images.length > 0) {
+      insertImageFiles(editor, attachments, images, saveSelection(editor));
+      return;
+    }
     const text = event.clipboardData?.getData("text/plain") ?? "";
     doc.execCommand?.("insertText", false, text);
   });
@@ -1807,6 +1941,7 @@
   }
   window.addComposerAttachment = (meta) => attachments.add(meta);
   window.addComposerInlineImage = (meta) => attachments.addInlineImage(editor, meta);
+  window.insertComposerImage = (image) => insertCapturedImage(editor, attachments, parsed(image));
   window.setComposerQuote = (quote) => setComposerQuote(editor, parsed(quote));
   window.setComposerQuoteStyle = (style) => setComposerQuoteStyle(editor, style);
   window.setComposerSignature = (signature) => setComposerSignature(editor, signature == null ? null : parsed(signature));
@@ -1833,7 +1968,13 @@
     focusEditor(editor);
     insertAtCaret(editor, node);
   };
-  window.composerDocument = () => JSON.stringify({ blocks: documentBlocks(editor), attachments: attachments.list() });
+  window.composerDocument = () => {
+    const blocks = documentBlocks(editor);
+    return JSON.stringify({
+      blocks,
+      attachments: attachments.list(referencedAttachmentIds(blocks))
+    });
+  };
 })();
   </script>
 </body>

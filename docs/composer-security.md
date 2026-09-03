@@ -45,10 +45,15 @@ Every client sends the editor document to Rust before mail submission:
   head and inline styles, since mail clients strip `<head>`/`<style>`) plus deterministic plain text.
 - Inline images are `cid:` references only; remote image URLs are not composer body content.
 - Attachment-only images/files stay in the attachment manifest and are not rendered into the body.
-- The output is a MIME-ready manifest, not byte content. Inline-image blobs remain behind
-  host-owned handles until the host calls `submit_rich_mail` with resolved bytes. Regular native
-  file attachments use `submit_rich_*_with_files`: hosts pass selected file paths/metadata and Rust
+- The output is a MIME-ready manifest, not byte content. A host-staged file stays behind its blob
+  handle until the host calls `submit_rich_mail` with resolved bytes. Regular native file
+  attachments use `submit_rich_*_with_files`: hosts pass selected file paths/metadata and Rust
   reads the bytes locally while preparing the MIME draft, so file content does not cross FFI.
+- **One exception, and it is bounded: a picture the editor captured itself** (a paste, or the
+  "show it in the message" answer to a dropped image) has no staged file to hand a handle for, so
+  its bytes ride in the document as a base64 `data:` URI and Rust decodes them on submit. Gate 13
+  holds that shape to an inline `data:image/…` and nothing else, so this cannot become a way to put
+  arbitrary bytes in a message.
 
 ### Layer 3: Native WebView host gates
 
@@ -140,6 +145,56 @@ port:
     - **The URI is never logged.** It is message content end to end (recipients, subject, body), so a
       client records only that a mail link arrived (Gate 8 again, and `docs/logging.md`).
 
+13. **A picture may enter the body; a file may not enter it by itself.** Two things now put content
+    into a draft besides typing: a **paste** of an image, and a **drop** of files onto the composer.
+    They are answered differently, and deliberately.
+
+    - **Paste** is handled entirely in the shared bundle. An image on the clipboard becomes an
+      inline image at the caret, carrying its bytes in the document as a base64 `data:image/…` URI
+      (`mailcal_composer::DraftAttachment::data_url`); the core decodes it into the `cid:`
+      `multipart/related` part the sent body points at, the same destination a signature's logo
+      reaches. Everything else pasted stays plain text (Gate 7). One implementation, so a pasted
+      screenshot behaves identically on all four hosts.
+    - **Drop is refused by the page and handled by the host.** The editor cancels `dragover`/`drop`,
+      because web code only ever receives a `File` with no path: it could neither hand the bytes to
+      Rust for a streamed send nor put a removable row in the client's attachment list. The host
+      resolves the drop to a real path and files it as a regular attachment, exactly as its native
+      picker does. A dropped **picture** is the one case with two sensible answers, so the client
+      asks: *show it in the message* (which reads the file through the core and hands it to the
+      editor as a captured picture, the paste path again) or *send it as a file* (the ordinary
+      attachment path). A picture the core cannot read as one is attached rather than dropped.
+    - **The in-document form is narrow, and Rust holds it.** `data_url` is accepted only on an
+      **inline** attachment and only as a base64 `data:` URI of the same closed raster set a
+      dropped file is sniffed against (PNG, JPEG, GIF, WebP; **never SVG**, which is
+      script-capable); a document naming both a blob handle and a `data:` URI, or neither, is
+      rejected. The bundle refuses the same set on the clipboard, where nothing can sniff bytes, so
+      a paste and a drop admit exactly the same formats. Host-read pictures go through
+      `composer_image_data_url`, which **sniffs the bytes** (PNG/JPEG/GIF/WebP by magic number,
+      never the file name, never SVG) and holds one size cap for every client. So a document can
+      never smuggle arbitrary bytes past the host, and a mislabelled file cannot become the part an
+      `<img>` points at.
+    - **The manifest is pruned to what the body references.** `composerDocument()` emits only the
+      inline attachments the blocks actually name, so a picture the user pasted and then deleted,
+      or one that ended up inside a quoted original (which travels as HTML, not as document nodes),
+      cannot leave a dangling part that fails the send.
+
+14. **The composer's right-click menu is the editing actions and nothing else.** Every host's
+    WebView ships a default menu built for browsing, and the composer must not offer what is on it:
+    opening a link (navigation is blocked, so the item would silently do nothing), downloading one,
+    reloading the document, and the web inspector. Each host therefore **filters its own menu** down
+    to the editing actions: **Cut, Copy, Paste**, **Copy link** when the click landed on one, and
+    **Select All** where the platform's own menu carries it (Windows and Linux; macOS and the iOS
+    edit menu do not).
+
+    Filtering rather than drawing our own is deliberate: each surviving item keeps the platform's
+    label, keyboard equivalent and behaviour, so it is already in the user's language and does what
+    that platform's users expect. The bundle draws no menu of its own, and a page-level menu could
+    not reach the clipboard anyway.
+
+    **Copy link is the item that has to be there.** A link inside a quoted original cannot be
+    clicked open in the composer, so without it the address is text the user can see and cannot
+    use. It never opens anything: the link is copied, and nothing is handed to a browser.
+
 ## Per-platform implementation matrix
 
 Every row is mandatory on every column. A new platform may not ship the rich composer until every
@@ -164,6 +219,10 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | New windows blocked | no popup-opening `WKUIDelegate` path | no popup path; navigation cancelled | `NewWindowRequested.Handled = true` | `create → None`; `NewWindowAction` is ignored |
 | No arbitrary file/content access | file picking via native panel/picker only; no web file URLs; Rust reads selected paths on submit | `allowFileAccess = false`, `allowContentAccess = false`; native picker stages content to app cache; Rust reads staged paths on submit | no arbitrary file access; native picker only; Rust reads selected paths on submit | file/universal access disabled; native `GtkFileDialog` paths are passed to Rust only on submit |
 | Paste/import sanitisation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | shared editor paste rules plus Rust validation |
+| Pasted picture → inline `cid:` | shared bundle (`imageFilesFrom` + `insertCapturedImage`) | (same: shared bundle) | (same: shared bundle) | (same: shared bundle) |
+| Dropped file → native attachment | SwiftUI `dropDestination` on the composer (`ComposerDropModifier`) | Compose `dragAndDropTarget` + `requestDragAndDropPermissions`, staged to the app cache | `AllowDrop` on the composer grid, `StorageItems` from the data package | `GtkDropTarget` on the composer content, **capture** phase (the WebView installs one of its own) |
+| Dropped picture asks show-or-attach | `confirmationDialog` | Material `AlertDialog` | `ContentDialog` (three answers) | `AdwAlertDialog` |
+| Right-click menu filtered to the editing actions | macOS: `EditorWebView.willOpenMenu` keeps the four `WKMenuItemIdentifier`s; iPhone/iPad use the system edit menu and its own link menu | selection bar for Cut/Copy/Paste; `installEditorLinkMenu` adds Copy link on a long press | `ContextMenuRequested` keeps `cut`/`copy`/`paste`/`selectAll`/`copyLinkLocation` | `connect_context_menu` rebuilds it from the stock `ContextMenuAction`s |
 | Editor chrome localised | shared catalog via `setComposerLabels` (`ComposerLabels.swift`), in the composer **and** the signature editor | shared catalog via `setComposerLabels` | shared catalog via `setComposerLabels` (`ComposerLabels.cs`), in the composer **and** the signature editor | shared catalog via `setComposerLabels` |
 | Rust canonical output | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | calls `submit_rich_*_with_files`; selected files are native metadata, never WebKit uploads |
 | No body-content logging | lengths/counts only | lengths/counts only | lengths/counts only | no composer body is logged |
@@ -182,6 +241,19 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   desktop window has room to keep the header pinned, so macOS, Windows and Linux deliberately keep
   the flex/inner-scroll layout. Revisit only if a desktop composer starts feeling cramped; porting
   it is host work (a header overlay synced to the WebView scroll), not a bundle change.
+- **A pasted picture over the bundle's cap is dropped silently.** The editor carries a captured
+  picture at up to 20 MB, because base64 inflates it by a third and the whole document crosses the
+  FFI as one string; over that, the paste does nothing and there is nowhere in the editor chrome to
+  say so. A file that large is still attachable, which is the answer for one that big. The dropped
+  path has somewhere to report it and does, through the client's own prepare-error line.
+- **A picture pasted inside the quoted original ships as a `data:` URI, not a `cid:` part.** A
+  quote travels as raw HTML rather than as document nodes, so its `<img>` is never emitted as an
+  inline image and its manifest entry is pruned (which is what keeps the send working). The bytes
+  then stay in the body, and the readers that refuse `data:` images show a gap. Pasting into the
+  message itself, which is where a reply is written, is unaffected.
+- **A dropped picture is read on the main thread everywhere except Android.** Android stages and
+  reads off it; Apple, Windows and Linux read inline from the dialog's answer, which is a stall of
+  tens of milliseconds for a file within the cap and has not been worth a thread yet.
 - **Pasted text stays plain text.** Formatting from Word, Outlook or a browser is dropped on paste,
   which is the strict reading of Gate 7 rather than an oversight. Mapping pasted HTML onto the closed
   document schema is its own piece of work.
@@ -237,9 +309,10 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   a second host would have meant a second copy of them.
 - Native regular-file pickers and byte wiring now ship on Apple, Android, and Windows:
   `submit_rich_*_with_files` validates the document, appends the selected files as regular MIME
-  attachments, and reads bytes in Rust from host-selected/staged paths. Inline image insertion
-  remains a follow-up; the editor schema and original `ComposerBlob` path still support inline CID
-  images, but clients do not yet expose an inline-image picker.
+  attachments, and reads bytes in Rust from host-selected/staged paths. Inline images now reach the
+  body two ways (Gate 13): a paste, handled in the shared bundle, and the "show it in the message"
+  answer to a dropped picture. Neither is a *picker*: a toolbar button that browses for a picture
+  to insert is still outstanding, and would reuse the same `insertComposerImage` seam.
 - **`mailto:` handling ships on Android, Windows and Linux (Gate 12); Apple is ⬜.** Linux registers
   `MimeType=x-scheme-handler/mailto` in its generated desktop entry and handles both a cold launch
   and a URI forwarded to the existing GApplication instance. A link received before the first

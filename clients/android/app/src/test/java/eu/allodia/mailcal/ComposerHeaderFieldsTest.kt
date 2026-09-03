@@ -67,7 +67,6 @@ class ComposerHeaderFieldsTest {
                     onBcc = {},
                     subject = "",
                     onSubject = {},
-                    showsSubject = true,
                     showCcBcc = showCcBcc,
                     onToggleCcBcc = { showCcBcc = !showCcBcc },
                     style = style,
