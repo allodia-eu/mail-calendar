@@ -83,14 +83,14 @@ impl AppModel {
             }
             AppInput::SurfaceChanged(surface) => {
                 let collect_new_mail = matches!(surface, Surface::MailboxList);
-                let contacts_arrived = matches!(surface, Surface::Contacts);
                 self.pull(&surface);
                 if collect_new_mail {
                     sender.input_sender().emit(AppInput::CollectNewMail);
                 }
                 // Once the rows exist, and not before: the hook names a person, and the list is
                 // filled asynchronously after the surface is entered.
-                if contacts_arrived {
+                #[cfg(any(debug_assertions, feature = "dev-harness"))]
+                if matches!(surface, Surface::Contacts) {
                     self.apply_debug_open_contact_hook(sender.input_sender().clone());
                 }
             }
