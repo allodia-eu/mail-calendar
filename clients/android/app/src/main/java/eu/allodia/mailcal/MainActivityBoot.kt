@@ -57,6 +57,12 @@ internal fun MainActivity.prepareBoot(): MainActivityBootPlan {
         // A cold start from a tapped mail link (`mailto:`). Assigned directly rather than through
         // openMailLink(): nothing is on screen yet to clear.
         pendingMailto = mailLinkPrefill(intent)
+        // A cold start from a share. Unlike the mail link this cannot be assigned directly: the
+        // files have to be copied out of the sending app first, so it lands later, through the
+        // same path a share arriving at a running app takes.
+        if (ShareLaunch.carriesShare(intent?.action)) {
+            openShare(intent!!)
+        }
 
         // Resolve every stored account's config from the OS secure store and connect them all
         // over one engine. With nothing stored yet (first run) the app comes up account-less
@@ -164,6 +170,61 @@ internal fun MainActivity.openMailLink(prefill: MailtoPrefill) {
     showingSettings = false
     destination = AppDestination.MAIL
     pendingMailto = prefill
+}
+
+// What a launch delivered to the already-running activity means, in the order the answers exclude
+// each other. Each branch returns, so an intent is acted on once.
+//
+// Order matters where two could match. A notification tap is checked first because it names a
+// message outright; a mail link before a share, because a `mailto:` is not a file and the share
+// branch must never see one; the OAuth redirects last, since they are the only ones dispatched on
+// the URI's scheme and every earlier branch has already declined.
+internal fun MainActivity.routeNewIntent(intent: AndroidIntent) {
+    // A notification tap while the app is already running: open the message immediately if the
+    // Rust app is ready, otherwise queue it for the connect() drain.
+    notificationDeepLink(intent)?.let { (accountId, messageKey) ->
+        val current = app
+        if (current != null) {
+            openMessageByKey(current, accountId, messageKey)
+        } else {
+            pendingNotificationOpen = Pair(accountId, messageKey)
+        }
+        return
+    }
+    mailLinkPrefill(intent)?.let { prefill ->
+        openMailLink(prefill)
+        return
+    }
+    // A share: staging its files is asynchronous, so this returns straight away and the composer
+    // opens when openShare's callback lands.
+    if (ShareLaunch.carriesShare(intent.action)) {
+        openShare(intent)
+        return
+    }
+    val data = intent.data ?: return
+    completeOAuthRedirect(data)
+}
+
+// Opens a composer for what another app shared, once its files have been copied out of the
+// sending app's provider. A share carrying nothing usable is ignored rather than answered with a
+// blank composer over whatever the user was doing: they asked to send *those files*.
+//
+// The surfaces are cleared exactly as a mail link clears them, and for the same reason: a composer
+// mounted behind Settings or the calendar looks like the share did nothing. `homeDestination` is
+// left alone, so system back still walks down to the floor the user picked.
+internal fun MainActivity.openShare(intent: AndroidIntent) {
+    readShare(this, intent) { prefill ->
+        if (prefill.isEmpty) {
+            logUiInfo("share carried nothing to open a composer with")
+            return@readShare
+        }
+        openedMessage = null
+        openedConversation = null
+        showingDiagnostics = false
+        showingSettings = false
+        destination = AppDestination.MAIL
+        pendingShare = prefill
+    }
 }
 
 // Extracts a notification deep-link from an intent, or returns null if the intent was not

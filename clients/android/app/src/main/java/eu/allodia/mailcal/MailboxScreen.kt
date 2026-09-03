@@ -52,6 +52,7 @@ import uniffi.mailcal_bindings.RecipientSuggestion
 import uniffi.mailcal_bindings.Recipients
 import uniffi.mailcal_bindings.SendStatus
 import uniffi.mailcal_bindings.SearchHorizon
+import uniffi.mailcal_bindings.SharePrefill
 import uniffi.mailcal_bindings.SnapshotRow
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
@@ -147,6 +148,10 @@ internal fun MailboxScreen(
     // closes, so the link is spent and does not re-open on the next recomposition.
     mailtoPrefill: MailtoPrefill? = null,
     onMailtoConsumed: () -> Unit = {},
+    // A share another app handed us, its files already staged and named by the shared core:
+    // non-null opens the composer holding them. Spent on the same terms as a mail link.
+    sharePrefill: SharePrefill? = null,
+    onShareConsumed: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -157,6 +162,21 @@ internal fun MailboxScreen(
     // honest outcome, and the link stays pending until that composer closes.
     LaunchedEffect(mailtoPrefill) {
         if (mailtoPrefill != null && !showingCompose) {
+            showingCompose = true
+        }
+    }
+    // A share opens the composer on exactly the same terms, including leaving an open draft
+    // alone: the files stay pending until that composer closes, which is why `showingCompose`
+    // is a key here, the effect has to run again when it does.
+    //
+    // `composerHoldsShare` is what stops the wait from becoming a loss. Only the composer that
+    // was opened FOR a share may seed itself from it or spend it; one that was already up when
+    // the share arrived neither takes the files (it would replace what the user had picked) nor
+    // clears them on its own dismissal (the share would vanish having attached nothing).
+    var composerHoldsShare by remember { mutableStateOf(false) }
+    LaunchedEffect(sharePrefill, showingCompose) {
+        if (sharePrefill != null && !showingCompose) {
+            composerHoldsShare = true
             showingCompose = true
         }
     }
@@ -410,6 +430,8 @@ internal fun MailboxScreen(
     }
 
     if (showingCompose) {
+        // Null unless this composer was opened for the share: see `composerHoldsShare` above.
+        val share = sharePrefill?.takeIf { composerHoldsShare }
         RichComposeMessageDialog(
             suggestionsFor = suggestionsFor,
             signatures = signatures,
@@ -421,14 +443,24 @@ internal fun MailboxScreen(
             initialFrom = selectedAccount ?: defaultSendAccount,
             // Empty for the FAB's blank composer; a mail link fills what it named. The core has
             // already dropped every header a link may not set.
-            initialTo = mailtoPrefill?.to.orEmpty(),
-            initialCc = mailtoPrefill?.cc.orEmpty(),
-            initialBcc = mailtoPrefill?.bcc.orEmpty(),
-            initialSubject = mailtoPrefill?.subject.orEmpty(),
-            initialBody = mailtoPrefill?.body.orEmpty(),
+            initialTo = mailtoPrefill?.to.orEmpty().ifEmpty { share?.to.orEmpty() },
+            initialCc = mailtoPrefill?.cc.orEmpty().ifEmpty { share?.cc.orEmpty() },
+            initialBcc = mailtoPrefill?.bcc.orEmpty().ifEmpty { share?.bcc.orEmpty() },
+            initialSubject = mailtoPrefill?.subject.orEmpty()
+                .ifEmpty { share?.subject.orEmpty() },
+            initialBody = mailtoPrefill?.body.orEmpty().ifEmpty { share?.body.orEmpty() },
+            // The one thing no other route supplies: a composer that opens already holding
+            // files. Their names and media types are the core's answers, not this client's.
+            initialAttachments = share?.attachments.orEmpty(),
             onDismiss = {
                 showingCompose = false
                 onMailtoConsumed()
+                // Only the composer opened for the share spends it; one that was already up
+                // leaves it pending, and the effect above opens it now that this has closed.
+                if (composerHoldsShare) {
+                    composerHoldsShare = false
+                    onShareConsumed()
+                }
             },
             onSubmitRich = onSubmitRich,
         )

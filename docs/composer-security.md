@@ -201,7 +201,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | `mailto:` link decoded by the core, never the client | ⬜ not yet registered as a mail-link handler | `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` → `parseMailtoUri` (`MailtoLaunch` gates action + scheme so an OAuth redirect is never mistaken for a link) | MSIX `windows.protocol` `mailto` → `ParseMailtoUri` (`MailLink` gates the scheme, for the same reason; the URI reaches the core as `OriginalString`, still percent-encoded) | desktop `MimeType=x-scheme-handler/mailto` + raw GApplication command-line activation → `parse_mailto_uri`; cold and redirected warm activations share one broker path |
 | `Cc`/`Bcc` collapsed by default, revealed when pre-filled | `revealsCcBcc(cc:bcc:)` seeds `showsCcBcc`; held by a `MailcalUITests` case | `revealsCcBcc(cc, bcc)` opens the row; held by a JVM test | `RecipientTokens.RevealsCcBcc` sets the chevron's `IsChecked`; the rule is held by `Mailcal.Tests` and the collapse itself by a UI test that asks the running window for the fields, plus the mail-link suite that reads the pre-filled pills off it | `reveals_cc_bcc` sets the chevron; held by the crate's GTK test, which reads the row's visibility off the widget |
 | `mailto:` body seeded as text | n/a | `window.setPlainText` (shared editor) assigns one paragraph per line via `textContent` | (same: shared editor, the same call the assistant-draft path uses) | (same: shared editor; the body is JSON-encoded data, never script) |
-| Shared files named and typed by the core (Gate 13) | ⬜ no share target registered | ⬜ no `ACTION_SEND` filter yet (`MailtoLaunchTest` asserts one is not a *mail link*, which stays true) | ⬜ no `windows.shareTarget` extension | desktop `MimeType=` + `%U` and `--attach` → `prefill_from_share`; the composer opens holding `ComposeRequest::files` |
+| Shared files named and typed by the core (Gate 13) | ⬜ no share target registered | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` → `prefillFromShare`; `ShareLaunch` gates the action, the bytes are copied out of the sender's provider into app cache first | ⬜ no `windows.shareTarget` extension | desktop `MimeType=` + `%U` and `--attach` → `prefill_from_share`; the composer opens holding `ComposeRequest::files` |
 
 ## Known gaps / follow-ups
 
@@ -284,13 +284,13 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   question on, and it has had one since the composer's back-button guard landed. Neither behaviour
   can lose written work, which is why this is a follow-up rather than a defect, but a click that
   silently does nothing is the weaker of the two, so Android should adopt the prompt.
-- **Sharing *into* the app (Gate 13) ships on Linux only.** `prefill_from_share` decodes a share,
+- **Sharing *into* the app (Gate 13) ships on Android and Linux.** `prefill_from_share` decodes a share,
   names and types its files and reports what it refused, with suites in `mailcal-composer`,
-  `mailcal-bindings` and the Linux crate. What is missing elsewhere is the registration and the
-  wiring (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`, a Share Extension, `windows.shareTarget`), plus
-  the structural change Linux has already made and the other three have not: **a compose-request
-  type that carries attachments**, without which the composer's list can only be filled by its own
-  picker. [`os-integration.md`](os-integration.md) has the per-platform state.
+  `mailcal-bindings`, the Linux crate and the Android JVM suite. What is missing on Apple and
+  Windows is the registration and the wiring (a Share Extension, `windows.shareTarget`), plus the
+  structural change the other two have made and they have not: **a composer that can be seeded
+  with attachments**, without which its list can only be filled by its own picker.
+  [`os-integration.md`](os-integration.md) has the per-platform state.
 - Linux hosts the same editor inline in its detail column for new mail, reply, reply-all,
   and forward, with native attachment picking and the shared Rust submission methods. The
   optional per-message quote-style picker is still outstanding; until then Linux seeds the style

@@ -453,6 +453,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // recomposition.
                             mailtoPrefill = pendingMailto,
                             onMailtoConsumed = { pendingMailto = null },
+                            sharePrefill = pendingShare,
+                            onShareConsumed = { pendingShare = null },
                             )
                             } // FolderDrawerScaffold
                           }

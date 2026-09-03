@@ -33,6 +33,20 @@ internal data class PickedComposerFile(
         get() = ComposerFileAttachment(path, fileName, mediaType)
 }
 
+// One attachment a share seeded, as the composer's list holds it.
+//
+// The name and media type come straight from the core and are not touched: it has already taken
+// the final path component, dropped what could break a header or disguise an extension, and
+// answered the media type. Only the row id is minted here, because the list needs one to remove
+// a row by.
+internal fun seededComposerFile(file: ComposerFileAttachment): PickedComposerFile =
+    PickedComposerFile(
+        id = UUID.randomUUID().toString(),
+        path = file.path,
+        fileName = file.fileName,
+        mediaType = file.mediaType,
+    )
+
 internal fun stageComposerFile(ctx: Context, uri: Uri): PickedComposerFile? {
     val name = displayName(ctx, uri)
     val type = mediaType(ctx, uri, name)

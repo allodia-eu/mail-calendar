@@ -89,6 +89,11 @@ internal fun RichComposeMessageDialog(
     // as text, never markup (docs/composer-security.md, Gate 12), with the caret left after it
     // so the user writes on from there.
     initialBody: String = "",
+    // Files the composer opens already holding, from a share (docs/os-integration.md). Each is
+    // the shared core's answer about one shared item, name and media type included, so this list
+    // is displayed as given and never re-derived here. Removable like any picked file: a share
+    // proposes an attachment, it does not impose one.
+    initialAttachments: List<ComposerFileAttachment> = emptyList(),
     // The quoted-original seed (a `Block::Quote`-shaped JSON) injected once the editor finishes
     // loading, or null for a new message / a reply with no body loaded; `quoteStyle` is the app
     // default the quote is seeded with.
@@ -143,7 +148,12 @@ internal fun RichComposeMessageDialog(
     // so the text starts just below the overlay and the two move in lockstep.
     var scrollY by remember { mutableIntStateOf(0) }
     var headerHeightPx by remember { mutableIntStateOf(0) }
-    var attachments by remember { mutableStateOf<List<PickedComposerFile>>(emptyList()) }
+    // Seeded once, from a share; every other route opens with nothing and fills this from the
+    // picker below. Deliberately NOT keyed on the seed: the dialog leaves composition when the
+    // composer closes, so the next one reseeds from whatever it is opened with anyway, while a
+    // key would let a share arriving over an OPEN composer replace the files the user had
+    // picked. A share reaching a busy composer waits (MailboxScreen), it does not overwrite.
+    var attachments by remember { mutableStateOf(initialAttachments.map(::seededComposerFile)) }
     val pickAttachments = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->

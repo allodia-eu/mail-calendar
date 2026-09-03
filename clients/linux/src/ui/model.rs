@@ -175,7 +175,7 @@ impl ReadingState {
     /// Whether the opened message's *body* has arrived, not merely its key. The core publishes a
     /// reading surface as soon as the selection changes, so a snapshot can carry the right key with
     /// neither body part filled in; and everything that seeds a composer from the body
-    /// ([`super::quote_seed`]) yields nothing at that point.
+    /// ([`super::composer_model::quote_seed`]) yields nothing at that point.
     ///
     /// Only showcase mode waits on this, so it is compiled out of a release build with the rest of
     /// that path.
