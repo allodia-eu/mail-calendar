@@ -42,6 +42,7 @@ class AccountSetupShowcaseSeedTest {
             incoming = DetectedServerRow("IMAP", "imap.$domain", 993u, "SSL/TLS", email),
             outgoing = DetectedServerRow("SMTP", "smtp.$domain", 465u, "SSL/TLS", email),
             caldavUrl = if (trusted) "https://dav.$domain/" else null,
+            oauthIssuer = null,
             isTrusted = trusted,
             source = "autoconfig",
         )

@@ -109,6 +109,26 @@ ensure_starttls_listener() { # create-key  name  bind  protocol
   log "created STARTTLS listener $2 ($3, $4)"
 }
 
+# Open OAuth client registration (RFC 7591). Stalwart defaults it off, so a client that
+# has never met this server cannot mint a client id and the whole discovered sign-in path
+# is unreachable against the harness. The setting needs a restart to take effect, so this
+# reports whether it changed anything and the caller restarts once for all of them.
+#
+# Off is the right default for a real deployment and wrong for a fixture: this server exists
+# to be met by clients that have never seen it, on loopback, with throwaway accounts.
+ensure_anonymous_registration() {
+  current=$(jmap '["x:OidcProvider/get",{"ids":["singleton"],"properties":["anonymousClientRegistration"]},"c0"]')
+  case "$current" in
+    *'"anonymousClientRegistration":true'*)
+      log "open client registration already enabled"
+      return 0
+      ;;
+  esac
+  jmap '["x:OidcProvider/set",{"update":{"singleton":{"anonymousClientRegistration":true}}},"c0"]' >/dev/null
+  CREATED_LISTENER=1
+  log "enabled open OAuth client registration"
+}
+
 trap 'stop_server; exit 0' TERM INT
 
 rm -f "$MARKER"
@@ -143,8 +163,9 @@ ensure_account bob "Bob Tester" "${HARNESS_BOB_PW:-harness-bob-pw}"
 CREATED_LISTENER=0
 ensure_starttls_listener imapstarttls imap "[::]:143" imap
 ensure_starttls_listener submission submission "[::]:587" smtp
+ensure_anonymous_registration
 if [ "$CREATED_LISTENER" = 1 ]; then
-  log "restarting to bind the new STARTTLS listeners"
+  log "restarting to apply the new listeners and settings"
   stop_server
   start_server
   wait_http

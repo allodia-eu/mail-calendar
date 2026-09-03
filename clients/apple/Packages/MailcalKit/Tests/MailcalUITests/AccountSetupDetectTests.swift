@@ -35,6 +35,7 @@ struct AccountSetupDetectTests {
                 )
                 : nil,
             caldavUrl: caldavURL,
+            oauthIssuer: nil,
             isTrusted: isTrusted,
             source: "https://autoconfig.example.com/mail/config-v1.1.xml"
         )

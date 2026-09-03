@@ -31,6 +31,11 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     super::setup_manual_tests::required_phases_swap_content_instead_of_stacking(&window);
     an_oauth_route_never_asks_for_a_password(&window);
     a_detected_imap_card_confirms_servers_rather_than_asking_for_them(&window);
+    super::setup_signin_tests::a_detected_imap_card_shows_no_credential_until_the_server_answers(
+        &window,
+    );
+    super::setup_signin_tests::a_provider_offering_sign_in_leads_with_it(&window);
+    super::setup_signin_tests::a_provider_that_only_admits_registered_apps_says_so(&window);
     an_untrusted_card_holds_connect_until_it_is_approved(&window);
     super::setup_manual_tests::the_manual_form_switches_account_type(&window);
     super::setup_manual_tests::a_miss_explains_itself_on_the_manual_form(&window);
@@ -165,6 +170,7 @@ fn a_detected_imap_card_confirms_servers_rather_than_asking_for_them(
     state.open(false);
     state.show_form(recommendation_form(
         SetupRecommendation::Imap {
+            oauth_issuer: None,
             email: "alice@example.test".to_owned(),
             imap_host: "imap.example.test:993".to_owned(),
             smtp_host: Some("smtp.example.test:465".to_owned()),
@@ -178,6 +184,11 @@ fn a_detected_imap_card_confirms_servers_rather_than_asking_for_them(
         },
         String::new(),
     ));
+    super::setup_signin_tests::answer_password(
+        &mut state,
+        "alice@example.test",
+        "imap.example.test:993",
+    );
     setup.render(&state, window, &sender);
     let child = setup
         .current_window()
@@ -211,6 +222,7 @@ fn a_detected_imap_card_confirms_servers_rather_than_asking_for_them(
     // calendar the account has and we failed to fill in.
     state.show_form(recommendation_form(
         SetupRecommendation::Imap {
+            oauth_issuer: None,
             email: "alice@example.test".to_owned(),
             imap_host: "imap.example.test:993".to_owned(),
             smtp_host: None,
@@ -224,6 +236,11 @@ fn a_detected_imap_card_confirms_servers_rather_than_asking_for_them(
         },
         String::new(),
     ));
+    super::setup_signin_tests::answer_password(
+        &mut state,
+        "alice@example.test",
+        "imap.example.test:993",
+    );
     setup.render(&state, window, &sender);
     let child = setup
         .current_window()
@@ -260,6 +277,7 @@ fn an_untrusted_card_holds_connect_until_it_is_approved(window: &adw::Applicatio
     state.open(false);
     state.show_form(recommendation_form(
         SetupRecommendation::Imap {
+            oauth_issuer: None,
             email: "alice@example.test".to_owned(),
             imap_host: "imap.example.test:993".to_owned(),
             smtp_host: None,
@@ -273,6 +291,11 @@ fn an_untrusted_card_holds_connect_until_it_is_approved(window: &adw::Applicatio
         },
         String::new(),
     ));
+    super::setup_signin_tests::answer_password(
+        &mut state,
+        "alice@example.test",
+        "imap.example.test:993",
+    );
     setup.render(&state, window, &sender);
     let child = setup
         .current_window()

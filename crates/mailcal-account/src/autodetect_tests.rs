@@ -54,6 +54,7 @@ fn mail_with_caldav(
         is_trusted: true,
         source: source(),
         caldav_url,
+        oauth_issuer: None,
     })
 }
 
@@ -322,7 +323,11 @@ fn a_non_standard_starttls_port_is_kept_in_the_host_field() {
 }
 
 #[test]
-fn an_oauth_only_non_microsoft_provider_routes_to_manual() {
+fn an_oauth_only_provider_routes_to_the_imap_form_now_that_imap_can_sign_in() {
+    // This used to be the "OAuth-only provider" dead end, and stopped being one when IMAP
+    // gained OAuth: filtering such a server out would hide the sign-in route from exactly the
+    // providers that require it. What the document claims is a routing hint; which credential
+    // is asked for is settled against the live server (`crate::imap_auth`).
     let detected = mail(
         vec![server(
             "imap.example.com",
@@ -332,12 +337,31 @@ fn an_oauth_only_non_microsoft_provider_routes_to_manual() {
         )],
         vec![tls_password("smtp.example.com", 465)],
     );
-    assert_eq!(
-        recommend(EMAIL, detected),
-        SetupRecommendation::Manual {
-            reason: MissReason::OauthOnlyProvider
-        }
-    );
+    let SetupRecommendation::Imap { imap_host, .. } = recommend(EMAIL, detected) else {
+        panic!("expected imap");
+    };
+    assert_eq!(imap_host, "imap.example.com");
+}
+
+#[test]
+fn the_issuer_a_provider_named_for_itself_reaches_the_setup_form() {
+    // Detection is where the autoconfig document is read, and the setup decision is where the
+    // issuer is used. A value dropped in between means the well-known probe runs for a
+    // provider that already told us the answer, and a provider whose authorization server
+    // lives on another domain is never offered sign-in at all.
+    let Detected::Mail(mut settings) = mail(
+        vec![tls_password("imap.example.com", 993)],
+        vec![tls_password("smtp.example.com", 465)],
+    ) else {
+        panic!("expected mail settings");
+    };
+    settings.oauth_issuer = Some("https://login.example.com".to_owned());
+
+    let SetupRecommendation::Imap { oauth_issuer, .. } = recommend(EMAIL, Detected::Mail(settings))
+    else {
+        panic!("expected imap");
+    };
+    assert_eq!(oauth_issuer.as_deref(), Some("https://login.example.com"));
 }
 
 #[test]

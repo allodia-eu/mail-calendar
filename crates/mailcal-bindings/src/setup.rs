@@ -75,7 +75,7 @@ pub fn account_config_toml(setup: AccountSetup) -> Result<String, MailcalError> 
     let input = mailcal_account::AccountSetup {
         imap_host: setup.imap_host,
         username: setup.username,
-        password: setup.password,
+        credential: mailcal_account::SetupCredential::Password(setup.password),
         smtp_host: setup.smtp_host,
         caldav_base_url: setup.caldav_base_url,
         imap_security: setup.imap_security.map(Into::into).unwrap_or_default(),

@@ -59,6 +59,9 @@ pub(crate) async fn run(
     .await;
 
     StrategyOutcome::Mail(DetectedMailSettings {
+        // An SRV record names hosts, not an authorization server: there is no document here
+        // for a provider to describe itself in.
+        oauth_issuer: None,
         incoming: vec![incoming],
         outgoing: outgoing.into_iter().collect(),
         // Trusted: SRV names servers the engine validates the certificate of on every connect

@@ -41,6 +41,7 @@ pub(super) struct HostTasks {
     pub(super) google: AttemptSlot,
     pub(super) microsoft: AttemptSlot,
     pub(super) jmap: AttemptSlot,
+    pub(super) imap: AttemptSlot,
     pub(super) allodia: AttemptSlot,
     jmap_loopback: Option<OAuthLoopback>,
 }
@@ -122,14 +123,17 @@ impl HostTasks {
             google: AttemptSlot::empty(),
             microsoft: AttemptSlot::empty(),
             jmap: AttemptSlot::empty(),
+            imap: AttemptSlot::empty(),
             allodia: AttemptSlot::empty(),
             jmap_loopback: None,
         }
     }
 
-    /// One redirect URI for every JMAP attempt in this process, so a retry reuses the core's
-    /// dynamic-registration cache instead of registering this install again.
-    pub(super) fn jmap_loopback(&mut self) -> std::io::Result<OAuthLoopback> {
+    /// One redirect URI for every discovered sign-in in this process, JMAP and IMAP alike, so
+    /// a retry reuses the core's dynamic-registration cache instead of registering this
+    /// install again. The listener is protocol-neutral: it binds a loopback port and reads one
+    /// redirect off it, and only one sign-in is ever in flight.
+    pub(super) fn oauth_loopback(&mut self) -> std::io::Result<OAuthLoopback> {
         if self.jmap_loopback.is_none() {
             self.jmap_loopback = Some(OAuthLoopback::bind()?);
         }
@@ -141,7 +145,7 @@ impl HostTasks {
 
     /// Returns the listener named by an existing JMAP grant. A cold launch has to rebind its
     /// registered port; a same-process repair reuses the listener already retaining that port.
-    pub(super) fn jmap_loopback_for_redirect(
+    pub(super) fn oauth_loopback_for_redirect(
         &mut self,
         redirect_uri: &str,
     ) -> std::io::Result<OAuthLoopback> {
@@ -365,8 +369,8 @@ mod tests {
     #[test]
     fn jmap_retries_keep_one_redirect_for_dynamic_registration_cache_reuse() {
         let mut state = HostTasks::new(false, false);
-        let first = state.jmap_loopback().expect("first listener");
-        let second = state.jmap_loopback().expect("cloned listener");
+        let first = state.oauth_loopback().expect("first listener");
+        let second = state.oauth_loopback().expect("cloned listener");
 
         assert_eq!(first.redirect_uri(), second.redirect_uri());
     }
@@ -374,9 +378,9 @@ mod tests {
     #[test]
     fn jmap_reauthentication_reuses_the_registered_redirect() {
         let mut state = HostTasks::new(false, false);
-        let original = state.jmap_loopback().expect("original listener");
+        let original = state.oauth_loopback().expect("original listener");
         let rebound = state
-            .jmap_loopback_for_redirect(&original.redirect_uri())
+            .oauth_loopback_for_redirect(&original.redirect_uri())
             .expect("reuse registered listener");
 
         assert_eq!(original.redirect_uri(), rebound.redirect_uri());

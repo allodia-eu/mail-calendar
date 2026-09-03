@@ -5,7 +5,20 @@
 //! server name is derived from the host, so users never type ports or a separate "server
 //! name". Credentials go straight into the stored TOML; never a plaintext seed file.
 
-use crate::{ConfigError, ConnectionSecurity};
+use crate::{ConfigError, ConnectionSecurity, OAuthGrant};
+
+/// What the account will authenticate with, from the screen that collected it.
+///
+/// The two are alternatives rather than a preference: a setup screen offers whichever the
+/// server said it accepts (`crate::imap_auth`), so by the time anything reaches here the
+/// choice is already made.
+#[derive(Debug, Clone)]
+pub enum SetupCredential {
+    /// A password or app-specific password, typed into the form.
+    Password(String),
+    /// An OAuth grant, from a completed browser sign-in.
+    Grant(Box<OAuthGrant>),
+}
 
 /// The fields a host collects in its account-setup UI, so it can build a config
 /// without a plaintext seed file: the host serializes this with [`build_config_toml`]
@@ -21,8 +34,8 @@ pub struct AccountSetup {
     pub imap_host: String,
     /// Login username (the full email address).
     pub username: String,
-    /// Login password (or app-specific password).
-    pub password: String,
+    /// What the account authenticates with: a typed password, or a completed sign-in.
+    pub credential: SetupCredential,
     /// SMTP server (host or `host:port`), if mail-send is configured.
     pub smtp_host: Option<String>,
     /// CalDAV base URL, if calendar sync is configured.
@@ -115,7 +128,7 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
     if setup.username.trim().is_empty() {
         return Err(ConfigError::Incomplete("username"));
     }
-    if setup.password.is_empty() {
+    if matches!(&setup.credential, SetupCredential::Password(password) if password.is_empty()) {
         return Err(ConfigError::Incomplete("password"));
     }
 
@@ -128,9 +141,30 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
     imap.insert("addr".into(), imap_addr.into());
     imap.insert("server_name".into(), imap_name.into());
     imap.insert("username".into(), username.into());
-    imap.insert("password".into(), setup.password.clone().into());
+    match &setup.credential {
+        SetupCredential::Password(password) => {
+            imap.insert("password".into(), password.clone().into());
+        }
+        // Written after the scalar keys: a TOML table must not be followed by keys belonging
+        // to its parent, and `toml` emits a map's entries in the order it finds them.
+        SetupCredential::Grant(grant) => {
+            insert_security(&mut imap, setup.imap_security);
+            imap.insert("oauth".into(), grant.to_table().into());
+            return finish(imap, setup, username);
+        }
+    }
     insert_security(&mut imap, setup.imap_security);
 
+    finish(imap, setup, username)
+}
+
+/// Adds the optional SMTP and CalDAV sections to a built `[imap]` table and serializes.
+///
+/// The calendar reuses the mail credential, which for a grant means it stores **no** secret
+/// of its own: the bearer token is minted per connect from the same grant
+/// (`crate::caldav_credentials`). Writing a password there for an OAuth account would leave a
+/// stored secret that nothing ever presents.
+fn finish(imap: toml::Table, setup: &AccountSetup, username: &str) -> Result<String, ConfigError> {
     let mut root = toml::Table::new();
     root.insert("imap".into(), imap.into());
 
@@ -150,7 +184,9 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
         let mut caldav = toml::Table::new();
         caldav.insert("base_url".into(), normalize_caldav_base_url(url).into());
         caldav.insert("username".into(), username.into());
-        caldav.insert("password".into(), setup.password.clone().into());
+        if let SetupCredential::Password(password) = &setup.credential {
+            caldav.insert("password".into(), password.clone().into());
+        }
         root.insert("caldav".into(), caldav.into());
     }
     Ok(toml::to_string(&root)?)
@@ -167,7 +203,7 @@ mod tests {
             imap_host: "imap.example.net".to_owned(),
             username: "me@example.net".to_owned(),
             // A password with TOML-special characters exercises the serializer's escaping.
-            password: "p@ss\"with'quotes\\and=signs".to_owned(),
+            credential: SetupCredential::Password("p@ss\"with'quotes\\and=signs".to_owned()),
             smtp_host: Some("smtp.example.net".to_owned()),
             caldav_base_url: Some("https://dav.example.net".to_owned()),
             imap_security: ConnectionSecurity::ImplicitTls,
@@ -273,7 +309,7 @@ mod tests {
     #[test]
     fn build_config_toml_rejects_a_missing_required_field() {
         let mut setup = full_setup();
-        setup.password = String::new();
+        setup.credential = SetupCredential::Password(String::new());
         assert!(matches!(
             build_config_toml(&setup),
             Err(ConfigError::Incomplete("password"))

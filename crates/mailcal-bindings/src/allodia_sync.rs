@@ -185,6 +185,9 @@ fn imap_route(offer: AllodiaAccountOffer) -> SetupRecommendation {
     // Submission needs both halves to be routable; one without the other is not a server.
     let smtp = offer.smtp_host.zip(offer.smtp_port);
     SetupRecommendation::Imap {
+        // A restored account is described by what it was, not by a fresh detection: nothing
+        // here re-read an autoconfig document, so no issuer was named.
+        oauth_issuer: None,
         imap_host: host_with_port(&host, port, 993),
         smtp_host: smtp
             .as_ref()

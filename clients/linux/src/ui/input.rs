@@ -3,8 +3,8 @@
 use std::{fmt, path::PathBuf};
 
 use mailcal_bindings::{
-    AgentDraft, ContactDetail, ContactEdit, ContactTarget, Intent, MailtoPrefill, SearchScope,
-    SetupRecommendation, Surface,
+    AgentDraft, ContactDetail, ContactEdit, ContactTarget, ImapAuthOffer, Intent, MailtoPrefill,
+    SearchScope, SetupRecommendation, Surface,
 };
 
 use super::{
@@ -15,13 +15,14 @@ use super::{
     contacts::EditTarget,
     folder_pane::SidebarTarget,
     google::GoogleOutcome,
+    imap_signin::{ImapOutcome, ImapPrepared},
     invitation::InvitationAnswer,
     jmap::{JmapOutcome, JmapPrepared, JmapReauthOutcome, JmapReauthPrepared},
     mail_actions::{ActionKind, MailActionRequest, MessageTarget},
     mailbox::ThreadKey,
     microsoft::MicrosoftOutcome,
     model::OpenedMessage,
-    setup_model::{AccountSubmission, ManualForm},
+    setup_model::{AccountSubmission, ImapForm, ManualForm},
 };
 
 pub(crate) enum AppInput {
@@ -171,6 +172,17 @@ pub(crate) enum AppInput {
     MicrosoftCallbackReceived(u64),
     MicrosoftFinished(u64, MicrosoftOutcome),
     StartJmapLogin(String, String),
+    ProbeManualImapSignIn(Box<ManualForm>),
+    ImapAuthAnswered {
+        email: String,
+        imap_host: String,
+        offer: Box<ImapAuthOffer>,
+    },
+    StartImapLogin(Box<ImapForm>),
+    CancelImapLogin,
+    ImapPrepared(u64, Result<Box<ImapPrepared>, String>),
+    ImapCallbackReceived(u64),
+    ImapFinished(u64, ImapOutcome),
     CancelJmapLogin,
     JmapPrepared(u64, Result<Box<JmapPrepared>, String>),
     JmapCallbackReceived(u64),
@@ -316,6 +328,13 @@ impl fmt::Debug for AppInput {
             Self::MicrosoftCallbackReceived(_) => "MicrosoftCallbackReceived",
             Self::MicrosoftFinished(..) => "MicrosoftFinished",
             Self::StartJmapLogin(..) => "StartJmapLogin",
+            Self::ProbeManualImapSignIn(_) => "ProbeManualImapSignIn",
+            Self::ImapAuthAnswered { .. } => "ImapAuthAnswered",
+            Self::StartImapLogin(_) => "StartImapLogin",
+            Self::CancelImapLogin => "CancelImapLogin",
+            Self::ImapPrepared(..) => "ImapPrepared",
+            Self::ImapCallbackReceived(_) => "ImapCallbackReceived",
+            Self::ImapFinished(..) => "ImapFinished",
             Self::CancelJmapLogin => "CancelJmapLogin",
             Self::JmapPrepared(..) => "JmapPrepared",
             Self::JmapCallbackReceived(_) => "JmapCallbackReceived",
