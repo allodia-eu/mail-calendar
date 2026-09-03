@@ -98,7 +98,8 @@ pub async fn connect_jmap_contact_providers(
     Ok(vec![connect_one(config, tokens, book).await?])
 }
 
-/// The account's default address book, else the first it lists, else `None`.
+/// The account's default **writable** address book, else the first writable one it lists, else
+/// `None`. A book the account may only read is no write destination.
 ///
 /// Never an error: an account whose books cannot be listed still *reads* contacts, and losing
 /// that over a failed write-destination lookup would be a worse outcome than an account whose

@@ -465,8 +465,9 @@ def main(argv: list[str] | None = None) -> int:
         # name: libadwaita's `AdwEntryRow` draws its title as a label beside the entry, and the
         # label comes first in the tree. Asking for one match would therefore resolve "type
         # into the field called X" to a label, which can never accept text. So scan a few and
-        # take the first that actually has the interface. An explicit --index still names the
-        # nth match exactly, for the caller who has already looked at the tree.
+        # take the first that actually has the interface. A *non-zero* --index still names the
+        # nth match exactly, for the caller who has already looked at the tree; `--index 0` is
+        # the default, so it cannot be told apart from asking for no index at all.
         scanning = args.command in ("set-text", "read-text") and args.index == 0
         matches = wait_for_nodes(
             lambda: wait_for_application(args.timeout),
