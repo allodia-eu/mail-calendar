@@ -7,19 +7,26 @@
 //! attachments.
 
 mod color;
+mod file_meta;
 mod list;
 mod mailto;
 mod quote;
 mod render;
+mod share;
 mod signature;
 mod types;
 mod validate;
 
 pub use color::TextColor;
+pub use file_meta::{safe_file_name, safe_media_type};
 pub use list::{List, ListItem, ListKind};
 pub use mailto::{MailtoPrefill, parse_mailto};
 pub use quote::{Quote, QuoteAttribution, QuoteHeader, QuoteStyle};
 pub use render::render;
+pub use share::{
+    MAX_SHARED_ITEMS, RejectedItem, ShareAttachment, SharePrefill, ShareRejection, ShareRequest,
+    SharedItem, prefill_from_share,
+};
 pub use signature::Signature;
 pub use types::{
     AttachmentDisposition, AttachmentId, Block, ComposerDocument, ComposerOutput, ContentId,

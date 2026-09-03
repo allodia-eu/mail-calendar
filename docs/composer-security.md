@@ -139,6 +139,34 @@ port:
       paragraph per line via `textContent`: the Gate 11 rule, applied to the other seeding path.
     - **The URI is never logged.** It is message content end to end (recipients, subject, body), so a
       client records only that a mail link arrived (Gate 8 again, and `docs/logging.md`).
+13. **A share pre-fills a composer with files the core has named and typed.** Another application
+    hands us files and text and asks for a mail client; both are hostile input, chosen by that app
+    rather than by us or by the user. The decode is **in the shared core**
+    (`mailcal_composer::share`, over the FFI as `prefill_from_share`), and the product half of the
+    contract, which OS entry point each client registers and how it asks to become the default mail
+    app, is [`os-integration.md`](os-integration.md). The security half:
+    - **Attachments never come from a URI.** `mailto:?attach=` is not RFC 6068 and is never
+      honoured: a handler cannot tell a URI that came from `xdg-email` from one that came from a web
+      page, so honouring it would let a page attach any local file it can name. Files reach a
+      composer only from a channel that is itself a user action (a share sheet, an "Open With", an
+      explicit `--attach`).
+    - **A share may not address a message.** It can suggest a subject and body text and nothing
+      else. The only route to `To`/`Cc`/`Bcc` is shared *text* that is itself a mail link, decoded
+      by Gate 12's allowlist, so there is no second parser with its own idea of what a link may say.
+    - **Names and media types are normalised in the core**, by the same
+      `mailcal_composer::{safe_file_name, safe_media_type}` the composer's own file picker uses. A
+      name keeps only its final path component, loses control characters (a CR or LF would end the
+      `Content-Disposition` line) and bidirectional overrides (`holiday<U+202E>gpj.exe` renders as
+      `holidayexe.jpg`), and is capped through its stem so the extension survives. A declared media
+      type is used only when well formed; `*/*` is not one.
+    - **Bytes are staged by the host and read by Rust.** A client holding an OS handle copies it
+      into its own private storage and passes a path; the core reads it at submit
+      (`submit_rich_*_with_files`), so file content still does not cross FFI, exactly as for a
+      picked file.
+    - **Nothing is ever sent**, and nothing is dropped silently: a file the core refuses comes back
+      with a reason, because one the user watched disappear from a share sheet is one they will
+      assume was attached.
+    - **Neither the files nor the text is logged.** Names are the user's own; counts only (Gate 8).
 
 ## Per-platform implementation matrix
 
@@ -173,6 +201,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | `mailto:` link decoded by the core, never the client | ⬜ not yet registered as a mail-link handler | `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` → `parseMailtoUri` (`MailtoLaunch` gates action + scheme so an OAuth redirect is never mistaken for a link) | MSIX `windows.protocol` `mailto` → `ParseMailtoUri` (`MailLink` gates the scheme, for the same reason; the URI reaches the core as `OriginalString`, still percent-encoded) | desktop `MimeType=x-scheme-handler/mailto` + raw GApplication command-line activation → `parse_mailto_uri`; cold and redirected warm activations share one broker path |
 | `Cc`/`Bcc` collapsed by default, revealed when pre-filled | `revealsCcBcc(cc:bcc:)` seeds `showsCcBcc`; held by a `MailcalUITests` case | `revealsCcBcc(cc, bcc)` opens the row; held by a JVM test | `RecipientTokens.RevealsCcBcc` sets the chevron's `IsChecked`; the rule is held by `Mailcal.Tests` and the collapse itself by a UI test that asks the running window for the fields, plus the mail-link suite that reads the pre-filled pills off it | `reveals_cc_bcc` sets the chevron; held by the crate's GTK test, which reads the row's visibility off the widget |
 | `mailto:` body seeded as text | n/a | `window.setPlainText` (shared editor) assigns one paragraph per line via `textContent` | (same: shared editor, the same call the assistant-draft path uses) | (same: shared editor; the body is JSON-encoded data, never script) |
+| Shared files named and typed by the core (Gate 13) | ⬜ no share target registered | ⬜ no `ACTION_SEND` filter (`MailtoLaunchTest` asserts one is *not* treated as a mail link) | ⬜ no `windows.shareTarget` extension | ⬜ no file `MimeType=` in the desktop entry |
 
 ## Known gaps / follow-ups
 
@@ -255,9 +284,14 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   question on, and it has had one since the composer's back-button guard landed. Neither behaviour
   can lose written work, which is why this is a follow-up rather than a defect, but a click that
   silently does nothing is the weaker of the two, so Android should adopt the prompt.
-- Sharing *into* the app (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`, "share this file/text by email") is a
-  separate feature and is **not** claimed by any client. It is not covered by Gate 12: it carries
-  attachment content rather than a URI, so it needs its own gate before it ships.
+- **Sharing *into* the app has its gate (Gate 13) and its core, and no client yet.**
+  `prefill_from_share` decodes a share, names and types its files, and reports what it refused;
+  `mailcal-composer` and `mailcal-bindings` both hold suites over it. What is missing is the
+  registration and the wiring on each platform (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`, a Share
+  Extension, `windows.shareTarget`, an "Open With" `MimeType=` set), plus the one structural change
+  every client needs: **no client's compose-request type carries attachments**, so the composer's
+  list can only be filled by its own picker. [`os-integration.md`](os-integration.md) has the
+  per-platform state.
 - Linux hosts the same editor inline in its detail column for new mail, reply, reply-all,
   and forward, with native attachment picking and the shared Rust submission methods. The
   optional per-message quote-style picker is still outstanding; until then Linux seeds the style

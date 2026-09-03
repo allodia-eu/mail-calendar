@@ -247,3 +247,29 @@ impl From<mailcal_viewmodel::McpSettings> for McpSettings {
         }
     }
 }
+
+/// What this build can do about becoming the OS's default mail app, which a host reports to
+/// [`crate::MailcalApp::should_offer_default_mail_app`].
+///
+/// A property of the **build**, not the platform: the same macOS source may set the handler
+/// when signed for Developer ID and may not when sandboxed for the Mac App Store. So a host
+/// says what it can do rather than which OS it is (`docs/os-integration.md`).
+#[derive(uniffi::Enum)]
+pub enum DefaultMailAppSupport {
+    /// The app can set itself as the handler; the OS asks the user to confirm.
+    SetDirectly,
+    /// The app can only open the OS's own settings at the right page. Windows and iOS/iPadOS
+    /// both work this way by design.
+    OpenSettings,
+    /// Neither is possible, so nothing is ever offered.
+    Unsupported,
+}
+
+/// What the user did with the offer to make this the default mail app.
+#[derive(uniffi::Enum)]
+pub enum DefaultMailAppOutcome {
+    /// They took it: the handler was set, or the settings page was opened for them.
+    Accepted,
+    /// They turned it down, **or** closed it without answering. Both end the offer.
+    Declined,
+}

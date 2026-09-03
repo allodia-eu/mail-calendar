@@ -1,12 +1,13 @@
 //! Settings-surface FFI methods on [`MailcalApp`]: per-account sync behaviour (strategy, poll
 //! interval, push folders), sync-depth windowing, the message-list grouping, the default send
-//! account, the per-direction swipe actions, and the runtime log level. Split out of `lib.rs` to
+//! account, the per-direction swipe actions, the runtime log level, and the one-time offer to
+//! become the OS's default mail app. Split out of `lib.rs` to
 //! keep each file under the 500-line limit; the object is defined in `lib.rs`, and UniFFI
 //! collects these exported methods crate-wide.
 
 use crate::{
-    LogLevel, MailcalApp, SwipeActionKind, SwipeDirection, SwipeSettings, SyncSettingsSnapshot,
-    SyncStrategyKind, ViewMode, logging,
+    DefaultMailAppOutcome, DefaultMailAppSupport, LogLevel, MailcalApp, SwipeActionKind,
+    SwipeDirection, SwipeSettings, SyncSettingsSnapshot, SyncStrategyKind, ViewMode, logging,
 };
 
 #[uniffi::export]
@@ -116,5 +117,43 @@ impl MailcalApp {
     /// records process-wide, since the logger is a single installed sink.
     pub fn set_log_level(&self, level: LogLevel) {
         logging::set_level(level);
+    }
+
+    /// Whether to put the one-time offer to become the OS's default mail app in front of the
+    /// user now.
+    ///
+    /// `support` is what this build can actually do about it, and `is_default` what the host
+    /// could find out, with `None` where it cannot tell (a Flatpak has no host application
+    /// database to ask). The core answers `false` before the first account exists, when the
+    /// app is already the default, and once the offer has been answered or dismissed, so a
+    /// host asks this and does not keep its own idea of when the moment is right.
+    ///
+    /// Setting the handler stays the host's job: this decides only whether to ask
+    /// (`docs/os-integration.md`).
+    #[must_use]
+    pub fn should_offer_default_mail_app(
+        &self,
+        support: DefaultMailAppSupport,
+        is_default: Option<bool>,
+    ) -> bool {
+        self.runtime.block_on(
+            self.app
+                .should_offer_default_mail_app(support.into(), is_default),
+        )
+    }
+
+    /// Records what came of the offer, so it is never put again, then signals
+    /// `Surface::Settings`. A prompt the user closed without answering is `Declined`.
+    pub fn record_default_mail_app_offer(&self, outcome: DefaultMailAppOutcome) {
+        self.runtime
+            .block_on(self.app.record_default_mail_app_offer(outcome.into()));
+    }
+
+    /// What came of the offer, or `None` if it has not been put yet: `Some(true)` the user took
+    /// it, `Some(false)` they turned it down. Settings reads it to say where things stand; the
+    /// action it offers is the same either way.
+    #[must_use]
+    pub fn default_mail_app_offer(&self) -> Option<bool> {
+        self.app.default_mail_app_offer()
     }
 }

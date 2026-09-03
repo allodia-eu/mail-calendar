@@ -136,6 +136,16 @@ pub struct Preferences {
     /// its absence is a refusal, never an assumption. See `docs/analytics.md`.
     #[serde(default)]
     pub analytics_consent: Option<bool>,
+    /// Whether the one-time offer to become the OS's default mail app has been put, and what
+    /// came of it.
+    ///
+    /// `None` (the state on first boot) means it has **not been offered yet**, and is the only
+    /// value that lets it be offered. `Some(true)` means the user took it, `Some(false)` that
+    /// they turned it down or closed it. The distinction changes nothing about whether we ask
+    /// again, we do not; it is kept because "you have already made us the default" and "you
+    /// said no" are different things to say in Settings. See `docs/os-integration.md`.
+    #[serde(default)]
+    pub default_mail_app_offer: Option<bool>,
     /// The opaque install id analytics events carry, minted **at the moment of consent** and
     /// cleared on withdrawal: so a user who never consents has nothing written for analytics
     /// at all. It is pure CSPRNG output: not derived from the device, the accounts, the
@@ -255,6 +265,7 @@ impl Default for Preferences {
             accounts: BTreeMap::new(),
             notify_marks: BTreeMap::new(),
             analytics_consent: None,
+            default_mail_app_offer: None,
             analytics_install_id: None,
             analytics_notice_version: None,
             analytics_consented_at: None,

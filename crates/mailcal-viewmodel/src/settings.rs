@@ -245,3 +245,32 @@ pub struct McpSettings {
     /// into the config snippet it offers to copy.
     pub endpoint: Option<String>,
 }
+
+/// What a build can do about becoming the OS's default mail app.
+///
+/// A property of the **build**, not of the platform: a Developer ID macOS app may set the
+/// handler itself, while the same source built for the Mac App Store may not, because the
+/// sandbox refuses the call. So a host reports what it can actually do rather than naming its
+/// operating system, and the core decides whether there is anything worth offering. See
+/// `docs/os-integration.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DefaultMailAppSupport {
+    /// The app can set itself as the handler; the OS asks the user to confirm.
+    SetDirectly,
+    /// The app can only open the OS's own settings at the right page, and the user changes it
+    /// there. Windows and iOS/iPadOS both work this way by design.
+    OpenSettings,
+    /// Neither is possible, so nothing is offered.
+    #[default]
+    Unsupported,
+}
+
+/// What the user did with the one-time offer to make this the default mail app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DefaultMailAppOutcome {
+    /// They took it: the handler was set, or the OS's settings were opened for them.
+    Accepted,
+    /// They turned it down, or closed it without answering. Both end the offer, because an
+    /// unanswered prompt is not permission to ask again.
+    Declined,
+}

@@ -7,20 +7,21 @@
 use mailcal_app::SignatureBody as AppSignatureBody;
 use mailcal_viewmodel::{
     AccountSignatureRow as AppAccountSignatureRow, AccountSyncRow as AppAccountSyncRow,
-    QuoteSettings as AppQuoteSettings, QuoteStyleKind as AppQuoteStyleKind,
-    SignatureRow as AppSignatureRow, SignatureSlotKind as AppSignatureSlotKind,
-    SignaturesSnapshot as AppSignatures, SwipeActionKind as AppSwipeActionKind,
-    SwipeDirection as AppSwipeDirection, SwipeSettings as AppSwipeSettings,
-    SyncFolderRow as AppSyncFolderRow, SyncSettingsSnapshot as AppSyncSettings,
-    SyncStrategyKind as AppSyncStrategyKind, TimeZoneSnapshot as AppTimeZoneSnapshot,
-    ViewMode as AppViewMode,
+    DefaultMailAppOutcome as AppDefaultMailAppOutcome,
+    DefaultMailAppSupport as AppDefaultMailAppSupport, QuoteSettings as AppQuoteSettings,
+    QuoteStyleKind as AppQuoteStyleKind, SignatureRow as AppSignatureRow,
+    SignatureSlotKind as AppSignatureSlotKind, SignaturesSnapshot as AppSignatures,
+    SwipeActionKind as AppSwipeActionKind, SwipeDirection as AppSwipeDirection,
+    SwipeSettings as AppSwipeSettings, SyncFolderRow as AppSyncFolderRow,
+    SyncSettingsSnapshot as AppSyncSettings, SyncStrategyKind as AppSyncStrategyKind,
+    TimeZoneSnapshot as AppTimeZoneSnapshot, ViewMode as AppViewMode,
 };
 
 use crate::{
-    AccountSignatureRow, AccountSyncRow, FolderRole, QuoteSettings, QuoteStyleKind, SignatureBody,
-    SignatureRow, SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection,
-    SwipeSettings, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot,
-    ViewMode,
+    AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, FolderRole,
+    QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow, SignatureSlotKind,
+    SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow,
+    SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot, ViewMode,
 };
 
 impl From<AppTimeZoneSnapshot> for TimeZoneSnapshot {
@@ -228,6 +229,25 @@ impl From<ViewMode> for AppViewMode {
         match mode {
             ViewMode::Flat => Self::Flat,
             ViewMode::Threaded => Self::Threaded,
+        }
+    }
+}
+
+impl From<DefaultMailAppSupport> for AppDefaultMailAppSupport {
+    fn from(support: DefaultMailAppSupport) -> Self {
+        match support {
+            DefaultMailAppSupport::SetDirectly => Self::SetDirectly,
+            DefaultMailAppSupport::OpenSettings => Self::OpenSettings,
+            DefaultMailAppSupport::Unsupported => Self::Unsupported,
+        }
+    }
+}
+
+impl From<DefaultMailAppOutcome> for AppDefaultMailAppOutcome {
+    fn from(outcome: DefaultMailAppOutcome) -> Self {
+        match outcome {
+            DefaultMailAppOutcome::Accepted => Self::Accepted,
+            DefaultMailAppOutcome::Declined => Self::Declined,
         }
     }
 }
