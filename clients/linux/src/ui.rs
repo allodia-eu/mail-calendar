@@ -119,6 +119,7 @@ mod unfiled_copy;
 mod update;
 mod update_pull;
 mod update_reauth;
+mod update_signin;
 mod web_security;
 mod webview;
 mod welcome;
