@@ -8,4 +8,4 @@
 #
 # Not `rust-toolchain.toml`: that pins the stable channel everything is built and linted with.
 [toolchain]
-channel = "nightly-2026-08-22"
+channel = "nightly-2026-09-02"
