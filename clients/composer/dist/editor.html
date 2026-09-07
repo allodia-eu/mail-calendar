@@ -1703,23 +1703,23 @@
     size.textContent = labels.insertTable;
     const cells = [];
     const paint = (rows, columns) => {
-      cells.forEach((cell2, index) => {
+      cells.forEach((cell, index) => {
         const row = Math.floor(index / PICKER_COLUMNS);
         const column = index % PICKER_COLUMNS;
-        cell2.classList.toggle("on", row < rows && column < columns);
+        cell.classList.toggle("on", row < rows && column < columns);
       });
       size.textContent = rows > 0 ? `${rows} × ${columns}` : labels.insertTable;
     };
     for (let row = 0;row < PICKER_ROWS; row += 1) {
       for (let column = 0;column < PICKER_COLUMNS; column += 1) {
-        const cell2 = doc.createElement("span");
-        cell2.addEventListener("mouseenter", () => paint(row + 1, column + 1));
-        cell2.addEventListener("click", () => {
+        const cell = doc.createElement("span");
+        cell.addEventListener("mouseenter", () => paint(row + 1, column + 1));
+        cell.addEventListener("click", () => {
           insertTable(editor, row + 1, column + 1);
           close();
         });
-        cells.push(cell2);
-        picker.appendChild(cell2);
+        cells.push(cell);
+        picker.appendChild(cell);
       }
     }
     picker.addEventListener("mouseleave", () => paint(0, 0));
