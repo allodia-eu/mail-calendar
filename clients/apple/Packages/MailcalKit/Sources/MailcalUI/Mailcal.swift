@@ -350,6 +350,13 @@ public struct ContentView: View {
         // is silently dropped, so an offer pressed in there closes Settings and is opened by
         // `addAccountIfSettingsAskedFor` on the way out.
         .sheet(isPresented: $model.addingAccount) { addAccountSheet }
+        // The account connected: ask what to call its sender. After the add rather than before,
+        // because the first screen is the address field and nothing else (docs/onboarding.md)
+        // and only a connected account can be asked what its provider already calls this
+        // person. Skipping is one action and leaves the account sending as a bare address.
+        .sheet(item: $model.senderNamePrompt) { prompt in
+            SenderNameStepView(model: model, account: prompt.id) { model.senderNamePrompt = nil }
+        }
         // The device moved to a different time zone than the active one: prompt to switch.
         // The buttons drive the core state; the implicit-dismiss setter is ignored.
         .alert(

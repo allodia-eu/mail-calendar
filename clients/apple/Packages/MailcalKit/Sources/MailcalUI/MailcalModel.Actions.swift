@@ -64,6 +64,14 @@ extension MailboxModel {
         app?.setAccountSyncDepth(account: account, months: months)
     }
 
+    /// Sets the name one account's outgoing mail is sent under; empty clears it.
+    ///
+    /// Passed through unchanged: the core sanitises it, and a second opinion here about what a
+    /// `From` header may contain would only drift from the first (docs/sending.md).
+    func setAccountSenderName(_ account: String, _ name: String) {
+        app?.setAccountSenderName(account: account, name: name)
+    }
+
     /// Sets one account's **per-account** message-size cap (a megabyte count; `0` = no limit).
     /// Raising it downloads what the lower cap skipped; lowering it forgets the cached copies it
     /// may no longer keep, which needs no server. The mail itself is never removed either way:

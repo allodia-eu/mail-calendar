@@ -148,6 +148,14 @@ final class MailboxModel {
     /// of logos never crosses the FFI just to draw a list of names. Drives the Signatures
     /// settings screen and the composer's override picker.
     var signatures = SignaturesSnapshot(signatures: [], accounts: [])
+    /// The account whose "your name" step is open, or `nil` when none is.
+    ///
+    /// Set by `accountWasAdded`, the one hook every add route ends at, so the step follows a
+    /// manual connect and a browser sign-in alike. It is asked here rather than on the first
+    /// screen because that screen is the address field and nothing else
+    /// (docs/onboarding.md); by this point the account exists, so the provider can be asked
+    /// what it already calls this person (docs/sending.md).
+    var senderNamePrompt: SenderNamePrompt?
     /// `true` when no account is configured yet, the host shows the full-screen setup form.
     var needsSetup = false
     /// `true` while the user is adding another account (the setup form as a sheet over the
@@ -329,11 +337,11 @@ final class MailboxModel {
                     // and can take a while (Graph isn't date-windowed yet), so run them OFF
                     // the main thread, otherwise the whole UI freezes ("not responding")
                     // for the duration. Hop back to the main actor for the UI + Keychain.
-                    _ = try await Task.detached(priority: .userInitiated) {
+                    let added = try await Task.detached(priority: .userInitiated) {
                         try app.completeMicrosoftLogin(
                             pending: start.pending, callbackUrl: callbackURL)
                     }.value
-                    self.accountWasAdded()
+                    self.accountWasAdded(added)
                 } catch MicrosoftSignInError.cancelled {
                     // The user dismissed the browser, not an error; the defer resets the spinner.
                 } catch {
