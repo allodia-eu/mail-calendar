@@ -94,6 +94,10 @@ fn account_group(
             &ctx.sender,
         );
     }
+    // The name this account sends under: the one thing on the card a recipient can see, so it
+    // comes before the questions about how much of the account this device keeps
+    // (`docs/settings.md`).
+    super::sender_name::add_row(&section, account, &ctx.sender);
     let depth_labels = snapshot
         .sync_depths
         .iter()

@@ -1,8 +1,15 @@
-//! Widget builders shared by every account-setup pane.
+//! Widget builders shared by every account-setup pane, and the one step that comes *after* a
+//! connect rather than before it: the "your name" question (`docs/sending.md`).
+//!
+//! That step is here because it is setup, even though it is raised over the running app: the
+//! screen that adds an account is the address field and nothing else (`docs/onboarding.md`), so
+//! the name is asked once the account exists and its provider can be asked what it already calls
+//! this person.
 
 use adw::prelude::*;
+use mailcal_bindings::MailcalApp;
 
-use super::AppInput;
+use super::{AppInput, modal};
 use crate::l10n;
 
 /// The padded vertical box every setup step is built into.
@@ -180,9 +187,134 @@ pub(super) fn progress(message: &str) -> gtk::Box {
     content
 }
 
+/// Which account the step is asking about, and the name the provider suggested for it.
+///
+/// The account is fixed for the life of the step: asking "your name" without knowing whose
+/// would write the answer onto whichever account happened to be first, so a route that cannot
+/// name the account it added raises no step.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SenderNameAsk {
+    /// The account the question is about.
+    pub(super) account: String,
+    /// What the provider already calls this person, empty when it holds nothing.
+    pub(super) suggestion: String,
+}
+
+/// Reads the provider's suggestion for `account`.
+///
+/// Blocking: it is a provider round trip, so it runs on the worker thread that finished the
+/// connect, never on the main loop. An account with no server-side name simply answers empty,
+/// which is the ordinary IMAP case and means *ask*.
+pub(super) fn sender_name_suggestion(app: &MailcalApp, account: &str) -> String {
+    app.suggested_sender_name(account.to_owned())
+}
+
+/// The open step, if one is.
+#[derive(Default)]
+pub(super) struct SenderNamePrompt {
+    window: Option<gtk::Window>,
+    /// What the open window is asking about, so an unchanged model re-render does not rebuild
+    /// it under the user's cursor.
+    showing: Option<SenderNameAsk>,
+}
+
+impl SenderNamePrompt {
+    /// Presents the step for `ask`, or closes the open one when there is nothing to ask.
+    pub(super) fn render(
+        &mut self,
+        ask: Option<&SenderNameAsk>,
+        parent: &impl IsA<gtk::Window>,
+        sender: &relm4::Sender<AppInput>,
+    ) {
+        if self.showing.as_ref() == ask {
+            return;
+        }
+        if let Some(window) = self.window.take() {
+            window.destroy();
+        }
+        self.showing = ask.cloned();
+        let Some(ask) = ask else {
+            return;
+        };
+
+        let (window, _) = modal::new(parent, l10n::setup_sender_name_title(), 460, None);
+        let content = gtk::Box::new(gtk::Orientation::Vertical, 16);
+        content.set_margin_start(24);
+        content.set_margin_end(24);
+        content.set_margin_top(24);
+        content.set_margin_bottom(24);
+
+        let message = gtk::Label::new(Some(l10n::setup_sender_name_description()));
+        message.set_wrap(true);
+        message.set_xalign(0.0);
+        content.append(&message);
+
+        let entry = gtk::Entry::new();
+        entry.set_placeholder_text(Some(l10n::setup_sender_name_field()));
+        entry.set_text(&ask.suggestion);
+        entry.set_activates_default(true);
+        content.append(&entry);
+
+        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        actions.set_halign(gtk::Align::End);
+        let skip = gtk::Button::with_label(l10n::setup_sender_name_skip());
+        let input = sender.clone();
+        skip.connect_clicked(move |_| input.emit(AppInput::DismissSenderNamePrompt));
+        actions.append(&skip);
+
+        let save = gtk::Button::with_label(l10n::setup_sender_name_continue());
+        save.add_css_class("suggested-action");
+        let input = sender.clone();
+        let account = ask.account.clone();
+        let typed = entry.clone();
+        save.connect_clicked(move |_| {
+            input.emit(AppInput::SetAccountSenderName {
+                account: account.clone(),
+                name: typed.text().to_string(),
+            });
+        });
+        actions.append(&save);
+        content.append(&actions);
+        // Return commits. `set_activates_default` on the entry does nothing without this:
+        // the window has to name which button the default is.
+        window.set_default_widget(Some(&save));
+
+        // Closing the window is skipping: the account keeps sending as a bare address, which is
+        // a state the app has to be correct in, so it needs no confirmation of its own.
+        let input = sender.clone();
+        window.connect_close_request(move |_| {
+            input.emit(AppInput::DismissSenderNamePrompt);
+            gtk::glib::Propagation::Proceed
+        });
+        window.set_child(Some(&content));
+        window.present();
+        entry.grab_focus();
+        self.window = Some(window);
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::trust_approved;
+    use super::{SenderNameAsk, trust_approved};
+
+    #[test]
+    fn the_step_reopens_only_when_it_is_asking_about_something_else() {
+        // `render` compares the open ask with the model's and returns early when they match.
+        // Without that, every model update would rebuild the window under the user's cursor,
+        // losing whatever they had typed.
+        let asking = SenderNameAsk {
+            account: "acct-1".to_owned(),
+            suggestion: "Dennis Ameling".to_owned(),
+        };
+        assert_eq!(asking.clone(), asking);
+        assert_ne!(
+            asking,
+            SenderNameAsk {
+                account: "acct-2".to_owned(),
+                suggestion: "Dennis Ameling".to_owned(),
+            }
+        );
+    }
 
     #[test]
     fn untrusted_detection_requires_an_explicit_choice() {

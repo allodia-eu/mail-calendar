@@ -401,6 +401,13 @@ impl AppModel {
             AppInput::SetUpOfferedAccount(offer) => {
                 self.set_up_offered_account(*offer, sender.input_sender().clone());
             }
+            AppInput::SetAccountSenderName { account, name } => {
+                if let Some(app) = &self.app {
+                    app.set_account_sender_name(account, name);
+                }
+                self.host_tasks.sender_name_ask = None;
+            }
+            AppInput::DismissSenderNamePrompt => self.host_tasks.sender_name_ask = None,
             AppInput::ReplaceAccountSecret { account, secret } => {
                 self.replace_account_secret(account, secret, sender.input_sender().clone());
             }

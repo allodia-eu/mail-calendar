@@ -161,7 +161,18 @@ pub(crate) enum AppInput {
         available: bool,
     },
     SubmitAccount(Box<AccountSubmission>),
-    AccountAdded(Result<(), String>),
+    /// A manual add finished: the account's id, or why it failed. The id is what raises the
+    /// "your name" step, so a route that cannot report one raises nothing.
+    AccountAdded(Result<String, String>),
+    /// Set the name an account's outgoing mail is sent under; empty clears it. Passed through
+    /// unchanged, the core sanitises it (`docs/sending.md`).
+    SetAccountSenderName {
+        account: String,
+        name: String,
+    },
+    /// Close the "your name" step without setting one: the account keeps sending as a bare
+    /// address.
+    DismissSenderNamePrompt,
     StartGoogleLogin(String),
     CancelGoogleLogin,
     GoogleCallbackReceived(u64),
@@ -307,6 +318,8 @@ impl fmt::Debug for AppInput {
             Self::JmapOAuthAvailable { .. } => "JmapOAuthAvailable",
             Self::SubmitAccount(_) => "SubmitAccount",
             Self::AccountAdded(_) => "AccountAdded",
+            Self::SetAccountSenderName { .. } => "SetAccountSenderName",
+            Self::DismissSenderNamePrompt => "DismissSenderNamePrompt",
             Self::StartGoogleLogin(_) => "StartGoogleLogin",
             Self::CancelGoogleLogin => "CancelGoogleLogin",
             Self::GoogleCallbackReceived(_) => "GoogleCallbackReceived",
