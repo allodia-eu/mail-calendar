@@ -236,14 +236,21 @@ pub enum CalendarWriteStatus {
     Failed,
 }
 
-/// One account in the sidebar switcher: its id, email (display label), and whether its
-/// folder tree is open.
+/// One account in the sidebar switcher: its id, the address and name it sends under, and
+/// whether its folder tree is open.
 #[derive(uniffi::Record)]
 pub struct AccountRow {
     /// The account's id (stable identity, used to select it).
     pub id: String,
     /// The account's email address (display label).
     pub email: String,
+    /// The name this account's outgoing mail is sent under; empty when nobody has set one.
+    ///
+    /// A label, never an identity. Where a row has two lines, the name goes above the
+    /// address; where it has one, the address stays, because that is what people recognise
+    /// an account by. Empty is the ordinary first-run state and is **not** a gap to fill
+    /// with the address (`docs/sending.md`).
+    pub name: String,
     /// Whether this account's folder tree is open in the sidebar; render the chevron from
     /// this and change it with `Intent::SetAccountExpanded`. Independent of selection and
     /// persisted across launches; a client that keeps its own copy will disagree with the

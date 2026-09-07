@@ -71,6 +71,7 @@ fn save_then_load_round_trips_the_preferences() {
             "me@imap.example.com".to_owned(),
             ReplyFallback::Always,
         )]),
+        account_sender_names: BTreeMap::new(),
         account_aliases: BTreeMap::from([(
             "me@imap.example.com".to_owned(),
             vec!["info@example.com".to_owned()],

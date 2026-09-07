@@ -262,6 +262,9 @@ impl<P: Provider> App<P> {
             Intent::SetQuoteStylePerMessage(per_message) => {
                 self.set_quote_style_per_message(per_message).await;
             }
+            Intent::SetAccountSenderName { account, name } => {
+                self.set_account_sender_name(&account, &name).await;
+            }
             Intent::SetDefaultSendAccount(account) => {
                 self.set_default_send_account(account).await;
             }

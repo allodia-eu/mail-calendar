@@ -70,7 +70,7 @@ impl<P: Provider> App<P> {
         let Some(account) = self.compose_account().await else {
             return;
         };
-        let Some(identity) = self.account_identity(&account).await else {
+        let Some(identity) = self.sender_identity(&account).await else {
             return;
         };
         let Some(draft) = plain_draft(&identity, vec![EmailAddress::new(to)], subject, body) else {
@@ -350,8 +350,11 @@ impl<P: Provider> App<P> {
     /// user picked in the composer's From dropdown: if that account was removed while the
     /// composer was open, the send must surface as failed rather than silently go out as a
     /// different sender than the one chosen.
+    ///
+    /// Carries the account's **name** as well as its address, so what goes out is
+    /// `Name <address>` (`crate::sender_names`).
     pub(crate) async fn identity_or_fail(&self, account: &AccountId) -> Option<EmailAddress> {
-        let identity = self.account_identity(account).await;
+        let identity = self.sender_identity(account).await;
         if identity.is_none() {
             log::warn!(
                 "send: account {} is not configured; failing the send rather than substituting \

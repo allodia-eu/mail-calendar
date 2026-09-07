@@ -441,6 +441,19 @@ pub enum Intent {
     /// the unified all-inboxes view, where no selected mailbox scopes the choice. `None` clears
     /// it (falling back to the first configured account); signals [`Surface::Settings`].
     SetDefaultSendAccount(Option<String>),
+    /// Set the name one account's outgoing mail is sent under: the `Name` in
+    /// `Name <address>`. An empty name clears it and the account sends as a bare address.
+    ///
+    /// Sanitised on store, so a pasted newline can never become a second header. Where the
+    /// provider lets the account holder set its own copy (JMAP, Gmail), the change is pushed
+    /// there too, best-effort: the value stored here is the one this device sends under
+    /// either way (`docs/sending.md`). Signals [`Surface::Settings`].
+    SetAccountSenderName {
+        /// The account whose sender name to set.
+        account: String,
+        /// The name to send under; empty clears it.
+        name: String,
+    },
     /// Set what one swipe direction does to a message row (Trash / Archive / Star). The two
     /// directions are configured independently; signals [`Surface::Settings`].
     SetSwipeAction {

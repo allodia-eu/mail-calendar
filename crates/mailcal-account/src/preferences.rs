@@ -24,6 +24,8 @@ mod display;
 mod folder_pane;
 // The per-account "may we email the organiser ourselves?" choice, and its accessors.
 mod reply_fallback;
+// The name an account sends under, its sanitiser, and its accessors.
+mod sender_name;
 mod sync;
 
 pub use behavior::{MessageGrouping, QuoteStyle, SwipeAction};
@@ -32,6 +34,7 @@ pub use display::{
     MAX_VISIBLE_HOURS, MIN_VISIBLE_HOURS, TimeFormat, WeekStart, clamp_visible_hours,
 };
 pub use reply_fallback::ReplyFallback;
+pub use sender_name::{MAX_SENDER_NAME_CHARS, sanitize_sender_name};
 pub use sync::{
     AccountSyncSettings, DEFAULT_POLL_INTERVAL, EffectiveSync, MAX_PUSH_FOLDERS,
     MESSAGE_SIZE_LIMITS_MB, MessageSizeLimit, POLL_INTERVALS, SYNC_DEPTHS, SyncDepth, SyncStrategy,
@@ -182,6 +185,15 @@ pub struct Preferences {
     /// account nobody has configured. Works on every provider, including plain IMAP/CalDAV.
     #[serde(default)]
     pub account_aliases: BTreeMap<String, Vec<String>>,
+    /// The display name each account's outgoing mail is sent under, keyed by account id.
+    ///
+    /// An account absent here has no name and its mail goes out as a bare address. Read and
+    /// written through [`Preferences::sender_name_of`] and
+    /// [`Preferences::set_account_sender_name`], which sanitise: this is spliced into a
+    /// `From` header, so it may not be taken from the map raw. A [`BTreeMap`] so the
+    /// serialized TOML order is stable across writes.
+    #[serde(default)]
+    pub account_sender_names: BTreeMap<String, String>,
     /// Whether the local MCP server is on, so an AI assistant on this machine can read and act
     /// on mail. Off unless the user turns it on.
     ///
@@ -261,6 +273,7 @@ impl Default for Preferences {
             signature_assignments: BTreeMap::new(),
             invitation_reply_fallback: BTreeMap::new(),
             account_aliases: BTreeMap::new(),
+            account_sender_names: BTreeMap::new(),
             mcp_enabled: false,
             mcp_notice_version: None,
             mcp_accounts: BTreeSet::new(),

@@ -143,6 +143,9 @@ impl TryFrom<Intent> for AppIntent {
             Intent::SetAccountExpanded { account, expanded } => {
                 Self::SetAccountExpanded { account, expanded }
             }
+            Intent::SetAccountSenderName { account, name } => {
+                Self::SetAccountSenderName { account, name }
+            }
             Intent::SelectFolder { account, key } => Self::SelectFolder {
                 folder: folder(account, key)?,
             },

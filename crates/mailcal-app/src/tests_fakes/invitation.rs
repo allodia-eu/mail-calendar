@@ -13,6 +13,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use engine_api::CalendarWrites;
 use engine_api::{AccountId, EmailAddress, Engine, TimeZoneId};
 use engine_core::{
     calendar::{Calendar, Event},
@@ -353,6 +354,23 @@ impl Provider for InvitationFake {
         ))
     }
 
+
+    async fn submit_email(
+        &self,
+        _account: &AccountId,
+        draft: &Draft,
+    ) -> ProviderResult<SubmissionReceipt> {
+        self.sends.lock().unwrap().push(draft.clone());
+        Ok(SubmissionReceipt::filed(
+            engine_core::ids::ProviderKey::new("sent-1").unwrap(),
+            draft.message_id.clone(),
+        ))
+    }
+
+}
+
+#[async_trait::async_trait]
+impl CalendarWrites for InvitationFake {
     /// The guarded create the client-iMIP route uses to put an invitation on the calendar.
     ///
     /// Records the address and the document, and refuses anything but a create: a caller that
@@ -380,18 +398,6 @@ impl Provider for InvitationFake {
             write.event.clone(),
             write.uid.clone(),
             RevisionTokens::from_etag(ETag::new("\"v2\"")),
-        ))
-    }
-
-    async fn submit_email(
-        &self,
-        _account: &AccountId,
-        draft: &Draft,
-    ) -> ProviderResult<SubmissionReceipt> {
-        self.sends.lock().unwrap().push(draft.clone());
-        Ok(SubmissionReceipt::filed(
-            engine_core::ids::ProviderKey::new("sent-1").unwrap(),
-            draft.message_id.clone(),
         ))
     }
 

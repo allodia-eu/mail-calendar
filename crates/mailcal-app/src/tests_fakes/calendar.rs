@@ -7,6 +7,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+use engine_api::CalendarWrites;
 use engine_api::{AccountId, EmailAddress, Engine, TimeZoneId};
 use engine_core::{
     calendar::{Calendar, Event},
@@ -356,6 +357,13 @@ impl Provider for CalendarFake {
         ))
     }
 
+
+
+
+}
+
+#[async_trait::async_trait]
+impl CalendarWrites for CalendarFake {
     async fn create_event(
         &self,
         _account: &AccountId,

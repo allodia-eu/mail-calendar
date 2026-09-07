@@ -11,6 +11,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_api::{AccountId, EmailAddress, Engine, TimeZoneId};
 use engine_core::{
     contact::{
@@ -55,6 +56,8 @@ impl Provider for MailOnly {
     }
 }
 
+impl CalendarWrites for MailOnly {}
+
 /// A contacts adapter serving one card, which may carry a photo.
 pub(super) struct FakeContacts {
     pub(super) card: ContactCard,
@@ -66,6 +69,8 @@ impl Provider for FakeContacts {
         ConnectionInfo::new(Capabilities::none().with_contacts())
     }
 }
+
+impl CalendarWrites for FakeContacts {}
 
 #[async_trait]
 impl ContactsProvider for FakeContacts {

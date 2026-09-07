@@ -36,6 +36,7 @@ use time::{Duration, OffsetDateTime};
 
 use super::{GraphTokenSource, calendar_date, should_reconnect};
 use crate::{AccountError, throttle::account_retry, tls::account_tls};
+use engine_api::CalendarWrites;
 
 /// What a Graph series edit costs the occurrences the user changed by hand: moving the
 /// series' time **or** changing its rule destroys every one of them.
@@ -236,6 +237,12 @@ impl Provider for RefreshingGraphCalendarProvider {
         }
     }
 
+
+
+}
+
+#[async_trait]
+impl CalendarWrites for RefreshingGraphCalendarProvider {
     async fn create_event(
         &self,
         account: &AccountId,

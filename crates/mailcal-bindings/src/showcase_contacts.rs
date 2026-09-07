@@ -11,6 +11,7 @@
 
 use std::collections::BTreeMap;
 
+use engine_api::CalendarWrites;
 use engine_api::{AccountId, ContactCard, ContactSourceClass, SyncScope};
 use engine_core::{
     contact::{
@@ -63,6 +64,8 @@ impl Provider for ShowcaseContactsProvider {
         ConnectionInfo::new(self.caps)
     }
 }
+
+impl CalendarWrites for ShowcaseContactsProvider {}
 
 #[async_trait::async_trait]
 impl ContactsProvider for ShowcaseContactsProvider {

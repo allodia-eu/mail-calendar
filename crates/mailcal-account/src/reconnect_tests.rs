@@ -82,6 +82,8 @@ impl Provider for FakeDelegate {
     }
 }
 
+impl CalendarWrites for FakeDelegate {}
+
 fn account() -> AccountId {
     AccountId::try_from("test@example.com").expect("valid account id")
 }

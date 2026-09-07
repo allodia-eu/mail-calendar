@@ -42,6 +42,7 @@ mod app_calendar;
 mod app_contacts;
 mod app_display;
 mod app_month;
+mod app_sender_name;
 mod app_settings;
 mod app_signatures;
 mod app_snapshots;
@@ -75,6 +76,7 @@ mod native_fault_windows;
 mod oauth_routes;
 mod observer;
 mod protocol;
+mod protocol_surface;
 mod reconnect;
 mod records;
 mod records_avatar;
@@ -125,7 +127,8 @@ pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
 pub use oauth_routes::{OAuthRoutes, oauth_routes};
-pub use protocol::{Intent, InvitationResponse, Observer, SearchScope, Surface};
+pub use protocol::{Intent, InvitationResponse, SearchScope};
+pub use protocol_surface::{Observer, Surface};
 pub use records::{
     AccountFolderRow, AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, FlatRow,
     FolderRole, FolderRow, MailboxListSnapshot, ReadingSnapshot, RecipientSuggestion,

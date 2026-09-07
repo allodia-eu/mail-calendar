@@ -37,6 +37,7 @@ use time::{Duration, OffsetDateTime};
 
 use super::{calendar_date, should_reconnect};
 use crate::{AccountError, GraphTokenSource, throttle::account_retry, tls::account_tls};
+use engine_api::CalendarWrites;
 
 /// What a Google series edit costs the occurrences the user changed by hand: moving the
 /// series' time destroys them, and renaming the series renames the one they had renamed.
@@ -214,6 +215,12 @@ impl Provider for RefreshingGoogleCalendarProvider {
         }
     }
 
+
+
+}
+
+#[async_trait]
+impl CalendarWrites for RefreshingGoogleCalendarProvider {
     async fn create_event(
         &self,
         account: &AccountId,
