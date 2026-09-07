@@ -55,11 +55,11 @@ import java.io.File
 import kotlin.concurrent.thread
 import org.json.JSONObject
 import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.senderLabel
 import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.Recipients
+import uniffi.mailcal_bindings.senderLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -7,7 +7,6 @@ package eu.allodia.mailcal
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -108,10 +107,10 @@ class FromAccountFieldTest {
         compose.onNodeWithText(label(ALICE)).performClick()
         compose.waitForIdle()
 
-        // Exactly one node carries the address: the field itself. An opened menu would add a
+        // Exactly one node carries the label: the field itself. An opened menu would add a
         // second, identical item, a menu onto a single choice. (The field stays visible either
-        // way; the From address is never hidden.)
+        // way; the From is never hidden.)
         val nodes = compose.onAllNodesWithText(label(ALICE)).fetchSemanticsNodes().size
-        assertEquals("nodes carrying the address", 1, nodes)
+        assertEquals("nodes carrying the label", 1, nodes)
     }
 }
