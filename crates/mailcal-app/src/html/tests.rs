@@ -205,6 +205,42 @@ fn render_document_embeds_the_body_and_a_strict_csp() {
 }
 
 #[test]
+fn the_document_carries_one_policy_rather_than_two() {
+    // A `content` attribute holds a policy LIST, and a comma starts a second policy. Every
+    // policy in the list is enforced, so the document gets the intersection, and a comma where
+    // a semicolon belongs cuts `default-src 'none'` off from the `style-src` and `img-src`
+    // that soften it. Both then fall back to `'none'` and the reading pane renders the message
+    // with no CSS at all, its own and the base sheet's alike, and blocks even a `data:` image.
+    //
+    // The test above cannot see that: every directive is still present, just in the wrong
+    // half. Assert on the separators instead.
+    for load_remote_images in [false, true] {
+        let doc = render_document("<p>hi</p>", load_remote_images);
+        let policy = csp_of(&doc);
+        assert!(
+            !policy.contains(','),
+            "the CSP is two policies, not one: {policy}"
+        );
+        // The pair that has to stay together: the restriction and the one directive that makes
+        // the message's own presentation possible under it.
+        assert!(policy.contains("default-src 'none'"), "{policy}");
+        assert!(policy.contains("style-src 'unsafe-inline'"), "{policy}");
+    }
+}
+
+/// The reading document's Content-Security-Policy, as the web view reads it.
+fn csp_of(doc: &str) -> &str {
+    let after = doc
+        .split_once("http-equiv=\"Content-Security-Policy\" content=\"")
+        .expect("the reading document carries a CSP")
+        .1;
+    after
+        .split_once('"')
+        .expect("the content attribute is quoted")
+        .0
+}
+
+#[test]
 fn render_document_forces_proportional_image_height() {
     // A wide image shrunk to fit the pane must keep its aspect ratio: `height:auto` is
     // `!important` so a message that pins an image's height (corporate signatures do)
