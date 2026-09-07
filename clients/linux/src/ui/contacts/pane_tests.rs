@@ -131,11 +131,13 @@ pub(crate) fn a_contacts_own_text_is_never_parsed_as_markup() {
         AccountRow {
             id: "work".to_owned(),
             email: "eva@research-and-development.test".to_owned(),
+            name: String::new(),
             expanded: true,
         },
         AccountRow {
             id: "home".to_owned(),
             email: "eva@r&d.test".to_owned(),
+            name: String::new(),
             expanded: true,
         },
     ];
@@ -184,6 +186,7 @@ pub(crate) fn the_detail_names_the_accounts_only_for_a_merge_and_says_it_is_read
     let accounts = [AccountRow {
         id: "work".to_owned(),
         email: "eva@work.test".to_owned(),
+        name: String::new(),
         expanded: true,
     }];
     let alone = ContactDetail {
@@ -225,11 +228,13 @@ pub(crate) fn the_detail_names_the_accounts_only_for_a_merge_and_says_it_is_read
         AccountRow {
             id: "work".to_owned(),
             email: "eva@work.test".to_owned(),
+            name: String::new(),
             expanded: true,
         },
         AccountRow {
             id: "home".to_owned(),
             email: "eva@home.test".to_owned(),
+            name: String::new(),
             expanded: true,
         },
     ];
@@ -326,6 +331,7 @@ pub(crate) fn the_write_affordances_appear_only_where_a_write_could_land() {
     let accounts = [AccountRow {
         id: "work".to_owned(),
         email: "eva@work.test".to_owned(),
+        name: String::new(),
         expanded: true,
     }];
     let mut person = ContactDetail {

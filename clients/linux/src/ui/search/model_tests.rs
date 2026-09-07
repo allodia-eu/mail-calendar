@@ -23,6 +23,7 @@ fn snapshot(selected_account: Option<&str>, selected: Option<&str>) -> MailboxLi
         accounts: vec![AccountRow {
             id: "acct-1".to_owned(),
             email: "eva.jansen@example.test".to_owned(),
+            name: String::new(),
             expanded: true,
         }],
         selected_account: selected_account.map(str::to_owned),
