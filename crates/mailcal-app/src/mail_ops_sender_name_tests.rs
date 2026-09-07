@@ -19,7 +19,12 @@ use crate::{Account, App, SendStatus, Telemetry, TimeZoneInit};
 
 /// A one-account app over `prefs`, so a test can set a name before the app boots and prove
 /// the value is read from disk rather than only from the setter that wrote it.
-fn app_with_prefs(prefs_path: Option<std::path::PathBuf>) -> (Arc<App<ThreadProvider>>, Arc<std::sync::Mutex<Vec<engine_api::Draft>>>) {
+fn app_with_prefs(
+    prefs_path: Option<std::path::PathBuf>,
+) -> (
+    Arc<App<ThreadProvider>>,
+    Arc<std::sync::Mutex<Vec<engine_api::Draft>>>,
+) {
     let provider = ThreadProvider::with(Vec::new());
     let outbox = provider.submissions();
     let app = App::new(
@@ -67,12 +72,12 @@ async fn an_account_with_no_name_still_sends_as_a_bare_address() {
 #[tokio::test(start_paused = true)]
 async fn a_sent_message_carries_the_name_the_user_set() {
     let (app, outbox) = app_with_prefs(Some(scratch_prefs("send")));
-    app.set_account_sender_name("acct-1", "Dennis Ameling").await;
+    app.set_account_sender_name("acct-1", "Ada Lovelace").await;
 
     let _task = dispatch_until(&app, new_mail(None), SendStatus::Sent).await;
 
     let draft = outbox.lock().unwrap()[0].clone();
-    assert_eq!(draft.from.name.as_deref(), Some("Dennis Ameling"));
+    assert_eq!(draft.from.name.as_deref(), Some("Ada Lovelace"));
     assert_eq!(
         draft.from.email, "me@allodia.local",
         "a name is added to the address, never instead of it"
@@ -85,14 +90,16 @@ async fn a_name_set_in_an_earlier_session_is_read_back_at_boot() {
     // would send correctly today and as a bare address tomorrow.
     let path = scratch_prefs("reload");
     let (first, _) = app_with_prefs(Some(path.clone()));
-    first.set_account_sender_name("acct-1", "Dennis Ameling").await;
+    first
+        .set_account_sender_name("acct-1", "Ada Lovelace")
+        .await;
     drop(first);
 
     let (app, outbox) = app_with_prefs(Some(path));
     let _task = dispatch_until(&app, new_mail(None), SendStatus::Sent).await;
 
     let draft = outbox.lock().unwrap()[0].clone();
-    assert_eq!(draft.from.name.as_deref(), Some("Dennis Ameling"));
+    assert_eq!(draft.from.name.as_deref(), Some("Ada Lovelace"));
 }
 
 #[tokio::test(start_paused = true)]
@@ -101,7 +108,7 @@ async fn a_pasted_header_cannot_reach_the_wire_through_the_name() {
     // mailbox that will not send and no idea why. Sanitising on store is what keeps anyone
     // from reaching that.
     let (app, outbox) = app_with_prefs(Some(scratch_prefs("injection")));
-    app.set_account_sender_name("acct-1", "Dennis\r\nBcc: eve@example.com")
+    app.set_account_sender_name("acct-1", "Ada\r\nBcc: eve@example.com")
         .await;
 
     let _task = dispatch_until(&app, new_mail(None), SendStatus::Sent).await;
@@ -115,7 +122,7 @@ async fn a_pasted_header_cannot_reach_the_wire_through_the_name() {
 #[tokio::test(start_paused = true)]
 async fn clearing_the_name_goes_back_to_a_bare_address() {
     let (app, outbox) = app_with_prefs(Some(scratch_prefs("clear")));
-    app.set_account_sender_name("acct-1", "Dennis Ameling").await;
+    app.set_account_sender_name("acct-1", "Ada Lovelace").await;
     app.set_account_sender_name("acct-1", "").await;
 
     let _task = dispatch_until(&app, new_mail(None), SendStatus::Sent).await;
@@ -135,10 +142,10 @@ async fn the_account_row_carries_the_name_beside_the_address() {
     assert_eq!(before[0].email, "me@allodia.local");
     assert_eq!(before[0].name, "");
 
-    app.set_account_sender_name("acct-1", "Dennis Ameling").await;
+    app.set_account_sender_name("acct-1", "Ada Lovelace").await;
 
     let after = app.mailbox_list().accounts;
-    assert_eq!(after[0].name, "Dennis Ameling");
+    assert_eq!(after[0].name, "Ada Lovelace");
     assert_eq!(after[0].email, "me@allodia.local");
 }
 
@@ -148,10 +155,13 @@ async fn removing_an_account_forgets_the_name_it_sent_under() {
     // what recipients see, so an inherited one misrepresents the sender.
     let path = scratch_prefs("removal");
     let (app, _) = app_with_prefs(Some(path.clone()));
-    app.set_account_sender_name("acct-1", "Dennis Ameling").await;
+    app.set_account_sender_name("acct-1", "Ada Lovelace").await;
 
     app.remove_account(&AccountId::try_from("acct-1").unwrap())
         .await;
 
-    assert_eq!(mailcal_account::load_preferences(&path).sender_name_of("acct-1"), None);
+    assert_eq!(
+        mailcal_account::load_preferences(&path).sender_name_of("acct-1"),
+        None
+    );
 }

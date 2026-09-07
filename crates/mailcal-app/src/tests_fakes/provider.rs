@@ -7,8 +7,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
-use engine_api::CalendarWrites;
-use engine_api::AccountId;
+use engine_api::{AccountId, CalendarWrites};
 use engine_core::{
     ids::MailboxId,
     mail::{Mailbox, MailboxRole, Message},

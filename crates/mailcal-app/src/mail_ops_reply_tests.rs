@@ -7,9 +7,8 @@
 use std::sync::{Arc, Mutex};
 
 use engine_api::{
-    CalendarWrites,
-    AccountId, Draft, EmailAddress, Engine, MessageIdHeader, ProviderKey, SubmissionReceipt,
-    TimeZoneId,
+    AccountId, CalendarWrites, Draft, EmailAddress, Engine, MessageIdHeader, ProviderKey,
+    SubmissionReceipt, TimeZoneId,
 };
 use engine_core::{
     ids::{MailboxId, MessageId},

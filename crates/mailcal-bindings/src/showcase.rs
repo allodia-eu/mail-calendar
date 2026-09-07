@@ -12,8 +12,7 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
-use engine_api::CalendarWrites;
-use engine_api::AccountId;
+use engine_api::{AccountId, CalendarWrites};
 use engine_core::{
     calendar::{Calendar, Event},
     mail::{Mailbox, Message},
@@ -250,7 +249,6 @@ impl Provider for ShowcaseCalendarProvider {
             state,
         ))
     }
-
 }
 
 #[async_trait::async_trait]

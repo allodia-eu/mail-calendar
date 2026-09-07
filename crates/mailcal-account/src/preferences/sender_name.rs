@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn an_ordinary_name_survives_unchanged() {
-        assert_eq!(sanitize_sender_name("Dennis Ameling"), "Dennis Ameling");
+        assert_eq!(sanitize_sender_name("Ada Lovelace"), "Ada Lovelace");
         // Non-ASCII is ordinary: the engine encodes it as an RFC 2047 word.
         assert_eq!(sanitize_sender_name("Renée Müller"), "Renée Müller");
     }
@@ -132,10 +132,10 @@ mod tests {
     #[test]
     fn setting_and_clearing_a_name_round_trips() {
         let mut prefs = Preferences::default();
-        assert!(prefs.set_account_sender_name("acct", "  Dennis Ameling "));
-        assert_eq!(prefs.sender_name_of("acct"), Some("Dennis Ameling"));
+        assert!(prefs.set_account_sender_name("acct", "  Ada Lovelace "));
+        assert_eq!(prefs.sender_name_of("acct"), Some("Ada Lovelace"));
         // Re-asserting the same value writes nothing.
-        assert!(!prefs.set_account_sender_name("acct", "Dennis Ameling"));
+        assert!(!prefs.set_account_sender_name("acct", "Ada Lovelace"));
         // Clearing drops the row rather than storing a blank one.
         assert!(prefs.set_account_sender_name("acct", "   "));
         assert_eq!(prefs.sender_name_of("acct"), None);
@@ -145,7 +145,7 @@ mod tests {
     #[test]
     fn removing_an_account_forgets_its_name() {
         let mut prefs = Preferences::default();
-        prefs.set_account_sender_name("acct", "Dennis");
+        prefs.set_account_sender_name("acct", "Ada");
         assert!(prefs.remove_account_sender_name("acct"));
         assert!(!prefs.remove_account_sender_name("acct"));
         assert_eq!(prefs.sender_name_of("acct"), None);

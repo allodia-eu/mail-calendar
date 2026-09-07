@@ -12,6 +12,7 @@
 //! to keep both files under the 500-line cap.
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_core::{
     calendar::{Calendar, Event},
     ids::AccountId,
@@ -27,7 +28,6 @@ use engine_provider::{
 use futures::StreamExt;
 
 use super::refreshing::RefreshingJmapProvider;
-use engine_api::CalendarWrites;
 
 #[async_trait]
 impl Provider for RefreshingJmapProvider {
@@ -161,10 +161,6 @@ impl Provider for RefreshingJmapProvider {
     ) -> ProviderResult<ScopeSync<Event>> {
         self.delegate().await?.sync_events(account, cursor).await
     }
-
-
-
-
 
     /// The identities the session's submission account can send as, forwarded to the
     /// session-backed delegate.

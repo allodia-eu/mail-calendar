@@ -4,6 +4,7 @@
 //! delegate cache, and the connect entry points, to keep both files under the 500-line cap.
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_core::{
     ids::AccountId,
     mail::{Mailbox, Message},
@@ -17,7 +18,6 @@ use engine_provider::{
 use futures::StreamExt;
 
 use super::{RefreshingGraphProvider, should_reconnect};
-use engine_api::CalendarWrites;
 
 #[async_trait]
 impl Provider for RefreshingGraphProvider {

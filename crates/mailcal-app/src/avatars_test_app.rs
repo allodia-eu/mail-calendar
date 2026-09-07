@@ -11,8 +11,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use engine_api::CalendarWrites;
-use engine_api::{AccountId, EmailAddress, Engine, TimeZoneId};
+use engine_api::{AccountId, CalendarWrites, EmailAddress, Engine, TimeZoneId};
 use engine_core::{
     contact::{
         AddressBook, ContactCard, ContactEmail, ContactName, ContactProperty, ContactResource,

@@ -86,7 +86,10 @@ impl<P: Provider> App<P> {
     /// (is this message mine, which `ATTENDEE` line is me) and must stay a bare address:
     /// giving a name to an address that is about to be compared would not change the
     /// comparison, but it would invite one that did.
-    pub(crate) async fn sender_identity(&self, account: &engine_api::AccountId) -> Option<EmailAddress> {
+    pub(crate) async fn sender_identity(
+        &self,
+        account: &engine_api::AccountId,
+    ) -> Option<EmailAddress> {
         let address = self.account_identity(account).await?;
         Some(match self.sender_name(account.as_str()) {
             Some(name) => EmailAddress::named(name, address.email),

@@ -11,8 +11,7 @@
 
 use std::collections::BTreeMap;
 
-use engine_api::CalendarWrites;
-use engine_api::{AccountId, ContactCard, ContactSourceClass, SyncScope};
+use engine_api::{AccountId, CalendarWrites, ContactCard, ContactSourceClass, SyncScope};
 use engine_core::{
     contact::{
         AddressBook, ContactEmail, ContactName, ContactPhone, ContactProperty, Organization,

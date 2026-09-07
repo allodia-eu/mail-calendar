@@ -13,8 +13,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use engine_api::CalendarWrites;
-use engine_api::{AccountId, EmailAddress, Engine, TimeZoneId};
+use engine_api::{AccountId, CalendarWrites, EmailAddress, Engine, TimeZoneId};
 use engine_core::{
     calendar::{Calendar, Event},
     ids::{CalendarId, MailboxId},
@@ -354,7 +353,6 @@ impl Provider for InvitationFake {
         ))
     }
 
-
     async fn submit_email(
         &self,
         _account: &AccountId,
@@ -366,7 +364,6 @@ impl Provider for InvitationFake {
             draft.message_id.clone(),
         ))
     }
-
 }
 
 #[async_trait::async_trait]

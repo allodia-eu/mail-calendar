@@ -304,14 +304,14 @@ mod tests {
         // losing whatever they had typed.
         let asking = SenderNameAsk {
             account: "acct-1".to_owned(),
-            suggestion: "Dennis Ameling".to_owned(),
+            suggestion: "Ada Lovelace".to_owned(),
         };
         assert_eq!(asking.clone(), asking);
         assert_ne!(
             asking,
             SenderNameAsk {
                 account: "acct-2".to_owned(),
-                suggestion: "Dennis Ameling".to_owned(),
+                suggestion: "Ada Lovelace".to_owned(),
             }
         );
     }

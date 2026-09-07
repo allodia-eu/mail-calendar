@@ -22,6 +22,7 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_core::{
     calendar::{Calendar, Event},
     ids::{AccountId, CalendarId},
@@ -37,7 +38,6 @@ use time::{Duration, OffsetDateTime};
 
 use super::{calendar_date, should_reconnect};
 use crate::{AccountError, GraphTokenSource, throttle::account_retry, tls::account_tls};
-use engine_api::CalendarWrites;
 
 /// What a Google series edit costs the occurrences the user changed by hand: moving the
 /// series' time destroys them, and renaming the series renames the one they had renamed.
@@ -214,9 +214,6 @@ impl Provider for RefreshingGoogleCalendarProvider {
             }
         }
     }
-
-
-
 }
 
 #[async_trait]

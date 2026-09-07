@@ -24,6 +24,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_core::{
     error::FailureClass,
     ids::{AccountId, MailboxId},
@@ -36,7 +37,6 @@ use engine_provider::{
     Provider, ProviderResult, ReportReceipt, ScopeSync, SubmissionReceipt,
 };
 use futures::StreamExt;
-use engine_api::CalendarWrites;
 
 /// Re-dials a fresh, logged-in IMAP session bound to the wrapper's mailbox. Boxed so it can
 /// be injected (a real `ImapProvider::connect` on the live path, a fake in tests).

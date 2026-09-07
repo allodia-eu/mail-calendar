@@ -26,9 +26,9 @@ class SenderNameStepTest {
     fun `a suggestion fills the empty field in`() {
         val state = SenderNameStepState("acct-1")
 
-        state.suggested("Dennis Ameling")
+        state.suggested("Ada Lovelace")
 
-        assertEquals("Dennis Ameling", state.name)
+        assertEquals("Ada Lovelace", state.name)
         assertFalse(state.loading)
     }
 
@@ -39,7 +39,7 @@ class SenderNameStepTest {
         val state = SenderNameStepState("acct-1")
         state.name = "Renée"
 
-        state.suggested("Dennis Ameling")
+        state.suggested("Ada Lovelace")
 
         assertEquals("Renée", state.name)
         assertFalse(state.loading)

@@ -77,8 +77,8 @@ pub use log_handle::account_log_handle;
 pub use microsoft::{MicrosoftConfig, fetch_primary_address, load_microsoft_str};
 pub use preferences::{
     AccountSyncSettings, Appearance, CalendarLayout, CalendarPrefs, DEFAULT_POLL_INTERVAL,
-    DEFAULT_VISIBLE_HOURS, DefaultCalendar, EffectiveSync, MAX_PUSH_FOLDERS, MAX_VISIBLE_HOURS,
-    MAX_SENDER_NAME_CHARS, MESSAGE_SIZE_LIMITS_MB, MIN_VISIBLE_HOURS, MessageGrouping,
+    DEFAULT_VISIBLE_HOURS, DefaultCalendar, EffectiveSync, MAX_PUSH_FOLDERS, MAX_SENDER_NAME_CHARS,
+    MAX_VISIBLE_HOURS, MESSAGE_SIZE_LIMITS_MB, MIN_VISIBLE_HOURS, MessageGrouping,
     MessageSizeLimit, POLL_INTERVALS, Preferences, QuoteStyle, ReplyFallback, SYNC_DEPTHS,
     SwipeAction, SyncDepth, SyncStrategy, TimeFormat, WeekStart, cap_push_folders,
     clamp_visible_hours, effective, load_preferences, preferences_path, sanitize_sender_name,

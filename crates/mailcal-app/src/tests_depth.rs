@@ -1,7 +1,6 @@
 //! Sync-depth lifecycle tests: new-account defaults, widening/narrowing, and account deletion.
 
-use engine_api::CalendarWrites;
-use engine_api::{AccountId, EmailAddress, Engine, TimeZoneId};
+use engine_api::{AccountId, CalendarWrites, EmailAddress, Engine, TimeZoneId};
 use engine_core::{
     ids::{MailboxId, MessageId},
     mail::{Mailbox, MailboxRole, Message},

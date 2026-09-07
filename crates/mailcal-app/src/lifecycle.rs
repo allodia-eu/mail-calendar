@@ -23,9 +23,9 @@ use crate::{
     calendar_cache, calendar_prefs::CalendarPrefsState, display_settings::DisplaySettingsState,
     folder_pane, load_view_mode, mcp_settings::McpSettingsState,
     quote_settings::QuoteSettingsState, scope::Scope, send_settings::SendSettingsState,
-    sender_names,
-    signatures::SignatureState, surfaced::Surfaced, swipe_settings::SwipeSettingsState, sync,
-    sync_progress::SyncProgressState, sync_settings::SyncSettingsState, timezone::TimeZoneState,
+    sender_names, signatures::SignatureState, surfaced::Surfaced,
+    swipe_settings::SwipeSettingsState, sync, sync_progress::SyncProgressState,
+    sync_settings::SyncSettingsState, timezone::TimeZoneState,
 };
 
 impl<P: Provider> App<P> {

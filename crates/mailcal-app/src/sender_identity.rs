@@ -105,11 +105,7 @@ impl<P: Provider> App<P> {
     /// Matched on the address, never taken as the first entry: the order a provider returns
     /// is its own, and Gmail returns every send-as alias, so "the first" would be whichever
     /// alias the server felt like listing.
-    async fn matching_identity(
-        &self,
-        provider: &P,
-        account: &AccountId,
-    ) -> Option<SenderIdentity> {
+    async fn matching_identity(&self, provider: &P, account: &AccountId) -> Option<SenderIdentity> {
         let own = self.account_identity(account).await?;
         let identities = match self.engine.sender_identities(provider, account).await {
             Ok(identities) => identities,
