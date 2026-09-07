@@ -163,7 +163,7 @@ impl AppModel {
         }
         // The same step the manual route raises: every way in asks the same question
         // (`docs/sending.md`).
-        self.ask_sender_name(account);
+        self.ask_sender_name(account, sender.clone());
         self.sync_after_account_change(sender);
     }
 

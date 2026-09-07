@@ -78,3 +78,7 @@ pub(super) fn add_row(
     row.add_suffix(&entry);
     section.add(&row);
 }
+
+#[cfg(test)]
+#[path = "sender_name_tests.rs"]
+pub(crate) mod tests;

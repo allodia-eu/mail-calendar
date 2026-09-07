@@ -202,9 +202,9 @@ pub(super) struct SenderNameAsk {
 
 /// Reads the provider's suggestion for `account`.
 ///
-/// Blocking: it is a provider round trip, so it runs on the worker thread that finished the
-/// connect, never on the main loop. An account with no server-side name simply answers empty,
-/// which is the ordinary IMAP case and means *ask*.
+/// Blocking: it is a provider round trip, so every caller runs it on a worker thread, never on
+/// the main loop. An account with no server-side name simply answers empty, which is the
+/// ordinary IMAP case and means *ask*.
 pub(super) fn sender_name_suggestion(app: &MailcalApp, account: &str) -> String {
     app.suggested_sender_name(account.to_owned())
 }
@@ -295,26 +295,7 @@ impl SenderNamePrompt {
 
 #[cfg(test)]
 mod tests {
-    use super::{SenderNameAsk, trust_approved};
-
-    #[test]
-    fn the_step_reopens_only_when_it_is_asking_about_something_else() {
-        // `render` compares the open ask with the model's and returns early when they match.
-        // Without that, every model update would rebuild the window under the user's cursor,
-        // losing whatever they had typed.
-        let asking = SenderNameAsk {
-            account: "acct-1".to_owned(),
-            suggestion: "Ada Lovelace".to_owned(),
-        };
-        assert_eq!(asking.clone(), asking);
-        assert_ne!(
-            asking,
-            SenderNameAsk {
-                account: "acct-2".to_owned(),
-                suggestion: "Ada Lovelace".to_owned(),
-            }
-        );
-    }
+    use super::trust_approved;
 
     #[test]
     fn untrusted_detection_requires_an_explicit_choice() {
@@ -323,3 +304,7 @@ mod tests {
         assert!(trust_approved(false, true));
     }
 }
+
+#[cfg(test)]
+#[path = "setup_sender_name_tests.rs"]
+pub(crate) mod sender_name_tests;

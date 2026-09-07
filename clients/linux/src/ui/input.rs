@@ -164,6 +164,13 @@ pub(crate) enum AppInput {
     /// A manual add finished: the account's id, or why it failed. The id is what raises the
     /// "your name" step, so a route that cannot report one raises nothing.
     AccountAdded(Result<String, String>),
+    /// The provider answered what it already calls this person, so the "your name" step can
+    /// open seeded. Carried back from a worker thread because the read is a provider round
+    /// trip; empty is the ordinary IMAP answer and means *ask*.
+    SenderNameSuggested {
+        account: String,
+        suggestion: String,
+    },
     /// Set the name an account's outgoing mail is sent under; empty clears it. Passed through
     /// unchanged, the core sanitises it (`docs/sending.md`).
     SetAccountSenderName {
@@ -318,6 +325,7 @@ impl fmt::Debug for AppInput {
             Self::JmapOAuthAvailable { .. } => "JmapOAuthAvailable",
             Self::SubmitAccount(_) => "SubmitAccount",
             Self::AccountAdded(_) => "AccountAdded",
+            Self::SenderNameSuggested { .. } => "SenderNameSuggested",
             Self::SetAccountSenderName { .. } => "SetAccountSenderName",
             Self::DismissSenderNamePrompt => "DismissSenderNamePrompt",
             Self::StartGoogleLogin(_) => "StartGoogleLogin",

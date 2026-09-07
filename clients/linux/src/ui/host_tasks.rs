@@ -225,14 +225,18 @@ impl AppModel {
         });
     }
 
-    pub(super) fn account_added(&mut self, result: Result<String, String>) {
+    pub(super) fn account_added(
+        &mut self,
+        result: Result<String, String>,
+        sender: relm4::Sender<AppInput>,
+    ) {
         match result {
             Ok(account) => {
                 self.setup.complete();
                 if let Some(app) = &self.app {
                     self.snapshot = app.mailbox_list();
                 }
-                self.ask_sender_name(account);
+                self.ask_sender_name(account, sender);
                 self.try_open_pending_mailto();
             }
             Err(error) => self
@@ -241,18 +245,27 @@ impl AppModel {
         }
     }
 
-    /// Raises the "your name" step for a just-connected account, seeded with what its provider
-    /// already calls this person (`docs/sending.md`).
+    /// Asks the provider what it already calls this person, then raises the "your name" step
+    /// seeded with the answer (`docs/sending.md`).
     ///
-    /// The suggestion is read on this thread, which is the main loop, and it is a provider round
-    /// trip. It is acceptable here and nowhere else: this runs once per account, immediately
-    /// after a connect the user has already waited on, and a provider that cannot answer returns
-    /// an empty string rather than blocking, because the core swallows the failure.
-    pub(super) fn ask_sender_name(&mut self, account: String) {
-        let Some(app) = &self.app else {
+    /// Off the main loop, exactly like the connect above it: an account whose provider keeps
+    /// identities costs a round trip here, and this is the moment a sign-in has just returned,
+    /// so a blocking read would freeze the window at the point the user is watching it.
+    pub(super) fn ask_sender_name(&mut self, account: String, sender: relm4::Sender<AppInput>) {
+        let Some(app) = self.app.clone() else {
             return;
         };
-        let suggestion = super::setup_widgets::sender_name_suggestion(app, &account);
+        std::thread::spawn(move || {
+            let suggestion = super::setup_widgets::sender_name_suggestion(&app, &account);
+            sender.emit(AppInput::SenderNameSuggested {
+                account,
+                suggestion,
+            });
+        });
+    }
+
+    /// The provider answered: open the step on the account it answered about.
+    pub(super) fn sender_name_suggested(&mut self, account: String, suggestion: String) {
         self.host_tasks.sender_name_ask = Some(super::setup_widgets::SenderNameAsk {
             account,
             suggestion,
