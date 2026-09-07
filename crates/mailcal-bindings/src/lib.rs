@@ -111,6 +111,7 @@ pub use allodia_sync::{
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
 pub use app_display::stored_appearance;
 pub use app_month::calendar_palette;
+pub use app_sender_name::sender_label;
 pub use autodetect::{
     DetectedServerRow, DnsError, MissReason, MxRecord, MxResolution, MxResolver,
     SetupRecommendation, SrvRecord, SrvResolution,
