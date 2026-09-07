@@ -55,6 +55,9 @@ class ComposerRecipientFocusTest {
                     accounts = listOf(ALICE),
                     from = ALICE,
                     onFrom = {},
+                    // A pure label: this suite loads no cdylib, and what the From reads is
+                    // FromAccountFieldTest's question, not this one's.
+                    fromLabel = { it.email },
                     to = value,
                     onTo = { value = it },
                     cc = "",
