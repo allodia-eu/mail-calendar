@@ -212,12 +212,14 @@ one publish for a fast open, and a `pending` one ahead of the body for a slow on
 ## Known gaps
 
 - **Only Linux holds its web view back until the document has painted.** The black first frame
-  above was measured on WebKitGTK, and WKWebView has since been measured for one of its own and
-  presents none: over five navigations between 1.2 MB HTML messages on macOS the body area stays
-  between 215 and 234 of 255 for the whole 400 ms open, with nothing behind it but the canvas.
-  WebView2 and Android's WebView have not been measured; if either presents an unpainted surface
-  the way WebKitGTK does, the page will flash there too, and only on messages heavy enough to be
-  slow to lay out.
+  above was measured on WebKitGTK, and the other two desktop web views have since been measured for
+  one of their own and present none. WKWebView: over five navigations between 1.2 MB HTML messages
+  on macOS the body area stays between 215 and 234 of 255 for the whole 400 ms open, with nothing
+  behind it but the canvas. WebView2: over six navigations between a 743 KB HTML message and
+  another, sampled at 60 Hz for 1.5 s after each open, all 526 frames read between 243 and 255,
+  none below 100. Android's WebView has not been measured; if it presents an unpainted surface the
+  way WebKitGTK does, the page will flash there too, and only on messages heavy enough to be slow
+  to lay out.
 - **Windows also holds the *whole* rendered pane for 300 ms**
   ([`ReadingHandover`](../clients/windows/Mailcal/Services/ReadingHandover.cs)): header,
   recipients, bar and body move together, so the pane changes once. That is a second answer to the
