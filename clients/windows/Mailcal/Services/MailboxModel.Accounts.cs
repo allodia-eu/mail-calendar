@@ -218,6 +218,7 @@ public sealed partial class MailboxModel
             NeedsSetup = false;
             AddingAccount = false;
             Log.Info($"microsoft account added: {row.Email}");
+            SenderNamePrompt = row.Id;
             // This route never touches AddAccountAsync, so the pass is owed here: without it the
             // account stays on this device until the next launch, and its card in Settings draws
             // no sharing control at all (docs/settings.md, category 9).
@@ -412,6 +413,8 @@ public sealed partial class MailboxModel
                 NeedsSetup = false;
                 AddingAccount = false;
                 Log.Info($"account added: {row.Email}");
+                // Ask what to call the sender of this account's mail (docs/sending.md).
+                SenderNamePrompt = row.Id;
                 // The core synced the new account and refreshed the snapshot (the observer
                 // reloads the sidebar + unified inbox); nudge a mail sync too.
                 _app.Dispatch(new Intent.RefreshMail());
