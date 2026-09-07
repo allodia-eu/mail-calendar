@@ -4,6 +4,12 @@
 //! `protocol_surface`. These derive the UniFFI scaffolding, so the generated Swift/Kotlin see
 //! them, and `lib.rs` re-exports them at the crate root.
 
+// `Surface` is named only by the doc links below, and rustdoc resolves those against this
+// module's scope: without the import they silently become dead links, and this crate denies
+// rustdoc warnings, so the split that moved it out would fail the build rather than quietly
+// produce them.
+#[allow(unused_imports, reason = "named by intra-doc links on the intents")]
+use crate::Surface;
 use crate::{ContactEdit, EventEdge, RecurrenceChange, SimpleRecurrence, ViewMode};
 
 /// Which folders an active search covers: the host's scope filter.
