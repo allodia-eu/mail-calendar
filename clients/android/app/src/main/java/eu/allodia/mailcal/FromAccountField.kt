@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import uniffi.mailcal_bindings.AccountRow
+import uniffi.mailcal_bindings.senderLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,13 +37,17 @@ internal fun FromAccountField(
     // rather than a menu that opens onto a single item. It stays visible either way, the From
     // address is never hidden.
     val pickable = accounts.size > 1
+    // Each account reads as `Name <address>`, which is how the recipient will read it, or as the
+    // address alone when no name is set. Composed by the core (`senderLabel`), which owns the
+    // empty case: an account with no name is the ordinary first-run state and its address is
+    // never dressed up as one (docs/sending.md).
     ExposedDropdownMenuBox(
         expanded = expanded && pickable,
         onExpandedChange = { if (pickable) expanded = it },
         modifier = Modifier.fillMaxWidth(),
     ) {
         OutlinedTextField(
-            value = selected?.email ?: "",
+            value = selected?.let { senderLabel(it.name, it.email) } ?: "",
             onValueChange = {},
             readOnly = true,
             singleLine = true,
@@ -62,7 +67,7 @@ internal fun FromAccountField(
         ExposedDropdownMenu(expanded = expanded && pickable, onDismissRequest = { expanded = false }) {
             accounts.forEach { account ->
                 DropdownMenuItem(
-                    text = { Text(account.email) },
+                    text = { Text(senderLabel(account.name, account.email)) },
                     onClick = {
                         expanded = false
                         onSelect(account)

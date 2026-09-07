@@ -12,7 +12,12 @@ Bump: minor
 > server-side name at all, one the account holder can change, or one an organisation's directory
 > hands down. Settings offers a field for the first two and states the third rather than showing
 > an editor nobody can use. The value is sanitised on store, so a name pasted out of a document
-> cannot smuggle a second header into a message.
+> cannot smuggle a second header into a message. The composer's From then shows what the recipient
+> will see, `Name <address>`, from one exported formatter rather than four hand-rolled ones: the
+> case worth getting right is the empty one, where the label is the address alone and never a lone
+> pair of angle brackets. The sidebar still shows the address, which is what an account is
+> recognised by. No second store note: this is the same feature reaching the place a sender picks
+> who a message comes from, and the one above already promises it.
 
 **English**
 

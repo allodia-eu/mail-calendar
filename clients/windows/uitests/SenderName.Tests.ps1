@@ -1,15 +1,18 @@
 #!/usr/bin/env pwsh
-# Settings → Accounts, the "your name" field: the name this account's mail goes out under
-# (docs/sending.md, "The sender's name").
+# The name an account sends its mail under, on both surfaces that show it: the field on the
+# Settings → Accounts card, and the composer's From (docs/sending.md, "The sender's name").
 #
 # Why it is here and not in `Mailcal.Tests`: that assembly is plain net10.0 and links no WinUI, and
 # every rule below is a WinUI one. The field is built in code-behind from `AccountSyncChoice`, and
 # it commits on LOSING FOCUS rather than on a keystroke, so a card that draws the box and wires
-# nothing to it, or wires it to the wrong account, renders exactly like a working one. `cargo test`
-# proves the core stores what it is handed; nothing else proves a client ever hands it over.
+# nothing to it, or wires it to the wrong account, renders exactly like a working one; the From
+# label is a DisplayMemberPath, and one pointed at the wrong property renders perfectly and
+# misnames every account. `cargo test` proves the core stores and composes what it is handed;
+# nothing else proves a client ever hands it over or draws what comes back.
 #
-# The dataset is `showcase`: two accounts, and its provider advertises no sender identities, which
-# is the IMAP shape, the name is ours alone and every card is editable.
+# The dataset is `showcase`: two accounts, each seeded with the name its own mail addresses, and
+# its provider advertises no sender identities, which is the IMAP shape, the name is ours alone
+# and every card is editable.
 #
 # KNOWN GAPS, and why each is one:
 #
@@ -137,6 +140,25 @@ function Reset-AccountsPanel {
   Wait-UiaQuiet -CapMs 1500 -FloorMs 500
 }
 
+<#
+.SYNOPSIS
+Open the composer and return its From picker, closing Settings on the way if it is up.
+#>
+function Get-ComposerFrom {
+  $settings = Find-SettingsDialog
+  if ($settings) {
+    Invoke-UiaElement (Find-UiaElement -AutomationId 'CloseButton' -Type 'Button' -Root $settings) -SettleMs 1200
+  }
+  if (-not (Find-UiaElement -AutomationId 'FromBox' -Type 'ComboBox')) {
+    $compose = Find-UiaElement -AutomationId 'ComposeButton' -Type 'Button'
+    if (-not $compose) { throw 'no Compose button to open the composer with' }
+    Invoke-UiaElement $compose -SettleMs 2500
+  }
+  $from = Wait-UiaElement -AutomationId 'FromBox' -TimeoutSec 15
+  if (-not $from) { throw 'the composer opened without a From picker (#FromBox)' }
+  $from
+}
+
 $Suite = @{
   Dataset = 'showcase'
   Prepare = {
@@ -191,6 +213,19 @@ $Suite = @{
       }
     }
     @{
+      Name = 'every account starts under the name its own seeded mail addresses'
+      Body = {
+        # The showcase seeds this at boot by calling the use case, so nothing in the seed data
+        # says whether it happened; without it both cards open on their first-run empty state and
+        # the From picker below has nothing but addresses to show.
+        foreach ($box in Get-SenderNameBoxes) {
+          Assert-True ((Get-UiaText $box).Trim().Length -gt 0) (
+            'the showcase dataset gives each account the name its own mail already addresses ' +
+            '(boot/inmemory.rs); an empty card here means the seeding never reached the core')
+        }
+      }
+    }
+    @{
       Name = 'a typed name reaches the core, and the card reads it back from there'
       Body = {
         Reset-AccountsPanel
@@ -198,32 +233,75 @@ $Suite = @{
         Assert-True ($boxes.Count -ge 2) (
           'this case needs two cards to state which account the name landed on; the showcase ' +
           "dataset seeds two accounts and this run has $($boxes.Count)")
+        # Remembered rather than assumed, and put back at the end: suites share one launch, and
+        # the case after this one reads what the seed set.
+        $was = @(Get-UiaText $boxes[0]; Get-UiaText $boxes[1])
         Set-SenderName -Box $boxes[0] -Text 'Ada Lovelace'
         Reset-AccountsPanel
         $after = Get-SenderNameBoxes
         Assert-Equal 'Ada Lovelace' (Get-UiaText $after[0]) (
           'the card is rebuilt from SyncSettings() every time it is shown, so this is the value ' +
-          'the CORE holds. Empty here means the edit never left the client: the box commits on ' +
-          'LostFocus, and nothing else in the client watches it')
-        Assert-Equal '' (Get-UiaText $after[1]) (
+          'the CORE holds. The old name here means the edit never left the client: the box ' +
+          'commits on LostFocus, and nothing else in the client watches it')
+        Assert-Equal $was[1] (Get-UiaText $after[1]) (
           'the name is per account (docs/sending.md), so it lands on the card it was typed on ' +
-          'and on no other. Both cards carrying it means the setter was handed the wrong id')
+          'and on no other. The second card moving too means the setter was handed the wrong id')
+        Set-SenderName -Box (Get-SenderNameBoxes)[0] -Text $was[0]
+      }
+    }
+    @{
+      Name = "the composer's From reads as the recipient will read it, name and address"
+      Body = {
+        # docs/sending.md rule 7. The From is where the sender picks who a message comes from, so
+        # it shows the whole of what arrives rather than half of it. Both seeded accounts carry a
+        # name here, so a picker still showing bare addresses means the label never reached it.
+        $from = Get-ComposerFrom
+        $selection = @(
+          $from.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection() |
+            ForEach-Object { $_.Current.Name })
+        Assert-Equal 1 $selection.Count 'the From picker opens on exactly one account'
+        Assert-True ($selection[0] -match '^.+ <[^<>@]+@[^<>]+>$') (
+          "the From label is `Name <address>`, which is the shape the recipient's own client " +
+          "shows. It reads: $($selection[0])")
+        # Every item, not only the selected one: a picker labelled from the right property in one
+        # place and the wrong one in the other renders perfectly and misnames every other account.
+        $from.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+        Wait-UiaQuiet -CapMs 1200 -FloorMs 400
+        $items = @(Find-UiaElements -Type 'ListItem' -Root $from | ForEach-Object { $_.Current.Name })
+        Assert-True ($items.Count -ge 2) (
+          "the showcase seeds two accounts, so the picker offers both. It offers: $($items -join ' | ')")
+        foreach ($item in $items) {
+          Assert-True ($item -match '^.+ <[^<>@]+@[^<>]+>$') (
+            "every account in the picker carries its name, not only the selected one. This one " +
+            "reads: $item")
+        }
+        $from.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+        Wait-UiaQuiet -CapMs 900 -FloorMs 300
+        # Leave the composer closed, so the runner can hand this launch to the next suite.
+        $discard = Find-UiaElements -Type 'Button' |
+          Where-Object { $_.Current.AutomationId -in @('DiscardButton', 'CancelButton') } |
+          Select-Object -First 1
+        if ($discard) { Invoke-UiaElement $discard -SettleMs 1500 }
       }
     }
     @{
       Name = 'clearing the field is an answer, not a no-op: the account goes back to a bare address'
       Body = {
-        # Also what puts this suite's launch back as it found it, since suites share an app.
         Reset-AccountsPanel
         $boxes = Get-SenderNameBoxes
         Assert-True ($boxes.Count -ge 1) (
           'no account card offers the field, so there is nothing here to clear')
+        $was = Get-UiaText $boxes[0]
+        Assert-True ($was.Length -gt 0) (
+          'this case needs a name to delete; the seeded card should carry one')
         Set-SenderName -Box $boxes[0] -Text ''
         Reset-AccountsPanel
         Assert-Equal '' (Get-UiaText (Get-SenderNameBoxes)[0]) (
           'docs/sending.md rule 3: an empty name is the first-run state and a real answer. A ' +
           'client that treated empty as "nothing to do" would leave the old name on the wire ' +
           'after the user deleted it')
+        # Put the seed back, since suites share one launch and the next one may read it.
+        Set-SenderName -Box (Get-SenderNameBoxes)[0] -Text $was
       }
     }
   )

@@ -13,6 +13,17 @@ use engine_api::AccountId;
 
 use crate::MailcalApp;
 
+/// The From label for an account: `Name <address>`, or the address alone when no name is set.
+///
+/// Exported rather than written in each client because the interesting case is the empty one,
+/// and four hand-rolled versions of "unless it is blank" is four chances to show somebody a
+/// lone pair of angle brackets. Pass `AccountRow::name` and `AccountRow::email` straight in.
+#[uniffi::export]
+#[must_use]
+pub fn sender_label(name: String, email: String) -> String {
+    mailcal_viewmodel::sender_label(&name, &email)
+}
+
 #[uniffi::export]
 impl MailcalApp {
     /// Sets the name `account`'s outgoing mail is sent under; empty clears it and the account

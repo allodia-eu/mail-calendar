@@ -97,6 +97,10 @@ public class SidebarTreeTests
         {
             Id = id,
             Email = id + "@example.com",
+            // Nameless, which is the ordinary first-run state, so the From label is the address
+            // alone. Nothing in this file draws it; it is here because the record requires it, and
+            // a fixture that invented a name would suggest the pane shows one.
+            SendLabel = id + "@example.com",
             Expanded = expanded,
             Folders = folders ?? [],
         };

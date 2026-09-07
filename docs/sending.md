@@ -67,6 +67,12 @@ it. One value per account, held by the core, put in the `From` of every send.
    it, and one opinion about that is the only safe number.
 6. **Settings shows the same value the switcher does.** `AccountRow::name` and
    `AccountSyncRow::sender_name` are the same string; a client keeps no copy of its own.
+7. **A From field reads `Name <address>`.** The composer's From is where the sender chooses
+   who a message comes from, so it shows what the recipient will see, not half of it. The label
+   comes from `sender_label(name, email)`, which answers the address alone when no name is set:
+   the empty case is the interesting one, and four hand-rolled versions of "unless it is blank"
+   is four chances to show somebody a lone pair of angle brackets. The **sidebar** keeps showing
+   the address, which is what an account is recognised by.
 
 Where the account holder owns the provider's copy (JMAP, Gmail), a change is pushed there too,
 best-effort. It is not reported: the user asked to be called something and, on this device,
@@ -93,12 +99,12 @@ they now are.
 
 ## Per-platform
 
-| Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup | Name in Settings |
-|---|---|---|---|---|---|---|
-| macOS / iOS / iPadOS | ✅ banner | ✅ sheet, non-dismissible | ✅ | ✅ | ✅ | ✅ |
-| Android | ✅ banner | ✅ `AlertDialog`, non-dismissible | ✅ | ✅ | ✅ | ✅ |
-| Windows | ✅ InfoBar | ✅ InfoBar, `IsClosable=False` | ✅ | ✅ | ✅ | ✅ |
-| Linux | ✅ banner | ✅ modal, non-dismissible | ✅ | ✅ | ✅ | ✅ |
+| Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup | Name in Settings | `Name <address>` in From |
+|---|---|---|---|---|---|---|---|
+| macOS / iOS / iPadOS | ✅ banner | ✅ sheet, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
+| Android | ✅ banner | ✅ `AlertDialog`, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ field and menu items |
+| Windows | ✅ InfoBar | ✅ InfoBar, `IsClosable=False` | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
+| Linux | ✅ banner | ✅ modal, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ dropdown |
 
 ## Known gaps
 
@@ -112,6 +118,13 @@ they now are.
 - **A provider's copy is pushed, never pulled back.** A name changed in a webmail after setup
   does not reach this device: the seed is read once, when the field is offered. Re-reading it on
   every sync would let a server overwrite what the user typed here, which is the worse failure.
+  The one place that does read it again is the **harness boot**, which injects a canned account as
+  a stored config and so never runs the step: each client seeds that account's name from the
+  provider on a dev launch, debug-only and never on a real-accounts launch.
+- **Only the composer's From carries the `Name <address>` label.** Settings → Composing's default
+  send account, and the account switcher, still show the address alone. Both name an account
+  rather than a sender, which is the address's job; a label there would be a second answer to
+  "which account is this" in a place nobody is choosing what a recipient sees.
 - **JMAP's filing is trusted, not checked.** The implicit `Email/set` that
   `onSuccessUpdateEmail` performs can report the Drafts→Sent move `notUpdated`, and that
   response is not read, so it would pass as filed. Unlike a lost IMAP `APPEND` the message is

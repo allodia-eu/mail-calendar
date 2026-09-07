@@ -303,11 +303,22 @@ impl AppWidgets {
             self.settings.close();
             if !self.composer.is_active(model.composer_generation) {
                 self.reading.suspend();
+                // (id, the label the From picker shows). The label is `Name <address>`, or the
+                // address alone when no name is set, composed by the core so the four clients
+                // cannot disagree about the empty case (`docs/sending.md`).
                 let accounts = model
                     .snapshot
                     .accounts
                     .iter()
-                    .map(|account| (account.id.clone(), account.email.clone()))
+                    .map(|account| {
+                        (
+                            account.id.clone(),
+                            mailcal_bindings::sender_label(
+                                account.name.clone(),
+                                account.email.clone(),
+                            ),
+                        )
+                    })
                     .collect::<Vec<_>>();
                 self.composer.show(
                     model.composer_generation,
