@@ -5,13 +5,8 @@ use mailcal_bindings::{Intent, SendStatus, Surface};
 use relm4::ComponentSender;
 
 use super::{
-    AppInput, AppModel, PrimaryView,
-    composer_model::ComposeKind,
-    connectivity::{ConnectivityState, ExpiredResolution},
-    mail_actions::DeleteTarget,
-    model, settings,
-    setup_model::{self, DetectedForm, OAuthForm, SetupForm},
-    unfiled_copy::UnfiledCopyNotice,
+    AppInput, AppModel, PrimaryView, composer_model::ComposeKind, connectivity::ConnectivityState,
+    mail_actions::DeleteTarget, model, setup_model, unfiled_copy::UnfiledCopyNotice,
 };
 use crate::l10n;
 
@@ -457,50 +452,5 @@ impl AppModel {
                 self.background_finished(sender.input_sender());
             }
         }
-    }
-
-    fn resolve_expired_signin(&mut self, sender: relm4::Sender<AppInput>) {
-        match self.connectivity.expired_resolution() {
-            Some(ExpiredResolution::Microsoft(email)) => {
-                self.setup.open(false);
-                self.setup
-                    .show_form(SetupForm::Detected(DetectedForm::Microsoft(OAuthForm {
-                        email: email.clone(),
-                    })));
-                self.start_microsoft_login(email, sender);
-            }
-            Some(ExpiredResolution::Google(email)) => {
-                self.setup.open(false);
-                self.setup
-                    .show_form(SetupForm::Detected(DetectedForm::Google(OAuthForm {
-                        email: email.clone(),
-                    })));
-                self.start_google_login(email, sender);
-            }
-            Some(ExpiredResolution::JmapOauth(account)) => {
-                self.start_jmap_reauth(account, sender);
-            }
-            Some(ExpiredResolution::Settings) => {
-                self.settings.open(Some(settings::Category::Accounts));
-            }
-            None => {}
-        }
-    }
-
-    fn resolve_microsoft_reauth(&mut self, calendar: bool, sender: relm4::Sender<AppInput>) {
-        let email = if calendar {
-            self.connectivity.calendar_reauth_emails.first()
-        } else {
-            self.connectivity.mail_reauth_emails.first()
-        };
-        let Some(email) = email.cloned() else {
-            return;
-        };
-        self.setup.open(false);
-        self.setup
-            .show_form(SetupForm::Detected(DetectedForm::Microsoft(OAuthForm {
-                email: email.clone(),
-            })));
-        self.start_microsoft_login(email, sender);
     }
 }

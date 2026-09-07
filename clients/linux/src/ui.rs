@@ -79,6 +79,7 @@ mod setup_onboarding_tests;
 mod setup_widget_tests;
 mod setup_widgets;
 mod shell;
+mod shell_sidebar;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 mod showcase_hooks;
 mod signature_image;
@@ -86,6 +87,7 @@ mod time_zone;
 mod timestamps;
 mod unfiled_copy;
 mod update;
+mod update_reauth;
 mod web_security;
 mod webview;
 mod welcome;
