@@ -84,6 +84,25 @@ pub(super) fn intent_for(target: MessageTarget, action: ActionKind) -> Intent {
     }
 }
 
+/// The batch equivalent of a row menu's action, or `None` for one that has no batch form.
+///
+/// Spam and not-spam are the two: they are reports rather than moves (`docs/reporting.md`), and
+/// which verdicts a provider offers is read per account, so a selection spanning accounts has no
+/// single answer (`docs/list-selection.md`, Known gaps). A menu item with no batch form acts on
+/// its own row, selection or not.
+pub(super) fn bulk_form(action: ActionKind) -> Option<BulkAction> {
+    match action {
+        ActionKind::MarkRead(true) => Some(BulkAction::MarkRead),
+        ActionKind::MarkRead(false) => Some(BulkAction::MarkUnread),
+        ActionKind::SetFlagged(true) => Some(BulkAction::Flag),
+        ActionKind::SetFlagged(false) => Some(BulkAction::Unflag),
+        ActionKind::Archive => Some(BulkAction::Archive),
+        ActionKind::MoveToTrash => Some(BulkAction::Delete),
+        ActionKind::PermanentlyDelete => Some(BulkAction::PermanentlyDelete),
+        ActionKind::MarkAsSpam | ActionKind::MarkAsNotSpam => None,
+    }
+}
+
 pub(super) fn in_junk_folder(snapshot: &MailboxListSnapshot) -> bool {
     let Some(selected) = snapshot.selected.as_deref() else {
         return false;
@@ -303,7 +322,31 @@ impl AppModel {
         if request.action == ActionKind::PermanentlyDelete {
             self.pending_mail_delete = None;
         }
+        // A menu opened on a selected row is about the whole selection, not the one row it hangs
+        // off (`docs/list-selection.md`, rule 12). The action is the one the item's label named,
+        // not the one the bar derives for itself: the user read it and chose it.
+        if let Some(bulk) = self.selection_form(&request) {
+            self.perform_selection(bulk);
+            return;
+        }
         self.dispatch(request.into_intent());
+    }
+
+    /// The batch this request becomes when its row is one of the selected ones, or `None` when it
+    /// is an ordinary single-row action.
+    fn selection_form(&self, request: &MailActionRequest) -> Option<BulkAction> {
+        // A permanent delete never routes here. It reaches the model as `RequestPermanentDelete`,
+        // which decides between the one row and the selection *before* the confirmation says what
+        // is going, and only that dialog's own button may run it: routing it here would run an
+        // irreversible batch off a sentence that had counted one message.
+        if request.action == ActionKind::PermanentlyDelete {
+            return None;
+        }
+        let target = &request.target;
+        if !self.selection.covers_message(&target.account, &target.key) {
+            return None;
+        }
+        bulk_form(request.action)
     }
 
     /// Runs one action over every selected row, as a single batch in the core.

@@ -225,7 +225,15 @@ impl AppModel {
             AppInput::PerformMailAction(request) => self.perform_mail_action(*request),
             AppInput::PerformOpenedMailAction(action) => self.perform_opened_mail_action(action),
             AppInput::RequestPermanentDelete(target) => {
-                self.pending_mail_delete = Some(DeleteTarget::Message(target));
+                // A menu opened on a selected row is about the whole selection, so the
+                // confirmation counts it (`docs/list-selection.md`, rule 12).
+                self.pending_mail_delete = Some(
+                    if self.selection.covers_message(&target.account, &target.key) {
+                        DeleteTarget::Selection(self.selection.selected_rows().len())
+                    } else {
+                        DeleteTarget::Message(target)
+                    },
+                );
             }
             AppInput::DismissPermanentDelete => self.pending_mail_delete = None,
             AppInput::ArchiveThread { account, thread_id } => {

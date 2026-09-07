@@ -27,6 +27,38 @@ public class SelectionActionsTests
         new("acct-1", key, IsThread: true, unread, Flagged: false);
 
     [Fact]
+    public void ARowMenuOnASelectedRowCoversTheWholeSelection()
+    {
+        var selected = new[] { Message(key: "m1"), Message(key: "m2") };
+        Assert.True(SelectionActions.Covers(selected, Message(key: "m2")));
+    }
+
+    [Fact]
+    public void ARowMenuOnAnUnselectedRowIsAboutThatRowAlone()
+    {
+        var selected = new[] { Message(key: "m1"), Message(key: "m2") };
+        Assert.False(SelectionActions.Covers(selected, Message(key: "m3")));
+        Assert.False(SelectionActions.Covers([], Message(key: "m1")));
+    }
+
+    [Fact]
+    public void AThreadRowIsNotTheMessageRowThatSharesItsKey()
+    {
+        // The two travel to the core as different shapes, so a conversation whose id happens to
+        // equal a message key must not make that message's menu act on the selection.
+        Assert.False(SelectionActions.Covers([Thread(key: "x")], Message(key: "x")));
+        Assert.True(SelectionActions.Covers([Thread(key: "x")], Thread(key: "x")));
+    }
+
+    [Fact]
+    public void TheSameKeyInAnotherAccountIsADifferentRow()
+    {
+        var selected = new[] { Message(key: "m1") };
+        var elsewhere = new Row("acct-2", "m1", IsThread: false, Unread: false, Flagged: false);
+        Assert.False(SelectionActions.Covers(selected, elsewhere));
+    }
+
+    [Fact]
     public void ReadOffersMarkReadWhileAnythingSelectedIsUnread()
     {
         Assert.Equal(BulkAction.MarkRead, SelectionActions.Read([Message(unread: true), Message()]));

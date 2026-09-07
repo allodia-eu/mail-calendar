@@ -54,6 +54,15 @@ internal static class SelectionActions
         rows.Any(row => row.IsThread || !row.Flagged) ? BulkAction.Flag : BulkAction.Unflag;
 
     /// <summary>
+    /// Whether a row menu opened on <paramref name="row"/> acts on the whole selection, which it
+    /// does when that row is one of the selected ones (docs/list-selection.md, rule 12). A menu
+    /// opened on a row outside the selection is about that row alone.
+    /// </summary>
+    public static bool Covers(IEnumerable<ISelectableRow> selected, ISelectableRow row) =>
+        selected.Any(one =>
+            one.IsThread == row.IsThread && one.Account == row.Account && one.Key == row.Key);
+
+    /// <summary>
     /// Whether the action takes its rows out of the folder, so the reading pane must let go of a
     /// message that is in the batch. Read and flag change a message in place and do not.
     /// </summary>

@@ -78,15 +78,35 @@ selection itself is the client's, and rule 1 says why.
     a visual highlight alone: the native selected/checked property on the row, and a bar whose
     count is a readable label rather than a bare number.
 
+12. **A row menu acts on the selection when its own row is in the selection.** Right-clicking one
+    of five selected rows and choosing Archive archives the five, not the one under the pointer:
+    the menu is a second way to reach the same batch the bar offers, so it dispatches the same
+    `Intent::ActOnSelection`. A menu opened on a row **outside** the selection is about that row
+    alone and changes nothing about what is selected.
+
+    The action is the one the item's label named, not the one rule 5 derives for the bar: the user
+    read "Mark as read" and chose it, so the whole selection is marked read whatever mix it holds.
+    Items with no batch form stay single-row, which is Open, Reply, Reply all and Forward
+    everywhere, plus spam and not-spam for the reason under **Known gaps**.
+
+    Two consequences follow from reaching the batch rather than the single-row path. A selected
+    row's archive or delete loses the **undo window** the single-row path has where that platform
+    offers one, because no bulk action has an undo anywhere; and a permanent delete over a
+    selection asks with the count, since the confirmation must name what is actually going.
+
 ## Per-platform
 
-| Platform | Enter | Extend | Bar | Delete key | Escape | Where |
-|---|---|---|---|:---:|:---:|---|
-| macOS | ⌘-click a row | ⇧-click a range | over the list | ✅ | ✅ | `Mailcal.Selection.swift` |
-| iPhone / iPadOS | **Select** in the toolbar | tap toggles | over the list | — | — | `Mailcal.Selection.swift` |
-| Windows | Ctrl-click a row | Shift-click, Ctrl+A | over the list | ✅ | ✅ | `Views/MailListView.Selection.cs` |
-| Android | long-press a row | tap toggles | contextual top bar | — | — | `MailSelectionBar.kt` |
-| Linux | Ctrl-click a row | Shift-click, Ctrl+A | over the list | ✅ | ✅ | `ui/selection_input.rs` |
+| Platform | Enter | Extend | Bar | Delete key | Escape | Row menu | Where |
+|---|---|---|---|:---:|:---:|:---:|---|
+| macOS | ⌘-click a row | ⇧-click a range | over the list | ✅ | ✅ | ✅ | `Mailcal.Selection.swift` |
+| iPhone / iPadOS | **Select** in the toolbar | tap toggles | over the list | — | — | ✅ | `Mailcal.Selection.swift` |
+| Windows | Ctrl-click a row | Shift-click, Ctrl+A | over the list | ✅ | ✅ | ✅ | `Views/MailListView.Selection.cs` |
+| Android | long-press a row | tap toggles | contextual top bar | — | — | — | `MailSelectionBar.kt` |
+| Linux | Ctrl-click a row | Shift-click, Ctrl+A | over the list | ✅ | ✅ | ✅ | `ui/selection_input.rs` |
+
+**Row menu** is rule 12: a menu opened on a selected row acts on the whole selection. Android is
+the one dash, and has nothing to reconcile: long-press is how a selection *starts* there, so a row
+never carries both a menu and a selection.
 
 Mobile has no modifier keys, so both phones enter a selection mode and leave it again (Back on
 Android, **Done** on iPhone/iPad); a plain tap there still opens a message, as it always did.

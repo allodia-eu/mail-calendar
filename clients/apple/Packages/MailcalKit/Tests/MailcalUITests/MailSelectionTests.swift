@@ -175,6 +175,29 @@ import Testing
         )
     }
 
+    @Test func aRowMenuOnASelectedRowCoversTheWholeSelection() {
+        let rows = [flat("m1"), flat("m2"), flat("m3")]
+        var selection = MailSelection()
+        selection.click(rows, 0, .replace)
+        selection.click(rows, 2, .toggle)
+
+        // `contains` is what the row menu asks before it dispatches the batch instead of the
+        // single-row intent (`docs/list-selection.md`, rule 12).
+        #expect(selection.contains(rows[0]))
+        #expect(selection.contains(rows[2]))
+        #expect(!selection.contains(rows[1]), "a menu on an unselected row is about that row alone")
+    }
+
+    @Test func aSelectedConversationIsNotTheMessageRowThatSharesItsId() {
+        let rows = [thread("x")]
+        var selection = MailSelection()
+        selection.click(rows, 0, .replace)
+
+        // The two travel to the core as different shapes, so a message menu may not act on a
+        // selection holding only the conversation whose id happens to match.
+        #expect(!selection.contains(flat("x")))
+    }
+
     @Test func onlyTheActionsThatEmptyTheRowClearTheSelection() {
         #expect(BulkAction.archive.removesRows)
         #expect(BulkAction.delete.removesRows)

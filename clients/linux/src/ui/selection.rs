@@ -181,6 +181,15 @@ impl Selection {
         self.rows.iter().any(|selected| selected == &key)
     }
 
+    /// Whether the selection holds the **message** row a row menu was opened on, which is what
+    /// decides whether that menu acts on the whole selection (`docs/list-selection.md`, rule 12).
+    /// A menu opened on a row outside the selection is about that row alone.
+    pub(crate) fn covers_message(&self, account: &str, key: &str) -> bool {
+        self.rows
+            .iter()
+            .any(|row| !row.thread && row.account == account && row.id == key)
+    }
+
     /// The selected rows in the shape [`mailcal_bindings::Intent::ActOnSelection`] takes.
     pub(crate) fn selected_rows(&self) -> Vec<SelectedRow> {
         self.rows.iter().map(RowKey::selected_row).collect()

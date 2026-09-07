@@ -51,6 +51,12 @@ public sealed partial class MailboxModel
     internal BulkAction SelectionFlagAction => SelectionActions.Flag(_selectedRows);
 
     /// <summary>
+    /// Whether <paramref name="row"/> is one of the selected rows, which is what decides whether a
+    /// row menu opened on it acts on the whole selection (docs/list-selection.md, rule 12).
+    /// </summary>
+    internal bool SelectionCovers(MailRow row) => SelectionActions.Covers(_selectedRows, row);
+
+    /// <summary>
     /// Records what the list has selected and re-labels the bar. Called from the view's
     /// SelectionChanged; the model keeps no selection the ListView does not have.
     /// </summary>

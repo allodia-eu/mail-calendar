@@ -197,3 +197,36 @@ fn a_conversation_is_selected_as_a_thread_not_as_its_latest_message() {
         "a conversation carries no flag of its own, so flagging is what it can be asked for",
     );
 }
+
+#[test]
+fn a_row_menu_on_a_selected_row_covers_the_whole_selection() {
+    let rows = [flat("m1", false, false), flat("m2", false, false)];
+    let mut selection = Selection::default();
+    selection.select_all(&rows);
+
+    assert!(selection.covers_message("acct-1", "m1"));
+    assert!(selection.covers_message("acct-1", "m2"));
+}
+
+#[test]
+fn a_row_menu_on_an_unselected_row_is_about_that_row_alone() {
+    let rows = [flat("m1", false, false), flat("m2", false, false)];
+    let mut selection = Selection::default();
+    selection.click(&rows, 0, SelectMode::Replace);
+
+    assert!(!selection.covers_message("acct-1", "m2"));
+    // Same key, another account: the unified list holds both, and a provider key is unique only
+    // within its own account.
+    assert!(!selection.covers_message("acct-2", "m1"));
+}
+
+#[test]
+fn a_selected_conversation_is_not_the_message_row_that_shares_its_id() {
+    let rows = [thread("x", 0)];
+    let mut selection = Selection::default();
+    selection.select_all(&rows);
+
+    // The two travel to the core as different shapes, so a message menu may not act on a
+    // selection holding only the conversation whose id happens to match.
+    assert!(!selection.covers_message("acct-1", "x"));
+}

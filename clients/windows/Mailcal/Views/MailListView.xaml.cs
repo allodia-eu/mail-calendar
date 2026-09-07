@@ -258,7 +258,7 @@ public sealed partial class MailListView : UserControl
 
     private void OnToggleRead(object sender, RoutedEventArgs e)
     {
-        if (RowOf(sender) is { } row)
+        if (RowOf(sender) is { } row && !ActedOnSelection(row, row.Unread ? BulkAction.MarkRead : BulkAction.MarkUnread))
         {
             Model?.MarkRead(row.Account, row.Key, row.Unread);
         }
@@ -266,10 +266,27 @@ public sealed partial class MailListView : UserControl
 
     private void OnToggleFlag(object sender, RoutedEventArgs e)
     {
-        if (RowOf(sender) is { } row)
+        if (RowOf(sender) is { } row && !ActedOnSelection(row, row.Flagged ? BulkAction.Unflag : BulkAction.Flag))
         {
             Model?.SetFlagged(row.Account, row.Key, !row.Flagged);
         }
+    }
+
+    // A row menu acts on the WHOLE selection when its own row is part of it, and on that row alone
+    // when it is not (docs/list-selection.md, rule 12). The action is the one the menu item named,
+    // not the one rule 5 derives for the bar: the user read a label and chose it.
+    //
+    // A selected row therefore loses the undo window the single-row path below has, because a batch
+    // has no undo anywhere (that gap is the contract's, not this menu's), and gains the one sync per
+    // account a batch buys.
+    private bool ActedOnSelection(MailRow row, BulkAction action)
+    {
+        if (Model is not { } model || !model.SelectionCovers(row))
+        {
+            return false;
+        }
+        model.ActOnSelection(action);
+        return true;
     }
 
     // Archive / Move to Trash from the row's context menu run through the SAME deferred machine as a
@@ -279,7 +296,7 @@ public sealed partial class MailListView : UserControl
     // equal path rather than a lesser one.
     private void OnArchive(object sender, RoutedEventArgs e)
     {
-        if (RowOf(sender) is { } row)
+        if (RowOf(sender) is { } row && !ActedOnSelection(row, BulkAction.Archive))
         {
             PerformSwipe(row, SwipeActionKind.Archive);
         }
@@ -287,26 +304,37 @@ public sealed partial class MailListView : UserControl
 
     private void OnDelete(object sender, RoutedEventArgs e)
     {
-        if (RowOf(sender) is { } row)
+        if (RowOf(sender) is { } row && !ActedOnSelection(row, BulkAction.Delete))
         {
             PerformSwipe(row, SwipeActionKind.Delete);
         }
     }
 
+    // The one irreversible item on the row menu, so it asks first whichever set it is about; over a
+    // selection it counts the rows, the way the bar's own button does.
     private async void OnPermanentlyDelete(object sender, RoutedEventArgs e)
     {
-        if (RowOf(sender) is not { } row || Model is null)
+        if (RowOf(sender) is not { } row || Model is not { } model)
         {
             return;
         }
+        var many = model.SelectionCovers(row);
         var result = await DialogHelper.ConfirmAsync(
             this.XamlRoot,
             L10n.DeletePermanentlyTitle(),
-            L10n.DeletePermanentlyMessage(),
+            many ? L10n.DeletePermanentlyMessageMany(model.SelectionCount) : L10n.DeletePermanentlyMessage(),
             L10n.ActionDelete());
-        if (result == ContentDialogResult.Primary)
+        if (result != ContentDialogResult.Primary)
         {
-            Model.PermanentlyDelete(row.Account, row.Key);
+            return;
+        }
+        if (many)
+        {
+            model.ActOnSelection(BulkAction.PermanentlyDelete);
+        }
+        else
+        {
+            model.PermanentlyDelete(row.Account, row.Key);
         }
     }
 

@@ -56,6 +56,20 @@ extension ContentView {
         if closesReading { clearOpenedMessage() }
     }
 
+    /// Runs a row menu's action over the **selection** when the menu's own row is part of it, and
+    /// answers whether it did (`docs/list-selection.md`, rule 12). A menu opened on a row outside
+    /// the selection is about that row alone, so this answers `false` and the caller takes its
+    /// ordinary single-row path.
+    ///
+    /// The action is the one the user's menu item named, not the one rule 5 derives for the bar:
+    /// they read a label and chose it, so "Mark as read" over a selection marks it read whatever
+    /// mix of read and unread it holds.
+    func actFromRowMenu(_ row: SnapshotRow, _ action: BulkAction) -> Bool {
+        guard selection.contains(row) else { return false }
+        actOnSelection(action)
+        return true
+    }
+
     /// Whether the message in the reading pane is one of the selected rows, a conversation's
     /// members included. The pane is cleared rather than advanced: the row it would advance to may
     /// be in the same batch and about to leave too.

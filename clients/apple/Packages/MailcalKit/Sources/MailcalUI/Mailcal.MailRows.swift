@@ -215,28 +215,49 @@ extension ContentView {
             Label(L10n.action_forward(), systemImage: "arrowshape.turn.up.right")
         }
         Divider()
-        Button { model.markRead(message.account, message.key, message.unread) } label: {
+        Button {
+            rowMenuAction(message, message.unread ? .markRead : .markUnread) {
+                model.markRead(message.account, message.key, message.unread)
+            }
+        } label: {
             Label(message.unread ? L10n.action_mark_read() : L10n.action_mark_unread(), systemImage: "envelope")
         }
-        Button { model.setFlagged(message.account, message.key, true) } label: {
+        Button {
+            rowMenuAction(message, .flag) { model.setFlagged(message.account, message.key, true) }
+        } label: {
             Label(L10n.action_flag(), systemImage: "flag")
         }
-        Button { model.setFlagged(message.account, message.key, false) } label: {
+        Button {
+            rowMenuAction(message, .unflag) { model.setFlagged(message.account, message.key, false) }
+        } label: {
             Label(L10n.action_clear_flag(), systemImage: "flag.slash")
         }
         Divider()
         // Archive alongside Trash, so both destinations are on the menu (not only the swipe).
-        Button { model.archive(message.account, message.key) } label: {
+        Button {
+            rowMenuAction(message, .archive) { model.archive(message.account, message.key) }
+        } label: {
             Label(L10n.action_archive(), systemImage: "archivebox")
         }
-        Button { model.delete(message.account, message.key) } label: {
+        Button {
+            rowMenuAction(message, .delete) { model.delete(message.account, message.key) }
+        } label: {
             Label(L10n.action_move_to_trash(), systemImage: "trash")
         }
         Button(role: .destructive) {
-            model.permanentlyDelete(message.account, message.key)
+            rowMenuAction(message, .permanentlyDelete) {
+                model.permanentlyDelete(message.account, message.key)
+            }
         } label: {
             Label(L10n.action_delete_permanently(), systemImage: "trash.slash")
         }
+    }
+
+    /// A flat row menu's item: over the whole selection when this row is in it, over this row
+    /// alone when it is not (`docs/list-selection.md`, rule 12).
+    private func rowMenuAction(_ message: FlatRow, _ action: BulkAction, else single: () -> Void) {
+        if actFromRowMenu(.flat(row: message), action) { return }
+        single()
     }
 
     /// A conversation row: a tappable header (subject, message count, latest sender) that, when
@@ -321,6 +342,10 @@ extension ContentView {
     /// Archives a conversation (received messages only) and tidies the UI: collapse it and, if
     /// the open message was part of it, clear the reading pane, its row is leaving the folder.
     private func archiveThread(_ thread: ThreadRow) {
+        if actFromRowMenu(.thread(row: thread), .archive) {
+            expandedThreads.remove(threadKey(thread))
+            return
+        }
         model.archiveThread(thread.account, thread.threadId)
         expandedThreads.remove(threadKey(thread))
         if let opened = openedMessage,
