@@ -72,6 +72,15 @@ the presentation are identical across clients**:
 - No `script-src`: scripts never run, even if one survived sanitisation.
 - The document has **no resolvable base origin**, so relative/remote URLs can't be rebased.
 
+⚠️ **The directives are one policy, separated by semicolons.** A `content` attribute holds a policy
+*list*, and a comma starts a second policy which is enforced alongside the first, so the document
+gets the intersection of the two. A comma in place of a semicolon therefore separates
+`default-src 'none'` from the `style-src` and `img-src` that soften it, and both fall back to
+`'none'`: every message renders with no CSS at all, its own and the base sheet's alike, and not
+even an inline `data:` image loads. It reads as a rendering bug rather than a policy one, and an
+assertion that each directive is *present* passes throughout, which is why
+`the_document_carries_one_policy_rather_than_two` asserts on the separators instead.
+
 ### Layer 3: Native host renderer (per platform, implement **every** gate)
 
 The fragment is rendered in the platform's web view. The shared CSP is the primary boundary; these

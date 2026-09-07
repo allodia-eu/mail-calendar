@@ -161,10 +161,16 @@ pub fn render_document(body_fragment: &str, load_remote_images: bool) -> String 
     // `base-uri`/`form-action` do NOT fall back to `default-src`, so set them explicitly:
     // even if a `<base>` or `<form>` ever survived sanitisation, it can't rebase relative
     // URLs or POST data off-host.
+    //
+    // ⚠️ Every separator below is a SEMICOLON. A `content` attribute is a policy *list*, and a
+    // comma starts a second policy that is enforced alongside the first, so the document gets
+    // the intersection. One comma here splits `default-src 'none'` away from the `style-src`
+    // and `img-src` that soften it, both fall back to `'none'`, and the message renders with no
+    // CSS at all and not even a `data:` image.
     format!(
         "<!DOCTYPE html><html><head><meta charset=\"utf-8\">\
          <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; \
-         base-uri 'none', form-action 'none'; \
+         base-uri 'none'; form-action 'none'; \
          img-src {img_src}; style-src 'unsafe-inline'; font-src data:\">\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
          <style>{BASE_CSS}</style></head><body>{body_fragment}</body></html>"
