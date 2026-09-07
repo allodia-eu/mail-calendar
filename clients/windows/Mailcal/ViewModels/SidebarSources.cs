@@ -75,6 +75,17 @@ public sealed class AccountItem
     /// <summary>The account's email address (the display label).</summary>
     public required string Email { get; init; }
 
+    /// <summary>How this account reads in a From field: <c>Name &lt;address&gt;</c>, or the
+    /// address alone when no name is set. The sidebar shows <see cref="Email"/> instead, which is
+    /// what an account is recognised by (<c>docs/sending.md</c>).</summary>
+    /// <remarks>
+    /// Composed by the core (<c>sender_label</c>) and carried here as data rather than derived on
+    /// read: this type compiles into <c>Mailcal.Tests</c>, which links the generated bindings but
+    /// loads no cdylib, so a property that called across the FFI would throw in any test that
+    /// happened to touch it.
+    /// </remarks>
+    public required string SendLabel { get; init; }
+
     /// <summary>Whether this account's folder tree is open, as the core has it persisted.
     /// Independent of which account is selected.</summary>
     public bool Expanded { get; init; }

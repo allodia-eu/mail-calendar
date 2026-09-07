@@ -74,6 +74,14 @@ pub struct AccountRow {
     pub id: String,
     /// The account's email address (display label).
     pub email: String,
+    /// The name this account's outgoing mail is sent under; empty when nobody has set one.
+    ///
+    /// A label, never an identity: [`id`](Self::id) selects the account and
+    /// [`email`](Self::email) is what a person recognises it by, so a client showing both
+    /// puts the name above the address and a client with room for one line keeps the
+    /// address. Empty is the ordinary first-run state and is not a gap to fill with the
+    /// address (`docs/sending.md`).
+    pub name: String,
     /// Whether this account's folder tree is open in the sidebar.
     ///
     /// Independent of selection, and persisted across launches: the two rules that

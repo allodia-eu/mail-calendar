@@ -47,11 +47,11 @@ extension MailboxModel {
                 // The token exchange + folder connect + first mailbox sync are blocking and can
                 // take a while, so run them OFF the main thread, otherwise the whole UI freezes
                 // for the duration. Hop back to the main actor for the UI + Keychain.
-                _ = try await Task.detached(priority: .userInitiated) {
+                let added = try await Task.detached(priority: .userInitiated) {
                     try app.completeGoogleLogin(
                         pending: start.pending, callbackUrl: callbackURL)
                 }.value
-                self.accountWasAdded()
+                self.accountWasAdded(added)
             } catch GoogleSignInError.cancelled {
                 // The user dismissed the browser, not an error; the defer resets the spinner.
             } catch {

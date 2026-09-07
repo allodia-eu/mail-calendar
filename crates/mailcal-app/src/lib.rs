@@ -92,6 +92,8 @@ mod recipients;
 mod reference;
 mod scope;
 mod send_settings;
+mod sender_identity;
+mod sender_names;
 mod signatures;
 mod snapshot;
 mod snapshot_search;
@@ -219,6 +221,10 @@ pub struct App<P> {
     /// Which accounts have their folder tree open; persisted, and independent of selection, so
     /// navigating anywhere leaves the tree as the user left it (`docs/folder-pane.md`).
     folder_pane: Mutex<folder_pane::FolderPaneState>,
+    /// The name each account sends under, read on every snapshot rebuild (it labels the
+    /// account rows) and so held rather than read from disk. `sender_names` says why the
+    /// core owns it at all.
+    sender_names: Mutex<sender_names::SenderNameState>,
     /// The alphabetical unified-people snapshot the contacts list renders. One snapshot for
     /// **every** account, not one per account: the engine deduplicates people across accounts,
     /// so there is nothing per-account to merge here (see [`crate::contacts`]).

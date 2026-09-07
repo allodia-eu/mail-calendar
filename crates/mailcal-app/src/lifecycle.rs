@@ -23,8 +23,9 @@ use crate::{
     calendar_cache, calendar_prefs::CalendarPrefsState, display_settings::DisplaySettingsState,
     folder_pane, load_view_mode, mcp_settings::McpSettingsState,
     quote_settings::QuoteSettingsState, scope::Scope, send_settings::SendSettingsState,
-    signatures::SignatureState, surfaced::Surfaced, swipe_settings::SwipeSettingsState, sync,
-    sync_progress::SyncProgressState, sync_settings::SyncSettingsState, timezone::TimeZoneState,
+    sender_names, signatures::SignatureState, surfaced::Surfaced,
+    swipe_settings::SwipeSettingsState, sync, sync_progress::SyncProgressState,
+    sync_settings::SyncSettingsState, timezone::TimeZoneState,
 };
 
 impl<P: Provider> App<P> {
@@ -74,6 +75,7 @@ impl<P: Provider> App<P> {
             calendar_cache: Mutex::new(calendar_cache::CalendarCache::default()),
             calendar_prefs: Mutex::new(CalendarPrefsState::new(prefs_path.clone())),
             folder_pane: Mutex::new(folder_pane::FolderPaneState::new(prefs_path.clone())),
+            sender_names: Mutex::new(sender_names::SenderNameState::new(prefs_path.clone())),
             contacts: Mutex::new(ContactsSnapshot::default()),
             contacts_query: Mutex::new(String::new()),
             contacts_generation: AtomicU64::new(0),

@@ -3,6 +3,7 @@
 // member here is compiled out of a release build (the whole file is under #if DEBUG), so a shipped
 // binary carries no canned credentials and no dev-store path.
 
+using System.Threading.Tasks;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
@@ -169,6 +170,51 @@ public sealed partial class MailboxModel
                 Log.Warn($"MAILCAL_DEV_ACCOUNT='{raw}' is not supported on Windows; using stored accounts. Use 'stalwart' (JMAP), 'stalwart-multi' (two JMAP accounts), 'stalwart-imap' (IMAP) or 'first-run' (an empty namespace) here.");
                 return null;
         }
+    }
+
+    /// <summary>
+    /// Gives each harness account the name the harness server already holds for it, which is what
+    /// the step after a connect would have asked for (<c>docs/sending.md</c>).
+    /// </summary>
+    /// <remarks>
+    /// The canned account is injected as a stored config and never goes through the setup form, so
+    /// nothing ever asks, and every harness run would otherwise send as a bare address and show an
+    /// empty field on its Settings card. This is the step's two calls without the dialog.
+    /// <para>
+    /// Only where the name is still empty, which <c>SuggestedSenderName</c> already decides: it
+    /// answers the stored name when there is one, so a name typed during a dev session survives the
+    /// next launch rather than being overwritten by the server's.
+    /// </para>
+    /// <para>
+    /// Harness accounts only. On a launch against the developer's real accounts this does nothing:
+    /// pulling a provider's copy into an account nobody asked about is exactly what
+    /// <c>docs/sending.md</c> keeps out of the product, and a dev convenience may not smuggle it in.
+    /// </para>
+    /// </remarks>
+    private static async Task SeedHarnessSenderNamesAsync(MailcalApp app)
+    {
+        if (!IsHarnessDevAccount)
+        {
+            return;
+        }
+        // Off the UI thread: SuggestedSenderName talks to the provider.
+        await Task.Run(() =>
+        {
+            foreach (var account in app.SyncSettings().Accounts)
+            {
+                if (!string.IsNullOrEmpty(account.SenderName))
+                {
+                    continue;
+                }
+                var suggestion = app.SuggestedSenderName(account.AccountId);
+                if (string.IsNullOrEmpty(suggestion))
+                {
+                    continue;
+                }
+                app.SetAccountSenderName(account.AccountId, suggestion);
+                Log.Info("harness: seeded a sender name from the provider");
+            }
+        });
     }
 }
 #endif

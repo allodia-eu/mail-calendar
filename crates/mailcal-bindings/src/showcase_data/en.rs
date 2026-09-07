@@ -80,7 +80,7 @@ pub(super) fn primary(now: OffsetDateTime) -> AccountSeed {
             .preview("Draft — headline numbers, launch status, and the two decisions I need from the board.")
             .at(ago(now, 240)).draft().id("boarddraft-1@example.com").done(),
     ];
-    seed(ShowcaseLocale::En, me.1, mailboxes, messages, now)
+    seed(ShowcaseLocale::En, me, mailboxes, messages, now)
 }
 
 pub(super) fn secondary(now: OffsetDateTime) -> AccountSeed {
@@ -107,7 +107,7 @@ pub(super) fn secondary(now: OffsetDateTime) -> AccountSeed {
             .preview("Missed the all-hands? Here's the recording and the deck.")
             .at(ago(now, 4320)).seen().id("ah-1@northwind.example").done(),
     ];
-    seed(ShowcaseLocale::En, me.1, mailboxes, messages, now)
+    seed(ShowcaseLocale::En, me, mailboxes, messages, now)
 }
 
 /// The three showcase calendars' names and a full week of events spread across them — a real

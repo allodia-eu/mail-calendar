@@ -7,7 +7,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use engine_api::{AccountId, Engine};
+use engine_api::{AccountId, CalendarWrites, Engine};
 use engine_core::{mail::Mailbox, sync::SyncState};
 use engine_provider::{Capabilities, ConnectionInfo, Provider, ProviderResult, ScopeSync};
 use tokio::sync::oneshot;
@@ -75,6 +75,8 @@ impl Provider for BlockingMailboxProvider {
         std::future::pending::<ProviderResult<ScopeSync<Mailbox>>>().await
     }
 }
+
+impl CalendarWrites for BlockingMailboxProvider {}
 
 fn temp_data_dir(name: &str) -> std::path::PathBuf {
     let nanos = SystemTime::now()

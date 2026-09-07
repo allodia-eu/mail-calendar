@@ -323,7 +323,7 @@ impl AppModel {
                 self.submit_account(*submission, sender.input_sender().clone());
             }
             AppInput::AccountAdded(result) => {
-                self.account_added(result);
+                self.account_added(result, sender.input_sender().clone());
                 // The account list changed, so the person's other devices should hear about it now
                 // rather than at the next launch. A no-op when nobody is signed in.
                 self.sync_after_account_change(sender.input_sender().clone());
@@ -401,6 +401,17 @@ impl AppModel {
             AppInput::SetUpOfferedAccount(offer) => {
                 self.set_up_offered_account(*offer, sender.input_sender().clone());
             }
+            AppInput::SenderNameSuggested {
+                account,
+                suggestion,
+            } => self.sender_name_suggested(account, suggestion),
+            AppInput::SetAccountSenderName { account, name } => {
+                if let Some(app) = &self.app {
+                    app.set_account_sender_name(account, name);
+                }
+                self.host_tasks.sender_name_ask = None;
+            }
+            AppInput::DismissSenderNamePrompt => self.host_tasks.sender_name_ask = None,
             AppInput::ReplaceAccountSecret { account, secret } => {
                 self.replace_account_secret(account, secret, sender.input_sender().clone());
             }

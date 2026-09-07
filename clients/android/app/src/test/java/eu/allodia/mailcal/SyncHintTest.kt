@@ -20,7 +20,7 @@ import uniffi.mailcal_bindings.SyncProgressSnapshot
 private fun ctx(): Context = RuntimeEnvironment.getApplication()
 
 private fun account(id: String, email: String) =
-    AccountRow(id = id, email = email, expanded = false)
+    AccountRow(id = id, email = email, name = "", expanded = false)
 
 private fun syncing(vararg accounts: AccountSyncProgress) =
     SyncProgressSnapshot(active = false, fetched = 0uL, total = null, accounts = accounts.toList())

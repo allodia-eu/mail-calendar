@@ -34,6 +34,11 @@ enum BackgroundScan {
 pub(super) struct HostTasks {
     pub(super) welcome_pending: bool,
     pub(super) setup_after_welcome: bool,
+    /// The account whose "your name" step is open, with what its provider suggested; `None`
+    /// when none is. Here rather than on the model because the connect in this file is what
+    /// raises it, exactly as the two first-run flags above are completed here
+    /// (`super::setup_widgets`).
+    pub(super) sender_name_ask: Option<super::setup_widgets::SenderNameAsk>,
     background: BackgroundScan,
     /// One slot per browser flow. They are independent; a JMAP pre-flight running while a
     /// Microsoft sign-in is open must not cancel it; but each behaves identically, so they
@@ -118,6 +123,7 @@ impl HostTasks {
         Self {
             welcome_pending,
             setup_after_welcome,
+            sender_name_ask: None,
             background: BackgroundScan::Idle,
             google: AttemptSlot::empty(),
             microsoft: AttemptSlot::empty(),
@@ -212,26 +218,58 @@ impl AppModel {
                 // The core persists the credential through the host's `AccountCredentialStore`
                 // and rolls the add back itself when that write fails.
                 app.add_account(config)
-                    .map(|_| ())
+                    .map(|account| account.id)
                     .map_err(|error| error.to_string())
             });
             sender.emit(AppInput::AccountAdded(result));
         });
     }
 
-    pub(super) fn account_added(&mut self, result: Result<(), String>) {
+    pub(super) fn account_added(
+        &mut self,
+        result: Result<String, String>,
+        sender: relm4::Sender<AppInput>,
+    ) {
         match result {
-            Ok(()) => {
+            Ok(account) => {
                 self.setup.complete();
                 if let Some(app) = &self.app {
                     self.snapshot = app.mailbox_list();
                 }
+                self.ask_sender_name(account, sender);
                 self.try_open_pending_mailto();
             }
             Err(error) => self
                 .setup
                 .failed(crate::l10n::status_connect_failed(&error)),
         }
+    }
+
+    /// Asks the provider what it already calls this person, then raises the "your name" step
+    /// seeded with the answer (`docs/sending.md`).
+    ///
+    /// Off the main loop, exactly like the connect above it: an account whose provider keeps
+    /// identities costs a round trip here, and this is the moment a sign-in has just returned,
+    /// so a blocking read would freeze the window at the point the user is watching it.
+    pub(super) fn ask_sender_name(&mut self, account: String, sender: relm4::Sender<AppInput>) {
+        let Some(app) = self.app.clone() else {
+            return;
+        };
+        std::thread::spawn(move || {
+            let suggestion = super::setup_widgets::sender_name_suggestion(&app, &account);
+            sender.emit(AppInput::SenderNameSuggested {
+                account,
+                suggestion,
+            });
+        });
+    }
+
+    /// The provider answered: open the step on the account it answered about.
+    pub(super) fn sender_name_suggested(&mut self, account: String, suggestion: String) {
+        self.host_tasks.sender_name_ask = Some(super::setup_widgets::SenderNameAsk {
+            account,
+            suggestion,
+        });
     }
 
     pub(super) fn remove_account(&mut self, id: String, sender: relm4::Sender<AppInput>) {

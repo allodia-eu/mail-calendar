@@ -1,47 +1,16 @@
-//! The FFI protocol types of the unidirectional loop: the [`Surface`]s a host observes,
-//! the [`Intent`]s it dispatches, and the [`Observer`] callback it implements. Split out
-//! of `lib.rs` to keep it under the 500-line limit; these derive the UniFFI scaffolding
-//! (so the generated Swift/Kotlin see them) and `lib.rs` re-exports them at the crate root.
+//! The [`Intent`]s a host dispatches: the *in* half of the unidirectional loop. Split out
+//! of `lib.rs` to keep it under the 500-line limit. The *out* half (the surfaces a host
+//! observes and the callback that signals them) split from here for the same reason:
+//! `protocol_surface`. These derive the UniFFI scaffolding, so the generated Swift/Kotlin see
+//! them, and `lib.rs` re-exports them at the crate root.
 
+// `Surface` is named only by the doc links below, and rustdoc resolves those against this
+// module's scope: without the import they silently become dead links, and this crate denies
+// rustdoc warnings, so the split that moved it out would fail the build rather than quietly
+// produce them.
+#[allow(unused_imports, reason = "named by intra-doc links on the intents")]
+use crate::Surface;
 use crate::{ContactEdit, EventEdge, RecurrenceChange, SimpleRecurrence, ViewMode};
-
-/// A surface a host observes and pulls a snapshot for.
-#[derive(uniffi::Enum)]
-pub enum Surface {
-    /// The mailbox/message list.
-    MailboxList,
-    /// The calendar agenda.
-    Calendar,
-    /// The settings surface: the active display timezone and any pending change.
-    Settings,
-    /// The reading view: the open message's fetched, sanitised body.
-    Reading,
-    /// The outgoing-send status; drives the composer's "sending…" → "sent" hint.
-    Sending,
-    /// Background mail-download progress; drives a "downloading Y of X" bar (pulled via
-    /// `MailcalApp::sync_progress`).
-    SyncProgress,
-    /// Connectivity: the device-offline flag and per-account outage list (pulled via
-    /// `MailcalApp::connectivity`); drives the offline banner and per-account warning badges.
-    Connectivity,
-    /// Calendar write status: the outcome of the most recent create/edit/delete (pulled via
-    /// `MailcalApp::calendar_write_status`); drives a small in-calendar spinner and warning.
-    CalendarStatus,
-    /// The contacts list: the unified people snapshot (pulled via `MailcalApp::contact_list`).
-    Contacts,
-    /// Contact write status: the outcome of the most recent create or edit (pulled via
-    /// `MailcalApp::contact_write_status`); drives the editor's "saving…" state and the
-    /// message a refused or unconfirmed write earns.
-    ContactsStatus,
-    /// A pending question about an invitation reply the calendar server could not deliver
-    /// (pulled via `MailcalApp::reply_prompt`); drives the modal offering to email the
-    /// organiser ourselves. `None` means there is nothing to ask.
-    InvitationReply,
-    /// A message that was sent but whose copy is not in the account's Sent folder (pulled via
-    /// `MailcalApp::unfiled_copy`); drives the modal offering to file it. Unlike `Sending`
-    /// this does **not** auto-clear; it stands until the user answers.
-    UnfiledCopy,
-}
 
 /// Which folders an active search covers: the host's scope filter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
@@ -108,6 +77,20 @@ pub enum Intent {
         account: String,
         /// Whether the tree is open.
         expanded: bool,
+    },
+    /// Set the name one account's outgoing mail is sent under: the `Name` in
+    /// `Name <address>`.
+    ///
+    /// An empty `name` clears it and the account sends as a bare address. The core sanitises
+    /// what it is given, so a client passes the field's text through unchanged rather than
+    /// validating it itself. Read the current value from `AccountRow::name`, and ask
+    /// `sender_name_editable` before offering the field: on a Microsoft mailbox the name is
+    /// the organisation's and cannot be changed here (`docs/sending.md`).
+    SetAccountSenderName {
+        /// The account whose sender name to set.
+        account: String,
+        /// The name to send under; empty clears it.
+        name: String,
     },
     /// Show one folder's mail: the folder key and the account that owns it **together**.
     ///
@@ -482,12 +465,4 @@ pub enum Intent {
     AcceptTimeZoneChange,
     /// Dismiss the pending device timezone; keep the current zone.
     DismissTimeZoneChange,
-}
-
-/// A foreign (Kotlin/Swift) observer the app notifies when a surface changes; the
-/// host then pulls the new snapshot. Must be cheap and non-blocking.
-#[uniffi::export(callback_interface)]
-pub trait Observer: Send + Sync {
-    /// Signals that `surface`'s snapshot changed.
-    fn surface_changed(&self, surface: Surface);
 }

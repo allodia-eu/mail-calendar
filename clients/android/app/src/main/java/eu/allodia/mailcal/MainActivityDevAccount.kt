@@ -5,6 +5,7 @@ package eu.allodia.mailcal
 
 import android.util.Log
 import uniffi.mailcal_bindings.JmapSetup
+import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.isAllodiaAccountConfig
 import uniffi.mailcal_bindings.jmapAccountConfigToml
 
@@ -74,6 +75,39 @@ private fun MainActivity.installHarnessCa() {
         Log.i(TAG, "installed harness CA -> ${caFile.absolutePath}")
     } catch (e: Exception) {
         Log.w(TAG, "failed to install harness CA: ${e.javaClass.simpleName}")
+    }
+}
+
+// Gives each harness account the name the harness server already holds for it, which is what the
+// step after a connect would have asked for (docs/sending.md).
+//
+// The canned account is injected as a stored config and never goes through the setup form, so
+// nothing ever asks, and every harness run would otherwise send as a bare address and show an empty
+// field on its Settings card. This is the step's two calls without the dialog, and it runs on the
+// connect thread because `suggestedSenderName` talks to the provider.
+//
+// Only where the name is still empty, which `suggestedSenderName` already decides: it answers the
+// stored name when there is one, so a name typed during a dev session survives the next launch
+// rather than being overwritten by the server's.
+//
+// Harness accounts only, keyed on the dev mode rather than on the store subdir: `stalwart-multi`
+// shares the default store here and would otherwise be skipped. On a launch against real accounts
+// this does nothing: pulling a provider's copy into an account nobody asked about is what
+// docs/sending.md keeps out of the product, and a dev convenience may not smuggle it in.
+internal fun seedHarnessSenderNames(app: MailcalApp, devMode: String?) {
+    if (devMode?.startsWith("stalwart") != true) {
+        return
+    }
+    for (account in app.syncSettings().accounts) {
+        if (account.senderName.isNotEmpty()) {
+            continue
+        }
+        val suggestion = app.suggestedSenderName(account.accountId)
+        if (suggestion.isEmpty()) {
+            continue
+        }
+        app.setAccountSenderName(account.accountId, suggestion)
+        Log.i(TAG, "harness: seeded a sender name from the provider")
     }
 }
 

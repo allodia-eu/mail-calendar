@@ -24,6 +24,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_core::{
     error::FailureClass,
     ids::{AccountId, MailboxId},
@@ -292,6 +293,8 @@ impl Provider for ReconnectingImapProvider {
         .await
     }
 }
+
+impl CalendarWrites for ReconnectingImapProvider {}
 
 #[cfg(test)]
 #[path = "reconnect_tests.rs"]

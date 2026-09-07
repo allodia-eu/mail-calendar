@@ -4,6 +4,7 @@
 //! delegate cache, and the connect entry points, to keep both files under the 500-line cap.
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_core::{
     ids::AccountId,
     mail::{Mailbox, Message},
@@ -12,7 +13,7 @@ use engine_core::{
 };
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, MailEdit, MailEditReceipt, MessageReport, Provider,
-    ProviderResult, ReportReceipt, ScopeSync, SubmissionReceipt,
+    ProviderResult, ReportReceipt, ScopeSync, SenderIdentity, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -215,6 +216,24 @@ impl Provider for RefreshingGraphProvider {
     /// Graph reports a message through `POST /messages/{id}/reportMessage`, forwarded on the same
     /// token-refresh + reconnect loop as [`edit_mail`](Provider::edit_mail) and under the same
     /// concurrency permit. A report is idempotent, so a retry after a stale socket is safe.
+    async fn sender_identities(&self, account: &AccountId) -> ProviderResult<Vec<SenderIdentity>> {
+        let mut provider = self.delegate().await?;
+        let mut reconnected = false;
+        loop {
+            let permit = self.tokens.acquire().await;
+            match provider.sender_identities(account).await {
+                Ok(value) => return Ok(value),
+                Err(err) if !reconnected && should_reconnect(&err) => {
+                    drop(permit);
+                    self.invalidate_delegate();
+                    provider = self.delegate().await?;
+                    reconnected = true;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
     async fn report_message(
         &self,
         account: &AccountId,
@@ -237,3 +256,5 @@ impl Provider for RefreshingGraphProvider {
         }
     }
 }
+
+impl CalendarWrites for RefreshingGraphProvider {}

@@ -82,7 +82,7 @@ public sealed partial class ComposerView : UserControl
         {
             FromBox.Visibility = Visibility.Collapsed;
             FromRow.Visibility = Visibility.Visible;
-            FromAddress.Text = (FromBox.SelectedItem as AccountItem)?.Email ?? string.Empty;
+            FromAddress.Text = (FromBox.SelectedItem as AccountItem)?.SendLabel ?? string.Empty;
         }
 
         // The three recipient fields. Autosuggest is wired before the prefill so a reply's To is

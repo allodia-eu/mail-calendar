@@ -34,9 +34,11 @@
              read-only FromRow instead of a menu onto a single item (the Apple client's
              FromAccountField does the same); the address stays visible either way. FromBox is
              populated and selected regardless, hidden or not, it is what the send reads its
-             account from, so the sender never falls back to whatever the core would derive. -->
+             account from, so the sender never falls back to whatever the core would derive.
+             The label is SendLabel, `Name <address>`, which is how the recipient will read it
+             (docs/sending.md); an account with no name shows its address alone. -->
         <ComboBox x:Name="FromBox" Grid.Row="1" HorizontalAlignment="Stretch"
-                  Header="{x:Bind l10n:L10n.ComposeFrom()}" DisplayMemberPath="Email"
+                  Header="{x:Bind l10n:L10n.ComposeFrom()}" DisplayMemberPath="SendLabel"
                   SelectionChanged="OnFromChanged" />
         <StackPanel x:Name="FromRow" Grid.Row="1" Spacing="4" Visibility="Collapsed">
             <TextBlock Text="{x:Bind l10n:L10n.ComposeFrom()}" />

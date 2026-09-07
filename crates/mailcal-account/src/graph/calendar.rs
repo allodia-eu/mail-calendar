@@ -20,6 +20,7 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_core::{
     calendar::{Calendar, Event},
     ids::{AccountId, CalendarId},
@@ -235,7 +236,10 @@ impl Provider for RefreshingGraphCalendarProvider {
             }
         }
     }
+}
 
+#[async_trait]
+impl CalendarWrites for RefreshingGraphCalendarProvider {
     async fn create_event(
         &self,
         account: &AccountId,

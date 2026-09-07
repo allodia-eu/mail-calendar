@@ -22,6 +22,7 @@ use super::{
     search::SearchBar,
     settings::SettingsWindow,
     setup::SetupWindow,
+    setup_widgets::SenderNamePrompt,
     time_zone::TimeZonePrompt,
     unfiled_copy::UnfiledCopyPrompt,
     welcome::WelcomeWindow,
@@ -53,6 +54,7 @@ pub(crate) struct AppWidgets {
     setup: SetupWindow,
     welcome: WelcomeWindow,
     time_zone: TimeZonePrompt,
+    sender_name: SenderNamePrompt,
     unfiled_copy: UnfiledCopyPrompt,
     /// The standing "the organiser wasn't told" question. A dialog rather than a banner: it
     /// carries two answers and a tick, and it may not be dismissed without one of them.
@@ -229,6 +231,7 @@ impl AppWidgets {
             setup: SetupWindow::default(),
             welcome: WelcomeWindow::default(),
             time_zone: TimeZonePrompt::default(),
+            sender_name: SenderNamePrompt::default(),
             unfiled_copy,
             reply_prompt: ReplyPromptDialog::new(),
             mail_delete: PermanentDeleteDialog::default(),
@@ -300,11 +303,22 @@ impl AppWidgets {
             self.settings.close();
             if !self.composer.is_active(model.composer_generation) {
                 self.reading.suspend();
+                // (id, the label the From picker shows). The label is `Name <address>`, or the
+                // address alone when no name is set, composed by the core so the four clients
+                // cannot disagree about the empty case (`docs/sending.md`).
                 let accounts = model
                     .snapshot
                     .accounts
                     .iter()
-                    .map(|account| (account.id.clone(), account.email.clone()))
+                    .map(|account| {
+                        (
+                            account.id.clone(),
+                            mailcal_bindings::sender_label(
+                                account.name.clone(),
+                                account.email.clone(),
+                            ),
+                        )
+                    })
                     .collect::<Vec<_>>();
                 self.composer.show(
                     model.composer_generation,
@@ -388,6 +402,11 @@ impl AppWidgets {
             &self.sender,
         );
         self.setup.render(&model.setup, &self.root, &self.sender);
+        self.sender_name.render(
+            model.host_tasks.sender_name_ask.as_ref(),
+            &self.root,
+            &self.sender,
+        );
         self.unfiled_copy
             .render(model.unfiled_copy.as_ref(), &self.root);
         self.reply_prompt.render(

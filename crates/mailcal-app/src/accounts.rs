@@ -156,6 +156,9 @@ impl<P: Provider> App<P> {
         // …and its signature assignment, for the same reason: a re-add must not inherit a pointer
         // to a signature the user may have deleted meanwhile (docs/signatures.md).
         self.remove_account_signature(acct);
+        // …and the name it sent under: a re-added id must not inherit a name the user chose
+        // for a different mailbox, and the name is what recipients see.
+        self.remove_account_sender_name(acct);
         // …and its alias list: that set decides which iTIP `ATTENDEE` line is "me"
         // (docs/invitations.md), so an inherited one would not merely linger; it could make
         // somebody else's invitation on a re-added id read as an RSVP owed by this account.
@@ -275,6 +278,7 @@ impl<P: Provider> App<P> {
             .map(|account| AccountRow {
                 id: account.id.as_str().to_owned(),
                 email: account.identity.email.clone(),
+                name: self.sender_name(account.id.as_str()).unwrap_or_default(),
                 expanded: self.account_expanded(account.id.as_str()),
             })
             .collect()

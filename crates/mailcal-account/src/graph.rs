@@ -21,8 +21,8 @@ use engine_core::{
     time::CalendarDate,
 };
 use engine_provider::{
-    Capabilities, Provider, ProviderError, ProviderResult, ReportControls, ReportEvidence,
-    ReportVerdicts,
+    Capabilities, IdentityControls, Provider, ProviderError, ProviderResult, ReportControls,
+    ReportEvidence, ReportVerdicts,
 };
 use engine_tls::TlsClientConfig;
 use provider_graph::{GraphClient, GraphProvider, MailboxPrincipal};
@@ -99,7 +99,11 @@ impl RefreshingGraphProvider {
                 // send, this wrapper can. Graph submits assembled RFC 5322 bytes and therefore
                 // owns the `method=` parameter that makes an iTIP object a *scheduling*
                 // message rather than a calendar file (RFC 6047 §2.4).
-                .with_scheduling_submission(),
+                .with_scheduling_submission()
+                // Forwarded below, and **read-only**: a Graph mailbox's display name is a
+                // directory attribute a tenant administrator owns, so claiming `Writable`
+                // here would put an editor in front of an edit that cannot land.
+                .with_sender_identities(IdentityControls::ReadOnly),
             since,
             tls,
             cached: Mutex::new(None),

@@ -30,6 +30,7 @@ fn account(id: &str, email: &str, expanded: bool) -> AccountRow {
     AccountRow {
         id: id.to_owned(),
         email: email.to_owned(),
+        name: String::new(),
         expanded,
     }
 }

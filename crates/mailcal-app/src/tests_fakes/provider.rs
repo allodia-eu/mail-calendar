@@ -7,7 +7,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
-use engine_api::AccountId;
+use engine_api::{AccountId, CalendarWrites};
 use engine_core::{
     ids::MailboxId,
     mail::{Mailbox, MailboxRole, Message},
@@ -296,6 +296,8 @@ impl Provider for FakeProvider {
         Ok(ReportReceipt::new(report.target.clone()))
     }
 }
+
+impl CalendarWrites for FakeProvider {}
 
 /// Splits `messages` the way a real adapter yields them: `chunk_size` per chunk, `0` meaning
 /// one chunk for the lot (what [`StreamTuning`](engine_api::StreamTuning) documents).

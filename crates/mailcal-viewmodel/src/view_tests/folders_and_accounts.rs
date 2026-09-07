@@ -23,6 +23,7 @@ fn expansion_rides_on_the_account_row_and_is_independent_of_selection() {
         AccountRow {
             id: "work".to_owned(),
             email: "me@work.example".to_owned(),
+            name: String::new(),
             expanded: false,
         },
         account("home", "me@home.example"),

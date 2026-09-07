@@ -33,7 +33,7 @@ import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.RecipientMatch
 
-private val ALICE = AccountRow("acct-1", "alice@test.local", expanded = true)
+private val ALICE = AccountRow("acct-1", "alice@test.local", name = "", expanded = true)
 
 private val PHONE_WIDTH = 360.dp
 
@@ -55,6 +55,9 @@ class ComposerRecipientFocusTest {
                     accounts = listOf(ALICE),
                     from = ALICE,
                     onFrom = {},
+                    // A pure label: this suite loads no cdylib, and what the From reads is
+                    // FromAccountFieldTest's question, not this one's.
+                    fromLabel = { it.email },
                     to = value,
                     onTo = { value = it },
                     cc = "",

@@ -11,7 +11,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use engine_api::{AccountId, EmailAddress, Engine, TimeZoneId};
+use engine_api::{AccountId, CalendarWrites, EmailAddress, Engine, TimeZoneId};
 use engine_core::{
     contact::{
         AddressBook, ContactCard, ContactDraft, ContactEmail, ContactName, ContactPatch,
@@ -48,6 +48,8 @@ impl Provider for MailOnly {
         ConnectionInfo::new(Capabilities::none().with_mail())
     }
 }
+
+impl CalendarWrites for MailOnly {}
 
 /// A contacts adapter serving one address book of canned cards.
 ///
@@ -137,6 +139,8 @@ impl Provider for FakeContacts {
         ConnectionInfo::new(Capabilities::none().with_contacts())
     }
 }
+
+impl CalendarWrites for FakeContacts {}
 
 #[async_trait]
 impl ContactsProvider for FakeContacts {

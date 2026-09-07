@@ -123,6 +123,7 @@ internal fun SettingsScreen(
     onSetStrategy: (account: String, strategy: SyncStrategyKind) -> Unit,
     onSetPollInterval: (account: String, minutes: UShort) -> Unit,
     onSetPushFolder: (account: String, folder: String, subscribed: Boolean) -> Unit,
+    onSetSenderName: (account: String, name: String) -> Unit,
     // Diagnostics, opens the Diagnostics screen (log viewer/share, debug toggle).
     onOpenDiagnostics: () -> Unit,
     // Advanced
@@ -234,6 +235,7 @@ internal fun SettingsScreen(
                     onSetStrategy = onSetStrategy,
                     onSetPollInterval = onSetPollInterval,
                     onSetPushFolder = onSetPushFolder,
+                    onSetSenderName = onSetSenderName,
                     onRequestReset = { confirmingReset = true },
                 )
                 Spacer(modifier = Modifier.height(24.dp))

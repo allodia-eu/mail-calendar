@@ -42,6 +42,7 @@ mod app_calendar;
 mod app_contacts;
 mod app_display;
 mod app_month;
+mod app_sender_name;
 mod app_settings;
 mod app_signatures;
 mod app_snapshots;
@@ -75,6 +76,7 @@ mod native_fault_windows;
 mod oauth_routes;
 mod observer;
 mod protocol;
+mod protocol_surface;
 mod reconnect;
 mod records;
 mod records_avatar;
@@ -109,6 +111,7 @@ pub use allodia_sync::{
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
 pub use app_display::stored_appearance;
 pub use app_month::calendar_palette;
+pub use app_sender_name::sender_label;
 pub use autodetect::{
     DetectedServerRow, DnsError, MissReason, MxRecord, MxResolution, MxResolver,
     SetupRecommendation, SrvRecord, SrvResolution,
@@ -125,7 +128,8 @@ pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
 pub use oauth_routes::{OAuthRoutes, oauth_routes};
-pub use protocol::{Intent, InvitationResponse, Observer, SearchScope, Surface};
+pub use protocol::{Intent, InvitationResponse, SearchScope};
+pub use protocol_surface::{Observer, Surface};
 pub use records::{
     AccountFolderRow, AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, FlatRow,
     FolderRole, FolderRow, MailboxListSnapshot, ReadingSnapshot, RecipientSuggestion,
@@ -466,6 +470,10 @@ mod tests_showcase;
 #[cfg(test)]
 #[path = "tests_showcase_invitation.rs"]
 mod tests_showcase_invitation;
+
+#[cfg(test)]
+#[path = "tests_showcase_sender_name.rs"]
+mod tests_showcase_sender_name;
 
 #[cfg(test)]
 #[path = "tests_boot.rs"]

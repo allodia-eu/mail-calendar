@@ -7,8 +7,8 @@
 use std::sync::{Arc, Mutex};
 
 use engine_api::{
-    AccountId, Draft, EmailAddress, Engine, MessageIdHeader, ProviderKey, SubmissionReceipt,
-    TimeZoneId,
+    AccountId, CalendarWrites, Draft, EmailAddress, Engine, MessageIdHeader, ProviderKey,
+    SubmissionReceipt, TimeZoneId,
 };
 use engine_core::{
     ids::{MailboxId, MessageId},
@@ -152,6 +152,8 @@ impl Provider for ThreadProvider {
         ))
     }
 }
+
+impl CalendarWrites for ThreadProvider {}
 
 /// Builds a one-account app over a [`ThreadProvider`] seeded with `messages`, returning
 /// the app and the submission log. The caller dispatches `RefreshMail` to load the
@@ -470,3 +472,8 @@ mod quote;
 // live in their own file, as a child module reusing this module's two-provider fixtures.
 #[path = "mail_ops_from_tests.rs"]
 mod from_account;
+
+// The sender-name tests (what goes in `Name <address>`), a child module for the same reason,
+// reusing the same fixtures plus `from_account::new_mail`.
+#[path = "mail_ops_sender_name_tests.rs"]
+mod sender_name;

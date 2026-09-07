@@ -54,13 +54,13 @@ extension MailboxModel {
         Task { @MainActor in
             defer { self.isConnecting = false }
             do {
-                _ = try await Task.detached(priority: .userInitiated) {
+                let added = try await Task.detached(priority: .userInitiated) {
                     try app.addAccount(configToml: configToml)
                 }.value
                 if let calendarError = app.calendarConnectError() {
                     print("[Mailcal] calendar (CalDAV) failed to connect: \(calendarError)")
                 }
-                self.accountWasAdded()
+                self.accountWasAdded(added)
             } catch {
                 self.setupError = "\(error)"
             }

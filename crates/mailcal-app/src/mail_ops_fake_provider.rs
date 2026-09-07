@@ -6,7 +6,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use engine_api::{AccountId, Draft, ProviderKey, SubmissionReceipt};
+use engine_api::{AccountId, CalendarWrites, Draft, ProviderKey, SubmissionReceipt};
 use engine_provider::{Capabilities, ConnectionInfo, Provider, ProviderError, ProviderResult};
 use tokio::sync::Notify;
 
@@ -124,3 +124,5 @@ impl Provider for SubmitProvider {
         Ok(ProviderKey::new("sent-1").unwrap())
     }
 }
+
+impl CalendarWrites for SubmitProvider {}

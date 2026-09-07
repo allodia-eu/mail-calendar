@@ -146,6 +146,7 @@ internal fun AccountSyncCard(
     onSetStrategy: (account: String, strategy: SyncStrategyKind) -> Unit,
     onSetPollInterval: (account: String, minutes: UShort) -> Unit,
     onSetPushFolder: (account: String, folder: String, subscribed: Boolean) -> Unit,
+    onSetSenderName: (account: String, name: String) -> Unit,
     // How this account is shared with the person's other devices, and how to change it. Null when
     // this build carries no Allodia sign-in, and the block is then absent rather than dead.
     syncMode: AllodiaAccountSyncMode? = null,
@@ -166,6 +167,11 @@ internal fun AccountSyncCard(
             AccountSyncModePicker(syncMode) { mode -> onSetSyncMode(account.accountId, mode) }
             Spacer(modifier = Modifier.height(12.dp))
         }
+        // The name this account sends under: the one thing on the card a recipient can see, so
+        // it comes before the questions about how much of the account this device keeps
+        // (docs/settings.md).
+        SenderNameField(account, onSetSenderName)
+        Spacer(modifier = Modifier.height(12.dp))
         // Fetch depth, how far back this account downloads mail (per-account).
         FetchDepthPicker(account, settings.syncDepths) { months ->
             onSetSyncDepth(account.accountId, months)

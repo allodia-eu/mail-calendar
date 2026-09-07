@@ -250,6 +250,10 @@ class MainActivity : AppCompatActivity() {
     internal var needsSetup by mutableStateOf(false)
     // True while the user is adding another account (the setup form shown over the running app).
     internal var addingAccount by mutableStateOf(false)
+    // The account whose "your name" step is open, or null when none is. Set by every route that
+    // adds an account, so the step follows a manual connect and a browser sign-in alike; a route
+    // that cannot name the account it added opens nothing (docs/sending.md).
+    internal var senderNamePrompt by mutableStateOf<String?>(null)
     // Whether the usage-statistics question is settled, pulled once at connect. `asked == false`
     // puts the welcome screen up, it is the first thing a new user sees, ahead of setup. Null
     // until the core answers; the welcome screen is not shown on a guess.
@@ -396,7 +400,7 @@ class MainActivity : AppCompatActivity() {
             // The stored (or dev-override) configs drive the initial connect; each dev mode gets its own
             // isolated store so JMAP/IMAP harness data and real accounts never mix. Same `devMode` that
             // selected the configs picks the subdir, so store isolation always matches the account set.
-            connect(plan.configs, dataSubdir = devDataSubdir(plan.devMode))
+            connect(plan.configs, dataSubdir = devDataSubdir(plan.devMode), devMode = plan.devMode)
         }
     }
 

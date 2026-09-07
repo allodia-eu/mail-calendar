@@ -21,8 +21,8 @@ use std::sync::{Arc, Mutex};
 
 use engine_core::{error::FailureClass, ids::AccountId, time::CalendarDate};
 use engine_provider::{
-    Capabilities, Provider, ProviderError, ProviderResult, ReportControls, ReportEvidence,
-    ReportVerdicts,
+    Capabilities, IdentityControls, Provider, ProviderError, ProviderResult, ReportControls,
+    ReportEvidence, ReportVerdicts,
 };
 use engine_tls::TlsClientConfig;
 use mailcal_oauth::OAuthClient;
@@ -117,7 +117,10 @@ impl RefreshingGmailProvider {
                 // adapter underneath advertises it. `submit_email` forwards the whole `Draft`,
                 // Gmail submits assembled RFC 5322 bytes, and so the `method=` parameter an
                 // iMIP body part needs (RFC 6047 §2.4) survives.
-                .with_scheduling_submission(),
+                .with_scheduling_submission()
+                // Forwarded below. Gmail's send-as settings are the account holder's to
+                // change, so the name is `Writable` rather than a directory's to hand down.
+                .with_sender_identities(IdentityControls::Writable),
             since,
             tls,
             cached: Mutex::new(None),

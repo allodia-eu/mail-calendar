@@ -45,6 +45,7 @@ impl From<AppAccountRow> for AccountRow {
         Self {
             id: row.id,
             email: row.email,
+            name: row.name,
             expanded: row.expanded,
         }
     }

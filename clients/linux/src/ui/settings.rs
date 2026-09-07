@@ -20,6 +20,7 @@ mod diagnostics;
 pub(super) mod general;
 mod mcp;
 mod pages;
+pub(super) mod sender_name;
 mod signature_editor;
 pub(super) mod signatures;
 mod state;

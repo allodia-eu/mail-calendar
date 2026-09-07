@@ -31,7 +31,7 @@ import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.QuoteStyleKind
 
-private val ALICE = AccountRow("acct-1", "alice@test.local", expanded = true)
+private val ALICE = AccountRow("acct-1", "alice@test.local", name = "", expanded = true)
 
 // A narrow phone, where the row is tightest. The tablet lays the same row out fine, so the width is the
 // whole point of the test. (Robolectric's own screen is narrower still, and wins, which only makes
@@ -59,6 +59,9 @@ class ComposerHeaderFieldsTest {
                     accounts = listOf(ALICE),
                     from = ALICE,
                     onFrom = {},
+                    // A pure label: this suite loads no cdylib, and what the From reads is
+                    // FromAccountFieldTest's question, not this one's.
+                    fromLabel = { it.email },
                     to = "",
                     onTo = {},
                     cc = "",

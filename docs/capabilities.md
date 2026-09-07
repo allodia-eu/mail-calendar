@@ -21,6 +21,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Reactive Rust ↔ native binding (dispatch → snapshot) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Account setup wizard (IMAP / SMTP / CalDAV) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **The name your mail goes out under**: asked once the account connects and editable in Settings → Accounts, so mail leaves as `Your Name <you@example.com>` rather than a bare address. Filled in for you where the provider already knows it, and kept in step with a Gmail or JMAP account's own setting; on a Microsoft mailbox the name is the organisation's and is shown rather than offered ([docs](docs/sending.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Auto-detect server settings from email (JMAP probe +`_jmap._tcp` SRV · autoconfig · ISPDB · IMAP/SMTP SRV [implicit-TLS + STARTTLS] · host-DNS MX · CalDAV follow-on), implicit-TLS **and STARTTLS** connections, untrusted-approval gate | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | Microsoft 365 accounts: browser OAuth sign-in (PKCE), mail read/sync + mail actions (read/flag, archive/move, delete) + send + calendar read/sync + write (default calendar) | ✅ | ✅ | ✅ | 🚧 | 🚧 | ✅ |
 | Microsoft re-consent prompt: a reconnect banner when a connected Graph account is missing a needed permission (calendar, or mail write/send, e.g. consent revoked server-side); one tap re-grants the full scope set, clearing both ([docs](docs/provider-oauth.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 | ✅ |

@@ -16,6 +16,7 @@ pub mod contacts;
 mod folders;
 pub mod invitation;
 pub mod reading;
+pub mod sender;
 pub mod settings;
 pub mod sync_progress;
 pub mod text;
@@ -32,6 +33,7 @@ pub use folders::{
 };
 pub use invitation::{AttendeeTally, InvitationCard, InvitationKind, ResponseStatus};
 pub use reading::{AttachmentRow, ReadingSnapshot};
+pub use sender::sender_label;
 pub use settings::{
     AccountSignatureRow, AccountSyncRow, McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind,
     SignatureRow, SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection,

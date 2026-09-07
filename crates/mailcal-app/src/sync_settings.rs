@@ -164,9 +164,17 @@ impl<P: Provider> App<P> {
                     }
                 })
                 .collect();
+            // Read from the same capability every other client-visible answer comes from,
+            // so no screen decides editability from the account's kind.
+            let sender_name_editable = !account.providers.iter().any(|p| {
+                p.connection_info().capabilities.sender_identities()
+                    == Some(engine_api::IdentityControls::ReadOnly)
+            });
             rows.push(AccountSyncRow {
                 account_id: account.id.as_str().to_owned(),
                 email: account.identity.email.clone(),
+                sender_name: self.sender_name(account.id.as_str()).unwrap_or_default(),
+                sender_name_editable,
                 idle_supported,
                 strategy: kind(eff.strategy),
                 poll_interval_mins: eff.poll_interval_mins,

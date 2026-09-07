@@ -121,9 +121,9 @@ extension MailboxModel {
     ///
     /// `addAccount` blocks on the JMAP connect + first sync, so it runs off the main thread.
     func addAndStoreJmapAccount(_ app: MailcalApp, configToml: String) async throws {
-        _ = try await Task.detached(priority: .userInitiated) {
+        let added = try await Task.detached(priority: .userInitiated) {
             try app.addAccount(configToml: configToml)
         }.value
-        accountWasAdded()
+        accountWasAdded(added)
     }
 }
