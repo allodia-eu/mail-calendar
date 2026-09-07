@@ -321,6 +321,12 @@ public sealed partial class MailboxModel
                 ObserveSystemTimeZone();
                 ObserveNetworkReachability();
                 _app.Dispatch(new Intent.RefreshMail());
+#if DEBUG
+                // A harness account is injected as a stored config, so the step that asks what to
+                // call its sender never runs. Give it the name the harness already holds, so a dev
+                // launch is not the one place the app sends as a bare address (MailboxModel.DevAccount.cs).
+                _ = SeedHarnessSenderNamesAsync(app);
+#endif
             });
         }
         catch (Exception ex)

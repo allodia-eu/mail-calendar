@@ -400,7 +400,7 @@ class MainActivity : AppCompatActivity() {
             // The stored (or dev-override) configs drive the initial connect; each dev mode gets its own
             // isolated store so JMAP/IMAP harness data and real accounts never mix. Same `devMode` that
             // selected the configs picks the subdir, so store isolation always matches the account set.
-            connect(plan.configs, dataSubdir = devDataSubdir(plan.devMode))
+            connect(plan.configs, dataSubdir = devDataSubdir(plan.devMode), devMode = plan.devMode)
         }
     }
 

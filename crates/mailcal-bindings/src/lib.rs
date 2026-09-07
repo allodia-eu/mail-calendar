@@ -471,6 +471,10 @@ mod tests_showcase;
 mod tests_showcase_invitation;
 
 #[cfg(test)]
+#[path = "tests_showcase_sender_name.rs"]
+mod tests_showcase_sender_name;
+
+#[cfg(test)]
 #[path = "tests_boot.rs"]
 mod tests_boot;
 

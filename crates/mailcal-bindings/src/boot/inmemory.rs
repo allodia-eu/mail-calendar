@@ -142,9 +142,11 @@ pub(crate) fn build_showcase(
     };
 
     let secondary = showcase_data::secondary(locale, now);
-    // Held before the seeds are moved into the Account values below, so the signature
-    // assignment can name each account afterwards.
+    // Held before the seeds are moved into the Account values below, so the signature and
+    // sender-name assignments can name each account afterwards.
     let primary_identity = primary_account.id.as_str().to_owned();
+    let primary_sender_name = primary.sender_name.clone();
+    let secondary_sender_name = secondary.sender_name.clone();
     let secondary_account = Account {
         id: AccountId::try_from(secondary.identity.as_str()).expect("valid account id"),
         providers: vec![Box::new(ShowcaseMailProvider::new(
@@ -199,6 +201,17 @@ pub(crate) fn build_showcase(
         &primary_identity,
         &secondary_identity,
     ));
+    // Give each account the name it sends under (`docs/sending.md`). Without it both accounts
+    // send as a bare address, which is a real state but not the one a screenshot should
+    // advertise, and the seeded mail already addresses this person by name: the From picker
+    // would then show an address for the same person the Inbox greets by name.
+    runtime.block_on(seed_sender_names(
+        &app,
+        [
+            (&primary_identity, &primary_sender_name),
+            (&secondary_identity, &secondary_sender_name),
+        ],
+    ));
     let registry = crate::account_registry::AccountRegistry::new();
     let background = Arc::new(BackgroundManager::new(
         Arc::clone(&app),
@@ -248,6 +261,17 @@ pub(crate) fn build_showcase(
 /// Assigning both slots is what makes the screenshots honest rather than lucky: the reply
 /// capture composes from the primary account, and a `NewMessage`-only assignment would leave it
 /// with no signature while the Settings screen said it had one.
+/// Sets each showcase account's sender name, so the composer's From reads `Name <address>`
+/// and the Settings card shows a name rather than its first-run empty state.
+///
+/// Persistence is off in this boot (`prefs_path: None`), so these live only for the run, which
+/// is what a screenshot dataset wants.
+async fn seed_sender_names(app: &App<Box<dyn Provider>>, accounts: [(&str, &str); 2]) {
+    for (account, name) in accounts {
+        app.set_account_sender_name(account, name).await;
+    }
+}
+
 async fn seed_signatures(
     app: &App<Box<dyn Provider>>,
     locale: ShowcaseLocale,

@@ -123,7 +123,11 @@ internal fun MainActivity.engineDataDir(dataSubdir: String?): String =
 // Build the app over every stored account's config off the main thread; IMAP login blocks. A
 // non-null dataSubdir isolates the engine store in a subdirectory (used by the dev-account
 // override so harness test data never mixes with real accounts).
-internal fun MainActivity.connect(configs: List<String>, dataSubdir: String? = null) {
+internal fun MainActivity.connect(
+    configs: List<String>,
+    dataSubdir: String? = null,
+    devMode: String? = null,
+) {
     val activity = this
     val deviceZone = deviceTimeZone()
     val dataDir = engineDataDir(dataSubdir)
@@ -209,6 +213,10 @@ internal fun MainActivity.connect(configs: List<String>, dataSubdir: String? = n
                 }
                 connected.dispatch(Intent.RefreshMail)
             }
+            // Still on the connect thread, which is where this belongs: it talks to the provider.
+            // A harness account is injected as a stored config, so the step that asks what to call
+            // its sender never runs (MainActivityDevAccount.kt).
+            seedHarnessSenderNames(connected, devMode)
         } catch (e: Exception) {
             Log.e(TAG, "account connect failed: ${e.message}")
             activity.mainHandler.post {
