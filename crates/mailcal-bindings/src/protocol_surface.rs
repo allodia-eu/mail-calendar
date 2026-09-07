@@ -2,8 +2,8 @@
 //! [`Observer`] callback the app signals them through.
 //!
 //! Beside `protocol.rs` rather than in it, which holds the *in* half (the intents). The two
-//! are read at different moments — a client wires the observer once and dispatches intents
-//! forever — and together they crossed the 500-line limit.
+//! are read at different moments (a client wires the observer once and dispatches intents
+//! forever), and together they crossed the 500-line limit.
 
 /// A surface a host observes and pulls a snapshot for.
 #[derive(uniffi::Enum)]

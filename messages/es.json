@@ -380,6 +380,12 @@
 	"setup_field_mail_server": "Servidor de correo",
 	"setup_field_email": "Correo electrónico",
 	"setup_field_password": "Contraseña",
+
+	"setup_sender_name_title": "Tu nombre",
+	"setup_sender_name_description": "Es el nombre que la gente ve junto a tu dirección en los mensajes que envías. Puedes cambiarlo más adelante en Ajustes.",
+	"setup_sender_name_field": "Tu nombre",
+	"setup_sender_name_continue": "Continuar",
+	"setup_sender_name_skip": "Omitir por ahora",
 	"setup_field_smtp": "Servidor de salida (SMTP)",
 	"setup_field_caldav": "Servidor de calendario (CalDAV)",
 	"setup_field_smtp_optional": "Servidor de salida, SMTP (opcional)",
@@ -501,6 +507,10 @@
 	"settings_composing_description": "Cómo citan el mensaje original las respuestas y los reenvíos.",
 	"settings_send_account_heading": "Cuenta por omisión para el correo nuevo",
 	"settings_send_account_description": "Desde qué cuenta se envían los mensajes nuevos cuando estás en la bandeja de entrada combinada. Las respuestas siempre salen de la cuenta que recibió el mensaje.",
+
+	"settings_sender_name_heading": "Tu nombre",
+	"settings_sender_name_description": "El nombre que la gente ve junto a tu dirección en los mensajes que envías. Déjalo vacío para enviar solo con tu dirección.",
+	"settings_sender_name_managed": "Tu organización establece este nombre, así que no se puede cambiar aquí.",
 	"settings_swipe_heading": "Acciones de deslizamiento",
 	"settings_swipe_description": "Qué ocurre al deslizar un mensaje a la izquierda o a la derecha. Después de deslizar puedes deshacer la acción al momento.",
 	"settings_swipe_left": "Deslizar a la izquierda",

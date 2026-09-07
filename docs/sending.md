@@ -1,7 +1,8 @@
 # Sending: cross-platform contract
 
-**Scope.** What every client shows while a message is going out, and what it does when one goes
-out but leaves no copy behind. Binding on every platform that ships a composer.
+**Scope.** Who a message says it is from, what every client shows while one is going out, and
+what it does when one goes out but leaves no copy behind. Binding on every platform that ships a
+composer.
 
 **Principle.** *Delivering a message and keeping the sender's copy of it are two different
 operations, and a client must never let the second one fail in silence.* A Sent copy is how a
@@ -38,6 +39,39 @@ screen and says the same thing with a button; two notices for one event is noise
 variant exists for is to stop a client rendering the plain "Message sent" over a send that did
 not leave a copy.
 
+## The sender's name
+
+Mail goes out as `Name <address>`, and the `Name` is the account's, set by the person who owns
+it. One value per account, held by the core, put in the `From` of every send.
+
+1. **The core's copy is the one that reaches the recipient.** Every provider assembles the
+   message from the draft the core hands it, so the stored name is what goes on the wire. Three
+   providers also keep a copy of their own; that copy is for the account's *other* clients and
+   never decides what this app sends.
+2. **Who may change it is read from the capability, never from the account's kind.**
+   `AccountSyncRow::sender_name_editable` is `false` only where a provider holds the name and
+   the account holder cannot change it: a Microsoft mailbox takes it from the organisation's
+   directory. There the card shows the name and offers no field. A client that branched on
+   "is this a Microsoft account" would be wrong the first time a provider changed its mind.
+3. **Empty is a real answer, and it is the first-run state.** An account with no name sends as a
+   bare address. No client may substitute the address, the login, or anything derived from
+   either: inventing a name puts words in the sender's mouth.
+4. **It is asked for once the account connects, never on the first screen.** The screen that
+   adds an account is the address field and nothing else
+   ([`onboarding.md`](onboarding.md)), so the ask is a step after the connection succeeds,
+   prefilled from `suggested_sender_name`. Where the provider already knows the name the user
+   confirms it rather than typing it. Skipping is one action and leaves the account nameless.
+5. **The field is never validated by a client.** The core sanitises what it is given: control
+   characters become spaces, runs of whitespace collapse, the value is trimmed and capped at
+   128 characters. A pasted line out of a document is a `From` header with a second header in
+   it, and one opinion about that is the only safe number.
+6. **Settings shows the same value the switcher does.** `AccountRow::name` and
+   `AccountSyncRow::sender_name` are the same string; a client keeps no copy of its own.
+
+Where the account holder owns the provider's copy (JMAP, Gmail), a change is pushed there too,
+best-effort. It is not reported: the user asked to be called something and, on this device,
+they now are.
+
 ## Rules
 
 1. **Never word an unfiled copy as a failed send.** The message *was* sent and the recipients
@@ -59,12 +93,12 @@ not leave a copy.
 
 ## Per-platform
 
-| Platform | Send hint | Unfiled-copy question | Retry | Dismiss |
-|---|---|---|---|---|
-| macOS / iOS / iPadOS | ✅ banner | ✅ sheet, non-dismissible | ✅ | ✅ |
-| Android | ✅ banner | ✅ `AlertDialog`, non-dismissible | ✅ | ✅ |
-| Windows | ✅ InfoBar | ✅ InfoBar, `IsClosable=False` | ✅ | ✅ |
-| Linux | ✅ banner | ✅ modal, non-dismissible | ✅ | ✅ |
+| Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup | Name in Settings |
+|---|---|---|---|---|---|---|
+| macOS / iOS / iPadOS | ✅ banner | ✅ sheet, non-dismissible | ✅ | ✅ | ✅ | ✅ |
+| Android | ✅ banner | ✅ `AlertDialog`, non-dismissible | ✅ | ✅ | ✅ | ✅ |
+| Windows | ✅ InfoBar | ✅ InfoBar, `IsClosable=False` | ✅ | ✅ | ✅ | ✅ |
+| Linux | ✅ banner | ✅ modal, non-dismissible | ✅ | ✅ | ✅ | ✅ |
 
 ## Known gaps
 
@@ -72,6 +106,12 @@ not leave a copy.
   one open loses the chance to retry: the message stays sent, and the copy stays missing.
   Making it durable means recording an outbox op for a submission that already succeeded,
   which is a larger change than the residual loss justifies today.
+- **The name is per account, not per address.** An account that sends from an alias uses the
+  same name for all of them, because the stored value is keyed by account. Gmail and JMAP both
+  model a name *per identity*, so the shape to grow into exists; nothing asks for it yet.
+- **A provider's copy is pushed, never pulled back.** A name changed in a webmail after setup
+  does not reach this device: the seed is read once, when the field is offered. Re-reading it on
+  every sync would let a server overwrite what the user typed here, which is the worse failure.
 - **JMAP's filing is trusted, not checked.** The implicit `Email/set` that
   `onSuccessUpdateEmail` performs can report the Drafts→Sent move `notUpdated`, and that
   response is not read, so it would pass as filed. Unlike a lost IMAP `APPEND` the message is

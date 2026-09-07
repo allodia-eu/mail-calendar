@@ -1,8 +1,8 @@
 //! The [`Intent`]s a host dispatches: the *in* half of the unidirectional loop. Split out
-//! of `lib.rs` to keep it under the 500-line limit, and the *out* half — the surfaces a host
-//! observes and the callback that signals them — split from here for the same reason
-//! (`protocol_surface`). These derive the UniFFI scaffolding (so the generated Swift/Kotlin
-//! see them) and `lib.rs` re-exports them at the crate root.
+//! of `lib.rs` to keep it under the 500-line limit. The *out* half (the surfaces a host
+//! observes and the callback that signals them) split from here for the same reason:
+//! `protocol_surface`. These derive the UniFFI scaffolding, so the generated Swift/Kotlin see
+//! them, and `lib.rs` re-exports them at the crate root.
 
 use crate::{ContactEdit, EventEdge, RecurrenceChange, SimpleRecurrence, ViewMode};
 

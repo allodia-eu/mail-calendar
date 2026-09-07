@@ -380,6 +380,12 @@
 	"setup_field_mail_server": "Mail server",
 	"setup_field_email": "Email",
 	"setup_field_password": "Password",
+
+	"setup_sender_name_title": "Your name",
+	"setup_sender_name_description": "This is the name people see beside your address on the mail you send. You can change it later in Settings.",
+	"setup_sender_name_field": "Your name",
+	"setup_sender_name_continue": "Continue",
+	"setup_sender_name_skip": "Skip for now",
 	"setup_field_smtp": "Outgoing server (SMTP)",
 	"setup_field_caldav": "Calendar server (CalDAV)",
 	"setup_field_smtp_optional": "Outgoing server, SMTP (optional)",
@@ -501,6 +507,10 @@
 	"settings_composing_description": "How replies and forwards quote the original message.",
 	"settings_send_account_heading": "Default account for new mail",
 	"settings_send_account_description": "Which account new messages are sent from when you're looking at the combined inbox. Replies always start from the account that received the mail.",
+
+	"settings_sender_name_heading": "Your name",
+	"settings_sender_name_description": "The name people see beside your address on the mail you send. Leave it empty to send as your address alone.",
+	"settings_sender_name_managed": "Your organisation sets this name, so it cannot be changed here.",
 	"settings_swipe_heading": "Swipe actions",
 	"settings_swipe_description": "What swiping a message left or right does. After a swipe you can undo it straight away.",
 	"settings_swipe_left": "Swipe left",

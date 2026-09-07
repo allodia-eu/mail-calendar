@@ -380,6 +380,12 @@
 	"setup_field_mail_server": "Server di posta",
 	"setup_field_email": "Indirizzo e-mail",
 	"setup_field_password": "Password",
+
+	"setup_sender_name_title": "Il tuo nome",
+	"setup_sender_name_description": "È il nome che le persone vedono accanto al tuo indirizzo nei messaggi che invii. Puoi cambiarlo più avanti nelle Impostazioni.",
+	"setup_sender_name_field": "Il tuo nome",
+	"setup_sender_name_continue": "Continua",
+	"setup_sender_name_skip": "Salta per ora",
 	"setup_field_smtp": "Server in uscita (SMTP)",
 	"setup_field_caldav": "Server del calendario (CalDAV)",
 	"setup_field_smtp_optional": "Server in uscita, SMTP (facoltativo)",
@@ -501,6 +507,10 @@
 	"settings_composing_description": "Come le risposte e gli inoltri citano il messaggio originale.",
 	"settings_send_account_heading": "Account predefinito per la nuova posta",
 	"settings_send_account_description": "Da quale account vengono inviati i nuovi messaggi quando stai guardando la posta in arrivo combinata. Le risposte partono sempre dall’account che ha ricevuto il messaggio.",
+
+	"settings_sender_name_heading": "Il tuo nome",
+	"settings_sender_name_description": "Il nome che le persone vedono accanto al tuo indirizzo nei messaggi che invii. Lascialo vuoto per inviare solo con il tuo indirizzo.",
+	"settings_sender_name_managed": "Questo nome è impostato dalla tua organizzazione, quindi non può essere modificato qui.",
 	"settings_swipe_heading": "Azioni di scorrimento",
 	"settings_swipe_description": "Che cosa succede quando fai scorrere un messaggio verso sinistra o verso destra. Dopo lo scorrimento puoi annullare l’azione subito.",
 	"settings_swipe_left": "Scorri verso sinistra",
