@@ -124,6 +124,7 @@ class SettingsHubTest {
                 onSetStrategy = { _, _ -> },
                 onSetPollInterval = { _, _ -> },
                 onSetPushFolder = { _, _, _ -> },
+                onSetSenderName = { _, _ -> },
                 onOpenDiagnostics = { diagnosticsOpened++ },
                 onReset = { resets++ },
                 onBack = { closed++ },

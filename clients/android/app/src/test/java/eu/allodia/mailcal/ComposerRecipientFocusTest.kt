@@ -33,7 +33,7 @@ import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.RecipientMatch
 
-private val ALICE = AccountRow("acct-1", "alice@test.local", expanded = true)
+private val ALICE = AccountRow("acct-1", "alice@test.local", name = "", expanded = true)
 
 private val PHONE_WIDTH = 360.dp
 

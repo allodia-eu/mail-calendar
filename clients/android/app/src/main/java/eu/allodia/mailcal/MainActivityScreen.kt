@@ -1,7 +1,7 @@
 // The Compose tree onCreate hands to setContent, split out of MainActivity.kt: which top-level
 // screen is showing (welcome, reading, add-account, diagnostics, settings, or the running app's
-// mail/calendar/contacts tabs) and the two standing prompts (an unfiled copy, an invitation reply)
-// that can be raised from any of them.
+// mail/calendar/contacts tabs), the two standing prompts (an unfiled copy, an invitation reply)
+// that can be raised from any of them, and the "your name" step an account's arrival raises.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.TimeFormat
 
@@ -83,6 +85,24 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                         error != null -> ConnectionStatus(L10n.status_connect_failed(ctx, error), isError = true)
                         else -> ConnectionStatus(L10n.status_connecting(ctx), isError = false)
                     }
+                    // The account connected: ask what to call its sender. Rendered here rather
+                    // than inside the setup screen because that screen is gone by now, and the
+                    // browser sign-ins never showed it (docs/sending.md).
+                    SenderNameStepDialog(
+                        account = senderNamePrompt,
+                        suggest = { id ->
+                            // A provider round trip, so off the main thread; an account with no
+                            // server-side name simply answers empty.
+                            withContext(Dispatchers.IO) {
+                                instance?.suggestedSenderName(id).orEmpty()
+                            }
+                        },
+                        onSave = { id, name ->
+                            instance?.setAccountSenderName(id, name)
+                            senderNamePrompt = null
+                        },
+                        onDismiss = { senderNamePrompt = null },
+                    )
                     // The message went out; its copy did not reach Sent. Rendered here for the
                     // same reason as the question below: the send may have been started from
                     // anywhere, and the question outlives the screen that raised it.

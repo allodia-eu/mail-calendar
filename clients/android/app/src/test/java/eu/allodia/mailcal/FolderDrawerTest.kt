@@ -66,7 +66,7 @@ class FolderDrawerTest {
     }
 
     private fun account(id: String, email: String, expanded: Boolean) =
-        AccountRow(id = id, email = email, expanded = expanded)
+        AccountRow(id = id, email = email, name = "", expanded = expanded)
 
     @Test
     fun `every expanded account shows its folders regardless of which is selected`() {

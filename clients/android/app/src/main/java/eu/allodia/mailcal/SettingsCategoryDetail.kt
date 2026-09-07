@@ -89,6 +89,7 @@ internal fun CategoryDetail(
     onSetStrategy: (account: String, strategy: SyncStrategyKind) -> Unit,
     onSetPollInterval: (account: String, minutes: UShort) -> Unit,
     onSetPushFolder: (account: String, folder: String, subscribed: Boolean) -> Unit,
+    onSetSenderName: (account: String, name: String) -> Unit,
     onRequestReset: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -263,6 +264,7 @@ internal fun CategoryDetail(
                                 onSetStrategy = onSetStrategy,
                                 onSetPollInterval = onSetPollInterval,
                                 onSetPushFolder = onSetPushFolder,
+                                onSetSenderName = onSetSenderName,
                                 syncMode = accountsSyncMode[account.accountId],
                                 onSetSyncMode = onSetAccountSyncMode,
                             )

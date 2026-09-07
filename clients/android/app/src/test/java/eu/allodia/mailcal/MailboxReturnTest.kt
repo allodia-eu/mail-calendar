@@ -75,7 +75,7 @@ private fun TestMailbox(position: MailListPosition, search: SearchBarState) {
     MailboxScreen(
         rows = mailbox(),
         sendStatus = SendStatus.IDLE,
-        accounts = listOf(AccountRow(id = ACCOUNT, email = "me@local.test", expanded = false)),
+        accounts = listOf(AccountRow(id = ACCOUNT, email = "me@local.test", name = "", expanded = false)),
         selectedAccount = ACCOUNT,
         onSelectAccount = {},
         onAddAccount = {},

@@ -18,8 +18,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountRow
 
-private val ALICE = AccountRow("acct-1", "alice@test.local", expanded = true)
-private val BOB = AccountRow("acct-2", "bob@test.local", expanded = true)
+private val ALICE = AccountRow("acct-1", "alice@test.local", name = "", expanded = true)
+private val BOB = AccountRow("acct-2", "bob@test.local", name = "", expanded = true)
 
 @RunWith(RobolectricTestRunner::class)
 class FromAccountFieldTest {
