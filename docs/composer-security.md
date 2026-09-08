@@ -195,6 +195,10 @@ port:
     clicked open in the composer, so without it the address is text the user can see and cannot
     use. It never opens anything: the link is copied, and nothing is handed to a browser.
 
+    ⚠️ **The desktop hosts and Android meet that; iPhone and iPad do not yet.** The rule stands as
+    written, and those two columns fall short of it rather than being excused from it, which is why
+    the row is 🚧 there and the shortfall is under "Known gaps".
+
 ## Per-platform implementation matrix
 
 Every row is mandatory on every column. A new platform may not ship the rich composer until every
@@ -222,7 +226,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | Pasted picture → inline `cid:` | shared bundle (`imageFilesFrom` + `insertCapturedImage`) | (same: shared bundle) | (same: shared bundle) | (same: shared bundle) |
 | Dropped file → native attachment | `ComposerDropModifier` for the chrome **plus** a drop target on `EditorWebView` for the editor itself, both calling one handler: SwiftUI hit-tests its own tree, so a representable's rectangle is a hole in it and the chrome alone would take drops. `NSDraggingDestination` on macOS; `UIDropInteraction` on iPhone/iPad, which also **stages** each item to a file, a drop there carrying an `NSItemProvider` and never a path | Compose `dragAndDropTarget` + `requestDragAndDropPermissions`, staged to the app cache | `AllowDrop` on the composer grid, `StorageItems` from the data package | `GtkDropTarget` on the composer content, **capture** phase (the WebView installs one of its own) |
 | Dropped picture asks show-or-attach | `confirmationDialog` | Material `AlertDialog` | `ContentDialog` (three answers) | `AdwAlertDialog` |
-| Right-click menu filtered to the editing actions | macOS: `EditorWebView.willOpenMenu` keeps the four `WKMenuItemIdentifier`s and `validRequestor` answers `nil` to keep Services off (AppKit's AutoFill survives both: see "Known gaps"); iPhone/iPad use the system edit menu and its own link menu | selection bar for Cut/Copy/Paste; `installEditorLinkMenu` adds Copy link on a long press | `ContextMenuRequested` keeps `cut`/`copy`/`paste`/`selectAll`/`copyLinkLocation` | `connect_context_menu` rebuilds it from the stock `ContextMenuAction`s |
+| Right-click menu filtered to the editing actions | macOS: `EditorWebView.willOpenMenu` keeps the four `WKMenuItemIdentifier`s and `validRequestor` answers `nil` to keep Services off (AppKit's AutoFill survives both: see "Known gaps"); iPhone/iPad get the system edit menu, which carries the editing actions but **no link item at all** (see "Known gaps") | selection bar for Cut/Copy/Paste; `installEditorLinkMenu` adds Copy link on a long press | `ContextMenuRequested` keeps `cut`/`copy`/`paste`/`selectAll`/`copyLinkLocation` | `connect_context_menu` rebuilds it from the stock `ContextMenuAction`s |
 | Editor chrome localised | shared catalog via `setComposerLabels` (`ComposerLabels.swift`), in the composer **and** the signature editor | shared catalog via `setComposerLabels` | shared catalog via `setComposerLabels` (`ComposerLabels.cs`), in the composer **and** the signature editor | shared catalog via `setComposerLabels` |
 | Rust canonical output | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | calls `submit_rich_*_with_files`; selected files are native metadata, never WebKit uploads |
 | No body-content logging | lengths/counts only | lengths/counts only | lengths/counts only | no composer body is logged |
@@ -260,12 +264,17 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   typing a stored credential into a message body, which is a footgun rather than a way out of the
   gates: it inserts into the document the same sanitiser and validator still see on submit, and
   reaches no network. Removing it looks like private WebKit or AppKit API, which is why it stands.
-- **The iPhone and iPad link menu is unverified.** Gate 14 says those hosts need no filter, an
-  editable web view already offering Cut/Copy/Paste and a long press on a link offering to copy it.
-  The edit menu is confirmed; the link menu is not, because a long press on a link inside a quoted
-  original raised nothing that could be read back on the simulator. Whether that is the menu not
-  appearing or only the automation failing to reach it is exactly what is not known, so the
-  right-click row stays 🚧 on those two columns while the other three composer rows ship.
+- **A link's address cannot be copied in the composer on iPhone or iPad.** The body is
+  `contenteditable`, and WebKit treats a long press on a link in editable content as placing the
+  caret: what comes up is the ordinary text menu (Paste, Select, Select All, AutoFill, Format) with
+  no link item on it, and there is no link menu anywhere to filter or extend. So the address of a
+  link inside a quoted original is unreachable on those hosts, which is the situation gate 14 exists
+  to prevent: navigation is blocked, so it cannot be opened either.
+
+  Closing it is not a filter change. It needs the page asked what the caret is on, so a query in the
+  shared bundle and a **new named bridge command**, which widens the surface gate 2 keeps narrow and
+  is worth its own review rather than an addition here. Observed on both hosts, which agree item for
+  item, as the cause predicts: this is WebKit's behaviour for editable content, not a device's.
 - **A dropped picture is read on the main thread everywhere except Android.** Android stages and
   reads off it; Apple, Windows and Linux read inline from the dialog's answer, which is a stall of
   tens of milliseconds for a file within the cap and has not been worth a thread yet.

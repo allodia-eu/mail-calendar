@@ -22,8 +22,10 @@
 // clicked open in the composer, so without a way to copy its address it is text the user can see
 // and not use (docs/composer-security.md, Gate 14).
 //
-// iOS/iPadOS need none of this: an editable web view already offers Cut/Copy/Paste in the system
-// edit menu, and a long press on a link offers copying it.
+// iOS/iPadOS have no menu to filter: an editable web view already offers Cut/Copy/Paste in the
+// system edit menu, and WebKit answers a long press on a link there by placing the caret, so no
+// link menu is ever built. That leaves a link's address uncopyable in the composer on those hosts
+// (docs/composer-security.md, Gate 14 "Known gaps").
 
 #if os(macOS)
 import AppKit
