@@ -103,11 +103,17 @@ pub(crate) struct StoredAccount {
     /// and waits for the evidence a refused request provides.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) granted_scopes: Option<Vec<String>>,
-    /// Where to end the browser session, as discovery found it at sign-in.
+    /// Where to end the browser session, as discovery last reported it.
     ///
     /// Kept beside the grant so signing out needs no network round trip *before* it can erase
     /// anything: a sign-out that had to discover first could fail before it started. Absent for a
     /// grant stored by a build that did not record it, and for a service advertising none.
+    ///
+    /// Written at sign-in and **refreshed on any later launch that mints a token**
+    /// (`adopt_discovered_end_session`), because discovery runs then anyway and this value can
+    /// move under a grant: when the account service changed host, every existing grant went on
+    /// pointing at the old one. Treat it as at most one launch stale, never as fixed at
+    /// sign-in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) end_session_endpoint: Option<String>,
 }
