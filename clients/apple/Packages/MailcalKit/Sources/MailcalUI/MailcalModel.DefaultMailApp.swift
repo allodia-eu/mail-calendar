@@ -3,6 +3,7 @@
 // surfaces are DefaultMailAppViews.swift. Contract: docs/os-integration.md.
 
 import Foundation
+import MailcalBindings
 
 extension MailboxModel {
 

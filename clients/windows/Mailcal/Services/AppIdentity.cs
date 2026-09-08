@@ -73,8 +73,7 @@ internal static class AppIdentity
     {
         try
         {
-            return Windows.ApplicationModel.Core.AppListEntry.GetDefault()?.AppUserModelId
-                ?? Windows.ApplicationModel.AppInfo.Current?.AppUserModelId;
+            return Windows.ApplicationModel.AppInfo.Current?.AppUserModelId;
         }
         catch (Exception)
         {
