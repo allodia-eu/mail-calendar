@@ -69,24 +69,42 @@ fn item(content: Vec<InlineContent>) -> ListItem {
 fn inline_attachment(id: &str) -> DraftAttachment {
     DraftAttachment {
         id: aid(id),
-        blob: blob("blob://inline"),
+        blob: Some(blob("blob://inline")),
         file_name: "chart.png".to_owned(),
         media_type: "image/png".to_owned(),
         size: Some(42),
         disposition: AttachmentDisposition::Inline {
             cid: cid("chart-1@example.test"),
         },
+        data_url: None,
+    }
+}
+
+/// An inline image whose bytes travel in the document rather than behind a host handle: what a
+/// pasted or dropped picture looks like by the time it reaches Rust.
+fn pasted_attachment(id: &str, data_url: &str) -> DraftAttachment {
+    DraftAttachment {
+        id: aid(id),
+        blob: None,
+        file_name: "pasted.png".to_owned(),
+        media_type: "image/png".to_owned(),
+        size: None,
+        disposition: AttachmentDisposition::Inline {
+            cid: cid("pasted-1@example.test"),
+        },
+        data_url: Some(data_url.to_owned()),
     }
 }
 
 fn regular_attachment(id: &str) -> DraftAttachment {
     DraftAttachment {
         id: aid(id),
-        blob: blob("blob://file"),
+        blob: Some(blob("blob://file")),
         file_name: "report.pdf".to_owned(),
         media_type: "application/pdf".to_owned(),
         size: Some(1024),
         disposition: AttachmentDisposition::Attachment,
+        data_url: None,
     }
 }
 

@@ -7,10 +7,16 @@
 
 import { Attachments, type AttachmentMeta, type InlineImageMeta, insertAtCaret, safePreviewUrl } from "./attachments";
 import { autoformatBulletList } from "./autoformat";
-import { documentBlocks } from "./document";
-import { focusEditor } from "./dom";
+import { documentBlocks, referencedAttachmentIds } from "./document";
+import { focusEditor, saveSelection } from "./dom";
 import { applyMark } from "./format";
 import { installNativeChrome } from "./host";
+import {
+  type CapturedImage,
+  imageFilesFrom,
+  insertCapturedImage,
+  insertImageFiles,
+} from "./images";
 import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
 import { indentSelection } from "./lists";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
@@ -34,11 +40,22 @@ let labels: Labels = DEFAULT_LABELS;
 const toolbar = installToolbar(editor, toolbarRoot, () => labels);
 const chrome = installNativeChrome(editor, toolbarRoot);
 
-// Paste arrives as plain text: the document is a closed schema (marked text runs, lists, tables,
-// images), and dropping foreign markup is the strict reading of `docs/composer-security.md` Gate 7.
-// Mapping pasted HTML onto the schema is its own piece of work, not an accident of leaving this out.
+// Paste. A picture on the clipboard goes into the body where the caret is, as an inline image the
+// core turns into a `cid:` part on send: what Outlook does with a pasted screenshot, and what the
+// user means by pasting one into a message. Everything else arrives as plain TEXT: the document is
+// a closed schema (marked text runs, lists, tables, images), and dropping foreign markup is the
+// strict reading of `docs/composer-security.md` Gate 7. Mapping pasted HTML onto the schema is its
+// own piece of work, not an accident of leaving this out.
+//
+// The picture is read asynchronously, so the caret is captured first: without it a slow read would
+// drop the image wherever the selection had moved to by the time the bytes arrived.
 editor.addEventListener("paste", (event) => {
   event.preventDefault();
+  const images = imageFilesFrom(event.clipboardData);
+  if (images.length > 0) {
+    void insertImageFiles(editor, attachments, images, saveSelection(editor));
+    return;
+  }
   const text = event.clipboardData?.getData("text/plain") ?? "";
   (doc as Document & { execCommand?: (c: string, ui: boolean, v: string) => boolean }).execCommand?.(
     "insertText",
@@ -47,6 +64,10 @@ editor.addEventListener("paste", (event) => {
   );
 });
 
+// A drop is refused HERE and handled by the host, which is what lets a dropped file become a real
+// attachment: the page sees a `File` with no path, while the host gets the path Rust reads the
+// bytes from and the row the user removes it by. A dropped picture comes back through
+// `insertComposerImage` when the user chooses to show it in the message (Gate 13).
 editor.addEventListener("dragover", (event) => event.preventDefault());
 editor.addEventListener("drop", (event) => event.preventDefault());
 
@@ -98,6 +119,7 @@ declare global {
   interface Window {
     addComposerAttachment: (meta: AttachmentMeta) => void;
     addComposerInlineImage: (meta: InlineImageMeta) => void;
+    insertComposerImage: (image: string | CapturedImage) => void;
     setComposerQuote: (quote: string | QuoteSeed) => void;
     setComposerQuoteStyle: (style: string) => void;
     setComposerSignature: (signature: string | SignatureValue | null) => void;
@@ -119,6 +141,11 @@ function parsed<T>(value: string | T): T {
 
 window.addComposerAttachment = (meta) => attachments.add(meta);
 window.addComposerInlineImage = (meta) => attachments.addInlineImage(editor, meta);
+/// Shows a picture the HOST read in the message body: the "show it in the message" answer to a
+/// dropped image. The same path a paste takes, so the two cannot behave differently; the host
+/// supplies the bytes because only it can resolve a dropped file to something readable.
+window.insertComposerImage = (image) =>
+  insertCapturedImage(editor, attachments, parsed<CapturedImage>(image));
 window.setComposerQuote = (quote) => setComposerQuote(editor, parsed<QuoteSeed>(quote));
 window.setComposerQuoteStyle = (style) => setComposerQuoteStyle(editor, style);
 window.setComposerSignature = (signature) =>
@@ -161,5 +188,10 @@ window.insertSignatureImage = (image) => {
   insertAtCaret(editor, node);
 };
 
-window.composerDocument = () =>
-  JSON.stringify({ blocks: documentBlocks(editor), attachments: attachments.list() });
+window.composerDocument = () => {
+  const blocks = documentBlocks(editor);
+  return JSON.stringify({
+    blocks,
+    attachments: attachments.list(referencedAttachmentIds(blocks)),
+  });
+};

@@ -5,6 +5,11 @@
 package eu.allodia.mailcal
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import androidx.activity.compose.ManagedActivityResultLauncher
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +26,7 @@ import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import java.io.File
 import java.util.UUID
+import kotlin.concurrent.thread
 import uniffi.mailcal_bindings.ComposerFileAttachment
 
 internal data class PickedComposerFile(
@@ -31,6 +37,27 @@ internal data class PickedComposerFile(
 ) {
     val composerFile: ComposerFileAttachment
         get() = ComposerFileAttachment(path, fileName, mediaType)
+}
+
+// The Attach action's picker. Each chosen document is copied (content resolver → app cache) off
+// the main thread, because a large selection would otherwise block the UI, and the result is
+// applied back on it. `onFailed` covers a selection that staged nothing at all.
+@Composable
+internal fun rememberAttachmentPicker(
+    onStaged: (List<PickedComposerFile>) -> Unit,
+    onFailed: () -> Unit,
+): ManagedActivityResultLauncher<Array<String>, List<Uri>> {
+    val ctx = LocalContext.current
+    return rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) {
+            thread(name = "mailcal-stage-attachments") {
+                val staged = uris.mapNotNull { uri -> stageComposerFile(ctx, uri) }
+                Handler(Looper.getMainLooper()).post {
+                    if (staged.isEmpty()) onFailed() else onStaged(staged)
+                }
+            }
+        }
+    }
 }
 
 internal fun stageComposerFile(ctx: Context, uri: Uri): PickedComposerFile? {

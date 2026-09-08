@@ -182,6 +182,7 @@ async fn a_reply_from_another_account_still_threads_off_the_original() {
         to: "reply@remote.test".to_owned(),
         cc: String::new(),
         bcc: String::new(),
+        subject: None,
         document,
         blobs,
     };
@@ -219,6 +220,7 @@ async fn a_reply_without_a_from_still_sends_from_the_receiving_account() {
         to: "reply@remote.test".to_owned(),
         cc: String::new(),
         bcc: String::new(),
+        subject: None,
         document,
         blobs,
     };
@@ -240,6 +242,7 @@ async fn a_forward_from_another_account_sends_through_that_accounts_outbox() {
         to: "elsewhere@remote.test".to_owned(),
         cc: String::new(),
         bcc: String::new(),
+        subject: None,
         document,
         blobs,
     };

@@ -6,8 +6,9 @@
 // them to drift, which is exactly why Android collapsed its two into EditorWebView.kt.
 //
 // What it guarantees: script runs for the bundled local document only, no host objects, no web
-// messages, no default context menu, no new windows, every navigation away is cancelled, and every
-// http/https subresource request is answered 403, the native barrier behind the bundle's own CSP.
+// messages, a context menu filtered down to the editing actions, no new windows, every navigation
+// away is cancelled, and every http/https subresource request is answered 403, the native barrier
+// behind the bundle's own CSP.
 //
 // Do not relax one of these without updating that doc (rule AND matrix) and every other platform.
 
@@ -103,12 +104,42 @@ internal sealed class EditorWebViewHost
         settings.IsScriptEnabled = true;
         settings.AreHostObjectsAllowed = false;
         settings.IsWebMessageEnabled = false;
-        settings.AreDefaultContextMenusEnabled = false;
+        // On, but filtered: `OnContextMenuRequested` keeps only the editing actions. Left off, a
+        // right-click did nothing at all, and a link in a quoted original was text the user could
+        // see and not copy.
+        settings.AreDefaultContextMenusEnabled = true;
+        core.ContextMenuRequested += OnContextMenuRequested;
         core.NavigationStarting += OnNavigationStarting;
         core.NavigationCompleted += OnNavigationCompleted;
         core.NewWindowRequested += (_, args) => args.Handled = true;
         core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
         core.WebResourceRequested += OnWebResourceRequested;
+    }
+
+    /// The commands the editor's right-click menu offers, by WebView2's own command name. Every
+    /// client offers the same set (docs/composer-security.md, Gate 14); the labels are the
+    /// platform's own, so they are already in the user's language.
+    ///
+    /// **The link item is the one that has to be here.** A link inside a quoted original cannot be
+    /// clicked open in the composer (navigation is blocked), so without a way to copy its address
+    /// it is text the user can see and not use.
+    private static readonly HashSet<string> EditorMenuCommands =
+        new(StringComparer.Ordinal) { "cut", "copy", "paste", "selectAll", "copyLinkLocation" };
+
+    // WebView2's default menu carries items this composer must not offer: opening a link,
+    // saving one, reloading the document, and Inspect Element. Filtering rather than replacing
+    // keeps each remaining item the platform's, with its own label and accelerator.
+    private static void OnContextMenuRequested(
+        CoreWebView2 sender,
+        CoreWebView2ContextMenuRequestedEventArgs args)
+    {
+        for (var index = args.MenuItems.Count - 1; index >= 0; index--)
+        {
+            if (!EditorMenuCommands.Contains(args.MenuItems[index].Name))
+            {
+                args.MenuItems.RemoveAt(index);
+            }
+        }
     }
 
     private void OnNavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)

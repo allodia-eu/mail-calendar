@@ -12,7 +12,9 @@
          list|reading splitter), so a fixed width would clip its own right edge exactly as the
          dialog once did. Everything stretches; the editor is the lone star row and absorbs the
          height. -->
-    <Grid Padding="16" RowSpacing="10">
+    <!-- A dropped file is resolved natively (ComposerView.Drop.cs): web code sees a File with no
+         path, so only the host can hand the bytes to Rust and list the file for removal. -->
+    <Grid Padding="16" RowSpacing="10" AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />

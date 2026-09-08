@@ -50,7 +50,7 @@ public sealed partial class MainWindow
 
     /// <summary>Opens the reply (or reply-all) composer for a message, with the To/Cc the core
     /// suggests pre-filled and editable.</summary>
-    internal void ComposeReply(string account, string key, bool replyAll)
+    internal void ComposeReply(string account, string key, bool replyAll, string subject)
     {
         var prefill = Model.ReplyRecipients(account, key, replyAll);
         var quoting = Model.QuoteSettings;
@@ -64,6 +64,10 @@ public sealed partial class MainWindow
             InitialTo: prefill?.To ?? string.Empty,
             InitialCc: prefill?.Cc ?? string.Empty,
             Quote: QuoteSeedFor(account, key, isForward: false),
+            // Derived by the CORE, not here: the field is editable, so what it opens with is what
+            // gets sent unless the user changes it, and a client-side "Re: " + subject differs
+            // from the core's on a reply to a reply.
+            InitialSubject: MailcalBindingsMethods.ReplySubject(subject),
             QuoteStyle: quoting.Style,
             QuoteStylePerMessage: quoting.PerMessage));
     }
@@ -112,7 +116,7 @@ public sealed partial class MainWindow
     }
 
     /// <summary>Opens the forward composer for a message (recipients entered fresh).</summary>
-    internal void ComposeForward(string account, string key)
+    internal void ComposeForward(string account, string key, string subject)
     {
         var quoting = Model.QuoteSettings;
         BeginCompose(new ComposeRequest(
@@ -124,7 +128,8 @@ public sealed partial class MainWindow
             InitialCc: string.Empty,
             Quote: QuoteSeedFor(account, key, isForward: true),
             QuoteStyle: quoting.Style,
-            QuoteStylePerMessage: quoting.PerMessage));
+            QuoteStylePerMessage: quoting.PerMessage,
+            InitialSubject: MailcalBindingsMethods.ForwardSubject(subject)));
     }
 
     // The quoted original for a reply/forward of (account, key). There is something to quote only

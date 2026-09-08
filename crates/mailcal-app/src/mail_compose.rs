@@ -11,12 +11,15 @@ use engine_api::{
     MessageIdHeader, Provider,
 };
 use mailcal_composer::{
-    Block, ComposerDocument, DraftBlobHandle, OutputAttachment, render as render_composer,
+    ComposerDocument, DraftBlobHandle, OutputAttachment, render as render_composer,
 };
 
 use crate::{
     App,
     helpers::{forward_subject, generated_message_id, reply_subject},
+    mail_compose_quote::{
+        quotes_reference_inline_images, reattach_quote_cids, sanitize_quote_bodies,
+    },
     protocol::{ComposerBlob, RecipientSuggestion},
     reference::MessageRef,
 };
@@ -72,10 +75,11 @@ impl<P: Provider> App<P> {
     /// received it** (the reference's account); `from` overrides that with the account the user
     /// picked in the composer's From dropdown, so a reply can go out from a different mailbox.
     /// Uses the host-supplied `to`/`cc`/`bcc` recipients (the host pre-fills these from
-    /// [`App::reply_recipients`] and the user may edit them), derives the `Re:` subject and the
-    /// `In-Reply-To`/`References` chain from the stored original so the reply threads, renders
-    /// the rich draft, then sends through the sending account's outbox. A no-op if the original
-    /// can't be resolved; a render/blob failure surfaces as a failed send.
+    /// [`App::reply_recipients`] and the user may edit them), takes the `subject` the user left
+    /// in the composer (falling back to a derived `Re:` when the caller has no subject field),
+    /// derives the `In-Reply-To`/`References` chain from the stored original so the reply
+    /// threads, renders the rich draft, then sends through the sending account's outbox. A no-op
+    /// if the original can't be resolved; a render/blob failure surfaces as a failed send.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn submit_rich_reply(
         &self,
@@ -84,13 +88,17 @@ impl<P: Provider> App<P> {
         to: String,
         cc: String,
         bcc: String,
+        subject: Option<String>,
         document: ComposerDocument,
         blobs: Vec<ComposerBlob>,
     ) {
         let Some(original) = self.find_message_in(&message).await else {
             return;
         };
-        let subject = reply_subject(original.envelope.subject.as_deref());
+        // The composer's Subject field is editable on a reply, so what the user left there wins;
+        // the derived `Re:` is the fallback for a caller that has no such field to read.
+        let subject =
+            subject.unwrap_or_else(|| reply_subject(original.envelope.subject.as_deref()));
         // The original always lives in `message.account`, only the *sending* account can differ.
         let account = from.unwrap_or_else(|| message.account.clone());
         let Some(identity) = self.identity_or_fail(&account).await else {
@@ -134,8 +142,9 @@ impl<P: Provider> App<P> {
         self.send_draft(&account, &draft).await;
     }
 
-    /// Forwards `message` with a rich composer `document` (a `Fwd:` subject) to the
-    /// host-supplied `to`/`cc`/`bcc` recipients. Sends from the reference's account by
+    /// Forwards `message` with a rich composer `document` to the host-supplied `to`/`cc`/`bcc`
+    /// recipients, under the `subject` the user left in the composer (a derived `Fwd:` when the
+    /// caller has no subject field). Sends from the reference's account by
     /// default; `from` overrides that with the account the user picked in the composer's From
     /// dropdown. A no-op if the original can't be resolved; a render/blob-resolution failure
     /// surfaces as a failed send.
@@ -152,13 +161,15 @@ impl<P: Provider> App<P> {
         to: String,
         cc: String,
         bcc: String,
+        subject: Option<String>,
         document: ComposerDocument,
         blobs: Vec<ComposerBlob>,
     ) {
         let Some(original) = self.find_message_in(&message).await else {
             return;
         };
-        let subject = forward_subject(original.envelope.subject.as_deref());
+        let subject =
+            subject.unwrap_or_else(|| forward_subject(original.envelope.subject.as_deref()));
         // The original always lives in `message.account`, only the *sending* account can differ.
         let account = from.unwrap_or_else(|| message.account.clone());
         let Some(identity) = self.identity_or_fail(&account).await else {
@@ -309,6 +320,19 @@ fn rich_draft(
     // they were never MIME parts, so their ids are minted rather than preserved.
     let signature_inline = crate::mail_compose_signature::reattach_signature_cids(&mut document);
     let output = render_composer(&document).ok()?;
+    // A picture the editor captured itself (a paste, or the "show it in the message" answer on a
+    // drop) has no host blob to resolve: its bytes ride in the document as a `data:` URI, keyed by
+    // the same attachment id the manifest names.
+    let data_urls: HashMap<&mailcal_composer::AttachmentId, &str> = document
+        .attachments
+        .iter()
+        .filter_map(|attachment| {
+            attachment
+                .data_url
+                .as_deref()
+                .map(|url| (&attachment.id, url))
+        })
+        .collect();
     let message_id = MessageIdHeader::new(generated_message_id()).ok()?;
     let mut blob_map = blob_map(blobs);
     let mut draft = Draft::new(message_id, identity.clone(), to, subject, output.plain_text)
@@ -317,10 +341,20 @@ fn rich_draft(
         .with_bcc(bcc);
 
     for attachment in output.inline_attachments {
-        draft = draft.with_attachment(engine_attachment(attachment, &mut blob_map, true)?);
+        draft = draft.with_attachment(engine_attachment(
+            attachment,
+            &mut blob_map,
+            &data_urls,
+            true,
+        )?);
     }
     for attachment in output.attachments {
-        draft = draft.with_attachment(engine_attachment(attachment, &mut blob_map, false)?);
+        draft = draft.with_attachment(engine_attachment(
+            attachment,
+            &mut blob_map,
+            &data_urls,
+            false,
+        )?);
     }
     // The re-attached quoted-original inline images carry their own bytes and Content-ID (there
     // is no host blob to resolve), so they are added straight to the draft. The signature's
@@ -329,101 +363,6 @@ fn rich_draft(
         draft = draft.with_attachment(attachment);
     }
     Some(draft)
-}
-
-/// Re-sanitises every quoted original's HTML to the inert, safe subset (`crate::html::sanitize`)
-/// in place. Called on the rich-draft path right before render: the quote body is HTML a host's
-/// WebView editor handed back, so it is re-hardened here rather than trusted: the same sanitizer
-/// the reading view runs on inbound mail, applied now to outbound quoted content.
-fn sanitize_quote_bodies(document: &mut ComposerDocument) {
-    for block in &mut document.blocks {
-        if let Block::Quote(quote) = block {
-            quote.body_html = crate::html::sanitize(&quote.body_html).html;
-        }
-    }
-}
-
-/// Rewrites each quoted original's inline `data:` images back to `cid:` references to their
-/// original parts (`crate::html::restore_cid_images`), returning one inline [`DraftAttachment`]
-/// per distinct part so the sent message carries them as `multipart/related` `cid:` parts with
-/// their **original** `Content-ID`s. A no-op when `inline_parts` is empty (a new message, or a
-/// reply/forward whose original had no inline images).
-/// Whether any quote block carries a resolved inline `data:` image (what the reading view
-/// produces from the original's `cid:` parts) worth re-attaching: so the inline-parts fetch (a
-/// raw-source blob read + MIME parse, or a provider round-trip) is skipped for the common
-/// reply/forward whose quoted original had no inline images.
-fn quotes_reference_inline_images(document: &ComposerDocument) -> bool {
-    document
-        .blocks
-        .iter()
-        .any(|block| matches!(block, Block::Quote(quote) if quote.body_html.contains("data:image")))
-}
-
-fn reattach_quote_cids(
-    document: &mut ComposerDocument,
-    inline_parts: &[InlinePart],
-) -> Vec<DraftAttachment> {
-    // Only parts whose `Content-ID` survives header validation can be re-attached; rewriting a
-    // `data:` image to `cid:` for an unattachable id would leave a dangling reference, so those
-    // parts are excluded up front and keep their (still-rendering) `data:` image untouched.
-    let attachable: Vec<&InlinePart> = inline_parts
-        .iter()
-        .filter(|part| ContentIdHeader::new(part.content_id()).is_ok())
-        .collect();
-    let mut attachments = Vec::new();
-    let mut attached: HashSet<&str> = HashSet::new();
-    for block in &mut document.blocks {
-        if let Block::Quote(quote) = block {
-            let (restored, matched) =
-                crate::html::restore_cid_images(&quote.body_html, &attachable);
-            quote.body_html = restored;
-            for part in matched {
-                // One part may be referenced by more than one quote block; attach it once.
-                if !attached.insert(part.content_id()) {
-                    continue;
-                }
-                let Ok(content_id) = ContentIdHeader::new(part.content_id()) else {
-                    continue;
-                };
-                attachments.push(DraftAttachment::inline(
-                    inline_file_name(part),
-                    part.media_type(),
-                    content_id,
-                    part.bytes().to_vec(),
-                ));
-            }
-        }
-    }
-    attachments
-}
-
-/// A display file name for a re-attached inline image, derived from its media type and
-/// `Content-ID`. Cosmetic only: the part is addressed by its `Content-ID`, not its name.
-fn inline_file_name(part: &InlinePart) -> String {
-    let ext = match part.media_type().rsplit('/').next() {
-        Some("jpeg") => "jpg",
-        Some("svg+xml") => "svg",
-        Some(sub) if !sub.is_empty() && sub.bytes().all(|b| b.is_ascii_alphanumeric()) => sub,
-        _ => "img",
-    };
-    let base: String = part
-        .content_id()
-        .chars()
-        .take_while(|&c| c != '@')
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '.' || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    let base = if base.is_empty() {
-        "image"
-    } else {
-        base.as_str()
-    };
-    format!("{base}.{ext}")
 }
 
 /// Splits a recipient field's comma-separated text into addresses, trimming whitespace and
@@ -464,30 +403,41 @@ fn blob_map(blobs: Vec<ComposerBlob>) -> HashMap<DraftBlobHandle, Vec<u8>> {
         .collect()
 }
 
+/// Resolves one manifest entry into an engine attachment, taking its bytes from the host blob it
+/// names or, for a picture the document carried itself, by decoding its `data:` URI.
+///
+/// The decode is the narrow one the signature rewrite uses: base64 `image/*` only, so a document
+/// can never turn arbitrary bytes into a part. An entry that names neither a resolvable blob nor a
+/// decodable image fails the send rather than putting an empty part on the wire.
 fn engine_attachment(
     attachment: OutputAttachment,
     blobs: &mut HashMap<DraftBlobHandle, Vec<u8>>,
+    data_urls: &HashMap<&mailcal_composer::AttachmentId, &str>,
     inline: bool,
 ) -> Option<DraftAttachment> {
-    let bytes = blobs.remove(&attachment.blob)?;
-    if let Some(expected) = attachment.size
+    let OutputAttachment {
+        id,
+        blob,
+        file_name,
+        media_type,
+        size,
+        cid,
+    } = attachment;
+    // The decoded URI's own media type wins over the manifest's: it describes the bytes actually
+    // being attached, and it is the one the narrow image check passed.
+    let (media_type, bytes) = match blob {
+        Some(blob) => (media_type, blobs.remove(&blob)?),
+        None => crate::mail_compose_signature::decode_data_image(data_urls.get(&id).copied()?)?,
+    };
+    if let Some(expected) = size
         && expected != bytes.len() as u64
     {
         return None;
     }
     if inline {
-        let cid = ContentIdHeader::new(attachment.cid?.as_str()).ok()?;
-        Some(DraftAttachment::inline(
-            attachment.file_name,
-            attachment.media_type,
-            cid,
-            bytes,
-        ))
+        let cid = ContentIdHeader::new(cid?.as_str()).ok()?;
+        Some(DraftAttachment::inline(file_name, media_type, cid, bytes))
     } else {
-        Some(DraftAttachment::attachment(
-            attachment.file_name,
-            attachment.media_type,
-            bytes,
-        ))
+        Some(DraftAttachment::attachment(file_name, media_type, bytes))
     }
 }

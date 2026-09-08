@@ -384,13 +384,11 @@ fn read_head(path: &std::path::Path) -> std::io::Result<Vec<u8>> {
     Ok(head)
 }
 
-/// PNG, JPEG, GIF or WebP by magic number.
+/// PNG, JPEG, GIF or WebP by magic number: the one table, shared with the composer's dropped
+/// pictures ([`crate::composer_image::raster_media_type`]), so the two surfaces cannot come to
+/// disagree about what a client may be handed.
 fn is_raster(head: &[u8]) -> bool {
-    head.starts_with(b"\x89PNG\r\n\x1a\n")
-        || head.starts_with(b"\xff\xd8\xff")
-        || head.starts_with(b"GIF87a")
-        || head.starts_with(b"GIF89a")
-        || (head.len() >= 12 && head.starts_with(b"RIFF") && &head[8..12] == b"WEBP")
+    crate::composer_image::raster_media_type(head).is_some()
 }
 
 /// The address a row names and the avatar to fill in for it.

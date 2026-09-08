@@ -31,7 +31,12 @@ public readonly record struct MessageStop(
     string Subject,
     string From,
     AvatarItem Avatar,
-    string DateText);
+    string DateText,
+    // The subject exactly as the message carries it, which is what a composer opened from the
+    // landed-on message must seed its editable Subject field with; `Subject` above is the header's
+    // text and may be a placeholder. Trailing and defaulted: it takes no part in identifying a
+    // stop, which is what every other member is for.
+    string RawSubject = "");
 
 /// <summary>Chooses the message the reading pane should fall to when the open one is removed.</summary>
 public static class ReadingAdvance

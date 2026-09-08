@@ -39,17 +39,17 @@ extension EventRow {
 /// composer twice rather than the second request looking like the first and doing nothing.
 enum ComposeContext: Identifiable {
     case new
-    case reply(account: String, key: String, to: String, cc: String, quote: String?, quoteStyle: QuoteStyleKind)
-    case replyAll(account: String, key: String, to: String, cc: String, quote: String?, quoteStyle: QuoteStyleKind)
-    case forward(account: String, key: String, quote: String?, quoteStyle: QuoteStyleKind)
+    case reply(account: String, key: String, to: String, cc: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind)
+    case replyAll(account: String, key: String, to: String, cc: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind)
+    case forward(account: String, key: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind)
     case agentDraft(AgentDraftRequest)
 
     var id: String {
         switch self {
         case .new: return "new"
-        case .reply(_, let key, _, _, _, _): return "reply:\(key)"
-        case .replyAll(_, let key, _, _, _, _): return "replyAll:\(key)"
-        case .forward(_, let key, _, _): return "forward:\(key)"
+        case .reply(_, let key, _, _, _, _, _): return "reply:\(key)"
+        case .replyAll(_, let key, _, _, _, _, _): return "replyAll:\(key)"
+        case .forward(_, let key, _, _, _): return "forward:\(key)"
         case .agentDraft(let request): return "agent:\(request.id)"
         }
     }

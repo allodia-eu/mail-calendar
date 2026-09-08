@@ -2,18 +2,15 @@
 // pure decisions without composing anything.
 package eu.allodia.mailcal
 
-// What the rich composer is for. Every mode exposes editable From/To/Cc/Bcc fields, a reply and
-// reply-all open with To/Cc pre-filled from the core (`replyRecipients`), a forward and new message
-// open empty, so the user can adjust any address. Only a new message edits the Subject
-// (reply/forward derive Re:/Fwd: in the core). Every mode shares the one hardened editor host below.
+// What the rich composer is for. Every mode exposes editable From/To/Cc/Bcc/Subject fields; a reply
+// and reply-all open with To/Cc pre-filled from the core (`replyRecipients`) and the Subject with
+// the core's derived `Re:`/`Fwd:`, a forward and new message open with empty addresses, so the user
+// can adjust anything before sending. Every mode shares the one hardened editor host below.
 internal enum class RichComposeMode {
     New,
     Reply,
     ReplyAll,
     Forward,
-    ;
-
-    val showsSubject: Boolean get() = this == New
 }
 
 // Whether the composer opens with its Cc/Bcc row already revealed. It must, whenever either

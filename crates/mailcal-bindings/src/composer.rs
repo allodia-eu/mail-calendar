@@ -56,6 +56,28 @@ pub fn render_composer_document_json(document_json: String) -> Result<String, Ma
         .map_err(|err| MailcalError::Composer(format!("cannot serialize composer output: {err}")))
 }
 
+/// The subject a reply to `original` opens with: `Re: <original>`, never doubled.
+///
+/// The composer's Subject field is editable on a reply, so what it opens with is what gets sent
+/// unless the user changes it. That makes this the core's answer, not each client's: a
+/// client-side `"Re: " + subject` differs from the core's on the two cases that matter (a reply to
+/// a reply, and an empty subject), and the difference would now reach the wire.
+///
+/// The prefix is not localised: it is what threads the conversation in every other mail client.
+#[must_use]
+#[uniffi::export]
+pub fn reply_subject(original: String) -> String {
+    mailcal_app::reply_subject(Some(&original))
+}
+
+/// The subject a forward of `original` opens with: `Fwd: <original>`, on the same terms as
+/// [`reply_subject`].
+#[must_use]
+#[uniffi::export]
+pub fn forward_subject(original: String) -> String {
+    mailcal_app::forward_subject(Some(&original))
+}
+
 #[uniffi::export]
 impl MailcalApp {
     /// Sends a rich composer document through the durable outbox. `document_json` is a
@@ -100,8 +122,9 @@ impl MailcalApp {
 
     /// Replies to the message `key` (in `account`, the row's owning account) with a rich
     /// composer document. The host supplies `recipients` (its `to`/`cc` pre-filled from
-    /// [`MailcalApp::reply_recipients`] for reply or reply-all, and editable by the user);
-    /// the core derives the `Re:` subject and threading headers from the original.
+    /// [`MailcalApp::reply_recipients`] for reply or reply-all, and editable by the user) and
+    /// the `subject` its editable Subject field holds; the core derives the threading headers
+    /// from the original.
     /// `document_json`/`blobs` carry the rich body exactly as
     /// [`MailcalApp::submit_rich_mail`]. Fire-and-forget once the document validates.
     ///
@@ -113,8 +136,14 @@ impl MailcalApp {
     ///
     /// `from` is the account id the user picked in the composer's From dropdown, letting a reply
     /// go out from a different mailbox than the one that received the original. Omit it (the
-    /// default) to reply from `account`.
-    #[uniffi::method(default(from = None))]
+    /// default) to reply from `account`. `subject` is what the user left in the composer's
+    /// Subject field, which is editable on a reply; omit it to let the core derive `Re:` from
+    /// the original.
+    // Eight because a reply names eight things, not because two concerns are tangled: the
+    // original (account + key), the recipients, the subject, the body, its attachments, and the
+    // sending account. Bundling any of them into a record would only rename the arity.
+    #[allow(clippy::too_many_arguments)]
+    #[uniffi::method(default(from = None, subject = None))]
     pub fn submit_rich_reply(
         &self,
         account: String,
@@ -123,6 +152,7 @@ impl MailcalApp {
         document_json: String,
         blobs: Vec<ComposerBlob>,
         from: Option<String>,
+        subject: Option<String>,
     ) -> Result<(), MailcalError> {
         let message = message_ref(&account, key)?;
         let (document, blobs) = prepare_rich(&document_json, blobs)?;
@@ -133,6 +163,7 @@ impl MailcalApp {
             to,
             cc,
             bcc,
+            subject,
             document,
             blobs,
         });
@@ -140,7 +171,7 @@ impl MailcalApp {
     }
 
     /// Forwards the message `key` (in `account`, the row's owning account) to the
-    /// host-supplied `recipients` with a rich composer document (a `Fwd:` subject; no
+    /// host-supplied `recipients`, under the `subject` its editable Subject field holds (no
     /// threading). `document_json`/`blobs` carry the rich body exactly as
     /// [`MailcalApp::submit_rich_mail`]. Fire-and-forget once the document validates.
     ///
@@ -151,8 +182,13 @@ impl MailcalApp {
     /// reference (or a supplied `from`) is malformed.
     ///
     /// `from` is the account id the user picked in the composer's From dropdown. Omit it (the
-    /// default) to forward from `account`.
-    #[uniffi::method(default(from = None))]
+    /// default) to forward from `account`. `subject` is what the user left in the composer's
+    /// Subject field; omit it to let the core derive `Fwd:` from the original.
+    // Eight because a reply names eight things, not because two concerns are tangled: the
+    // original (account + key), the recipients, the subject, the body, its attachments, and the
+    // sending account. Bundling any of them into a record would only rename the arity.
+    #[allow(clippy::too_many_arguments)]
+    #[uniffi::method(default(from = None, subject = None))]
     pub fn submit_rich_forward(
         &self,
         account: String,
@@ -161,6 +197,7 @@ impl MailcalApp {
         document_json: String,
         blobs: Vec<ComposerBlob>,
         from: Option<String>,
+        subject: Option<String>,
     ) -> Result<(), MailcalError> {
         let message = message_ref(&account, key)?;
         let (document, blobs) = prepare_rich(&document_json, blobs)?;
@@ -171,6 +208,7 @@ impl MailcalApp {
             to,
             cc,
             bcc,
+            subject,
             document,
             blobs,
         });
@@ -274,13 +312,15 @@ fn validate_blob_bytes(
         .iter()
         .chain(output.attachments.iter())
     {
-        let Some(blob) = blobs
-            .iter()
-            .find(|blob| blob.handle == attachment.blob.as_str())
-        else {
+        // An attachment with no handle carries its own bytes in the document (a pasted or
+        // dropped picture), so there is no host blob to match it against.
+        let Some(handle) = attachment.blob.as_ref() else {
+            continue;
+        };
+        let Some(blob) = blobs.iter().find(|blob| blob.handle == handle.as_str()) else {
             return Err(MailcalError::Composer(format!(
                 "missing bytes for composer blob {}",
-                attachment.blob.as_str()
+                handle.as_str()
             )));
         };
         if let Some(expected) = attachment.size
@@ -288,7 +328,7 @@ fn validate_blob_bytes(
         {
             return Err(MailcalError::Composer(format!(
                 "composer blob {} has {} bytes but expected {expected}",
-                attachment.blob.as_str(),
+                handle.as_str(),
                 blob.bytes.len()
             )));
         }
@@ -430,6 +470,7 @@ mod tests {
                 },
                 r#"{"blocks": [], "attachments": []}"#.to_owned(),
                 Vec::new(),
+                None,
                 None,
             )
             .unwrap_err();

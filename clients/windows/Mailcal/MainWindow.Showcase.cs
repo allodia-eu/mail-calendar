@@ -294,7 +294,7 @@ public sealed partial class MainWindow
         DispatcherQueue.TryEnqueue(() =>
         {
             Log.Info("showcase: opening the reply composer");
-            ComposeReply(opened.Account, opened.Key, replyAll: false);
+            ComposeReply(opened.Account, opened.Key, replyAll: false, opened.RawSubject);
         });
     }
 

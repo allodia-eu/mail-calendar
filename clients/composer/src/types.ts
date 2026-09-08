@@ -103,14 +103,16 @@ export type Block =
 /// `Inline` is externally tagged like every other data-carrying variant.
 export type AttachmentDisposition = "Attachment" | { Inline: { cid: string } };
 
-/// `mailcal_composer::DraftAttachment`.
+/// `mailcal_composer::DraftAttachment`. Exactly one of `blob` and `data_url` is set: a file the
+/// host staged is referenced by handle, a picture the editor captured carries its own bytes.
 export interface DraftAttachment {
   id: string;
-  blob: string;
+  blob?: string;
   file_name: string;
   media_type: string;
   size: number | null;
   disposition: AttachmentDisposition;
+  data_url?: string;
 }
 
 /// `mailcal_composer::ComposerDocument`: what `composerDocument()` returns.

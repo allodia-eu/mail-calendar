@@ -52,6 +52,7 @@ public sealed partial class MailboxModel
             Account = row.Account,
             Key = row.LatestKey,
             Subject = row.Title,
+            RawSubject = row.RawSubject,
             From = row.Subtitle,
             Avatar = row.Avatar,
             // The reading header shows the full absolute date, not the row's compact relative label.
@@ -92,6 +93,7 @@ public sealed partial class MailboxModel
             Account = message.Account,
             Key = message.Key,
             Subject = message.Subject,
+            RawSubject = message.RawSubject,
             From = message.FromText,
             Avatar = message.Avatar,
             // The reading header shows the full absolute date, not the sub-row's relative label.
@@ -173,14 +175,16 @@ public sealed partial class MailboxModel
                         message.Subject,
                         message.FromText,
                         message.Avatar,
-                        message.FullDateText));
+                        message.FullDateText,
+                        message.RawSubject));
                 }
                 continue;
             }
 
             // A conversation row has no key of its own; LatestKey is what a click opens.
             stops.Add(new MessageStop(
-                row.Account, row.LatestKey, row.Title, row.Subtitle, row.Avatar, row.FullDateText));
+                row.Account, row.LatestKey, row.Title, row.Subtitle, row.Avatar, row.FullDateText,
+                row.RawSubject));
         }
 
         return stops;
@@ -198,7 +202,7 @@ public sealed partial class MailboxModel
         ReadingAdvance.Next(
             new MessageStop(
                 opened.Account, opened.Key, opened.Subject, opened.From, opened.Avatar,
-                opened.DateText),
+                opened.DateText, opened.RawSubject),
             ReadableStops());
 
     /// <summary>
@@ -218,6 +222,7 @@ public sealed partial class MailboxModel
             Account = stop.Account,
             Key = stop.Key,
             Subject = stop.Subject,
+            RawSubject = stop.RawSubject,
             From = stop.From,
             Avatar = stop.Avatar,
             DateText = stop.DateText,

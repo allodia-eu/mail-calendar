@@ -66,7 +66,6 @@ class ComposerRecipientFocusTest {
                     onBcc = {},
                     subject = "",
                     onSubject = {},
-                    showsSubject = true,
                     showCcBcc = false,
                     onToggleCcBcc = {},
                     style = null,
