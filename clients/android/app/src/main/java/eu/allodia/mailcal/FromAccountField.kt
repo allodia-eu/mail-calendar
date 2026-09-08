@@ -29,6 +29,12 @@ internal fun FromAccountField(
     accounts: List<AccountRow>,
     selected: AccountRow?,
     onSelect: (AccountRow) -> Unit,
+    // How one account reads here: `Name <address>`, or the address alone when no name is set.
+    // Passed in rather than composed here, and deliberately without a default: the caller supplies
+    // the core's `senderLabel`, which is an FFI call, and the JVM test suite loads no cdylib. A
+    // composable that reached across the FFI could not be composed there, which is where every
+    // other rule about this field is pinned.
+    accountLabel: (AccountRow) -> String,
 ) {
     val ctx = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
@@ -42,7 +48,7 @@ internal fun FromAccountField(
         modifier = Modifier.fillMaxWidth(),
     ) {
         OutlinedTextField(
-            value = selected?.email ?: "",
+            value = selected?.let(accountLabel) ?: "",
             onValueChange = {},
             readOnly = true,
             singleLine = true,
@@ -62,7 +68,7 @@ internal fun FromAccountField(
         ExposedDropdownMenu(expanded = expanded && pickable, onDismissRequest = { expanded = false }) {
             accounts.forEach { account ->
                 DropdownMenuItem(
-                    text = { Text(account.email) },
+                    text = { Text(accountLabel(account)) },
                     onClick = {
                         expanded = false
                         onSelect(account)

@@ -93,6 +93,12 @@ extension MailboxModel {
             self.observeSystemTimeZone()
             self.observeNetworkReachability()
             app.dispatch(intent: .refreshMail)
+            #if DEBUG
+            // A harness account is injected as a stored config, so the step that asks what to call
+            // its sender never runs; give it the name the harness already holds
+            // (MailcalModel+DevAccount.swift).
+            seedHarnessSenderNames(app)
+            #endif
         } catch {
             print("[Mailcal] could not open the accounts: \(error)")
             setupError = L10n.status_connect_failed(error: "\(error)")

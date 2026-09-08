@@ -143,6 +143,8 @@ fn row(
     }
 }
 
+/// The From picker over `accounts`, each `(id, label)`; the label is what the account reads as
+/// here, composed by the caller from the core's rule (`docs/sending.md`).
 pub(super) fn from_picker(
     accounts: &[(String, String)],
     initial_from: Option<&str>,
@@ -150,7 +152,7 @@ pub(super) fn from_picker(
     let labels = gtk::StringList::new(
         &accounts
             .iter()
-            .map(|(_, email)| email.as_str())
+            .map(|(_, label)| label.as_str())
             .collect::<Vec<_>>(),
     );
     let dropdown = gtk::DropDown::new(Some(labels.clone()), None::<gtk::Expression>);

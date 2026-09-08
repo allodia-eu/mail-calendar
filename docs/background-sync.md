@@ -184,8 +184,11 @@ port:
 - **macOS and Windows new-mail notifications aren't built.** They deliver in real time while
   running but do not raise a system notification yet; wiring their live runtime's new-mail signal to
   `UNUserNotificationCenter` / Windows toasts is a follow-up. Linux exercises the shared cache-only
-  detection seam through its desktop portal adapter; its GNOME-runtime AT-SPI run proves that the
-  disabled state emits nothing and enabling it posts only newly arrived mail.
+  detection seam through its desktop portal adapter; its GNOME-runtime AT-SPI run posts on the
+  shipped default first and only then turns the toggle off, so the silence it asserts afterwards is
+  measured against a notification that provably crossed the portal. Asserted the other way round it
+  was a gate that could not fail, and did not, for as long as the portal call hung
+  ([`client-traps.md`](client-traps.md)).
 - **iOS app-group store is deferred.** `BGAppRefreshTask` runs in the main app process, so it needs
   no app group. A future push Notification-Service-Extension will need one. That, and the app-group
   store move it forces, land with the paid push add-on and real signing, since an app-group

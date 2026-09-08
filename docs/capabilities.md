@@ -21,6 +21,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Reactive Rust ↔ native binding (dispatch → snapshot) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Account setup wizard (IMAP / SMTP / CalDAV) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **The name your mail goes out under**: asked once the account connects and editable in Settings → Accounts, so mail leaves as `Your Name <you@example.com>` rather than a bare address. Filled in for you where the provider already knows it, and kept in step with a Gmail or JMAP account's own setting; on a Microsoft mailbox the name is the organisation's and is shown rather than offered ([docs](docs/sending.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Auto-detect server settings from email (JMAP probe +`_jmap._tcp` SRV · autoconfig · ISPDB · IMAP/SMTP SRV [implicit-TLS + STARTTLS] · host-DNS MX · CalDAV follow-on), implicit-TLS **and STARTTLS** connections, untrusted-approval gate | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | Microsoft 365 accounts: browser OAuth sign-in (PKCE), mail read/sync + mail actions (read/flag, archive/move, delete) + send + calendar read/sync + write (default calendar) | ✅ | ✅ | ✅ | 🚧 | 🚧 | ✅ |
 | Microsoft re-consent prompt: a reconnect banner when a connected Graph account is missing a needed permission (calendar, or mail write/send, e.g. consent revoked server-side); one tap re-grants the full scope set, clearing both ([docs](docs/provider-oauth.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 | ✅ |
@@ -58,6 +59,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Reply/forward quoting: original quoted below (indented / line + header, app default with previews + opt-in per-message override) | ✅ | ✅ | ✅ | 🚧 | 🚧 | ✅ |
 | Signatures: a reusable library (rich text **+ an inline logo**), a per-account signature for new messages and for replies/forwards, seeded editable into the composer, auto-swapped when From changes, overridable per message; sent as `cid:` parts ([docs](docs/signatures.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Mail actions: read/unread, flag, archive, delete, trash | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Select several messages at once and act on the lot: archive, trash, delete permanently, mark read/unread, flag/unflag. Ctrl/⌘-click and Shift-click on a computer; on a phone a mode, entered by **Select** (iPhone, iPad) or a long press (Android); **Delete** trashes the selection and **Escape** clears it where the list has focus ([docs](docs/list-selection.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Mark as spam / not spam: **reported to the provider**, which trains its filter, not only filed under Junk; the verdicts offered come from the transport's own capability, and a provider that cannot be told still gets the message filed ([docs](docs/reporting.md)) | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
 | AI assistant access (MCP server): opt-in, off by default, desktop-only; read and act on your mail from an MCP client over a local socket (Windows: a named pipe), with an empty account allow list and direct send behind its own toggle ([docs](docs/mcp.md)) | ✅ | ✅ | — | ✅ | — | ✅ |
 | Configurable swipe actions: Trash / Archive / Star per direction, with an undo toast | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ |
@@ -70,8 +72,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar manager: per-calendar visibility + colour override, persisted ("Agenda's beheren") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Display settings: first day of the week, 12/24-hour clock (mail **and** calendar), **light or dark appearance** (follows the system by default, or pick one), calendar horizon | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar, pinch-to-zoom: hours, days, and **diagonal** (both at once) | — | ✅ | ✅ | ✅ | ✅ | ⬜ |
-| Calendar, **continuous day strip**: free horizontal scroll *across* weeks (trackpad/wheel), pinned hour ruler, coming to rest on a **day** at every zoom rather than paging by the week; a wheel notch asks for eased travel, so a mouse and a trackpad scroll alike ([`docs/calendar.md`](docs/calendar.md)) | — | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
-| Calendar, trackpad / mouse-wheel scrolling of the grid: hours **and** days, *within* the week (`Shift`+wheel pans days on a plain mouse) ([`docs/calendar.md`](docs/calendar.md)) | — | ✅ | ⬜ | ✅ | — | ⬜ |
+| Calendar, **continuous day strip**: a scroll or a swipe runs straight across the week boundary and comes to rest on a **day** at every zoom, with the hour ruler pinned beside it, rather than paging by the week; a wheel notch asks for eased travel, so a mouse and a trackpad scroll alike ([`docs/calendar.md`](docs/calendar.md)) | — | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| Calendar, scrolling the hours: trackpad, mouse wheel or finger (`Shift`+wheel reaches the days on a plain mouse) ([`docs/calendar.md`](docs/calendar.md)) | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: `< Today >` header navigation, stepping by the visible span (the work week steps a week) | — | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 | Calendar: the shape and horizon you left it in, restored on launch | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: your diary on screen from the store at launch, filled without opening it, so it is there offline | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

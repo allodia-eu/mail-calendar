@@ -64,6 +64,7 @@ public sealed partial class MailboxModel
                 {
                     Id = current.Id,
                     Email = current.Email,
+                    SendLabel = current.SendLabel,
                     Expanded = expanded,
                     Folders = current.Folders,
                 };

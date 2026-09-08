@@ -187,6 +187,8 @@ impl From<AppAccountSyncRow> for AccountSyncRow {
         Self {
             account_id: row.account_id,
             email: row.email,
+            sender_name: row.sender_name,
+            sender_name_editable: row.sender_name_editable,
             idle_supported: row.idle_supported,
             strategy: row.strategy.into(),
             poll_interval_mins: row.poll_interval_mins,

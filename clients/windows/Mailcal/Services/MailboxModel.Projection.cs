@@ -222,6 +222,9 @@ public sealed partial class MailboxModel
             {
                 Id = account.Id,
                 Email = account.Email,
+                // Composed here, once, from the core's own rule, so the composer's From and any
+                // other surface that names this account cannot disagree about the empty case.
+                SendLabel = MailcalBindingsMethods.SenderLabel(account.Name, account.Email),
                 Expanded = account.Expanded,
                 Folders = byAccount.TryGetValue(account.Id, out var folders)
                     ? folders.Select(ToFolderItem).ToArray()
@@ -284,6 +287,9 @@ public sealed partial class MailboxModel
     private static bool Same(AccountItem a, AccountItem b) =>
         a.Id == b.Id
         && a.Email == b.Email
+        // The label is drawn (the composer's From), so a name that moved with nothing else has to
+        // reach the projection, exactly as an unread count does.
+        && a.SendLabel == b.SendLabel
         && a.Expanded == b.Expanded
         && a.Folders.Count == b.Folders.Count
         && a.Folders.Zip(b.Folders).All(pair =>

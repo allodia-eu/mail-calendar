@@ -74,9 +74,25 @@ failed to load rather than as a scroll position. It is also self-healing on any 
 makes it look intermittent: the user "clicks around a bit" and it comes back.
 
 Android does this in `clampScroll(metrics)`, Windows by deferring its recentre until the viewport is
-real, Apple in `CalendarGridView`'s `onChange(of: maxDayOffset/maxHourOffset)`. A new platform owes
-its own, and owes the test, which needs no viewport: recentre against one geometry, change it, and
-assert the offset is still inside the content.
+real, Apple in `CalendarScreenView.Grid`'s `onChange(of: maxHour)`. A new platform owes its own, and
+owes the test, which needs no viewport: recentre against one geometry, change it, and assert the
+offset is still inside the content.
+
+**A client with a strip owes only the hour half of that**, because the day axis has no end to fall off
+and its anchor re-derives itself from its position. What it owes instead is a **first framing that
+waits**, and "wait" is a state rather than a moment: the grid keeps framing itself on today until a
+hand moves it. Apple learned this the expensive way. SwiftUI lays the grid out several times before
+the window settles, and the first pass measures 620x59, where an hour is five points tall; framing
+once, on the first pass with a plausible-looking size, opened the calendar at 01:00. There is no test
+for "is this viewport real yet" that is not a guess at a number only the window knows.
+
+⚠️ **And measure the box, with the modifier built for it.** Apple's `onChange(of: geometry.size)`
+inside the `GeometryReader` never fired for the resize that mattered: the body evaluated five times at
+the new size while that comparison still held the old one, because a `GeometryProxy` read inside a body
+is not a value SwiftUI tracks. `onGeometryChange` is. Attached *inside* the reader it then measured the
+grid's own frame, which is far taller than the box it is laid out in (the hour ruler's natural height
+is a whole day: 1778pt against 827pt), and framing against that put the grid at the bottom of the day.
+Both failures render a perfectly plausible calendar, at the wrong time of day.
 
 ### Colour defaults
 
@@ -137,10 +153,12 @@ A grid page is always a **whole week**. That week is:
 **The days never move. Only their width changes.**
 
 It used to be two further things, and on Android it still is: *the boundary a horizontal scroll could
-not cross*, and *the thing a touch swipe lands on*. **Windows has taken both down** (§6): its days are
-one continuous strip that a scroll runs straight through, and it comes to rest on a **day** rather than
-a week, because a trackpad hands the app a pan it cannot see the end of, and a grid that must land on
-a week can only guess. What survives untouched is everything this section is actually about: the page
+not cross*, and *the thing a touch swipe lands on*. **Windows, macOS and iOS/iPadOS have taken both
+down** (§6): their days are one continuous strip that a scroll runs straight through, and it comes to
+rest on a **day** rather than a week. Windows had no choice, a trackpad hands it a pan it cannot see
+the end of and a grid that must land on a week can only guess; Apple has the phases and took the strip
+anyway, because it is the better model on any input and it is what Apple's own Calendar does on both
+the Mac and the phone. What survives untouched is everything this section is actually about: the page
 is still the week the core is queried in, and a zoom still moves no days. The week stopped being a cage
 and stopped being a resting place; it did not stop being the unit.
 
@@ -180,7 +198,7 @@ not).
 Alignment fixes *which* days a page holds; framing is *which of them the client scrolls to* when the
 grid opens or jumps home. That is a client concern (the core emits no pixels), but it is a **shared
 product decision**, kept identical on Android and Windows and held down by one tested helper on each
-(`framingColumn` / `FramingColumn`), never re-derived per view:
+(`framingColumn` / `FramingColumn` / `calendarFramingColumn`), never re-derived per view:
 
 - **Work week** opens on the week's first day and shows five days (Monday to Friday) **whatever day
   it is**. "Work week" *means* Mon–Fri; framing it on today would open a Tuesday on Tue–Sat, putting
@@ -198,10 +216,10 @@ product decision**, kept identical on Android and Windows and held down by one t
 So the two wide shapes frame on the week start; the two narrow ones frame on today.
 
 > **A divergence to know about, and it is the strip's** (§6): on a **Sunday**, the 3-day zoom means
-> Sunday–Tuesday, running across the week boundary. Windows now shows exactly that. Android's days
-> cannot leave their week, so its scroll clamps back to Friday–Sunday: today at the *right* edge, not
-> the left. The shared helper agrees on both (column 6); it is the bound underneath that differs. The
-> strip's answer is the one the rule always described.
+> Sunday–Tuesday, running across the week boundary. Windows, macOS and iOS/iPadOS now show exactly
+> that. Android's days cannot leave their week, so its scroll clamps back to Friday–Sunday: today at
+> the *right* edge, not the left. The shared helper agrees on all of them (column 6); it is the bound
+> underneath that differs. The strip's answer is the one the rule always described.
 
 ### "Back to today" appears only when it would move you: *unless it lives in a cluster*
 
@@ -580,7 +598,7 @@ simply not fed during a pinch.
   from the last one. Critically damped and stiffer: no bounce, because a week that springs past its
   own column makes the day headings visibly overshoot the columns beneath them.
 
-### The days are one strip, not a stack of pages *(Windows)*
+### The days are one strip, not a stack of pages *(Windows, macOS, iOS/iPadOS)*
 
 **The bug.** Scrolling slowly on a trackpad, the calendar rubber-banded home six times in thirteen
 seconds. Each snap was the grid doing exactly what it had been told: a wheel has no lift (below), so it
@@ -1375,8 +1393,11 @@ else, and it does: the same time is editable in the event editor, on every platf
 
 ## 11. The bar a new platform has to clear
 
-Apple's grid predates everything §6, §7 and §9 now say. Windows was built *against* them, and is the
-proof they port: **the entire navigation model** (state machine, zoom, paging, gesture owner,
+Apple's grid predates everything §6, §7 and §9 now say, and its strip (footnote ⁴) is the first piece
+of it retro-fitted: `CalendarStrip` is a plain Swift value type with no SwiftUI in it, so where the
+grid rests, which weeks it is showing and what a pan does to it are all pinned by `CalendarStripTests`
+without a viewport. That is the shape the rest of it owes. Windows was built *against* these rules from
+the start, and is the proof they port: **the entire navigation model** (state machine, zoom, paging, gesture owner,
 animation driver) **is framework-free C# with an injected clock**, and every rule above is a headless
 test. What is left on WinUI's side is a translation that holds no decisions (§9). That is not a Windows
 trick. It is what these rules look like when a platform adopts them deliberately instead of discovering
@@ -1438,12 +1459,13 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | Pinch-to-zoom: days, and **diagonal** | — | ✅ | ✅ | ✅ ¹ | ✅ | ⬜ |
 | Shape + horizon restored on launch | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Stored diary on screen at launch, and filled without being opened | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Week paging: by swipe | — | ⬜ | ⬜ | ⬜ ⁴ | ✅ | ⬜ |
-| Continuous day strip + **pinned** hour ruler (rests between weeks) | — | ⬜ | ⬜ | ✅ ⁴ | ⬜ | ⬜ |
-| Comes to rest on a **day**: every zoom, every input | — | ⬜ ⁴ | ⬜ ⁴ | ✅ ⁴ | ⬜ ⁴ | ⬜ ⁴ |
-| Free horizontal scroll **across** weeks: trackpad / mouse wheel | — | ⬜ | — | ✅ ⁴ | — | ⬜ |
-| A wheel notch asks for **travel**, not a jump (eased, any cadence) | — | ⬜ ⁴ | — | ✅ ⁴ | — | ⬜ |
-| Wheel / trackpad scrolling **within** the week: hours *and* days ⁷ | — | ✅ | ⬜ | ✅ | — | ⬜ |
+| Week paging: by swipe | — | ⬜ ⁴ | ⬜ ⁴ | ⬜ ⁴ | ✅ | ⬜ |
+| Continuous day strip + **pinned** hour ruler (rests between weeks) | — | ✅ ⁴ | ✅ ⁴ | ✅ ⁴ | ⬜ | ⬜ |
+| Comes to rest on a **day**: every zoom, every input | — | ✅ ⁴ | ✅ ⁴ | ✅ ⁴ | ⬜ ⁴ | ⬜ ⁴ |
+| Free horizontal scroll **across** weeks: trackpad / mouse wheel | — | ✅ ⁴ | ✅ ¹⁷ | ✅ ⁴ | — | ⬜ |
+| A wheel notch asks for **travel**, not a jump (eased, any cadence) | — | ✅ ⁴ | — | ✅ ⁴ | — | ⬜ |
+| Free vertical scroll: hours, by wheel, trackpad or finger ⁷ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Horizontal **touch** pan across weeks, landing on a day | — | — | ✅ ⁴ | ✅ | ⬜ | ⬜ |
 | `< Today >` header navigation (steps by the visible span ⁵) | — | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 | Drawn (canvas) grid, not composed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | One owner for the pointer stream | — | ⬜ | ⬜ | ✅ | ✅ | ⬜ |
@@ -1477,19 +1499,28 @@ see "Known gaps".
 composed" rule (§7) is a *time-grid* concern, a property of the pinch and the fling, which the month
 has neither of. It is paged by header chevrons rather than a swipe (a month is not a week-stride),
 and a tapped day drops into the day zoom.
-⁴ **The strip, and where it rests. Windows has it; the divergence is deliberate and only partly
-settled**: see §6, "The days are one strip". It is driven by an input the phones do not have: a
-precision touchpad hands the app a pan it cannot see the *end* of, so the grid was guessing, and
-guessing wrong (the rubber-band).
+⁴ **The strip, and where it rests.** See §6, "The days are one strip". Windows, macOS and
+iOS/iPadOS all draw one continuous strip that comes to rest on a **day**, at every zoom and for every
+input: wheel, trackpad and finger alike. There is no page turn: a flick coasts and lands on the day it
+stops nearest.
 
-On Windows the grid is one continuous strip that comes to rest on a **day**, at every zoom and for
-every input: wheel, trackpad and touch alike. There is no page turn: a flick coasts and lands on the
-day it stops nearest. **Android deliberately keeps week paging**, and is not wrong to: nothing on a
-touchscreen forces the question, and paging matches what Samsung Calendar does on the same hardware.
-**macOS, iOS and Linux are pending**: they are pagers today (`CalendarPaging.swift`: "a page is a
-week. That week is the boundary a horizontal scroll cannot cross"), and Linux has no horizontal gesture
-surface at all yet. Each is a follow-up rather than a shortfall, and both are listed under "Known
-gaps"; a platform adopting the strip takes the whole rule, not half of it.
+**Android deliberately keeps week paging**, and is not wrong to: nothing on a touchscreen forces the
+question, and paging matches what Samsung Calendar does on the same hardware. **Linux is pending**,
+and is further back than the others were, having no horizontal gesture surface at all: see "Known
+gaps". A platform adopting the strip takes the whole rule, not half of it.
+
+**What Apple has that Windows does not is phase.** Windows hands a precision touchpad's pan to the
+app as wheel messages with no begin, end or inertia flag, so it infers the end from silence and pays
+a quarter-second for the guess. `NSEvent` says when a gesture began, when the fingers lifted and when
+its momentum ran out, and `UIPanGestureRecognizer` says the same, so the Apple strip lands because the
+user let go. Only a legacy **mouse wheel** reports no phase there either, and only that path keeps an
+idle window (`CalendarScrollGesture.swift`).
+
+**Apple's landing is one animation, not a driver.** `CalendarGridView` is `Animatable` on the strip
+position, so SwiftUI re-evaluates its body per frame with the interpolated value and the weeks the
+grid *pulls and draws* are the ones it is sliding through. Interpolating only the offsets would draw a
+hole where the week arriving from the right should be, which is the same failure Windows' lag cap and
+five live pages were guarding against, reached from the other end.
 ⁵ **Except the work week, which steps a whole week rather than its five columns**: a five-day step
 would land the next click on Saturday-to-Wednesday, and "work week" means Monday to Friday or it means
 nothing. The day zoom steps a day, the 3-day steps three, the week a week, the month a month.
@@ -1513,21 +1544,17 @@ edit** (the patcher refuses a form or calendar change), and **reminders are disp
 (read-only: see "Known gaps"). The repeat rule is editable; what its controls do not reach is
 under "Known gaps" too.
 
-⁷ **A desktop scrolls a calendar; it does not drag it.** The grid holds its own scroll offsets rather
-than living in a scroll view (§7, a pinch has to *move* them mid-gesture, which no scroll view
-allows), and the cost of that is the scrolling a scroll view would have given for free: until this,
-nothing but a one-finger **drag** moved the macOS grid, so a two-finger trackpad scroll or a mouse
-wheel did nothing at all. Both axes now move: vertical scrolls the hours, a trackpad's sideways
-component scrolls the days, and `Shift`+wheel scrolls the days for a plain mouse that has no
-horizontal axis to report, and both **clamp exactly where the drag clamps**. This is emphatically
-*not* the row above it: **the week is still the page**, so the day axis stops at Sunday rather than
-running on into the next week. macOS reads the raw `NSEvent` through the same local monitor the pinch
-uses, so the blocks underneath keep every click they had. iOS/iPadOS is ⬜ rather than — because an
-iPad trackpad sends the same events; wiring it there is a follow-up, not a shortfall.
+⁷ **A desktop scrolls a calendar; it does not drag it.** The grid holds its own scroll offsets
+rather than living in a scroll view (§7: a pinch has to *move* them mid-gesture, which no scroll view
+allows), and the cost of that is the scrolling a scroll view would have given for free. Every client
+puts it back by hand. On macOS a two-finger trackpad scroll and a mouse wheel both move the hours, and
+`Shift`+wheel reaches the day axis for a plain mouse with no horizontal axis to report; on iOS/iPadOS
+a finger does it. The day axis is no longer this row's business on macOS, iOS or Windows: it belongs
+to the strip (note ⁴), which has no end to clamp against.
 
-**Linux's ⬜ is the day axis alone.** Its grid does live in a scroll view: the surface's root is a
-`gtk::ScrolledWindow`, so a wheel or two-finger scroll moves the hours with no code of ours, and
-`set_hscrollbar_policy(Never)` is what pins the days. The row stays ⬜ because it asks for both.
+**Linux's ✅ is its scroll view's.** The surface's root is a `gtk::ScrolledWindow`, so a wheel or
+two-finger scroll moves the hours with no code of ours, and `set_hscrollbar_policy(Never)` is what
+pins the days.
 
 ⁸ **The three participation rows, and why only one of them is ✅ everywhere.** §4 owns the semantics;
 the full contract is [`invitations.md`](invitations.md). *Declined-hiding* is applied in the core's
@@ -1660,6 +1687,18 @@ The interval control never repeats the frequency word the picker above it alread
 reading "Monthly" under a picker reading "Monthly" states nothing, so it reads "Every month" and
 "Every 2 months" instead.
 
+¹⁷ **The iPad's trackpad.** An indirect pointer's scroll never reaches a SwiftUI `DragGesture`, so
+`CalendarScrollGesture` attaches a
+`UIPanGestureRecognizer` with `allowedScrollTypesMask = .all` and `allowedTouchTypes = []` to the
+window and filters by location: on the window, because a SwiftUI overlay is a **sibling** of the
+content rather than its ancestor, so a recognizer attached there would only ever fire if the overlay
+became the hit target, which would cost the grid every tap it has.
+
+**Hand-verified on 2026-09-03**, on a booted iPad simulator, by a real two-finger trackpad gesture
+over its window. ⚠️ It cannot be verified any other way: the Simulator does not forward a
+*synthetic* host scroll into the guest at all, as a real `UIScrollView` on the same screen proves by
+not moving either. A test that injects one passes while measuring nothing.
+
 ---
 
 ## 13. Known gaps
@@ -1691,9 +1730,13 @@ Stated, not buried.
   after the week was banked on decision (§7's last column). This entry used to quote 6.5–7.4%, the
   canvas *before* that fix, and so overstated the remaining distance by about double; the p99 gap came
   down with it, from ~25 ms to 16.6 ms. What is left has not been chased down.
-- **Only Android and Windows have the single gesture owner.** Apple's grid is still SwiftUI's, and it
-  does not have the same problem to solve: it has no swipe paging (below), so it has only two
-  handlers, not four. If it ever grows one, it inherits §6.
+- **Only Android and Windows have the single gesture owner.** Apple has taken half of it: one owner
+  for the *position*, `CalendarScreenView`'s strip, which every input reports a delta to, so a pan, a
+  flick, a wheel notch, a pinch and a jump home cannot disagree about where the grid is. What it has
+  not taken is one owner for the *pointer stream*: SwiftUI's own gesture system still arbitrates
+  between the composed grid gesture, the pinch catcher and the scroll catcher. That arrangement is
+  what §6 warns about, and the reason it has not bitten here is that the three read different inputs
+  (a finger, two fingers, an indirect pointer) rather than the same one.
 - **Windows: a hard multi-flick past the prebuilt halo can still build a week inside the swipe.**
   The p99 hitch measured earlier (a not-yet-seen dense week's paint: every event's colour parsed,
   clock formatted, spoken label assembled, built on the UI thread mid-fling, ~50 ms) is now taken
@@ -1722,15 +1765,17 @@ Stated, not buried.
   Firefox do: hook **DirectManipulation** (or read the raw HID contacts via `RegisterRawInputDevices`
   / the InteractionContext API), which would also buy true fling velocity and overscroll from the
   touchpad, and would let both windows go to zero.
-- **The strip has not been brought to macOS, iOS or Linux.** Windows rests on a day, at every zoom and
-  for every input; the other three still page by the week (Android does so *deliberately*, see
-  footnote ⁴, and is not part of this gap). macOS and iOS are pagers by construction today
-  (`CalendarPaging.swift`: "a page is a week. That week is the boundary a horizontal scroll cannot
-  cross", and `CalendarScrollGesture.swift` pans only *within* the current page), so adopting the strip
-  there is the same rewrite Windows went through, not a setting. Linux is further back still: its grid
-  is a `gtk::ScrolledWindow` with one capture-phase primary-button controller for creating events,
-  but no owner for horizontal navigation or pinch, so it needs the single pointer owner before it can
-  have the strip. **A platform takes the whole rule or none of it**: half of it is the rubber-band.
+- **The strip has not been brought to Linux.** Windows, macOS and iOS/iPadOS rest on a day, at every
+  zoom and for every input; Android pages by the week *deliberately* (footnote ⁴) and is not part of
+  this gap. Linux is further back than the others were: its grid is a `gtk::ScrolledWindow` with one
+  capture-phase primary-button controller for creating events, but no owner for horizontal navigation
+  or pinch, so it needs the single pointer owner before it can have the strip. **A platform takes the
+  whole rule or none of it**: half of it is the rubber-band.
+- **Apple's grid is not frame-budget measured.** §7's bar is the frames missed *during motion*, on a
+  release build, and nobody has taken that number on a Mac or a phone. It is also the one client whose
+  grid is **composed rather than drawn** at the block level, which §7 says costs a layout pass per
+  block per frame, so the measurement is more likely to say something than on the clients that already
+  pass. Until it is taken, no performance claim may be made for the Apple strip.
 - **The Windows day landing has not been frame-measured on a 120 Hz panel.** The wheel path was
   measured on a 60 Hz ARM64 Surface, before and after, by injecting notches at a known cadence and
   reading the grid's own frame counters. The ease constant (a 60 ms time constant) and the two idle
@@ -1763,13 +1808,29 @@ Stated, not buried.
   needs the touchscreen. This is the same shortfall macOS has (below), arrived at from the opposite
   direction: macOS *can* read the trackpad's touches and cannot read a mouse's; Windows can read a
   touchscreen's and cannot read a touchpad's.
+- **A Mac's mouse wheel still guesses when its gesture ended.** A trackpad reports phase, so the strip
+  lands because the fingers lifted; a wheel reports none at all, so that path keeps a 250 ms idle
+  window and lands a quarter-second after the last notch, exactly as Windows does and for exactly the
+  same reason. It is the one Apple input that cannot say when it has stopped.
 - **A Mac with no trackpad has no pinch at all** (a mouse sends no magnify events): the shape is a
   menu choice there. SwiftUI's `MagnifyGesture` is a scalar and cannot do this; the diagonal pinch
-  works by reading the `NSTouch` objects off the raw magnify event, which know where the fingers are
-  on the trackpad. A device that magnifies without reporting two touches falls back to hours-only.
-- **Apple pages weeks by header chevrons, not by a swipe.** A swipe already pans the days *within* the
-  week, and handing the gesture off to a pager at the week's edge is nested-scroll work SwiftUI does
-  not do for free. Android gets this free from Compose's nested scroll.
+  works by reading the `NSTouch` objects, which know where the fingers are on the trackpad. A device
+  that magnifies without reporting two touches falls back to hours-only.
+
+  ⚠️ **The touches and the magnification are on different events, and believing otherwise is what
+  broke this for as long as it existed.** `.magnify` carries the scalar and the phase; the contacts
+  ride on the `.gesture` stream beside it, and they are there only while some view in the window has
+  asked for indirect touches. Watching `.magnify` alone leaves `touches(matching:)` empty on every
+  frame, so the catcher takes its documented scalar fallback and the pinch moves the hours and
+  nothing else, on every Mac, silently. This row read ✅ for a long time on that basis.
+  `.beginGesture`/`.endGesture` bracket **every** trackpad gesture, a two-finger scroll included, so
+  a catcher watching them has to know which kind it is in: settling on a scroll persists a horizon
+  and a layout the user never chose. Hand-verified on macOS on 2026-09-03, which is the only way it
+  can be: no injected event carries real `NSTouch` data.
+- ~~**Apple pages weeks by header chevrons, not by a swipe.**~~ Closed, and not by adding a pager: the
+  hand-off at a week's edge that SwiftUI would not do for free stopped existing when the days became
+  one strip (footnote ⁴). The chevrons remain, and step a **week** rather than the visible span, which
+  is the `< Today >` row still reading ⬜.
 - **The month grid repeats a multi-day event as a chip on each of its days** rather than drawing one
   continuous bar across the span. Google draws the bar.
 - **Saturday-start weeks** (much of the Middle East) are a real convention `WeekStart` does not cover.

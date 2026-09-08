@@ -87,7 +87,7 @@ fn two_account_app(messages: Vec<Message>) -> (Arc<App<ThreadProvider>>, Outboxe
 }
 
 /// A new rich message naming `from`, with the recipients a test never varies.
-fn new_mail(from: Option<&str>) -> Intent {
+pub(super) fn new_mail(from: Option<&str>) -> Intent {
     let (document, blobs) = reply_document();
     Intent::SubmitRichMail {
         from: from.map(|id| AccountId::try_from(id).unwrap()),

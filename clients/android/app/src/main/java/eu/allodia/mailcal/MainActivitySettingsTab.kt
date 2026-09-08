@@ -148,6 +148,11 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onSetPushFolder = { account, folder, subscribed ->
                                 instance.setPushFolder(account, folder, subscribed)
                             },
+                            // The name this account's mail goes out under. Passed through
+                            // unchanged: the core sanitises it (docs/sending.md).
+                            onSetSenderName = { account, name ->
+                                instance.setAccountSenderName(account, name)
+                            },
                             // Diagnostics, the log viewer/share + debug-detail screen.
                             onOpenDiagnostics = { showingDiagnostics = true },
                             // Advanced, reset the local cache.

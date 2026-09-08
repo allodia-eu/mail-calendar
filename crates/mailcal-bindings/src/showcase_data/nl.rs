@@ -81,7 +81,7 @@ pub(super) fn primary(now: OffsetDateTime) -> AccountSeed {
             .preview("Concept — de belangrijkste cijfers, de status van de lancering, en de twee besluiten die ik van het bestuur nodig heb.")
             .at(ago(now, 240)).draft().id("boarddraft-1@example.com").done(),
     ];
-    seed(ShowcaseLocale::Nl, me.1, mailboxes, messages, now)
+    seed(ShowcaseLocale::Nl, me, mailboxes, messages, now)
 }
 
 pub(super) fn secondary(now: OffsetDateTime) -> AccountSeed {
@@ -108,7 +108,7 @@ pub(super) fn secondary(now: OffsetDateTime) -> AccountSeed {
             .preview("De all-hands gemist? Hier zijn de opname en de presentatie.")
             .at(ago(now, 4320)).seen().id("ah-1@northwind.example").done(),
     ];
-    seed(ShowcaseLocale::Nl, me.1, mailboxes, messages, now)
+    seed(ShowcaseLocale::Nl, me, mailboxes, messages, now)
 }
 
 /// De namen van de drie showcase-agenda's en een volle week aan afspraken, verdeeld over die

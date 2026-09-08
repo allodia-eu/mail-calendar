@@ -70,6 +70,9 @@ impl MailcalApp {
         let row = AccountRow {
             id: account_id.as_str().to_owned(),
             email: config.email.clone(),
+            // Nobody has set a name for an account that did not exist a moment ago;
+            // the setup step that asks for one dispatches `SetAccountSenderName`.
+            name: String::new(),
             // A just-added account opens showing its folders (the persisted default).
             expanded: true,
         };

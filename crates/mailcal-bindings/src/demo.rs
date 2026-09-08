@@ -3,7 +3,7 @@
 //! `lib.rs` to keep it under the 500-line limit; a real account-configured provider
 //! replaces it ([`crate::MailcalApp::new_accounts`]).
 
-use engine_api::AccountId;
+use engine_api::{AccountId, CalendarWrites};
 use engine_core::{
     ids::{MailboxId, MessageId, MessageIdHeader},
     mail::{Mailbox, MailboxRole, Message},
@@ -162,3 +162,5 @@ impl Provider for DemoProvider {
         Ok(RawMime::new(html.into_bytes()))
     }
 }
+
+impl CalendarWrites for DemoProvider {}

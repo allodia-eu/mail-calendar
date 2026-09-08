@@ -54,6 +54,7 @@ import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.Recipients
+import uniffi.mailcal_bindings.senderLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -403,6 +404,9 @@ internal fun RichComposeMessageDialog(
                             accounts = accounts,
                             from = from,
                             onFrom = { from = it },
+                            // `Name <address>`, or the address alone: the core owns the empty
+                            // case, so no client decides it (docs/sending.md rule 7).
+                            fromLabel = { senderLabel(it.name, it.email) },
                             to = to,
                             onTo = { to = it },
                             cc = cc,

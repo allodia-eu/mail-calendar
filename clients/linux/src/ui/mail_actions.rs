@@ -2,15 +2,27 @@
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
-use mailcal_bindings::{FlatRow, FolderRole, Intent, MailboxListSnapshot, SnapshotRow};
+use mailcal_bindings::{BulkAction, FlatRow, FolderRole, Intent, MailboxListSnapshot, SnapshotRow};
 
-use super::{AppInput, AppModel, mailbox, model};
+use super::{AppInput, AppModel, mailbox, mailbox::ThreadKey, model};
 use crate::l10n;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MessageTarget {
     pub(crate) account: String,
     pub(crate) key: String,
+}
+
+/// What the "delete permanently?" confirmation is about to destroy.
+///
+/// Both paths ask, because both are irreversible; only the sentence differs, and the selection
+/// arm carries the count so it can say how much is going (`docs/list-selection.md`, rule 6).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum DeleteTarget {
+    /// One message, named from the row's own menu.
+    Message(MessageTarget),
+    /// Every selected row, and how many there are.
+    Selection(usize),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,6 +81,25 @@ pub(super) fn intent_for(target: MessageTarget, action: ActionKind) -> Intent {
         ActionKind::MarkAsSpam => Intent::MarkAsSpam { account, key },
         ActionKind::MarkAsNotSpam => Intent::MarkAsNotSpam { account, key },
         ActionKind::PermanentlyDelete => Intent::PermanentlyDelete { account, key },
+    }
+}
+
+/// The batch equivalent of a row menu's action, or `None` for one that has no batch form.
+///
+/// Spam and not-spam are the two: they are reports rather than moves (`docs/reporting.md`), and
+/// which verdicts a provider offers is read per account, so a selection spanning accounts has no
+/// single answer (`docs/list-selection.md`, Known gaps). A menu item with no batch form acts on
+/// its own row, selection or not.
+pub(super) fn bulk_form(action: ActionKind) -> Option<BulkAction> {
+    match action {
+        ActionKind::MarkRead(true) => Some(BulkAction::MarkRead),
+        ActionKind::MarkRead(false) => Some(BulkAction::MarkUnread),
+        ActionKind::SetFlagged(true) => Some(BulkAction::Flag),
+        ActionKind::SetFlagged(false) => Some(BulkAction::Unflag),
+        ActionKind::Archive => Some(BulkAction::Archive),
+        ActionKind::MoveToTrash => Some(BulkAction::Delete),
+        ActionKind::PermanentlyDelete => Some(BulkAction::PermanentlyDelete),
+        ActionKind::MarkAsSpam | ActionKind::MarkAsNotSpam => None,
     }
 }
 
@@ -202,14 +233,14 @@ fn action_label(action: ActionKind) -> &'static str {
 
 #[derive(Default)]
 pub(super) struct PermanentDeleteDialog {
-    target: Option<MessageTarget>,
+    target: Option<DeleteTarget>,
     window: Option<gtk::Window>,
 }
 
 impl PermanentDeleteDialog {
     pub(super) fn render(
         &mut self,
-        target: Option<&MessageTarget>,
+        target: Option<&DeleteTarget>,
         parent: &impl IsA<gtk::Window>,
         sender: &relm4::Sender<AppInput>,
     ) {
@@ -231,7 +262,7 @@ impl PermanentDeleteDialog {
 
 fn delete_confirmation(
     parent: &impl IsA<gtk::Window>,
-    target: MessageTarget,
+    target: DeleteTarget,
     sender: &relm4::Sender<AppInput>,
 ) -> gtk::Window {
     let (window, _) =
@@ -242,7 +273,13 @@ fn delete_confirmation(
     content.set_margin_bottom(24);
     content.set_margin_start(24);
     content.set_margin_end(24);
-    let message = gtk::Label::new(Some(l10n::delete_permanently_message()));
+    let sentence = match &target {
+        DeleteTarget::Message(_) => l10n::delete_permanently_message().to_owned(),
+        DeleteTarget::Selection(count) => {
+            l10n::delete_permanently_message_many(i64::try_from(*count).unwrap_or(i64::MAX))
+        }
+    };
+    let message = gtk::Label::new(Some(&sentence));
     message.set_wrap(true);
     message.set_xalign(0.0);
     content.append(&message);
@@ -257,9 +294,16 @@ fn delete_confirmation(
     let input = sender.clone();
     let dialog = window.clone();
     delete.connect_clicked(move |_| {
-        input.emit(AppInput::PerformMailAction(Box::new(
-            MailActionRequest::new(target.clone(), ActionKind::PermanentlyDelete),
-        )));
+        match &target {
+            DeleteTarget::Message(message) => input.emit(AppInput::PerformMailAction(Box::new(
+                MailActionRequest::new(message.clone(), ActionKind::PermanentlyDelete),
+            ))),
+            DeleteTarget::Selection(_) => {
+                input.emit(AppInput::PerformSelectionAction(
+                    BulkAction::PermanentlyDelete,
+                ));
+            }
+        }
         dialog.close();
     });
     actions.append(&delete);
@@ -278,7 +322,95 @@ impl AppModel {
         if request.action == ActionKind::PermanentlyDelete {
             self.pending_mail_delete = None;
         }
+        // A menu opened on a selected row is about the whole selection, not the one row it hangs
+        // off (`docs/list-selection.md`, rule 12). The action is the one the item's label named,
+        // not the one the bar derives for itself: the user read it and chose it.
+        if let Some(bulk) = self.selection_form(&request) {
+            self.perform_selection(bulk);
+            return;
+        }
         self.dispatch(request.into_intent());
+    }
+
+    /// The batch this request becomes when its row is one of the selected ones, or `None` when it
+    /// is an ordinary single-row action.
+    fn selection_form(&self, request: &MailActionRequest) -> Option<BulkAction> {
+        // A permanent delete never routes here. It reaches the model as `RequestPermanentDelete`,
+        // which decides between the one row and the selection *before* the confirmation says what
+        // is going, and only that dialog's own button may run it: routing it here would run an
+        // irreversible batch off a sentence that had counted one message.
+        if request.action == ActionKind::PermanentlyDelete {
+            return None;
+        }
+        let target = &request.target;
+        if !self.selection.covers_message(&target.account, &target.key) {
+            return None;
+        }
+        bulk_form(request.action)
+    }
+
+    /// Runs one action over every selected row, as a single batch in the core.
+    ///
+    /// A permanent delete asks first, on the same terms the row menu's does; the other five are
+    /// recoverable and act at once (`docs/list-selection.md`, rule 6). A move empties the
+    /// selection afterwards, because the rows it named are leaving the list; a keyword edit keeps
+    /// it, because the user is usually part-way through a set.
+    pub(super) fn act_on_selection(&mut self, action: BulkAction) {
+        if self.selection.is_empty() {
+            return;
+        }
+        if action == BulkAction::PermanentlyDelete {
+            self.pending_mail_delete = Some(DeleteTarget::Selection(
+                self.selection.selected_rows().len(),
+            ));
+            return;
+        }
+        self.perform_selection(action);
+    }
+
+    /// Runs the action the user has already agreed to. The confirmation's own button is the only
+    /// caller for a permanent delete: a *pending* confirmation is not consent, so
+    /// [`Self::act_on_selection`] can never fall through to this one by finding the dialog slot
+    /// occupied by some other row's confirmation.
+    pub(super) fn perform_selection(&mut self, action: BulkAction) {
+        if self.selection.is_empty() {
+            return;
+        }
+        let rows = self.selection.selected_rows();
+        self.pending_mail_delete = None;
+        let removes = matches!(
+            action,
+            BulkAction::Archive | BulkAction::Delete | BulkAction::PermanentlyDelete
+        );
+        // Decided while the selection still names the rows, since the dispatch below empties it.
+        let closes_reading = removes && self.selection_holds_open_message();
+        self.dispatch(Intent::ActOnSelection { rows, action });
+        if removes {
+            self.selection.clear();
+            if closes_reading {
+                self.reading.close();
+            }
+        }
+    }
+
+    /// Whether the message in the reading pane is one of the selected rows, a conversation's
+    /// members included. The pane is cleared rather than advanced: the row it would advance to
+    /// may be in the same batch and about to leave too.
+    fn selection_holds_open_message(&self) -> bool {
+        let Some(opened) = self.reading.opened.as_ref() else {
+            return false;
+        };
+        self.snapshot
+            .rows
+            .iter()
+            .filter(|row| self.selection.contains(row))
+            .any(|row| match row {
+                SnapshotRow::Flat { row } => row.account == opened.account && row.key == opened.key,
+                SnapshotRow::Thread { row } => row
+                    .messages
+                    .iter()
+                    .any(|message| message.account == opened.account && message.key == opened.key),
+            })
     }
 
     pub(super) fn perform_opened_mail_action(&mut self, action: ActionKind) {
@@ -301,6 +433,29 @@ impl AppModel {
             self.open_message(next);
         } else {
             self.reading.close();
+        }
+    }
+
+    /// Records a conversation's inline disclosure and, on opening one, reads its representative
+    /// message; the three-pane behaviour macOS and Windows share. Collapsing leaves the reading
+    /// pane where it is: the user is closing a list row, not the message they are reading.
+    pub(super) fn set_thread_expanded(&mut self, thread: &ThreadKey, expanded: bool) {
+        if !expanded {
+            self.expanded_threads.remove(thread);
+            return;
+        }
+        self.expanded_threads.insert(thread.clone());
+        if let Some(message) = mailbox::thread_representative(&self.snapshot, thread) {
+            self.open_message(message);
+        }
+    }
+
+    pub(super) fn retry_open(&self) {
+        if let Some(opened) = &self.reading.opened {
+            self.dispatch(Intent::OpenMessage {
+                account: opened.account.clone(),
+                key: opened.key.clone(),
+            });
         }
     }
 

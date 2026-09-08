@@ -3,11 +3,15 @@
 use std::{cell::Cell, sync::Arc};
 
 use adw::prelude::*;
-use gtk::{accessible::Property as AccessibleProperty, glib};
+use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::{
     AttachmentRow, CalendarWriteStatus, MailcalApp, ReadingSnapshot, render_message_html,
 };
 
+pub(crate) mod attachments;
+pub(crate) mod canvas;
+
+use self::{attachments::attachment_row, canvas as reading_canvas};
 use super::{
     AppInput,
     avatar::{AvatarData, Slot as AvatarSlot},
@@ -124,13 +128,15 @@ impl ReadingPane {
         let invitation = InvitationCardView::new();
         content.append(invitation.widget());
 
+        reading_canvas::install_styles();
         let body_stack = gtk::Stack::new();
         body_stack.set_vexpand(true);
         let spinner = gtk::Spinner::new();
         spinner.set_spinning(true);
         body_stack.add_named(&spinner, Some("loading"));
         // An open the core has not yet called slow: no spinner, no words. A stored body arrives
-        // in milliseconds, and drawing one on every open flickers instead of reassuring.
+        // in milliseconds, and drawing one on every open flickers instead of reassuring. The page
+        // underneath stays, an empty sheet rather than a hole ([`reading_canvas`]).
         body_stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some("blank"));
         let web = SecureWebView::new(DocumentKind::Reading, sender.clone());
         body_stack.add_named(web.widget(), Some("html"));
@@ -143,9 +149,13 @@ impl ReadingPane {
         let plain_scroll = gtk::ScrolledWindow::new();
         plain_scroll.set_child(Some(&plain));
         body_stack.add_named(&plain_scroll, Some("plain"));
-        let empty = gtk::Label::new(Some(l10n::reading_empty()));
+        let empty = gtk::Label::new(None);
         empty.set_wrap(true);
         body_stack.add_named(&empty, Some("empty"));
+        // Nothing open: the pane is waiting to be given a message, so it draws no page at all.
+        let idle = gtk::Label::new(Some(l10n::reading_empty()));
+        idle.set_wrap(true);
+        body_stack.add_named(&idle, Some("idle"));
         let error = gtk::Box::new(gtk::Orientation::Vertical, 8);
         error.set_valign(gtk::Align::Center);
         error.append(&gtk::Label::new(Some(l10n::reading_load_error())));
@@ -207,7 +217,7 @@ impl ReadingPane {
             self.clear_header();
             self.remote_banner.set_revealed(false);
             self.clear_invitation();
-            self.show("empty");
+            self.show("idle");
             return;
         };
         self.subject.set_text(if opened.subject.trim().is_empty() {
@@ -267,7 +277,12 @@ impl ReadingPane {
                     &render_message_html(html.to_owned(), state.load_remote_images),
                     state.load_remote_images,
                 );
-                self.show("html");
+                // Hold the page until the document is actually on it. The view composites on a
+                // surface of its own that arrives black, so revealing it the moment a load
+                // starts puts a black rectangle in the middle of the pane for as long as the
+                // message takes to lay out ([`SecureWebView::painted`]), with the canvas either
+                // side of it, which is what makes it read as a flash rather than as loading.
+                self.show(if self.web.painted() { "html" } else { "blank" });
             } else {
                 self.show_fallback(reading);
             }
@@ -295,6 +310,9 @@ impl ReadingPane {
 
     fn show(&self, name: &str) {
         self.spinner.set_spinning(name == "loading");
+        // Every page but `idle` is a message's body area, so all of them sit on the same sheet
+        // and an open changes what is written on the page rather than the page itself.
+        reading_canvas::set_drawn(&self.body_stack, name != "idle");
         self.body_stack.set_visible_child_name(name);
     }
 
@@ -312,7 +330,6 @@ impl ReadingPane {
         while let Some(child) = self.attachments.first_child() {
             self.attachments.remove(&child);
         }
-        self.empty.set_text(l10n::reading_empty());
     }
 
     fn render_attachments(&self, rows: &[AttachmentRow], sender: &relm4::Sender<AppInput>) {
@@ -331,73 +348,6 @@ impl ReadingPane {
                 .append(&attachment_row(attachment, &self.window, sender));
         }
     }
-}
-
-fn attachment_row(
-    attachment: &AttachmentRow,
-    window: &adw::ApplicationWindow,
-    sender: &relm4::Sender<AppInput>,
-) -> adw::ActionRow {
-    // Setters, not the property builder: `g_object_new` applies properties in its own order, so
-    // `.use_markup(false)` written last still lands after the title: and a file called
-    // `Q3 & Q4.pdf` has already been parsed as markup once by then (`../../../AGENTS.md` →
-    // Client conventions). The name is the sender's text.
-    let row = crate::ui::mailbox::plain_text_row();
-    row.set_title(&attachment.file_name);
-    row.set_subtitle(&format!(
-        "{} · {}",
-        attachment.media_type,
-        glib::format_size(attachment.size)
-    ));
-    let open = attachment_button(l10n::action_open(), &attachment.file_name);
-    let input_sender = sender.clone();
-    let id = attachment.id;
-    let file_name = attachment.file_name.clone();
-    open.connect_clicked(move |_| {
-        input_sender.emit(AppInput::OpenAttachment {
-            id,
-            file_name: file_name.clone(),
-        });
-    });
-    row.add_suffix(&open);
-
-    let save = attachment_button(l10n::action_save(), &attachment.file_name);
-    let input_sender = sender.clone();
-    let id = attachment.id;
-    let file_name = attachment.file_name.clone();
-    let parent = window.clone();
-    save.connect_clicked(move |_| {
-        let dialog = gtk::FileDialog::builder().initial_name(&file_name).build();
-        let input_sender = input_sender.clone();
-        let parent = parent.clone();
-        glib::MainContext::default().spawn_local(async move {
-            if let Ok(file) = dialog.save_future(Some(&parent)).await
-                && let Some(path) = file.path()
-            {
-                input_sender.emit(AppInput::SaveAttachment {
-                    id,
-                    destination: path,
-                });
-            }
-        });
-    });
-    row.add_suffix(&save);
-    row
-}
-
-/// One attachment's Open or Save, named for the file it acts on.
-///
-/// A message can carry several, so the bare verb is the same word repeated down the list; and it
-/// collides with every other Save on screen. The pattern is the recipient pill's.
-fn attachment_button(label: &str, file_name: &str) -> gtk::Button {
-    let button = gtk::Button::with_label(label);
-    // Description, not Label: a button built with a label carries a `labelled-by` relation to it,
-    // which wins over the Label property; so the name stays the verb whatever we set, and the
-    // file has to arrive as the supplementary half (`../../../docs/calendar.md` §4 notes the same
-    // split). A message can carry several attachments, and "Save, button" three times over says
-    // nothing about which file.
-    button.update_property(&[AccessibleProperty::Description(file_name)]);
-    button
 }
 
 fn action_button(icon: &str, tooltip: &str) -> gtk::Button {
@@ -444,7 +394,7 @@ fn sender_line<'a>(reading: &'a ReadingSnapshot, opened: &'a OpenedMessage) -> &
 }
 
 #[cfg(test)]
-#[path = "reading_tests.rs"]
+#[path = "tests.rs"]
 pub(crate) mod attachment_tests;
 
 #[cfg(test)]

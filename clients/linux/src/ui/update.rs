@@ -5,12 +5,8 @@ use mailcal_bindings::{Intent, SendStatus, Surface};
 use relm4::ComponentSender;
 
 use super::{
-    AppInput, AppModel, PrimaryView,
-    composer_model::ComposeKind,
-    connectivity::{ConnectivityState, ExpiredResolution},
-    model, settings,
-    setup_model::{self, DetectedForm, OAuthForm, SetupForm},
-    unfiled_copy::UnfiledCopyNotice,
+    AppInput, AppModel, PrimaryView, composer_model::ComposeKind, connectivity::ConnectivityState,
+    mail_actions::DeleteTarget, model, setup_model, unfiled_copy::UnfiledCopyNotice,
 };
 use crate::l10n;
 
@@ -219,10 +215,25 @@ impl AppModel {
                     reply_subject: Some(reply_subject),
                 });
             }
+            AppInput::SelectRow { index, mode } => {
+                self.selection.click(&self.snapshot.rows, index, mode);
+            }
+            AppInput::SelectAllRows => self.selection.select_all(&self.snapshot.rows),
+            AppInput::ClearSelection => self.selection.clear(),
+            AppInput::ActOnSelection(action) => self.act_on_selection(action),
+            AppInput::PerformSelectionAction(action) => self.perform_selection(action),
             AppInput::PerformMailAction(request) => self.perform_mail_action(*request),
             AppInput::PerformOpenedMailAction(action) => self.perform_opened_mail_action(action),
             AppInput::RequestPermanentDelete(target) => {
-                self.pending_mail_delete = Some(target);
+                // A menu opened on a selected row is about the whole selection, so the
+                // confirmation counts it (`docs/list-selection.md`, rule 12).
+                self.pending_mail_delete = Some(
+                    if self.selection.covers_message(&target.account, &target.key) {
+                        DeleteTarget::Selection(self.selection.selected_rows().len())
+                    } else {
+                        DeleteTarget::Message(target)
+                    },
+                );
             }
             AppInput::DismissPermanentDelete => self.pending_mail_delete = None,
             AppInput::ArchiveThread { account, thread_id } => {
@@ -275,7 +286,7 @@ impl AppModel {
             AppInput::AttachmentOpenFailed => {
                 self.notice = Some(l10n::attachment_open_failed().to_owned());
             }
-            AppInput::WebViewReady => {}
+            AppInput::WebViewReady | AppInput::ReadingBodyPainted => {}
             AppInput::WebViewUnavailable => {
                 self.webview_available = false;
                 self.composer_error = self.composer.is_some();
@@ -323,7 +334,7 @@ impl AppModel {
                 self.submit_account(*submission, sender.input_sender().clone());
             }
             AppInput::AccountAdded(result) => {
-                self.account_added(result);
+                self.account_added(result, sender.input_sender().clone());
                 // The account list changed, so the person's other devices should hear about it now
                 // rather than at the next launch. A no-op when nobody is signed in.
                 self.sync_after_account_change(sender.input_sender().clone());
@@ -401,6 +412,17 @@ impl AppModel {
             AppInput::SetUpOfferedAccount(offer) => {
                 self.set_up_offered_account(*offer, sender.input_sender().clone());
             }
+            AppInput::SenderNameSuggested {
+                account,
+                suggestion,
+            } => self.sender_name_suggested(account, suggestion),
+            AppInput::SetAccountSenderName { account, name } => {
+                if let Some(app) = &self.app {
+                    app.set_account_sender_name(account, name);
+                }
+                self.host_tasks.sender_name_ask = None;
+            }
+            AppInput::DismissSenderNamePrompt => self.host_tasks.sender_name_ask = None,
             AppInput::ReplaceAccountSecret { account, secret } => {
                 self.replace_account_secret(account, secret, sender.input_sender().clone());
             }
@@ -438,50 +460,5 @@ impl AppModel {
                 self.background_finished(sender.input_sender());
             }
         }
-    }
-
-    fn resolve_expired_signin(&mut self, sender: relm4::Sender<AppInput>) {
-        match self.connectivity.expired_resolution() {
-            Some(ExpiredResolution::Microsoft(email)) => {
-                self.setup.open(false);
-                self.setup
-                    .show_form(SetupForm::Detected(DetectedForm::Microsoft(OAuthForm {
-                        email: email.clone(),
-                    })));
-                self.start_microsoft_login(email, sender);
-            }
-            Some(ExpiredResolution::Google(email)) => {
-                self.setup.open(false);
-                self.setup
-                    .show_form(SetupForm::Detected(DetectedForm::Google(OAuthForm {
-                        email: email.clone(),
-                    })));
-                self.start_google_login(email, sender);
-            }
-            Some(ExpiredResolution::JmapOauth(account)) => {
-                self.start_jmap_reauth(account, sender);
-            }
-            Some(ExpiredResolution::Settings) => {
-                self.settings.open(Some(settings::Category::Accounts));
-            }
-            None => {}
-        }
-    }
-
-    fn resolve_microsoft_reauth(&mut self, calendar: bool, sender: relm4::Sender<AppInput>) {
-        let email = if calendar {
-            self.connectivity.calendar_reauth_emails.first()
-        } else {
-            self.connectivity.mail_reauth_emails.first()
-        };
-        let Some(email) = email.cloned() else {
-            return;
-        };
-        self.setup.open(false);
-        self.setup
-            .show_form(SetupForm::Detected(DetectedForm::Microsoft(OAuthForm {
-                email: email.clone(),
-            })));
-        self.start_microsoft_login(email, sender);
     }
 }

@@ -45,6 +45,7 @@ internal fun MainActivity.addAccount(configToml: String) {
                 activity.readAccountsSynced()
                 activity.syncAllodiaAccounts()
                 activity.needsSetup = false
+                activity.senderNamePrompt = row.id
             }
         } catch (e: Exception) {
             Log.e(TAG, "add account failed: ${e.message}")
@@ -106,8 +107,9 @@ internal fun MainActivity.completeMicrosoftLogin(callbackUrl: String) {
     activity.pendingMicrosoftLogin = null
     thread(name = "mailcal-ms-complete") {
         try {
-            instance.completeMicrosoftLogin(pending, callbackUrl)
+            val row = instance.completeMicrosoftLogin(pending, callbackUrl)
             activity.mainHandler.post {
+                activity.senderNamePrompt = row.id
                 activity.signingInMicrosoft = false
                 activity.addingAccount = false
                 activity.needsSetup = false
@@ -167,8 +169,9 @@ internal fun MainActivity.completeGoogleLogin(callbackUrl: String) {
     activity.pendingGoogleLogin = null
     thread(name = "mailcal-google-complete") {
         try {
-            instance.completeGoogleLogin(pending, callbackUrl)
+            val row = instance.completeGoogleLogin(pending, callbackUrl)
             activity.mainHandler.post {
+                activity.senderNamePrompt = row.id
                 activity.signingInGoogle = false
                 activity.addingAccount = false
                 activity.needsSetup = false

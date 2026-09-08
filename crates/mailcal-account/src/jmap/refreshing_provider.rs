@@ -12,6 +12,7 @@
 //! to keep both files under the 500-line cap.
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_core::{
     calendar::{Calendar, Event},
     ids::AccountId,
@@ -22,7 +23,7 @@ use engine_core::{
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, EventDeletion, EventDraft, EventEdit, EventWrite,
     EventWriteReceipt, MailEdit, MailEditReceipt, MessageReport, Provider, ProviderResult,
-    ReportReceipt, ScopeSync, SubmissionReceipt,
+    ReportReceipt, ScopeSync, SenderIdentity, SenderIdentityId, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -161,6 +162,43 @@ impl Provider for RefreshingJmapProvider {
         self.delegate().await?.sync_events(account, cursor).await
     }
 
+    /// The identities the session's submission account can send as, forwarded to the
+    /// session-backed delegate.
+    ///
+    /// This wrapper reports the **session's own** capabilities rather than a capped set, so
+    /// `sender_identities` is advertised whenever the server advertised submission. Advertising
+    /// and forwarding move together: a verb left unforwarded here answers "unsupported" while
+    /// the capability says otherwise, and a host reading the capability would draw an editor
+    /// over it.
+    async fn sender_identities(&self, account: &AccountId) -> ProviderResult<Vec<SenderIdentity>> {
+        self.delegate().await?.sender_identities(account).await
+    }
+
+    async fn set_sender_name(
+        &self,
+        account: &AccountId,
+        identity: &SenderIdentityId,
+        name: &str,
+    ) -> ProviderResult<()> {
+        self.delegate()
+            .await?
+            .set_sender_name(account, identity, name)
+            .await
+    }
+
+    /// JMAP reports a message by setting the RFC 8621 `$junk`/`$notjunk` keyword, forwarded to the
+    /// session-backed delegate exactly as [`edit_mail`](Provider::edit_mail) is.
+    async fn report_message(
+        &self,
+        account: &AccountId,
+        report: &MessageReport,
+    ) -> ProviderResult<ReportReceipt> {
+        self.delegate().await?.report_message(account, report).await
+    }
+}
+
+#[async_trait]
+impl CalendarWrites for RefreshingJmapProvider {
     async fn create_event(
         &self,
         account: &AccountId,
@@ -199,15 +237,5 @@ impl Provider for RefreshingJmapProvider {
             .await?
             .delete_event(account, base, deletion)
             .await
-    }
-
-    /// JMAP reports a message by setting the RFC 8621 `$junk`/`$notjunk` keyword, forwarded to the
-    /// session-backed delegate exactly as [`edit_mail`](Provider::edit_mail) is.
-    async fn report_message(
-        &self,
-        account: &AccountId,
-        report: &MessageReport,
-    ) -> ProviderResult<ReportReceipt> {
-        self.delegate().await?.report_message(account, report).await
     }
 }

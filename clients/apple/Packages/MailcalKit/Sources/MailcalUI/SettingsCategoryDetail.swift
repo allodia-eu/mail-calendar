@@ -285,6 +285,11 @@ struct SettingsCategoryDetail: View {
                     accountSyncSection(account.accountId, mode)
                 }
 
+                // The name this account sends under: the one thing on the card a recipient can
+                // see, so it comes before the questions about how much of the account this
+                // device keeps (docs/settings.md).
+                SenderNameSection(model: model, account: account)
+
                 // Fetch depth, how far back this account downloads mail (per-account).
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.settings_sync_depth_heading()).font(.subheadline).bold()

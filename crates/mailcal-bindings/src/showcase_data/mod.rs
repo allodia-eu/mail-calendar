@@ -209,6 +209,11 @@ pub fn showcase_invitation() -> ShowcaseInvitation {
 pub(crate) struct AccountSeed {
     /// The owner's email address.
     pub(crate) identity: String,
+    /// The name this account sends its mail under (`docs/sending.md`).
+    ///
+    /// The same string the seeded messages already put in their own `From:` and `To:`, so a
+    /// screenshot cannot show this person addressed one way and sending as another.
+    pub(crate) sender_name: String,
     /// The account's folders (Inbox, Sent, …), each with a role for sidebar ordering.
     pub(crate) mailboxes: Vec<Mailbox>,
     /// The account's messages, spread across its folders.
@@ -349,7 +354,7 @@ fn densify_for_performance(events: &mut Vec<Event>) {
 /// payload dated to the current week, and it has to name the same instant the calendar hold does.
 fn seed(
     locale: ShowcaseLocale,
-    identity: &str,
+    owner: (&str, &str),
     mut mailboxes: Vec<Mailbox>,
     messages: Vec<Message>,
     now: OffsetDateTime,
@@ -363,7 +368,8 @@ fn seed(
         .collect();
     count_unread(&mut mailboxes, &messages);
     AccountSeed {
-        identity: identity.to_owned(),
+        identity: owner.1.to_owned(),
+        sender_name: owner.0.to_owned(),
         mailboxes,
         messages,
         bodies,

@@ -55,6 +55,33 @@ pub struct ThreadRef {
     pub thread_id: String,
 }
 
+/// A mailbox-list **row** an action names: one message in the flat list, or one whole
+/// conversation in the threaded list.
+///
+/// What a user selects is a row, and the two view modes put different things on one, so an
+/// action over several rows carries the rows themselves rather than a set of messages a client
+/// resolved for it. Only the core can expand a conversation correctly: its members come from
+/// the store's thread index, which holds messages a windowed list never listed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RowRef {
+    /// One message: a flat row, or one message of an expanded conversation.
+    Message(MessageRef),
+    /// One conversation: a threaded row, standing for every message on the thread.
+    Thread(ThreadRef),
+}
+
+impl RowRef {
+    /// The account that owns the row. Every write routes by this, so a selection spanning
+    /// accounts (the unified list allows one) is applied account by account.
+    #[must_use]
+    pub fn account(&self) -> &AccountId {
+        match self {
+            Self::Message(message) => &message.account,
+            Self::Thread(thread) => &thread.account,
+        }
+    }
+}
+
 impl MessageRef {
     /// Builds a reference from a host's `account` id and provider `key` strings; the
     /// single construction point, at the FFI boundary. Returns `None` if either is

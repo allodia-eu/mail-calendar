@@ -33,14 +33,23 @@ struct FromAccountField: View {
         if accounts.count > 1 {
             Picker(L10n.compose_from(), selection: $selection) {
                 ForEach(accounts, id: \.id) { account in
-                    Text(account.email).tag(Optional(account.id))
+                    Text(label(for: account)).tag(Optional(account.id))
                 }
             }
             .pickerStyle(.menu)
             .labelsHidden()
             .fixedSize()
         } else if let only = accounts.first {
-            Text(only.email).lineLimit(1).truncationMode(.middle)
+            Text(label(for: only)).lineLimit(1).truncationMode(.middle)
         }
+    }
+
+    /// How the account reads here: `Name <address>`, or the address alone when no name is set.
+    ///
+    /// Composed by the core (`senderLabel`), which owns the empty case, rather than assembled
+    /// here: an account with no name is the ordinary first-run state, and the address is never
+    /// dressed up as one (`docs/sending.md`).
+    private func label(for account: AccountRow) -> String {
+        senderLabel(name: account.name, email: account.email)
     }
 }

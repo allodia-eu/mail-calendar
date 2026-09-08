@@ -138,6 +138,9 @@ impl<P: Provider> App<P> {
                 let _ = self.archive(message).await;
             }
             Intent::ArchiveThread { thread } => self.archive_thread(thread).await,
+            Intent::ActOnSelection { rows, action } => {
+                self.act_on_selection(rows, action).await;
+            }
             Intent::MarkAsSpam { message } => {
                 let _ = self.mark_as_spam(message).await;
             }
@@ -263,6 +266,9 @@ impl<P: Provider> App<P> {
             Intent::SetQuoteStyle(style) => self.set_default_quote_style(style).await,
             Intent::SetQuoteStylePerMessage(per_message) => {
                 self.set_quote_style_per_message(per_message).await;
+            }
+            Intent::SetAccountSenderName { account, name } => {
+                self.set_account_sender_name(&account, &name).await;
             }
             Intent::SetDefaultSendAccount(account) => {
                 self.set_default_send_account(account).await;

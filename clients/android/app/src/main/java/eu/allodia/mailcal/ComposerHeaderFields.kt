@@ -32,6 +32,8 @@ internal fun ComposerHeaderFields(
     accounts: List<AccountRow>,
     from: AccountRow?,
     onFrom: (AccountRow) -> Unit,
+    // Forwarded to the From field; see its own parameter for why it is not composed there.
+    fromLabel: (AccountRow) -> String,
     to: String,
     onTo: (String) -> Unit,
     cc: String,
@@ -59,7 +61,12 @@ internal fun ComposerHeaderFields(
     Column(modifier = modifier) {
         // From is always present, even with a single account, so the sending identity is never a
         // guess the user has to infer from which mailbox they were looking at.
-        FromAccountField(accounts = accounts, selected = from, onSelect = onFrom)
+        FromAccountField(
+            accounts = accounts,
+            selected = from,
+            onSelect = onFrom,
+            accountLabel = fromLabel,
+        )
         Spacer(modifier = Modifier.height(8.dp))
         // To carries the Cc/Bcc reveal: a chevron that rotates to point up when they're open.
         RecipientField(

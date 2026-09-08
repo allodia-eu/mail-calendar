@@ -37,6 +37,16 @@ public sealed class AccountSyncChoice
     /// <summary>The account's email address (display label).</summary>
     public required string Email { get; init; }
 
+    /// <summary>The name this account's outgoing mail is sent under; empty when nobody has
+    /// set one. What the card's "your name" field shows.</summary>
+    public required string SenderName { get; init; }
+
+    /// <summary>Whether the card may offer to <em>change</em> that name. <c>false</c> only where
+    /// the provider holds it and the account holder cannot: a Microsoft mailbox takes its name
+    /// from the organisation's directory, so an editor there offers an edit that cannot land
+    /// (<c>docs/sending.md</c>).</summary>
+    public bool SenderNameEditable { get; init; }
+
     /// <summary>Whether the server advertises IMAP IDLE, gates the push option.</summary>
     public bool IdleSupported { get; init; }
 

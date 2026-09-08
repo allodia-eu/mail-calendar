@@ -56,6 +56,7 @@ fn snapshot(rows: Vec<SnapshotRow>) -> MailboxListSnapshot {
         accounts: vec![AccountRow {
             id: "fixture".to_owned(),
             email: "person@example.test".to_owned(),
+            name: String::new(),
             expanded: true,
         }],
         selected_account: None,

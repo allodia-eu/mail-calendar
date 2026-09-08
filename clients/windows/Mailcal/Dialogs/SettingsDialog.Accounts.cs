@@ -127,6 +127,11 @@ public sealed partial class SettingsDialog
             panel.Children.Add(BuildSyncModePicker(account.AccountId, mode));
         }
 
+        // The name this account sends under: the one thing on the card a recipient can see, so it
+        // comes before the questions about how much of the account this device keeps
+        // (docs/settings.md).
+        panel.Children.Add(BuildSenderName(account));
+
         // Fetch depth, how far back this account downloads mail (per-account). A depth change
         // doesn't change the card's layout, so it sets directly (no rebuild), like the interval.
         panel.Children.Add(new TextBlock { Text = L10n.SettingsSyncDepthHeading() });

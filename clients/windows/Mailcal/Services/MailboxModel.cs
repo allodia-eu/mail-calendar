@@ -118,6 +118,22 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
         }
     }
 
+    private string? _senderNamePrompt;
+    /// <summary>
+    /// The account whose "your name" step is owed, or <c>null</c> when none is.
+    /// </summary>
+    /// <remarks>
+    /// Set by every route that adds an account, so the step follows a manual connect and a
+    /// browser sign-in alike; a route that cannot name the account it added sets nothing, because
+    /// asking "your name" without knowing whose would write the answer onto whichever account
+    /// happened to be first (docs/sending.md). The shell clears it as it shows the step.
+    /// </remarks>
+    public string? SenderNamePrompt
+    {
+        get => _senderNamePrompt;
+        set => Set(ref _senderNamePrompt, value);
+    }
+
     private bool _submitting;
     /// <summary>
     /// <c>true</c> while a connect/add-account is in flight (the network login blocks on a
@@ -207,7 +223,15 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
     public ViewModeKind Mode
     {
         get => _mode;
-        private set { if (Set(ref _mode, value)) { Raise(nameof(IsThreaded)); Raise(nameof(MailCountText)); } }
+        private set
+        {
+            if (Set(ref _mode, value))
+            {
+                Raise(nameof(IsThreaded));
+                Raise(nameof(MailCountText));
+                Raise(nameof(SelectionPaneText));
+            }
+        }
     }
 
     /// <summary>Whether the list is grouped into threads (drives the header toggle).</summary>

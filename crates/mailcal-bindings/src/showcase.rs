@@ -12,7 +12,7 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
-use engine_api::AccountId;
+use engine_api::{AccountId, CalendarWrites};
 use engine_core::{
     calendar::{Calendar, Event},
     mail::{Mailbox, Message},
@@ -125,6 +125,8 @@ impl Provider for ShowcaseMailProvider {
         Ok(RawMime::new(bytes))
     }
 }
+
+impl CalendarWrites for ShowcaseMailProvider {}
 
 /// A plain `text/html` body built from a message's preview, for the messages that carry no
 /// tailored source of their own: so every message still opens to something readable.
@@ -247,7 +249,10 @@ impl Provider for ShowcaseCalendarProvider {
             state,
         ))
     }
+}
 
+#[async_trait::async_trait]
+impl CalendarWrites for ShowcaseCalendarProvider {
     /// Answers an invitation by patching the named attendee's participation status, the way an
     /// auto-scheduling server does; then bumps the revision so the reconcile that follows the
     /// write actually brings the new status back.

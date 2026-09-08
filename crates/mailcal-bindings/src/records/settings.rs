@@ -152,6 +152,15 @@ pub struct AccountSyncRow {
     pub account_id: String,
     /// The account's email address (display label).
     pub email: String,
+    /// The name this account's outgoing mail is sent under; empty when nobody has set one.
+    /// What the card's "your name" field shows; change it with
+    /// `Intent::SetAccountSenderName`.
+    pub sender_name: String,
+    /// Whether the card may offer to **change** that name; when `false`, show the name and
+    /// leave out the field. `false` only where the provider holds the name and the account
+    /// holder cannot change it: a Microsoft mailbox takes it from the organisation's
+    /// directory (`docs/sending.md`).
+    pub sender_name_editable: bool,
     /// Whether the server advertises IMAP `IDLE`, when `false`, a client hides the
     /// "receive emails as they come in" option and offers only interval polling.
     pub idle_supported: bool,

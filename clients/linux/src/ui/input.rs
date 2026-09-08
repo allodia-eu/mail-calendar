@@ -3,8 +3,8 @@
 use std::{fmt, path::PathBuf};
 
 use mailcal_bindings::{
-    AgentDraft, ContactDetail, ContactEdit, ContactTarget, Intent, MailtoPrefill, SearchScope,
-    SetupRecommendation, Surface,
+    AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget, Intent, MailtoPrefill,
+    SearchScope, SetupRecommendation, Surface,
 };
 
 use super::{
@@ -21,6 +21,7 @@ use super::{
     mailbox::ThreadKey,
     microsoft::MicrosoftOutcome,
     model::OpenedMessage,
+    selection::SelectMode,
     setup_model::{AccountSubmission, ManualForm},
 };
 
@@ -90,6 +91,24 @@ pub(crate) enum AppInput {
         thread: ThreadKey,
         expanded: bool,
     },
+    /// A click on the row at `index` of the snapshot, with what the modifiers made it mean.
+    ///
+    /// The index, not the row: the gesture reads a position out of the `GtkListBox` and the model
+    /// resolves it against the snapshot it is holding, so no widget has to carry a message key.
+    SelectRow {
+        index: usize,
+        mode: SelectMode,
+    },
+    /// Select every row the list is showing, which is the loaded window rather than the whole
+    /// folder (`docs/list-selection.md`, rule 10).
+    SelectAllRows,
+    ClearSelection,
+    /// Run one action over every selected row, as a single batch in the core. A permanent delete
+    /// asks first and arrives back as [`Self::PerformSelectionAction`].
+    ActOnSelection(BulkAction),
+    /// Run one action the user has already confirmed. Emitted only by the permanent-delete
+    /// confirmation, so a pending dialog can never be mistaken for consent.
+    PerformSelectionAction(BulkAction),
     PerformMailAction(Box<MailActionRequest>),
     PerformOpenedMailAction(ActionKind),
     RequestPermanentDelete(MessageTarget),
@@ -145,6 +164,9 @@ pub(crate) enum AppInput {
     AttachmentOpenFailed,
     WebViewReady,
     WebViewUnavailable,
+    /// The reading document has painted, so the pane may reveal it. Carries nothing: its whole
+    /// job is to provoke the render that swaps the canvas for the page.
+    ReadingBodyPainted,
     OpenSettings,
     OpenAccountSetup,
     RestartAccountSetup,
@@ -161,7 +183,25 @@ pub(crate) enum AppInput {
         available: bool,
     },
     SubmitAccount(Box<AccountSubmission>),
-    AccountAdded(Result<(), String>),
+    /// A manual add finished: the account's id, or why it failed. The id is what raises the
+    /// "your name" step, so a route that cannot report one raises nothing.
+    AccountAdded(Result<String, String>),
+    /// The provider answered what it already calls this person, so the "your name" step can
+    /// open seeded. Carried back from a worker thread because the read is a provider round
+    /// trip; empty is the ordinary IMAP answer and means *ask*.
+    SenderNameSuggested {
+        account: String,
+        suggestion: String,
+    },
+    /// Set the name an account's outgoing mail is sent under; empty clears it. Passed through
+    /// unchanged, the core sanitises it (`docs/sending.md`).
+    SetAccountSenderName {
+        account: String,
+        name: String,
+    },
+    /// Close the "your name" step without setting one: the account keeps sending as a bare
+    /// address.
+    DismissSenderNamePrompt,
     StartGoogleLogin(String),
     CancelGoogleLogin,
     GoogleCallbackReceived(u64),
@@ -266,6 +306,11 @@ impl fmt::Debug for AppInput {
             Self::OpenSyncDepthSettings => "OpenSyncDepthSettings",
             Self::OpenThreadMessage(_) => "OpenThreadMessage",
             Self::SetThreadExpanded { .. } => "SetThreadExpanded",
+            Self::SelectRow { .. } => "SelectRow",
+            Self::SelectAllRows => "SelectAllRows",
+            Self::ClearSelection => "ClearSelection",
+            Self::ActOnSelection(_) => "ActOnSelection",
+            Self::PerformSelectionAction(_) => "PerformSelectionAction",
             Self::PerformMailAction(_) => "PerformMailAction",
             Self::PerformOpenedMailAction(_) => "PerformOpenedMailAction",
             Self::RequestPermanentDelete(_) => "RequestPermanentDelete",
@@ -294,6 +339,7 @@ impl fmt::Debug for AppInput {
             Self::AttachmentOpenFailed => "AttachmentOpenFailed",
             Self::WebViewReady => "WebViewReady",
             Self::WebViewUnavailable => "WebViewUnavailable",
+            Self::ReadingBodyPainted => "ReadingBodyPainted",
             Self::OpenSettings => "OpenSettings",
             Self::OpenAccountSetup => "OpenAccountSetup",
             Self::RestartAccountSetup => "RestartAccountSetup",
@@ -307,6 +353,9 @@ impl fmt::Debug for AppInput {
             Self::JmapOAuthAvailable { .. } => "JmapOAuthAvailable",
             Self::SubmitAccount(_) => "SubmitAccount",
             Self::AccountAdded(_) => "AccountAdded",
+            Self::SenderNameSuggested { .. } => "SenderNameSuggested",
+            Self::SetAccountSenderName { .. } => "SetAccountSenderName",
+            Self::DismissSenderNamePrompt => "DismissSenderNamePrompt",
             Self::StartGoogleLogin(_) => "StartGoogleLogin",
             Self::CancelGoogleLogin => "CancelGoogleLogin",
             Self::GoogleCallbackReceived(_) => "GoogleCallbackReceived",

@@ -94,6 +94,8 @@ mod recipients;
 mod reference;
 mod scope;
 mod send_settings;
+mod sender_identity;
+mod sender_names;
 mod signatures;
 mod snapshot;
 mod snapshot_search;
@@ -125,7 +127,7 @@ pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;
 use display_settings::DisplaySettingsState;
 pub use helpers::{forward_subject, reply_subject};
-pub use html::{render_document, should_open_external_link};
+pub use html::{Canvas, MESSAGE_CANVAS, render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;
 pub use mail_ops::result::{MailActionError, SendActionError};
@@ -133,13 +135,13 @@ pub use mailcal_account::EventDetail;
 use mcp_settings::McpSettingsState;
 pub use prefetch::default_prefetch_size_limit;
 pub use protocol::{
-    AppObserver, CalendarWriteStatus, ComposerBlob, ContactWriteStatus, Intent,
+    AppObserver, BulkAction, CalendarWriteStatus, ComposerBlob, ContactWriteStatus, Intent,
     RecipientSuggestion, SearchScope, SendStatus, Surface,
 };
 pub use query::{MessageDetail, MessagePage};
 use quote_settings::QuoteSettingsState;
 pub use recipients::RecipientMatch;
-pub use reference::{EventRef, FolderRef, MessageRef, ThreadRef};
+pub use reference::{EventRef, FolderRef, MessageRef, RowRef, ThreadRef};
 use scope::Scope;
 use send_settings::SendSettingsState;
 pub use signatures::SignatureBody;
@@ -223,6 +225,10 @@ pub struct App<P> {
     /// Which accounts have their folder tree open; persisted, and independent of selection, so
     /// navigating anywhere leaves the tree as the user left it (`docs/folder-pane.md`).
     folder_pane: Mutex<folder_pane::FolderPaneState>,
+    /// The name each account sends under, read on every snapshot rebuild (it labels the
+    /// account rows) and so held rather than read from disk. `sender_names` says why the
+    /// core owns it at all.
+    sender_names: Mutex<sender_names::SenderNameState>,
     /// The alphabetical unified-people snapshot the contacts list renders. One snapshot for
     /// **every** account, not one per account: the engine deduplicates people across accounts,
     /// so there is nothing per-account to merge here (see [`crate::contacts`]).
@@ -475,6 +481,8 @@ mod tests_report;
 mod tests_scope;
 #[cfg(test)]
 mod tests_search;
+#[cfg(test)]
+mod tests_selection;
 #[cfg(test)]
 mod tests_settings;
 #[cfg(test)]

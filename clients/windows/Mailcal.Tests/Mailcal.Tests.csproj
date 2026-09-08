@@ -157,6 +157,11 @@
          WinUI-facing half and stays in MailboxModel.Reading.cs. The end-of-list fallback is the case
          a hand test skips, since it only shows up on the last message of a folder. -->
     <Compile Include="..\Mailcal\Services\ReadingAdvance.cs" Link="Services\ReadingAdvance.cs" />
+    <!-- What the message list's multi-selection means (docs/list-selection.md): which of the
+         paired actions its bar offers, and what a conversation row becomes when the batch goes to
+         the core. WinUI-free on purpose; both rules fail silently in the running app, a button
+         offering the action that changes nothing, and a conversation archived as one reply. -->
+    <Compile Include="..\Mailcal\Services\SelectionActions.cs" Link="Services\SelectionActions.cs" />
     <!-- Which row the list highlights for the message in the reading pane, the other half of the
          auto-advance. Pure BCL for the same reason: the view re-runs this rule on every open and
          every snapshot reconcile, and a hand test cannot see the reconcile case at all. -->

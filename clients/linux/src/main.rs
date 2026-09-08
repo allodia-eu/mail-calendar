@@ -7,6 +7,7 @@ mod appearance;
 mod boot;
 mod crash;
 mod dev_account;
+mod host_runtime;
 // Every client receives the full shared catalog and uses only its implemented surfaces.
 // `match_same_arms` fires on the locale tables, where coinciding arms are a fact about translations
 //: "Vista" is Spanish, Italian and Portuguese for "View": and the only repair would be in a file

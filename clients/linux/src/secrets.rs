@@ -4,7 +4,9 @@ use std::{collections::HashMap, future::Future, sync::Arc};
 
 use mailcal_bindings::{AccountCredentialStore, CredentialStoreError};
 use oo7::{Item, Keyring};
-use tokio::runtime::{Builder, Runtime};
+use tokio::runtime::Runtime;
+
+use crate::host_runtime;
 
 /// The `application` attribute every stored item is tagged with, so this app's secrets are
 /// distinguishable from another's in the same keyring. It is the application id, which a re-branded
@@ -15,7 +17,10 @@ const ACCOUNT_KIND: &str = "account";
 
 /// One secure item per account plus an ordered account-id index.
 pub(crate) struct SecretStore {
-    runtime: Runtime,
+    /// Borrowed, never owned: inside a sandbox `oo7` fetches the keyring key through the portal,
+    /// and that connection is process-global, so a store that owned its runtime would kill every
+    /// later portal call by failing to open ([`crate::host_runtime`]).
+    runtime: &'static Runtime,
     keyring: Keyring,
     /// Which set of items this store may see, or `None` for the real one.
     ///
@@ -83,19 +88,16 @@ impl SecretStore {
     }
 
     fn open_namespace(namespace: Option<String>) -> Result<Self, String> {
-        let runtime = Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .build()
-            .map_err(|error| error.to_string())?;
+        let runtime = host_runtime::shared()
+            .ok_or_else(|| "no host runtime to open the keyring on".to_owned())?;
         let keyring =
-            block_on_runtime(&runtime, Keyring::new())?.map_err(|error| error.to_string())?;
+            block_on_runtime(runtime, Keyring::new())?.map_err(|error| error.to_string())?;
         // `oo7` never unlocks on its own. A locked collection still answers `search_items`, but
         // every `GetSecret` on the items it returns fails: so an app started into a session
         // whose login keyring is locked (autologin, a separate keyring password, an idle lock)
         // would fail to read its own accounts and land on an opaque boot error with no way
         // forward. Unlocking here hands the ask to the desktop's keyring agent instead.
-        block_on_runtime(&runtime, keyring.unlock())?.map_err(|error| error.to_string())?;
+        block_on_runtime(runtime, keyring.unlock())?.map_err(|error| error.to_string())?;
         Ok(Self {
             runtime,
             keyring,
@@ -160,7 +162,7 @@ impl SecretStore {
 
     pub(crate) fn remove(&self, account_id: &str) -> Result<(), String> {
         block_on_runtime(
-            &self.runtime,
+            self.runtime,
             self.keyring.delete(&self.account_attributes(account_id)),
         )?
         .map_err(|error| error.to_string())?;
@@ -185,12 +187,12 @@ impl SecretStore {
     }
 
     fn read_secret(&self, attributes: &HashMap<&str, &str>) -> Result<Option<String>, String> {
-        let items = block_on_runtime(&self.runtime, self.keyring.search_items(attributes))?
+        let items = block_on_runtime(self.runtime, self.keyring.search_items(attributes))?
             .map_err(|error| error.to_string())?;
         let Some(item) = items.first() else {
             return Ok(None);
         };
-        let secret = block_on_runtime(&self.runtime, item_secret(item))?
+        let secret = block_on_runtime(self.runtime, item_secret(item))?
             .map_err(|error| error.to_string())?;
         String::from_utf8(secret)
             .map(Some)
@@ -204,7 +206,7 @@ impl SecretStore {
         secret: &[u8],
     ) -> Result<(), String> {
         block_on_runtime(
-            &self.runtime,
+            self.runtime,
             self.keyring.create_item(label, attributes, secret, true),
         )?
         .map_err(|error| error.to_string())
@@ -267,10 +269,7 @@ mod tests {
         key: &[u8],
         namespace: Option<&str>,
     ) -> SecretStore {
-        let runtime = Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("secure-store runtime");
+        let runtime = crate::host_runtime::shared().expect("a host runtime");
         let unlocked = runtime
             .block_on(file::UnlockedKeyring::load(
                 path,

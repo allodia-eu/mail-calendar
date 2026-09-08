@@ -283,6 +283,9 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::reading::attachment_tests::the_reading_header_formats_its_timestamp();
     crate::ui::reading::attachment_tests::an_attachment_name_is_never_parsed_as_markup();
     crate::ui::reading::attachment_tests::an_attachment_button_still_reads_as_its_verb();
+    crate::ui::reading::attachment_tests::the_page_survives_the_gap_before_the_next_body_lands();
+    crate::ui::reading::canvas::tests::the_drawn_canvas_paints_the_page_the_core_names();
+    crate::ui::reading::canvas::tests::the_web_view_base_is_the_same_page();
     crate::ui::modal::tests::a_modal_renders_its_title_in_native_chrome_only();
     crate::ui::avatar::tests::avatars_and_unread_dots_are_presentational();
     crate::ui::settings::tests::a_closed_settings_window_is_not_on_screen();
@@ -302,6 +305,20 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::account_sync_mode::tests::
         pressing_the_position_already_in_force_asks_for_nothing();
     crate::ui::settings::account_sync_mode::tests::the_control_is_reachable_from_the_keyboard();
+    crate::ui::settings::sender_name::tests::
+        the_field_shows_the_stored_name_and_return_asks_for_the_typed_one();
+    crate::ui::settings::sender_name::tests::re_asserting_the_stored_name_asks_for_nothing();
+    crate::ui::settings::sender_name::tests::clearing_the_field_asks_to_send_as_the_address_alone();
+    crate::ui::settings::sender_name::tests::a_provider_held_name_is_shown_without_a_field();
+    crate::ui::settings::sender_name::tests::a_provider_held_account_with_no_name_shows_its_address(
+    );
+    crate::ui::setup_widgets::sender_name_tests::
+        the_step_opens_seeded_and_continue_asks_for_the_field();
+    crate::ui::setup_widgets::sender_name_tests::a_provider_with_no_name_opens_the_step_empty();
+    crate::ui::setup_widgets::sender_name_tests::skipping_stores_nothing();
+    crate::ui::setup_widgets::sender_name_tests::closing_the_window_is_skipping();
+    crate::ui::setup_widgets::sender_name_tests::
+        the_step_is_rebuilt_only_when_it_asks_about_something_else();
     crate::ui::settings::allodia_sync::tests::
         a_grant_that_predates_the_feature_offers_the_one_thing_that_fixes_it();
     crate::ui::settings::allodia_sync::tests::a_revoked_grant_says_they_are_signed_out();
@@ -378,6 +395,13 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     folder_pane::moving_the_selection_reuses_the_pane();
     folder_pane::an_optimistic_click_is_not_undone_by_the_previous_snapshot();
     folder_pane::folder_rows_expose_their_navigation_as_a_semantic_action();
+
+    crate::ui::selection_bar::tests::every_action_icon_resolves_to_a_real_glyph();
+    crate::ui::selection_bar::tests::
+        an_empty_selection_leaves_the_bar_standing_and_only_select_all_live();
+    crate::ui::selection_bar::tests::the_bar_spans_both_panes_rather_than_riding_the_list();
+    crate::ui::selection_bar::tests::
+        the_pane_states_the_count_only_while_it_covers_something_worth_covering();
 
     destinations::every_destination_icon_resolves_to_a_real_glyph();
     destinations::the_switcher_navigates_on_a_press_and_stays_quiet_when_the_model_moves();

@@ -22,6 +22,7 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_core::{
     calendar::{Calendar, Event},
     ids::{AccountId, CalendarId},
@@ -213,7 +214,10 @@ impl Provider for RefreshingGoogleCalendarProvider {
             }
         }
     }
+}
 
+#[async_trait]
+impl CalendarWrites for RefreshingGoogleCalendarProvider {
     async fn create_event(
         &self,
         account: &AccountId,

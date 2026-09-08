@@ -54,6 +54,15 @@ public struct ContentView: View {
     @State var contactEditor: ContactEditorModel?
     @State var contactCardChoice: [ContactCardChoice]?
     @State var expandedThreads: Set<String> = [] // keyed `account/threadId` → conversation sub-rows
+    /// The rows picked out to act on together. View state, like the disclosure above it:
+    /// transient, never persisted, and read by nothing outside this list
+    /// (`docs/list-selection.md`, rule 1).
+    @State var selection = MailSelection()
+    #if os(iOS)
+    /// Whether the list is in selection mode. A phone has no modifier keys, so picking several
+    /// messages is a mode the toolbar's Select enters and Done leaves.
+    @State var selectingRows = false
+    #endif
     @State var accountToRemove: AccountRow? // the account a remove-confirmation is open for
     @State var sceneRestorationComplete = false
     @State var hasActivatedScene = false
@@ -350,6 +359,13 @@ public struct ContentView: View {
         // is silently dropped, so an offer pressed in there closes Settings and is opened by
         // `addAccountIfSettingsAskedFor` on the way out.
         .sheet(isPresented: $model.addingAccount) { addAccountSheet }
+        // The account connected: ask what to call its sender. After the add rather than before,
+        // because the first screen is the address field and nothing else (docs/onboarding.md)
+        // and only a connected account can be asked what its provider already calls this
+        // person. Skipping is one action and leaves the account sending as a bare address.
+        .sheet(item: $model.senderNamePrompt) { prompt in
+            SenderNameStepView(model: model, account: prompt.id) { model.senderNamePrompt = nil }
+        }
         // The device moved to a different time zone than the active one: prompt to switch.
         // The buttons drive the core state; the implicit-dismiss setter is ignored.
         .alert(

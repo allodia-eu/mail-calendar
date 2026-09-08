@@ -90,6 +90,13 @@ public sealed partial class MainWindow : Window
             {
                 SyncNavItems();
             }
+            // An account just connected: ask what to call its sender (docs/sending.md). The shell
+            // owns the dialog, so this is where the model's request becomes one.
+            if (e.PropertyName is nameof(MailboxModel.SenderNamePrompt)
+                && Model.SenderNamePrompt is { } account)
+            {
+                _ = AskSenderNameAsync(account);
+            }
         };
         SyncNavItems();
 

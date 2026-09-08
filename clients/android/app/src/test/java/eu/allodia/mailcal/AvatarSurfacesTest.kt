@@ -37,6 +37,9 @@ class AvatarSurfacesTest {
                         ),
                         onSwipe = { _, _, _ -> },
                         accounts = emptyList(),
+                        selected = false,
+                        selecting = false,
+                        onToggleSelect = {},
                         onOpen = {},
                         onSetRead = { _, _, _ -> },
                         onSetFlagged = { _, _, _ -> },
@@ -68,8 +71,10 @@ class AvatarSurfacesTest {
                 ThreadConversationRow(
                     thread = threadRow(),
                     activeZoneId = "Europe/Amsterdam",
+                    selected = false,
+                    selecting = false,
+                    onToggleSelect = {},
                     onOpenThread = {},
-                    onArchiveThread = {},
                 )
             }
         }

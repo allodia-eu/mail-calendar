@@ -21,6 +21,7 @@ fn snapshot(horizon: Option<SearchHorizon>) -> MailboxListSnapshot {
         accounts: vec![AccountRow {
             id: "acct-1".to_owned(),
             email: "eva.jansen@example.test".to_owned(),
+            name: String::new(),
             expanded: true,
         }],
         selected_account: Some("acct-1".to_owned()),

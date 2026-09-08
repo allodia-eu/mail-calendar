@@ -93,11 +93,13 @@ impl MailBackend for FakeBackend {
             AccountRow {
                 id: "work".to_owned(),
                 email: "me@work.example".to_owned(),
+                name: String::new(),
                 expanded: true,
             },
             AccountRow {
                 id: "private".to_owned(),
                 email: "me@private.example".to_owned(),
+                name: String::new(),
                 expanded: true,
             },
         ]

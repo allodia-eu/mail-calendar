@@ -210,6 +210,12 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/ci/check-desktop-handoff.sh
 
+      # Same shape, one layer down: a portal caller that owns its Tokio runtime works exactly once
+      # and then parks a thread for the life of the process, which no run-time gate sees.
+      - name: One shared Tokio runtime for every portal caller
+        if: ${{ !cancelled() }}
+        run: scripts/ci/check-portal-runtime.sh
+
       # Every client still takes its name and application id from branding/ (docs/branding.md).
       - name: Every client derives its identity from the brand
         if: ${{ !cancelled() }}
@@ -296,7 +302,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: "1.4.0"
+          bun-version: "1.4.2"
 
       - name: Install the editor's dev dependencies
         if: ${{ !cancelled() }}

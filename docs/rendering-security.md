@@ -17,7 +17,7 @@ Defence in depth: each layer holds even if another is weakened. Layers 1–2 are
 (written once, identical for every client); layer 3 is the **native host renderer** (each client
 implements every gate).
 
-### Layer 1: Core sanitisation (shared) · `crates/mailcal-app/src/html.rs`
+### Layer 1: Core sanitisation (shared) · `crates/mailcal-app/src/html/mod.rs`
 
 The engine returns the raw `text/html` part **unsanitized** by design (it is hostile input). The
 core sanitises it **once** for every client (never re-implemented per platform):
@@ -71,6 +71,15 @@ the presentation are identical across clients**:
   `img-src` and the document is re-rendered.
 - No `script-src`: scripts never run, even if one survived sanitisation.
 - The document has **no resolvable base origin**, so relative/remote URLs can't be rebased.
+
+⚠️ **The directives are one policy, separated by semicolons.** A `content` attribute holds a policy
+*list*, and a comma starts a second policy which is enforced alongside the first, so the document
+gets the intersection of the two. A comma in place of a semicolon therefore separates
+`default-src 'none'` from the `style-src` and `img-src` that soften it, and both fall back to
+`'none'`: every message renders with no CSS at all, its own and the base sheet's alike, and not
+even an inline `data:` image loads. It reads as a rendering bug rather than a policy one, and an
+assertion that each directive is *present* passes throughout, which is why
+`the_document_carries_one_policy_rather_than_two` asserts on the separators instead.
 
 ### Layer 3: Native host renderer (per platform, implement **every** gate)
 
@@ -185,7 +194,7 @@ Source of truth per client:
 ## Known gaps / follow-ups
 
 - **Inline-image height pin is overridden globally.** The reading document's base CSS uses
-  `img { max-width: 100%; height: auto !important }` (`html.rs`, `BASE_CSS`) so a width-pinned image
+  `img { max-width: 100%; height: auto !important }` (`html/mod.rs`, `base_css`) so a width-pinned image
   can't keep a fixed height while `max-width` shrinks its width: the squashed-aspect-ratio fix. The
   `!important` is deliberately broad, so it *also* overrides a message that pins **only** the height
   (e.g. a signature `<img style="height:32px">` with auto width): such an image renders at its full

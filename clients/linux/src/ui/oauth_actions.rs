@@ -156,11 +156,14 @@ impl AppModel {
     pub(super) fn account_signed_in(&mut self, account: String, sender: relm4::Sender<AppInput>) {
         self.setup.complete();
         self.dispatch(mailcal_bindings::Intent::SelectAccount {
-            account: Some(account),
+            account: Some(account.clone()),
         });
         if let Some(app) = &self.app {
             self.snapshot = app.mailbox_list();
         }
+        // The same step the manual route raises: every way in asks the same question
+        // (`docs/sending.md`).
+        self.ask_sender_name(account, sender.clone());
         self.sync_after_account_change(sender);
     }
 

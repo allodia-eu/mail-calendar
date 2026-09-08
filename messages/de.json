@@ -37,6 +37,14 @@
 	"mailbox_count_messages": "{count} Nachrichten",
 	"mailbox_count_conversations": "{count} Unterhaltungen",
 	"mailbox_count_results": "{count} Ergebnisse",
+
+	"selection_count": "{count} ausgewählt",
+	"selection_selected_messages": "{count} Nachrichten ausgewählt",
+	"selection_selected_conversations": "{count} Unterhaltungen ausgewählt",
+	"action_select": "Auswählen",
+	"action_select_all": "Alle auswählen",
+	"action_clear_selection": "Auswahl aufheben",
+
 	"calendar_saving": "Wird gesichert…",
 	"calendar_saved": "Gesichert",
 	"calendar_save_unconfirmed": "Nicht bestätigt; zum Wiederholen tippen",
@@ -108,6 +116,7 @@
 
 	"delete_permanently_title": "Endgültig löschen?",
 	"delete_permanently_message": "Diese Nachricht wird endgültig gelöscht. Das lässt sich nicht widerrufen.",
+	"delete_permanently_message_many": "{count} Nachrichten werden endgültig gelöscht. Das lässt sich nicht widerrufen.",
 
 	"compose_title_new": "Neue Nachricht",
 	"compose_to": "An",
@@ -384,6 +393,12 @@
 	"setup_field_mail_server": "Mailserver",
 	"setup_field_email": "E-Mail-Adresse",
 	"setup_field_password": "Passwort",
+
+	"setup_sender_name_title": "Ihr Name",
+	"setup_sender_name_description": "Dieser Name erscheint neben Ihrer Adresse in den E-Mails, die Sie senden. Sie können ihn später in den Einstellungen ändern.",
+	"setup_sender_name_field": "Ihr Name",
+	"setup_sender_name_continue": "Weiter",
+	"setup_sender_name_skip": "Vorerst überspringen",
 	"setup_field_smtp": "Postausgangsserver (SMTP)",
 	"setup_field_caldav": "Kalenderserver (CalDAV)",
 	"setup_field_smtp_optional": "Postausgangsserver, SMTP (optional)",
@@ -505,6 +520,10 @@
 	"settings_composing_description": "Wie Antworten und Weiterleitungen die ursprüngliche Nachricht zitieren.",
 	"settings_send_account_heading": "Standardkonto für neue E-Mails",
 	"settings_send_account_description": "Von welchem Konto neue Nachrichten gesendet werden, wenn Sie den kombinierten Posteingang ansehen. Antworten gehen immer von dem Konto aus, das die E-Mail empfangen hat.",
+
+	"settings_sender_name_heading": "Ihr Name",
+	"settings_sender_name_description": "Der Name, der neben Ihrer Adresse in den E-Mails erscheint, die Sie senden. Lassen Sie das Feld leer, um nur mit Ihrer Adresse zu senden.",
+	"settings_sender_name_managed": "Ihre Organisation legt diesen Namen fest, daher lässt er sich hier nicht ändern.",
 	"settings_swipe_heading": "Streichgesten",
 	"settings_swipe_description": "Was passiert, wenn Sie eine Nachricht nach links oder rechts streichen. Nach dem Streichen können Sie die Aktion sofort widerrufen.",
 	"settings_swipe_left": "Nach links streichen",

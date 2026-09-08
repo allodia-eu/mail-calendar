@@ -1,6 +1,6 @@
 //! Sync-depth lifecycle tests: new-account defaults, widening/narrowing, and account deletion.
 
-use engine_api::{AccountId, EmailAddress, Engine, TimeZoneId};
+use engine_api::{AccountId, CalendarWrites, EmailAddress, Engine, TimeZoneId};
 use engine_core::{
     ids::{MailboxId, MessageId},
     mail::{Mailbox, MailboxRole, Message},
@@ -106,6 +106,8 @@ impl Provider for WindowProvider {
         ))]))
     }
 }
+
+impl CalendarWrites for WindowProvider {}
 
 /// What a new account should start at on the target running the suite.
 fn expected_default_depth() -> u16 {

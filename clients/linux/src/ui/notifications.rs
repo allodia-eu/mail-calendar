@@ -1,21 +1,32 @@
 //! New-mail notifications through the desktop portal.
 
+use std::time::Duration;
+
 use ashpd::desktop::notification::{Notification, NotificationProxy, Priority};
 use mailcal_bindings::{AccountNewMail, BackgroundSyncOutcome};
 
-use crate::l10n;
+use crate::{host_runtime, l10n};
+
+/// How long the whole portal exchange may take before the pass gives up on it.
+///
+/// The caller holds the new-mail scan open until this returns, so an unbounded wait would stop
+/// the client noticing mail at all, not merely stop it notifying. Generous enough that a busy
+/// desktop still delivers, short enough that a portal which has stopped answering costs one pass.
+const PORTAL_BUDGET: Duration = Duration::from_secs(10);
 
 pub(super) fn post(outcome: BackgroundSyncOutcome) {
     if outcome.accounts.is_empty() {
         return;
     }
-    let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    else {
+    // Never a runtime of its own: the portal connection is process-global and outlives this call
+    // ([`host_runtime`]).
+    let Some(runtime) = host_runtime::shared() else {
+        log_failure();
         return;
     };
-    if runtime.block_on(post_all(outcome.accounts)).is_err() {
+    let posted = runtime
+        .block_on(async { tokio::time::timeout(PORTAL_BUDGET, post_all(outcome.accounts)).await });
+    if !matches!(posted, Ok(Ok(()))) {
         log_failure();
     }
 }
@@ -73,6 +84,9 @@ fn notification_parts(account: &AccountNewMail) -> Vec<(String, String, String)>
 }
 
 fn log_failure() {
+    // Covers a portal that answered with an error and one that did not answer inside
+    // `PORTAL_BUDGET`: the user sees the same thing either way, and the pass carries on.
+    //
     // Deliberately omit the portal error string: a D-Bus implementation may include the
     // notification payload, and diagnostic logs must never contain sender/subject content.
     // It goes through `log` so it reaches the rotating diagnostic file a user attaches to a

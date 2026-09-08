@@ -4,6 +4,7 @@
 // limit. State lives in Rust; the core re-signals Surface.Settings after each setter.
 
 using System.Linq;
+using System.Threading.Tasks;
 using Allodia.Mailcal.ViewModels;
 using uniffi.mailcal_bindings;
 
@@ -26,6 +27,8 @@ public sealed partial class MailboxModel
         {
             AccountId = account.AccountId,
             Email = account.Email,
+            SenderName = account.SenderName,
+            SenderNameEditable = account.SenderNameEditable,
             IdleSupported = account.IdleSupported,
             Strategy = account.Strategy == SyncStrategyKind.Push
                 ? SyncStrategyChoice.Push
@@ -50,6 +53,26 @@ public sealed partial class MailboxModel
             MessageSizeLimitsMb = snapshot.MessageSizeLimitsMb.ToList(),
         };
     }
+
+    /// <summary>Sets the name one account's outgoing mail is sent under; empty clears it and the
+    /// account sends as a bare address.</summary>
+    /// <remarks>
+    /// Passed through unchanged: the core sanitises it, and a second opinion here about what a
+    /// <c>From</c> header may contain would only drift from the first (<c>docs/sending.md</c>).
+    /// </remarks>
+    public void SetAccountSenderNameChoice(string account, string name) =>
+        _app?.SetAccountSenderName(account, name);
+
+    /// <summary>The name to fill a "your name" field in with: the one already set, else the one
+    /// the provider holds. Empty when neither exists, which means <em>ask</em>.</summary>
+    /// <remarks>
+    /// Talks to the provider, so it is awaited off the UI thread exactly as the account add is.
+    /// An unreachable provider answers empty rather than failing.
+    /// </remarks>
+    public Task<string> SuggestedSenderNameAsync(string account) =>
+        _app is { } app
+            ? Task.Run(() => app.SuggestedSenderName(account))
+            : Task.FromResult(string.Empty);
 
     /// <summary>Sets one account's fetch depth (a month count; <c>0</c> = all mail) and reconnects
     /// that account with the new window (widening fetches older mail, narrowing stops fetching it).</summary>

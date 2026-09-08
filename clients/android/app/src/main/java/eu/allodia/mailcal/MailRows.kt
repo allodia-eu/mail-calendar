@@ -1,11 +1,11 @@
-// The mailbox-list row composables for the Android client: the flat message row (with its
-// read/flag/overflow affordances) and the threaded conversation row. The swipe-to-act gesture
-// that wraps a flat row is in MailRowsSwipe.kt.
+// The mailbox-list row composables for the Android client: the flat message row, with its
+// read/flag/overflow affordances, and the row furniture both kinds share. The threaded
+// conversation row is in MailRowsThread.kt; the swipe-to-act gesture that wraps a flat row is
+// in MailRowsSwipe.kt.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Badge
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -42,7 +41,6 @@ import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.Recipients
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.RecipientSuggestion
-import uniffi.mailcal_bindings.ThreadRow
 import uniffi.mailcal_bindings.forwardSubject
 import uniffi.mailcal_bindings.replySubject
 
@@ -53,12 +51,18 @@ private val FlaggedAmber = Color(0xFFFFB300)
 
 
 // Widened from private: called from MailRowsSwipe.kt's SwipeableFlatMessageRow.
+@OptIn(ExperimentalFoundationApi::class)
 @androidx.compose.runtime.Composable
 internal fun FlatMessageRow(
     message: FlatRow,
     activeZoneId: String?,
     inJunkFolder: Boolean,
     accounts: List<AccountRow>,
+    // The list's selection mode: whether this row is picked, whether the mode is on at all (a tap
+    // then toggles rather than opens), and how to toggle it (docs/list-selection.md).
+    selected: Boolean,
+    selecting: Boolean,
+    onToggleSelect: () -> Unit,
     onOpen: (OpenedMessage) -> Unit,
     onSetRead: (account: String, key: String, read: Boolean) -> Unit,
     onSetFlagged: (account: String, key: String, flagged: Boolean) -> Unit,
@@ -101,20 +105,38 @@ internal fun FlatMessageRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .clickable {
-                onOpen(
-                    OpenedMessage(
-                        account = message.account,
-                        key = message.key,
-                        subject = message.subject,
-                        from = message.from,
-                        avatar = message.avatar,
-                        // The reading header keeps the full date; only the row shows the short one.
-                        date = localDateTime(message.date, activeZoneId, use24Hour),
-                    ),
-                )
-            }
+            // The selected row carries the theme's own selection colour rather than a tint of our
+            // own, so it reads as selected to a person and to the accessibility layer alike.
+            .background(
+                if (selected) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+            )
+            .combinedClickable(
+                // A long press enters selection mode; once in it, a tap adds or removes a row
+                // instead of opening it. A phone has no modifier keys, so this is the mode the
+                // contract gives it (docs/list-selection.md).
+                onLongClick = onToggleSelect,
+                onClick = {
+                    if (selecting) {
+                        onToggleSelect()
+                    } else {
+                        onOpen(
+                            OpenedMessage(
+                                account = message.account,
+                                key = message.key,
+                                subject = message.subject,
+                                from = message.from,
+                                avatar = message.avatar,
+                                // The reading header keeps the full date; the row shows the short one.
+                                date = localDateTime(message.date, activeZoneId, use24Hour),
+                            ),
+                        )
+                    }
+                },
+            )
             .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -338,98 +360,6 @@ private fun FlatMessageOverflow(
     }
 }
 
-// A conversation row: a header (subject, message count, latest sender). Tapping it opens the
-// conversation's latest message (received or sent) in the reading screen, where the older
-// messages sit as a collapsed strip that opens each on tap (Gmail/Outlook-mobile style), rather
-// than expanding inline in the list. Long-press the header to archive the conversation. Only real
-// multi-message conversations reach here: the core projects a lone message as a flat row.
-@OptIn(ExperimentalFoundationApi::class)
-@androidx.compose.runtime.Composable
-internal fun ThreadConversationRow(
-    thread: ThreadRow,
-    activeZoneId: String?,
-    onOpenThread: () -> Unit,
-    onArchiveThread: () -> Unit,
-) {
-    val ctx = LocalContext.current
-    var menuOpen by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    onClick = onOpenThread,
-                    onLongClick = { menuOpen = true },
-                )
-                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            // The latest sender is who the row names. The count badge already marks a conversation;
-            // bold subject and sender carry unread state on this compact, single-pane list.
-            AvatarView(thread.avatar, modifier = Modifier.testTag("thread-avatar"))
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = thread.subject.ifEmpty { L10n.mail_no_subject(ctx) },
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = if (thread.unreadCount > 0u) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    // The message count marks this as a conversation at a glance (a real thread is
-                    // always > 1 here, the core projects a lone message as a flat row).
-                    if (thread.messageCount > 1u) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Badge { Text("${thread.messageCount}") }
-                    }
-                    // A paperclip when any message in the conversation has an attachment (matching
-                    // macOS/Windows thread rows).
-                    if (thread.hasAttachment) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            painter = painterResource(R.drawable.ic_attachment),
-                            contentDescription = L10n.a11y_has_attachment(ctx),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(15.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = relativeDate(thread.latestDate, activeZoneId, LocalUse24Hour.current),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                }
-                // Latest sender + a preview snippet of the representative message.
-                Text(
-                    text = senderAndPreview(
-                        thread.latestFrom,
-                        thread.preview,
-                        unread = thread.unreadCount > 0u,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        // Long-press → "Archive conversation" (the core archives the received side only, leaving
-        // any Sent copies in Sent).
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(L10n.thread_archive(ctx)) },
-                onClick = {
-                    menuOpen = false
-                    onArchiveThread()
-                },
-            )
-        }
-    }
-}
-
 /**
  * How heavily a list row's **sender** is drawn.
  *
@@ -445,8 +375,9 @@ internal fun unreadSenderWeight(unread: Boolean): FontWeight =
 // The second list-row line: the sender, slightly emphasised, followed by a lighter body preview
 // snippet, so a truncated subject still carries context (cf. Thunderbird). The snippet's runs of
 // whitespace are collapsed so it stays a clean single stretch of text.
+// Widened from private: called from MailRowsThread.kt's ThreadConversationRow.
 @androidx.compose.runtime.Composable
-private fun senderAndPreview(
+internal fun senderAndPreview(
     sender: String,
     preview: String,
     unread: Boolean = false,

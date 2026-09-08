@@ -144,6 +144,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 Some("dev"),
                 dev_credential_store(secrets.as_ref()),
             )?;
+            crate::dev_account::seed_sender_names(&app);
             Ok(BootedApp {
                 app,
                 secrets,
@@ -168,6 +169,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 Some("dev-multi"),
                 dev_credential_store(secrets.as_ref()),
             )?;
+            crate::dev_account::seed_sender_names(&app);
             Ok(BootedApp {
                 app,
                 secrets,
@@ -189,6 +191,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 Some("dev-imap"),
                 dev_credential_store(secrets.as_ref()),
             )?;
+            crate::dev_account::seed_sender_names(&app);
             Ok(BootedApp {
                 app,
                 secrets,

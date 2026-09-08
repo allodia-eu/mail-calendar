@@ -344,8 +344,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             onMarkAsNotSpam = { account, key ->
                                 instance.dispatch(Intent.MarkAsNotSpam(account, key))
                             },
-                            onArchiveThread = { account, threadId ->
-                                instance.dispatch(Intent.ArchiveThread(account, threadId))
+                            onActOnSelection = { rows, action ->
+                                instance.dispatch(Intent.ActOnSelection(rows, action))
                             },
                             // Reply/reply-all/forward go through the SAME shared rich composer as
                             // new mail: the user-confirmed recipients ride the submit, and the

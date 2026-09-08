@@ -162,6 +162,16 @@ pub struct AccountSyncRow {
     pub account_id: String,
     /// The account's email address (display label).
     pub email: String,
+    /// The name this account's outgoing mail is sent under; empty when nobody has set one.
+    /// The value the card's "your name" field shows.
+    pub sender_name: String,
+    /// Whether the card may offer to **change** that name.
+    ///
+    /// `false` where the provider holds the name and the account holder cannot change it (a
+    /// Microsoft mailbox takes it from the organisation's directory): show the name, leave out
+    /// the field. Carried on the row rather than asked per account, so a settings screen draws
+    /// itself from one snapshot (`docs/sending.md`).
+    pub sender_name_editable: bool,
     /// Whether the server advertises IMAP `IDLE`; gates whether a client offers the
     /// "receive emails as they come in" option at all.
     pub idle_supported: bool,

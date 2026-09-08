@@ -6,6 +6,7 @@
 //! [`crate::graph`]'s identical split.
 
 use async_trait::async_trait;
+use engine_api::CalendarWrites;
 use engine_core::{
     ids::AccountId,
     mail::{Mailbox, Message},
@@ -14,7 +15,7 @@ use engine_core::{
 };
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, MailEdit, MailEditReceipt, MessageReport, Provider,
-    ProviderResult, ReportReceipt, ScopeSync, SubmissionReceipt,
+    ProviderResult, ReportReceipt, ScopeSync, SenderIdentity, SenderIdentityId, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -205,6 +206,43 @@ impl Provider for RefreshingGmailProvider {
     /// Gmail reports a message by moving it under its `SPAM` label, which this forwards on the
     /// same reconnect loop [`edit_mail`](Provider::edit_mail) uses: a report is idempotent, so a
     /// retry after a stale socket cannot double-apply.
+    async fn sender_identities(&self, account: &AccountId) -> ProviderResult<Vec<SenderIdentity>> {
+        let mut provider = self.delegate().await?;
+        let mut reconnected = false;
+        loop {
+            match provider.sender_identities(account).await {
+                Ok(value) => return Ok(value),
+                Err(err) if !reconnected && should_reconnect(&err) => {
+                    self.invalidate_delegate();
+                    provider = self.delegate().await?;
+                    reconnected = true;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
+    async fn set_sender_name(
+        &self,
+        account: &AccountId,
+        identity: &SenderIdentityId,
+        name: &str,
+    ) -> ProviderResult<()> {
+        let mut provider = self.delegate().await?;
+        let mut reconnected = false;
+        loop {
+            match provider.set_sender_name(account, identity, name).await {
+                Ok(value) => return Ok(value),
+                Err(err) if !reconnected && should_reconnect(&err) => {
+                    self.invalidate_delegate();
+                    provider = self.delegate().await?;
+                    reconnected = true;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
     async fn report_message(
         &self,
         account: &AccountId,
@@ -225,3 +263,5 @@ impl Provider for RefreshingGmailProvider {
         }
     }
 }
+
+impl CalendarWrites for RefreshingGmailProvider {}

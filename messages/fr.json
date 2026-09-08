@@ -37,6 +37,14 @@
 	"mailbox_count_messages": "{count} messages",
 	"mailbox_count_conversations": "{count} conversations",
 	"mailbox_count_results": "{count} résultats",
+
+	"selection_count": "{count} sélectionnés",
+	"selection_selected_messages": "{count} messages sélectionnés",
+	"selection_selected_conversations": "{count} conversations sélectionnées",
+	"action_select": "Sélectionner",
+	"action_select_all": "Tout sélectionner",
+	"action_clear_selection": "Effacer la sélection",
+
 	"calendar_saving": "Enregistrement…",
 	"calendar_saved": "Enregistré",
 	"calendar_save_unconfirmed": "Impossible de confirmer ; touchez pour réessayer",
@@ -108,6 +116,7 @@
 
 	"delete_permanently_title": "Supprimer définitivement ?",
 	"delete_permanently_message": "Ce message sera définitivement supprimé. Cette action est irréversible.",
+	"delete_permanently_message_many": "{count} messages seront définitivement supprimés. Cette action est irréversible.",
 
 	"compose_title_new": "Nouveau message",
 	"compose_to": "À",
@@ -384,6 +393,12 @@
 	"setup_field_mail_server": "Serveur de messagerie",
 	"setup_field_email": "Adresse e-mail",
 	"setup_field_password": "Mot de passe",
+
+	"setup_sender_name_title": "Votre nom",
+	"setup_sender_name_description": "C'est le nom qui apparaît à côté de votre adresse dans les messages que vous envoyez. Vous pourrez le modifier plus tard dans les Réglages.",
+	"setup_sender_name_field": "Votre nom",
+	"setup_sender_name_continue": "Continuer",
+	"setup_sender_name_skip": "Passer pour l'instant",
 	"setup_field_smtp": "Serveur sortant (SMTP)",
 	"setup_field_caldav": "Serveur de calendrier (CalDAV)",
 	"setup_field_smtp_optional": "Serveur sortant, SMTP (facultatif)",
@@ -505,6 +520,10 @@
 	"settings_composing_description": "La façon dont les réponses et les transferts citent le message d’origine.",
 	"settings_send_account_heading": "Compte par défaut pour les nouveaux messages",
 	"settings_send_account_description": "Le compte depuis lequel les nouveaux messages sont envoyés quand vous consultez la boîte de réception combinée. Les réponses partent toujours du compte qui a reçu le message.",
+
+	"settings_sender_name_heading": "Votre nom",
+	"settings_sender_name_description": "Le nom qui apparaît à côté de votre adresse dans les messages que vous envoyez. Laissez le champ vide pour n'envoyer que votre adresse.",
+	"settings_sender_name_managed": "Votre organisation définit ce nom, il ne peut donc pas être modifié ici.",
 	"settings_swipe_heading": "Actions de balayage",
 	"settings_swipe_description": "Ce que fait un balayage vers la gauche ou la droite sur un message. Après un balayage, vous pouvez annuler l’action aussitôt.",
 	"settings_swipe_left": "Balayer vers la gauche",

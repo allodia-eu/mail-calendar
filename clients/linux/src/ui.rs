@@ -61,6 +61,9 @@ mod row_action;
 mod runtime_timers;
 mod search;
 mod search_actions;
+mod selection;
+mod selection_bar;
+mod selection_input;
 mod settings;
 mod setup;
 mod setup_google;
@@ -78,6 +81,7 @@ mod setup_onboarding_tests;
 mod setup_widget_tests;
 mod setup_widgets;
 mod shell;
+mod shell_sidebar;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 mod showcase_hooks;
 mod signature_image;
@@ -85,6 +89,7 @@ mod time_zone;
 mod timestamps;
 mod unfiled_copy;
 mod update;
+mod update_reauth;
 mod web_security;
 mod webview;
 mod welcome;
@@ -97,12 +102,13 @@ use contacts::ContactsModel;
 pub(crate) use destinations::PrimaryView;
 use host_tasks::HostTasks;
 pub(crate) use input::AppInput;
-use mail_actions::MessageTarget;
+use mail_actions::DeleteTarget;
 use mailbox::ThreadKey;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 use model::OpenedMessage;
 use model::ReadingState;
 use search::SearchState;
+use selection::Selection;
 use setup::SetupState;
 use shell::AppWidgets;
 use unfiled_copy::UnfiledCopyNotice;
@@ -124,6 +130,10 @@ pub(crate) struct AppModel {
     /// The conversations the user has opened inline. Host state, not the core's: it survives a
     /// snapshot refresh, so a background sync doesn't collapse a conversation being read.
     expanded_threads: HashSet<ThreadKey>,
+    /// The rows the user has picked out to act on together. Host state, like the disclosure
+    /// above it: transient, never persisted, and read by nothing outside this list
+    /// (`docs/list-selection.md`, rule 1).
+    selection: Selection,
     calendar: CalendarModel,
     contacts: ContactsModel,
     /// What the mail-search chrome is showing. Not the results: those arrive in `snapshot` like
@@ -134,7 +144,7 @@ pub(crate) struct AppModel {
     /// invitation card is rebuilt when the core publishes a new one and left alone on every other
     /// render; a rebuild mid-render would take a half-typed note to the organiser away.
     reading_generation: u64,
-    pending_mail_delete: Option<MessageTarget>,
+    pending_mail_delete: Option<DeleteTarget>,
     composer: Option<ComposeRequest>,
     composer_generation: u64,
     composer_error: bool,
@@ -304,6 +314,7 @@ impl SimpleComponent for AppModel {
             primary: PrimaryView::Mail,
             snapshot,
             expanded_threads: HashSet::new(),
+            selection: Selection::default(),
             calendar,
             contacts: ContactsModel::default(),
             search: SearchState::default(),
@@ -389,29 +400,6 @@ impl AppModel {
             return;
         };
         self.open_message(OpenedMessage::from_row(row));
-    }
-
-    /// Records a conversation's inline disclosure and, on opening one, reads its representative
-    /// message; the three-pane behaviour macOS and Windows share. Collapsing leaves the reading
-    /// pane where it is: the user is closing a list row, not the message they are reading.
-    fn set_thread_expanded(&mut self, thread: &ThreadKey, expanded: bool) {
-        if !expanded {
-            self.expanded_threads.remove(thread);
-            return;
-        }
-        self.expanded_threads.insert(thread.clone());
-        if let Some(message) = mailbox::thread_representative(&self.snapshot, thread) {
-            self.open_message(message);
-        }
-    }
-
-    fn retry_open(&self) {
-        if let Some(opened) = &self.reading.opened {
-            self.dispatch(Intent::OpenMessage {
-                account: opened.account.clone(),
-                key: opened.key.clone(),
-            });
-        }
     }
 
     /// What the message list calls itself: the folder on screen, or; while a search is running

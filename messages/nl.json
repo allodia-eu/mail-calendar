@@ -37,6 +37,14 @@
 	"mailbox_count_messages": "{count} berichten",
 	"mailbox_count_conversations": "{count} gesprekken",
 	"mailbox_count_results": "{count} resultaten",
+
+	"selection_count": "{count} geselecteerd",
+	"selection_selected_messages": "{count} berichten geselecteerd",
+	"selection_selected_conversations": "{count} gesprekken geselecteerd",
+	"action_select": "Selecteren",
+	"action_select_all": "Alles selecteren",
+	"action_clear_selection": "Selectie wissen",
+
 	"calendar_saving": "Bezig met opslaan…",
 	"calendar_saved": "Opgeslagen",
 	"calendar_save_unconfirmed": "Niet bevestigd; tik om opnieuw te proberen",
@@ -108,6 +116,7 @@
 
 	"delete_permanently_title": "Definitief verwijderen?",
 	"delete_permanently_message": "Dit bericht wordt definitief verwijderd. Dit kan niet ongedaan worden gemaakt.",
+	"delete_permanently_message_many": "{count} berichten worden definitief verwijderd. Dit kan niet ongedaan worden gemaakt.",
 
 	"compose_title_new": "Nieuw bericht",
 	"compose_to": "Aan",
@@ -384,6 +393,12 @@
 	"setup_field_mail_server": "Mailserver",
 	"setup_field_email": "E-mailadres",
 	"setup_field_password": "Wachtwoord",
+
+	"setup_sender_name_title": "Je naam",
+	"setup_sender_name_description": "Dit is de naam die mensen naast je adres zien bij de e-mail die je verstuurt. Je kunt dit later aanpassen in Instellingen.",
+	"setup_sender_name_field": "Je naam",
+	"setup_sender_name_continue": "Doorgaan",
+	"setup_sender_name_skip": "Nu overslaan",
 	"setup_field_smtp": "Uitgaande server (SMTP)",
 	"setup_field_caldav": "Agenda-server (CalDAV)",
 	"setup_field_smtp_optional": "Uitgaande server, SMTP (optioneel)",
@@ -505,6 +520,10 @@
 	"settings_composing_description": "Hoe antwoorden en doorgestuurde berichten het originele bericht citeren.",
 	"settings_send_account_heading": "Standaardaccount voor nieuwe e-mail",
 	"settings_send_account_description": "Vanaf welk account nieuwe berichten worden verzonden als je de gecombineerde inbox bekijkt. Antwoorden vertrekken altijd vanaf het account dat de e-mail ontving.",
+
+	"settings_sender_name_heading": "Je naam",
+	"settings_sender_name_description": "De naam die mensen naast je adres zien bij de e-mail die je verstuurt. Laat het leeg om alleen met je adres te versturen.",
+	"settings_sender_name_managed": "Je organisatie bepaalt deze naam, dus je kunt hem hier niet wijzigen.",
 	"settings_swipe_heading": "Veegacties",
 	"settings_swipe_description": "Wat er gebeurt als je een bericht naar links of rechts veegt. Na een veegactie kun je die direct ongedaan maken.",
 	"settings_swipe_left": "Naar links vegen",
