@@ -282,6 +282,9 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::reading::attachment_tests::the_reading_header_formats_its_timestamp();
     crate::ui::reading::attachment_tests::an_attachment_name_is_never_parsed_as_markup();
     crate::ui::reading::attachment_tests::an_attachment_button_still_reads_as_its_verb();
+    crate::ui::reading::attachment_tests::the_page_survives_the_gap_before_the_next_body_lands();
+    crate::ui::reading::canvas::tests::the_drawn_canvas_paints_the_page_the_core_names();
+    crate::ui::reading::canvas::tests::the_web_view_base_is_the_same_page();
     crate::ui::modal::tests::a_modal_renders_its_title_in_native_chrome_only();
     crate::ui::avatar::tests::avatars_and_unread_dots_are_presentational();
     crate::ui::settings::tests::a_closed_settings_window_is_not_on_screen();
