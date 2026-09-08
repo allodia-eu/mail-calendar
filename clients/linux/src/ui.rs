@@ -97,7 +97,9 @@ mod welcome;
 
 use calendar::CalendarModel;
 use composer_draft::PendingNavigation;
-use composer_model::{ComposeKind, ComposeRequest};
+#[cfg(any(debug_assertions, feature = "dev-harness"))]
+use composer_model::ComposeKind;
+use composer_model::ComposeRequest;
 use connectivity::ConnectivityState;
 use contacts::ContactsModel;
 pub(crate) use destinations::PrimaryView;
