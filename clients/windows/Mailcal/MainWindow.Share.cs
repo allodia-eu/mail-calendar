@@ -44,7 +44,7 @@ public sealed partial class MainWindow
             return;
         }
         // Counts only: the names are the user's own files (docs/logging.md).
-        Log.Info($"share received: {prefill.Attachments.Count} file(s), {prefill.Rejected.Count} refused");
+        Log.Info($"share received: {prefill.Attachments.Length} file(s), {prefill.Rejected.Length} refused");
         _pendingShare = prefill;
         TryOpenPendingShare();
     }

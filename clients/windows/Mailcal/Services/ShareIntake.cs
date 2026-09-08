@@ -38,7 +38,7 @@ internal static class ShareIntake
             var data = operation.Data;
             var files = data.Contains(StandardDataFormats.StorageItems)
                 ? await StageAsync(await data.GetStorageItemsAsync())
-                : new List<SharedFile>();
+                : Array.Empty<SharedFile>();
             var text = data.Contains(StandardDataFormats.Text)
                 ? await data.GetTextAsync()
                 : string.Empty;
@@ -50,7 +50,8 @@ internal static class ShareIntake
             }
             // Everything from here is the core's: the names, the media types, the cap, and which
             // items it will not take. Nothing above this line inspected a file.
-            return PrefillFromShare(new ShareRequest(files, text, operation.Data.Properties.Title ?? string.Empty));
+            return MailcalBindingsMethods.PrefillFromShare(
+                new ShareRequest(files, text, operation.Data.Properties.Title ?? string.Empty));
         }
         catch (Exception error)
         {
@@ -76,7 +77,7 @@ internal static class ShareIntake
     /// entirely, since a message attaches files.
     /// </para>
     /// </remarks>
-    private static async Task<List<SharedFile>> StageAsync(IReadOnlyList<IStorageItem> items)
+    private static async Task<SharedFile[]> StageAsync(IReadOnlyList<IStorageItem> items)
     {
         var staged = new List<SharedFile>();
         Directory.CreateDirectory(StagingDirectory);
@@ -103,7 +104,7 @@ internal static class ShareIntake
                 Log.Warn($"a shared file could not be staged: {error.GetType().Name}");
             }
         }
-        return staged;
+        return staged.ToArray();
     }
 
     /// <summary>How long a staged copy is kept before the next share clears it away.</summary>

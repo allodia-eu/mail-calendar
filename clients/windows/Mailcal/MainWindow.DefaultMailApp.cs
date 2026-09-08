@@ -37,7 +37,7 @@ public sealed partial class MainWindow
         // close button answers, so an offer put now would be recorded as declined without anyone
         // having been asked, and this one is put once. It waits for the next account change, or
         // the next launch, both of which come back here.
-        if (DialogHelper.IsShowing || _pendingMailLink is not null)
+        if (DialogHelper.IsShowing || _pendingShare is not null || _pendingMailLink is not null)
         {
             return;
         }

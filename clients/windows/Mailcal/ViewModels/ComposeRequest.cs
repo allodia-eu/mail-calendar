@@ -48,7 +48,10 @@ namespace Allodia.Mailcal.ViewModels;
 /// and media type included, so the list is displayed as given and never re-derived. Empty for
 /// every other route: the picker fills it. Removable like any picked file, a share proposes an
 /// attachment, it does not impose one.</param>
-public sealed record ComposeRequest(
+// Internal, not public: `Attachments` carries the generated `ComposerFileAttachment`, and every
+// record the C# bindgen emits is internal. The public types in this directory are the ones XAML
+// binds to; this one is only ever constructed and read from code-behind.
+internal sealed record ComposeRequest(
     RichComposeKind Kind,
     string? Account,
     string? Key,
