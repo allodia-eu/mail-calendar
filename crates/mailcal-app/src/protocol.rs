@@ -96,6 +96,29 @@ pub struct RecipientSuggestion {
     pub cc: String,
 }
 
+/// What one action does to every row the user has selected.
+///
+/// One variant per button a selection bar offers. Read and unread are separate variants rather
+/// than one carrying a flag, because the bar shows a single button whose label the client picks
+/// from what is selected (`docs/list-selection.md`); the same for flag and unflag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BulkAction {
+    /// Mark every selected message read.
+    MarkRead,
+    /// Mark every selected message unread.
+    MarkUnread,
+    /// Flag every selected message.
+    Flag,
+    /// Unflag every selected message.
+    Unflag,
+    /// Move every selected message to its account's Archive folder.
+    Archive,
+    /// Move every selected message to its account's Trash folder (recoverable).
+    Delete,
+    /// **Permanently** delete every selected message (irreversible: not a Trash move).
+    PermanentlyDelete,
+}
+
 /// Which folders an active search covers.
 ///
 /// Search answers "where is that message", so it looks **everywhere** by default; every

@@ -26,6 +26,12 @@ public sealed partial class ReadingView : UserControl
 {
     private MailboxModel? _model;
 
+    /// <summary>
+    /// The same model, for the one thing in this pane the markup binds rather than the code
+    /// renders: the count shown while several rows are selected.
+    /// </summary>
+    public MailboxModel? Model => _model;
+
     /// <summary>Whether the user opted to load this message's remote images (reset per message).</summary>
     private bool _loadRemoteImages;
 
@@ -52,6 +58,7 @@ public sealed partial class ReadingView : UserControl
     public void Init(MailboxModel model)
     {
         _model = model;
+        this.Bindings.Update();
         model.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MailboxModel.OpenedMessage))

@@ -345,6 +345,25 @@ struct ReadingPanePlaceholder: View {
     }
 }
 
+/// What the reading pane shows while several rows are selected: the count, over whatever the pane
+/// was holding. Opaque, so the message underneath is covered rather than shining through.
+struct SelectionCountPane: View {
+    let label: String
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "envelope.badge.fill")
+                .font(.system(size: 32))
+                .foregroundStyle(.tertiary)
+            Text(label)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.background)
+    }
+}
+
 /// The bar shown above a message that has remote images, which are blocked by default to
 /// avoid tracking. Tapping "Load images" opts in for this message.
 private struct RemoteImagesBanner: View {

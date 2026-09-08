@@ -140,20 +140,30 @@ extension ContentView {
                     .frame(minWidth: 420, idealWidth: 620)
             }
         case .mail:
-            HSplitView {
-                messageList
-                    .frame(minWidth: 420, idealWidth: 540, maxWidth: 720)
-                    .background(
-                        SplitViewAutosave(name: AppPrefs.autosaveName("AllodiaMailMacMailV3"))
-                    )
-                // The second column is the reading pane, or, while a draft is open, the composer
-                // in its place. Writing a message no longer blacks out the mailbox
-                // behind a sheet: the sidebar and the list stay live, and clicking another message
-                // asks before it drops the draft (openGuardingDraft). Swapping the two keeps this
-                // split at two panes, so opening a draft doesn't disturb the divider either.
-                detailColumn
-                    .frame(minWidth: 420, idealWidth: 760)
+            // The actions bar spans the split rather than sitting inside the list column: it acts
+            // on rows, but its buttons are as wide as the words on them, and a column the user can
+            // drag to 420 points made the last of them something to scroll sideways for.
+            VStack(spacing: 0) {
+                selectionBar
+                Divider()
+                mailPanes
             }
+        }
+    }
+
+    /// The mailbox's two panes, under the actions bar that spans them.
+    private var mailPanes: some View {
+        HSplitView {
+            messageList
+                .frame(minWidth: 420, idealWidth: 540, maxWidth: 720)
+                .background(SplitViewAutosave(name: AppPrefs.autosaveName("AllodiaMailMacMailV3")))
+            // The second column is the reading pane, or, while a draft is open, the composer in
+            // its place. Writing a message no longer blacks out the mailbox behind a sheet: the
+            // sidebar and the list stay live, and clicking another message asks before it drops
+            // the draft (openGuardingDraft). Swapping the two keeps this split at two panes, so
+            // opening a draft doesn't disturb the divider either.
+            detailColumn
+                .frame(minWidth: 420, idealWidth: 760)
         }
     }
 
@@ -309,20 +319,26 @@ extension ContentView {
     var compactMessageList: some View {
         VStack(spacing: 0) {
             SearchHorizonStrip(horizon: model.searchHorizon) { settingsCategory = .accounts }
-            List {
-                let rows = visibleRows
-                ForEach(rows, id: \.rowID) { row in
-                    rowView(row)
-                        .onAppear {
-                            if row.rowID == rows.last?.rowID {
-                                Task { @MainActor in model.showMore() }
+            // The count and the batched actions, over the rows they describe. Nothing selected
+            // draws nothing, so the list keeps its full height the rest of the time.
+            selectionBar
+            selectionBehaviour(
+                List {
+                    let rows = visibleRows
+                    ForEach(rows, id: \.rowID) { row in
+                        rowView(row)
+                            .listRowBackground(rowHighlight(row))
+                            .onAppear {
+                                if row.rowID == rows.last?.rowID {
+                                    Task { @MainActor in model.showMore() }
+                                }
                             }
-                        }
+                    }
                 }
-            }
-            .listStyle(.plain)
-            .searchable(text: $searchText, prompt: Text(L10n.search_placeholder()))
-            .onChange(of: searchText) { _, query in model.search(query) }
+                .listStyle(.plain)
+                .searchable(text: $searchText, prompt: Text(L10n.search_placeholder()))
+                .onChange(of: searchText) { _, query in model.search(query) }
+            )
             // Below the list, and outside it. As the list's first *row* it pushed every message
             // down when a background sync began and back up when it ended; as a strip under the
             // list it neither moves the rows nor scrolls away with them.

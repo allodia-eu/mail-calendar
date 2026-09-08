@@ -5,11 +5,23 @@ extension ContentView {
     /// The reading pane (third column): the open message inline, or the empty-state placeholder
     /// when nothing is selected. Selection drives it, tapping a row sets `openedMessage` and
     /// asks the core to fetch + sanitise the body (`open(_:)`).
+    ///
+    /// Several rows picked at once put the count here instead, over whatever the pane held, which
+    /// is where the desktop states it (`docs/list-selection.md`, rule 10). Over, not instead of:
+    /// swapping the subtree out would tear down the reading view and re-fetch the body the moment
+    /// the selection dropped back to one row.
     @ViewBuilder var readingPane: some View {
-        if let opened = openedMessage {
-            readingView(for: opened)
-        } else {
-            ReadingPanePlaceholder()
+        ZStack {
+            if let opened = openedMessage {
+                readingView(for: opened)
+            } else {
+                ReadingPanePlaceholder()
+            }
+            #if os(macOS)
+            if let label = selection.paneLabel(mode: model.mode) {
+                SelectionCountPane(label: label)
+            }
+            #endif
         }
     }
 
@@ -53,6 +65,12 @@ extension ContentView {
         }
     }
 
+    /// The background a list row is drawn on: selected, open in the reading pane, or neither.
+    func rowHighlight(_ row: SnapshotRow) -> Color {
+        if isSelectedRow(row) { return Color.accentColor.opacity(0.25) }
+        return isReadingRow(row) ? Color.accentColor.opacity(0.15) : Color.clear
+    }
+
     var messageList: some View {
         VStack(spacing: 0) {
             messageListHeader
@@ -61,25 +79,29 @@ extension ContentView {
             // list, so unlike the progress bar below, it moves no rows the user is reading.
             SearchHorizonStrip(horizon: model.searchHorizon) { settingsCategory = .accounts }
             Divider()
-            List {
-                let rows = visibleRows
-                ForEach(rows, id: \.rowID) { row in
-                    rowView(row)
-                        // Highlight the row whose message is open in the reading pane.
-                        .listRowBackground(isReadingRow(row) ? Color.accentColor.opacity(0.15) : Color.clear)
-                        // Infinite scroll: when the last row appears, ask the core for the next
-                        // page. It grows the window and re-projects; the model coalesces the
-                        // burst and no-ops once every row is shown.
-                        .onAppear {
-                            // Defer to the next main-actor hop so we don't grow the list from
-                            // inside the table's layout pass (the source of the NSTableView
-                            // "reentrant operation" warning).
-                            if row.rowID == rows.last?.rowID {
-                                Task { @MainActor in model.showMore() }
+            selectionBehaviour(
+                List {
+                    let rows = visibleRows
+                    ForEach(rows, id: \.rowID) { row in
+                        rowView(row)
+                            // Highlight the selected rows, and the one whose message is open in
+                            // the reading pane. Selection wins where they disagree: it is what
+                            // the bar's buttons would act on, so it is what has to be legible.
+                            .listRowBackground(rowHighlight(row))
+                            // Infinite scroll: when the last row appears, ask the core for the
+                            // next page. It grows the window and re-projects; the model coalesces
+                            // the burst and no-ops once every row is shown.
+                            .onAppear {
+                                // Defer to the next main-actor hop so we don't grow the list from
+                                // inside the table's layout pass (the source of the NSTableView
+                                // "reentrant operation" warning).
+                                if row.rowID == rows.last?.rowID {
+                                    Task { @MainActor in model.showMore() }
+                                }
                             }
-                        }
+                    }
                 }
-            }
+            )
             Divider()
             // Background-download progress: a thin bar with a "downloading Y of X" count, shown
             // only while a sync is fetching mail (the rows arrive on their own signal).

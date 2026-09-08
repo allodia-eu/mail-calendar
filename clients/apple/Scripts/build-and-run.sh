@@ -362,7 +362,14 @@ if [[ "$PLATFORM" == "macos" ]]; then
     pkill -f "$APP/Contents/MacOS/AllodiaMail" 2>/dev/null || true
     if [[ "$has_mailcal_env" -eq 1 ]]; then
       echo "==> Launching AllodiaMail (forwarding MAILCAL_* dev env)"
-      "$APP/Contents/MacOS/AllodiaMail" &
+      # The app's own streams go to a file, never to whatever ran this script. A GUI child
+      # inherits the caller's stdout and holds it open for as long as the app is up, so a runner
+      # that waits for the stream to close (CI, an agent) sits there for the whole session: the
+      # app being on screen IS the state that reads as a hang. A human never sees it, an
+      # interactive shell returns its prompt either way.
+      launch_log="${TMPDIR:-/tmp}/allodia-mail-launch.log"
+      "$APP/Contents/MacOS/AllodiaMail" >"$launch_log" 2>&1 </dev/null &
+      echo "==> Launch output: $launch_log (the app's own log is below)"
     else
       echo "==> Launching AllodiaMail"
       # `-n` is load-bearing. This bundle and an installed Allodia Mail share the identifier

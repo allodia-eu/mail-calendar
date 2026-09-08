@@ -20,14 +20,17 @@ use super::{
     mailbox_progressive::ProgressiveRenderer,
     reading::{InvitationClock, ReadingPane},
     search::SearchBar,
+    selection_bar::{self, SelectionBar, SelectionCountPane},
+    selection_input::{selection_gesture, selection_keys, sync_selection},
     settings::SettingsWindow,
     setup::SetupWindow,
     setup_widgets::SenderNamePrompt,
+    shell_sidebar::{restore_pane_width, sidebar_pane},
     time_zone::TimeZonePrompt,
     unfiled_copy::UnfiledCopyPrompt,
     welcome::WelcomeWindow,
 };
-use crate::{l10n, preferences};
+use crate::l10n;
 
 pub(crate) struct AppWidgets {
     root: adw::ApplicationWindow,
@@ -35,6 +38,8 @@ pub(crate) struct AppWidgets {
     sidebar: gtk::ListBox,
     messages: gtk::ListBox,
     search: SearchBar,
+    selection_bar: SelectionBar,
+    selection_pane: SelectionCountPane,
     primary: gtk::Stack,
     detail: gtk::Stack,
     destinations: DestinationBar,
@@ -97,9 +102,16 @@ impl AppWidgets {
         let sidebar_toolbar = sidebar_pane(&sender, &sidebar_scroll, &destinations);
 
         let messages = gtk::ListBox::new();
-        messages.set_selection_mode(gtk::SelectionMode::Single);
+        // Multiple, so a selection is the platform's own selected state rather than a colour we
+        // paint: a screen reader reads it, and Shift+arrow extends it (`docs/list-selection.md`,
+        // rule 11). The widget still holds no selection of its own; `sync_selection` draws the
+        // model's onto it after every render.
+        messages.set_selection_mode(gtk::SelectionMode::Multiple);
         messages.add_css_class("boxed-list");
         messages.update_property(&[AccessibleProperty::Label(l10n::a11y_message_list())]);
+        selection_gesture(&messages, &sender);
+        selection_keys(&messages, &sender);
+        let selection_bar = SelectionBar::new(&sender);
         let message_scroll = gtk::ScrolledWindow::new();
         message_scroll.set_min_content_width(340);
         message_scroll.set_child(Some(&messages));
@@ -178,7 +190,13 @@ impl AppWidgets {
         let detail = gtk::Stack::new();
         detail.set_hexpand(true);
         detail.set_vexpand(true);
-        detail.add_named(reading.widget(), Some("reading"));
+        // The count several selected rows put over the pane is an overlay on the reading page, not
+        // a page of its own: `SelectionCountPane` holds why.
+        let selection_pane = SelectionCountPane::new();
+        let reading_overlay = gtk::Overlay::new();
+        reading_overlay.set_child(Some(reading.widget()));
+        reading_overlay.add_overlay(selection_pane.widget());
+        detail.add_named(&reading_overlay, Some("reading"));
         detail.add_named(composer.widget(), Some("composer"));
         detail.set_visible_child_name("reading");
 
@@ -188,11 +206,14 @@ impl AppWidgets {
         inner.set_position(390);
         inner.set_resize_start_child(false);
         inner.set_shrink_start_child(false);
+        // The actions bar sits over both panes rather than inside the list; `mail_surface` holds
+        // why.
+        let mail = selection_bar::mail_surface(&selection_bar, &inner);
         let calendar = CalendarPane::new(&root, sender.clone());
         let contacts = ContactsPane::new(&root, sender.clone());
         let primary = gtk::Stack::new();
         primary.set_transition_type(gtk::StackTransitionType::Crossfade);
-        primary.add_named(&inner, Some("mail"));
+        primary.add_named(&mail, Some("mail"));
         primary.add_named(calendar.widget(), Some("calendar"));
         primary.add_named(contacts.widget(), Some("contacts"));
         let outer = gtk::Paned::new(gtk::Orientation::Horizontal);
@@ -212,6 +233,8 @@ impl AppWidgets {
             sidebar,
             messages,
             search,
+            selection_bar,
+            selection_pane,
             primary,
             detail,
             destinations,
@@ -299,6 +322,12 @@ impl AppWidgets {
             );
             self.rendered_snapshot = Some(rendering);
         }
+        // After the rows, always: a plain click has already moved the widget's own selection, and
+        // this is what brings it back to what the model says (`selection_gesture`).
+        sync_selection(&self.messages, model);
+        let selection = model.selection.summary(&model.snapshot.rows);
+        self.selection_bar.render(selection);
+        self.selection_pane.render(selection, &model.snapshot.mode);
         if let Some(request) = &model.composer {
             self.settings.close();
             if !self.composer.is_active(model.composer_generation) {
@@ -424,52 +453,6 @@ impl AppWidgets {
 
 fn entered_calendar(previous: Option<PrimaryView>, current: PrimaryView) -> bool {
     current == PrimaryView::Calendar && previous != Some(PrimaryView::Calendar)
-}
-
-/// Assembles the folder pane: every account's tree scrolling under a header, with the destination
-/// switcher pinned beneath it.
-///
-/// The switcher is a **bottom bar** of the toolbar view rather than a row inside the scrolled
-/// tree, which is what makes it survive a long folder list: the bar's height is reserved before
-/// the accounts get theirs, so an account with fifty folders scrolls for as long as it likes and
-/// the calendar, contacts and settings stay where the user last saw them.
-pub(super) fn sidebar_pane(
-    sender: &relm4::Sender<AppInput>,
-    accounts: &gtk::ScrolledWindow,
-    destinations: &DestinationBar,
-) -> adw::ToolbarView {
-    let pane = adw::ToolbarView::new();
-    let header = adw::HeaderBar::new();
-    header.set_show_start_title_buttons(false);
-    header.set_show_end_title_buttons(false);
-    header.set_title_widget(Some(&adw::WindowTitle::new(l10n::sidebar_accounts(), "")));
-    let add_account = gtk::Button::from_icon_name("list-add-symbolic");
-    add_account.set_tooltip_text(Some(l10n::action_add_account()));
-    add_account.update_property(&[AccessibleProperty::Label(l10n::action_add_account())]);
-    let input = sender.clone();
-    add_account.connect_clicked(move |_| input.emit(AppInput::OpenAccountSetup));
-    header.pack_start(&add_account);
-    pane.add_top_bar(&header);
-    pane.set_content(Some(accounts));
-    pane.add_bottom_bar(destinations.widget());
-    pane
-}
-
-/// Opens the folder pane at the width the user last left it, and keeps it there.
-///
-/// The width is the host's to remember (the core has no notion of a pane), and it is remembered
-/// because an account address is as long as it is: at a fixed width the row that gets clipped
-/// mid-domain is precisely the one with several accounts to tell apart. The clamp is applied
-/// against the window's own width, so a pane dragged wide on a large monitor cannot open on a
-/// small one with no mail beside it.
-fn restore_pane_width(pane: &gtk::Paned, root: &adw::ApplicationWindow) {
-    let stored = preferences::global()
-        .folder_pane_width()
-        .unwrap_or(folder_pane::width::DEFAULT);
-    pane.set_position(folder_pane::width::clamp(stored, root.default_width()));
-    pane.connect_position_notify(|pane| {
-        preferences::global().set_folder_pane_width(pane.position());
-    });
 }
 
 #[cfg(test)]

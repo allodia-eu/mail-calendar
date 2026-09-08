@@ -117,15 +117,21 @@ extension ContentView {
 
     @ViewBuilder
     func rowView(_ row: SnapshotRow) -> some View {
+        // Each row is handed its own click rule rather than deciding for itself: what a click
+        // means depends on the modifiers (macOS) or the mode (iPhone, iPad), and on where the row
+        // sits, so a Shift-click knows what range it is extending (`docs/list-selection.md`).
         switch row {
         case .flat(let message):
-            flatRow(message)
+            flatRow(message, click: { applySelectionClick(row) })
         case .thread(let thread):
-            threadRow(thread)
+            threadRow(thread, click: { applySelectionClick(row) })
         }
     }
 
-    private func flatRow(_ message: FlatRow) -> some View {
+    /// Whether `row` is one of the rows picked out to act on together.
+    func isSelectedRow(_ row: SnapshotRow) -> Bool { selection.contains(row) }
+
+    private func flatRow(_ message: FlatRow, click: @escaping () -> Bool) -> some View {
         HStack(spacing: 8) {
             // Alignment gutter: conversation rows put their expand/collapse chevron here
             // (Outlook-style). A flat row reserves the same width and leaves it empty, so the
@@ -165,7 +171,9 @@ extension ContentView {
         }
         .padding(.vertical, 3)
         .contentShape(Rectangle())
-        .onTapGesture { open(message) }
+        // A modified click (or a tap in selection mode) is aimed at the selection alone: opening
+        // as well would fetch and display a body for every row added to a twenty-row set.
+        .onTapGesture { if click() { open(message) } }
         // Each direction runs exactly the one action the user configured (Settings → Reading),
         // with an undo toast as the net. A swipe *rightwards* reveals the leading edge, so that
         // edge carries `swipeSettings.right`; the trailing edge carries `.left`. Mark read/unread
@@ -207,38 +215,59 @@ extension ContentView {
             Label(L10n.action_forward(), systemImage: "arrowshape.turn.up.right")
         }
         Divider()
-        Button { model.markRead(message.account, message.key, message.unread) } label: {
+        Button {
+            rowMenuAction(message, message.unread ? .markRead : .markUnread) {
+                model.markRead(message.account, message.key, message.unread)
+            }
+        } label: {
             Label(message.unread ? L10n.action_mark_read() : L10n.action_mark_unread(), systemImage: "envelope")
         }
-        Button { model.setFlagged(message.account, message.key, true) } label: {
+        Button {
+            rowMenuAction(message, .flag) { model.setFlagged(message.account, message.key, true) }
+        } label: {
             Label(L10n.action_flag(), systemImage: "flag")
         }
-        Button { model.setFlagged(message.account, message.key, false) } label: {
+        Button {
+            rowMenuAction(message, .unflag) { model.setFlagged(message.account, message.key, false) }
+        } label: {
             Label(L10n.action_clear_flag(), systemImage: "flag.slash")
         }
         Divider()
         // Archive alongside Trash, so both destinations are on the menu (not only the swipe).
-        Button { model.archive(message.account, message.key) } label: {
+        Button {
+            rowMenuAction(message, .archive) { model.archive(message.account, message.key) }
+        } label: {
             Label(L10n.action_archive(), systemImage: "archivebox")
         }
-        Button { model.delete(message.account, message.key) } label: {
+        Button {
+            rowMenuAction(message, .delete) { model.delete(message.account, message.key) }
+        } label: {
             Label(L10n.action_move_to_trash(), systemImage: "trash")
         }
         Button(role: .destructive) {
-            model.permanentlyDelete(message.account, message.key)
+            rowMenuAction(message, .permanentlyDelete) {
+                model.permanentlyDelete(message.account, message.key)
+            }
         } label: {
             Label(L10n.action_delete_permanently(), systemImage: "trash.slash")
         }
+    }
+
+    /// A flat row menu's item: over the whole selection when this row is in it, over this row
+    /// alone when it is not (`docs/list-selection.md`, rule 12).
+    private func rowMenuAction(_ message: FlatRow, _ action: BulkAction, else single: () -> Void) {
+        if actFromRowMenu(.flat(row: message), action) { return }
+        single()
     }
 
     /// A conversation row: a tappable header (subject, message count, latest sender) that, when
     /// expanded, reveals the whole thread as indented sub-rows, every message on it, received
     /// and the account owner's own Sent replies alike (the core gathers them across folders).
     @ViewBuilder
-    private func threadRow(_ thread: ThreadRow) -> some View {
+    private func threadRow(_ thread: ThreadRow, click: @escaping () -> Bool) -> some View {
         let expanded = expandedThreads.contains(threadKey(thread))
         VStack(spacing: 0) {
-            threadHeader(thread, expanded: expanded)
+            threadHeader(thread, expanded: expanded, click: click)
             if expanded {
                 ForEach(thread.messages, id: \.key) { message in
                     Divider().padding(.leading, 30)
@@ -250,7 +279,11 @@ extension ContentView {
 
     /// The thread's summary header. A collapsed thread whose open message is in the reading pane
     /// is highlighted here (expanded, the open sub-row carries the highlight instead).
-    private func threadHeader(_ thread: ThreadRow, expanded: Bool) -> some View {
+    private func threadHeader(
+        _ thread: ThreadRow,
+        expanded: Bool,
+        click: @escaping () -> Bool
+    ) -> some View {
         let active = !expanded && thread.messages.contains { isOpenMessage($0.account, $0.key) }
         // A conversation is unread if anything in it is: the header is a summary, and it may not
         // read as settled while it hides an unread reply. Its sub-rows carry their own weight.
@@ -293,7 +326,7 @@ extension ContentView {
         .padding(.vertical, 3)
         .background(active ? Color.accentColor.opacity(0.15) : Color.clear)
         .contentShape(Rectangle())
-        .onTapGesture { open(thread) }
+        .onTapGesture { if click() { open(thread) } }
         .contextMenu { threadMenu(thread) }
     }
 
@@ -309,6 +342,10 @@ extension ContentView {
     /// Archives a conversation (received messages only) and tidies the UI: collapse it and, if
     /// the open message was part of it, clear the reading pane, its row is leaving the folder.
     private func archiveThread(_ thread: ThreadRow) {
+        if actFromRowMenu(.thread(row: thread), .archive) {
+            expandedThreads.remove(threadKey(thread))
+            return
+        }
         model.archiveThread(thread.account, thread.threadId)
         expandedThreads.remove(threadKey(thread))
         if let opened = openedMessage,

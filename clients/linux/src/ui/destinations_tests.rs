@@ -6,7 +6,7 @@
 use adw::prelude::*;
 
 use super::{DestinationBar, ICONS};
-use crate::ui::{AppInput, PrimaryView, shell};
+use crate::ui::{AppInput, PrimaryView, shell_sidebar};
 
 /// A named glyph the theme lacks draws the broken-image icon, and the bar keeps drawing as though
 /// nothing happened; so the names are asserted rather than looked at once.
@@ -65,7 +65,7 @@ pub(crate) fn the_switcher_is_pinned_below_the_accounts_and_never_scrolls_with_t
     let destinations = DestinationBar::new(&sender);
     let accounts = gtk::ScrolledWindow::new();
     accounts.set_child(Some(&gtk::ListBox::new()));
-    let pane = shell::sidebar_pane(&sender, &accounts, &destinations);
+    let pane = shell_sidebar::sidebar_pane(&sender, &accounts, &destinations);
 
     let bar = destinations.widget().clone().upcast::<gtk::Widget>();
     assert!(

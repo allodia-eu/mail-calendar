@@ -304,17 +304,36 @@
                             Click="OnSignInExpired" />
                 </InfoBar.Content>
             </InfoBar>
-
         </StackPanel>
 
         <!-- Tap a row to open it in the reading pane (a flat row opens its message, a
-             conversation row opens its latest message); the open row stays highlighted
-             (Single selection), and right-click gives the full action menu. -->
+             conversation row opens its latest message); the open row stays highlighted, and
+             right-click gives the full action menu.
+
+             Extended selection, so Ctrl-click, Shift-click, Shift+arrow and Ctrl+A are the
+             list's own rather than something we reimplement, and the narrator reads a row's
+             selected state (docs/list-selection.md). Item click stays on because a conversation
+             row toggles its disclosure, which a selection change cannot express: clicking an
+             already-selected row changes no selection and would leave it stuck open. The click
+             handler ignores modified clicks so Ctrl-clicking twenty rows opens none of them. -->
         <ListView Grid.Row="2" x:Name="RowsList" ItemsSource="{x:Bind Model.Rows}"
-                  ItemTemplateSelector="{StaticResource RowSelector}" SelectionMode="Single"
+                  ItemTemplateSelector="{StaticResource RowSelector}" SelectionMode="Extended"
                   IsItemClickEnabled="True" ItemClick="OnRowClick"
+                  SelectionChanged="OnSelectionChanged"
                   Loaded="OnRowsListLoaded"
                   Padding="12,0,12,0">
+            <ListView.KeyboardAccelerators>
+                <!-- ScopeOwner is what scopes these to the list: an accelerator without one is
+                     invoked for the whole window whatever has focus, so a focused search box or
+                     composer would lose its own Delete and Escape (docs/list-selection.md,
+                     rule 9). Declaring them here is not the scope; naming the owner is. -->
+                <KeyboardAccelerator Key="Delete" Invoked="OnDeleteSelection"
+                                     ScopeOwner="{x:Bind RowsList}" />
+                <KeyboardAccelerator Key="Back" Invoked="OnDeleteSelection"
+                                     ScopeOwner="{x:Bind RowsList}" />
+                <KeyboardAccelerator Key="Escape" Invoked="OnClearSelection"
+                                     ScopeOwner="{x:Bind RowsList}" />
+            </ListView.KeyboardAccelerators>
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />

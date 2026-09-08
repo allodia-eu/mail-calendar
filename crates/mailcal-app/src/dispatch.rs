@@ -138,6 +138,9 @@ impl<P: Provider> App<P> {
                 let _ = self.archive(message).await;
             }
             Intent::ArchiveThread { thread } => self.archive_thread(thread).await,
+            Intent::ActOnSelection { rows, action } => {
+                self.act_on_selection(rows, action).await;
+            }
             Intent::MarkAsSpam { message } => {
                 let _ = self.mark_as_spam(message).await;
             }
