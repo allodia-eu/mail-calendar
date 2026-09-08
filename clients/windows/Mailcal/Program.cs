@@ -128,10 +128,6 @@ public static class Program
             return;
         }
 
-        // A mail link clicked while the app is already running, a browser hands it here rather
-        // than starting a second process. Checked before the OAuth delivery below, and gated on the
-        // SCHEME: both arrive as protocol activations, and mistaking one for the other would either
-        // swallow a sign-in or open a composer over it.
         // A share while the app is already running. Ahead of the mail-link and OAuth branches
         // because it is decided on the activation KIND, which neither of those can be: they are
         // both protocol activations and are told apart by their scheme.
@@ -141,6 +137,10 @@ public static class Program
             return;
         }
 
+        // A mail link clicked while the app is already running, a browser hands it here rather
+        // than starting a second process. Checked before the OAuth delivery below, and gated on the
+        // SCHEME: both arrive as protocol activations, and mistaking one for the other would either
+        // swallow a sign-in or open a composer over it.
         if (MailLinkFrom(activation) is { } link)
         {
             // Parked rather than dropped when the window is not reachable yet: an activation can
