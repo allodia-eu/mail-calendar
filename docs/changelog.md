@@ -254,6 +254,7 @@ the one we are building. Every version listed here has a note; `check-version-sy
 
 | Version | Date | What shipped |
 |---|---|---|
+| [0.8.0](changelog/released/0.8.0.md) | 2026-09-08 | Offer to become your default mail app · Drag files onto a message you are writing · Rename a thread when you reply or forward · …15 more |
 | [0.7.1](changelog/released/0.7.1.md) | 2026-09-01 | The date in a quoted reply |
 | [0.7.0](changelog/released/0.7.0.md) | 2026-08-31 | Allodia Mail & Calendar on Linux |
 | [0.6.0](changelog/released/0.6.0.md) | 2026-08-28 | A new account on a computer syncs more history · A repeating event says exactly how it repeats · An Allodia account of your own · …54 more |
