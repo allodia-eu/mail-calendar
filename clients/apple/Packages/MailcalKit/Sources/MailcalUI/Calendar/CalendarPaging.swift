@@ -4,10 +4,11 @@
 // argument, so the *client* owns the anchor. This is the whole navigation model, and it is a plain
 // type with no SwiftUI in it so the page↔date mapping is testable without a view.
 //
-// The model is the same one the Android client uses, deliberately: **a page is a week**. That week is
-// the boundary a horizontal scroll cannot cross, and the thing a swipe pages between. Zooming does
-// not switch to a differently-anchored "view"; it only changes how many of the week's seven columns
-// are on screen, so the days never move.
+// **A page is a week**: the unit the core is queried in, pulled and painted as, and the unit
+// `CalendarStrip` counts along. It is no longer the boundary a scroll cannot cross, nor a thing a
+// swipe lands on: the days are one continuous strip that runs straight through a week boundary and
+// comes to rest on a day. Zooming does not switch to a differently-anchored "view" either; it only
+// changes how many of the week's seven columns are on screen, so the days never move.
 //
 // The alternative, snapping a zoom to a Monday-aligned week view, cannot work, and it is worth
 // saying why so nobody re-introduces it: a Monday-aligned week cannot contain an arbitrary three-day
@@ -17,7 +18,7 @@
 import Foundation
 import MailcalBindings
 
-/// The days in a page. A page is a week.
+/// The days in a page, and the length of one step along the strip. A page is a week.
 let daysInWeek = 7
 
 /// The shape the calendar is drawn in.
@@ -102,9 +103,9 @@ func modeForColumns(_ columns: Int) -> CalendarMode {
 
 /// Maps pager pages to anchor dates, and moves the origin when the user switches shape or jumps home.
 ///
-/// `origin` is the date the middle page shows. It moves only on a deliberate jump, a shape change or
-/// "back to today", never on a swipe or a zoom, because a swipe is just a different page over the
-/// same origin, and a zoom must leave the days exactly where they are.
+/// `origin` is the date week 0 begins on. It moves only on a deliberate jump, a shape change or
+/// "back to today", never on a scroll or a zoom: a scroll is just a different position along the
+/// strip over the same origin, and a zoom must leave the days exactly where they are.
 struct CalendarPager {
     /// The shape being drawn.
     private(set) var mode: CalendarMode
