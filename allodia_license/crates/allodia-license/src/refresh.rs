@@ -24,6 +24,7 @@ use crate::signin::{SignInError, discovered_client};
 #[derive(Debug)]
 pub struct Refresher {
     client: OAuthClient,
+    end_session_endpoint: Option<String>,
 }
 
 impl Refresher {
@@ -35,8 +36,25 @@ impl Refresher {
     pub async fn discover() -> Result<Self, SignInError> {
         // A refresh grant carries no redirect URI (RFC 6749 §6), and this type has no path that
         // would put one on a request.
-        let (client, _) = discovered_client("").await?;
-        Ok(Self { client })
+        let (client, metadata) = discovered_client("").await?;
+        Ok(Self {
+            client,
+            end_session_endpoint: metadata.end_session_endpoint,
+        })
+    }
+
+    /// Where to end the browser session, as discovery reported it just now.
+    ///
+    /// Kept rather than dropped, because a sign-out reads this from the **stored grant** so it can
+    /// erase first and touch no network. That copy is written once, at sign-in, and the module note
+    /// above only holds *within* a process: across launches the answer can move, and when the
+    /// account service changed host it moved for everybody at once. Handing it out here is what
+    /// lets a caller refresh the stored copy from an answer it already had to fetch anyway.
+    ///
+    /// `None` for a service advertising no endpoint, which is an answer rather than a missing one.
+    #[must_use]
+    pub fn end_session_endpoint(&self) -> Option<&str> {
+        self.end_session_endpoint.as_deref()
     }
 
     /// What a sign-in against this service asks for.

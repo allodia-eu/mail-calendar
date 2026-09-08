@@ -125,10 +125,58 @@ impl MailcalApp {
                 .refresher
                 .get_or_try_init(|| async { Refresher::discover().await.map(Arc::new) }),
         );
-        built.cloned().map_err(|error| {
+        let refresher = built.cloned().map_err(|error| {
             log::warn!("allodia: the account service's metadata could not be read; {error}");
             MailcalError::Connect(error.to_string())
-        })
+        })?;
+        // Discovery has just run (or ran earlier this process), so the current sign-out endpoint is
+        // in hand for free. Spend it while we have it.
+        self.adopt_discovered_end_session(refresher.end_session_endpoint());
+        Ok(refresher)
+    }
+
+    /// Take the sign-out endpoint discovery reports, when it differs from the stored one.
+    ///
+    /// The stored grant carries this endpoint so a sign-out can erase first and touch no network:
+    /// one that had to discover before it could erase would be a sign-out that fails offline. The
+    /// price of that is a copy written once, at sign-in, and staleness in it is not theoretical.
+    /// Moving the account service to another host stranded every existing grant on the old host's
+    /// endpoint, so signing out asked a service that no longer held the session to end it, and the
+    /// one it did hold stayed open.
+    ///
+    /// Discovery already runs once per launch to build the refresher above, which makes the fresh
+    /// answer free at exactly the moment somebody is using the account. Adopting it here is what
+    /// turns that stored copy from wrong-forever into wrong-until-the-next-launch.
+    ///
+    /// Deliberately **not** a sign-out-time discovery. That would be exact, and it would also mean
+    /// a sign-out on a plane either blocks on a network round trip or has to explain itself; this
+    /// keeps sign-out offline and instant and settles for one launch of lag.
+    ///
+    /// Best-effort and quiet, like the rotation below: a convenience for a later sign-out, never
+    /// something a token mint may fail on.
+    fn adopt_discovered_end_session(&self, discovered: Option<&str>) {
+        let moved = {
+            let mut signed_in = self.allodia.lock().expect("allodia account lock");
+            let Some(stored) = signed_in.as_mut() else {
+                // Nobody signed in: there is no grant to keep current, and writing one would
+                // invent an account.
+                return;
+            };
+            if stored.end_session_endpoint.as_deref() == discovered {
+                false
+            } else {
+                stored.end_session_endpoint = discovered.map(str::to_owned);
+                true
+            }
+        };
+        // Same rule as the scope set above: a store write per refresh is a keychain prompt's worth
+        // of noise on some hosts, for a value that changes about once in the life of a service.
+        if moved {
+            log::info!(
+                "allodia: the service's sign-out endpoint has moved; adopting what discovery reports"
+            );
+            self.persist_allodia_grant();
+        }
     }
 
     /// Throw away the access token held for the process, because the grant it came from is gone.
@@ -275,9 +323,101 @@ impl MailcalApp {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc;
+
     use mailcal_oauth::Secret;
 
     use super::{Duration, REFRESH_SKEW, Tokens};
+    use crate::{
+        LogLevel, MailcalApp,
+        allodia::StoredAccount,
+        tests::{ChannelObserver, NullLogger},
+    };
+
+    /// A demo app whose credential store **refuses** every write, which is what makes the
+    /// adoption tests below say something: the value has to end up correct in memory even when
+    /// persisting it cannot succeed.
+    fn app() -> std::sync::Arc<MailcalApp> {
+        let (tx, _rx) = mpsc::channel();
+        MailcalApp::new_demo(
+            Box::new(ChannelObserver { tx }),
+            Box::new(NullLogger),
+            LogLevel::Info,
+            "Etc/UTC".to_owned(),
+        )
+    }
+
+    /// A grant that was stored when the service lived on the old host.
+    fn signed_in_with(end_session: Option<&str>) -> StoredAccount {
+        StoredAccount {
+            email: "person@example.test".to_owned(),
+            name: None,
+            refresh_token: "RT".to_owned(),
+            granted_scopes: None,
+            end_session_endpoint: end_session.map(str::to_owned),
+        }
+    }
+
+    /// The regression this whole mechanism exists for.
+    ///
+    /// Moving the account service to another host left every stored grant pointing at the old
+    /// host's sign-out endpoint, so signing out asked a service that no longer held the session
+    /// to end it. Discovery already runs once a launch to build the refresher, so the fresh answer
+    /// is free there; this is the part that spends it.
+    #[test]
+    fn a_moved_sign_out_endpoint_is_adopted() {
+        let app = app();
+        *app.allodia.lock().unwrap() =
+            Some(signed_in_with(Some("https://old.example.test/end-session")));
+
+        app.adopt_discovered_end_session(Some("https://new.example.test/end-session"));
+
+        assert_eq!(
+            app.allodia
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .end_session_endpoint
+                .as_deref(),
+            Some("https://new.example.test/end-session"),
+        );
+    }
+
+    /// A service that stops advertising one is an answer, not a value to keep out of politeness:
+    /// holding the old URL would send somebody to end a session at a host that no longer offers
+    /// the endpoint.
+    #[test]
+    fn an_endpoint_that_goes_away_is_adopted_too() {
+        let app = app();
+        *app.allodia.lock().unwrap() =
+            Some(signed_in_with(Some("https://old.example.test/end-session")));
+
+        app.adopt_discovered_end_session(None);
+
+        assert!(
+            app.allodia
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .end_session_endpoint
+                .is_none()
+        );
+    }
+
+    /// Nobody signed in means no grant to keep current. Writing one here would invent an account,
+    /// and this runs on every token mint, so it has to be inert in that state rather than merely
+    /// harmless.
+    #[test]
+    fn adopting_invents_no_account_when_nobody_is_signed_in() {
+        let app = app();
+        assert!(app.allodia.lock().unwrap().is_none());
+
+        app.adopt_discovered_end_session(Some("https://new.example.test/end-session"));
+
+        assert!(app.allodia.lock().unwrap().is_none());
+    }
 
     fn held(expires_in_minutes: i64) -> mailcal_oauth::TokenSet {
         mailcal_oauth::TokenSet {
