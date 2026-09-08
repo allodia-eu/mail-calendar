@@ -1,6 +1,6 @@
 # Rename a thread when you reply or forward
 
-Platforms: android, linux
+Platforms: macos, ios, windows, android, linux
 Bump: minor
 
 > The field opens with the subject the core would have sent, derived by the core rather than by

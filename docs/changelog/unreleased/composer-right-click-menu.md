@@ -1,6 +1,6 @@
 # A right-click menu while you write
 
-Platforms: android, linux
+Platforms: macos, windows, android, linux
 Bump: minor
 
 > Each host filters its WebView's own menu rather than drawing one, so every surviving item keeps

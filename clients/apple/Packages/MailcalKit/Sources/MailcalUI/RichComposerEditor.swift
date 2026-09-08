@@ -54,14 +54,11 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
         configuration.defaultWebpagePreferences = preferences
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.websiteDataStore = .nonPersistent()
-        // On macOS an `EditorWebView`, which filters its context menu down to the editing actions
-        // (EditorWebViewMenu.swift). iOS/iPadOS need no subclass: an editable web view already
-        // offers Cut/Copy/Paste in the system edit menu.
-        #if os(macOS)
+        // `EditorWebView` on both, for the drop the SwiftUI composer cannot reach (EditorWebView.swift
+        // on macOS, EditorWebViewTouch.swift here). The macOS one also filters its context menu down
+        // to the editing actions; iOS needs no such filter, an editable web view already offers
+        // Cut/Copy/Paste in the system edit menu.
         webView = EditorWebView(frame: .zero, configuration: configuration)
-        #else
-        webView = WKWebView(frame: .zero, configuration: configuration)
-        #endif
         super.init()
         webView.navigationDelegate = self
         webView.allowsBackForwardNavigationGestures = false

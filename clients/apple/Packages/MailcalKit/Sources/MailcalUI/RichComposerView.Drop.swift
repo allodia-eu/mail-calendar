@@ -14,6 +14,29 @@ import MailcalBindings
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// What to call a dropped item that had to be copied to disk before the host could use it, which
+/// on iPhone and iPad is all of them (`EditorWebViewTouch.swift`: a drop there carries an
+/// `NSItemProvider`, never a path).
+///
+/// The extension is the part that matters, not the stem: what a drop becomes is decided from the
+/// file's type, by `ComposerDropModifier.isPicture` below and by the core's byte sniff behind it,
+/// so an extensionless copy of a screenshot would be attached rather than offered as a picture.
+///
+/// Platform-free, and here rather than beside its one caller, so it is covered by a test: `swift
+/// test` runs on macOS, where anything inside `#if os(iOS)` compiles to nothing and reports a pass
+/// over the code that broke.
+enum DroppedFileName {
+    static func resolve(suggested: String?, type: UTType) -> String {
+        let candidate = suggested ?? "attachment"
+        guard (candidate as NSString).pathExtension.isEmpty,
+              let ext = type.preferredFilenameExtension
+        else {
+            return candidate
+        }
+        return (candidate as NSString).appendingPathExtension(ext) ?? candidate
+    }
+}
+
 /// Makes the composer accept dropped files, wherever it is mounted: the macOS detail column and
 /// the iPad's full-screen cover apply the same modifier, so the two cannot come to behave
 /// differently.
@@ -27,16 +50,13 @@ struct ComposerDropModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .dropDestination(for: URL.self) { urls, _ in
-                let files = urls.filter(\.isFileURL)
-                guard !files.isEmpty else {
-                    return false
-                }
-                attachments.append(
-                    contentsOf: files.filter { !Self.isPicture($0) }.map { PickedAttachment(url: $0) }
-                )
-                droppedPictures = files.filter(Self.isPicture)
-                return true
+            .dropDestination(for: URL.self) { urls, _ in accept(urls) }
+            // The editor is a representable, so `dropDestination` above never sees a drop that lands
+            // on it: that rectangle is a hole in the SwiftUI tree it hit-tests. The web view takes
+            // those itself and hands them straight back here, so a file dropped on the message and
+            // one dropped on the chrome go through the same code on every Apple host.
+            .onAppear {
+                (editor.webView as? EditorWebView)?.acceptDroppedFiles = { accept($0) }
             }
             .confirmationDialog(
                 L10n.compose_image_drop_title(),
@@ -52,6 +72,21 @@ struct ComposerDropModifier: ViewModifier {
             } message: {
                 Text(L10n.compose_image_drop_body())
             }
+    }
+
+    /// Sorts one drop: everything that is not a picture attaches straight away, and the pictures
+    /// go to the question below. Answers whether the drop carried anything at all.
+    @discardableResult
+    private func accept(_ urls: [URL]) -> Bool {
+        let files = urls.filter(\.isFileURL)
+        guard !files.isEmpty else {
+            return false
+        }
+        attachments.append(
+            contentsOf: files.filter { !Self.isPicture($0) }.map { PickedAttachment(url: $0) }
+        )
+        droppedPictures = files.filter(Self.isPicture)
+        return true
     }
 
     /// Whether a dropped file is worth asking about. The system's guess from the file's type,

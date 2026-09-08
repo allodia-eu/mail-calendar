@@ -1,6 +1,6 @@
 # Drag files onto a message you are writing
 
-Platforms: android, linux
+Platforms: macos, ios, windows, android, linux
 Bump: minor
 
 > The page refuses the drop and the host takes it: web code only ever sees a `File` with no path,

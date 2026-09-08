@@ -1,6 +1,6 @@
 # Paste a picture straight into a message
 
-Platforms: android, linux
+Platforms: macos, ios, windows, android, linux
 Bump: minor
 
 > The bytes travel inside the editor document as a `data:` URI and the shared core turns them into
