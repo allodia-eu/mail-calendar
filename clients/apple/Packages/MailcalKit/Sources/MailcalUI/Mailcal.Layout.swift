@@ -140,20 +140,30 @@ extension ContentView {
                     .frame(minWidth: 420, idealWidth: 620)
             }
         case .mail:
-            HSplitView {
-                messageList
-                    .frame(minWidth: 420, idealWidth: 540, maxWidth: 720)
-                    .background(
-                        SplitViewAutosave(name: AppPrefs.autosaveName("AllodiaMailMacMailV3"))
-                    )
-                // The second column is the reading pane, or, while a draft is open, the composer
-                // in its place. Writing a message no longer blacks out the mailbox
-                // behind a sheet: the sidebar and the list stay live, and clicking another message
-                // asks before it drops the draft (openGuardingDraft). Swapping the two keeps this
-                // split at two panes, so opening a draft doesn't disturb the divider either.
-                detailColumn
-                    .frame(minWidth: 420, idealWidth: 760)
+            // The actions bar spans the split rather than sitting inside the list column: it acts
+            // on rows, but its buttons are as wide as the words on them, and a column the user can
+            // drag to 420 points made the last of them something to scroll sideways for.
+            VStack(spacing: 0) {
+                selectionBar
+                Divider()
+                mailPanes
             }
+        }
+    }
+
+    /// The mailbox's two panes, under the actions bar that spans them.
+    private var mailPanes: some View {
+        HSplitView {
+            messageList
+                .frame(minWidth: 420, idealWidth: 540, maxWidth: 720)
+                .background(SplitViewAutosave(name: AppPrefs.autosaveName("AllodiaMailMacMailV3")))
+            // The second column is the reading pane, or, while a draft is open, the composer in
+            // its place. Writing a message no longer blacks out the mailbox behind a sheet: the
+            // sidebar and the list stay live, and clicking another message asks before it drops
+            // the draft (openGuardingDraft). Swapping the two keeps this split at two panes, so
+            // opening a draft doesn't disturb the divider either.
+            detailColumn
+                .frame(minWidth: 420, idealWidth: 760)
         }
     }
 

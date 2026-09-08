@@ -39,6 +39,8 @@
 	"mailbox_count_results": "{count} resultaten",
 
 	"selection_count": "{count} geselecteerd",
+	"selection_selected_messages": "{count} berichten geselecteerd",
+	"selection_selected_conversations": "{count} gesprekken geselecteerd",
 	"action_select": "Selecteren",
 	"action_select_all": "Alles selecteren",
 	"action_clear_selection": "Selectie wissen",

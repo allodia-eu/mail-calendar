@@ -349,25 +349,123 @@
                          See OnSplitter* in the code-behind. -->
                     <Grid x:Name="MailGrid" SizeChanged="OnMailGridSizeChanged"
                           Visibility="{x:Bind Model.MailVisibility, Mode=OneWay}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition x:Name="ListColumn" Width="2*" MinWidth="320" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition x:Name="ReadingColumn" Width="3*" MinWidth="380" />
                         </Grid.ColumnDefinitions>
-                        <views:MailListView x:Name="MailView" Grid.Column="0" />
-                        <controls:ColumnSplitter x:Name="PaneSplitter" Grid.Column="1" Width="8"
+
+                        <!-- The mail actions, over BOTH panes rather than inside the list column:
+                             the buttons are as wide as the words on them, and a column the user
+                             can drag to 320 px made the last of them something to scroll sideways
+                             for. Spanning the splitter also fixes their position, so widening the
+                             list does not walk the delete button across the screen.
+
+                             It stands whether or not anything is selected, with the actions merely
+                             disabled (docs/list-selection.md, rule 5). A bar that arrives with
+                             the first click moves the rows under the pointer and the message being
+                             read, which is the jump Outlook's own toolbar does not have. Select
+                             all is the one action that stays live: it is how a pointer starts a
+                             selection without touching a modifier. The read and flag buttons are
+                             single toggles whose labels come from the selection. -->
+                        <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                                Padding="16,10"
+                                BorderThickness="0,0,0,1"
+                                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                AutomationProperties.AutomationId="SelectionBar">
+                            <!-- Horizontal scrolling rather than a squeeze, for the narrowest
+                                 window the app allows: a row of buttons that vanishes takes the
+                                 delete the user was reaching for with it. -->
+                            <ScrollViewer HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button AutomationProperties.AutomationId="SelectionMarkRead"
+                                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                                            AutomationProperties.Name="{x:Bind Model.SelectionReadText, Mode=OneWay}"
+                                            Click="OnSelectionToggleRead">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE715;" FontSize="14" />
+                                            <TextBlock Text="{x:Bind Model.SelectionReadText, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button AutomationProperties.AutomationId="SelectionFlag"
+                                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                                            AutomationProperties.Name="{x:Bind Model.SelectionFlagText, Mode=OneWay}"
+                                            Click="OnSelectionToggleFlag">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE7C1;" FontSize="14" />
+                                            <TextBlock Text="{x:Bind Model.SelectionFlagText, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button AutomationProperties.AutomationId="SelectionArchive"
+                                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionArchive()}"
+                                            Click="OnSelectionArchive">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE7B8;" FontSize="14" />
+                                            <TextBlock Text="{x:Bind l10n:L10n.ActionArchive()}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button AutomationProperties.AutomationId="SelectionDelete"
+                                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionMoveToTrash()}"
+                                            Click="OnSelectionDelete">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                            <TextBlock Text="{x:Bind l10n:L10n.ActionMoveToTrash()}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <!-- The same trash glyph as the button beside it, in the
+                                         critical colour: Segoe has no second bin, and a
+                                         borrowed glyph that means something else would be
+                                         worse than the colour and the label saying it. -->
+                                    <Button AutomationProperties.AutomationId="SelectionDeletePermanently"
+                                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionDeletePermanently()}"
+                                            Click="OnSelectionPermanentlyDelete">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE74D;" FontSize="14"
+                                                      Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                            <TextBlock Text="{x:Bind l10n:L10n.ActionDeletePermanently()}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button AutomationProperties.AutomationId="SelectionSelectAll"
+                                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionSelectAll()}"
+                                            Click="OnSelectAll">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE8B3;" FontSize="14" />
+                                            <TextBlock Text="{x:Bind l10n:L10n.ActionSelectAll()}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button AutomationProperties.AutomationId="SelectionClear"
+                                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionClearSelection()}"
+                                            ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionClearSelection()}"
+                                            Click="OnClearSelection">
+                                        <FontIcon Glyph="&#xE711;" FontSize="14" />
+                                    </Button>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+
+                        <views:MailListView x:Name="MailView" Grid.Row="1" Grid.Column="0" />
+                        <controls:ColumnSplitter x:Name="PaneSplitter" Grid.Row="1" Grid.Column="1" Width="8"
                                 Background="Transparent"
                                 PointerPressed="OnSplitterPressed" PointerMoved="OnSplitterMoved"
                                 PointerReleased="OnSplitterReleased" PointerCaptureLost="OnSplitterCaptureLost">
                             <Border Width="1" HorizontalAlignment="Center"
                                     Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
                         </controls:ColumnSplitter>
-                        <views:ReadingView x:Name="ReadingPanel" Grid.Column="2" />
+                        <views:ReadingView x:Name="ReadingPanel" Grid.Row="1" Grid.Column="2" />
                         <!-- The composer takes the reading pane's slot while a draft is open,
                              behind the same splitter, so the sidebar and the message list stay
                              live and clickable (they were blacked out by the old modal). Exactly
                              one of the two is visible; MainWindow.Compose.cs owns the swap. -->
-                        <ContentControl x:Name="ComposerHost" Grid.Column="2"
+                        <ContentControl x:Name="ComposerHost" Grid.Row="1" Grid.Column="2"
                                         Visibility="Collapsed"
                                         HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                         HorizontalContentAlignment="Stretch"

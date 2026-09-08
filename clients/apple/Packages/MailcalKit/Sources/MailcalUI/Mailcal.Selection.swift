@@ -132,26 +132,43 @@ extension ContentView {
     }
     #endif
 
-    /// The bar over the list while rows are selected: the count, and the actions the contract
-    /// gives it. Hidden entirely when nothing is picked, so it costs the list no height.
+    /// The bar of message actions: the count, and the actions the contract gives it.
+    ///
+    /// On macOS it is **standing chrome** over both the list and the reading pane, and its actions
+    /// are merely disabled while nothing is picked (`docs/list-selection.md`, rule 5): a bar that
+    /// arrives with the first click moves the rows under the pointer and the message being read,
+    /// which is the jump Outlook's own toolbar does not have. On the iPhone and the iPad selecting
+    /// is a mode, so the bar is that mode's chrome and comes and goes with it.
     @ViewBuilder
     var selectionBar: some View {
-        if !selection.isEmpty {
-            HStack(spacing: 8) {
-                Text(L10n.selection_count(count: selection.count))
-                    .font(.callout.weight(.semibold))
-                Spacer()
-                selectionButtons
-            }
-            // Icons, not words: six labelled buttons do not fit a list column the user can drag
-            // to 420 points, and a bar that overflows hides the delete they were reaching for.
-            // Each button is still a `Label`, so its name is what assistive technology reads.
-            .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(.quaternary.opacity(0.5))
+        #if os(macOS)
+        selectionBarRow
+        #else
+        if !selection.isEmpty { selectionBarRow }
+        #endif
+    }
+
+    private var selectionBarRow: some View {
+        HStack(spacing: 18) {
+            // Leading, where a toolbar's buttons live and where Outlook puts the same six: at the
+            // trailing edge they moved with every drag of the divider under them.
+            selectionButtons
+            Spacer()
         }
+        #if os(macOS)
+        // Icon and word together, which is what the bar's full width across both panes buys: the
+        // glyph is what the eye finds and the word is what settles which trash can it is.
+        .labelStyle(.titleAndIcon)
+        #else
+        // Icons alone: six labelled buttons do not fit a list column the user can drag to 420
+        // points, and a bar that overflows hides the delete they were reaching for. Each button
+        // is still a `Label`, so its name is what assistive technology reads.
+        .labelStyle(.iconOnly)
+        #endif
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.quaternary.opacity(0.5))
     }
 
     @ViewBuilder
@@ -160,39 +177,45 @@ extension ContentView {
         // one that changes something.
         let read = selection.readAction(in: visibleRows)
         let flag = selection.flagAction(in: visibleRows)
-        Button {
-            actOnSelection(read)
-        } label: {
-            Label(
-                read == .markRead ? L10n.action_mark_read() : L10n.action_mark_unread(),
-                systemImage: "envelope"
-            )
+        Group {
+            Button {
+                actOnSelection(read)
+            } label: {
+                Label(
+                    read == .markRead ? L10n.action_mark_read() : L10n.action_mark_unread(),
+                    systemImage: read == .markRead ? "envelope.open" : "envelope.badge"
+                )
+            }
+            Button {
+                actOnSelection(flag)
+            } label: {
+                Label(
+                    flag == .flag ? L10n.action_flag() : L10n.action_unflag(),
+                    systemImage: flag == .flag ? "flag" : "flag.slash"
+                )
+            }
+            Button { actOnSelection(.archive) } label: {
+                Label(L10n.action_archive(), systemImage: "archivebox")
+            }
+            Button { actOnSelection(.delete) } label: {
+                Label(L10n.action_move_to_trash(), systemImage: "trash")
+            }
+            // The row's own menu already offers this on every Apple platform, so the bar does too.
+            // It asks nothing extra here for the same reason it asks nothing there.
+            Button(role: .destructive) { actOnSelection(.permanentlyDelete) } label: {
+                Label(L10n.action_delete_permanently(), systemImage: "trash.slash")
+            }
         }
-        Button {
-            actOnSelection(flag)
-        } label: {
-            Label(
-                flag == .flag ? L10n.action_flag() : L10n.action_unflag(),
-                systemImage: flag == .flag ? "flag" : "flag.slash"
-            )
-        }
-        Button { actOnSelection(.archive) } label: {
-            Label(L10n.action_archive(), systemImage: "archivebox")
-        }
-        Button { actOnSelection(.delete) } label: {
-            Label(L10n.action_move_to_trash(), systemImage: "trash")
-        }
-        // The row's own menu already offers this on every Apple platform, so the bar does too.
-        // It asks nothing extra here for the same reason it asks nothing there.
-        Button(role: .destructive) { actOnSelection(.permanentlyDelete) } label: {
-            Label(L10n.action_delete_permanently(), systemImage: "trash.slash")
-        }
+        // Every action names the selection, so with none they have nothing to act on. Select all
+        // is the exception below: it is how a pointer starts a selection in the first place.
+        .disabled(selection.isEmpty)
         Button { selection.selectAll(visibleRows) } label: {
             Label(L10n.action_select_all(), systemImage: "checklist")
         }
         Button { endSelecting() } label: {
             Label(L10n.action_clear_selection(), systemImage: "xmark")
         }
+        .disabled(selection.isEmpty)
     }
 
     /// Leaves the selection, and on the phone and iPad the mode with it.

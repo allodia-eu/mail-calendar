@@ -304,49 +304,6 @@
                             Click="OnSignInExpired" />
                 </InfoBar.Content>
             </InfoBar>
-
-            <!-- The selection bar: what is picked, and the six actions the contract gives it
-                 (docs/list-selection.md, rule 5). Last in the banner stack, so it sits directly
-                 over the rows it describes; collapsed entirely when nothing is selected, so it
-                 costs the list no height the rest of the time. The read and flag buttons are
-                 single toggles whose labels come from the selection. -->
-            <ScrollViewer HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled"
-                          Margin="16,0,16,8"
-                          AutomationProperties.AutomationId="SelectionBar"
-                          Visibility="{x:Bind Model.SelectionVisibility, Mode=OneWay}">
-                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                    <TextBlock VerticalAlignment="Center" Margin="0,0,8,0"
-                               Style="{StaticResource BodyStrongTextBlockStyle}"
-                               AutomationProperties.AutomationId="SelectionCount"
-                               Text="{x:Bind Model.SelectionCountText, Mode=OneWay}" />
-                    <Button AutomationProperties.AutomationId="SelectionMarkRead"
-                            Content="{x:Bind Model.SelectionReadText, Mode=OneWay}"
-                            Click="OnSelectionToggleRead" />
-                    <Button AutomationProperties.AutomationId="SelectionFlag"
-                            Content="{x:Bind Model.SelectionFlagText, Mode=OneWay}"
-                            Click="OnSelectionToggleFlag" />
-                    <Button AutomationProperties.AutomationId="SelectionArchive"
-                            Content="{x:Bind l10n:L10n.ActionArchive()}"
-                            Click="OnSelectionArchive" />
-                    <Button AutomationProperties.AutomationId="SelectionDelete"
-                            Content="{x:Bind l10n:L10n.ActionMoveToTrash()}"
-                            Click="OnSelectionDelete" />
-                    <Button AutomationProperties.AutomationId="SelectionDeletePermanently"
-                            Content="{x:Bind l10n:L10n.ActionDeletePermanently()}"
-                            Click="OnSelectionPermanentlyDelete" />
-                    <Button AutomationProperties.AutomationId="SelectionSelectAll"
-                            Content="{x:Bind l10n:L10n.ActionSelectAll()}"
-                            Click="OnSelectAll" />
-                    <Button AutomationProperties.AutomationId="SelectionClear"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionClearSelection()}"
-                            ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionClearSelection()}"
-                            Click="OnClearSelectionClicked">
-                        <FontIcon Glyph="&#xE711;" FontSize="14" />
-                    </Button>
-                </StackPanel>
-            </ScrollViewer>
-
         </StackPanel>
 
         <!-- Tap a row to open it in the reading pane (a flat row opens its message, a

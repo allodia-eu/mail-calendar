@@ -223,7 +223,15 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
     public ViewModeKind Mode
     {
         get => _mode;
-        private set { if (Set(ref _mode, value)) { Raise(nameof(IsThreaded)); Raise(nameof(MailCountText)); } }
+        private set
+        {
+            if (Set(ref _mode, value))
+            {
+                Raise(nameof(IsThreaded));
+                Raise(nameof(MailCountText));
+                Raise(nameof(SelectionPaneText));
+            }
+        }
     }
 
     /// <summary>Whether the list is grouped into threads (drives the header toggle).</summary>

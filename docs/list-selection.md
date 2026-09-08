@@ -35,11 +35,28 @@ selection itself is the client's, and rule 1 says why.
    that leaves the list (archived, deleted, filtered away by a sync) leaves the selection with it.
    Nothing survives a relaunch.
 
-5. **The bar states the count and offers exactly six actions**: mark read/unread, flag/unflag,
+5. **The bar offers exactly six actions**: mark read/unread, flag/unflag,
    archive, delete, delete permanently, plus **Select all** and a way out. Read and flag are
    **single toggles**, not pairs: the label comes from the selection, so any unread row makes the
    button "Mark as read", and any unflagged row makes it "Flag". A selection that is already read
-   throughout therefore offers the action that changes something.
+   throughout therefore offers the action that changes something. With **nothing** selected both
+   name the affirmative action, since that is what the desktop bar stands there saying.
+
+   **Where there is a reading pane the bar is standing chrome, spanning both panes, its actions
+   at the leading edge.** It is on screen whether or not anything is picked, with its actions
+   disabled until something is; Select all stays live throughout, being how a pointer starts a
+   selection without a modifier. Three things follow, and each is why it is written this way. A
+   bar that arrives with the first click moves every row under the pointer *and* the message being
+   read, so the layout jumps at the moment the user is aiming at it. A bar inside the list column
+   is as narrow as a column the user may drag to 320 px, which put the last of its buttons behind
+   a horizontal scrollbar. And buttons at the *trailing* edge move with every drag of the divider
+   beneath them, where at the leading edge they stay where the hand learnt them. Each carries its
+   platform's own icon beside the word.
+
+   The phones and the iPad keep the bar the selection *mode* brings with it: there is no selection
+   to disable actions over until the mode is entered, so standing chrome there would be a row of
+   dead buttons taking height from a list that has less of it to give. That bar keeps the count,
+   which on the desktop moves to the reading pane (rule 10).
 
 6. **Archive and delete ask nothing.** Both are recoverable, and a confirmation over fifty rows
    the user deliberately picked is a dialog they will learn to dismiss unread. **Delete
@@ -74,9 +91,19 @@ selection itself is the client's, and rule 1 says why.
 10. **Select all covers the rows that are loaded**, which is the window the list is showing, not
     every message in the folder. The count says how many, so what was selected is never in doubt.
 
+    **Where there is a reading pane, the count is stated there**, over whatever the pane was
+    holding, as Outlook does: "3 conversations selected". It is the surface with room for a
+    sentence, and it is where the eye already is once the rows stop being readable one at a time.
+    Two rules govern it. It appears **above one row only**, because a plain click both selects a
+    row and opens it, so a pane stating "1 selected" would replace the message the user just asked
+    to read with a count of it. And the rows are called what the list calls them: *messages* in
+    the flat list, *conversations* in the threaded one, since a threaded row stands for a whole
+    thread. It covers the pane rather than replacing it, so dropping back to one row uncovers the
+    message with no re-fetch.
+
 11. **Selection is exposed to assistive technology as the platform's own selected state**, not as
-    a visual highlight alone: the native selected/checked property on the row, and a bar whose
-    count is a readable label rather than a bare number.
+    a visual highlight alone: the native selected/checked property on the row, and a count that is
+    a readable sentence rather than a bare number, wherever rule 10 puts it.
 
 12. **A row menu acts on the selection when its own row is in the selection.** Right-clicking one
     of five selected rows and choosing Archive archives the five, not the one under the pointer:
@@ -96,13 +123,13 @@ selection itself is the client's, and rule 1 says why.
 
 ## Per-platform
 
-| Platform | Enter | Extend | Bar | Delete key | Escape | Row menu | Where |
-|---|---|---|---|:---:|:---:|:---:|---|
-| macOS | ⌘-click a row | ⇧-click a range | over the list | ✅ | ✅ | ✅ | `Mailcal.Selection.swift` |
-| iPhone / iPadOS | **Select** in the toolbar | tap toggles | over the list | — | — | ✅ | `Mailcal.Selection.swift` |
-| Windows | Ctrl-click a row | Shift-click, Ctrl+A | over the list | ✅ | ✅ | ✅ | `Views/MailListView.Selection.cs` |
-| Android | long-press a row | tap toggles | contextual top bar | — | — | — | `MailSelectionBar.kt` |
-| Linux | Ctrl-click a row | Shift-click, Ctrl+A | over the list | ✅ | ✅ | ✅ | `ui/selection_input.rs` |
+| Platform | Enter | Extend | Bar | Count | Delete key | Escape | Row menu | Where |
+|---|---|---|---|---|:---:|:---:|:---:|---|
+| macOS | ⌘-click a row | ⇧-click a range | standing, over both panes | reading pane | ✅ | ✅ | ✅ | `Mailcal.Selection.swift` |
+| iPhone / iPadOS | **Select** in the toolbar | tap toggles | over the list, with the mode | on the bar | — | — | ✅ | `Mailcal.Selection.swift` |
+| Windows | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | `MainWindow.xaml`, `Views/MailListView.Selection.cs` |
+| Android | long-press a row | tap toggles | contextual top bar | on the bar | — | — | — | `MailSelectionBar.kt` |
+| Linux | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | `ui/selection_bar.rs`, `ui/selection_input.rs` |
 
 **Row menu** is rule 12: a menu opened on a selected row acts on the whole selection. Android is
 the one dash, and has nothing to reconcile: long-press is how a selection *starts* there, so a row
@@ -131,6 +158,10 @@ all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
   is read per account from `Capabilities::mail_report`; a bar button would have to be gated on the
   narrowest capability across a selection spanning accounts. Left until the single-row affordance
   is on every platform.
+- **The iPad has a reading pane and does not get the standing bar.** Selecting is a mode there,
+  so until it is entered there is nothing to disable actions over, and the two columns are
+  separate `NavigationSplitView` columns rather than one surface a bar can span. Giving it the
+  desktop's bar means giving it the desktop's way in first, which is the shortcuts gap below.
 - **iPad hardware keyboards get no shortcuts**, though the platform supports them: the rule above
   binds the three desktops, and adding iPad means deciding what Escape does to a selection mode
   that has its own Done button.
@@ -148,6 +179,7 @@ When you change what a selection does:
    Sent protection, the per-account routing, the one-sync-per-account cost and the individual
    restore of a refused row.
 2. A new action is a `BulkAction` variant **and** a button on all five clients' bars, or it is
-   neither. A variant nothing dispatches is a surface that drifts.
+   neither. A variant nothing dispatches is a surface that drifts. It needs an icon per platform
+   as well, since rule 5's bar carries one on every button.
 3. Keep rule 4. A selection that outlives the list it was made in acts on rows the user can no
    longer see, and the first thing they will know about it is the mail leaving their inbox.

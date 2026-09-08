@@ -20,7 +20,7 @@ use super::{
     mailbox_progressive::ProgressiveRenderer,
     reading::{InvitationClock, ReadingPane},
     search::SearchBar,
-    selection_bar::SelectionBar,
+    selection_bar::{self, SelectionBar, SelectionCountPane},
     selection_input::{selection_gesture, selection_keys, sync_selection},
     settings::SettingsWindow,
     setup::SetupWindow,
@@ -39,6 +39,7 @@ pub(crate) struct AppWidgets {
     messages: gtk::ListBox,
     search: SearchBar,
     selection_bar: SelectionBar,
+    selection_pane: SelectionCountPane,
     primary: gtk::Stack,
     detail: gtk::Stack,
     destinations: DestinationBar,
@@ -138,10 +139,6 @@ impl AppWidgets {
         // it reveals need the full width anyway.
         let search = SearchBar::new(&sender);
         list_toolbar.add_top_bar(search.widget());
-        // Under the search chrome and over the rows, which is where the count belongs: it
-        // describes the list beneath it, and the revealer keeps the list's top edge from jumping
-        // as the selection empties and fills.
-        list_toolbar.add_top_bar(selection_bar.widget());
         list_toolbar.set_content(Some(&message_scroll));
         // One strip under the list: the foreground bar may take a row because the user awaits it;
         // the background hint borrows that same location and never moves the list's top edge.
@@ -193,7 +190,13 @@ impl AppWidgets {
         let detail = gtk::Stack::new();
         detail.set_hexpand(true);
         detail.set_vexpand(true);
-        detail.add_named(reading.widget(), Some("reading"));
+        // The count several selected rows put over the pane is an overlay on the reading page, not
+        // a page of its own: `SelectionCountPane` holds why.
+        let selection_pane = SelectionCountPane::new();
+        let reading_overlay = gtk::Overlay::new();
+        reading_overlay.set_child(Some(reading.widget()));
+        reading_overlay.add_overlay(selection_pane.widget());
+        detail.add_named(&reading_overlay, Some("reading"));
         detail.add_named(composer.widget(), Some("composer"));
         detail.set_visible_child_name("reading");
 
@@ -203,11 +206,14 @@ impl AppWidgets {
         inner.set_position(390);
         inner.set_resize_start_child(false);
         inner.set_shrink_start_child(false);
+        // The actions bar sits over both panes rather than inside the list; `mail_surface` holds
+        // why.
+        let mail = selection_bar::mail_surface(&selection_bar, &inner);
         let calendar = CalendarPane::new(&root, sender.clone());
         let contacts = ContactsPane::new(&root, sender.clone());
         let primary = gtk::Stack::new();
         primary.set_transition_type(gtk::StackTransitionType::Crossfade);
-        primary.add_named(&inner, Some("mail"));
+        primary.add_named(&mail, Some("mail"));
         primary.add_named(calendar.widget(), Some("calendar"));
         primary.add_named(contacts.widget(), Some("contacts"));
         let outer = gtk::Paned::new(gtk::Orientation::Horizontal);
@@ -228,6 +234,7 @@ impl AppWidgets {
             messages,
             search,
             selection_bar,
+            selection_pane,
             primary,
             detail,
             destinations,
@@ -318,8 +325,9 @@ impl AppWidgets {
         // After the rows, always: a plain click has already moved the widget's own selection, and
         // this is what brings it back to what the model says (`selection_gesture`).
         sync_selection(&self.messages, model);
-        self.selection_bar
-            .render(model.selection.summary(&model.snapshot.rows));
+        let selection = model.selection.summary(&model.snapshot.rows);
+        self.selection_bar.render(selection);
+        self.selection_pane.render(selection, &model.snapshot.mode);
         if let Some(request) = &model.composer {
             self.settings.close();
             if !self.composer.is_active(model.composer_generation) {

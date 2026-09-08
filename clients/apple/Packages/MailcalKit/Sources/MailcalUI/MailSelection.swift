@@ -113,14 +113,35 @@ struct MailSelection {
 
     /// The action the bar's single read button runs: the one that changes something, so any unread
     /// row makes it "mark read" (`docs/list-selection.md`, rule 5).
+    ///
+    /// An empty selection names the affirmative action rather than the one a `contains` over no
+    /// rows falls out to. The desktop bar is on screen with nothing picked, and a disabled button
+    /// reading "Mark as unread" describes an action nobody asked for.
     func readAction(in rows: [SnapshotRow]) -> BulkAction {
-        selected(in: rows).contains(where: isUnread) ? .markRead : .markUnread
+        if isEmpty { return .markRead }
+        return selected(in: rows).contains(where: isUnread) ? .markRead : .markUnread
     }
 
     /// The action the bar's single flag button runs, on the same terms. A conversation carries no
     /// flag of its own, so it counts as unflagged: flagging is what its rows can be asked for.
     func flagAction(in rows: [SnapshotRow]) -> BulkAction {
-        selected(in: rows).contains(where: isUnflagged) ? .flag : .unflag
+        if isEmpty { return .flag }
+        return selected(in: rows).contains(where: isUnflagged) ? .flag : .unflag
+    }
+
+    /// What the reading pane says instead of a message while several rows are picked, or `nil`
+    /// when it should go on showing what it holds.
+    ///
+    /// **More than one**, never one: a single click both selects a row and opens it, so stating
+    /// "1 selected" over the pane would replace the message the user just asked to read with a
+    /// count of it. What the rows are called follows the list they were picked in, since a
+    /// threaded row stands for a whole conversation and a flat one for a single message.
+    func paneLabel(mode: ViewMode) -> String? {
+        guard count > 1 else { return nil }
+        switch mode {
+        case .flat: return L10n.selection_selected_messages(count: count)
+        case .threaded: return L10n.selection_selected_conversations(count: count)
+        }
     }
 
     private func selected(in rows: [SnapshotRow]) -> [SnapshotRow] { rows.filter(contains) }

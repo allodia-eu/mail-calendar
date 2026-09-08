@@ -23,14 +23,27 @@ public sealed partial class MailboxModel
     /// <summary>How many rows are selected; 0 hides the bar over the list.</summary>
     public int SelectionCount => _selectedRows.Length;
 
-    /// <summary>Whether anything is selected, so the bar is shown.</summary>
+    /// <summary>
+    /// Whether anything is selected, which is what every action on the bar is enabled by. The bar
+    /// itself stands whether or not it is true (docs/list-selection.md, rule 5).
+    /// </summary>
     public bool HasSelection => _selectedRows.Length > 0;
 
-    /// <summary>The bar's visibility, so the XAML needs no converter.</summary>
-    public Visibility SelectionVisibility => HasSelection ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>
+    /// The reading pane's own visibility for the count, so the XAML needs no converter. The bar
+    /// carries no count: the pane is where the desktop states it (docs/list-selection.md,
+    /// rule 10), and it says nothing at one row, which is the row the pane is already showing.
+    /// </summary>
+    public Visibility SelectionPaneVisibility =>
+        SelectionActions.PaneLabel(SelectionCount, IsThreaded) == SelectionPaneLabel.None
+            ? Visibility.Collapsed
+            : Visibility.Visible;
 
-    /// <summary>"N selected", the bar's own label.</summary>
-    public string SelectionCountText => L10n.SelectionCount(SelectionCount);
+    /// <summary>"N conversations selected", over whatever the reading pane was holding.</summary>
+    public string SelectionPaneText =>
+        SelectionActions.PaneLabel(SelectionCount, IsThreaded) == SelectionPaneLabel.Conversations
+            ? L10n.SelectionSelectedConversations(SelectionCount)
+            : L10n.SelectionSelectedMessages(SelectionCount);
 
     /// <summary>
     /// The label on the bar's read button. One button for the pair, never both: the useful one is
@@ -71,8 +84,8 @@ public sealed partial class MailboxModel
         Raise(nameof(SelectedRows));
         Raise(nameof(SelectionCount));
         Raise(nameof(HasSelection));
-        Raise(nameof(SelectionVisibility));
-        Raise(nameof(SelectionCountText));
+        Raise(nameof(SelectionPaneVisibility));
+        Raise(nameof(SelectionPaneText));
         Raise(nameof(SelectionReadText));
         Raise(nameof(SelectionFlagText));
         Raise(nameof(SelectionReadAction));

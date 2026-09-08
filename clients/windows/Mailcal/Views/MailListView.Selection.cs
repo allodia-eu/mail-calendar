@@ -1,11 +1,11 @@
-// The message list's multi-selection: reading what the ListView has picked, keeping the
-// highlight honest against the reading pane, and the bar's buttons. Split from
-// MailListView.xaml.cs to keep each file under the 500-line limit.
+// The message list's multi-selection: reading what the ListView has picked, the two keys bound on
+// it, and what the actions bar calls in. Split from MailListView.xaml.cs to keep each file under
+// the 500-line limit.
 //
 // The ListView owns the selection (docs/list-selection.md, rule 1). What this file adds is the
-// two places WinUI's defaults are not what a mailbox wants: a modified click must not also open
-// a message, and the auto-advancing reading-pane highlight must not collapse a selection the user
-// is still building.
+// place WinUI's defaults are not what a mailbox wants (a modified click must not also open a
+// message), and the entry points the bar uses: the bar spans both panes, so it is declared in
+// MainWindow.xaml and reaches the selection through here.
 
 using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.ViewModels;
@@ -51,26 +51,32 @@ public sealed partial class MailListView : UserControl
         RowsList.SelectedItems.Clear();
     }
 
-    private void OnClearSelectionClicked(object sender, RoutedEventArgs e) =>
-        RowsList.SelectedItems.Clear();
+    /// <summary>
+    /// Picks every loaded row, which is the window the list is showing rather than the whole
+    /// folder (docs/list-selection.md, rule 10). The bar's own affordance for it, since Ctrl+A
+    /// belongs to whatever has focus.
+    /// </summary>
+    internal void SelectAllRows() => RowsList.SelectAll();
 
-    private void OnSelectAll(object sender, RoutedEventArgs e) => RowsList.SelectAll();
+    /// <summary>Drops the selection, which the bar's cross and Escape both do.</summary>
+    internal void ClearRowSelection() => RowsList.SelectedItems.Clear();
 
-    // Whatever the button currently says, so a click runs the action the user read on it.
-    private void OnSelectionToggleRead(object sender, RoutedEventArgs e) =>
-        Model?.ActOnSelection(Model.SelectionReadAction);
+    /// <summary>Runs one action over the selection as a single batch in the core.</summary>
+    internal void ActOnSelection(BulkAction action) => Model?.ActOnSelection(action);
 
-    private void OnSelectionToggleFlag(object sender, RoutedEventArgs e) =>
-        Model?.ActOnSelection(Model.SelectionFlagAction);
+    /// <summary>
+    /// The read or flag toggle, whichever the button currently says, so a click runs the action
+    /// the user read on it.
+    /// </summary>
+    internal void ToggleSelectionRead() => Model?.ActOnSelection(Model.SelectionReadAction);
 
-    private void OnSelectionArchive(object sender, RoutedEventArgs e) =>
-        Model?.ActOnSelection(BulkAction.Archive);
+    internal void ToggleSelectionFlag() => Model?.ActOnSelection(Model.SelectionFlagAction);
 
-    private void OnSelectionDelete(object sender, RoutedEventArgs e) =>
-        Model?.ActOnSelection(BulkAction.Delete);
-
-    // The one irreversible action on the bar, so it asks first, exactly as the row menu's does.
-    private async void OnSelectionPermanentlyDelete(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// The one irreversible action on the bar, so it asks first, exactly as the row menu's does,
+    /// and names the count because that is what is actually going.
+    /// </summary>
+    internal async Task PermanentlyDeleteSelectionAsync()
     {
         if (Model is not { } model || model.SelectionCount == 0)
         {

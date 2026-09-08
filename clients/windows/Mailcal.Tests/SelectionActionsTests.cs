@@ -26,6 +26,28 @@ public class SelectionActionsTests
     private static Row Thread(bool unread = false, string key = "t1") =>
         new("acct-1", key, IsThread: true, unread, Flagged: false);
 
+    /// <summary>
+    /// A plain click selects a row *and* opens it, so a pane stating "1 selected" would replace
+    /// the message the user just asked to read with a count of it.
+    /// </summary>
+    [Fact]
+    public void TheReadingPaneStatesTheCountOnlyAboveOneRow()
+    {
+        Assert.Equal(SelectionPaneLabel.None, SelectionActions.PaneLabel(0, threaded: false));
+        Assert.Equal(SelectionPaneLabel.None, SelectionActions.PaneLabel(1, threaded: false));
+        Assert.Equal(SelectionPaneLabel.None, SelectionActions.PaneLabel(1, threaded: true));
+    }
+
+    /// <summary>The rows are called what the list they were picked in calls them.</summary>
+    [Fact]
+    public void TheCountNamesRowsAsTheListDoes()
+    {
+        Assert.Equal(SelectionPaneLabel.Messages, SelectionActions.PaneLabel(2, threaded: false));
+        Assert.Equal(
+            SelectionPaneLabel.Conversations,
+            SelectionActions.PaneLabel(2, threaded: true));
+    }
+
     [Fact]
     public void ARowMenuOnASelectedRowCoversTheWholeSelection()
     {

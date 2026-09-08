@@ -39,6 +39,8 @@
 	"mailbox_count_results": "{count} risultati",
 
 	"selection_count": "{count} selezionati",
+	"selection_selected_messages": "{count} messaggi selezionati",
+	"selection_selected_conversations": "{count} conversazioni selezionate",
 	"action_select": "Seleziona",
 	"action_select_all": "Seleziona tutto",
 	"action_clear_selection": "Annulla la selezione",

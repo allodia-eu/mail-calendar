@@ -5,11 +5,23 @@ extension ContentView {
     /// The reading pane (third column): the open message inline, or the empty-state placeholder
     /// when nothing is selected. Selection drives it, tapping a row sets `openedMessage` and
     /// asks the core to fetch + sanitise the body (`open(_:)`).
+    ///
+    /// Several rows picked at once put the count here instead, over whatever the pane held, which
+    /// is where the desktop states it (`docs/list-selection.md`, rule 10). Over, not instead of:
+    /// swapping the subtree out would tear down the reading view and re-fetch the body the moment
+    /// the selection dropped back to one row.
     @ViewBuilder var readingPane: some View {
-        if let opened = openedMessage {
-            readingView(for: opened)
-        } else {
-            ReadingPanePlaceholder()
+        ZStack {
+            if let opened = openedMessage {
+                readingView(for: opened)
+            } else {
+                ReadingPanePlaceholder()
+            }
+            #if os(macOS)
+            if let label = selection.paneLabel(mode: model.mode) {
+                SelectionCountPane(label: label)
+            }
+            #endif
         }
     }
 
@@ -66,9 +78,6 @@ extension ContentView {
             // disappears only as search itself begins and ends, which already replaces the whole
             // list, so unlike the progress bar below, it moves no rows the user is reading.
             SearchHorizonStrip(horizon: model.searchHorizon) { settingsCategory = .accounts }
-            // The count and the batched actions, over the rows they describe. Nothing selected
-            // draws nothing, so the list keeps its full height the rest of the time.
-            selectionBar
             Divider()
             selectionBehaviour(
                 List {

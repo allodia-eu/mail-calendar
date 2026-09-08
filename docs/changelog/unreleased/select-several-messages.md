@@ -8,8 +8,11 @@ Bump: minor
 > the write: one intent applies the action to every selected row, hides them together and syncs each
 > account once, where a loop over the single-row intents would sync it once per row. A conversation
 > row stands for its whole thread and the core expands it, on the same rule the thread archive
-> already followed: a copy filed in Sent never leaves Sent. Dragging rows into a folder is not part
-> of this and has no core action yet; `docs/list-selection.md` carries that gap.
+> already followed: a copy filed in Sent never leaves Sent. Where there is a reading pane the bar of
+> actions is standing chrome across both panes, disabled until something is picked, so opening a
+> selection moves neither the rows nor the message being read; the count is stated in the pane,
+> above one row only, since one row is the message the pane is already showing. Dragging rows into a folder is not
+> part of this and has no core action yet; `docs/list-selection.md` carries that gap.
 
 **English**
 

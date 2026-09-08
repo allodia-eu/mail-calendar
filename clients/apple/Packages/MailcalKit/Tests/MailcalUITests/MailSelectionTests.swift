@@ -154,6 +154,35 @@ import Testing
         #expect(selection.flagAction(in: flagged) == .unflag)
     }
 
+    /// The desktop bar stands whether or not anything is picked, so these two labels are read
+    /// with an empty selection. "Mark as unread" over nothing is the wrong sentence to leave on
+    /// screen: the affirmative action is the one the bar names until a selection says otherwise.
+    @Test func anEmptySelectionNamesTheAffirmativeActions() {
+        let rows = [flat("m1"), flat("m2", flagged: true)]
+        let selection = MailSelection()
+        #expect(selection.readAction(in: rows) == .markRead)
+        #expect(selection.flagAction(in: rows) == .flag)
+    }
+
+    /// A plain click selects a row *and* opens it, so a pane that stated "1 selected" would
+    /// replace the message the user just asked to read with a count of it.
+    @Test func theReadingPaneStatesTheCountOnlyAboveOneRow() {
+        let rows = [flat("m1"), flat("m2"), flat("m3")]
+        var selection = MailSelection()
+        #expect(selection.paneLabel(mode: .flat) == nil, "nothing picked, nothing to say")
+
+        selection.click(rows, 0, .replace)
+        #expect(selection.paneLabel(mode: .flat) == nil, "the one row is what the pane is showing")
+
+        selection.click(rows, 2, .range)
+        // The words are the catalog's; what this asserts is that the list the rows were picked in
+        // decides which noun, since a threaded row stands for a whole conversation.
+        let flatLabel = selection.paneLabel(mode: .flat)
+        let threadedLabel = selection.paneLabel(mode: .threaded)
+        #expect(flatLabel != nil)
+        #expect(flatLabel != threadedLabel)
+    }
+
     /// The core expands a conversation itself, from the store's thread index; naming its latest
     /// message here would archive one reply and leave the rest of the thread in the inbox.
     @Test func aConversationIsSelectedAsAThreadNotAsItsLatestMessage() {

@@ -392,6 +392,13 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     folder_pane::an_optimistic_click_is_not_undone_by_the_previous_snapshot();
     folder_pane::folder_rows_expose_their_navigation_as_a_semantic_action();
 
+    crate::ui::selection_bar::tests::every_action_icon_resolves_to_a_real_glyph();
+    crate::ui::selection_bar::tests::
+        an_empty_selection_leaves_the_bar_standing_and_only_select_all_live();
+    crate::ui::selection_bar::tests::the_bar_spans_both_panes_rather_than_riding_the_list();
+    crate::ui::selection_bar::tests::
+        the_pane_states_the_count_only_while_it_covers_something_worth_covering();
+
     destinations::every_destination_icon_resolves_to_a_real_glyph();
     destinations::the_switcher_navigates_on_a_press_and_stays_quiet_when_the_model_moves();
     destinations::the_switcher_is_pinned_below_the_accounts_and_never_scrolls_with_them();

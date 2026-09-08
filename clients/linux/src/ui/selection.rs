@@ -5,7 +5,9 @@
 
 use std::collections::HashSet;
 
-use mailcal_bindings::{BulkAction, SelectedRow, SnapshotRow};
+use mailcal_bindings::{BulkAction, SelectedRow, SnapshotRow, ViewMode};
+
+use crate::l10n;
 
 /// One selected row's identity: the account, plus a message key or a thread id.
 ///
@@ -79,21 +81,45 @@ pub(crate) struct SelectionSummary {
 
 impl SelectionSummary {
     /// The mark-read/mark-unread action the bar's single button runs.
+    ///
+    /// An empty selection names the affirmative action rather than the one the flags fall out to.
+    /// The bar stands with nothing picked, and an insensitive button reading "Mark as unread"
+    /// describes an action nobody asked for.
     pub(crate) fn read_action(self) -> BulkAction {
-        if self.any_unread {
+        if self.any_unread || self.count == 0 {
             BulkAction::MarkRead
         } else {
             BulkAction::MarkUnread
         }
     }
 
-    /// The flag/unflag action the bar's single button runs.
+    /// The flag/unflag action the bar's single button runs, on the same terms.
     pub(crate) fn flag_action(self) -> BulkAction {
-        if self.any_unflagged {
+        if self.any_unflagged || self.count == 0 {
             BulkAction::Flag
         } else {
             BulkAction::Unflag
         }
+    }
+}
+
+impl SelectionSummary {
+    /// What the reading pane says instead of a message while several rows are picked, or `None`
+    /// when it should go on showing what it holds.
+    ///
+    /// **More than one**, never one: a plain click both selects a row and opens it, so stating
+    /// "1 selected" over the pane would replace the message the user just asked to read with a
+    /// count of it. What the rows are called follows the list they were picked in, since a
+    /// threaded row stands for a whole conversation and a flat one for a single message.
+    pub(crate) fn pane_label(self, mode: &ViewMode) -> Option<String> {
+        if self.count < 2 {
+            return None;
+        }
+        let count = i64::try_from(self.count).unwrap_or(i64::MAX);
+        Some(match mode {
+            ViewMode::Flat => l10n::selection_selected_messages(count),
+            ViewMode::Threaded => l10n::selection_selected_conversations(count),
+        })
     }
 }
 

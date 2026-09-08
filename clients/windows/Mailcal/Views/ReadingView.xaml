@@ -254,5 +254,22 @@
             <TextBlock Text="{x:Bind l10n:L10n.ReadingEmpty()}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </StackPanel>
+
+        <!-- Several rows picked at once: the count, which is where the desktop states it
+             (docs/list-selection.md, rule 10). Declared last and opaque, so it covers whatever
+             the pane was holding instead of the pane's own state machine having to let go of it:
+             dropping back to one selected row uncovers the message, with no re-fetch and no lost
+             scroll position. Bound, not toggled in code, for the same reason. -->
+        <Grid Visibility="{x:Bind Model.SelectionPaneVisibility, Mode=OneWay}"
+              Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+              AutomationProperties.AutomationId="SelectionPane">
+            <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE8A9;" FontSize="28" HorizontalAlignment="Center"
+                          Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                <TextBlock Text="{x:Bind Model.SelectionPaneText, Mode=OneWay}"
+                           Style="{StaticResource SubtitleTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>

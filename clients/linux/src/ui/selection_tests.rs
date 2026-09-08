@@ -1,7 +1,7 @@
 //! The selection rules, without a display: what each modifier means, what survives a snapshot
 //! rebuild, and which of the paired actions the bar offers.
 
-use mailcal_bindings::{BulkAction, FlatRow, SelectedRow, SnapshotRow, ThreadRow};
+use mailcal_bindings::{BulkAction, FlatRow, SelectedRow, SnapshotRow, ThreadRow, ViewMode};
 
 use super::{SelectMode, Selection};
 
@@ -172,6 +172,49 @@ fn the_bar_offers_flag_while_anything_selected_is_unflagged() {
 
     let rows = [flat("m1", false, true), flat("m2", false, true)];
     assert_eq!(selection.summary(&rows).flag_action(), BulkAction::Unflag);
+}
+
+/// The bar stands whether or not anything is picked, so these two labels are read with an empty
+/// selection. "Mark as unread" over nothing is the wrong sentence to leave on screen: the
+/// affirmative action is the one the bar names until a selection says otherwise.
+#[test]
+fn an_empty_selection_names_the_affirmative_actions() {
+    let rows = [flat("m1", false, true), flat("m2", false, true)];
+    let summary = Selection::default().summary(&rows);
+
+    assert_eq!(summary.count, 0);
+    assert_eq!(summary.read_action(), BulkAction::MarkRead);
+    assert_eq!(summary.flag_action(), BulkAction::Flag);
+}
+
+/// A plain click selects a row *and* opens it, so a pane stating "1 selected" would replace the
+/// message the user just asked to read with a count of it.
+#[test]
+fn the_reading_pane_states_the_count_only_above_one_row() {
+    let rows = [flat("m1", false, false), flat("m2", false, false)];
+    let mut selection = Selection::default();
+    assert_eq!(
+        selection.summary(&rows).pane_label(&ViewMode::Flat),
+        None,
+        "nothing picked, nothing to say"
+    );
+
+    selection.click(&rows, 0, SelectMode::Replace);
+    assert_eq!(
+        selection.summary(&rows).pane_label(&ViewMode::Flat),
+        None,
+        "the one row is what the pane is showing"
+    );
+
+    selection.select_all(&rows);
+    let summary = selection.summary(&rows);
+    // The words are the catalog's; what this asserts is that the list the rows were picked in
+    // decides which noun, since a threaded row stands for a whole conversation.
+    assert!(summary.pane_label(&ViewMode::Flat).is_some());
+    assert_ne!(
+        summary.pane_label(&ViewMode::Flat),
+        summary.pane_label(&ViewMode::Threaded),
+    );
 }
 
 #[test]
