@@ -2,6 +2,7 @@
 // that is the way back from it. The platform call is DefaultMailApp.swift; when to ask is the
 // shared core's (docs/os-integration.md).
 
+import MailcalBindings
 import SwiftUI
 
 /// The one-time offer: when it is raised, and the alert it is raised as.
