@@ -441,7 +441,13 @@
                                             <TextBlock Text="{x:Bind l10n:L10n.ActionSelectAll()}" />
                                         </StackPanel>
                                     </Button>
+                                    <!-- Stretched, unlike its siblings: the default button style
+                                         centres its content, so this one, alone in carrying no
+                                         label, would stand at the glyph's height rather than the
+                                         row's. Stretch ties it to the tallest button, which text
+                                         scaling moves. -->
                                     <Button AutomationProperties.AutomationId="SelectionClear"
+                                            VerticalAlignment="Stretch"
                                             IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
                                             AutomationProperties.Name="{x:Bind l10n:L10n.ActionClearSelection()}"
                                             ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionClearSelection()}"
