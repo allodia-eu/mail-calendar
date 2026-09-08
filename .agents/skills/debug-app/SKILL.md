@@ -54,6 +54,19 @@ scripts/dev/boot.sh <macos|iphone|ipad|android|windows|linux> [--account stalwar
 - Extra args after `--` pass to the client's build-and-run script (e.g. `-- --simulator "iPhone 16"`,
   `-- --no-core` to skip rebuilding the Rust core; on Windows, `-- -Arch x64` / `-- -NoRun`).
 
+**A booted client outlives the script, so `boot.sh` is not a long-running command.** It returns
+once the app is on screen and the app keeps running; nothing further is coming from it, so waiting
+on it is waiting for the user to quit. On macOS with any `MAILCAL_*` var set (which `boot.sh`
+always sets) the app is launched directly rather than through LaunchServices, and its own streams
+go to `$TMPDIR/allodia-mail-launch.log` precisely so it does not hold its caller's stdout open;
+a launch that produced nothing on screen is diagnosed from that file.
+
+Check before you build: `pgrep -f "MacOS/AllodiaMail"` says whether a dev build is already up.
+Screenshot a running app rather than booting it again, and reach for `-- --no-core` when only
+client code changed. Rebooting replaces the instance (the script `pkill`s the same binary first,
+so two processes never share one SQLite store), which costs a full build and loses whatever state
+was on screen.
+
 The switch works by injecting a canned account config at boot (bypassing the setup UI), so it targets
 the harness on every platform even where the setup form has no JMAP tab. It is **debug-build only**
 and never present in a release binary, and so is the trust of the harness's self-signed IMAP cert,
