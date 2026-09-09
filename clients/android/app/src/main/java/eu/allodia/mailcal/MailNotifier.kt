@@ -5,9 +5,9 @@
 // notifications never REPLACE an earlier still-unseen message's, the high-water-mark advances past
 // reported mail, so a clobbered notification would otherwise be lost forever. Tapping opens the
 // specific message in the app (EXTRA_ACCOUNT_ID + EXTRA_MESSAGE_KEY on the launch intent).
-// Content (sender + subject) is deliberately shown, the user chose it; the OS hides previews on the
-// lock screen per their system setting. This is distinct from the never-log-content diagnostic-log
-// rule (docs/logging.md).
+// Content (sender, subject, and how the message begins) is deliberately shown, the user chose it;
+// the OS hides previews on the lock screen per their system setting. This is distinct from the
+// never-log-content diagnostic-log rule (docs/logging.md).
 package eu.allodia.mailcal
 
 import android.Manifest
@@ -76,6 +76,18 @@ object MailNotifier {
             .setGroup(group)
             .setAutoCancel(true)
             .setContentIntent(openMessage(context, account.accountId, message.messageKey))
+        // How the message begins, on the expanded notification: the collapsed row has one
+        // line for the text and the subject is what belongs in it, so the snippet goes where
+        // the shade has room, under it. The style keeps the builder's own title, which is
+        // already the sender. Added only when there is a snippet (an IMAP account has none
+        // until the body sync has run), so an expandable notification never opens onto a
+        // blank line.
+        if (message.preview.isNotBlank()) {
+            builder.setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText("${message.subject}\n${message.preview}"),
+            )
+        }
         // Show the email's sent time rather than the moment the notification fired, so the
         // timestamp in the notification shade matches the date shown in the message list.
         receivedMillis(message.received)?.let { builder.setWhen(it).setShowWhen(true) }
@@ -115,7 +127,9 @@ object MailNotifier {
         )
     }
 
-    /// "Sender, Subject" for one InboxStyle line, preferring the display name.
+    /// "Sender, Subject" for one InboxStyle line, preferring the display name. The snippet is
+    /// deliberately left out: a summary lists what arrived, and a line per message is already as
+    /// much as the collapsed stack can show.
     private fun lineOf(preview: NewMailPreview): CharSequence =
         "${senderOf(preview)}, ${preview.subject}"
 

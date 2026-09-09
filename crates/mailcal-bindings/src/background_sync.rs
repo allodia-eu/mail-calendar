@@ -32,6 +32,9 @@ pub struct NewMailPreview {
     pub sender_name: Option<String>,
     /// The subject (empty if none).
     pub subject: String,
+    /// How the message begins: the same body snippet the list row shows, plain text, empty when
+    /// the provider supplied none or the body has not been fetched yet.
+    pub preview: String,
     /// The received instant, RFC3339 (`…Z`); empty if the message carried no date.
     pub received: String,
     /// The message's stable provider key: for OS-notification dedupe and a tap deep-link.
@@ -68,6 +71,7 @@ impl From<AppNewMailPreview> for NewMailPreview {
             sender: preview.sender,
             sender_name: preview.sender_name,
             subject: preview.subject,
+            preview: preview.preview,
             received: preview.received,
             message_key: preview.message_key,
         }

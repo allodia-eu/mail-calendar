@@ -4,7 +4,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use fakes::{FakeProvider, account, app_with_prefs};
+use fakes::{FakeProvider, account, app, app_with_prefs};
 use mailcal_viewmodel::{DefaultMailAppOutcome, DefaultMailAppSupport};
 
 use super::Surface;
@@ -36,6 +36,22 @@ async fn a_build_that_can_act_offers_once_an_account_exists() {
     assert!(
         app.should_offer_default_mail_app(DefaultMailAppSupport::OpenSettings, Some(false))
             .await
+    );
+}
+
+#[tokio::test]
+async fn nothing_is_offered_by_a_core_that_cannot_remember_the_answer() {
+    // The in-memory core the showcase dataset and the demo run on has no preferences file, so
+    // "once" is a promise it cannot keep: it would put the offer on every launch, and a modal
+    // dialog over the mailbox blocks the very screens a screenshot run and the UI suites are
+    // there to look at.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("acct", FakeProvider::new())], &surfaces);
+
+    assert!(
+        !app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false))
+            .await,
+        "an offer whose answer cannot be stored is one that would be put again and again"
     );
 }
 

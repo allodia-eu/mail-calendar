@@ -177,6 +177,31 @@ that same file.
   widgets it was written for (the invitation buttons). **GTK exposes no getter for any of it**, so
   a widget test cannot see this at all: the only oracle is an AT-SPI run
   (`scripts/dev/test-linux-ui.sh`), which is where the assertion belongs.
+- **A self-contained Windows App SDK build cannot raise a notification, and says nothing about
+  it.** The unpackaged dev loop bundles the runtime rather than using the installed one
+  (`WindowsAppSDKSelfContained`), so `AppNotificationManager.Register()` fails with
+  `ERROR_MOD_NOT_FOUND` (`0x8007007E`): the component that hosts notifications ships in the
+  runtime's own package, which a self-contained app does not have. The app is otherwise perfectly
+  healthy, the new-mail scan behind the notifications still runs and still advances its marks, so
+  the symptom is a mailbox that quietly never notifies, which reads as a broken feature.
+  `build-and-run.ps1 -FrameworkDependent` builds the shape that can, against the installed runtime
+  (`Get-AppxPackage Microsoft.WindowsAppRuntime.2`); the packaged Store build is framework-dependent
+  already and unaffected. The log line is `notifications: could not register`, and a registration
+  that succeeded reports the system's own answer beside it.
+- **Registering for notifications on the UI thread pumps it, and work already queued runs
+  early.** `Register()` is a COM call, and a COM call on an STA thread dispatches waiting messages
+  while it waits. Called from `OnLaunched`, that lets the first account's connect continuation run
+  before the window's content has a `XamlRoot`, and every prompt that opens on one dies with
+  "This element does not have a XamlRoot" (the default-mail-app offer is the one that found it).
+  Nothing about the failure names notifications. Queue it at
+  `DispatcherQueuePriority.Low` instead, which runs once the window has laid out. The same caution
+  applies to any COM or WinRT call placed between constructing a window and activating it.
+- **An unpackaged app must hand its notifications a display name.** `Register()` takes an overload
+  with a display name and an icon URI; the parameterless one leaves an unpackaged registration with
+  neither, since there is no manifest to read them from, and the shell then heads the app's mail
+  with the executable's file name ("Mailcal") and a blank icon. Nothing fails, so the only way to
+  notice is to look at one. Packaged builds take the parameterless call: their identity already
+  carries both.
 - **A key controller on a `GtkEntry` must be in the `Capture` phase to see Return.** The entry
   claims it first for its own `activate`, so a bubble-phase handler, the default, never gets it,
   while Down, Up and Escape arrive normally. The result is a keyboard path that is *half* working:

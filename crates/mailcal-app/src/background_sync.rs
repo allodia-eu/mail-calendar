@@ -37,6 +37,9 @@ pub struct NewMailPreview {
     pub sender_name: Option<String>,
     /// The subject (empty if none).
     pub subject: String,
+    /// How the message begins: the same body snippet the list row shows, plain text, empty when
+    /// the provider supplied none or the body has not been fetched yet.
+    pub preview: String,
     /// The received instant, RFC3339 (`…Z`); empty if the message carried no date.
     pub received: String,
     /// The message's provider key; its stable identity, so a host can dedupe the OS
@@ -74,9 +77,14 @@ impl<P: engine_api::Provider> App<P> {
     /// mailbox change, so notifications inherit the user's configured sync cadence rather than
     /// introducing a second timer. Like [`Self::run_background_sync`], the first call seeds the
     /// persisted high-water marks and reports nothing.
+    ///
+    /// Mail that arrived **before this session started** is never reported, only marked seen: a
+    /// desktop launch begins with a catch-up sync, and every message it commits is already on
+    /// screen in the list by the time the host could raise anything. Without the floor, opening
+    /// the app after a weekend announced the weekend.
     pub async fn collect_cached_new_mail(&self) -> BackgroundNewMail {
         BackgroundNewMail {
-            accounts: self.collect_new_inbound().await,
+            accounts: self.collect_new_inbound(Some(self.session_start())).await,
             timed_out: false,
         }
     }
@@ -102,7 +110,7 @@ impl<P: engine_api::Provider> App<P> {
             tokio::time::timeout(budget, self.refresh_mail(RefreshProgress::Background))
                 .await
                 .is_err();
-        let accounts = self.collect_new_inbound().await;
+        let accounts = self.collect_new_inbound(None).await;
         BackgroundNewMail {
             accounts,
             timed_out,
@@ -113,7 +121,11 @@ impl<P: engine_api::Provider> App<P> {
     /// high-water-mark, advances the mark, and returns the previews. The first run per account
     /// (no mark) seeds the mark to the newest existing message (or "now" over an empty inbox)
     /// and reports nothing, so enabling notifications never floods the existing inbox.
-    async fn collect_new_inbound(&self) -> Vec<AccountNewMail> {
+    ///
+    /// `session_floor` additionally withholds mail received before it, without withholding the
+    /// mark advance: what it covers is a whole session's catch-up rather than one pass, which is
+    /// why it cannot be expressed as a mark. `None` reports everything past the mark.
+    async fn collect_new_inbound(&self, session_floor: Option<UtcDateTime>) -> Vec<AccountNewMail> {
         let window = self.load_window();
         let mut out = Vec::new();
         // Marks are advanced in memory during the loop and persisted **once** at the end, so a
@@ -135,20 +147,26 @@ impl<P: engine_api::Provider> App<P> {
                 .await
                 .unwrap_or_default();
             let mark = self.mark_for(id.as_str());
-            let scan = newly_arrived(&rows, &inbox, Some(owner), mark);
+            let scan = newly_arrived(&rows, &inbox, Some(owner), mark, session_floor);
             if mark.is_none() {
                 // First run: seed and report nothing.
                 self.set_mark(id.as_str(), scan.high_water.unwrap_or_else(now_utc));
                 marks_changed = true;
             } else {
                 // Established mark: report only strictly-newer mail, advancing the mark to the
-                // newest reported message (so nothing is ever reported twice).
-                if scan.previews.is_empty() {
-                    continue;
-                }
-                if let Some(high) = scan.high_water {
+                // newest inbound message this pass saw (so nothing is ever reported twice).
+                //
+                // The advance is not conditional on having reported anything: mail withheld by
+                // `session_floor` is mail the user can already see in the list, so it counts as
+                // seen and must not be announced by a later pass either.
+                if let Some(high) = scan.high_water
+                    && Some(high) > mark
+                {
                     self.set_mark(id.as_str(), high);
                     marks_changed = true;
+                }
+                if scan.previews.is_empty() {
+                    continue;
                 }
                 let new_count = u32::try_from(scan.previews.len()).unwrap_or(u32::MAX);
                 out.push(AccountNewMail {
@@ -163,6 +181,14 @@ impl<P: engine_api::Provider> App<P> {
             self.persist_marks();
         }
         out
+    }
+
+    /// When this core was built, and so when this desktop session began.
+    fn session_start(&self) -> UtcDateTime {
+        self.notify_marks
+            .lock()
+            .expect("notify-marks mutex poisoned")
+            .session_start
     }
 
     /// The account's stored high-water-mark, if any.
@@ -204,11 +230,15 @@ struct NewMailScan {
 /// are skipped; they can't be ordered against the mark. With `mark` `None` (a first run) no
 /// previews are returned, only `high_water`, so the caller seeds the mark without notifying
 /// the existing inbox.
+///
+/// `session_floor` raises the reporting floor without touching `high_water`: mail below it is
+/// left out of the previews and still advances the caller's mark.
 fn newly_arrived(
     candidates: &[MailListRow],
     inbox: &str,
     owner: Option<&str>,
     mark: Option<UtcDateTime>,
+    session_floor: Option<UtcDateTime>,
 ) -> NewMailScan {
     let mut inbound: Vec<&MailListRow> = candidates
         .iter()
@@ -229,11 +259,19 @@ fn newly_arrived(
     let high_water = inbound.first().and_then(|row| row.mail.date_utc);
     let previews = match mark {
         None => Vec::new(),
-        Some(mark) => inbound
-            .iter()
-            .filter(|row| row.mail.date_utc.is_some_and(|received| received > mark))
-            .map(|row| preview_of(row))
-            .collect(),
+        Some(mark) => {
+            // Whichever of the two is later. `>` rather than `Ord::max` because a civil
+            // date-time compares partially.
+            let floor = match session_floor {
+                Some(floor) if floor > mark => floor,
+                _ => mark,
+            };
+            inbound
+                .iter()
+                .filter(|row| row.mail.date_utc.is_some_and(|received| received > floor))
+                .map(|row| preview_of(row))
+                .collect()
+        }
     };
     NewMailScan {
         previews,
@@ -247,6 +285,7 @@ fn preview_of(row: &MailListRow) -> NewMailPreview {
         sender: row.mail.from_addr.clone().unwrap_or_default(),
         sender_name: row.mail.from_name.clone(),
         subject: row.mail.subject.clone().unwrap_or_default(),
+        preview: row.mail.preview.clone().unwrap_or_default(),
         received: row
             .mail
             .date_utc
@@ -257,8 +296,9 @@ fn preview_of(row: &MailListRow) -> NewMailPreview {
 }
 
 /// The current wall-clock instant as a [`UtcDateTime`] (whole seconds), matching the engine's
-/// own `SystemClock`. Used only to seed a first background pass over an **empty** inbox, so the
-/// next arrival notifies rather than being swallowed as the seed.
+/// own `SystemClock`. Seeds a first background pass over an **empty** inbox, so the next arrival
+/// notifies rather than being swallowed as the seed, and stamps the session start a desktop
+/// scan floors its reports at.
 fn now_utc() -> UtcDateTime {
     let now = OffsetDateTime::now_utc();
     UtcDateTime::new(
@@ -278,6 +318,10 @@ fn now_utc() -> UtcDateTime {
 pub(crate) struct NotifyMarksState {
     marks: BTreeMap<String, UtcDateTime>,
     prefs_path: Option<PathBuf>,
+    /// When this state was built, which is when the core was: the floor a desktop cached scan
+    /// reports above. It lives beside the marks because it is the same bookkeeping, one instant
+    /// per session rather than one per account.
+    session_start: UtcDateTime,
 }
 
 impl NotifyMarksState {
@@ -291,7 +335,11 @@ impl NotifyMarksState {
             .into_iter()
             .filter_map(|(id, raw)| raw.parse::<UtcDateTime>().ok().map(|mark| (id, mark)))
             .collect();
-        Self { marks, prefs_path }
+        Self {
+            marks,
+            prefs_path,
+            session_start: now_utc(),
+        }
     }
 
     /// The account's mark, if one is stored.

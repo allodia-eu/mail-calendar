@@ -113,7 +113,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Unified, categorised **Settings screen** (language, appearance, time zone, conversation grouping, swipe actions, per-account fetch depth + message size + sync behaviour, quote style, default send account, reset, About) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Per-mailbox sync behaviour: push (IMAP IDLE, capability-gated) / 15–120 min polling | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Background mail delivery: syncs when the app isn't foregrounded (desktop: while running; Android: WorkManager ~15 min; iOS/iPadOS: BGAppRefreshTask). Mobile cadence is **best-effort**: Android asks the user to exempt it from battery optimisation, without which Doze defers a pass by hours ([docs](docs/background-sync.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| New-mail notifications: local, sender + subject, from the background sync | ✅ | ⬜ | ✅ | ⬜ | ✅ | ✅ |
+| New-mail notifications: local, and they say who it is from, what it is about and how it begins, from the background sync. On the desktop only mail that arrives **while the app is open**: the catch-up sync a launch begins with is already on screen, so it is not announced | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ |
 | Connection resilience: auto-reconnect after network loss (working Refresh / Try again), offline banner + per-account outage badge | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Time-zone-aware display + device-zone change prompt | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Localisation: English, Nederlands, Deutsch, Français, Español, Italiano, Português; the choice drives **dates** as well as copy (weekday/month names follow the app language, not the host's format locale; [`docs/timestamps.md`](docs/timestamps.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

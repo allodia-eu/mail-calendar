@@ -12,7 +12,10 @@
 //!   to be the mail app is asking for a commitment to something the person has not seen.
 //! - **Not when it is already true.** A prompt to do what has been done reads as broken.
 //! - **Once.** Answered or dismissed, the offer is spent; the way back is Settings → General, which
-//!   is always there. An app that asks twice is an app that will ask a third time.
+//!   is always there. An app that asks twice is an app that will ask a third time. "Once" is only a
+//!   promise a store can keep, so a core with no preferences file (the showcase dataset, the demo,
+//!   the tests) never puts it at all: it would ask on every launch, and a dialog over the mailbox
+//!   is not what a screenshot run is meant to photograph.
 //!
 //! Like the sibling settings states ([`crate::swipe_settings`], [`crate::quote_settings`]) the
 //! answer lives in the shared preferences file, written read-modify-write so the neighbouring
@@ -48,6 +51,12 @@ impl<P: Provider> App<P> {
         if self.account_ids().await.is_empty() {
             return false;
         }
+        // No store, no offer: an in-memory core cannot record an answer, so it would ask again on
+        // every launch. It is also what a screenshot run is, and a dialog is not what the store
+        // set is meant to photograph.
+        if self.prefs_path.is_none() {
+            return false;
+        }
         self.offer_state().is_none()
     }
 
@@ -81,7 +90,9 @@ impl<P: Provider> App<P> {
     ///
     /// Deliberately not cached on [`App`]: it is read at most a few times per launch (once at
     /// boot, once per visit to Settings), so a field and its mutex would cost more than the
-    /// read does. The in-memory demo and the tests have no path and behave as never-offered.
+    /// read does. A core with no path reads as never-offered, which is why
+    /// [`should_offer_default_mail_app`](Self::should_offer_default_mail_app) refuses on that
+    /// case before it gets here.
     fn offer_state(&self) -> Option<bool> {
         self.prefs_path
             .as_ref()

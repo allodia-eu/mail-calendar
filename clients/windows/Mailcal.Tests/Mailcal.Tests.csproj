@@ -215,6 +215,12 @@
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />
     <!-- The debug-only harness send gate: which recipients count as outside test.local. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\HarnessRecipientGate.cs" Link="Services\HarnessRecipientGate.cs" />
+    <!-- What a new-mail pass puts on the desktop (docs/background-sync.md). WinUI-free and
+         L10n-free on purpose, the words arrive as parameters and the toast itself is
+         NewMailNotifier, because the contract's load-bearing rule, one notification per MESSAGE
+         rather than per account, fails silently: a per-account tag is REPLACED by the next pass's
+         toast, and the core's marks have already moved past the message it replaced. -->
+    <Compile Include="..\Mailcal\Services\NewMailNotices.cs" Link="Services\NewMailNotices.cs" />
     <!-- The mail-link (`mailto:`) activation gate: is this launch one, and which URI is in it. Pure
          BCL on purpose, the parse belongs to the shared core and the composer to the shell, so what
          is left is exactly the part whose two failure modes are silent (an OAuth redirect read as a

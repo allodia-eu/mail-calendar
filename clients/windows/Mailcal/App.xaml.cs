@@ -56,6 +56,21 @@ public partial class App : Application
         _window = new MainWindow();
         MainWindow = _window;
         _window.Activate();
+        _window.Closed += (_, _) => Services.NewMailNotifier.Disarm();
+        // Queued, at Low, rather than called here, and that is load-bearing rather than tidiness.
+        // Registering for notifications is a COM round trip, and a COM call on this thread PUMPS:
+        // work already queued on the dispatcher runs inside it, which here means the first account
+        // connecting runs before the window's content has a XamlRoot, and every prompt that opens
+        // on one dies with "This element does not have a XamlRoot". Low runs once the window has
+        // laid out, so nothing it pumps is too early. Nothing is lost by waiting either: a new-mail
+        // scan reaches the UI thread through this same queue.
+        //
+        // A click on a notification brings the app forward rather than opening the message; the
+        // deep link is a follow-up (docs/background-sync.md).
+        _window.DispatcherQueue.TryEnqueue(
+            Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+            () => Services.NewMailNotifier.Arm(() =>
+                _window.DispatcherQueue.TryEnqueue(() => Shell?.BringToForeground())));
         // A mail link that arrived mid-startup: the window drains the inbox as it is built, and
         // Program parks a link there whenever the shell is not reachable yet, so the two can cross
         //, the window taking an empty inbox a moment before the link lands in it. Draining once

@@ -1,9 +1,10 @@
-//! New-mail notifications through the desktop portal.
+//! New-mail notifications through the desktop portal: one per message, saying who it is from,
+//! what it is about and how it begins.
 
 use std::time::Duration;
 
 use ashpd::desktop::notification::{Notification, NotificationProxy, Priority};
-use mailcal_bindings::{AccountNewMail, BackgroundSyncOutcome};
+use mailcal_bindings::{AccountNewMail, BackgroundSyncOutcome, NewMailPreview};
 
 use crate::{host_runtime, l10n};
 
@@ -62,7 +63,7 @@ fn notification_parts(account: &AccountNewMail) -> Vec<(String, String, String)>
                 .to_owned();
             (
                 title,
-                message.subject.clone(),
+                body_of(message),
                 format!("mailcal-{}", message.message_key),
             )
         })
@@ -83,6 +84,17 @@ fn notification_parts(account: &AccountNewMail) -> Vec<(String, String, String)>
     parts
 }
 
+/// What the message is about and how it begins, in the one body the portal gives us: two lines
+/// where the account has a snippet for the message, the subject alone where it does not (an IMAP
+/// account has none until the body sync has run). Every other client has a third text slot and
+/// uses it; here they share one, which is the same content in the shape this surface allows.
+fn body_of(message: &NewMailPreview) -> String {
+    if message.preview.trim().is_empty() {
+        return message.subject.clone();
+    }
+    format!("{}\n{}", message.subject, message.preview)
+}
+
 fn log_failure() {
     // Covers a portal that answered with an error and one that did not answer inside
     // `PORTAL_BUDGET`: the user sees the same thing either way, and the pass carries on.
@@ -101,7 +113,7 @@ mod tests {
     use super::notification_parts;
 
     #[test]
-    fn one_message_uses_sender_and_subject() {
+    fn one_message_uses_sender_subject_and_snippet() {
         let account = AccountNewMail {
             account_id: "account".to_owned(),
             account_label: "account@example.test".to_owned(),
@@ -110,6 +122,7 @@ mod tests {
                 sender: "jane@example.test".to_owned(),
                 sender_name: Some("Jane".to_owned()),
                 subject: "Quarterly report".to_owned(),
+                preview: "The numbers you asked for.".to_owned(),
                 received: String::new(),
                 message_key: "m1".to_owned(),
             }],
@@ -117,6 +130,31 @@ mod tests {
 
         let [(title, body, _)] = notification_parts(&account).try_into().unwrap();
         assert_eq!(title, "Jane");
+        assert_eq!(
+            body, "Quarterly report\nThe numbers you asked for.",
+            "the portal gives one body, so the subject and the snippet share it"
+        );
+    }
+
+    #[test]
+    fn a_message_with_no_snippet_yet_is_its_subject_alone() {
+        // An IMAP account has no snippet until the body sync has run, and a body ending in a
+        // blank line would read as a message that begins with nothing.
+        let account = AccountNewMail {
+            account_id: "account".to_owned(),
+            account_label: "account@example.test".to_owned(),
+            new_count: 1,
+            messages: vec![NewMailPreview {
+                sender: "jane@example.test".to_owned(),
+                sender_name: Some("Jane".to_owned()),
+                subject: "Quarterly report".to_owned(),
+                preview: String::new(),
+                received: String::new(),
+                message_key: "m1".to_owned(),
+            }],
+        };
+
+        let [(_, body, _)] = notification_parts(&account).try_into().unwrap();
         assert_eq!(body, "Quarterly report");
     }
 
@@ -131,6 +169,7 @@ mod tests {
                     sender: "one@example.test".to_owned(),
                     sender_name: None,
                     subject: "One".to_owned(),
+                    preview: String::new(),
                     received: String::new(),
                     message_key: "m1".to_owned(),
                 },
@@ -138,6 +177,7 @@ mod tests {
                     sender: "two@example.test".to_owned(),
                     sender_name: None,
                     subject: "Two".to_owned(),
+                    preview: String::new(),
                     received: String::new(),
                     message_key: "m2".to_owned(),
                 },
