@@ -5,7 +5,7 @@ use engine_api::{
     ParticipantRole, ParticipationStatus, Uid,
 };
 
-use super::{EventAttendee, effective_response, event_attendees};
+use super::{EventAttendee, EventAttendeeRole, effective_response, event_attendees};
 use crate::ResponseStatus;
 
 fn event_with(participants: Vec<Participant>) -> Event {
@@ -50,9 +50,21 @@ fn an_attendees_name_address_and_answer_all_reach_the_row() {
             name: "Anna Jansen".to_owned(),
             email: "anna@example.com".to_owned(),
             is_organizer: false,
+            role: Some(EventAttendeeRole::Required),
             response: ResponseStatus::Tentative,
         }],
         "the address is normalized for display, the name is carried verbatim"
+    );
+}
+
+#[test]
+fn an_optional_attendee_keeps_their_editable_role() {
+    let mut optional = attendee("optional@example.com", ParticipationStatus::NeedsAction);
+    optional.roles = BTreeSet::from([ParticipantRole::Optional]);
+
+    assert_eq!(
+        event_attendees(&event_with(vec![optional]))[0].role,
+        Some(EventAttendeeRole::Optional)
     );
 }
 
@@ -104,6 +116,16 @@ fn an_organizer_with_no_answer_has_accepted_their_own_meeting() {
 }
 
 #[test]
+fn a_merged_organizer_is_not_an_editable_invitee() {
+    let mut owner = organizer("a@example.com");
+    owner.roles.insert(ParticipantRole::Attendee);
+
+    let row = &event_attendees(&event_with(vec![owner]))[0];
+    assert!(row.is_organizer);
+    assert_eq!(row.role, None);
+}
+
+#[test]
 fn an_organizer_who_declined_their_own_meeting_keeps_that_answer() {
     let mut owner = organizer("a@example.com");
     owner.participation_status = ParticipationStatus::Declined;
@@ -140,6 +162,10 @@ fn the_split_organizer_shape_is_one_row_not_two() {
     assert_eq!(rows.len(), 2, "one row per address: {rows:?}");
     assert_eq!(rows[0].email, "a@example.com");
     assert!(rows[0].is_organizer, "the ORGANIZER line's role sticks");
+    assert_eq!(
+        rows[0].role, None,
+        "the organiser is not an editable invitee"
+    );
     assert_eq!(
         rows[0].name, "Anna",
         "the ATTENDEE line's name fills the gap"

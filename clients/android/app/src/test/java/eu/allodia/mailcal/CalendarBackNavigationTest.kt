@@ -72,6 +72,7 @@ private fun eventDetail() = EventDetail(
     repeatDraft = null,
     isRecurring = false,
     canWrite = true,
+    canEditInvitees = false,
     occurrenceStart = "",
     attendees = emptyList(),
 )

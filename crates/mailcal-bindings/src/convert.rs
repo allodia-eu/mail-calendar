@@ -251,6 +251,7 @@ impl TryFrom<Intent> for AppIntent {
                 notes,
                 location,
                 recurrence,
+                invitees,
             } => Self::CreateEvent {
                 title,
                 start,
@@ -262,6 +263,7 @@ impl TryFrom<Intent> for AppIntent {
                 notes,
                 location,
                 recurrence: recurrence.map(Into::into),
+                invitees: crate::records_meeting::invitees(invitees)?,
             },
             Intent::UpdateEvent {
                 account,
@@ -274,6 +276,7 @@ impl TryFrom<Intent> for AppIntent {
                 occurrence,
                 recurrence,
                 times_from_occurrence,
+                invitees,
             } => Self::UpdateEvent {
                 event: event(account, key)?,
                 edit: EventEdit {
@@ -283,6 +286,7 @@ impl TryFrom<Intent> for AppIntent {
                     notes,
                     location,
                     recurrence: recurrence.map(Into::into),
+                    invitees: crate::records_meeting::invitee_patch(invitees)?,
                     occurrence: parse_local(occurrence)?,
                     times_from_occurrence: parse_local(times_from_occurrence)?,
                 },

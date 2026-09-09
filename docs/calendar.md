@@ -372,11 +372,10 @@ Every name and address is **attacker-controlled** (it came from whoever sent the
 been through `plain_text`: control characters and bidi overrides out, whitespace collapsed, length
 bounded. A client renders it as **text, never markup**: `use_markup(false)` on GTK.
 
-**Attendees are read-only, on every surface.** Changing who is on a meeting means sending iTIP
-updates to the people on it, which is its own feature. So the editor **shows** the list and states
-that it cannot be changed there, rather than offering a control that would quietly drop the change,
-and the detail view shows no add/remove affordance at all (an affordance that can
-never fire is just a mystery).
+**Attendees are read-only in every client.** The core accepts organiser-authored meeting creates
+and whole-series roster changes, and exposes whether the account may edit that roster. No client
+offers those controls yet. The editor therefore **shows** the list and states that it cannot be
+changed there, and the detail view shows no add/remove affordance.
 
 **The picture is per surface; the disclosure is not.** A grid block and an all-day bar take the dashed
 border, the hatched gutter and a faded fill. A **month chip** is a few points tall, so the hatch
@@ -1719,13 +1718,13 @@ Stated, not buried.
   and tab visit keep the offline floor, but a client left open on Calendar can still remain stale.
   Linux now refreshes every five minutes after connection; the other clients need an equivalent
   host timer or a shared runtime watch.
-- **The attendee list says who and how, not what kind.** A participant's `ROLE` is read only for
-  `owner` (the organiser), so a **required** and an **optional** attendee are drawn identically:
-  Outlook and Apple Calendar distinguish them. Nor is **your own row marked**; you find yourself by
-  address. Neither is hidden information (both are in the list either way), and adding either means
-  a field, a catalog key and four clients, so both wait for a reason. **No attendee can be added,
-  removed or answered *for* from the calendar**: that is iTIP, and the invitation card is where an
-  answer is given today ([`invitations.md`](invitations.md)).
+- **The attendee list says who and how, not what kind.** The core carries whether each editable
+  invitee is required or optional, but clients draw both identically. Outlook and Apple Calendar
+  distinguish them. Nor is **your own row marked**; you find yourself by address. Neither is hidden
+  information (both are in the list either way), and adding either needs client controls and copy.
+  **No attendee can be added, removed or answered *for* from the calendar UI**: the core write
+  exists, but no client exposes it. The invitation card is where an answer is given today
+  ([`invitations.md`](invitations.md)).
 - **Samsung is still ahead, though not by much.** Their 2.4% against our **3.6%**: the shipped number,
   after the week was banked on decision (§7's last column). This entry used to quote 6.5–7.4%, the
   canvas *before* that fix, and so overstated the remaining distance by about double; the p99 gap came

@@ -86,6 +86,7 @@ mod records_contacts;
 pub mod sync_state;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
 mod records_invitation;
+mod records_meeting;
 mod records_recurrence;
 mod records_repeat_summary;
 mod rendering;
@@ -161,6 +162,7 @@ pub use records_contacts::{
 pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
 };
+pub use records_meeting::{MeetingInvitee, MeetingInviteePatch, MeetingInviteeRole};
 pub use records_recurrence::{
     EventRecurrence, ProposedEdit, RecurrenceChange, RecurrenceDay, RecurrenceEnd,
     RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,
@@ -494,7 +496,3 @@ mod tests_credentials;
 #[cfg(test)]
 #[path = "tests_credential_ordering.rs"]
 mod tests_credential_ordering;
-
-#[cfg(test)]
-#[path = "tests_calendar.rs"]
-mod tests_calendar;

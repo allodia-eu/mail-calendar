@@ -145,7 +145,8 @@ impl<P: Provider> App<P> {
     /// `ATTENDEE` line is the whole reason to store the invitation rather than a plain
     /// appointment, and a round-trip through a lossy model is exactly how such a line goes
     /// missing. That is also why this is [`EventWrite`] and not
-    /// [`EventDraft`](engine_api::EventDraft), which carries neither an organiser nor attendees.
+    /// [`EventDraft`](engine_api::EventDraft): a new meeting draft does not preserve the received
+    /// participants' answers or scheduling parameters.
     ///
     /// # Both routes need this, and a live account is why
     ///

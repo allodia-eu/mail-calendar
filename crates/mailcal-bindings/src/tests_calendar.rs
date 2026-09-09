@@ -214,6 +214,7 @@ fn an_update_event_intent_parses_into_a_typed_edit() {
         occurrence: Some("2026-01-05T09:30:00".to_owned()),
         recurrence: None,
         times_from_occurrence: None,
+        invitees: None,
     })
     .expect("a well-formed edit converts");
 
@@ -249,6 +250,7 @@ fn an_update_event_leaves_empty_required_fields_and_rejects_a_bad_time() {
         occurrence: None,
         recurrence: None,
         times_from_occurrence: None,
+        invitees: None,
     })
     .expect("empty required fields are valid; they change nothing");
     let mailcal_app::Intent::UpdateEvent { edit, .. } = left_alone else {
@@ -267,6 +269,7 @@ fn an_update_event_leaves_empty_required_fields_and_rejects_a_bad_time() {
         occurrence: None,
         recurrence: None,
         times_from_occurrence: None,
+        invitees: None,
     });
     assert!(rejected.is_err(), "a malformed wall-clock drops the intent");
 }
@@ -302,6 +305,7 @@ fn a_create_carries_its_repeat_rule_across_the_boundary() {
         notes: None,
         location: None,
         recurrence: Some(weekly_rule()),
+        invitees: None,
     })
     .expect("a well-formed create converts");
 
@@ -341,6 +345,7 @@ fn an_edit_keeps_leaving_a_rule_alone_distinct_from_removing_it() {
             occurrence: None,
             recurrence: change,
             times_from_occurrence: None,
+            invitees: None,
         })
         .expect("a well-formed edit converts");
         let mailcal_app::Intent::UpdateEvent { edit, .. } = converted else {

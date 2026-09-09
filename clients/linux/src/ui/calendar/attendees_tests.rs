@@ -14,6 +14,7 @@ fn attendee(name: &str, email: &str, is_organizer: bool) -> EventAttendee {
         email: email.to_owned(),
         response: ResponseStatus::Accepted,
         is_organizer,
+        role: None,
     }
 }
 

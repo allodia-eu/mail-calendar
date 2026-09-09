@@ -13,7 +13,7 @@ public class AttendeeSummaryTests
     private const string Organizer = "Organiser";
 
     private static EventAttendee Attendee(string name, string email, bool isOrganizer = false) =>
-        new(name, email, isOrganizer, ResponseStatus.Accepted);
+        new(name, email, isOrganizer, null, ResponseStatus.Accepted);
 
     [Fact]
     public void ANamedAttendeeIsShownByNameWithTheAddressBeneath()
@@ -55,7 +55,7 @@ public class AttendeeSummaryTests
         var detail = new EventDetail(
             "acct", "/cal/e.ics", "work", "Standup", false, "Europe/Amsterdam",
             "2026-01-05T09:30:00", "2026-01-05T10:00:00", null, null, null, null, null, null, false,
-            true, string.Empty, attendees);
+            true, false, string.Empty, attendees);
 
         var editor = EventEditorState.Edit(detail, "Work");
 
