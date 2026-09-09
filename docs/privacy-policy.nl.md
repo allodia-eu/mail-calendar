@@ -1,6 +1,6 @@
 # Privacybeleid: Allodia Mail & Calendar
 
-**Versie 2.2 · Van kracht: 2026-08-28**
+**Versie 2.3 · Van kracht: 2026-09-09**
 
 Allodia Mail & Calendar is een e-mail- en agenda-app die op je eigen apparaat draait en verbinding
 maakt met de e-mailprovider die **jij** kiest. Dit beleid legt in gewone taal uit wat dat betekent
@@ -128,8 +128,9 @@ Privacybescherming die op elk platform is ingebouwd:
   is begrensd tot enkele megabytes, en blijft op je apparaat, tenzij je er zelf voor kiest het naar
   ons te sturen (§8).
 - **Meldingen van nieuwe e-mail worden op je apparaat gemaakt.** Geen enkele meldingsdienst van ons
-  ziet je e-mail. Of er een voorbeeld (afzender, onderwerp) op je vergrendelscherm verschijnt,
-  volgt de meldingsinstellingen van je besturingssysteem.
+  ziet je e-mail. Of er een voorbeeld (de afzender, het onderwerp en de eerste regel van het
+  bericht) op je vergrendelscherm verschijnt, volgt de meldingsinstellingen van je
+  besturingssysteem.
 - **Inloggegevens staan in de sleutelopslag van het platform** (Keychain, Windows Credential
   Manager, Android Keystore of de Linux-systeemsleutelring via Secret Service), nooit in de
   database van de app. De berichtenopslag wordt beschermd door de versleuteling van je apparaat.

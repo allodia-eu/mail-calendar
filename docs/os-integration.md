@@ -66,7 +66,11 @@ answers **no** when:
   something the person has not seen working);
 - the app is already the default;
 - the offer has already been put, whatever came of it. **Once.** A prompt closed without an answer
-  counts as answered: an unanswered question is not permission to ask again.
+  counts as answered: an unanswered question is not permission to ask again. "Once" is a promise
+  only a store can keep, so a core with **no preferences file** never puts the offer at all: the
+  showcase dataset and the demo run on an in-memory one, and there the offer came back on every
+  launch, over the mailbox, which is both the screen a store capture photographs and the one a UI
+  suite has to get past to reach Settings.
 
 Where the host cannot tell whether it is already the default it reports `None`, which is treated as
 "not default": offering where we need not is recoverable, staying silent where we are not is the
