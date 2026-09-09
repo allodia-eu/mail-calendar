@@ -872,11 +872,18 @@ crates from empty took 57 s, which makes the bloated warm cache **8× slower tha
 Past that point a full reset is the fastest available move, not a symptom. Check `du -sh target`
 before believing the paragraph above.
 
-- **Debug info in `[profile.dev]` *and* `[profile.test]`**: our crates at `line-tables-only`,
-  dependencies at `debug = 0`. It was 2.8 GB of PDBs and more than half the inner loop; backtraces
-  still name a file and line. It lived in `ci.yml` as `CARGO_PROFILE_DEV_DEBUG` for a year, which
-  fixed it only for the runners: **a build fix in the workflow file is a fix nobody who builds
-  gets.**
+- **Debug info in `[profile.dev]` *and* `[profile.test]`**: `debug = 0`, ours and our
+  dependencies alike. It was 2.8 GB of PDBs on Windows and more than half the inner loop. On an
+  Apple host it is also what fills `target/`, and permanently: `-C split-debuginfo=unpacked` keeps
+  the DWARF in the per-CGU object files, so they outlive the link, and Cargo evicts no superseded
+  generation. Measured on this workspace, one `cargo test -p mailcal-app --no-run` leaves 1,208
+  objects and 340.0 MB at `line-tables-only` and none at 0; a tree carrying 487 generations of 25
+  crates held 39.5 GB of them. The cost is a dev backtrace without a file and a line, which
+  `--profile debugger` or `CARGO_PROFILE_DEV_DEBUG=line-tables-only` for one invocation buys back.
+  `[profile.release]` is untouched, so a client's diagnostic log and an App Store Connect crash
+  report read exactly what they read before. It lived in `ci.yml` as `CARGO_PROFILE_DEV_DEBUG` for
+  a year, which fixed it only for the runners: **a build fix in the workflow file is a fix nobody
+  who builds gets.**
 
   **`[profile.test]` has to repeat it, and for a year it did not.** `cargo test` builds its targets
   under the *test* profile, and although the Cargo book describes that profile as inheriting `dev`,

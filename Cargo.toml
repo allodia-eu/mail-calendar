@@ -62,10 +62,13 @@ license = "GPL-3.0-only"
 # caches are the same problem.
 #
 # The split below follows from who reads the information:
-#   - Our own crates keep `line-tables-only`. That is exactly what makes a panic backtrace name a
-#     file and a line, which is how a core panic gets traced from a client log — and it is the
-#     part worth keeping. Variable-level info is what a debugger needs, and the debugging loop in
-#     docs/debugging.md is logs, screenshots and UIA, not breakpoints.
+#   - Our own crates get nothing either, in `dev` and `test` alike. What that costs is a dev
+#     backtrace without a file and a line; the `panicked at <file>:<line>` header survives, since
+#     that comes from `#[track_caller]` metadata rather than from DWARF. Variable-level info is
+#     what a debugger needs, and the debugging loop in docs/debugging.md is logs, screenshots and
+#     UIA, not breakpoints. `[profile.debugger]` below is the way in when a session needs more.
+#     `[profile.release]` is untouched, and that is the build a client's diagnostic log and an App
+#     Store Connect crash report are read from, so nothing a user or a support case sees moves.
 #   - Dependencies get nothing. 399 crates deep, no one has ever stepped into rustls or sqlite
 #     here; their debug info is pure disk. This is the "optimise the dependencies" advice done the
 #     way that actually helps a build — note that the *other* common form of it,
@@ -78,26 +81,35 @@ license = "GPL-3.0-only"
 # the workflow no longer sets it.
 # ---------------------------------------------------------------------------------------------
 [profile.dev]
-debug = "line-tables-only"
+debug = 0
 
+# ⚠️ On an Apple host this key decides disk, not just build time, and it decides it permanently.
+# Cargo passes `-C split-debuginfo=unpacked` there, so the DWARF stays in the per-CGU object files
+# and the linked binary carries only a debug map pointing at them: the objects have to survive the
+# link. Cargo evicts nothing, and every feature set, rustflag or dependency bump mints another
+# `-<metadata hash>` generation beside the last, so the objects accumulate one full set at a time.
+# Measured on this workspace, one `cargo test -p mailcal-app --no-run` leaves 1,208 objects and
+# 340.0 MB in `target/debug/deps` for good at `line-tables-only`, and nothing at all at 0. A tree
+# that had reached 487 generations of 25 crates held 39.5 GB of them.
+#
 # `[profile.test]` has to say it again, and this is the trap. `cargo test` builds its targets
 # under the *test* profile, and while the Cargo book describes that profile as inheriting `dev`,
 # the top-level `debug` key measurably does not come with it: setting it on `dev` alone rebuilds
-# nothing for `cargo test`, and adding it here rebuilds everything. So the line above applied to
-# `cargo build` and never to `gate.sh`, which is where the time actually goes.
-#
-# Measured in the engine repo, same shape of workspace, `cargo test --workspace --all-features
-# --no-run` after touching one crate: 368s before, 149s after. Only wall time moves — this
-# removes the writing of debug info, not the compiling of code.
+# nothing for `cargo test`, and adding it here rebuilds everything. `gate.sh` is where essentially
+# all of the building anyone waits on happens, and it is `cargo test`, so a key set on `dev` alone
+# reaches almost none of it. Measured here on the same target, `cargo test -p mailcal-app
+# --no-run` with the crate recompiled: 40.3s at `line-tables-only`, 32.0s at 0.
 #
 # The `package."*"` override below does NOT need repeating; that one is inherited.
 [profile.test]
-debug = "line-tables-only"
+debug = 0
 
+# Redundant while the two keys above are 0, and load-bearing the moment either is raised by hand
+# or through `CARGO_PROFILE_DEV_DEBUG`: a debugger session wants our code described, never rustls.
 [profile.dev.package."*"]
 debug = 0
 
-# Release keeps line tables for the same reason dev does, and for one that only applies here: the
+# Release parts company with dev and test above, for a reason that applies only here: the
 # panic hook (crates/mailcal-bindings/src/crash.rs) writes a backtrace into the user's diagnostic
 # log, and that backtrace is the ONLY record of where the core died — the FFI boundary carries a
 # panic's message to the host and nothing else. At rustc's release default (`debug = 0`) those
@@ -143,7 +155,8 @@ debug = "line-tables-only"
 [profile.release.package."*"]
 debug = 0
 
-# Opt in when you genuinely need a debugger (`cargo build --profile debugger`). It lands in
+# Opt in when you genuinely need a debugger, or a backtrace that names a file and a line
+# (`cargo build --profile debugger`). It lands in
 # `target/debugger/` rather than `target/debug/`, so turning it on does not evict the warm dev
 # cache — at the cost of a second target dir while it exists, so `cargo clean -p <crate>` it
 # afterwards. Note the client build scripts hardcode the `debug`/`release` directory names, so to
@@ -233,28 +246,28 @@ mailcal-telemetry = { path = "crates/mailcal-telemetry" }
 # `.cargo/config.toml` in the directory ABOVE this checkout — see `.cargo/config.toml`, which is
 # tracked (it pins the Windows static-CRT rustflags) and so is no longer the place for it.
 # Re-pin: bump `rev` on every line below to the new engine commit (keep them identical).
-engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb4d977d3469019abf2873d48f9b4cbbb52e3eaf" }
-engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb4d977d3469019abf2873d48f9b4cbbb52e3eaf" }
-engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb4d977d3469019abf2873d48f9b4cbbb52e3eaf" }
+engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "25ea0114a045da8a35aeb83028c058d8fd4cb074" }
+engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "25ea0114a045da8a35aeb83028c058d8fd4cb074" }
+engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "25ea0114a045da8a35aeb83028c058d8fd4cb074" }
 # The one host-selected TLS policy shared across IMAP/CalDAV/JMAP/Graph.
-engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb4d977d3469019abf2873d48f9b4cbbb52e3eaf", features = ["tls-native-certs"] }
+engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "25ea0114a045da8a35aeb83028c058d8fd4cb074", features = ["tls-native-certs"] }
 # Concrete provider adapters the account layer connects. IMAP first; CalDAV for calendar.
-provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb4d977d3469019abf2873d48f9b4cbbb52e3eaf" }
-provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb4d977d3469019abf2873d48f9b4cbbb52e3eaf" }
+provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "25ea0114a045da8a35aeb83028c058d8fd4cb074" }
+provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "25ea0114a045da8a35aeb83028c058d8fd4cb074" }
 # The Microsoft Graph mail read/sync + writes adapter (bearer-token): metadata/body sync
 # plus mail edits (mark-read/flag, move, permanent delete). The account layer builds a
 # token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
-provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb4d977d3469019abf2873d48f9b4cbbb52e3eaf" }
+provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "25ea0114a045da8a35aeb83028c058d8fd4cb074" }
 # The Google (Gmail + Google Calendar) native-API read/sync + write adapter (bearer-token),
 # the cloud-API counterpart of provider-graph. Gmail mail sync is account-global (one provider,
 # no per-folder fan-out); Google Calendar is IANA-native. The account layer builds a
 # token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
-provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb4d977d3469019abf2873d48f9b4cbbb52e3eaf" }
+provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "25ea0114a045da8a35aeb83028c058d8fd4cb074" }
 # The JMAP mail read/sync + submission + calendar-read adapter (RFC 8620/8621). Takes a
 # base URL + credentials (HTTP Basic username/password, or an OAuth bearer token) and
 # discovers everything else from the session. The account layer injects the shared TLS policy
 # before connecting it directly.
-provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb4d977d3469019abf2873d48f9b4cbbb52e3eaf" }
+provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "25ea0114a045da8a35aeb83028c058d8fd4cb074" }
 # JSON Schema derivation for the MCP tool surface (crates/mailcal-mcp). MCP requires a
 # draft-2020-12 `inputSchema` per tool; deriving it from the same struct the handler deserializes
 # is what stops a client sending exactly what a tool documented and getting a parse error.
