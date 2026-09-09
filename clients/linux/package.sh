@@ -252,8 +252,16 @@ flatpak-builder \
   "$MANIFEST"
 
 if [[ "$BUNDLE" == "1" ]]; then
-  flatpak build-bundle "$OUT/repo" "$OUT/mailcal.flatpak" "$APP_ID"
-  echo "==> wrote $OUT/mailcal.flatpak"
+  # `build-bundle` takes the branch as an argument and falls back to `master`, which is the
+  # build-tool default the manifest deliberately does not publish to, so an unnamed branch asks the
+  # repo for a ref the build never wrote. Read it from the manifest the build actually used.
+  BUNDLE_BRANCH="$(awk '$1 == "default-branch:" { gsub(/["'"'"']/, "", $2); print $2; exit }' "$MANIFEST")"
+  [[ -n "$BUNDLE_BRANCH" ]] || {
+    echo "package.sh: $MANIFEST names no default-branch, so the bundle's ref cannot be named" >&2
+    exit 1
+  }
+  flatpak build-bundle "$OUT/repo" "$OUT/mailcal.flatpak" "$APP_ID" "$BUNDLE_BRANCH"
+  echo "==> wrote $OUT/mailcal.flatpak ($APP_ID//$BUNDLE_BRANCH)"
 fi
 
 if [[ "$INSTALL" == "1" ]]; then
