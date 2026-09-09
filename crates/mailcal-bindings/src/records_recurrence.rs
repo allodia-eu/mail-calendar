@@ -369,6 +369,7 @@ impl ProposedEdit {
             end: local(self.end)?,
             notes: self.notes,
             location: self.location,
+            invitees: None,
             recurrence: self.recurrence.map(Into::into),
             occurrence: None,
             // The question is about the edit's shape, never about where its clocks were read.

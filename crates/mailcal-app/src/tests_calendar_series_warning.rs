@@ -49,6 +49,7 @@ fn nothing() -> EventEdit {
         end: None,
         notes: None,
         location: None,
+        invitees: None,
         recurrence: None,
         occurrence: None,
         times_from_occurrence: None,
@@ -76,7 +77,8 @@ fn renames_it() -> EventEdit {
 async fn warning_for(provider: CalendarFake, edit: EventEdit) -> Option<SeriesEditWarning> {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
-    app.dispatch(Intent::RefreshCalendar).await;
+    // `large_futures` bound sits just under what the refresh future weighs on some targets.
+    Box::pin(app.dispatch(Intent::RefreshCalendar)).await;
     app.series_edit_warning(&evt("acct-a", "standup"), &edit)
         .await
 }

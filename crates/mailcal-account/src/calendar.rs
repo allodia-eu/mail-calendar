@@ -6,12 +6,14 @@
 //! `Engine::create_calendar_event` / `Engine::patch_calendar_event`.
 
 use engine_api::{
-    DraftRecurrence, EventDeletion, EventDraft, EventPatch, Occurrence, PatchTarget,
-    RecurrenceBound, resolve_instant, to_local,
+    CalendarAddress, DraftRecurrence, EventDeletion, EventDraft, EventPatch, Invitee, InviteePatch,
+    MeetingDraft, Occurrence, PatchTarget, RecurrenceBound, SchedulingIdentity, resolve_instant,
+    to_local,
 };
 use engine_core::{
     calendar::Event,
     ids::{CalendarId, Uid},
+    mail::EmailAddress,
     time::{CalendarDate, CalendarDateTime, LocalDateTime, TimeZoneId, UtcDateTime},
 };
 
@@ -90,6 +92,38 @@ pub fn build_event_draft(
     Ok(draft)
 }
 
+/// Turns an event draft into a meeting organised by the selected account identity.
+///
+/// The host derives `organiser` from the account that owns the chosen calendar. A client supplies
+/// invitees only, so it cannot send invitations as another identity.
+///
+/// # Errors
+///
+/// Returns [`AccountError::CalendarWrite`] when the organiser address is invalid, the organiser
+/// also appears among the invitees, an invitee is duplicated, or the roster is empty.
+pub fn attach_meeting(
+    draft: EventDraft,
+    organiser: &EmailAddress,
+    invitees: Vec<Invitee>,
+) -> Result<EventDraft, AccountError> {
+    let address = CalendarAddress::parse(&organiser.email)
+        .map_err(|err| AccountError::CalendarWrite(err.to_string()))?;
+    let name = organiser
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty());
+    let identity = match name {
+        Some(name) => SchedulingIdentity::named(address, name),
+        None => SchedulingIdentity::new(address),
+    };
+    let meeting = MeetingDraft::new(identity, invitees);
+    meeting
+        .validate(None)
+        .map_err(|err| AccountError::CalendarWrite(err.to_string()))?;
+    Ok(draft.meeting(meeting))
+}
+
 /// Parses a timed event's endpoint: a **wall clock in `timezone`** (`2026-07-01T09:00:00`) when
 /// one is given, creating a zoned value there; else (back-compatibly) an RFC 3339 UTC instant
 /// (`2026-07-01T09:00:00Z`) created as zoned-in-UTC.
@@ -163,6 +197,11 @@ pub struct EventEdit {
     pub notes: Option<String>,
     /// The new location, same three-state semantics as [`notes`](Self::notes).
     pub location: Option<String>,
+    /// Invitees to add, change or remove. `None` leaves the roster alone.
+    ///
+    /// Only a series edit may change the roster. A meeting invitation describes the event as a
+    /// whole, so applying a different roster to one occurrence is refused.
+    pub invitees: Option<InviteePatch>,
     /// What happens to the repeat rule: `None` leaves the series exactly as it is,
     /// [`Set`](RecurrenceChange::Set) replaces the rule, [`Clear`](RecurrenceChange::Clear)
     /// makes the event a single one.
@@ -269,6 +308,16 @@ pub fn build_event_patch(
         } else {
             patch.location(location)
         };
+    }
+    if let Some(invitees) = &edit.invitees
+        && !invitees.is_empty()
+    {
+        if edit.occurrence.is_some() {
+            return Err(AccountError::CalendarWrite(
+                "a meeting roster belongs to the series, not to one occurrence".to_owned(),
+            ));
+        }
+        patch = patch.invitees(invitees.clone());
     }
     if let Some(change) = &edit.recurrence {
         if edit.occurrence.is_some() {
@@ -415,3 +464,7 @@ mod series_shift_tests;
 #[cfg(test)]
 #[path = "calendar_recurrence_tests.rs"]
 mod recurrence_tests;
+
+#[cfg(test)]
+#[path = "calendar_invitation_tests.rs"]
+mod invitation_tests;

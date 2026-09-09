@@ -50,7 +50,7 @@ public class EventRepeatEditorTests
         string occurrence = "") => new(
             "acct", "/cal/e.ics", "work", "Standup", false, "Europe/Amsterdam",
             "2026-08-26T09:00:00", "2026-08-26T09:30:00", null, null, null,
-            recurrence, null, repeatDraft, isRecurring, true, occurrence, []);
+            recurrence, null, repeatDraft, isRecurring, true, false, occurrence, []);
 
     private static EventEditorState EditorOn(
         bool isRecurring = true,
