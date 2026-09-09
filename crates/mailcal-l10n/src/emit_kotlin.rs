@@ -5,7 +5,7 @@
 //! binds each argument correctly. Gradle compiles the `res/` tree and selects by OS locale;
 //! the typed accessor wraps `Context.getString`.
 
-use crate::model::{Catalog, Message, ParamType, param_type};
+use crate::model::{Catalog, Message, ONE_SUFFIX, ParamType, param_type};
 
 /// Renders the Android resource files and the Kotlin accessor as `(relative_path, content)`
 /// entries, rooted at the module's `src/main` directory.
@@ -100,8 +100,11 @@ fn render_accessor(catalog: &Catalog, package: &str) -> String {
     out.push_str("package ");
     out.push_str(package);
     out.push_str("\n\nimport android.content.Context\n\nobject L10n {\n");
-    for message in &catalog.messages {
-        out.push_str(&accessor_fn(message));
+    for message in catalog.accessors() {
+        out.push_str(&accessor_fn(message, catalog.has_singular(&message.key)));
+    }
+    if catalog.messages.iter().any(|m| catalog.is_singular(&m.key)) {
+        out.push_str(PLURAL_RULE);
     }
     out.push_str(&render_locales(catalog));
     out.push_str("}\n");
@@ -140,7 +143,7 @@ fn render_locales(catalog: &Catalog) -> String {
     )
 }
 
-fn accessor_fn(message: &Message) -> String {
+fn accessor_fn(message: &Message, plural: bool) -> String {
     if message.placeholders.is_empty() {
         return format!(
             "    fun {key}(ctx: Context): String = ctx.getString(R.string.{key})\n",
@@ -154,11 +157,37 @@ fn accessor_fn(message: &Message) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     let args = message.placeholders.join(", ");
+    // Android resolves a string by resource **id**, not by name, so a plural picks between two
+    // ids rather than building a key; the two accessors are otherwise identical.
+    let resource = if plural {
+        format!(
+            "if (isOne(ctx, count)) R.string.{key}{ONE_SUFFIX} else R.string.{key}",
+            key = message.key,
+        )
+    } else {
+        format!("R.string.{key}", key = message.key)
+    };
     format!(
-        "    fun {key}(ctx: Context, {params}): String = ctx.getString(R.string.{key}, {args})\n",
+        "    fun {key}(ctx: Context, {params}): String = ctx.getString({resource}, {args})\n",
         key = message.key,
     )
 }
+
+/// The singular test the generated accessors branch on, emitted verbatim. Android carries the
+/// active language on the context's configuration, so unlike the other targets this one is
+/// handed the `Context` its callers already pass.
+const PLURAL_RULE: &str = r#"
+    // Whether `count` takes the singular in the active locale. French counts zero as singular
+    // ("0 conversation"); every other locale this app ships (en, nl, de, es, it, pt-PT) takes
+    // the singular at one alone. Each is CLDR's rule for that language, and an empty folder is
+    // what makes zero worth getting right: its footer states the count.
+    //
+    // Read off the same Context that resolves the string, so the rule and the wording cannot
+    // disagree however the language was chosen (the system's, or the in-app picker's
+    // AppCompatDelegate.setApplicationLocales).
+    private fun isOne(ctx: Context, count: Int): Boolean =
+        if (ctx.resources.configuration.locales[0].language == "fr") count <= 1 else count == 1
+"#;
 
 fn kotlin_type(t: ParamType) -> &'static str {
     match t {

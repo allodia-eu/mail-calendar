@@ -8,7 +8,7 @@
 
 use crate::{
     brand::Brand,
-    model::{Catalog, Message, ParamType, param_type, pascal_case},
+    model::{Catalog, Message, ONE_SUFFIX, ParamType, param_type, pascal_case},
 };
 
 /// Renders the `.resw` files and the C# accessor as `(relative_path, content)` entries,
@@ -121,8 +121,14 @@ fn push_winui_text(out: &mut String, text: &str, formatted: bool) {
 
 fn render_accessor(catalog: &Catalog, namespace: &str) -> String {
     let mut out = ACCESSOR_HEADER.replace("{NAMESPACE}", namespace);
-    for message in &catalog.messages {
-        out.push_str(&accessor_member(message));
+    for message in catalog.accessors() {
+        out.push_str(&accessor_member(
+            message,
+            catalog.has_singular(&message.key),
+        ));
+    }
+    if catalog.messages.iter().any(|m| catalog.is_singular(&m.key)) {
+        out.push_str(PLURAL_RULE);
     }
     out.push_str(&render_locales(catalog));
     out.push_str("}\n");
@@ -178,7 +184,7 @@ fn render_locales_file(catalog: &Catalog, namespace: &str) -> String {
     )
 }
 
-fn accessor_member(message: &Message) -> String {
+fn accessor_member(message: &Message, plural: bool) -> String {
     let name = pascal_case(&message.key);
     if message.placeholders.is_empty() {
         return format!(
@@ -193,11 +199,39 @@ fn accessor_member(message: &Message) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     let args = message.placeholders.join(", ");
-    format!(
-        "    public static string {name}({params}) => string.Format(Get(\"{key}\"), {args});\n",
-        key = message.key,
-    )
+    // Resources resolve by name here, so a plural picks between two keys.
+    let key = if plural {
+        format!(
+            "IsOne(count) ? \"{key}{ONE_SUFFIX}\" : \"{key}\"",
+            key = message.key,
+        )
+    } else {
+        format!("\"{key}\"", key = message.key)
+    };
+    format!("    public static string {name}({params}) => string.Format(Get({key}), {args});\n")
 }
+
+/// The singular test the generated members branch on, emitted verbatim.
+const PLURAL_RULE: &str = r#"
+    /// <summary>
+    /// Whether <paramref name="count"/> takes the singular in the active language. French counts
+    /// zero as singular ("0 conversation"); every other locale this app ships (en, nl, de, es, it,
+    /// pt-PT) takes the singular at one alone. Each is CLDR's rule for that language, and an empty
+    /// folder is what makes zero worth getting right: its footer states the count.
+    /// </summary>
+    private static bool IsOne(int count)
+    {
+        // The pinned qualifier when SetLanguage chose one, else the language the OS resolved us to.
+        if (!_context.QualifierValues.TryGetValue("Language", out var language)
+            || string.IsNullOrEmpty(language))
+        {
+            language = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        }
+        return language.StartsWith("fr", System.StringComparison.OrdinalIgnoreCase)
+            ? count <= 1
+            : count == 1;
+    }
+"#;
 
 /// The accessor preamble: the MRT-Core resolution plumbing shared by every typed member. A
 /// single `ResourceManager` (the app's `resources.pri`), the `Resources` subtree (where the
