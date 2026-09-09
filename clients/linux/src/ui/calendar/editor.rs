@@ -282,6 +282,7 @@ impl EventEditor {
                 // moving its start onto this occurrence, which would delete every earlier one.
                 times_from_occurrence: (!this_occurrence_only && !detail.occurrence.is_empty())
                     .then(|| detail.occurrence.clone()),
+                invitees: None,
             });
         }
         let choice = usize::try_from(form.calendar_index)
@@ -302,6 +303,7 @@ impl EventEditor {
                 Some(RecurrenceChange::Set { rule }) => Some(rule),
                 Some(RecurrenceChange::Clear) | None => None,
             },
+            invitees: None,
         })
     }
 

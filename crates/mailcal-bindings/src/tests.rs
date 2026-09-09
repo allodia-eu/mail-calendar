@@ -425,3 +425,6 @@ fn external_link_policy_crosses_the_ffi() {
     assert!(!should_open_external_link("myapp://home".to_owned()));
     assert!(!should_open_external_link("javascript:alert(1)".to_owned()));
 }
+
+#[path = "tests_calendar.rs"]
+mod calendar;

@@ -468,3 +468,27 @@ fn organized_by_us(event: &Event, my_addresses: &[String]) -> bool {
                 .any(|mine| addresses_match(organizer, mine))
         })
 }
+
+/// Whether this account is the meeting organiser for a roster edit.
+///
+/// Prefer an explicit Owner. JMAP represents the organiser as Chair, so Chair is used only when
+/// no Owner exists. An appointment has neither and cannot acquire invitees through a roster patch.
+pub(crate) fn may_edit_roster(event: &Event, my_addresses: &[String]) -> bool {
+    let has_owner = event
+        .participants
+        .iter()
+        .any(|participant| participant.has_role(&engine_api::ParticipantRole::Owner));
+    let role = if has_owner {
+        engine_api::ParticipantRole::Owner
+    } else {
+        engine_api::ParticipantRole::Chair
+    };
+    event.participants.iter().any(|participant| {
+        participant.has_role(&role)
+            && participant.email.as_deref().is_some_and(|organiser| {
+                my_addresses
+                    .iter()
+                    .any(|mine| addresses_match(organiser, mine))
+            })
+    })
+}

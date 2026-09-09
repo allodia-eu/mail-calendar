@@ -11,7 +11,10 @@ use super::{BulkAction, InvitationResponse, SearchScope, SelectedRow};
 // module's scope rather than the parent's.
 #[allow(unused_imports, reason = "named by an intra-doc link on a variant")]
 use crate::Surface;
-use crate::{ContactEdit, EventEdge, RecurrenceChange, SimpleRecurrence, ViewMode};
+use crate::{
+    ContactEdit, EventEdge, MeetingInvitee, MeetingInviteePatch, RecurrenceChange,
+    SimpleRecurrence, ViewMode,
+};
 
 /// A host intent: the single inbound channel of the unidirectional loop.
 #[derive(uniffi::Enum)]
@@ -259,6 +262,10 @@ pub enum Intent {
         /// through [`Intent::UpdateEvent`]'s `recurrence`.
         #[uniffi(default = None)]
         recurrence: Option<SimpleRecurrence>,
+        /// The people to invite. `None` creates an appointment; an empty list is refused.
+        /// The core derives the organiser from the chosen account.
+        #[uniffi(default = None)]
+        invitees: Option<Vec<MeetingInvitee>>,
     },
     /// Edit a stored calendar event, then refresh the agenda.
     ///
@@ -313,6 +320,10 @@ pub enum Intent {
         /// is ignored when `occurrence` is set. Setting it needs **both** `start` and `end`.
         #[uniffi(default = None)]
         times_from_occurrence: Option<String>,
+        /// Invitees to add, change or remove on a meeting this account organises. `None` leaves
+        /// the roster alone. An appointment cannot acquire invitees through an update.
+        #[uniffi(default = None)]
+        invitees: Option<MeetingInviteePatch>,
     },
     /// Move or resize a stored calendar event by **dragging** it on the grid, then refresh the
     /// agenda.

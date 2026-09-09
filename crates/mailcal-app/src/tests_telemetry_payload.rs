@@ -45,6 +45,7 @@ async fn no_content_reaches_the_wire() {
         notes: Some("do not send this anywhere".to_owned()),
         location: Some("Courtroom 4B".to_owned()),
         recurrence: None,
+        invitees: None,
     })
     .await;
     app.dispatch(Intent::SubmitMail {

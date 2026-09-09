@@ -23,7 +23,7 @@ pub mod text;
 pub mod view;
 mod view_rows;
 
-pub use attendee::{EventAttendee, effective_response, event_attendees};
+pub use attendee::{EventAttendee, EventAttendeeRole, effective_response, event_attendees};
 pub use avatar::Avatar;
 pub use calendar::{CalendarSnapshot, EventRow};
 pub use connectivity::ConnectivitySnapshot;

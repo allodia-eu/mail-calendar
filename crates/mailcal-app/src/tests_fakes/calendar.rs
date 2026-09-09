@@ -7,7 +7,9 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use engine_api::{AccountId, CalendarWrites, EmailAddress, Engine, TimeZoneId};
+use engine_api::{
+    AccountId, CalendarWrites, EmailAddress, Engine, InviteePatch, MeetingDraft, TimeZoneId,
+};
 use engine_core::{
     calendar::{Calendar, Event},
     ids::{CalendarId, EventId, Uid},
@@ -44,6 +46,8 @@ pub(crate) struct RecordedPatch {
     pub(crate) start: Option<CalendarDateTime>,
     /// The new end, same terms.
     pub(crate) end: Option<CalendarDateTime>,
+    /// Invitee changes, when the patch touches the roster.
+    pub(crate) invitees: Option<InviteePatch>,
 }
 
 /// Every patch the provider was asked to apply, in order.
@@ -86,6 +90,8 @@ pub(crate) struct CalendarFake {
     /// The repeat rule each draft carried, by value: a create that repeats has to be
     /// distinguishable from one that does not, and by more than "a field was populated".
     create_rules: Arc<Mutex<Vec<Option<DraftRecurrence>>>>,
+    /// The scheduling data each create carried, or `None` for an appointment.
+    create_meetings: Arc<Mutex<Vec<Option<MeetingDraft>>>>,
     deletions: Arc<Mutex<Vec<String>>>,
     /// What each delete removed: the whole event, or one named occurrence. By value, for the
     /// reason [`RecordedPatch`] is: cancelling one Tuesday and cancelling the standup are
@@ -143,6 +149,7 @@ impl CalendarFake {
             events: vec![event],
             creations: Arc::new(Mutex::new(Vec::new())),
             create_rules: Arc::new(Mutex::new(Vec::new())),
+            create_meetings: Arc::new(Mutex::new(Vec::new())),
             delete_targets: Arc::new(Mutex::new(Vec::new())),
             create_targets: Arc::new(Mutex::new(Vec::new())),
             rsvps: Arc::new(Mutex::new(Vec::new())),
@@ -268,6 +275,11 @@ impl CalendarFake {
         Arc::clone(&self.create_rules)
     }
 
+    /// A shared handle to the scheduling data each create carried.
+    pub(crate) fn create_meetings(&self) -> Arc<Mutex<Vec<Option<MeetingDraft>>>> {
+        Arc::clone(&self.create_meetings)
+    }
+
     /// A shared handle to what each delete removed: the event, or one occurrence.
     pub(crate) fn delete_targets(&self) -> Arc<Mutex<Vec<DeleteTarget>>> {
         Arc::clone(&self.delete_targets)
@@ -376,6 +388,10 @@ impl CalendarWrites for CalendarFake {
             .lock()
             .unwrap()
             .push(draft.recurrence.clone());
+        self.create_meetings
+            .lock()
+            .unwrap()
+            .push(draft.meeting.clone());
         let href = format!("/cal/{}.ics", draft.uid.as_str());
         let event = EventId::try_from(href.as_str())
             .unwrap_or_else(|_| EventId::try_from("/cal/event.ics").unwrap());
@@ -423,6 +439,7 @@ impl CalendarWrites for CalendarFake {
             summary: edit.patch.summary_edit().map(str::to_owned),
             start: edit.patch.start_edit().cloned(),
             end: edit.patch.end_edit().cloned(),
+            invitees: edit.patch.invitee_edit().cloned(),
         });
         if self.reject_patches {
             return Err(ProviderError::invalid_state(

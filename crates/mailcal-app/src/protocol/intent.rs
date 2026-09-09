@@ -3,7 +3,7 @@
 //! Split from [`super`] (the surfaces, the observer and the small records an intent carries)
 //! to keep each file under the 500-line limit, nothing about the enum changed in the move.
 
-use engine_api::{AccountId, LocalDateTime};
+use engine_api::{AccountId, Invitee, LocalDateTime};
 use mailcal_account::{ContactEdit, EventDrag, EventEdit};
 use mailcal_composer::ComposerDocument;
 use mailcal_viewmodel::{QuoteStyleKind, SwipeActionKind, SwipeDirection, ViewMode};
@@ -320,12 +320,15 @@ pub enum Intent {
         /// How the event repeats, or `None` for a one-off. Changing the rule afterwards goes
         /// through [`Intent::UpdateEvent`].
         recurrence: Option<mailcal_account::SimpleRecurrence>,
+        /// The people to invite. `None` creates an appointment; the organiser is derived from the
+        /// selected account. `Some` must contain at least one invitee.
+        invitees: Option<Vec<Invitee>>,
     },
-    /// Edit a stored calendar event; retitle, move, resize, change its notes or location;
+    /// Edit a stored calendar event; retitle, move, resize, change its notes, location or roster;
     /// then refresh the agenda.
     ///
     /// The write is a provider-neutral patch, so the adapter applies only the changed
-    /// properties and the recurrence rule, attendees, alarms and timezone survive.
+    /// properties and the untouched recurrence rule, invitees, alarms and timezone survive.
     /// Rebuilding the document instead, which is all [`Intent::CreateEvent`] can do;
     /// would delete every one of them and report success.
     ///

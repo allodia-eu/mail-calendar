@@ -100,6 +100,7 @@ async fn a_write_reconciles_the_event_scope_without_a_full_refresh() {
         notes: None,
         location: None,
         recurrence: None,
+        invitees: None,
     })
     .await;
     let after = syncs.load(Ordering::Relaxed);
@@ -186,6 +187,7 @@ async fn a_create_reports_saved_and_signals_the_calendar_status() {
         notes: None,
         location: None,
         recurrence: None,
+        invitees: None,
     })
     .await;
 
@@ -218,6 +220,7 @@ async fn a_write_whose_reconcile_fails_reports_failed_not_saved() {
         notes: None,
         location: None,
         recurrence: None,
+        invitees: None,
     })
     .await;
 
@@ -244,6 +247,7 @@ async fn a_background_refresh_preserves_failure_until_an_explicit_retry() {
         notes: None,
         location: None,
         recurrence: None,
+        invitees: None,
     })
     .await;
     assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
@@ -290,6 +294,7 @@ async fn a_create_routes_to_a_writable_account_not_the_first_calendar_account() 
         notes: None,
         location: None,
         recurrence: None,
+        invitees: None,
     })
     .await;
 
@@ -326,6 +331,7 @@ async fn a_create_is_a_no_op_when_no_account_can_write() {
         notes: None,
         location: None,
         recurrence: None,
+        invitees: None,
     })
     .await;
 
@@ -362,6 +368,7 @@ async fn a_create_routes_to_the_chosen_calendar_not_the_first() {
         notes: None,
         location: None,
         recurrence: None,
+        invitees: None,
     })
     .await;
 
@@ -371,6 +378,9 @@ async fn a_create_routes_to_the_chosen_calendar_not_the_first() {
         "the create landed in the chosen calendar, not the first"
     );
 }
+
+#[path = "tests_calendar_meeting.rs"]
+mod meeting;
 
 #[tokio::test]
 async fn a_create_with_an_unknown_calendar_still_lands_rather_than_dropping() {
@@ -394,6 +404,7 @@ async fn a_create_with_an_unknown_calendar_still_lands_rather_than_dropping() {
         notes: None,
         location: None,
         recurrence: None,
+        invitees: None,
     })
     .await;
 
@@ -432,6 +443,7 @@ async fn a_create_routes_to_the_chosen_account() {
         notes: None,
         location: None,
         recurrence: None,
+        invitees: None,
     })
     .await;
 

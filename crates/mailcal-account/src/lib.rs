@@ -40,7 +40,9 @@ mod throttle;
 mod tls;
 
 pub use autodetect::{MissReason, OauthRoutes, ServerSummary, SetupRecommendation, recommend};
-pub use calendar::{EventEdit, build_event_deletion, build_event_draft, build_event_patch};
+pub use calendar::{
+    EventEdit, attach_meeting, build_event_deletion, build_event_draft, build_event_patch,
+};
 pub use calendar_drag::{
     EventDrag, EventEdge, apply_event_drag, names_an_occurrence, occurrence_local,
     occurrence_wall_clock, stored_occurrence,
@@ -58,7 +60,7 @@ use engine_core::{
     sync::SyncUpdate,
 };
 use engine_provider::{Provider, ProviderError, Watch};
-pub use event_detail::{DetailOccurrence, EventDetail, project_event_detail};
+pub use event_detail::{DetailOccurrence, EventDetail, InviteeEditability, project_event_detail};
 pub use google::{
     GoogleConfig, connect_google_calendar_providers, connect_google_folder,
     connect_google_mail_providers, fetch_google_primary_address, google_token_source,

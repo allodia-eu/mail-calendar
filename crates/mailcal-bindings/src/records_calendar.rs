@@ -422,6 +422,8 @@ pub struct EventDetail {
     pub is_recurring: bool,
     /// Whether the calendar can be written; gates the edit and delete affordances.
     pub can_write: bool,
+    /// Whether this account organises the meeting and may change its invitees.
+    pub can_edit_invitees: bool,
     /// The occurrence this detail describes, as the token that named it; empty when it
     /// describes the **series**, which is what an agenda row and a one-off event always do.
     ///
@@ -460,6 +462,8 @@ pub struct EventAttendee {
     pub email: String,
     /// Whether this participant called the meeting (the `ORGANIZER`), so a client can say so.
     pub is_organizer: bool,
+    /// The invitee role an organiser may edit, or `None` for the organiser and unsupported roles.
+    pub role: Option<crate::MeetingInviteeRole>,
     /// How they answered. An organiser who never answered reads as `Accepted`; RFC 5546 §3.2.1
     /// has them attending by definition, and the invitation tally counts them the same way.
     pub response: crate::records_invitation::ResponseStatus,

@@ -58,6 +58,7 @@ import Testing
             repeatDraft: repeatDraft,
             isRecurring: isRecurring,
             canWrite: true,
+            canEditInvitees: false,
             occurrenceStart: occurrenceStart,
             attendees: []
         )

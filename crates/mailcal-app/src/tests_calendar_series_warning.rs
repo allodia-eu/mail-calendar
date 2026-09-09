@@ -49,6 +49,7 @@ fn nothing() -> EventEdit {
         end: None,
         notes: None,
         location: None,
+        invitees: None,
         recurrence: None,
         occurrence: None,
         times_from_occurrence: None,
