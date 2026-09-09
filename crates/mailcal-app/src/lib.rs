@@ -258,11 +258,7 @@ pub struct App<P> {
     /// the list: so a folder switch always opens at the first page, and scrolling loads more.
     /// A background sync preserves it (the host keeps whatever it had scrolled into view).
     visible_limit: Mutex<usize>,
-    search_query: Mutex<Option<String>>,
-    /// Which folders the active search covers. Session state, never persisted: it is a filter
-    /// on one search, and [`Intent::Search`]`(None)` resets it, so a search always opens on
-    /// the default rather than inheriting how the last one was narrowed.
-    search_scope: Mutex<SearchScope>,
+    search: Mutex<snapshot_search::SearchState>,
     timezone: Mutex<TimeZoneState>,
     /// The persisted per-account synchronisation-behaviour choices (push vs. poll). The
     /// snapshot the host renders is assembled in [`sync_settings`](crate::sync_settings) by

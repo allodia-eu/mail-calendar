@@ -9,7 +9,7 @@ fn search_total_equals_returned_rows_so_there_is_no_show_more() {
         at("a", &message("m1", "one", 0, None)),
         at("a", &message("m2", "two", 1, None)),
     ];
-    let snapshot = search_results(&hits, &[], vec![], 100);
+    let snapshot = search_results(&hits, &[], vec![], ViewMode::Flat, 100);
     assert_eq!(snapshot.total, snapshot.rows.len());
     assert_eq!(snapshot.total, 2);
 }
@@ -22,7 +22,7 @@ fn search_results_order_one_accounts_hits_newest_first() {
         at("a", &message("m1", "Top hit (older)", 0, None)),
         at("a", &message("m2", "Lower hit (newer)", 30, None)),
     ];
-    let snapshot = search_results(&hits, &[], vec![], 100);
+    let snapshot = search_results(&hits, &[], vec![], ViewMode::Flat, 100);
     assert_eq!(
         flat_subjects(&snapshot),
         vec!["Lower hit (newer)", "Top hit (older)"]
@@ -41,7 +41,7 @@ fn search_results_merge_accounts_by_date_not_concatenation() {
         at("b", &message("b1", "B newer", 2, None)),
         at("b", &message("b2", "B older", 1, None)),
     ];
-    let snapshot = search_results(&hits, &[], vec![], 100);
+    let snapshot = search_results(&hits, &[], vec![], ViewMode::Flat, 100);
     let rows: Vec<(&str, &str)> = snapshot
         .rows
         .iter()
@@ -75,11 +75,11 @@ fn search_results_break_date_ties_on_the_row_key() {
         at("b", &message("b1", "B copy", 5, None)),
     ];
     assert_eq!(
-        flat_subjects(&search_results(&forward, &[], vec![], 100)),
+        flat_subjects(&search_results(&forward, &[], vec![], ViewMode::Flat, 100)),
         vec!["A copy", "B copy"]
     );
     assert_eq!(
-        flat_subjects(&search_results(&reversed, &[], vec![], 100)),
+        flat_subjects(&search_results(&reversed, &[], vec![], ViewMode::Flat, 100)),
         vec!["A copy", "B copy"]
     );
 }
@@ -97,7 +97,7 @@ fn search_results_order_a_sent_copy_by_its_sent_instant() {
         at("a", &message("m1", "Received earlier", 30, None)),
         at("a", &sent),
     ];
-    let snapshot = search_results(&hits, &[], vec![], 100);
+    let snapshot = search_results(&hits, &[], vec![], ViewMode::Flat, 100);
     assert_eq!(
         flat_subjects(&snapshot),
         vec!["Sent reply", "Received earlier"]
@@ -117,7 +117,7 @@ fn search_results_cap_the_merged_list_at_the_limit() {
         at("b", &message("b1", "keep (newer)", 5, None)),
         at("b", &message("b2", "drop (oldest)", 1, None)),
     ];
-    let snapshot = search_results(&hits, &[], vec![], 2);
+    let snapshot = search_results(&hits, &[], vec![], ViewMode::Flat, 2);
     assert_eq!(
         flat_subjects(&snapshot),
         vec!["keep (newest)", "keep (newer)"]

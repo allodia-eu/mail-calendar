@@ -330,10 +330,21 @@ pub fn search_results(
     hits: &[AccountMessage],
     accounts: &[AccountRow],
     account_folders: Vec<AccountFolderRow>,
+    mode: ViewMode,
     limit: usize,
 ) -> MailboxListSnapshot {
     let items: Vec<&AccountMessage> = hits.iter().collect();
-    let mut snapshot = build_search(&items, limit);
+    let mut snapshot = match mode {
+        ViewMode::Flat => build_search(&items, limit),
+        // The same projection the mailbox list uses, reading `in_scope` as "matched the query":
+        // it lists only conversations a match touched and orders each on its newest match. What
+        // a search changes is the count below, not the grouping.
+        ViewMode::Threaded => build_threaded(&items, limit),
+    };
+    // Search results have no "show more", so `total` is what is on screen and never the wider
+    // set behind it; `build_threaded` reports every visible thread, which would offer the host a
+    // page that this list will not grow.
+    snapshot.total = snapshot.rows.len();
     snapshot.accounts = accounts.to_vec();
     snapshot.unified_unread = unified_unread(&account_folders);
     snapshot.account_folders = account_folders;

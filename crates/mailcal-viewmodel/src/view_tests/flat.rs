@@ -147,7 +147,13 @@ fn flat_and_search_rows_reflect_the_provider_attachment_flag() {
 
     // A search row carries the same flag, and, like the list, is ordered newest first, so
     // the attached (older) message is the second row.
-    let search = search_results(&[at("a", &attached), at("a", &plain)], &[], vec![], ALL);
+    let search = search_results(
+        &[at("a", &attached), at("a", &plain)],
+        &[],
+        vec![],
+        ViewMode::Flat,
+        ALL,
+    );
     let search_flags: Vec<bool> = search
         .rows
         .iter()

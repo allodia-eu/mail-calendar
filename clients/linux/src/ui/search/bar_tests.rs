@@ -149,10 +149,10 @@ pub(crate) fn rendering_the_cores_state_dispatches_nothing_back() {
 
 /// A render carrying a query the typing has already moved past must leave the field alone.
 ///
-/// A search is asynchronous, and the first one is the slowest; the list swaps from threaded
-/// folder rows to flat results and the query runs cold; so the snapshot lands while the next
-/// character is being typed. A field written from that state loses the character and puts the
-/// cursor at the front, which is where every keystroke after it then lands.
+/// A search is asynchronous, and the first one is the slowest; the whole list is replaced and
+/// the query runs cold; so the snapshot lands while the next character is being typed. A field
+/// written from that state loses the character and puts the cursor at the front, which is where
+/// every keystroke after it then lands.
 pub(crate) fn a_render_behind_the_typing_leaves_the_field_alone() {
     let (bar, _receiver) = bar();
     entry(&bar).set_text("quar");

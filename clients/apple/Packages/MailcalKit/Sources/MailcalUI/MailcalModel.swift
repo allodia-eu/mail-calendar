@@ -235,6 +235,9 @@ final class MailboxModel {
     /// provider is released the moment the call returns and the browser has nowhere to present.
     @ObservationIgnored var allodiaBrowser: AllodiaSignIn?
     @ObservationIgnored private var pump: Task<Void, Never>?
+    /// The pending search dispatch, cancelled by the next keystroke; see
+    /// `MailboxModel.search(_:)` for why typing does not mean searching.
+    @ObservationIgnored var searchDebounce: Task<Void, Never>?
     // Not `private`: MailcalModel.Connect.swift's `connect()` reads it.
     @ObservationIgnored var observer: SurfaceObserver?
     /// Watches device network reachability; retained for the app's lifetime. Not `private`, see
