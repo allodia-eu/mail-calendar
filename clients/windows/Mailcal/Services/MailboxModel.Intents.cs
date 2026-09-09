@@ -275,7 +275,7 @@ public sealed partial class MailboxModel
     internal void CreateEvent(CreateArgs args) =>
         _app?.Dispatch(new Intent.Events(new EventIntent.Create(
             args.Title, args.Start, args.End, args.Account, args.Calendar, args.AllDay, args.Timezone,
-            args.Notes, args.Location, args.Recurrence)));
+            args.Notes, args.Location, args.Recurrence, Invitees: null)));
 
     /// <summary>
     /// Edit a stored calendar event from the editor's payload, then refresh.
@@ -288,7 +288,7 @@ public sealed partial class MailboxModel
     internal void UpdateEvent(UpdateArgs args) =>
         _app?.Dispatch(new Intent.Events(new EventIntent.Update(
             args.Account, args.Key, args.Title, args.Start, args.End, args.Notes, args.Location,
-            args.Occurrence, args.Recurrence, args.TimesFromOccurrence)));
+            args.Occurrence, args.Recurrence, args.TimesFromOccurrence, Invitees: null)));
 
     /// <summary>
     /// What saving <paramref name="args"/> over the whole series would cost the occurrences the

@@ -14,7 +14,13 @@ import Testing
         isOrganizer: Bool = false,
         response: ResponseStatus = .accepted
     ) -> EventAttendee {
-        EventAttendee(name: name, email: email, isOrganizer: isOrganizer, response: response)
+        EventAttendee(
+            name: name,
+            email: email,
+            isOrganizer: isOrganizer,
+            role: nil,
+            response: response
+        )
     }
 
     @Test func aNamedAttendeeGetsTheirAddressOnTheSecondLine() {
@@ -71,6 +77,7 @@ import Testing
             repeatDraft: nil,
             isRecurring: false,
             canWrite: true,
+            canEditInvitees: false,
             occurrenceStart: "",
             attendees: rows
         )

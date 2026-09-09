@@ -83,6 +83,7 @@ private fun detail(
     repeatDraft = repeatDraft,
     isRecurring = isRecurring,
     canWrite = true,
+    canEditInvitees = false,
     occurrenceStart = occurrence,
     attendees = emptyList(),
 )

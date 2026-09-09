@@ -43,6 +43,7 @@ private fun detail(
     repeatDraft = null,
     isRecurring = isRecurring,
     canWrite = true,
+    canEditInvitees = false,
     occurrenceStart = "",
     attendees = attendees,
 )

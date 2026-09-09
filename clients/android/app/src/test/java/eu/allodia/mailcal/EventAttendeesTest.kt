@@ -20,7 +20,13 @@ private fun attendee(
     email: String,
     isOrganizer: Boolean = false,
     response: ResponseStatus = ResponseStatus.ACCEPTED,
-) = EventAttendee(name = name, email = email, isOrganizer = isOrganizer, response = response)
+) = EventAttendee(
+    name = name,
+    email = email,
+    isOrganizer = isOrganizer,
+    role = null,
+    response = response,
+)
 
 @RunWith(RobolectricTestRunner::class)
 class EventAttendeesTest {
@@ -94,6 +100,7 @@ class EventAttendeesTest {
             repeatDraft = null,
             isRecurring = false,
             canWrite = true,
+            canEditInvitees = false,
             occurrenceStart = "",
             attendees = rows,
         )

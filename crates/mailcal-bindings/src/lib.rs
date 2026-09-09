@@ -112,6 +112,7 @@ mod records_outbox;
 pub mod sync_state;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
 mod records_invitation;
+mod records_meeting;
 mod records_recurrence;
 mod records_repeat_summary;
 mod rendering;
@@ -226,6 +227,7 @@ pub use records_folders::{
 pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
 };
+pub use records_meeting::{MeetingInvitee, MeetingInviteePatch, MeetingInviteeRole};
 pub use records_outbox::{QueuedRow, QueuedState, SendStatus};
 pub use records_recurrence::{
     EventRecurrence, ProposedEdit, RecurrenceChange, RecurrenceDay, RecurrenceEnd,

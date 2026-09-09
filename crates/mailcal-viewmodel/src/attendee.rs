@@ -39,8 +39,20 @@ pub struct EventAttendee {
     pub email: String,
     /// Whether this participant called the meeting (the `ORGANIZER`), so a client can say so.
     pub is_organizer: bool,
+    /// The invitee role an organiser may edit. `None` for the organiser and roles the meeting
+    /// editor cannot represent without losing information.
+    pub role: Option<EventAttendeeRole>,
     /// How they answered, with [`effective_response`]'s organiser rule already applied.
     pub response: ResponseStatus,
+}
+
+/// The invitee roles the meeting editor can state in full.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventAttendeeRole {
+    /// Attendance is requested.
+    Required,
+    /// Attendance is optional.
+    Optional,
 }
 
 /// A participant's answer as a surface should show it.
@@ -118,6 +130,11 @@ pub fn event_attendees(event: &Event) -> Vec<EventAttendee> {
                 .map_or_else(String::new, |name| plain_text(name, TEXT_LIMIT).0),
             email: plain_text(&normalized, TEXT_LIMIT).0,
             is_organizer,
+            role: if is_organizer {
+                None
+            } else {
+                editable_role(participant)
+            },
             response,
         });
     }
@@ -125,6 +142,16 @@ pub fn event_attendees(event: &Event) -> Vec<EventAttendee> {
     // order the event listed them.
     attendees.sort_by_key(|attendee| !attendee.is_organizer);
     attendees
+}
+
+fn editable_role(participant: &Participant) -> Option<EventAttendeeRole> {
+    if participant.has_role(&ParticipantRole::Optional) {
+        Some(EventAttendeeRole::Optional)
+    } else if participant.has_role(&ParticipantRole::Attendee) {
+        Some(EventAttendeeRole::Required)
+    } else {
+        None
+    }
 }
 
 /// Whether this participant is the one who **called** the meeting, for the row's "Organiser" mark.
@@ -171,6 +198,11 @@ fn merge_into(
     response: ResponseStatus,
 ) {
     existing.is_organizer |= is_organizer;
+    if existing.is_organizer {
+        existing.role = None;
+    } else if existing.role.is_none() {
+        existing.role = editable_role(participant);
+    }
     if let Some(name) = participant
         .name
         .as_deref()

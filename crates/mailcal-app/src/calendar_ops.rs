@@ -170,6 +170,7 @@ impl<P: Provider> App<P> {
         notes: Option<String>,
         location: Option<String>,
         recurrence: Option<mailcal_account::SimpleRecurrence>,
+        invitees: Option<Vec<engine_api::Invitee>>,
     ) {
         let Some(account) = self.create_account(account).await else {
             return;
@@ -188,7 +189,7 @@ impl<P: Provider> App<P> {
             return;
         };
         let uid = generated_uid();
-        let Ok(draft) = mailcal_account::build_event_draft(
+        let Ok(mut draft) = mailcal_account::build_event_draft(
             calendar.id.clone(),
             &uid,
             &title,
@@ -203,6 +204,18 @@ impl<P: Provider> App<P> {
         ) else {
             return;
         };
+        if let Some(invitees) = invitees {
+            let Some(organiser) = self.sender_identity(&account).await else {
+                self.set_calendar_write_status(CalendarWriteStatus::Failed);
+                return;
+            };
+            let Ok(meeting) = mailcal_account::attach_meeting(draft, &organiser, invitees) else {
+                log::warn!("create_calendar_event: the meeting fields were invalid");
+                self.set_calendar_write_status(CalendarWriteStatus::Failed);
+                return;
+            };
+            draft = meeting;
+        }
         // Clone the account handle, then write with the read guard released.
         let mut status = None;
         if let Some(acct) = self.account_handle(&account).await
@@ -264,6 +277,17 @@ impl<P: Provider> App<P> {
         {
             self.set_calendar_write_status(CalendarWriteStatus::Failed);
             return Err("the edit names no occurrence of this series".to_owned());
+        }
+        if edit
+            .invitees
+            .as_ref()
+            .is_some_and(|changes| !changes.is_empty())
+        {
+            let addresses = self.account_address_set(&event.account).await;
+            if !crate::invitations::may_edit_roster(&stored, &addresses) {
+                self.set_calendar_write_status(CalendarWriteStatus::Failed);
+                return Err("this account does not organise the meeting".to_owned());
+            }
         }
 
         let (target, patch) = mailcal_account::build_event_patch(&stored, edit, now_utc()?)

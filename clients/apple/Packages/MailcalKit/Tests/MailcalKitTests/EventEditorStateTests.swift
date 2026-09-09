@@ -42,6 +42,7 @@ import Testing
             repeatDraft: nil,
             isRecurring: isRecurring,
             canWrite: true,
+            canEditInvitees: false,
             occurrenceStart: "",
             attendees: attendees
         )

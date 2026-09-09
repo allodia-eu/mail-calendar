@@ -497,12 +497,12 @@ stripped (RFC 4791 §4.1 forbids `METHOD` on a stored resource), under a guarded
 scheduling object, the server turns the changed `PARTSTAT` into the `REPLY`, and it is what Apple
 Calendar and Thunderbird do.
 
-It has to be a whole-document write and not `create_event`: an `EventDraft` carries neither
-`ORGANIZER` nor `ATTENDEE`, so a create through the neutral spine would store a plain appointment
-with nothing to answer on. The guard matters because the concurrent writer is usually the *server*
-(an auto-scheduling one deposits its own copy the moment the organiser writes), and a `412` is
-therefore a **success with a different next step**: re-read and answer on the copy that is already
-there, never overwrite it.
+It has to be a whole-document write and not `create_event`: a new meeting draft does not preserve
+the received participants' answers or scheduling parameters, so rebuilding the invitation would
+discard information needed to answer it. The guard matters because the concurrent writer is
+usually the *server* (an auto-scheduling one deposits its own copy the moment the organiser
+writes), and a `412` is therefore a **success with a different next step**: re-read and answer on
+the copy that is already there, never overwrite it.
 
 Verified live against the harness (Stalwart, which also advertises `calendar-auto-schedule`, with the
 invitation `APPEND`ed to IMAP so nothing filed it, the Soverin shape exactly). Both halves:
