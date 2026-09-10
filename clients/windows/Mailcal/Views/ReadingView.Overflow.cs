@@ -15,21 +15,29 @@ namespace Allodia.Mailcal.Views;
 
 public sealed partial class ReadingView
 {
+    // Which message the standing export error is about, so Render() can tell "the user moved on"
+    // from "another snapshot arrived for the message still on screen". Null while none is shown.
+    private string? _exportErrorKey;
+
     private async void OnExportEml(object sender, RoutedEventArgs e)
     {
         if (_model?.OpenedMessage is not { } opened)
         {
             return;
         }
-        ExportError.Visibility = Visibility.Collapsed;
+        ClearExportError();
         StorageFile? file;
         try
         {
-            // OpenedMessage.Subject is what this pane DISPLAYS, placeholder and all, so an
-            // untitled message exports under the words the user is looking at.
+            // SubjectText.Text, not OpenedMessage.Subject: the contract is that the name comes
+            // from the subject this pane DISPLAYS, so an untitled message exports under the
+            // client's own localised "(no subject)" rather than a second, English name
+            // (docs/reading-actions.md). Read off the control the user is looking at rather than
+            // recomputing the placeholder here, which would be a second answer free to drift from
+            // the one on screen.
             var picker = new FileSavePicker
             {
-                SuggestedFileName = MailboxModel.ExportFileName(opened.Subject),
+                SuggestedFileName = MailboxModel.ExportFileName(SubjectText.Text),
             };
             // The extension names its own type here rather than a catalog string: a picker
             // filter is the one label that is an identifier, and ".eml" reads the same in every
@@ -44,7 +52,7 @@ public sealed partial class ReadingView
         catch (Exception ex)
         {
             Log.Warn($"message export picker failed: {ex.GetType().Name}");
-            ShowExportError();
+            ShowExportError(opened.Key);
             return;
         }
         if (file is null)
@@ -87,7 +95,7 @@ public sealed partial class ReadingView
             {
                 // best effort
             }
-            ShowExportError();
+            ShowExportError(opened.Key);
         }
     }
 
@@ -96,9 +104,16 @@ public sealed partial class ReadingView
     private Task<bool> WriteSourceAsync(string account, string key, string destination) =>
         Task.Run(() => _model?.SaveMessageSource(account, key, destination) ?? false);
 
-    private void ShowExportError()
+    private void ShowExportError(string key)
     {
+        _exportErrorKey = key;
         ExportError.Text = L10n.MessageSaveFailed();
         ExportError.Visibility = Visibility.Visible;
+    }
+
+    private void ClearExportError()
+    {
+        _exportErrorKey = null;
+        ExportError.Visibility = Visibility.Collapsed;
     }
 }
