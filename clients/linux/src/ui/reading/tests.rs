@@ -1,6 +1,6 @@
 //! The attachment row's two rules (it names the file each control acts on, and neither of its
-//! lines is ever parsed as markup), the page the body area is drawn on, and what the pane's own
-//! header leaves to the row above it.
+//! lines is ever parsed as markup), the page the body area is drawn on, the overflow menu at the
+//! end of the action row, and what the pane's own header leaves to the row above it.
 
 use adw::prelude::PreferencesRowExt;
 use gtk::prelude::{ButtonExt, Cast, WidgetExt};
@@ -9,7 +9,10 @@ use mailcal_bindings::{AttachmentRow, CalendarWriteStatus};
 use super::{InvitationClock, ReadingPane};
 use crate::{
     l10n,
-    ui::reading::attachments::{attachment_button, attachment_row},
+    ui::{
+        mail_actions,
+        reading::attachments::{attachment_button, attachment_row},
+    },
 };
 
 /// The opened-message header renders the instant in the active display zone.
@@ -223,4 +226,62 @@ fn header_bar(root: &gtk::Widget) -> Option<adw::HeaderBar> {
         child = node.next_sibling();
     }
     None
+}
+
+/// The overflow at the end of the action row offers the export, and the name it offers comes
+/// from the subject the pane is *drawing*.
+///
+/// Neither assertion is one an accessibility dump of the running app can make: every message
+/// row carries a menu of the same name, so a by-name driver reaches one of those instead of
+/// this one, and a file name never enters the tree at all.
+pub(crate) fn the_overflow_offers_the_export_named_after_the_subject_on_screen() {
+    let window = adw::ApplicationWindow::builder().build();
+    let (sender, _receiver) = relm4::channel::<super::super::AppInput>();
+    let pane = ReadingPane::new(&window, sender.clone());
+    let clock = InvitationClock {
+        zone: "Europe/Amsterdam",
+        use_24_hour: true,
+        write_status: CalendarWriteStatus::Idle,
+        generation: 1,
+    };
+    let overflow = pane
+        .actions
+        .last()
+        .expect("the overflow is the last action");
+    // The export is behind the menu, never a sixth button on the row beside archive and trash.
+    let menu = mail_actions::tests::popover_content(overflow.upcast_ref::<gtk::Widget>())
+        .expect("the overflow carries its menu");
+    assert!(
+        mail_actions::tests::button(&menu, l10n::action_save_as_eml()).is_some(),
+        "the menu offers the export: {:?}",
+        labels(&menu)
+    );
+
+    // Nothing open: the overflow is as unusable as the buttons beside it.
+    let mut state = crate::ui::model::ReadingState::new(crate::ui::model::empty_reading());
+    pane.render(&state, None, false, clock, &sender);
+    assert!(!overflow.is_sensitive());
+
+    // A message, drawn. A subject holding a separator names one file: flattened, rather than
+    // filed under whatever follows the last slash, or written to a directory nobody chose.
+    state.snapshot.key = "m1".to_owned();
+    state.snapshot.plain = Some("Body".to_owned());
+    let mut open = opened("m1");
+    open.subject = "Invoices 2026/2027".to_owned();
+    state.open(open);
+    pane.render(&state, None, false, clock, &sender);
+    assert!(overflow.is_sensitive());
+    assert_eq!(*pane.export_name.borrow(), "Invoices 2026_2027.eml");
+
+    // An untitled message exports under the placeholder this pane draws, in the app's language,
+    // rather than under a second name the core would have to invent in English.
+    let mut untitled = opened("m2");
+    untitled.subject = "   ".to_owned();
+    state.snapshot.key = "m2".to_owned();
+    state.open(untitled);
+    pane.render(&state, None, false, clock, &sender);
+    assert_eq!(
+        *pane.export_name.borrow(),
+        format!("{}.eml", l10n::mail_no_subject())
+    );
 }

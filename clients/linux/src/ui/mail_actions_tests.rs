@@ -202,10 +202,16 @@ pub(crate) fn permanent_delete_is_confirmed_before_it_dispatches() {
 }
 
 fn popover_child(menu: &gtk::Box) -> gtk::Widget {
-    popover(menu.upcast_ref::<gtk::Widget>())
-        .expect("menu popover")
-        .child()
-        .expect("popover content")
+    popover_content(menu.upcast_ref::<gtk::Widget>()).expect("menu popover")
+}
+
+/// What the popover under `root` holds, without popping it up.
+///
+/// A popover only enters the widget tree of a *realised* toplevel, and these tests build their
+/// widgets outside one, so asking it to `popup()` crashes inside GDK. Its child is reachable
+/// either way, which is where everything worth asserting on lives.
+pub(crate) fn popover_content(root: &gtk::Widget) -> Option<gtk::Widget> {
+    popover(root)?.child()
 }
 
 fn popover(root: &gtk::Widget) -> Option<gtk::Popover> {
