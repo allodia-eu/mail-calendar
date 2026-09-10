@@ -86,17 +86,24 @@ function Wait-DatasetReady {
       # message list is the one thing that can never appear there. It still goes through the
       # welcome question above, that screen comes first (docs/onboarding.md).
       #
-      # ON SCREEN, and that is the whole of it. MainWindow builds the welcome view and the setup
-      # view together, so `DetectEmail` is in the tree from the first walk, behind the welcome
-      # screen, before anyone has answered it. Matching the bare id therefore returns while the
-      # welcome screen is still up, and the suite then measures a screen with no card on it and
-      # reports the card missing. Measured: it passed twice and failed on the third run, which is
-      # what a race looks like from the outside.
+      # READY MEANS BOTH: the form is on screen AND the welcome screen is not. MainWindow builds
+      # the two views together, so the setup view is in the tree, and reports itself on screen,
+      # while the welcome card is still over it, and a poll can even see the setup view a turn
+      # BEFORE the welcome view exists in the tree at all. Either way, returning on the form alone
+      # hands the suite the welcome screen: five Onboarding cases fail naming a missing card that
+      # was never the thing on screen. Requiring the welcome button to be gone is what makes it
+      # deterministic, and it is right on a build that shows no welcome screen too, where it is
+      # absent from the first walk.
       if ($Dataset -eq 'first-run') {
         $stage = 'a window, but the account-setup form never came to the front'
-        if ($tree | Where-Object {
-            $_.Current.AutomationId -eq 'DetectEmail' -and -not $_.Current.IsOffscreen
-          }) { return }
+        $welcomeUp = $tree | Where-Object {
+          $_.Current.AutomationId -eq 'WelcomeGetStarted' -and -not $_.Current.IsOffscreen
+        }
+        $form = $tree | Where-Object {
+          $_.Current.AutomationId -eq 'DetectEmail' -and -not $_.Current.IsOffscreen
+        }
+        if ($form -and -not $welcomeUp) { return }
+        if ($welcomeUp) { $stage = 'the welcome screen, which never gave way to the account-setup form' }
         Start-Sleep -Milliseconds 200
         continue
       }

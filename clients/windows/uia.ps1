@@ -46,10 +46,15 @@
 #   * Anything needing the mouse FROM THIS SCRIPT. UIA drives patterns, not pointers, and the
 #     cursor-moving approaches tried here all addressed the cursor in 96-DPI space while UIA
 #     reports physical pixels, so on a scaled display they click somewhere else entirely.
-#   * A BARE LAYOUT PANEL. A Grid or StackPanel holding only other controls gets no automation peer,
-#     so it is not in the tree and an AutomationProperties.AutomationId on it reaches nothing, a
-#     wait for that id can only time out, however long you give it. Measure the row through a
-#     CONTROL inside it (a ScrollViewer, a TextBlock), whose x:Name is already its AutomationId.
+#   * A BARE LAYOUT PANEL. A Grid, StackPanel or BORDER holding only other controls gets no
+#     automation peer, so it is not in the tree and an AutomationProperties.AutomationId on it
+#     reaches nothing, a wait for that id can only time out, however long you give it. Measure the
+#     row through a CONTROL inside it (a ScrollViewer, a TextBlock), whose x:Name is already its
+#     AutomationId.
+#     ⚠️ The cost is invisible, which is why this is worth re-reading: #SelectionBar is on a Border,
+#     and SelectionBar.Tests waited thirty seconds for it, twice a run, then DISCARDED the $null
+#     and passed on elements it found by other means. A whole minute of every run, and nothing on
+#     screen or in the summary said so. If a wait's result is not read, it is not a wait.
 #
 # CONTEXT FLYOUTS ARE REACHABLE, with the right tool (corrected 2026-07-31). This header used to
 # say they were not: "neither a synthetic right-click nor the Apps key opens one; the row's
@@ -109,6 +114,10 @@ namespace Allodia
     public static class UiaDpi
     {
         [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        /// <summary>The primary display's DPI, for a question asked before there is a window.</summary>
+        [DllImport("user32.dll")] public static extern uint GetDpiForSystem();
+
         /// <summary>
         /// Focus a window before typing at it. Only the system file picker needs this: it is the
         /// one surface here driven by keystrokes rather than by an automation pattern, and
@@ -145,6 +154,24 @@ function Get-UiaScale {
   $dpi = [Allodia.UiaDpi]::GetDpiForWindow([IntPtr] $window.Current.NativeWindowHandle)
   if ($dpi -eq 0) { throw 'the window reports no DPI, so a XAML size cannot be compared against a measured one' }
   $dpi / 96.0
+}
+
+<#
+.SYNOPSIS
+The desktop's size in the LOGICAL units a XAML window is sized in: @(width, height).
+.DESCRIPTION
+For the one question that has to be answered before the app exists: is this desktop big enough to
+hold the window the suites are about to measure? `Screen.PrimaryScreen.Bounds` alone will not do
+it. PowerShell 7 is per-monitor DPI aware, so that property reports PHYSICAL pixels, 2880x1920 on
+a 200% display; comparing it against a size written in XAML says yes to a desktop half the size
+it needs. Dividing by the system scale puts both sides in the same unit.
+#>
+function Get-DesktopLogicalSize {
+  Add-Type -AssemblyName System.Windows.Forms
+  $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+  $dpi = [Allodia.UiaDpi]::GetDpiForSystem()
+  $scale = if ($dpi -gt 0) { $dpi / 96.0 } else { 1.0 }
+  @([int] [Math]::Round($bounds.Width / $scale), [int] [Math]::Round($bounds.Height / $scale))
 }
 
 <#
@@ -331,6 +358,15 @@ started when the click returns, so the first two walks can agree simply because 
 yet. The floor is the minimum time this waits before it is willing to believe "settled".
 #>
 function Wait-UiaQuiet {
+  # THE HOT PATH OF THE WHOLE SUITE, so that nobody optimises it twice. Each turn reads three
+  # properties off every node, and two consecutive turns have to agree, so one settle is at least
+  # two full walks. Measured on the showcase list, 130 nodes: 309ms a walk.
+  #
+  # A UI Automation CacheRequest over the same recursion, which is the obvious fix because it
+  # collapses the property reads into the FindAll that fetched the node, gets it to 254ms and
+  # returns a byte-identical shape. 18%. The cost is not the property reads: it is one COM
+  # FindAll per node plus PowerShell's own recursion, and a cache request changes neither. Not
+  # worth a second walk function and a cached/live split across the file. Measured 2026-09-10.
   param([int] $CapMs = 1200, [int] $FloorMs = 300, [int] $PollMs = 120)
   $timer = [Diagnostics.Stopwatch]::StartNew()
   $previous = $null
