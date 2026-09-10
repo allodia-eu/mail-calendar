@@ -22,7 +22,10 @@ import SwiftUI
 /// and force-unwrapping there traps.
 ///
 /// `presented` is the value `.sheet(item:)` passed to its content closure.
-func sheetItemBinding<Item>(_ storage: Binding<Item?>, presented: Item) -> Binding<Item> {
+///
+/// `Item: Sendable` is SwiftUI's requirement, not ours: `Binding(get:set:)` takes `@Sendable`
+/// closures, and both the storage binding and `presented` are captured by them.
+func sheetItemBinding<Item: Sendable>(_ storage: Binding<Item?>, presented: Item) -> Binding<Item> {
     Binding(
         get: { storage.wrappedValue ?? presented },
         set: { next in

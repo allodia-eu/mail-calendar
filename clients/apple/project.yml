@@ -22,6 +22,13 @@ configFiles:
   Debug: signing.xcconfig
   Release: signing.xcconfig
 
+settings:
+  base:
+    # Warnings are hard errors, matching the Rust workspace. At project level rather than on each
+    # target, so a target added later inherits it instead of having to opt in. It does not reach the
+    # MailcalKit package, whose targets state it themselves (Packages/MailcalKit/Package.swift).
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+
 targets:
   AllodiaMail:
     type: application

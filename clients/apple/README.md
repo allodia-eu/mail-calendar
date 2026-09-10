@@ -56,7 +56,8 @@ arm64 only** (Apple-silicon Mac, arm64 iPhone + iPad); a universal Mac binary wo
 
 ### One-time setup
 
-1. **Tools:** Xcode 26+, and `xcodegen` (`brew install xcodegen`).
+1. **Tools:** Xcode 26.4+ (the first with Swift 6.3, the tools version
+   `Packages/MailcalKit/Package.swift` states) and `xcodegen` (`brew install xcodegen`).
 2. **Paid Apple Developer Program.** The App ID the build signs under is registered with **no capabilities** (the app needs none, its networking, local
    notifications, background fetch, keychain, and App-Sandbox grants are all entitlement/Info.plist
    settings, not App ID capabilities). The App ID + provisioning profiles matter for the **Store**
