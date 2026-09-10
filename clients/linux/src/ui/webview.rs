@@ -269,6 +269,15 @@ fn build_context_menu(
 /// The range the reader may zoom the message to, matching what a browser offers.
 const ZOOM_RANGE: std::ops::RangeInclusive<f64> = 0.25..=5.0;
 
+/// How far a held pinch must have moved before the message is laid out again.
+///
+/// `zoom-level` is a **page** zoom: each change re-lays-out the whole document in the web process,
+/// which is a great deal more work than a touchscreen's report rate. Spent on every
+/// `scale-changed`, the queued layouts outrun what the engine can do and the message crawls along
+/// behind the fingers. So a held pinch buys a layout only where it has moved enough to see, and the
+/// scale the gesture actually ended on is applied in full when it ends.
+const ZOOM_GESTURE_STEP: f64 = 0.05;
+
 /// Names on our own zoom controllers.
 ///
 /// Not decoration: **WebKitGTK installs a `GtkGestureZoom` of its own on every `WebView`**, so
@@ -293,13 +302,36 @@ fn install_zoom_gestures(view: &WebView) {
     // The scale a pinch reports is relative to where that pinch began, not to 1, so the level it
     // started from has to be captured when it does.
     let started_at = Rc::new(Cell::new(1.0_f64));
+    // The level the gesture has asked for, whether or not it has been paid for yet.
+    let asked_for = Rc::new(Cell::new(1.0_f64));
     let begin_view = view.clone();
     let begin_level = Rc::clone(&started_at);
-    zoom.connect_begin(move |_, _| begin_level.set(begin_view.zoom_level()));
-    let pinch_view = view.clone();
-    zoom.connect_scale_changed(move |_, scale| {
-        pinch_view.set_zoom_level(clamp_zoom(started_at.get() * scale));
+    let begin_asked = Rc::clone(&asked_for);
+    zoom.connect_begin(move |gesture, _| {
+        // The claim is what keeps the pinch ours, on a touchscreen and on a touchpad alike.
+        // WebKitGTK's own `GtkGestureZoom` drives its magnification: the rendered page is scaled
+        // on the compositor while the gesture is held and committed to a page scale when it ends.
+        // An unclaimed gesture reports the event unhandled, it carries on past the capture phase
+        // and both run, so the picture moves at the product of the two scales and the commit
+        // leaves the page layer scaled with no offset for one frame, which the reader sees as the
+        // message jumping to its top-left corner and back on release. `zoom-level` is the scale
+        // `docs/reading-zoom.md` rules 4 and 5 are written against, and this makes it the only one.
+        gesture.set_state(gtk::EventSequenceState::Claimed);
+        begin_level.set(begin_view.zoom_level());
+        begin_asked.set(begin_view.zoom_level());
     });
+    let pinch_view = view.clone();
+    let pinch_asked = Rc::clone(&asked_for);
+    let pinch_level = Rc::clone(&started_at);
+    zoom.connect_scale_changed(move |_, scale| {
+        let level = clamp_zoom(pinch_level.get() * scale);
+        pinch_asked.set(level);
+        if (level - pinch_view.zoom_level()).abs() >= level * ZOOM_GESTURE_STEP {
+            pinch_view.set_zoom_level(level);
+        }
+    });
+    let end_view = view.clone();
+    zoom.connect_end(move |_, _| end_view.set_zoom_level(asked_for.get()));
     view.add_controller(zoom);
 
     let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);

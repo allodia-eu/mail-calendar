@@ -57,6 +57,24 @@ disagree about it show the reader two different newsletters from the same bytes.
    the document, or the contract in `rendering-security.md` is weakened to make a message easier to
    read.
 
+   ⚠️ **On Linux the pinch has to claim its sequence.** Every `WebKitWebView` installs a
+   `GtkGestureZoom` of its own, and it is not inert: it drives WebKit's magnification, which scales
+   the rendered page on the compositor while the gesture is held and commits that as a page scale
+   when it ends. A gesture that does not claim reports the event unhandled, so it carries on past
+   the capture phase to WebKit's, which claims it in its own `scale-changed` and denies ours in the
+   same stroke. Two things follow, on a touchscreen and a precision touchpad alike: after an event
+   or two the scale the reader is moving is WebKit's rather than `zoom-level`, and the picture ends
+   up at the **product** of the two, a pinch that laid out at 1.6× showing 3×; and the commit leaves
+   the page layer scaled with no offset for one frame, which the reader sees as the message jumping
+   to its top-left corner and back on release. Ours claims in `begin`, which stops the event at the
+   capture phase and leaves `zoom-level` the only scale that moves.
+
+   What the claim costs is the toolkit's cheap compositor scale, and `zoom-level` is not cheap: it
+   re-lays-out the document, which no engine can do at a touchscreen's report rate. So a held pinch
+   buys a layout only where it has moved 5%, and the scale it ended on is applied in full on
+   release. The message steps rather than glides, and what steps is the layout rather than a picture
+   of it.
+
 5. **A zoom belongs to the message it was made on.** Opening another message starts again at that
    message's own fit. Rule 3 gives each message the scale that fits *it*, so a carried-over zoom
    would mean the next message opens at a scale chosen for the last one, and a reader who zoomed in
@@ -77,7 +95,7 @@ disagree about it show the reader two different newsletters from the same bytes.
 |---|---|---|---|---|
 | 1 · lays out at the pane's width | honours the tag by default | `settings.useWideViewPort = true` (**false by default: the tag is ignored without it**) | honours the tag by default | honours the tag by default |
 | 3 · over-wide is scaled to fit | iOS/iPadOS: `pageZoom`, from the host's own measure of the laid-out document (`fitReadingDocument`). macOS: n/a (see rule 3) | `settings.loadWithOverviewMode = true` | n/a (see rule 3) | n/a (see rule 3) |
-| 4 · reader zoom | macOS `allowsMagnification = true` (trackpad pinch); iOS/iPadOS the scroll view's own pinch, from the viewport | `builtInZoomControls = true` + `displayZoomControls = false` (pinch, without the legacy floating buttons) | `IsPinchZoomEnabled` + `IsZoomControlEnabled` (touch pinch, Ctrl+scroll, Ctrl +/−) | `GtkGestureZoom` + Ctrl+scroll → `zoom-level`, both controllers in the **`Capture`** phase |
+| 4 · reader zoom | macOS `allowsMagnification = true` (trackpad pinch); iOS/iPadOS the scroll view's own pinch, from the viewport | `builtInZoomControls = true` + `displayZoomControls = false` (pinch, without the legacy floating buttons) | `IsPinchZoomEnabled` + `IsZoomControlEnabled` (touch pinch, Ctrl+scroll, Ctrl +/−) | `GtkGestureZoom` + Ctrl+scroll → `zoom-level`, both controllers in the **`Capture`** phase, the pinch **claiming** its sequence (see rule 4) |
 | 5 · resets per message | `loadReadingDocument` resets both: macOS `magnification = 1`, iOS/iPadOS `pageZoom = 1`. Each is the **view's**, not the page's, so each survives a load | page scale resets on load | **not reachable** (see gaps) | `set_zoom_level(1.0)` in `SecureWebView::load` / `clear` |
 
 Source of truth per client: the same four files
@@ -108,15 +126,13 @@ Source of truth per client: the same four files
   layout it had. Nothing in the seeded fixtures is shaped like that, because a message whose media
   queries fire never reaches the fit path at all; it is written down because the first person to
   meet it will otherwise think one of the two platforms is broken.
-- **On Linux, WebKitGTK carries a pinch gesture of its own, and whether the two compound is
-  untested.** Every `WebKitWebView` installs a `GtkGestureZoom`, which is why our controllers are
-  identified by name rather than by type (a lookup by type finds the toolkit's and proves nothing).
-  Ours sits ahead of it in the `Capture` phase and drives `zoom-level`; if WebKit's also acts on the
-  same touch sequence, a pinch would move the scale twice. Nothing here can answer that: the widget
-  suite delivers no touch, and the AT-SPI run drives semantic actions. It needs one pinch on a Linux
-  machine with a touchscreen or a precision touchpad. If they do compound, the fix is to have our
-  gesture claim the sequence rather than to drop it, since `zoom-level` is what rules 4 and 5 are
-  written against.
+- **The Linux claim is not in any suite.** Rule 4's ⚠️ is the one thing on this page that no
+  assertion reaches: whether the two gestures still both act is a question about event delivery, and
+  the widget suite delivers no touch while the AT-SPI run drives semantic actions. What a widget
+  test does hold is that our controllers exist, are named and are in the `Capture` phase. The claim
+  itself is checked by pinching a message on a Linux machine with a touchscreen or a precision
+  touchpad and watching the release: a message that jumps to its top-left corner and back has lost
+  it.
 - **No keyboard zoom on macOS and Linux.** Windows gets Ctrl +/− from WebView2 and Linux gets
   Ctrl+scroll, but neither macOS nor Linux binds the `+`/`−`/`0` keys, because that is a menu
   command on macOS and an application shortcut on Linux rather than a web-view setting. Both have
