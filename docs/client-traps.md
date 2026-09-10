@@ -178,16 +178,17 @@ that same file.
   a widget test cannot see this at all: the only oracle is an AT-SPI run
   (`scripts/dev/test-linux-ui.sh`), which is where the assertion belongs.
 - **A self-contained Windows App SDK build cannot raise a notification, and says nothing about
-  it.** The unpackaged dev loop bundles the runtime rather than using the installed one
-  (`WindowsAppSDKSelfContained`), so `AppNotificationManager.Register()` fails with
-  `ERROR_MOD_NOT_FOUND` (`0x8007007E`): the component that hosts notifications ships in the
-  runtime's own package, which a self-contained app does not have. The app is otherwise perfectly
-  healthy, the new-mail scan behind the notifications still runs and still advances its marks, so
-  the symptom is a mailbox that quietly never notifies, which reads as a broken feature.
-  `build-and-run.ps1 -FrameworkDependent` builds the shape that can, against the installed runtime
-  (`Get-AppxPackage Microsoft.WindowsAppRuntime.2`); the packaged Store build is framework-dependent
-  already and unaffected. The log line is `notifications: could not register`, and a registration
-  that succeeded reports the system's own answer beside it.
+  it.** `AppNotificationManager.Register()` fails with `ERROR_MOD_NOT_FOUND` (`0x8007007E`) when
+  the app bundles the runtime (`WindowsAppSDKSelfContained`) rather than using the installed one:
+  the component that hosts notifications ships in the runtime's own package, which a self-contained
+  app does not have. The app is otherwise perfectly healthy, the new-mail scan behind the
+  notifications still runs and still advances its marks, so the symptom is a mailbox that quietly
+  never notifies, which reads as a broken feature. This is why **both** shapes are
+  framework-dependent, the dev loop as much as the Store build, and why bundling is an opt-in
+  nobody should reach for while working on notifications (`build-and-run.ps1 -SelfContained`, for
+  a machine with no matching `Microsoft.WindowsAppRuntime.2`). The log line is
+  `notifications: could not register`, and a registration that succeeded reports the system's own
+  answer beside it.
 - **Registering for notifications on the UI thread pumps it, and work already queued runs
   early.** `Register()` is a COM call, and a COM call on an STA thread dispatches waiting messages
   while it waits. Called from `OnLaunched`, that lets the first account's connect continuation run
