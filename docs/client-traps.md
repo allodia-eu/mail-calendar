@@ -43,6 +43,20 @@ that same file.
   them needs a title that lays out and does not draw (`.labelStyle(.iconOnly)` removes it from the
   layout too, and is what makes the button short). A screenshot is the only test that sees any of
   this; the suites all pass.
+- **A WinUI button with no label stands at its glyph's height, not its row's**, because the default
+  button style *centres* its content rather than stretching it. So the one icon-only control in a
+  row of labelled ones comes up short and vertically centred: 54px against 64px on a 200% display.
+  The fix is `VerticalAlignment="Stretch"` on that control, which ties it to the tallest button in
+  the row and keeps doing so when text scaling moves it. This has bitten twice, the actions bar's
+  clear button and the reading row's overflow, and both are the same shape as the SwiftUI `Menu`
+  above: the odd control in a row of ordinary ones.
+
+  What makes it expensive is *when* it is visible. Both rows collapse their labels on a narrow
+  pane, and at that width every button is the glyph's height, so the odd one matches **by
+  accident**. A test that measures one width passes over the defect; the assertion has to force the
+  labelled width and say so when it cannot reach it
+  ([`ReadingActionRow.Tests.ps1`](../clients/windows/uitests/ReadingActionRow.Tests.ps1),
+  [`SelectionBar.Tests.ps1`](../clients/windows/uitests/SelectionBar.Tests.ps1)).
 - **`Path.GetInvalidFileNameChars()` answers differently per host, and `Mailcal.Tests` is not a
   Windows assembly.** On Windows it returns the familiar set; on Linux, `/` and NUL alone, so `:`,
   `*`, `?` and `\` all come back as legal. The Windows client only ever *runs* on Windows, but its
