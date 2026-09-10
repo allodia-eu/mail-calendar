@@ -120,6 +120,11 @@ impl<P: Provider> App<P> {
             "refresh_mail: sync {sync_ms}ms + rebuild {}ms",
             rebuild_start.elapsed().as_millis(),
         );
+        // The passes above covered the folders bound at startup. A folder the user opened is
+        // in none of them and is not watched, so without this the refresh they just asked for
+        // would republish the same rows it was already showing. Before the warm below, so the
+        // mail it brings back is warmed in the same pass.
+        self.refresh_open_folder(None, "refresh-mail").await;
         // Warm every account's body cache after the list is on screen (this method runs off
         // the UI thread and the rebuild above already published the snapshot), so each synced
         // window becomes instantly openable and readable offline. Concurrent across accounts;
@@ -181,6 +186,9 @@ impl<P: Provider> App<P> {
     /// flash a bar unless it actually downloads messages. A no-op for an unknown account id.
     pub async fn refresh_account(&self, id: &AccountId) {
         let _ = self.refresh_account_once(id, "account-refresh", true).await;
+        // A folder this account binds no provider to is in no pass and is watched by nothing,
+        // so the tick is what keeps it current while the user is standing in it.
+        self.refresh_open_folder(Some(id), "account-refresh").await;
         // Every poll tick tops the body cache up (new mail, and any backlog an earlier
         // interrupted pass left), so the synced window converges on fully-warm. A cheap no-op
         // once it is (one key scan), and single-flight if a pass is already draining.

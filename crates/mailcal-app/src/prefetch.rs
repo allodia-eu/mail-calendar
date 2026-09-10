@@ -256,6 +256,16 @@ impl<P: Provider> App<P> {
                 }
             }
         }
+        // A warmed body is what gives a row its preview snippet on a provider that sends none
+        // (IMAP: the engine derives one from the body it just fetched), so the list on screen is
+        // out of date the moment this pass warms anything. Once per pass, not per body: the
+        // rows arrive together and this loop runs thousands of times on a first sync. Without
+        // it the previews waited for whatever rebuilt the list next, which for a folder nobody
+        // else syncs meant opening a message and coming back.
+        if warmed > 0 {
+            self.invalidate_list_cache();
+            self.rebuild_snapshot().await;
+        }
         // Skip the log when there was nothing to do: this runs after every sync, and a
         // steady-state no-op pass per poll tick would drown the diagnostic log.
         if !attempted.is_empty() {
