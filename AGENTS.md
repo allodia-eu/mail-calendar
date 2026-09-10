@@ -173,6 +173,7 @@ silent. Two couplings apply to everything user-facing: copy may not out-run the 
 | Contract | What it decides |
 |---|---|
 | [`rendering-security.md`](docs/rendering-security.md) · [`composer-security.md`](docs/composer-security.md) | Every gate on untrusted content and on composer hosting: sanitisation, remote-content blocking, script/navigation lockdown, paste handling, bridge and network controls. Raising a gate anywhere raises it everywhere. |
+| [`reading-zoom.md`](docs/reading-zoom.md) | How a message body is **sized**: it lays out against the reading pane's own width, so the sender's own `@media` rules decide what the reader sees; the viewport names a width and **no scale**, because pinning one stops a too-wide message being scaled to fit and takes the reader's pinch away; a zoom belongs to the message it was made on. |
 | [`calendar.md`](docs/calendar.md) | Grid semantics: the core emits **unit-free** geometry and a client only multiplies; a page is a **week** and day/3-day/week are zoom levels of one grid; alignment is deliberate, never a side-effect of a zoom; `is_materialized: false` means "we have not looked", not "no events". |
 | [`sending.md`](docs/sending.md) | Delivering a message and keeping the sender's copy are two operations, never one transaction: a send is never repeated, the filing alone is retried, and a copy that could not be filed becomes a **standing** question the user can answer, never a silent success. |
 | [`search.md`](docs/search.md) | Newest-first ordering (never relevance); default scope is every account and folder except Trash; the scope filter mirrors the mailbox list; leaving search restores the view it opened from. |
@@ -241,8 +242,15 @@ a build given none drops those two routes from the setup wizard rather than fail
 before chasing one.
 
 **Run `scripts/dev/gate.sh` before the first push of a branch**: `--clients` adds every client this
-host can actually build. CI costs real money and real minutes (macOS runners bill at **10×**), so a
-PR is where you *confirm* a green build, not where you discover one.
+host can actually build. That is the whole local obligation. Each client is verified on the host it
+belongs to and CI covers the rest, so on a Mac the answer is macOS and iOS, and Windows and Linux
+are the runners' to prove.
+
+⚠️ **Never build or test a client on a host that is not its own**, and a container is not an
+exception: standing a Linux image up on a Mac to compile `mailcal-linux` costs several gigabytes of
+disk and a long cold build, and buys a result the Linux runner produces anyway. The same goes for
+the WinUI client. Write the change, say which platforms you could not exercise here, and let CI
+answer for them.
 
 **On Windows the shell is Git Bash, a prerequisite rather than a preference.** The gate and half
 the checks are bash scripts, and Actions' `shell: bash` on `windows-*` runners is Git Bash too, so
@@ -286,7 +294,8 @@ clients/windows/build-and-run.ps1 -NoRun        # cdylib -> bindings -> headless
 clients/windows/uitests/run-ui-tests.ps1        # UI Automation assertions against the RUNNING app
 ```
 
-On **Linux**, with GTK 4.14+ and libadwaita 1.5+ dev packages; other hosts exclude the crate.
+On **Linux**, with GTK 4.14+ and libadwaita 1.5+ dev packages; other hosts exclude the crate and
+leave it to the runner rather than reaching for a container.
 [`clients/linux/README.md`](clients/linux/README.md) has the commands and the one-time GNOME
 runtime install.
 

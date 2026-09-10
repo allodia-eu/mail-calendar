@@ -96,9 +96,22 @@ fn sanitizer() -> &'static Builder<'static> {
             // sets `border="0"` and then `border-style: solid !important` in a mobile @media
             // rule, relying on the attribute's `border-width: 0` to keep it invisible; drop
             // the attribute and that rule paints a spurious box. (No URL or script.)
+            //
+            // `id` is a selector hook exactly like `class`, and a newsletter's mobile layout
+            // routinely hangs off it alone: the container table carries a fixed `width="600"`
+            // and only `table[id=templateContainer]{width:100% !important}`, inside a
+            // `max-width:480px` @media block, narrows it. Without the attribute that rule
+            // matches nothing, so the message lays out 600px wide in a phone's ~384px viewport
+            // and every line runs off the right edge. It must be kept **unprefixed**
+            // (ammonia's `id_prefix`, which exists to stop untrusted ids colliding with a host
+            // page's, would rename the hook out from under the message's own CSS). Nothing here
+            // collides: the reading document holds one message and no script, and in the
+            // composer a quoted original's ids sit inside the contenteditable, after the
+            // editor's own, where `getElementById` never reaches them.
             .add_generic_attributes([
                 "style",
                 "class",
+                "id",
                 "align",
                 "valign",
                 "bgcolor",
@@ -194,6 +207,15 @@ fn base_css() -> &'static str {
 /// the user explicitly loads images (`north-star.md`), when `true`, remote http(s) images
 /// (and CSS backgrounds) load. The host passes the user's per-message choice here and
 /// re-renders.
+///
+/// The viewport declares a width and **no scale** (`docs/reading-zoom.md`).
+/// `width=device-width` is what puts the message's own `@media (max-width: …)` rules in front of
+/// the pane the reader actually has. Naming an `initial-scale` as well would pin the page at 1:1,
+/// and that is exactly the condition under which both touch engines decline to shrink an
+/// over-wide message to fit: a fixed-width newsletter would hang off the right edge of a phone.
+/// Leaving the scale free is also what leaves the reader their pinch, so no `user-scalable` or
+/// `maximum-scale` belongs here either. A message cannot override any of this: the sanitiser
+/// drops `<meta>`.
 #[must_use]
 pub fn render_document(body_fragment: &str, load_remote_images: bool) -> String {
     let img_src = if load_remote_images {
@@ -216,7 +238,7 @@ pub fn render_document(body_fragment: &str, load_remote_images: bool) -> String 
          <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; \
          base-uri 'none'; form-action 'none'; \
          img-src {img_src}; style-src 'unsafe-inline'; font-src data:\">\
-         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
+         <meta name=\"viewport\" content=\"width=device-width\">\
          <style>{base_css}</style></head><body>{body_fragment}</body></html>"
     )
 }
@@ -459,5 +481,7 @@ fn escape_attr_value(value: &str, out: &mut String) {
     }
 }
 
+#[cfg(test)]
+mod document_tests;
 #[cfg(test)]
 mod tests;
