@@ -87,6 +87,15 @@ Source of truth per client: the same four files
   next one at that scale. The honest fix is an SDK that exposes the controller; the alternative,
   scaling the element with a `ScaleTransform`, would resample the rendered surface rather than
   re-lay-out the page and is worse than the gap.
+- **On Linux, WebKitGTK carries a pinch gesture of its own, and whether the two compound is
+  untested.** Every `WebKitWebView` installs a `GtkGestureZoom`, which is why our controllers are
+  identified by name rather than by type (a lookup by type finds the toolkit's and proves nothing).
+  Ours sits ahead of it in the `Capture` phase and drives `zoom-level`; if WebKit's also acts on the
+  same touch sequence, a pinch would move the scale twice. Nothing here can answer that: the widget
+  suite delivers no touch, and the AT-SPI run drives semantic actions. It needs one pinch on a Linux
+  machine with a touchscreen or a precision touchpad. If they do compound, the fix is to have our
+  gesture claim the sequence rather than to drop it, since `zoom-level` is what rules 4 and 5 are
+  written against.
 - **No keyboard zoom on macOS and Linux.** Windows gets Ctrl +/− from WebView2 and Linux gets
   Ctrl+scroll, but neither macOS nor Linux binds the `+`/`−`/`0` keys, because that is a menu
   command on macOS and an application shortcut on Linux rather than a web-view setting. Both have

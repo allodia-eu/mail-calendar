@@ -4,7 +4,7 @@
 //! The GTK half is called from the crate's single `gtk::init` test (see
 //! [`super::super::mailbox::tests`]); the paint gate is a plain state machine and needs no display.
 
-use gtk::{glib, prelude::*};
+use gtk::prelude::*;
 use webkit6::{LoadEvent, prelude::*};
 
 use super::{DocumentKind, PaintGate, SecureWebView, clamp_zoom};
@@ -72,7 +72,22 @@ fn a_pinch_cannot_leave_the_message_at_a_size_with_no_way_back() {
     assert!((clamp_zoom(400.0) - 5.0).abs() < f64::EPSILON);
 }
 
-/// Both zoom controllers listen in the **capture** phase, and only the reading host has them.
+/// One controller on the view, by name, or `None`.
+///
+/// ⚠️ **By name, never by type.** WebKitGTK installs a `GtkGestureZoom` of its own on every
+/// `WebView`, so `observe_controllers()` answers with one whether or not we added anything: a
+/// lookup by type finds the toolkit's, reports the reading host correct without ever having seen
+/// our controller, and reports the composer as zooming when it does not. That is what this
+/// assertion originally did, and CI is where it was caught.
+fn controller_named(view: &webkit6::WebView, name: &str) -> Option<gtk::EventController> {
+    let controllers = view.observe_controllers();
+    (0..controllers.n_items())
+        .filter_map(|index| controllers.item(index))
+        .filter_map(|item| item.downcast::<gtk::EventController>().ok())
+        .find(|controller| controller.name().as_deref() == Some(name))
+}
+
+/// Both zoom controllers listen in the **capture** phase, and only the reading host has ours.
 ///
 /// The phase is the half that fails silently: the web view claims a pinch and a scroll for its own
 /// handling, so a controller left in GTK's default `Bubble` phase is never reached and the gesture
@@ -81,32 +96,25 @@ pub(crate) fn the_readers_zoom_gestures_listen_ahead_of_the_web_view() {
     let (sender, _receiver) = relm4::channel::<super::AppInput>();
     let reading = SecureWebView::new(DocumentKind::Reading, sender.clone());
 
-    let controllers = reading.widget().observe_controllers();
-    let installed: Vec<glib::Object> = (0..controllers.n_items())
-        .filter_map(|index| controllers.item(index))
-        .collect();
-
-    let pinch = installed
-        .iter()
-        .find_map(|item| item.clone().downcast::<gtk::GestureZoom>().ok())
+    let pinch = controller_named(reading.widget(), super::PINCH_CONTROLLER)
         .expect("the reader can pinch a message");
     assert_eq!(pinch.propagation_phase(), gtk::PropagationPhase::Capture);
+    assert!(
+        pinch.is::<gtk::GestureZoom>(),
+        "the pinch is a zoom gesture"
+    );
 
-    let scroll = installed
-        .iter()
-        .find_map(|item| item.clone().downcast::<gtk::EventControllerScroll>().ok())
+    let scroll = controller_named(reading.widget(), super::SCROLL_CONTROLLER)
         .expect("the reader can Ctrl+scroll a message");
     assert_eq!(scroll.propagation_phase(), gtk::PropagationPhase::Capture);
+    assert!(scroll.is::<gtk::EventControllerScroll>());
 
-    // The composer is a document the user is writing, not one they are reading, and its own
-    // editing gestures are the web view's: it gets neither controller.
+    // The composer is a document the user is writing, not one they are reading: it gets neither.
     let composer = SecureWebView::new(DocumentKind::Composer, sender);
-    let composer_controllers = composer.widget().observe_controllers();
     assert!(
-        (0..composer_controllers.n_items())
-            .filter_map(|index| composer_controllers.item(index))
-            .all(|item| item.downcast::<gtk::GestureZoom>().is_err()),
-        "only the reading host zooms"
+        controller_named(composer.widget(), super::PINCH_CONTROLLER).is_none()
+            && controller_named(composer.widget(), super::SCROLL_CONTROLLER).is_none(),
+        "only the reading host takes the reader's zoom"
     );
 }
 

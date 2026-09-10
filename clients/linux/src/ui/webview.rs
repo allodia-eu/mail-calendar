@@ -269,9 +269,18 @@ fn build_context_menu(
 /// The range the reader may zoom the message to, matching what a browser offers.
 const ZOOM_RANGE: std::ops::RangeInclusive<f64> = 0.25..=5.0;
 
+/// Names on our own zoom controllers.
+///
+/// Not decoration: **WebKitGTK installs a `GtkGestureZoom` of its own on every `WebView`**, so
+/// `observe_controllers()` answers with one whether or not we added anything. A test that looks for
+/// "a `GestureZoom`" therefore finds the toolkit's and passes over a host that installs none, which
+/// is how the composer briefly appeared to have a zoom it never had. Ours are identified by name.
+pub(super) const PINCH_CONTROLLER: &str = "mailcal-reading-pinch";
+pub(super) const SCROLL_CONTROLLER: &str = "mailcal-reading-ctrl-scroll";
+
 /// Pinch and Ctrl+scroll zoom for the reading view (`docs/reading-zoom.md`). WebKitGTK carries a
-/// `zoom-level` but binds no gesture to it, so unlike the other three hosts this one has to supply
-/// both itself.
+/// `zoom-level` but binds nothing of ours to it, so unlike the other three hosts this one has to
+/// supply both gestures itself.
 ///
 /// ⚠️ **Both controllers must be in the `Capture` phase.** The web view claims a pinch and a scroll
 /// for its own handling, so a controller left in the default `Bubble` phase is never reached and
@@ -279,6 +288,7 @@ const ZOOM_RANGE: std::ops::RangeInclusive<f64> = 0.25..=5.0;
 /// reaches the page untouched.
 fn install_zoom_gestures(view: &WebView) {
     let zoom = gtk::GestureZoom::new();
+    zoom.set_name(Some(PINCH_CONTROLLER));
     zoom.set_propagation_phase(gtk::PropagationPhase::Capture);
     // The scale a pinch reports is relative to where that pinch began, not to 1, so the level it
     // started from has to be captured when it does.
@@ -293,6 +303,7 @@ fn install_zoom_gestures(view: &WebView) {
     view.add_controller(zoom);
 
     let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
+    scroll.set_name(Some(SCROLL_CONTROLLER));
     scroll.set_propagation_phase(gtk::PropagationPhase::Capture);
     let scroll_view = view.clone();
     scroll.connect_scroll(move |controller, _, dy| {
