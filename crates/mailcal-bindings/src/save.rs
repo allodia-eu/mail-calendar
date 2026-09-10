@@ -1,4 +1,8 @@
 //! FFI for writing part of the open message, or the whole of it, to a file the host chose.
+//!
+//! Public as a module, unlike its neighbours, because the Linux client consumes this crate as
+//! an ordinary Rust dependency rather than through generated bindings, and needs to reach
+//! [`message_export_file_name`] by path.
 
 use std::sync::Arc;
 

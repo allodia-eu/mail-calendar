@@ -5,7 +5,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use adw::prelude::*;
 use gtk::{accessible::Property as AccessibleProperty, glib};
-use mailcal_bindings::message_export_file_name;
+use mailcal_bindings::save::message_export_file_name;
 
 use super::AppInput;
 use crate::l10n;

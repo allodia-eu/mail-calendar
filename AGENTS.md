@@ -306,6 +306,13 @@ On **Linux**, with GTK 4.14+ and libadwaita 1.5+ dev packages; other hosts exclu
 [`clients/linux/README.md`](clients/linux/README.md) has the commands and the one-time GNOME
 runtime install.
 
+**A client the host cannot build is CI's to verify, and a container is not a way around that.**
+Standing up a Linux image on a Mac to compile `mailcal-linux`, or reaching for the WinUI client
+from anywhere but Windows, costs gigabytes of image and cache and a cold compile, on a machine
+someone is working on, to produce the answer the runner produces anyway. Run
+`scripts/dev/gate.sh --clients`, which already limits itself to what this host owns, and **say
+which platforms went unexercised locally** rather than finding a way to exercise them.
+
 ⚠️ **A host build compiles against the distribution's GTK, not the runtime's**, so it proves the
 code compiles and its logic holds, not that the toolkit the user gets behaves. What runs against
 the shipped runtime is `test-linux-ui.sh` and `build-and-run.sh`, both defaulting to it via
