@@ -83,7 +83,7 @@ since a size cap dropped its source will fetch it.
 | Overflow menu at the end of the action row | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Save as `.eml` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Destination | save panel | share sheet | save picker | share sheet | save dialog |
-| Result reported | inline error | inline error | inline error | snackbar | toast |
+| Result reported | inline error | inline error | inline error | toast | banner |
 
 ## Known gaps
 

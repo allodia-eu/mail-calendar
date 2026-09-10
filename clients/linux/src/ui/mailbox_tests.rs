@@ -286,6 +286,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::reading::attachment_tests::the_page_survives_the_gap_before_the_next_body_lands();
     crate::ui::reading::attachment_tests::
         the_reading_header_leaves_the_window_its_corner_and_its_name();
+    crate::ui::reading::attachment_tests::
+        the_overflow_offers_the_export_named_after_the_subject_on_screen();
     crate::ui::reading::canvas::tests::the_drawn_canvas_paints_the_page_the_core_names();
     crate::ui::reading::canvas::tests::the_web_view_base_is_the_same_page();
     crate::ui::modal::tests::a_modal_renders_its_title_in_native_chrome_only();
