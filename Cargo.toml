@@ -4,14 +4,17 @@
 [workspace]
 resolver = "2"
 members = ["crates/*", "clients/linux", "allodia_license/crates/allodia-license"]
-# Three members are deliberately absent from `default-members` below, which is what keeps them out
+# Four members are deliberately absent from `default-members` below, which is what keeps them out
 # of a bare `cargo build`/`cargo test`. That list is explicit rather than a subtraction, so a crate
 # added to `members` never joins the default build by accident. `cargo test --workspace` — what
-# scripts/dev/gate.sh runs — covers all three regardless.
+# scripts/dev/gate.sh runs — covers all four regardless.
 #
-# The C# binding-generator binshim (crates/mailcal-bindgen-cs) is a member so it shares the
-# lockfile/target dir and Renovate tracks its pinned git tag; only the Windows binding-generation
-# step builds it, via `cargo run -p ...`.
+# The two binding generators (crates/mailcal-bindgen-uniffi for Swift and Kotlin,
+# crates/mailcal-bindgen-cs for C#) are members so they share the lockfile and target dir, which is
+# also how Renovate tracks the C# one's pinned git tag; only a binding-generation step builds
+# either, via `cargo run -p ...`. Absence here is the other half: a bin target carries its
+# package's whole dependency tree, so a generator's dependencies stay out of the tree every client
+# compiles only as long as the generator is a package nothing else selects.
 #
 # `crates/mailcal-buildenv` is a `[build-dependencies]` of the two crates that inject compile-time
 # values, so it is built whenever either of them is and needs no place here. Membership is what puts

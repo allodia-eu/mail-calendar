@@ -441,6 +441,14 @@ jobs:
     # Cross-compile the Rust core to an XCFramework, generate the Xcode project, build the macOS +
     # iOS app targets, and build + run the headless FFI verifier (demo mode — deterministic, no
     # credentials). Runner: macos-26 — arm64, macOS 26 + Xcode 26.4 (our minimum).
+    #
+    # ONE job for both platforms, not one each. A macOS leg and an iOS leg would each compile a
+    # single Rust slice and a single platform's Swift, which is genuinely half the work, but a
+    # standard macOS runner has 3 cores, so the two legs also each pay the ~70s of setup this one
+    # pays once (VM boot, checkout, Xcode select, rustup, xcodegen, two cache restores) and each
+    # wants its own Rust and DerivedData entries out of the repo's 10 GB cache budget. Against a
+    # warm run of about two minutes, splitting buys under a minute of wall clock for roughly 40%
+    # more billed time on the runner that bills at 10x. Revisit it if the warm number climbs.
     name: Apple clients (macOS + iOS)
     needs: changes
     if: needs.changes.outputs.apple == 'true'
@@ -454,13 +462,33 @@ jobs:
       - name: Check out the product core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Xcode's build cache. Restoring it takes the three xcodebuild steps below from ~117s to
-      # ~30s: a git checkout stamps every source file with a fresh mtime, which would invalidate
-      # DerivedData, so this action restores the recorded mtimes alongside it. Measured locally:
-      # the macOS app rebuilds in 2-12s warm vs 45-59s cold — and it stays that fast even when
-      # build-core.sh regenerates the XCFramework, because Xcode then relinks rather than
-      # recompiles. (SourcePackages caching does nothing here: MailcalKit has no external SwiftPM
+      # Xcode's build cache. A git checkout stamps every source file with a fresh mtime, which
+      # would invalidate DerivedData, so this action restores the recorded mtimes alongside it.
+      # (SourcePackages caching does nothing here: MailcalKit has no external SwiftPM
       # dependencies.) Runs before build-core.sh so the restored mtimes precede any regeneration.
+      #
+      # `clients/apple/build` holds three things now, and all three are the same trade: keep what
+      # the last run produced so this one need not rebuild it.
+      #   - `Build/`, Xcode's own products for the app targets and the verifier.
+      #   - `KitSPM/`, where the MailcalKit suite builds (clients/apple/Scripts/test-kit.sh). Its
+      #     default `.build` is inside the package and nothing cached it, so the suite was a
+      #     from-scratch compile of MailcalUI on every run, warm cache or not.
+      #   - `generated/`, build-core.sh's mirror of the files it generates. They are gitignored, so
+      #     a checkout has none of them and every one would otherwise arrive freshly dated and
+      #     recompile MailcalBindings and all of MailcalUI behind it.
+      # The XCFramework is NOT among them, and needs no mirror: a checkout has none of it either, so
+      # build-core.sh assembles it on every run, and a freshly dated framework costs Xcode a relink
+      # rather than a recompile. Mirroring it would mean caching the same ~540 MB of static archive
+      # that the Rust cache already holds inside `target/`.
+      # Measured on an 8-core M2, with the cargo build directory warm and every generated file
+      # deleted the way a checkout leaves it: build-core 7.1s, the suite 1.1s, the macOS app 2.5s,
+      # the iOS app 3.3s, the verifier 2.6s. Delete `generated/` as well, which is the same run
+      # without the mirror, and the suite costs 41.0s, the macOS app 20.3s and the iOS app 46.7s.
+      #
+      # `KitSPM/` is 785 MB of it, most of that the static archive SwiftPM copies in and the test
+      # binary and dSYM it links, so the entry grows from ~537 MB to roughly 850 MB packed. That is
+      # ~14s more to restore against the 100-190s the suite used to spend recompiling, and one
+      # entry at a time, since main still deletes the one it just used.
       - name: Cache Xcode DerivedData
         uses: irgaly/xcode-cache@4141f139f00e335c6e1031fb93e667181f86146f # v1.9.2
         with:
@@ -509,10 +537,10 @@ jobs:
 
       # The client's own tests: plain logic, no UI, no simulator — the page<->date mapping, the zoom
       # clamps, the all-day overflow rule, the localised copy. They run before the app builds, because
-      # a broken rule should fail in seconds rather than after two xcodebuild invocations.
+      # a broken rule should fail in seconds rather than after two xcodebuild invocations. The script
+      # owns where SwiftPM builds, and why it must not be where Xcode does.
       - name: Test MailcalKit
-        working-directory: clients/apple/Packages/MailcalKit
-        run: swift test
+        run: clients/apple/Scripts/test-kit.sh
 
       - name: Generate the Xcode project
         working-directory: clients/apple

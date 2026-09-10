@@ -338,10 +338,14 @@ were broken right now, would this tell me?*
   cause.
   Android regenerates via Gradle (`generateUniffiBindings` / `generateL10n`, which is why the android
   CI job installs Rust); other clients via their build scripts. By hand:
-  `cargo run --bin uniffi-bindgen -- generate target/debug/libmailcal_bindings.dylib
+  `cargo run -p mailcal-bindgen-uniffi -- generate target/debug/libmailcal_bindings.dylib
   --language <swift|kotlin> --out-dir <…>`, then the `mailcal-l10n` generator. C# is a **separate
   generator**: `cargo run -p mailcal-bindgen-cs -- --library <cdylib> --out-dir <…>`, which still
   needs its `--library` flag (UniFFI's own binary auto-detects a library and ignores it).
+  Both generators are crates of their own and outside `default-members`, so `-p` is required and a
+  bare `--bin` finds neither. That separation is load-bearing: a bin target drags its package's
+  whole dependency tree in behind it, so a generator living in `mailcal-bindings` builds the engine
+  again, and on the Apple path for the host, a target the cross-compiled slices share nothing with.
 - **Android tests run on JDK 17**, pinned by `kotlin { jvmToolchain(17) }`. Unpinned, Gradle uses the
   daemon's JDK and Robolectric reads the *host* JDK's locale data: Dutch July is `jul` on 21 and
   `jul.` on 17. Assert that copy is *Dutch*, not *which* Dutch.

@@ -156,7 +156,7 @@ if [ "$LIST_ONLY" -eq 1 ]; then
 13 clippy          cargo clippy --workspace --exclude mailcal-linux --all-targets --all-features
 14 tests           cargo test --workspace --exclude mailcal-linux
 15 allodia tests   cargo test -p mailcal-bindings --features allodia-license
-   --clients adds: Apple swift test + macOS/iOS app builds, Android :app:test, Windows dotnet test
+   --clients adds: Apple MailcalKit tests + macOS/iOS app builds, Android :app:test, Windows dotnet test
 STEPS
   exit 0
 fi
@@ -313,7 +313,7 @@ if [ "$RUN_CLIENTS" -eq 1 ]; then
   # test the bindings that match this working tree instead of whatever was there last.
   if [ "$(uname -s)" = "Darwin" ]; then
     run "apple (macOS app build + bindings)" ./clients/apple/Scripts/build-and-run.sh --macos --no-run
-    run "apple (swift test)" bash -c 'cd clients/apple/Packages/MailcalKit && swift test'
+    run "apple (MailcalKit tests)" ./clients/apple/Scripts/test-kit.sh
     run "apple (iOS simulator build)" ./clients/apple/Scripts/build-and-run.sh --iphone --no-run
   else
     skip "apple" "needs macOS + Xcode"
