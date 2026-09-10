@@ -480,18 +480,18 @@ APP_PREFS_REL="Library/Application Support/mailcal/preferences.toml"
 
 # Emit "<udid>\t<name> (<os>)" for every CONNECTED physical iOS/iPadOS device.
 #
-# Two sections of `xctrace list devices` are deliberately dropped. "== Simulators ==" is obvious;
-# "== Devices Offline ==" is not, and costs the auto-detection below its whole point; a device
-# that was plugged in once is remembered there forever, so a laptop that has ever seen a second
-# iPhone or iPad would report "multiple devices" from then on and refuse to pick either. An offline
-# device can be neither built for nor installed to.
+# ⚠️ **Asked of `devicectl`, not of `xctrace list devices`.** That listing sorts a device into an
+# "== Devices Offline ==" section that a live, usable device can sit in, so auto-detection built on
+# it answers "no physical iOS device found" while the phone is plugged in and working. Measured on
+# an iPhone 13 Pro, iOS 18.7.8, USB, Developer Mode on: xctrace called it offline, `devicectl`
+# called it available, and `device.sh build|install|run` all worked against it. `devicectl` is also
+# what every operation in device.sh already uses, so this asks the tool that will be used.
 #
-# Physical UDIDs are 8hex-16hex (modern) or 40 hex (older); the Mac host's own 8-4-4-4-12 UUID
-# carries no OS parenthetical, so the shape excludes it.
+# The selection rule and what each part rules out is in scripts/dev/ios_devices.py, which is where
+# it can be tested with nothing plugged in.
 list_connected_devices() {
-  xcrun xctrace list devices 2>/dev/null |
-    sed -nE '/^== Devices Offline ==/q; /^== Simulators ==/q;
-             s/^(.*) \(([0-9.]+)\) \(([0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})\)$/\3	\1 (\2)/p'
+  xcrun devicectl list devices --json-output - 2>/dev/null |
+    python3 "$(dirname "${BASH_SOURCE[0]}")/ios_devices.py"
 }
 
 # The UDID of the physical iOS/iPadOS device to target. Honours $MAILCAL_DEVICE; else auto-detects
