@@ -121,12 +121,17 @@ $Suite = @{
     @{
       Name = 'the caption is the app''s own TitleBar, carrying the app name'
       Body = {
+        # The name THIS build was given, never the branded literal. The app's name is injected
+        # (docs/branding.md), so a hardcoded 'Allodia Mail & Calendar' asserts against a build only
+        # the brand owner makes: CI and every fork are unbranded and their caption reads 'MailCal'.
+        # It failed there exactly once, naming the caption rather than the branding, which is a full
+        # CI run spent on a test that was wrong rather than an app that was.
+        $expected = Get-BrandAppTitle
         $bar = Get-AppTitleBar
-        $title = @(Get-UiaTree $bar |
-          Where-Object { $_.Current.Name -eq 'Allodia Mail & Calendar' })
+        $title = @(Get-UiaTree $bar | Where-Object { $_.Current.Name -eq $expected })
         Assert-GreaterThan 0 $title.Count (
-          'the caption must name the app, it is what the user reads to tell one window from ' +
-          'another in Alt-Tab and on the taskbar preview')
+          "the caption must name the app ('$expected'), it is what the user reads to tell one " +
+          'window from another in Alt-Tab and on the taskbar preview')
       }
     },
     @{

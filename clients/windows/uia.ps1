@@ -158,6 +158,31 @@ function Get-UiaScale {
 
 <#
 .SYNOPSIS
+The name THIS build calls itself: "MailCal" unbranded, whatever `branding/allodia.env` says when
+that file is present.
+.DESCRIPTION
+Never write the branded name in a suite. The app's name is injected, not written in a client
+(docs/branding.md), so a literal asserts against a build nobody but the brand owner makes: CI is
+unbranded, every fork is unbranded, and the caption there reads "MailCal". The failure names the
+caption rather than the branding, which is how this cost a CI run to find.
+
+Read out of the generated resource the app itself compiles, `Strings/en/Resources.resw`, rather
+than by parsing `branding/*.env` again: the resolution order lives in `scripts/dev/brand.sh` and a
+fourth copy of it is a copy that can disagree. `en` because the showcase dataset pins that locale,
+and the product name is one string in all seven languages anyway.
+#>
+function Get-BrandAppTitle {
+  $resw = Join-Path $PSScriptRoot 'Mailcal/Strings/en/Resources.resw'
+  if (-not (Test-Path -LiteralPath $resw)) {
+    throw "no generated $resw; build the client first (build-and-run.ps1 -NoRun), the l10n codegen writes it."
+  }
+  $value = ([xml] (Get-Content -Raw -LiteralPath $resw)).SelectSingleNode("//data[@name='app_title']/value")
+  if (-not $value) { throw "the generated $resw carries no app_title" }
+  $value.InnerText
+}
+
+<#
+.SYNOPSIS
 The desktop's size in the LOGICAL units a XAML window is sized in: @(width, height).
 .DESCRIPTION
 For the one question that has to be answered before the app exists: is this desktop big enough to
