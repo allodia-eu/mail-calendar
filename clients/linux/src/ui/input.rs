@@ -159,6 +159,11 @@ pub(crate) enum AppInput {
         file_name: String,
     },
     AttachmentSaved(bool),
+    /// Write the open message out as the file the user just named.
+    ExportMessage {
+        destination: PathBuf,
+    },
+    MessageExported(bool),
     AttachmentDecoded(Result<PathBuf, ()>),
     /// The desktop refused to open a decoded attachment; the portal's answer, which arrives
     /// after the launch rather than from it.
@@ -337,6 +342,8 @@ impl fmt::Debug for AppInput {
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::OpenAttachment { .. } => "OpenAttachment",
             Self::AttachmentSaved(_) => "AttachmentSaved",
+            Self::ExportMessage { .. } => "ExportMessage",
+            Self::MessageExported(_) => "MessageExported",
             Self::AttachmentDecoded(_) => "AttachmentDecoded",
             Self::AttachmentOpenFailed => "AttachmentOpenFailed",
             Self::WebViewReady => "WebViewReady",

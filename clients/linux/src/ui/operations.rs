@@ -54,6 +54,32 @@ impl AppModel {
         });
     }
 
+    /// Writes the open message out as a `.eml` at `destination`
+    /// (`../../../docs/reading-actions.md`).
+    ///
+    /// Off the UI thread like every other export here: the source may not be cached, and
+    /// fetching it would otherwise freeze the window.
+    pub(super) fn export_message(&self, destination: PathBuf, sender: relm4::Sender<AppInput>) {
+        let (Some(app), Some(opened)) = (&self.app, &self.reading.opened) else {
+            return;
+        };
+        let app = Arc::clone(app);
+        let account = opened.account.clone();
+        let key = opened.key.clone();
+        std::thread::spawn(move || {
+            let destination_existed = destination.exists();
+            let saved = app
+                .save_message_source(account, key, destination.to_string_lossy().into_owned())
+                .is_ok();
+            // A failed write can still have created the file; leaving a truncated `.eml` behind
+            // would read as a message that exported, so only a file we made is removed.
+            if !saved && !destination_existed {
+                let _ = std::fs::remove_file(destination);
+            }
+            sender.emit(AppInput::MessageExported(saved));
+        });
+    }
+
     pub(super) fn open_attachment(
         &self,
         id: u32,

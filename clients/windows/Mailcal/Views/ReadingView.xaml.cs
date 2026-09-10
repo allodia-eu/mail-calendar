@@ -223,6 +223,9 @@ public sealed partial class ReadingView : UserControl
     // fallback, or an empty state.
     private void Render()
     {
+        // An export failure belongs to the message it happened on, and this pane is reused for
+        // the next one; left standing it would accuse a message that exported fine.
+        ExportError.Visibility = Visibility.Collapsed;
         if (_model?.OpenedMessage is not { } opened)
         {
             ShowNoSelection(); // no message selected, the pane rests on its placeholder.

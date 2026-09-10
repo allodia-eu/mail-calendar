@@ -128,4 +128,20 @@ extension MailboxModel {
             }
         }.value
     }
+
+    /// Write the open message out as a `.eml` at the destination the host chose
+    /// (docs/reading-actions.md). Off the main actor, like `saveAttachment`: the raw source may
+    /// not be cached yet, and fetching it must not block the UI.
+    func saveMessageSource(_ account: String, _ key: String, to url: URL) async -> Bool {
+        guard let app else { return false }
+        return await Task.detached {
+            do {
+                try app.saveMessageSource(account: account, key: key, destinationPath: url.path)
+                return true
+            } catch {
+                print("[Mailcal] message export failed: \(type(of: error))")
+                return false
+            }
+        }.value
+    }
 }

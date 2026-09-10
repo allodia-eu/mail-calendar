@@ -91,6 +91,7 @@
 	"action_copy_link": "Copiar enlace",
 	"action_remove": "Quitar",
 	"action_save": "Guardar",
+	"action_save_as_eml": "Guardar como .eml…",
 	"action_undo": "Deshacer",
 
 	"a11y_event_row": "{title}, {time}",
@@ -166,6 +167,8 @@
 	"attachment_saved": "Archivo adjunto guardado",
 	"attachment_save_failed": "No se ha podido guardar este archivo adjunto.",
 	"attachment_open_failed": "No se ha podido abrir este archivo adjunto.",
+	"message_saved": "Mensaje guardado",
+	"message_save_failed": "No se ha podido guardar este mensaje.",
 	"send_status_sending": "Enviando…",
 	"send_status_sent": "Mensaje enviado",
 	"send_status_failed": "No se ha podido enviar tu mensaje.",

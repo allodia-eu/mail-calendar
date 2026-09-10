@@ -1,6 +1,10 @@
 //! The Linux reading pane: headers, hardened HTML, remote-content choice, and attachments.
 
-use std::{cell::Cell, sync::Arc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::Arc,
+};
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
@@ -10,8 +14,13 @@ use mailcal_bindings::{
 
 pub(crate) mod attachments;
 pub(crate) mod canvas;
+mod overflow;
 
-use self::{attachments::attachment_row, canvas as reading_canvas};
+use self::{
+    attachments::attachment_row,
+    canvas as reading_canvas,
+    overflow::{ExportName, export_name_for, overflow_menu},
+};
 use super::{
     AppInput,
     avatar::{AvatarData, Slot as AvatarSlot},
@@ -48,7 +57,10 @@ pub(crate) struct ReadingPane {
     from: gtk::Label,
     recipients: gtk::Label,
     date: gtk::Label,
-    actions: [gtk::Button; 5],
+    actions: [gtk::Button; 6],
+    /// The file name the overflow menu's export offers; rewritten on every render, because the
+    /// menu outlives the message it acts on ([`overflow::ExportName`]).
+    export_name: ExportName,
     remote_banner: adw::Banner,
     /// The meeting-invitation card, above the body. Whether there is one at all is the core's
     /// two-condition RSVP gate (`docs/invitations.md`), so a published `.ics` produces none here
@@ -91,6 +103,12 @@ impl ReadingPane {
         let input_sender = sender.clone();
         forward.connect_clicked(move |_| input_sender.emit(AppInput::BeginForward));
         header.pack_start(&forward);
+        // Packed before archive and trash: `pack_end` fills from the end inward, so the first
+        // widget packed is the rightmost, and the overflow belongs last of all
+        // (`../../../docs/reading-actions.md`).
+        let export_name: ExportName = Rc::new(RefCell::new(String::new()));
+        let (overflow, overflow_button) = overflow_menu(window, &export_name, &sender);
+        header.pack_end(&overflow);
         let input_sender = sender.clone();
         archive.connect_clicked(move |_| {
             input_sender.emit(AppInput::PerformOpenedMailAction(ActionKind::Archive));
@@ -186,7 +204,8 @@ impl ReadingPane {
             from,
             recipients,
             date,
-            actions: [reply, reply_all, forward, archive, trash],
+            actions: [reply, reply_all, forward, archive, trash, overflow_button],
+            export_name,
             remote_banner,
             invitation,
             invitation_generation: Cell::new(None),
@@ -226,11 +245,15 @@ impl ReadingPane {
             self.show("idle");
             return;
         };
-        self.subject.set_text(if opened.subject.trim().is_empty() {
+        let subject = if opened.subject.trim().is_empty() {
             l10n::mail_no_subject()
         } else {
             &opened.subject
-        });
+        };
+        self.subject.set_text(subject);
+        // The export is named after the subject on screen, so the untitled case exports under
+        // the same words the pane shows.
+        *self.export_name.borrow_mut() = export_name_for(subject);
         self.from.set_text(&opened.from);
         self.date
             .set_text(&timestamps::local_date_time(&opened.date, clock.zone));

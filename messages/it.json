@@ -91,6 +91,7 @@
 	"action_copy_link": "Copia link",
 	"action_remove": "Rimuovi",
 	"action_save": "Salva",
+	"action_save_as_eml": "Salva come .eml…",
 	"action_undo": "Annulla",
 
 	"a11y_event_row": "{title}, {time}",
@@ -166,6 +167,8 @@
 	"attachment_saved": "Allegato salvato",
 	"attachment_save_failed": "Impossibile salvare questo allegato.",
 	"attachment_open_failed": "Impossibile aprire questo allegato.",
+	"message_saved": "Messaggio salvato",
+	"message_save_failed": "Impossibile salvare questo messaggio.",
 	"send_status_sending": "Invio in corso…",
 	"send_status_sent": "Messaggio inviato",
 	"send_status_failed": "Impossibile inviare il tuo messaggio.",

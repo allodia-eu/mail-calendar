@@ -267,6 +267,32 @@ public sealed partial class MailboxModel
         }
     }
 
+    /// <summary>
+    /// Write one message out as the bytes that were delivered, at a host-selected path
+    /// (docs/reading-actions.md).
+    /// </summary>
+    internal bool SaveMessageSource(string account, string key, string destinationPath)
+    {
+        if (_app is null)
+        {
+            return false;
+        }
+        try
+        {
+            _app.SaveMessageSource(account, key, destinationPath);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"message export failed: {ex.GetType().Name}");
+            return false;
+        }
+    }
+
+    /// <summary>The file name to offer when exporting a message with this subject.</summary>
+    public static string ExportFileName(string subject) =>
+        MailcalBindingsMethods.MessageExportFileName(subject);
+
     /// <summary>Pulls the reading snapshot from the core (on a <c>Surface.Reading</c> signal).</summary>
     private void PullReading()
     {

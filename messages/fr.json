@@ -91,6 +91,7 @@
 	"action_copy_link": "Copier le lien",
 	"action_remove": "Retirer",
 	"action_save": "Enregistrer",
+	"action_save_as_eml": "Enregistrer au format .eml…",
 	"action_undo": "Annuler",
 
 	"a11y_event_row": "{title}, {time}",
@@ -166,6 +167,8 @@
 	"attachment_saved": "Pièce jointe enregistrée",
 	"attachment_save_failed": "Impossible d’enregistrer cette pièce jointe.",
 	"attachment_open_failed": "Impossible d’ouvrir cette pièce jointe.",
+	"message_saved": "Message enregistré",
+	"message_save_failed": "Impossible d’enregistrer ce message.",
 	"send_status_sending": "Envoi en cours…",
 	"send_status_sent": "Message envoyé",
 	"send_status_failed": "Impossible d’envoyer votre message.",

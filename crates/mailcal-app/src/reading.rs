@@ -365,6 +365,42 @@ impl<P: Provider> App<P> {
             .unwrap_or_default()
     }
 
+    /// Writes the raw RFC 5322 source of `message` to `destination_path`: the `.eml` export
+    /// (`docs/reading-actions.md`).
+    ///
+    /// The bytes are the engine's, unaltered, and that is the whole point. Building a file out
+    /// of this view's sanitised HTML and its decoded attachments would produce a plausible
+    /// message that is not the one that arrived: the headers would be ours, the parts reordered,
+    /// the transfer encodings changed, and any signature over the original would no longer
+    /// verify. So the only decisions here are the host's: where the file goes, and (through
+    /// [`crate::export_file_name`]) what it is called.
+    ///
+    /// # Errors
+    ///
+    /// Returns a plain error string for malformed references, missing accounts/providers,
+    /// provider/cache failures, or filesystem write failures.
+    pub async fn save_message_source(
+        &self,
+        message: MessageRef,
+        destination_path: &str,
+    ) -> Result<(), String> {
+        let Some(original) = self.find_message_in(&message).await else {
+            return Err("message is not available".to_owned());
+        };
+        let Some(acct) = self.account_handle(&message.account).await else {
+            return Err("account is not connected".to_owned());
+        };
+        let Some(provider) = acct.providers.first() else {
+            return Err("mail provider is not connected".to_owned());
+        };
+        let source = self
+            .engine
+            .message_source(provider, &message.account, &original)
+            .await
+            .map_err(|err| err.to_string())?;
+        std::fs::write(destination_path, source.as_bytes()).map_err(|err| err.to_string())
+    }
+
     /// Saves one message attachment to `destination_path`.
     ///
     /// The destination is a host-selected filesystem path (save panel, app-cache staging

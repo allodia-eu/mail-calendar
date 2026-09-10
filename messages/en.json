@@ -91,6 +91,7 @@
 	"action_copy_link": "Copy link",
 	"action_remove": "Remove",
 	"action_save": "Save",
+	"action_save_as_eml": "Save as .eml…",
 	"action_undo": "Undo",
 
 	"a11y_event_row": "{title}, {time}",
@@ -166,6 +167,8 @@
 	"attachment_saved": "Attachment saved",
 	"attachment_save_failed": "Couldn't save this attachment.",
 	"attachment_open_failed": "Couldn't open this attachment.",
+	"message_saved": "Message saved",
+	"message_save_failed": "Couldn't save this message.",
 	"send_status_sending": "Sending…",
 	"send_status_sent": "Message sent",
 	"send_status_failed": "Couldn't send your message.",

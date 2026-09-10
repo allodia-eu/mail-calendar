@@ -281,6 +281,19 @@ impl AppModel {
                     .to_owned(),
                 );
             }
+            AppInput::ExportMessage { destination } => {
+                self.export_message(destination, sender.input_sender().clone());
+            }
+            AppInput::MessageExported(saved) => {
+                self.notice = Some(
+                    if saved {
+                        l10n::message_saved()
+                    } else {
+                        l10n::message_save_failed()
+                    }
+                    .to_owned(),
+                );
+            }
             AppInput::AttachmentDecoded(result) => {
                 self.launch_attachment(result, sender.input_sender().clone());
             }
