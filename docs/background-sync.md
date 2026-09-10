@@ -214,9 +214,9 @@ port:
 - **Nothing drives the Windows notification from a test, and the ordinary dev build cannot raise
   one.** `Mailcal.Tests` pins what a pass *says* (`NewMailNoticesTests`) and the UI suite pins the
   Settings toggle, but no gate watches a notification reach the shell: `AppNotificationManager`
-  posts outside the app's UI-Automation tree, so `uitests` cannot see it. Worse, the unpackaged dev
-  loop is **self-contained**, and registration is unavailable in that shape, so the feature is
-  silent there by construction: `build-and-run.ps1 -FrameworkDependent` is what exercises it
+  posts outside the app's UI-Automation tree, so `uitests` cannot see it. What holds the ordinary
+  dev loop open is that it is **framework-dependent**, like the Store build: registration is
+  unavailable to a self-contained one, which would make the feature silent by construction
   ([`client-traps.md`](client-traps.md)). Verified by hand against the harness.
 - **iOS app-group store is deferred.** `BGAppRefreshTask` runs in the main app process, so it needs
   no app group. A future push Notification-Service-Extension will need one. That, and the app-group
