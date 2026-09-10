@@ -43,14 +43,21 @@ def function_source() -> str:
     return match.group(0)
 
 
-def run_prune(root: Path, cap_gib: int) -> str:
-    """Runs the extracted function in `root` with the cap overridden."""
+def run_prune(root: Path, cap_gib: int, roots: tuple[str, ...] = ()) -> str:
+    """Runs the extracted function in `root` with the cap overridden.
+
+    `roots` stands in for what `cargo_build_dir` discovers on a real machine: the fixtures here are
+    bare directories, so cargo has no manifest to answer from.
+    """
+    argv = " ".join(f"'{r}'" for r in roots)
+    # `gate.sh`'s own flags, not `set -e`: under `set -u` an empty array expansion is fatal on the
+    # bash 3.2 macOS ships, so a test running under different flags would pass over that.
     script = f"""
-        set -e
+        set -uo pipefail
         yellow=""; reset=""
         {function_source()}
         INCREMENTAL_CAP_GIB={cap_gib}
-        prune_incremental
+        prune_incremental {argv}
     """
     done = subprocess.run(
         bash_argv("-c", script),
@@ -148,6 +155,25 @@ class PruneTests(unittest.TestCase):
         # `gate.sh` is runnable from a fresh clone that has never built.
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(run_prune(Path(tmp), cap_gib=0), "")
+
+    def test_a_build_directory_outside_target_is_pruned_too(self):
+        # With `build.build-dir` set, `target/` holds final artifacts and no incremental cache at
+        # all, so a prune that swept only `target/` would reclaim nothing and say nothing.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_target(root)
+            cache = root / "build-dir/debug/incremental/mailcal_app-abc/session/dep-graph.bin"
+            cache.parent.mkdir(parents=True)
+            cache.write_bytes(b"x" * 1024)
+            keep = root / "build-dir/debug/deps/libmailcal_app.rlib"
+            keep.parent.mkdir(parents=True)
+            keep.write_bytes(b"x" * 1024)
+
+            output = run_prune(root, cap_gib=0, roots=("target", str(root / "build-dir")))
+
+            self.assertFalse(cache.parent.parent.exists(), "the shared cache is cache too")
+            self.assertTrue(keep.exists(), "artifacts beside it must survive")
+            self.assertIn("reclaimed", output)
 
     def test_a_target_directory_with_no_incremental_cache_is_left_alone(self):
         with tempfile.TemporaryDirectory() as tmp:

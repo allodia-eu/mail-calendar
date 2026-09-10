@@ -95,6 +95,13 @@ concurrency:
 #
 # Locally the same names come from a gitignored `.env`; the real environment wins over it.
 env:
+  # `.cargo/config.toml` points `build.build-dir` outside the checkout so worktrees share one copy
+  # of the compile work. A runner has no worktrees, and the caching here is built around `target/`:
+  # `Swatinem/rust-cache` saves that directory and a few `~/.cargo` subpaths, knows nothing about a
+  # build directory, and would let every job recompile the tree from scratch. Pointing the build
+  # directory back at `target/` restores the layout the caches and the scripts below expect.
+  CARGO_BUILD_BUILD_DIR: ${{ github.workspace }}/target
+
   MAILCAL_GOOGLE_DESKTOP_CLIENT_ID: "1234567890-ci.apps.googleusercontent.com"
   MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET: "not-a-real-secret"
   MAILCAL_GOOGLE_IOS_CLIENT_ID: "1234567890-ci-ios.apps.googleusercontent.com"

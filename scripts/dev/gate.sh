@@ -414,11 +414,29 @@ fi
 # The cap is high enough that a normal branch never trips it.
 INCREMENTAL_CAP_GIB=5
 
+# Cargo's build directory, which `.cargo/config.toml` points outside the checkout so worktrees
+# share one copy. Empty when cargo cannot say, which is what the prune's own unit tests see.
+cargo_build_dir() {
+  cargo metadata --format-version 1 --no-deps 2>/dev/null |
+    sed -n 's/.*"build_directory":"\([^"]*\)".*/\1/p'
+}
+
 prune_incremental() {
-  [ -d target ] || return 0
-  local dirs kb gib
-  # Both `target/debug/incremental` and the per-triple `target/<triple>/debug/incremental`.
-  dirs=$(find target -maxdepth 3 -type d -name incremental 2>/dev/null)
+  local dirs kb gib roots=()
+  [ -d target ] && roots+=(target)
+  # The incremental cache follows the intermediates, so with a shared build directory `target/`
+  # holds none at all and pruning only it would silently reclaim nothing.
+  if [ $# -gt 0 ]; then
+    roots=("$@")
+  else
+    local build_dir
+    build_dir=$(cargo_build_dir)
+    [ -n "$build_dir" ] && [ -d "$build_dir" ] && [ "$build_dir" != "$PWD/target" ] &&
+      roots+=("$build_dir")
+  fi
+  [ ${#roots[@]} -gt 0 ] || return 0
+  # Both `<root>/debug/incremental` and the per-triple `<root>/<triple>/debug/incremental`.
+  dirs=$(find "${roots[@]}" -maxdepth 3 -type d -name incremental 2>/dev/null)
   [ -n "$dirs" ] || return 0
   kb=$(printf '%s\n' "$dirs" | tr '\n' '\0' | xargs -0 du -sk 2>/dev/null |
     awk '{ total += $1 } END { print total + 0 }')
