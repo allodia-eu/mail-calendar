@@ -122,6 +122,8 @@ fn subject_or_fallback(subject: &str) -> String {
     }
 }
 
-fn one_line(text: &str) -> String {
+/// One line of whatever the message gave us: a subject or a snippet carries the body's own
+/// breaks, and every surface that quotes a message flattens them the same way.
+pub(super) fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }

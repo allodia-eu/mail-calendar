@@ -138,6 +138,13 @@ that same file.
   exchange nobody is waiting on, so one that stops answering costs a single pass rather than the
   session: `notifications::post` does. Unlocking the keyring is the exception and stays unbounded,
   because it legitimately waits on the desktop's own password prompt.
+- **GNOME collapses whitespace in a notification body, so a line break there is not a line
+  break.** Every run of whitespace becomes one space, in the banner and in the expanded message
+  list alike, so a body built as `subject\nsnippet` reaches the user as one sentence with no
+  visible boundary; a daemon that does honour a break (dunst, mako) shows it, so a manual check on
+  one desktop says nothing about the other. Anything two-part in a body carries its own separator
+  ([`notifications.rs`](../clients/linux/src/ui/notifications.rs)), and both halves are flattened
+  the way the list row flattens them so the same message cannot be quoted two ways.
 - **Linux libadwaita rows parse titles _and subtitles_ as Pango markup by default.**
   `adw::ActionRow` / `PreferencesRow` text may hold localised ampersands or untrusted subjects, so
   set `use_markup(false)` unless the string was deliberately produced as escaped markup. A row that
