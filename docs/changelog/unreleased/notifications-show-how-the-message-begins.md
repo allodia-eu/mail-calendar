@@ -19,41 +19,41 @@ Bump: minor
 **English**
 
 ```
-New-mail notifications now show how the message begins, under the sender and the subject.
+New-mail notifications now show how the message begins, after the sender and the subject.
 ```
 
 **Nederlands**
 
 ```
-Meldingen van nieuwe e-mail tonen nu ook hoe het bericht begint, onder de afzender en het onderwerp.
+Meldingen van nieuwe e-mail tonen nu ook hoe het bericht begint, na de afzender en het onderwerp.
 ```
 
 **Deutsch**
 
 ```
-Benachrichtigungen über neue E-Mails zeigen jetzt auch den Anfang der Nachricht, unter Absender und Betreff.
+Benachrichtigungen über neue E-Mails zeigen jetzt auch den Anfang der Nachricht, nach Absender und Betreff.
 ```
 
 **Français**
 
 ```
-Les notifications de nouveaux messages montrent désormais le début du message, sous l'expéditeur et l'objet.
+Les notifications de nouveaux messages montrent désormais le début du message, après l'expéditeur et l'objet.
 ```
 
 **Español**
 
 ```
-Las notificaciones de correo nuevo ahora muestran cómo empieza el mensaje, debajo del remitente y el asunto.
+Las notificaciones de correo nuevo ahora muestran cómo empieza el mensaje, después del remitente y el asunto.
 ```
 
 **Italiano**
 
 ```
-Le notifiche di posta in arrivo ora mostrano anche l'inizio del messaggio, sotto il mittente e l'oggetto.
+Le notifiche di posta in arrivo ora mostrano anche l'inizio del messaggio, dopo il mittente e l'oggetto.
 ```
 
 **Português**
 
 ```
-As notificações de correio novo passam a mostrar o início da mensagem, por baixo do remetente e do assunto.
+As notificações de correio novo passam a mostrar o início da mensagem, depois do remetente e do assunto.
 ```

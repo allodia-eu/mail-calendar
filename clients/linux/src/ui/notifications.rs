@@ -6,7 +6,7 @@ use std::time::Duration;
 use ashpd::desktop::notification::{Notification, NotificationProxy, Priority};
 use mailcal_bindings::{AccountNewMail, BackgroundSyncOutcome, NewMailPreview};
 
-use crate::{host_runtime, l10n};
+use crate::{host_runtime, l10n, ui::mailbox_display::one_line};
 
 /// How long the whole portal exchange may take before the pass gives up on it.
 ///
@@ -84,15 +84,28 @@ fn notification_parts(account: &AccountNewMail) -> Vec<(String, String, String)>
     parts
 }
 
-/// What the message is about and how it begins, in the one body the portal gives us: two lines
-/// where the account has a snippet for the message, the subject alone where it does not (an IMAP
-/// account has none until the body sync has run). Every other client has a third text slot and
-/// uses it; here they share one, which is the same content in the shape this surface allows.
+/// Separates the subject from the snippet inside the one body the portal gives us.
+///
+/// Not a newline: GNOME collapses every run of whitespace in a notification body, expanded view
+/// included, so a line break there leaves the subject running into the snippet as one sentence.
+/// A separator that survives that reads the same on the daemons which do honour a break. It stays
+/// out of the catalog because it is punctuation rather than copy, and it is the one the mailbox
+/// already uses.
+const BODY_SEPARATOR: &str = " \u{b7} ";
+
+/// What the message is about and how it begins, in the one body the portal gives us: both where
+/// the account has a snippet for the message, the subject alone where it does not (an IMAP account
+/// has none until the body sync has run). Every other client has a third text slot and uses it;
+/// here they share one, which is the same content in the shape this surface allows.
+///
+/// Both halves are collapsed the way the list row collapses them, so a notification and its row
+/// cannot quote the same message differently.
 fn body_of(message: &NewMailPreview) -> String {
-    if message.preview.trim().is_empty() {
-        return message.subject.clone();
-    }
-    format!("{}\n{}", message.subject, message.preview)
+    [one_line(&message.subject), one_line(&message.preview)]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(BODY_SEPARATOR)
 }
 
 fn log_failure() {
@@ -131,9 +144,58 @@ mod tests {
         let [(title, body, _)] = notification_parts(&account).try_into().unwrap();
         assert_eq!(title, "Jane");
         assert_eq!(
-            body, "Quarterly report\nThe numbers you asked for.",
+            body, "Quarterly report \u{b7} The numbers you asked for.",
             "the portal gives one body, so the subject and the snippet share it"
         );
+    }
+
+    #[test]
+    fn a_snippet_reaches_the_body_in_the_shape_the_list_row_gives_it() {
+        // A real snippet carries the body's own line breaks, and a bounce report carries blank
+        // lines between paragraphs. The row collapses them and so does this, or the two would
+        // quote the same message differently.
+        let account = AccountNewMail {
+            account_id: "account".to_owned(),
+            account_label: "account@example.test".to_owned(),
+            new_count: 1,
+            messages: vec![NewMailPreview {
+                sender: String::new(),
+                sender_name: Some("Mail Delivery Subsystem".to_owned()),
+                subject: "Failed to deliver message".to_owned(),
+                preview: "Your message could not be delivered:\n\n<news@example.com>\n\n"
+                    .to_owned(),
+                received: String::new(),
+                message_key: "m1".to_owned(),
+            }],
+        };
+
+        let [(_, body, _)] = notification_parts(&account).try_into().unwrap();
+        assert_eq!(
+            body,
+            "Failed to deliver message \u{b7} Your message could not be delivered: \
+             <news@example.com>"
+        );
+    }
+
+    #[test]
+    fn a_message_with_no_subject_is_its_snippet_alone() {
+        // Never a body opening on the separator: it would read as a subject nobody can see.
+        let account = AccountNewMail {
+            account_id: "account".to_owned(),
+            account_label: "account@example.test".to_owned(),
+            new_count: 1,
+            messages: vec![NewMailPreview {
+                sender: "jane@example.test".to_owned(),
+                sender_name: Some("Jane".to_owned()),
+                subject: String::new(),
+                preview: "The numbers you asked for.".to_owned(),
+                received: String::new(),
+                message_key: "m1".to_owned(),
+            }],
+        };
+
+        let [(_, body, _)] = notification_parts(&account).try_into().unwrap();
+        assert_eq!(body, "The numbers you asked for.");
     }
 
     #[test]
