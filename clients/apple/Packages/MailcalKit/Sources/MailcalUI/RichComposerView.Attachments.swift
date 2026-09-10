@@ -12,10 +12,30 @@ import UniformTypeIdentifiers
 struct PickedAttachment: Identifiable {
     let id = UUID()
     let url: URL
+    /// The name and media type to send under, when the caller already knows them. A file the
+    /// user picked does not: it is described by the file itself. A file the core staged does,
+    /// because its path is a temporary name nobody would recognise, and what the recipient must
+    /// see is the name the original's sender gave it.
+    private let supplied: (fileName: String, mediaType: String)?
 
-    var fileName: String { url.lastPathComponent.isEmpty ? "attachment" : url.lastPathComponent }
+    init(url: URL) {
+        self.url = url
+        supplied = nil
+    }
+
+    /// One file the core staged: a share's, or one a forwarded message carries.
+    init(staged: ComposerFileAttachment) {
+        url = URL(fileURLWithPath: staged.path)
+        supplied = (staged.fileName, staged.mediaType)
+    }
+
+    var fileName: String {
+        if let supplied { return supplied.fileName }
+        return url.lastPathComponent.isEmpty ? "attachment" : url.lastPathComponent
+    }
 
     var mediaType: String {
+        if let supplied { return supplied.mediaType }
         if let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType,
            let mime = type.preferredMIMEType {
             return mime

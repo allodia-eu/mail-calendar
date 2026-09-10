@@ -392,6 +392,11 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                     null
                                 }
                             },
+                            // Straight through: the caller runs it off the main thread and turns a
+                            // throw into the composer's "couldn't attach the files" line.
+                            stageForwardFiles = { account, key, directory ->
+                                instance.stageForwardedAttachments(account, key, directory)
+                            },
                             onSubmitRich = { from, recipients, subject, documentJson, files ->
                                 try {
                                     instance.submitRichMailWithFiles(recipients, subject, documentJson, files, from)

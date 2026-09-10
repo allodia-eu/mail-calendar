@@ -43,11 +43,15 @@ namespace Allodia.Mailcal.ViewModels;
 /// <param name="SeedsSignature">Whether the account's signature is seeded and the picker offered.
 /// False for an assistant's draft, which arrives with a body someone else wrote and its own
 /// sign-off, matching macOS, which passes the composer no signature library at all in that case.</param>
-/// <param name="Attachments">Files the composer opens already holding, from a share
-/// (<c>docs/os-integration.md</c>). Each is the shared core's answer about one shared item, name
-/// and media type included, so the list is displayed as given and never re-derived. Empty for
-/// every other route: the picker fills it. Removable like any picked file, a share proposes an
-/// attachment, it does not impose one.</param>
+/// <param name="Attachments">Files the composer opens already holding: a share
+/// (<c>docs/os-integration.md</c>), or the files a forwarded message carries. Each is the shared
+/// core's answer about one file, name and media type included, so the list is displayed as given
+/// and never re-derived. Empty for every other route: the picker fills it. Removable like any
+/// picked file, neither a share nor a forward imposes an attachment.</param>
+/// <param name="AttachmentsFailed">Whether the files a forward was to carry could not be read, so
+/// the composer opens saying so. It travels beside <paramref name="Attachments"/> because an empty
+/// list means opposite things either way: nothing was attached, or everything was and none of it
+/// could be read.</param>
 // Internal, not public: `Attachments` carries the generated `ComposerFileAttachment`, and every
 // record the C# bindgen emits is internal. The public types in this directory are the ones XAML
 // binds to; this one is only ever constructed and read from code-behind.
@@ -65,7 +69,8 @@ internal sealed record ComposeRequest(
     string InitialSubject = "",
     string? InitialBody = null,
     bool SeedsSignature = true,
-    IReadOnlyList<ComposerFileAttachment>? Attachments = null)
+    IReadOnlyList<ComposerFileAttachment>? Attachments = null,
+    bool AttachmentsFailed = false)
 {
     /// <summary>The composer's heading, the action it is performing.</summary>
     public string Title => Kind switch

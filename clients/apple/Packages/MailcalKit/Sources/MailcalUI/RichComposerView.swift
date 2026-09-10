@@ -113,8 +113,8 @@ struct RichComposeView: View {
     @State private var showsCcBcc: Bool
     @State private var subject: String
     /// The one error line under the composer, which more than one failure writes to: a send that
-    /// could not be prepared, and a dropped picture that could not be shown. It carries the
-    /// message rather than a flag, so each failure says which one it is.
+    /// could not be prepared, a dropped picture that could not be shown, and a forward whose
+    /// files could not be read. It carries the message rather than a flag, so each says which.
     /// Not `private`: RichComposerView.Drop.swift sets it when a dropped picture cannot be shown.
     @State var composerError: String?
     /// Pictures dropped on the composer, waiting on the one question they raise. Held rather than
@@ -143,6 +143,13 @@ struct RichComposeView: View {
         initialBcc: String = "",
         initialSubject: String = "",
         initialBody: String = "",
+        /// Files the composer opens already holding: the ones a forwarded message carries,
+        /// staged by the core. Removable like any picked file: a forward proposes them, it does
+        /// not impose them.
+        initialAttachments: [ComposerFileAttachment] = [],
+        /// An error the composer opens showing, for a failure that happened before it did: the
+        /// files a forward was to carry could not be read.
+        initialError: String? = nil,
         quote: String? = nil,
         quoteStyle: QuoteStyleKind = .indented,
         quoteStylePerMessage: Bool = false,
@@ -197,6 +204,8 @@ struct RichComposeView: View {
         _showsCcBcc = State(initialValue: revealsCcBcc(cc: initialCc, bcc: initialBcc))
         _subject = State(initialValue: initialSubject)
         _quoteStyle = State(initialValue: quoteStyle)
+        _attachments = State(initialValue: initialAttachments.map(PickedAttachment.init(staged:)))
+        _composerError = State(initialValue: initialError)
     }
 
     /// Whether this composer opens with the caret in the message body rather than in To.

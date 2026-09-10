@@ -4,13 +4,73 @@
 //! Split out of [`super`] so the shell file stays the Relm4 component; this is the one place the
 //! four compose entry points (new, reply, reply-all, forward) agree on a request.
 
+use std::{
+    os::unix::fs::PermissionsExt,
+    path::PathBuf,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use super::{
-    AppModel,
-    composer_model::{ComposeKind, ComposeRequest, initial_sender, quote_seed},
+    AppInput, AppModel,
+    composer_model::{ComposeKind, ComposeRequest, PickedFile, initial_sender, quote_seed},
+    composer_notice::ComposerNotice,
 };
 
 impl AppModel {
+    /// Stages the files the open message carries, then opens its forward composer on the answer
+    /// ([`AppInput::ForwardStaged`]).
+    ///
+    /// Off the GTK thread: the core decodes and writes every file, and a large one would freeze
+    /// the window. It reads from the raw source the reading view has already cached, so in the
+    /// ordinary case there is nothing to wait for.
+    pub(super) fn stage_forward(&self, sender: relm4::Sender<AppInput>) {
+        let (Some(app), Some(opened)) = (&self.app, self.reading.opened.as_ref()) else {
+            return;
+        };
+        let app = Arc::clone(app);
+        let account = opened.account.clone();
+        let key = opened.key.clone();
+        std::thread::spawn(move || {
+            let directory = forward_staging_dir();
+            // Owner-only, before the core writes any mail into it, exactly as for an attachment
+            // decoded to be opened.
+            if std::fs::create_dir_all(&directory).is_ok() {
+                let _ =
+                    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700));
+            }
+            let staged = app
+                .stage_forwarded_attachments(account, key, directory.to_string_lossy().into_owned())
+                .map(|files| {
+                    files
+                        .into_iter()
+                        .map(|file| PickedFile {
+                            path: file.path,
+                            file_name: file.file_name,
+                            media_type: file.media_type,
+                        })
+                        .collect()
+                })
+                .map_err(|_| ());
+            sender.emit(AppInput::ForwardStaged(staged));
+        });
+    }
+
+    /// Opens the forward composer on what staging answered: the files it wrote, or the line that
+    /// says they could not be read. An empty list here means the message had nothing attached.
+    pub(super) fn begin_forward(&mut self, staged: Result<Vec<PickedFile>, ()>) {
+        let failed = staged.is_err();
+        self.begin_compose_with(ComposeKind::Forward, staged.unwrap_or_default());
+        if failed {
+            self.composer_error = Some(ComposerNotice::ForwardAttachments);
+        }
+    }
+
     pub(super) fn begin_compose(&mut self, kind: ComposeKind) {
+        self.begin_compose_with(kind, Vec::new());
+    }
+
+    fn begin_compose_with(&mut self, kind: ComposeKind, files: Vec<PickedFile>) {
         let Some(app) = &self.app else {
             return;
         };
@@ -61,7 +121,7 @@ impl AppModel {
             _ => String::new(),
         };
         self.composer_generation = self.composer_generation.wrapping_add(1);
-        self.composer_error = false;
+        self.composer_error = None;
         self.composer = Some(ComposeRequest {
             kind,
             account: opened.map(|message| message.account.clone()),
@@ -78,8 +138,40 @@ impl AppModel {
                 app.default_send_account(),
             ),
             seeds_signature: true,
-            // Nothing pre-attached: only a share opens a composer already holding files.
-            files: Vec::new(),
+            // Empty for every route but a share and a forward, which open holding files.
+            files,
         });
+    }
+}
+
+/// A directory of this composer's own under the user's cache, so two forwards never share a
+/// staged file. Under the **cache** directory rather than `/tmp`, which inside a Flatpak is the
+/// sandbox's own, the same rule an opened attachment follows ([`super::operations`]).
+fn forward_staging_dir() -> PathBuf {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    gtk::glib::user_cache_dir()
+        .join("mailcal")
+        .join(format!("forward-{}-{nonce}", std::process::id()))
+}
+
+#[cfg(test)]
+mod tests {
+    /// The twin of `operations`' assertion for an opened attachment, and it fails the same way:
+    /// a path under the sandbox's private `/tmp` looks right in a host build and is not there in
+    /// the Flatpak the user runs.
+    #[test]
+    fn a_staged_forward_file_never_lands_in_the_sandboxs_private_tmp() {
+        let directory = super::forward_staging_dir();
+
+        assert!(
+            directory.starts_with(gtk::glib::user_cache_dir()),
+            "a staged forward file belongs under the app's cache directory: {directory:?}"
+        );
+        assert!(
+            !directory.starts_with(std::env::temp_dir()),
+            "and never under /tmp, which a sandbox does not share: {directory:?}"
+        );
     }
 }

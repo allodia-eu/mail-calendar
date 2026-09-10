@@ -24,7 +24,7 @@ use crate::{
     reference::MessageRef,
 };
 
-mod forward;
+pub(crate) mod forward;
 
 impl<P: Provider> App<P> {
     /// Renders a shared composer document, resolves host blob bytes, and submits the
@@ -156,9 +156,9 @@ impl<P: Provider> App<P> {
     /// copy on the thread it came from; without it, every forward you send is a new
     /// one-message conversation sitting beside the discussion it belongs to.
     ///
-    /// It also carries the original's **files** ([`App::forwarded_attachments`]), which is
-    /// what a forward means: the recipient gets the message the user was sent, not a copy of
-    /// its text. Files that cannot be resolved fail the send rather than going out missing.
+    /// The original's **files** reach this through `blobs` like any other attachment: the
+    /// composer opened holding them ([`App::stage_forwarded_attachments`]) and the user may
+    /// have removed some, so what arrives here is what they chose to send.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn submit_rich_forward(
         &self,
@@ -194,12 +194,6 @@ impl<P: Provider> App<P> {
         } else {
             Vec::new()
         };
-        // The files the original carries travel with it. Unresolvable ones fail the send: a
-        // forward the recipient cannot tell is incomplete is worse than one that did not go.
-        let Some(forwarded) = self.forwarded_attachments(&message, &original).await else {
-            self.fail_send().await;
-            return;
-        };
         let Some(mut draft) = rich_draft(
             &identity,
             to,
@@ -213,9 +207,6 @@ impl<P: Provider> App<P> {
             self.fail_send().await;
             return;
         };
-        for attachment in forwarded {
-            draft = draft.with_attachment(attachment);
-        }
         // Thread the forward: References = the original's chain + the original itself.
         if let Some(parent) = original.envelope.message_id.first() {
             let mut references = original.envelope.references.clone();

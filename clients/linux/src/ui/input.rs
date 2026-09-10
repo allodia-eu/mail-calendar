@@ -11,7 +11,7 @@ use super::{
     allodia::AllodiaOutcome,
     allodia_sync::AllodiaSyncOutcome,
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
-    composer_model::ComposerSubmission,
+    composer_model::{ComposerSubmission, PickedFile},
     contacts::EditTarget,
     folder_pane::SidebarTarget,
     google::GoogleOutcome,
@@ -142,6 +142,10 @@ pub(crate) enum AppInput {
     BeginNew,
     BeginReply(bool),
     BeginForward,
+    /// The files the forwarded message carries, staged off the GTK thread, or `Err` when they
+    /// could not be read. The composer opens on this rather than on `BeginForward`: on screen
+    /// holding nothing it can be sent in the window before they arrive.
+    ForwardStaged(Result<Vec<PickedFile>, ()>),
     CancelComposer,
     /// The open draft's answer to "would anything be lost?": see [`super::composer_draft`].
     ComposerDraftChecked(bool),
@@ -334,6 +338,7 @@ impl fmt::Debug for AppInput {
             Self::BeginNew => "BeginNew",
             Self::BeginReply(_) => "BeginReply",
             Self::BeginForward => "BeginForward",
+            Self::ForwardStaged(_) => "ForwardStaged",
             Self::CancelComposer => "CancelComposer",
             Self::ComposerDraftChecked(_) => "ComposerDraftChecked",
             Self::DiscardDraft => "DiscardDraft",

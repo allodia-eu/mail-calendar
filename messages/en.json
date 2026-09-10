@@ -133,6 +133,7 @@
 	"compose_image_drop_inline": "Show in the message",
 	"compose_image_drop_attach": "Send as a file",
 	"compose_image_failed": "Couldn't add this picture to the message.",
+	"compose_forward_attachments_failed": "Couldn't attach the files from the original message.",
 	"compose_discard_title": "Discard draft?",
 	"compose_discard_message": "This message hasn't been sent. If you discard it, what you've written is lost.",
 	"action_discard": "Discard",

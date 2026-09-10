@@ -81,16 +81,35 @@ they now are.
 ## What a forward carries
 
 A forward passes the message on, so the recipient gets what the sender was sent, not a copy of
-its text. The core puts the original's attachments on the outgoing draft: exactly the files the
-reading view lists, keeping each one's name and media type. The quoted body's inline `cid:`
-images are not among them; they are re-attached as the parts the quote references, so a forwarded
-logo is a picture in the message rather than a second file.
+its text. **The composer opens holding the original's files**, as ordinary attachments in the
+same list a picked file lands in: exactly the files the reading view shows, each keeping the name
+and media type its sender gave it. The quoted body's inline `cid:` images are not among them;
+they are re-attached as the parts the quote references, so a forwarded logo is a picture in the
+message rather than a second file.
 
-**A forward whose files cannot be read is not sent.** The engine reads them from the message's
-raw source, which needs the account reachable or the source already cached, and when that fails
-the send fails and the user can try again. The alternative is a message saying "see attached"
-with nothing attached: nobody on either end can see that anything is missing, and a send cannot
-be taken back. This is the same rule as the Sent copy above, applied one step earlier.
+They are **removable**, like anything else in that list. A forward proposes the files, it does not
+impose them, which is what a person forwarding one page of a long thread expects and what every
+mail client they have used does.
+
+Four rules hold it together:
+
+1. **The core stages, the client shows.** `stage_forwarded_attachments` writes the files into a
+   directory the client names and answers with a name, media type and path for each. From there
+   they are indistinguishable from a picked file or a shared one: same list, same removal, same
+   submit. No client decides which parts of a message are files, and none reads a MIME part.
+2. **The composer opens after staging, never before.** A composer on screen holding nothing can
+   be sent in the window before the files arrive, which is exactly the forward-without-its-
+   attachments this exists to prevent. Staging reads the raw source the reading view has already
+   cached, so in the ordinary case there is nothing to wait for.
+3. **Files that cannot be read are said out loud.** Staging is all or nothing, and a failure
+   opens the composer with the error line set rather than with an empty attachment list. An empty
+   list is a claim: *this message had nothing attached*. Making it silently while the files sit
+   unreadable on a server is how a forward loses them without anyone noticing.
+4. **Carrying them is not a draft.** The "Discard draft?" guard measures the attachment count
+   against what the forward opened with, so abandoning one the user never typed into asks
+   nothing: the files are still in the mailbox and nothing is lost. Taking one off, like adding
+   one, is a decision about what goes out and does count. A **share**'s files count from the
+   start, because those the user chose in their file manager and would have to share again.
 
 A **reply** carries none of this. It answers the message rather than passing it on, and sending
 someone their own file back is noise that repeats on every turn of a long thread.
@@ -123,17 +142,19 @@ someone their own file back is noise that repeats on every turn of a long thread
 | Windows | ✅ InfoBar | ✅ InfoBar, `IsClosable=False` | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
 | Linux | ✅ banner | ✅ modal, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ dropdown |
 
-**A forward's files need nothing from a client**, so they are not a column: the core reads them
-from the original and puts them on the draft, which is why every platform in this table has the
-behaviour and none can opt out of it.
+| Platform | A forward opens holding the original's files | Removable | Failure said out loud | Not a draft on its own |
+|---|---|---|---|---|
+| macOS / iOS / iPadOS | ✅ | ✅ | ✅ composer error line | ✅ the guard watches for a *change* |
+| Android | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed |
+| Windows | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed |
+| Linux | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed |
 
 ## Known gaps
 
-- **The composer does not show the files a forward will send.** They are added on submit, so the
-  attachment strip lists only what the user attached themselves, and the size of what is going
-  out is not visible until it has gone. Showing them means a compose-time read of the original
-  and a strip entry the user cannot remove, on four clients; the files reaching the recipient is
-  the half that was missing.
+- **A staged file outlives its composer.** The files are written into the client's own cache and
+  nothing deletes them when a forward is sent or abandoned, exactly as for an attachment opened
+  from the reading view. The OS reclaims that directory; until it does, a decoded copy of the
+  files is on disk.
 - **The question does not survive a restart.** The core holds it in memory, so quitting with
   one open loses the chance to retry: the message stays sent, and the copy stays missing.
   Making it durable means recording an outbox op for a submission that already succeeded,

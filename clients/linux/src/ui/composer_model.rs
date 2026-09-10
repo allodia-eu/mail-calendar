@@ -30,8 +30,8 @@ pub(crate) struct ComposeRequest {
     pub(crate) initial_from: Option<String>,
     /// Whether this client owns the body and should seed and offer its signature library.
     pub(crate) seeds_signature: bool,
-    /// Files the composer opens already holding, from a share (`docs/os-integration.md`). Empty
-    /// for every other route: the picker fills the list itself.
+    /// Files the composer opens already holding: a share (`docs/os-integration.md`), or the files
+    /// a forwarded message carries. Empty for every other route: the picker fills the list itself.
     pub(crate) files: Vec<PickedFile>,
 }
 

@@ -83,6 +83,22 @@ impl ComposerBlob {
     }
 }
 
+/// One of a forwarded message's files, written to disk and ready for a composer to carry.
+///
+/// Produced by [`crate::App::stage_forwarded_attachments`]. A host puts these in its composer's
+/// attachment list, where they are removable like any file the user picked, and hands them back
+/// at submit as the file attachments they are.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedAttachment {
+    /// Where the bytes are, on this device, now. Uniquified, so it is not what the recipient
+    /// sees; a host shows [`Self::file_name`].
+    pub path: String,
+    /// The name the sender gave the file: what goes on the outgoing part and on screen.
+    pub file_name: String,
+    /// The media type the sender declared.
+    pub media_type: String,
+}
+
 /// Suggested recipients for a reply or reply-all, for a host to pre-fill the composer's
 /// editable `To`/`Cc` fields (which the user may then edit before sending). Each is a
 /// comma-separated address list. A plain reply has an empty `cc`; both are empty when the

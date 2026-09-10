@@ -133,6 +133,7 @@
 	"compose_image_drop_inline": "Mostra nel messaggio",
 	"compose_image_drop_attach": "Invia come file",
 	"compose_image_failed": "Impossibile aggiungere questa immagine al messaggio.",
+	"compose_forward_attachments_failed": "Impossibile allegare i file del messaggio originale.",
 	"compose_discard_title": "Eliminare la bozza?",
 	"compose_discard_message": "Questo messaggio non è stato inviato. Se lo elimini, perderai quello che hai scritto.",
 	"action_discard": "Elimina",

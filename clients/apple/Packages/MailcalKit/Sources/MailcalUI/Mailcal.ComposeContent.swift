@@ -141,13 +141,15 @@ extension ContentView {
                 }
                 return false
             } cancel: { compose = nil }
-        case let .forward(account, key, subject, quote, quoteStyle):
+        case let .forward(account, key, subject, quote, quoteStyle, attachments):
             RichComposeView(
                 title: L10n.action_forward(),
                 mode: .forward,
                 accounts: model.accounts,
                 initialFrom: model.sendAccount(preferring: account)?.id,
                 initialSubject: subject,
+                initialAttachments: attachments.files,
+                initialError: attachments.failed ? L10n.compose_forward_attachments_failed() : nil,
                 quote: quote,
                 quoteStyle: quoteStyle,
                 quoteStylePerMessage: model.quoteSettings.perMessage,

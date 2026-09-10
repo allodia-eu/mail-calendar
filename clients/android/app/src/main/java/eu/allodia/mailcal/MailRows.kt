@@ -89,6 +89,9 @@ internal fun FlatMessageRow(
         files: List<ComposerFileAttachment>,
     ) -> Boolean,
     replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
+    // Writes the files a message carries into the given directory, for a forward to carry them
+    // on. Blocking, so it is called off the main thread; throws when they cannot be read.
+    stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
     suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
     // The signature library + lookups for the reply/forward composer, or null to leave signatures
     // out (a screenshot run, a test).
@@ -99,6 +102,8 @@ internal fun FlatMessageRow(
     // serves reply/reply-all/forward; the mode picks the pre-filled recipients and which rich
     // submit Send calls. State lives per-row (cf. FlatMessageOverflow's own `expanded`).
     var composing by remember { mutableStateOf<RichComposeMode?>(null) }
+    // The original's files, staged before the forward composer opens (see `onForward` below).
+    var forwardSeed by remember { mutableStateOf(ForwardSeed()) }
     // Read the ambient clock setting here, in the composable body: the `clickable` lambda below is
     // not a composition scope and cannot read a CompositionLocal.
     val use24Hour = LocalUse24Hour.current
@@ -203,7 +208,15 @@ internal fun FlatMessageRow(
             onToggleFlag = { onSetFlagged(message.account, message.key, !message.flagged) },
             onReply = { composing = RichComposeMode.Reply },
             onReplyAll = { composing = RichComposeMode.ReplyAll },
-            onForward = { composing = RichComposeMode.Forward },
+            // Forward opens once the original's files are staged, not before: a composer on
+            // screen holding nothing can be sent in the window before they arrive, which is the
+            // forward-without-its-attachments this staging exists to prevent.
+            onForward = {
+                stageForwardAttachments(ctx, message.account, message.key, stageForwardFiles) {
+                    forwardSeed = it
+                    composing = RichComposeMode.Forward
+                }
+            },
             onDelete = { onDelete(message.account, message.key) },
             onMarkAsSpam = { onMarkAsSpam(message.account, message.key) },
             onMarkAsNotSpam = { onMarkAsNotSpam(message.account, message.key) },
@@ -223,6 +236,10 @@ internal fun FlatMessageRow(
                 null
             }
         }
+        // Only a forward opens holding the original's files; a reply after one must not inherit
+        // the seed left behind, which is what reading it through the mode rather than directly
+        // prevents.
+        val seed = if (mode == RichComposeMode.Forward) forwardSeed else ForwardSeed()
         RichComposeMessageDialog(
             suggestionsFor = suggestionsFor,
             signatures = signatures,
@@ -241,6 +258,8 @@ internal fun FlatMessageRow(
             } else {
                 replySubject(message.subject)
             },
+            initialAttachments = seed.files,
+            initialError = if (seed.failed) L10n.compose_forward_attachments_failed(ctx) else null,
             onDismiss = { composing = null },
             onSubmitRich = { from, recipients, subject, documentJson, files ->
                 val sent = if (mode == RichComposeMode.Forward) {

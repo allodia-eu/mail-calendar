@@ -133,6 +133,7 @@
 	"compose_image_drop_inline": "Im Text anzeigen",
 	"compose_image_drop_attach": "Als Datei senden",
 	"compose_image_failed": "Dieses Bild kann der Nachricht nicht hinzugefügt werden.",
+	"compose_forward_attachments_failed": "Die Anhänge der ursprünglichen Nachricht können nicht hinzugefügt werden.",
 	"compose_discard_title": "Entwurf verwerfen?",
 	"compose_discard_message": "Diese Nachricht wurde nicht gesendet. Wenn Sie sie verwerfen, geht der geschriebene Text verloren.",
 	"action_discard": "Verwerfen",

@@ -31,6 +31,12 @@ import androidx.compose.ui.platform.LocalContext
  * ask about a message they never typed into is exactly the noise this guard must not create. Typing
  * something and then deleting it lands back on the opening values and counts as clean, which is true
  * there is nothing left to lose.
+ *
+ * `attachments` is measured against `initialAttachments`, which is **not** simply what the composer
+ * opened holding. A forward's staged originals are still in the mailbox, so abandoning one loses
+ * nothing and must not be worth a prompt; a share's files the user chose in their file manager and
+ * would have to share again, so those count from the start. Removing a forwarded file, like adding
+ * any file, changes the count and does count.
  */
 internal fun composerHeadersEdited(
     to: String,
@@ -42,11 +48,12 @@ internal fun composerHeadersEdited(
     subject: String,
     initialSubject: String,
     attachments: Int,
+    initialAttachments: Int = 0,
 ): Boolean = to != initialTo ||
     cc != initialCc ||
     bcc != initialBcc ||
     subject != initialSubject ||
-    attachments > 0
+    attachments != initialAttachments
 
 /**
  * The "Discard draft?" confirmation. Wording and button roles match the macOS confirmation dialog

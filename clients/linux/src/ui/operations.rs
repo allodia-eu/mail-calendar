@@ -13,6 +13,7 @@ use mailcal_bindings::{ComposerFileAttachment, MailcalApp, Recipients};
 use super::{
     AppInput, AppModel,
     composer_model::{ComposeKind, ComposerSubmission, PickedFile},
+    composer_notice::ComposerNotice,
     web_security::safe_extension,
 };
 use crate::l10n;
@@ -24,9 +25,9 @@ impl AppModel {
         };
         if submit(app, submission).is_ok() {
             self.composer = None;
-            self.composer_error = false;
+            self.composer_error = None;
         } else {
-            self.composer_error = true;
+            self.composer_error = Some(ComposerNotice::Prepare);
         }
     }
 

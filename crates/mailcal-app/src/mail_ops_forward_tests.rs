@@ -1,7 +1,8 @@
 //! Tests for **rich forward**: the threading that keeps a forward on the conversation it came
-//! from, and the original's files travelling with it. A child of [`super`] (the reply tests),
-//! reusing its `reply_app`/`original_message`/`reply_document`/`dispatch_until` fixtures; split
-//! into its own file so each test module stays under the 500-line limit.
+//! from, and the staging that lets its composer open holding the files the original carries. A
+//! child of [`super`] (the reply tests), reusing its
+//! `reply_app`/`original_message`/`reply_document`/`dispatch_until` fixtures; split into its own
+//! file so each test module stays under the 500-line limit.
 
 use engine_api::MessageIdHeader;
 
@@ -9,6 +10,14 @@ use super::{
     ThreadProvider, app_over, dispatch_until, original_message, reply_app, reply_document,
 };
 use crate::{Intent, MessageRef, SendStatus};
+
+/// A directory of this test's own under the system temp dir, emptied first so a previous run
+/// cannot make an assertion pass.
+fn staging_dir(name: &str) -> String {
+    let dir = std::env::temp_dir().join(format!("mailcal-forward-staging-{name}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    dir.to_string_lossy().into_owned()
+}
 
 /// A forward belongs to the conversation it came from. It carries the original's
 /// `References` chain (but no `In-Reply-To`, because it answers nothing) and that chain is
@@ -58,115 +67,78 @@ async fn rich_forward_sets_fwd_subject_and_threads_on_references() {
     );
 }
 
-/// Forwarding a message sends the message on, files included. The original's `invoice.pdf`
-/// goes out beside whatever the user wrote and attached in the composer, keeping the name and
-/// media type the sender gave it, and the quoted body's inline logo is **not** duplicated as a
-/// file: it is re-attached as the `cid:` part the quote references.
-#[tokio::test(start_paused = true)]
-async fn rich_forward_carries_the_originals_attachments() {
-    let (app, submissions) = reply_app(vec![original_message("m1")]);
+/// Opening a forward stages the files the original carries, so the composer can show them as
+/// ordinary attachments. Each keeps the name and media type the sender gave it, whatever the
+/// file is called on disk, and the bytes are the sender's.
+///
+/// The quoted body's inline logo is **not** among them: it is a `cid:` part the quote
+/// references, re-attached as one on send, so staging it would put the same picture in the
+/// message twice, once as a file nobody attached.
+#[tokio::test]
+async fn staging_writes_the_files_the_original_carries() {
+    let (app, _submissions) = reply_app(vec![original_message("m1")]);
     app.dispatch(Intent::RefreshMail).await;
 
-    let (document, blobs) = reply_document();
-    let intent = Intent::SubmitRichForward {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: None,
-        to: "dest@forward.test".to_owned(),
-        cc: String::new(),
-        bcc: String::new(),
-        subject: None,
-        document,
-        blobs,
-    };
-    let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
-    assert_eq!(app.send_status(), SendStatus::Sent);
+    let directory = staging_dir("carries");
+    let staged = app
+        .stage_forwarded_attachments(
+            MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
+            &directory,
+        )
+        .await
+        .expect("the original's files stage");
 
-    let submissions = submissions.lock().unwrap();
-    let draft = &submissions[0];
-    // The composer's own two parts (an inline chart and a file the user attached) plus the
-    // one file the original carried.
-    assert_eq!(draft.attachments.len(), 3);
-    let forwarded = draft
-        .attachments
-        .iter()
-        .find(|attachment| attachment.file_name == "invoice.pdf")
-        .expect("the original's file must travel with the forward");
-    assert_eq!(forwarded.media_type, "application/pdf");
-    assert_eq!(forwarded.content, b"INVOICE");
-    assert!(
-        !forwarded.is_inline(),
-        "a forwarded file is a file, not a body part"
+    assert_eq!(staged.len(), 1, "the inline logo is not a file: {staged:?}");
+    let file = &staged[0];
+    assert_eq!(file.file_name, "invoice.pdf");
+    assert_eq!(file.media_type, "application/pdf");
+    assert_eq!(
+        std::fs::read(&file.path).expect("the staged file is on disk"),
+        b"INVOICE",
+        "the staged bytes are the sender's"
     );
-    // The original's inline logo is a `cid:` part of the quote, never a second file.
     assert!(
-        !draft
-            .attachments
-            .iter()
-            .any(|attachment| attachment.content == b"hello" && !attachment.is_inline()),
-        "the original's inline image must not also go out as an attachment"
+        file.path.starts_with(&directory),
+        "staged into the directory the host named: {}",
+        file.path
     );
 }
 
-/// A reply is not a forward: it answers the message rather than passing it on, so the
-/// original's files stay where they are. Sending them back to the person who sent them is
-/// noise, and on a long thread it is the same file again on every turn.
-#[tokio::test(start_paused = true)]
-async fn rich_reply_leaves_the_originals_attachments_behind() {
-    let (app, submissions) = reply_app(vec![original_message("m1")]);
+/// A reference that resolves to no message is an error rather than an empty list, so a client
+/// cannot read "this message has nothing attached" out of a message it never found.
+#[tokio::test]
+async fn staging_a_message_that_is_not_there_is_an_error() {
+    let (app, _submissions) = reply_app(Vec::new());
     app.dispatch(Intent::RefreshMail).await;
 
-    let (document, blobs) = reply_document();
-    let intent = Intent::SubmitRichReply {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: None,
-        to: "reply@remote.test".to_owned(),
-        cc: String::new(),
-        bcc: String::new(),
-        subject: None,
-        document,
-        blobs,
-    };
-    let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
-    assert_eq!(app.send_status(), SendStatus::Sent);
-
-    let submissions = submissions.lock().unwrap();
-    let draft = &submissions[0];
-    assert_eq!(draft.attachments.len(), 2, "the composer's two parts only");
-    assert!(
-        !draft
-            .attachments
-            .iter()
-            .any(|attachment| attachment.file_name == "invoice.pdf"),
-        "a reply does not send the original's files back"
-    );
+    let staged = app
+        .stage_forwarded_attachments(
+            MessageRef::from_parts("acct-1", "absent".to_owned()).unwrap(),
+            &staging_dir("absent"),
+        )
+        .await;
+    assert!(staged.is_err(), "a message that is not there is not staged");
 }
 
-/// A forward whose files cannot be read does not go out. The alternative is a message that
-/// says "see attached" with nothing attached, which neither the sender nor the recipient can
-/// tell is incomplete, and a send cannot be taken back. A failed send can be tried again.
-#[tokio::test(start_paused = true)]
-async fn rich_forward_that_cannot_read_the_originals_files_does_not_send() {
-    // Syncing needs no raw source, so the original is in the store and only reading its
-    // parts fails: the account offline, or the message gone from the server.
-    let (app, submissions) =
+/// Files that cannot be read are reported, never quietly left out. The composer still opens,
+/// and what the client must not do is show an attachment-less forward as if the message had
+/// nothing attached: the user would send it without ever knowing.
+#[tokio::test]
+async fn staging_reports_files_it_cannot_read() {
+    // Syncing needs no raw source, so the original is in the store and only reading its parts
+    // fails: the account offline, or the message gone from the server.
+    let (app, _submissions) =
         app_over(ThreadProvider::with(vec![original_message("m1")]).failing_source());
     app.dispatch(Intent::RefreshMail).await;
 
-    let (document, blobs) = reply_document();
-    let intent = Intent::SubmitRichForward {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: None,
-        to: "dest@forward.test".to_owned(),
-        cc: String::new(),
-        bcc: String::new(),
-        subject: None,
-        document,
-        blobs,
-    };
-    let _task = dispatch_until(&app, intent, SendStatus::Failed).await;
-    assert_eq!(app.send_status(), SendStatus::Failed);
+    let staged = app
+        .stage_forwarded_attachments(
+            MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
+            &staging_dir("unreadable"),
+        )
+        .await;
     assert!(
-        submissions.lock().unwrap().is_empty(),
-        "nothing may go out without the files it was forwarding"
+        staged.is_err(),
+        "unreadable files are an error, not an empty list: {staged:?}"
     );
 }

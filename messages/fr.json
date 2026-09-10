@@ -133,6 +133,7 @@
 	"compose_image_drop_inline": "Afficher dans le message",
 	"compose_image_drop_attach": "Envoyer en pièce jointe",
 	"compose_image_failed": "Impossible d'ajouter cette image au message.",
+	"compose_forward_attachments_failed": "Impossible de joindre les fichiers du message d'origine.",
 	"compose_discard_title": "Supprimer le brouillon ?",
 	"compose_discard_message": "Ce message n’a pas été envoyé. Si vous le supprimez, ce que vous avez écrit sera perdu.",
 	"action_discard": "Supprimer",
