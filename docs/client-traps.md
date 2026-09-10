@@ -27,6 +27,22 @@ that same file.
   lines into a 20,000-line generated file, with `Parameter name expected`. Swift and C# take `///`
   line comments and never see it, which is what makes this Kotlin's alone. Describe the sequence
   rather than typing it.
+- **A SwiftUI `Menu` is not a `Button` with a menu attached, and a row of buttons shows it.** Its
+  chrome is its own: it takes its height from neither `.buttonStyle(.bordered)`, nor a `.frame` on
+  the menu, nor one on its label, nor `.menuStyle(.button)`, so beside real buttons it draws
+  visibly shorter and nothing sizes it. Worse, it has no finite ideal *width*, so inside a
+  `ViewThatFits` (which sizes every candidate ideally) the flex-frame placement traps:
+  `EXC_BREAKPOINT` in `_FlexFrameLayout.commonPlacement`, on the first layout of the pane, which
+  reads as a crash on opening a message rather than as a layout bug. Both halves went away by
+  making the control an ordinary `Button` that presents a `.popover`
+  ([`ReadingView.Overflow.swift`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/ReadingView.Overflow.swift)):
+  same pieces as its neighbours, therefore same metrics, and a width the row can measure.
+
+  The second half of matching is the *content*: a labelled row's buttons are as tall as their
+  title's **line box**, which is taller than the glyph beside it, so an icon-only button among
+  them needs a title that lays out and does not draw (`.labelStyle(.iconOnly)` removes it from the
+  layout too, and is what makes the button short). A screenshot is the only test that sees any of
+  this; the suites all pass.
 - **`Path.GetInvalidFileNameChars()` answers differently per host, and `Mailcal.Tests` is not a
   Windows assembly.** On Windows it returns the familiar set; on Linux, `/` and NUL alone, so `:`,
   `*`, `?` and `\` all come back as legal. The Windows client only ever *runs* on Windows, but its

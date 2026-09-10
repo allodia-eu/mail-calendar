@@ -92,6 +92,8 @@ struct ReadingView: View {
     /// Save spin independently. Not `private`, see `attachmentError`.
     @State var openingIDs: Set<UInt32> = []
     @State var savingIDs: Set<UInt32> = []
+    /// Whether the overflow's popover is open. Not `private`, see `attachmentError`.
+    @State var overflowOpen = false
     /// Whether an export is in flight, so the overflow button spins and the item ignores
     /// re-taps while the source is fetched and written. Not `private`, see `attachmentError`.
     @State var exporting = false
@@ -241,7 +243,7 @@ struct ReadingView: View {
             toolbarButton(L10n.action_archive(), "archivebox", iconsOnly, action: onArchive)
             toolbarButton(L10n.action_delete(), "trash", iconsOnly, role: .destructive, action: onDelete)
             // Last of all, after both mailbox actions (docs/reading-actions.md).
-            overflowMenu
+            overflowMenu(iconsOnly: iconsOnly)
         }
     }
 

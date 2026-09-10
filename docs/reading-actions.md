@@ -21,6 +21,13 @@ Labels collapse to icons on a narrow pane ([`../clients/apple/Packages/MailcalKi
 and its Windows twin measure this); the overflow button is an icon at every width and carries the
 same accessible name, `a11y_more_actions`, everywhere.
 
+**It is the same control as the buttons beside it**, at both of the row's widths. Each platform
+uses whatever gets it there: Windows and Android hang a native menu off a button, and Apple builds
+an ordinary button that presents a popover, because a SwiftUI `Menu` cannot be made to match a
+bordered button's height and breaks the row's width measurement
+([`client-traps.md`](client-traps.md)). What the contract fixes is the result, not the mechanism:
+a reader should not be able to tell the overflow apart from its neighbours except by its glyph.
+
 ## What may go in the overflow
 
 - **Actions on the message as a document**, rather than on its place in the mailbox: exporting it,
