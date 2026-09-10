@@ -361,6 +361,11 @@ were broken right now, would this tell me?*
   and denies clippy `pedantic`; the few allowed lints carry their justification there. Write
   `` [`X`] `` doc links only to **public** items. `mailcal-bindings` opts out entirely, because
   UniFFI emits unsafe, undocumented items.
+- **Swift warnings are hard errors too.** `SWIFT_TREAT_WARNINGS_AS_ERRORS` sits at project level in
+  [`clients/apple/project.yml`](clients/apple/project.yml), so a target added later inherits it; it
+  does not reach the package, whose targets each state `.treatAllWarnings(as: .error)` in
+  [`Package.swift`](clients/apple/Packages/MailcalKit/Package.swift). `MailcalBindings` opts out
+  for the reason `mailcal-bindings` does above: the sources are UniFFI's, not ours to fix.
 - **The Rust toolchain is pinned** in [`rust-toolchain.toml`](rust-toolchain.toml), which CI parses
   too. Bumping it is a **standalone PR**: a new stable that adds a default-warn lint turns the build
   red, and that PR is where it gets fixed.

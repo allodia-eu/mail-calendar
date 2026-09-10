@@ -1,4 +1,4 @@
-// swift-tools-version:6.0
+// swift-tools-version:6.3
 import PackageDescription
 
 // The shared Apple layer. The Rust core ships as a prebuilt XCFramework (binary target); the
@@ -18,7 +18,11 @@ let package = Package(
     targets: [
         // The Rust core, all Apple slices. Vends the `mailcal_bindingsFFI` C module.
         .binaryTarget(name: "MailcalFFI", path: "artifacts/Mailcal.xcframework"),
-        // Generated UniFFI Swift + L10n (git-ignored; produced by build-core.sh).
+        // Generated UniFFI Swift + L10n (git-ignored; produced by build-core.sh). The one target
+        // that does NOT treat warnings as errors: its sources come out of a generator, so a warning
+        // a UniFFI bump introduces is not ours to edit and would stop every Apple build with no fix
+        // available in this tree. The Rust crate behind it opts out of the workspace lints for the
+        // same reason (AGENTS.md).
         .target(name: "MailcalBindings", dependencies: ["MailcalFFI"]),
         // libresolv, wrapped so SystemMxResolver can send an MX query via the system resolver
         // for the autodetect MX fallback (the raw answer is parsed in Swift by DnsMessage).
@@ -42,7 +46,14 @@ let package = Package(
             // A member must come from a module this FILE imports, not one a sibling happened to
             // import. It is the half of "swift build is not the app build" a fast loop can catch:
             // five files here were reaching Combine through SwiftUI.
-            swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]
+            //
+            // Warnings are hard errors, matching the Rust workspace. Per target because that is the
+            // only scope SwiftPM offers; the app and MailcalVerify targets carry the Xcode setting
+            // (SWIFT_TREAT_WARNINGS_AS_ERRORS in project.yml), which does not reach a package.
+            swiftSettings: [
+                .enableUpcomingFeature("MemberImportVisibility"),
+                .treatAllWarnings(as: .error),
+            ]
         ),
         // The client's own tests, on the JVM-equivalent of the Android suite: plain logic, no UI, no
         // simulator. What is tested here is what the CLIENT decides, the page↔date mapping, the
@@ -51,7 +62,10 @@ let package = Package(
         .testTarget(
             name: "MailcalUITests",
             dependencies: ["MailcalUI"],
-            swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]
+            swiftSettings: [
+                .enableUpcomingFeature("MemberImportVisibility"),
+                .treatAllWarnings(as: .error),
+            ]
         ),
     ],
     // Stated rather than left to the tools version's default, so a later bump cannot move it

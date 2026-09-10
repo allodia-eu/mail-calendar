@@ -433,7 +433,7 @@ jobs:
   apple:
     # Cross-compile the Rust core to an XCFramework, generate the Xcode project, build the macOS +
     # iOS app targets, and build + run the headless FFI verifier (demo mode — deterministic, no
-    # credentials). Runner: macos-26 — arm64, macOS 26 + Xcode 26 (our minimum).
+    # credentials). Runner: macos-26 — arm64, macOS 26 + Xcode 26.4 (our minimum).
     name: Apple clients (macOS + iOS)
     needs: changes
     if: needs.changes.outputs.apple == 'true'
@@ -467,7 +467,7 @@ jobs:
           # leaves another ~600 MB behind and we are back to fighting the 10 GB budget.
           delete-used-deriveddata-cache: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Select Xcode 26 (our minimum)
+      - name: Select the newest Xcode 26 (26.4+ for Swift 6.3)
         run: |
           APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
           if [ -n "$APP" ]; then sudo xcode-select -s "$APP"; fi
