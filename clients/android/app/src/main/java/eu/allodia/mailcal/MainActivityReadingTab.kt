@@ -105,6 +105,15 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                                     false
                                 }
                             },
+                            onExportMessage = { account, key, destinationPath ->
+                                try {
+                                    instance.saveMessageSource(account, key, destinationPath)
+                                    true
+                                } catch (e: MailcalException) {
+                                    Log.w(TAG, "message export failed: ${e.javaClass.simpleName}")
+                                    false
+                                }
+                            },
                             // Archive/delete move the message out of the folder; the core hides
                             // the row optimistically, and the screen pops back to the list.
                             onArchive = { account, key -> instance.dispatch(Intent.Archive(account, key)) },

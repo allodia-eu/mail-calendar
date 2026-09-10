@@ -91,6 +91,7 @@
 	"action_copy_link": "Link kopiëren",
 	"action_remove": "Verwijderen",
 	"action_save": "Opslaan",
+	"action_save_as_eml": "Opslaan als .eml…",
 	"action_undo": "Ongedaan maken",
 
 	"a11y_event_row": "{title}, {time}",
@@ -166,6 +167,8 @@
 	"attachment_saved": "Bijlage opgeslagen",
 	"attachment_save_failed": "Kan deze bijlage niet opslaan.",
 	"attachment_open_failed": "Kan deze bijlage niet openen.",
+	"message_saved": "Bericht opgeslagen",
+	"message_save_failed": "Kan dit bericht niet opslaan.",
 	"send_status_sending": "Bezig met verzenden…",
 	"send_status_sent": "Bericht verzonden",
 	"send_status_failed": "Kan je bericht niet verzenden.",

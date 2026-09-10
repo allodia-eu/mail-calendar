@@ -1,6 +1,6 @@
-//! Small pure helpers the [`crate::App`] runtime uses to mint outgoing identifiers
-//! and normalise reply/forward subjects. Split out of `lib.rs` to keep it under the
-//! 500-line limit. A production host would mint UUIDs instead of clock-derived ids.
+//! Small pure helpers the [`crate::App`] runtime uses to mint outgoing identifiers,
+//! normalise reply/forward subjects and name an exported message. Split out of `lib.rs` to keep it
+//! under the 500-line limit. A production host would mint UUIDs instead of clock-derived ids.
 
 /// The wall clock, as the engine's UTC type: the `DTSTAMP` a written or answered event carries.
 ///
@@ -111,4 +111,85 @@ pub(crate) fn generated_idempotency() -> String {
     static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     format!("edit:{}:{seq}", wall_nanos())
+}
+
+/// The name to fall back to when a subject yields nothing usable for a file name.
+///
+/// A client passes the subject it *displays*, which already carries its own localised
+/// "(no subject)", so this is reached only by a subject made entirely of characters a file name
+/// cannot hold. It stays ASCII: the core has no locale.
+const UNTITLED_EXPORT: &str = "message";
+
+/// The file name to offer when writing `subject`'s message out as a `.eml`
+/// (`docs/reading-actions.md`).
+///
+/// The subject is the one thing that tells two exported messages apart in a folder, so it is the
+/// name, put through the same normalisation an attachment's name gets: no separators, no control
+/// or bidirectional characters, bounded length.
+#[must_use]
+pub fn export_file_name(subject: &str) -> String {
+    // The separators go first, because `safe_file_name` reads what it is given as a path and
+    // keeps only the last component. That is right for a shared file and wrong for a subject,
+    // where a slash is an ordinary character: "invoices 2026/2027" would otherwise be filed as
+    // "2027". Replaced with the same `_` the sanitiser gives the other reserved punctuation.
+    let flattened = subject.replace(['/', '\\'], "_");
+    let stem = mailcal_composer::safe_file_name(&flattened, "");
+    // A subject nothing survives comes back as `safe_file_name`'s own fallback, which names an
+    // attachment; this is a message. Told apart from a subject that really is that word by
+    // asking what the subject was, since the sanitiser reports no failure of its own.
+    let stem = if stem == "attachment" && subject.trim() != "attachment" {
+        UNTITLED_EXPORT
+    } else {
+        stem.as_str()
+    };
+    format!("{stem}.eml")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::export_file_name;
+
+    #[test]
+    fn an_export_is_named_after_its_subject() {
+        assert_eq!(export_file_name("Quarterly report"), "Quarterly report.eml");
+    }
+
+    #[test]
+    fn a_subject_that_reads_as_a_path_names_one_file() {
+        // A subject is free text and routinely holds a slash ("invoices 2026/2027"); left in,
+        // the write lands in a directory nobody chose, or fails. The whole subject is kept: it
+        // names the file, so dropping everything before the slash loses the name.
+        assert_eq!(
+            export_file_name("invoices 2026/2027"),
+            "invoices 2026_2027.eml"
+        );
+        assert_eq!(
+            export_file_name("..\\..\\Windows\\System32"),
+            "Windows_System32.eml"
+        );
+    }
+
+    #[test]
+    fn an_unusable_subject_still_names_a_file() {
+        assert_eq!(export_file_name(""), "message.eml");
+        assert_eq!(export_file_name("   "), "message.eml");
+        assert_eq!(export_file_name("///"), "message.eml");
+    }
+
+    #[test]
+    fn a_subject_saying_attachment_keeps_saying_it() {
+        // The fallback substitution is on the sanitiser's *result*, so a subject that really is
+        // the word must not be swapped for the untitled name.
+        assert_eq!(export_file_name("attachment"), "attachment.eml");
+    }
+
+    #[test]
+    fn a_long_subject_is_bounded() {
+        // Truncated through the stem, so the suffix survives: it is what decides which
+        // application opens the file.
+        assert_eq!(
+            export_file_name(&"a".repeat(500)),
+            format!("{}.eml", "a".repeat(200))
+        );
+    }
 }

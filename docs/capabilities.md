@@ -45,6 +45,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Reading **pane**: 3-pane desktop layout (sidebar \| list \| reading) | ✅ | ✅ | ✅ (iPad) | ✅ | — | ✅ |
 | Reading-view actions: reply / reply-all / forward / archive / delete | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Archive/delete **advances the reading pane** to the next message down (the one above, at the end of the list) instead of emptying it, where a pane exists beside the list; the iPhone still pops back | — | ✅ | ✅ (iPad) | ✅ | — | ✅ |
+| Reading-view **overflow menu** (at the end of the action row, after archive and delete) with **Save as .eml**: writes the message exactly as it was delivered, so it opens in any other mail client as the message the sender actually sent. A save panel on a computer, the share sheet on a phone ([docs](docs/reading-actions.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Email attachments: list/save/open received files (open via the OS default handler, or the OS's own viewer where there is none, Quick Look on iPhone/iPad) + attach files in composer | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Rich HTML composer: new / reply / reply-all / forward (editable To/Cc/Bcc); **inline in the reading pane** on macOS + Windows, full-screen/modal on iPhone, iPad + Android | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composing keeps the mailbox live: the composer replaces the reading pane rather than blacking it out; clicking another message mid-draft prompts Discard / Keep editing | — | ✅ | — | ✅ | — | ✅ |

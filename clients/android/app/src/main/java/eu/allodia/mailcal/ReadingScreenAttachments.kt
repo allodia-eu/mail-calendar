@@ -7,6 +7,7 @@ package eu.allodia.mailcal
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.text.format.Formatter
@@ -96,6 +97,48 @@ internal fun AttachmentList(
                 }
             }
         }
+        }
+    }
+}
+
+// Writes one attachment to the document the user picked, then says whether it worked.
+//
+// The core decodes and writes the whole part to a cache file we own and the bytes are copied
+// into the picked document, because a `content://` URI is not a path the core can write to. Both
+// halves run off the main thread (the connect path threads blocking core calls for the same
+// reason), and the result is reported on it.
+internal fun saveAttachmentTo(
+    ctx: Context,
+    uri: Uri,
+    account: String,
+    key: String,
+    attachment: AttachmentRow,
+    onSaveAttachment: (account: String, key: String, attachmentId: UInt, destinationPath: String) -> Boolean,
+) {
+    thread(name = "mailcal-save-attachment") {
+        val temp = File(ctx.cacheDir, "saved-attachments/${UUID.randomUUID()}.part")
+        temp.parentFile?.mkdirs()
+        val saved = onSaveAttachment(account, key, attachment.id, temp.absolutePath)
+        val copied = if (saved) {
+            try {
+                ctx.contentResolver.openOutputStream(uri)?.use { output ->
+                    temp.inputStream().use { input -> input.copyTo(output) }
+                } != null
+            } catch (_: Exception) {
+                false
+            } finally {
+                temp.delete()
+            }
+        } else {
+            temp.delete()
+            false
+        }
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(
+                ctx,
+                if (copied) L10n.attachment_saved(ctx) else L10n.attachment_save_failed(ctx),
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 }

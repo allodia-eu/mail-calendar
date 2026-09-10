@@ -187,6 +187,65 @@ async fn open_message_lists_and_saves_downloadable_attachments() {
 }
 
 #[tokio::test]
+async fn an_exported_message_is_the_delivered_bytes_unaltered() {
+    // The reading view shows a sanitised, re-rendered version of this message. The export
+    // must be none of that: byte-for-byte what arrived, header folding, quoted-printable and
+    // all, so it opens in another mail client as the message the sender actually sent.
+    let raw = concat!(
+        "Subject: Re:\r\n quarterly report\r\n",
+        "Content-Type: text/html; charset=utf-8\r\n",
+        "Content-Transfer-Encoding: quoted-printable\r\n\r\n",
+        "<p onclick=3D\"evil()\">caf=C3=A9</p>\r\n",
+    );
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = FakeProvider::with(vec![message("m1", "a", "Re: quarterly report")])
+        .with_source(raw.as_bytes());
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(Intent::OpenMessage {
+        message: msg("acct-1", "m1"),
+    })
+    .await;
+
+    // What the reader sees: the handler is gone, the entity decoded.
+    let reading = app.reading_view();
+    let html = reading.html.clone().expect("html body");
+    assert!(!html.contains("onclick"), "{html}");
+
+    let path = std::env::temp_dir().join(format!("mailcal-export-{}.eml", std::process::id()));
+    app.save_message_source(msg("acct-1", "m1"), path.to_str().expect("temp path"))
+        .await
+        .expect("save message source");
+
+    // What the file holds: the original, including the part the sanitiser removed.
+    assert_eq!(std::fs::read(&path).expect("saved bytes"), raw.as_bytes());
+    let _ = std::fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn exporting_a_message_that_is_gone_reports_it() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = FakeProvider::with(vec![message("m1", "a", "Present")]);
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+    app.dispatch(Intent::RefreshMail).await;
+
+    let path = std::env::temp_dir().join(format!("mailcal-absent-{}.eml", std::process::id()));
+    let outcome = app
+        .save_message_source(msg("acct-1", "gone"), path.to_str().expect("temp path"))
+        .await;
+
+    assert!(
+        outcome.is_err(),
+        "a key with no message must not report success"
+    );
+    assert!(
+        !path.exists(),
+        "nothing is written for a message we do not have"
+    );
+}
+
+#[tokio::test]
 async fn open_message_surfaces_to_cc_and_bcc_recipients_formatted() {
     // A stored message carrying To/Cc/Bcc; like the sender's own Sent copy, whose APPENDed
     // bytes keep the Bcc header. Opening it surfaces every recipient in the reading snapshot,

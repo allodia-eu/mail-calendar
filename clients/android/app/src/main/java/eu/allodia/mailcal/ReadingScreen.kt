@@ -7,12 +7,6 @@
 // gate added/raised on one platform must be applied to all of them (and recorded there).
 package eu.allodia.mailcal
 
-import android.os.Handler
-import android.os.Looper
-import android.widget.Toast
-import java.io.File
-import java.util.UUID
-import kotlin.concurrent.thread
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
@@ -197,6 +191,7 @@ internal fun ReadingScreen(
         attachmentId: UInt,
         destinationPath: String,
     ) -> Boolean,
+    onExportMessage: (account: String, key: String, destinationPath: String) -> Boolean,
     onArchive: (account: String, key: String) -> Unit,
     onDelete: (account: String, key: String) -> Unit,
     // Screenshot only: opens the composer in this mode as soon as the message is shown, so the
@@ -224,39 +219,8 @@ internal fun ReadingScreen(
     ) { uri ->
         val attachment = pendingSave
         pendingSave = null
-        if (uri == null || attachment == null) {
-            return@rememberLauncherForActivityResult
-        }
-        // The core decodes + writes the whole part and then we copy it to the picked location:
-        // both off the main thread (the connect path threads blocking core calls for the same
-        // reason), reporting the result back on the main thread.
-        val account = message.account
-        val key = message.key
-        thread(name = "mailcal-save-attachment") {
-            val temp = File(ctx.cacheDir, "saved-attachments/${UUID.randomUUID()}.part")
-            temp.parentFile?.mkdirs()
-            val saved = onSaveAttachment(account, key, attachment.id, temp.absolutePath)
-            val copied = if (saved) {
-                try {
-                    ctx.contentResolver.openOutputStream(uri)?.use { output ->
-                        temp.inputStream().use { input -> input.copyTo(output) }
-                    } != null
-                } catch (_: Exception) {
-                    false
-                } finally {
-                    temp.delete()
-                }
-            } else {
-                temp.delete()
-                false
-            }
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(
-                    ctx,
-                    if (copied) L10n.attachment_saved(ctx) else L10n.attachment_save_failed(ctx),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            }
+        if (uri != null && attachment != null) {
+            saveAttachmentTo(ctx, uri, message.account, message.key, attachment, onSaveAttachment)
         }
     }
     // This screen renders outside the Scaffold (which would pad its content), so it must clear
@@ -305,6 +269,15 @@ internal fun ReadingScreen(
                     tint = MaterialTheme.colorScheme.error,
                 )
             }
+            // Last of all, after both mailbox actions (docs/reading-actions.md).
+            ReadingOverflowMenu(
+                // The subject this screen DISPLAYS, so an untitled message exports under the
+                // same words it is shown under.
+                subject = message.subject.ifEmpty { L10n.mail_no_subject(ctx) },
+                account = message.account,
+                key = message.key,
+                onExportMessage = onExportMessage,
+            )
         }
         HorizontalDivider()
         // When the open message is part of a multi-message conversation, list the other messages

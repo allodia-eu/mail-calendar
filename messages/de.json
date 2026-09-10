@@ -91,6 +91,7 @@
 	"action_copy_link": "Link kopieren",
 	"action_remove": "Entfernen",
 	"action_save": "Sichern",
+	"action_save_as_eml": "Als .eml sichern…",
 	"action_undo": "Widerrufen",
 
 	"a11y_event_row": "{title}, {time}",
@@ -166,6 +167,8 @@
 	"attachment_saved": "Anhang gesichert",
 	"attachment_save_failed": "Dieser Anhang kann nicht gesichert werden.",
 	"attachment_open_failed": "Dieser Anhang kann nicht geöffnet werden.",
+	"message_saved": "Nachricht gesichert",
+	"message_save_failed": "Diese Nachricht kann nicht gesichert werden.",
 	"send_status_sending": "Wird gesendet…",
 	"send_status_sent": "Nachricht gesendet",
 	"send_status_failed": "Ihre Nachricht kann nicht gesendet werden.",

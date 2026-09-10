@@ -91,6 +91,7 @@
 	"action_copy_link": "Copiar ligação",
 	"action_remove": "Remover",
 	"action_save": "Guardar",
+	"action_save_as_eml": "Guardar como .eml…",
 	"action_undo": "Anular",
 
 	"a11y_event_row": "{title}, {time}",
@@ -166,6 +167,8 @@
 	"attachment_saved": "Anexo guardado",
 	"attachment_save_failed": "Não foi possível guardar este anexo.",
 	"attachment_open_failed": "Não foi possível abrir este anexo.",
+	"message_saved": "Mensagem guardada",
+	"message_save_failed": "Não foi possível guardar esta mensagem.",
 	"send_status_sending": "A enviar…",
 	"send_status_sent": "Mensagem enviada",
 	"send_status_failed": "Não foi possível enviar a sua mensagem.",
