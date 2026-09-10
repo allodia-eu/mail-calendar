@@ -109,6 +109,12 @@ namespace Allodia
     public static class UiaDpi
     {
         [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+        /// <summary>
+        /// Focus a window before typing at it. Only the system file picker needs this: it is the
+        /// one surface here driven by keystrokes rather than by an automation pattern, and
+        /// SendKeys goes to whatever holds focus.
+        /// </summary>
+        [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     }
 }
 '@
@@ -534,6 +540,79 @@ function Wait-MailRowCount {
     $last = $n
   }
   return $last
+}
+
+<#
+.SYNOPSIS
+Answer the system Save As dialog with -Destination, and wait for it to close. Asserts nothing about
+the file: read the BYTES afterwards, which is the only evidence the write actually happened.
+.DESCRIPTION
+A FileSavePicker (the .eml export, Settings -> Diagnostics -> Export log) opens the classic Save As
+dialog, and three things about it defeat every obvious approach:
+
+  * It is a CHILD window (class #32770) of the app window, never a top-level one, so polling
+    RootElement's children for a new window finds nothing and reads as "the picker never opened".
+  * Its controls expose a DEGENERATE tree: the filename box (#1001 under #FileNameControlHost) and
+    the Save button (#1) are patternless Panes, with no ValuePattern, no InvokePattern, and
+    SetFocus() throws. So there is nothing here to Invoke or Set-UiaText.
+  * The keyboard works. The filename box has default focus, so ^a plus the path plus ENTER saves.
+
+The path is escaped for SendKeys: +, ^, %, ~ and the bracket characters are all operators there,
+and a path holding one would otherwise be typed as a chord and land the file somewhere else.
+.EXAMPLE
+Save-ThroughFilePicker -Destination (Join-Path $env:TEMP 'export.eml')
+#>
+function Save-ThroughFilePicker {
+  param(
+    [Parameter(Mandatory)] [string] $Destination,
+    [int] $TimeoutSec = 20,
+    # Receives the name the app PRE-FILLED, before it is replaced. The suggested name is the only
+    # evidence of what the client asked the core to call the file, and it is gone once ^a lands.
+    [ref] $SuggestedName
+  )
+  Add-Type -AssemblyName System.Windows.Forms
+  $condition = New-Object System.Windows.Automation.PropertyCondition(
+    $script:UiaElement::ClassNameProperty, '#32770')
+  $dialog = $null
+  for ($i = 0; $i -lt $TimeoutSec * 2; $i++) {
+    Start-Sleep -Milliseconds 500
+    try {
+      $window = Get-MailcalWindow
+      if ($window) { $dialog = $window.FindFirst($script:UiaChildren, $condition) }
+    } catch { }
+    if ($dialog) { break }
+  }
+  if (-not $dialog) { throw "no Save As dialog within ${TimeoutSec}s; it is a #32770 CHILD of the app window, so this is the picker not opening rather than the search missing it" }
+  if ($SuggestedName) {
+    # The filename box is #1001, under #FileNameControlHost, and the scoping is not tidiness: the
+    # ADDRESS BAND carries a #1001 of its own ("Address: Documents"), and it sorts first in a walk
+    # of the whole dialog. An unscoped read hands back the directory as a confident file name.
+    $nameHost = Get-UiaTree -Root $dialog | Where-Object { $_.Current.AutomationId -eq 'FileNameControlHost' } | Select-Object -First 1
+    $box = if ($nameHost) { Get-UiaTree -Root $nameHost | Where-Object { $_.Current.AutomationId -eq '1001' } | Select-Object -First 1 } else { $null }
+    if (-not $box) { throw 'the Save As dialog exposes no #1001 filename box under #FileNameControlHost, so the pre-filled name cannot be read' }
+    # Name, not ValuePattern: these controls are patternless Panes (see above), and the pre-filled
+    # text is what the Pane reports as its Name.
+    $SuggestedName.Value = $box.Current.Name
+  }
+  $handle = [IntPtr] $dialog.Current.NativeWindowHandle
+  [void][Allodia.UiaDpi]::SetForegroundWindow($handle)
+  Start-Sleep -Milliseconds 600
+  $keys = $Destination -replace '([+^%~()\[\]{}])', '{$1}'
+  [System.Windows.Forms.SendKeys]::SendWait('^a')
+  Start-Sleep -Milliseconds 300
+  [System.Windows.Forms.SendKeys]::SendWait($keys)
+  Start-Sleep -Milliseconds 400
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  for ($i = 0; $i -lt $TimeoutSec * 2; $i++) {
+    Start-Sleep -Milliseconds 500
+    $still = $null
+    try {
+      $window = Get-MailcalWindow
+      if ($window) { $still = $window.FindFirst($script:UiaChildren, $condition) }
+    } catch { }
+    if (-not $still) { return }
+  }
+  throw "the Save As dialog was still up ${TimeoutSec}s after ENTER; the path may have been refused"
 }
 
 <#
