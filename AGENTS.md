@@ -240,6 +240,21 @@ a build given none drops those two routes from the setup wizard rather than fail
 `.env` looks exactly like a regression in whatever you are working on: check `oauth_routes()`
 before chasing one.
 
+**Every checkout shares one build directory, and [`.cargo/config.toml`](.cargo/config.toml) already
+sets it up.** Each worktree is its own Cargo workspace, so left alone each compiles this dependency
+tree into a `target/` of its own, several GB apiece: five worktrees and a main checkout reached
+**54 GB** on one machine. `build.build-dir` sends the intermediates to one shared directory and
+leaves binaries, cdylibs and test executables in each worktree's `target/`, so worktrees on
+different revisions share the compile work without overwriting each other's output. That file
+carries the reasoning; two consequences are worth knowing before they surprise you:
+
+- ⚠️ **A nearly empty `target/` is the expected shape, not a broken build.**
+- Cargo locks the build directory for the length of a build, so a second worktree prints
+  `Blocking waiting for file lock on build directory` and waits. Builds serialise rather than
+  oversubscribe the cores. `CARGO_BUILD_BUILD_DIR` opts one build out.
+
+Anything else your machine needs goes in [`AGENTS.local.md`](AGENTS.local.md), untracked.
+
 **Run `scripts/dev/gate.sh` before the first push of a branch**: `--clients` adds every client this
 host can actually build. CI costs real money and real minutes (macOS runners bill at **10×**), so a
 PR is where you *confirm* a green build, not where you discover one.

@@ -2,31 +2,36 @@
 # build scripts drive. This file is tracked; see the engine-override note at the bottom.
 
 # ---------------------------------------------------------------------------------------------
+# One build directory for every checkout, so worktrees share the compile work instead of each
+# growing a multi-GB `target/`. Intermediates only: binaries and test executables still land in
+# each worktree's `target/`, which is why an almost empty one is normal. Cargo locks the directory
+# for the length of a build, so a second worktree waits; `CARGO_BUILD_BUILD_DIR` opts one out.
+#
+# Fixed name on purpose: `{workspace-path-hash}` would give every worktree its own directory and
+# defeat the sharing. `{cargo-cache-home}` is CARGO_HOME, so no absolute path is committed.
+# `rustc-wrapper` stays out of a tracked file: it would break every dev lacking that binary.
+# ---------------------------------------------------------------------------------------------
+
+[build]
+build-dir = "{cargo-cache-home}/build/allodia-mail-calendar"
+
+# ---------------------------------------------------------------------------------------------
 # Windows: link the C runtime statically.
 #
-# Rust's *-pc-windows-msvc targets link the CRT dynamically by default, so mailcal_bindings.dll
-# imports VCRUNTIME140.dll. That file ships in the Visual C++ Redistributable, not in Windows.
-# Visual Studio installs it, so every dev box has it and a clean machine does not — and nothing in
-# our MSIX package graph supplies it either: we depend only on Microsoft.WindowsAppRuntime.2, and
-# that framework package declares no dependencies of its own, so Microsoft.VCLibs.140.00.UWPDesktop
-# (which does carry vcruntime140.dll) is never pulled in. Microsoft links Microsoft.UI.Xaml.dll's
-# own CRT statically for exactly this reason.
+# MSVC links it dynamically by default, so mailcal_bindings.dll imports VCRUNTIME140.dll. That
+# ships in the Visual C++ Redistributable, not in Windows, and our MSIX graph never pulls it in:
+# Microsoft.WindowsAppRuntime.2 declares no dependencies, so Microsoft.VCLibs.140.00.UWPDesktop
+# (which does carry it) never arrives. Microsoft links Microsoft.UI.Xaml.dll's own CRT statically
+# for the same reason. On a clean machine LoadLibrary fails with ERROR_MOD_NOT_FOUND, the first
+# P/Invoke throws DllNotFoundException inside App.OnLaunched, and WinUI fail-fasts with 0xc000027b
+# (STATUS_STOWED_EXCEPTION); that is how 1.0.0.0 failed Store certification.
 #
-# On a clean machine LoadLibrary therefore fails with ERROR_MOD_NOT_FOUND, the first P/Invoke throws
-# DllNotFoundException inside App.OnLaunched, and WinUI fail-fasts with 0xc000027b
-# (STATUS_STOWED_EXCEPTION). That is how 1.0.0.0 failed Microsoft Store certification, on a machine
-# indistinguishable from a customer's.
+# The two MSVC triples only: `+crt-static` is wrong for Apple and Android, which link libc
+# dynamically by contract. `cc` reads it back out of the target features, so libsqlite3-sys and
+# ring compile /MT too.
 #
-# Scoped to the two MSVC triples ON PURPOSE. `+crt-static` means something different — and wrong —
-# for the Apple and Android targets, which link libc dynamically by contract.
-#
-# `cc` reads crt-static back out of the target features, so libsqlite3-sys and ring compile with
-# /MT and the C dependencies stay consistent with the Rust side.
-#
-# CAVEAT, and the reason clients/windows/rust-crt.ps1 still asserts on the built artifact: a
-# RUSTFLAGS environment variable SUPPRESSES target.*.rustflags outright (Cargo precedence), silently
-# undoing everything below. The assert turns that into a loud build failure rather than a broken
-# Store upload.
+# ⚠️ A RUSTFLAGS environment variable suppresses `target.*.rustflags` outright, silently undoing
+# all of this; clients/windows/rust-crt.ps1 asserts on the built artifact to catch that.
 # ---------------------------------------------------------------------------------------------
 
 [target.x86_64-pc-windows-msvc]
@@ -38,9 +43,8 @@ rustflags = ["-C", "target-feature=+crt-static"]
 # ---------------------------------------------------------------------------------------------
 # Engine path override (simultaneous engine + core development).
 #
-# This file used to be gitignored and used for that override. It is tracked now, so put the
-# override OUTSIDE the repo: Cargo merges config from every ancestor directory, so create
-# `<the directory holding this checkout>/.cargo/config.toml` containing
+# This file is tracked, so the override goes OUTSIDE the repo. Cargo merges config from every
+# ancestor directory: create `<the directory holding this checkout>/.cargo/config.toml` with
 #
 #     [patch."https://github.com/allodia-eu/email-calendar-sync-engine"]
 #     engine-api = { path = "email-calendar-sync-engine/crates/engine-api" }
@@ -52,18 +56,12 @@ rustflags = ["-C", "target-feature=+crt-static"]
 #     provider-graph = { path = "email-calendar-sync-engine/crates/provider-graph" }
 #     provider-jmap = { path = "email-calendar-sync-engine/crates/provider-jmap" }
 #
-# The paths resolve relative to the directory holding the config file that declares them, so
-# those entries point at an engine checkout sitting next to this one. Delete the file to go back
-# to the git-pinned engine commit in Cargo.toml. ($CARGO_HOME/config.toml works too, but applies
-# to every workspace on the machine.)
+# Paths resolve relative to the config file declaring them, so those point at an engine checkout
+# sitting beside this one. Delete the file to go back to the git-pinned commit in Cargo.toml.
+# ($CARGO_HOME/config.toml works too, but applies to every workspace on the machine.)
 #
-# Use `[patch]`, NOT the older `paths = ["email-calendar-sync-engine"]` form this comment used to
-# recommend: a `paths` override may not change a crate's dependency list, so it breaks with a
-# confusing resolver conflict the moment the local engine's dependencies differ from the pinned
-# commit's — exactly the situation simultaneous development creates. Cargo warns `paths` will
-# become a hard error; `[patch]` handles it correctly.
-#
-# If you already have a gitignored `.cargo/config.toml` from before this change, move your
-# override up one directory as above and delete the file, or `git checkout` will refuse to
-# overwrite it.
+# Use `[patch]`, never `paths = [...]`: a `paths` override may not change a crate's dependency
+# list, so it hits a confusing resolver conflict the moment the local engine's dependencies differ
+# from the pinned commit's, which is exactly what this override is for. Cargo warns `paths` will
+# become a hard error.
 # ---------------------------------------------------------------------------------------------

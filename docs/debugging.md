@@ -1012,11 +1012,15 @@ build reverts to `link.exe` and is slower, never wrong.
 
 ### Worktrees each grow their own `target/`
 
-A `.claude/worktrees/*` checkout is a separate Cargo workspace, so it builds a full target dir of its
-own, several GB per worktree, none of it shared with main. Point them at one directory
-(`CARGO_TARGET_DIR=D:\repos\.cargo-target`) and they share a cache instead. The trade is real and
-worth knowing: Cargo takes a **lock** on the target dir, so two builds in two worktrees serialize
-rather than run at once.
+A `.claude/worktrees/*` checkout is a separate Cargo workspace, so it would build a full target dir
+of its own, several GB per worktree. What stops it is `build.build-dir` in
+[`.cargo/config.toml`](../.cargo/config.toml), which every checkout reads: the intermediates go to
+one shared directory and only the final artifacts stay local. Nothing to set up per machine.
+
+Prefer it to a shared `CARGO_TARGET_DIR`. Both share the compile work and both make builds
+serialise on a lock, but a shared target dir also shares the **final** artifacts, so two worktrees
+on different revisions overwrite each other's binaries and whichever built last is the one you run.
+`build-dir` shares only the intermediates.
 
 ## Known gaps / follow-ups
 

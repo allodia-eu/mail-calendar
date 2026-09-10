@@ -71,12 +71,23 @@ sdk_target_dir() {
   printf '%s\n' "$REPO_ROOT/target/flatpak-sdk"
 }
 
+# Where cargo puts SDK intermediates. Outside the checkout so worktrees share one copy, and
+# separate from the host's for the reason above: the repo's own `build.build-dir` would otherwise
+# mix both toolchains into one directory.
+sdk_build_dir() {
+  printf '%s\n' "${XDG_CACHE_HOME:-$HOME/.cache}/mailcal-flatpak-sdk-build"
+}
+
 # Runs cargo inside the SDK.
 #
 # The SDK carries its own rust-stable extension, so `rust-toolchain.toml` does not apply here,
 # there is no rustup inside to read it. That also puts `cargo fmt` out of reach: the extension is
 # stable, and rustfmt.toml is all nightly options, which stable rustfmt *warns about and ignores*
 # rather than refusing. Formatting stays on the host, where it needs no GTK anyway.
+#
+# An empty `RUSTC_WRAPPER` is how cargo is told *no wrapper*: a `rustc-wrapper` in the host's
+# config resolves against the sandbox's PATH, which that binary is not on, and cargo fails before
+# compiling anything. `build.build-dir` is redirected above for the reason `CARGO_TARGET_DIR` is.
 sdk_cargo() {
   local version installation
   version="$(sdk_runtime_version)"
@@ -87,6 +98,8 @@ sdk_cargo() {
   env XDG_DATA_HOME="$HOME/.local/share" flatpak run "$installation" --devel \
     --share=network --filesystem=host --filesystem=/tmp \
     --env=CARGO_TARGET_DIR="$(sdk_target_dir)" \
+    --env=CARGO_BUILD_BUILD_DIR="$(sdk_build_dir)" \
+    --env=RUSTC_WRAPPER= \
     --env=CARGO_HOME="$HOME/.cargo" \
     ${SDK_CARGO_EXTRA[@]+"${SDK_CARGO_EXTRA[@]}"} \
     --command=sh "org.gnome.Sdk//$version" -c \
