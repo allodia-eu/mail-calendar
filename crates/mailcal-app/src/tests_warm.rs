@@ -9,7 +9,7 @@
 
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
-use fakes::{FakeProvider, account, app, message, msg};
+use fakes::{FakeProvider, account, app, flat_previews, message, msg};
 
 use super::Intent;
 
@@ -45,6 +45,26 @@ async fn a_refresh_warms_every_body_so_opens_work_offline_with_no_prior_open() {
             "{key}: the cached body is readable offline"
         );
     }
+}
+
+#[tokio::test]
+async fn the_warm_puts_the_snippets_it_derived_on_the_list() {
+    // A provider with no server snippet (IMAP) leaves the row's second line to be derived from
+    // the body, which the warm pass is what fetches. The pass wrote the snippet to the store
+    // and stopped there, so the list kept showing the rows it had published before the bodies
+    // arrived: the previews turned up only when something else rebuilt it, which in practice
+    // meant opening a message and coming back.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("acct-1", FakeProvider::new())], &surfaces);
+
+    app.dispatch(Intent::RefreshMail).await;
+
+    let previews = flat_previews(&app.mailbox_list());
+    assert_eq!(previews.len(), 2, "the fake's inbox holds two messages");
+    assert!(
+        previews.iter().all(|preview| preview.contains("summary")),
+        "each warmed body's snippet is on its row: {previews:?}",
+    );
 }
 
 #[tokio::test]
