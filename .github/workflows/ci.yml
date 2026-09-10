@@ -583,14 +583,15 @@ jobs:
     #
     # The UI suite is a STEP of this job rather than a job of its own, because everything it needs
     # is what this job just built. A second runner would repeat the checkout, the restore and the
-    # cdylib to look at the same binary, at Windows' 2x billing, and would not finish any sooner:
-    # it could only start once the build it depends on had.
+    # cdylib to look at the same binary, and would not finish any sooner: it could only start once
+    # the build it depends on had.
     #
-    # It is not free, and the honest figure is the one to plan against. The suite and the two
-    # prerequisites below add about 215s, which makes this the LONGEST job in a full run: measured
-    # at 682s against the Apple job's 484s, on a run whose Rust cache was cold enough to spend 403s
-    # in the build alone (a warm one has been 104s). The 20-minute bound above still has room, but
-    # a further minute added here is a minute added to every push that touches this client.
+    # It is not free, and both figures are worth knowing. The suite and the two prerequisites below
+    # add about 170s. On a warm cache that leaves this job at 373s against the Apple job's 506s, so
+    # it stays off the critical path; on a cache cold enough to spend 420s in the build alone it
+    # becomes the longest job in the run, at 716s. And a Windows-ONLY change skips every other job,
+    # so there this job IS the run, whichever way the cache went. The 20-minute bound has room, but
+    # a minute added here is a minute on every push that touches this client.
     name: Windows client (x64)
     needs: changes
     if: needs.changes.outputs.windows == 'true'
