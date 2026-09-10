@@ -211,11 +211,10 @@ fn base_css() -> &'static str {
 /// The viewport declares a width and **no scale** (`docs/reading-zoom.md`).
 /// `width=device-width` is what puts the message's own `@media (max-width: …)` rules in front of
 /// the pane the reader actually has. Naming an `initial-scale` as well would pin the page at 1:1,
-/// and that is exactly the condition under which both touch engines decline to shrink an
-/// over-wide message to fit: a fixed-width newsletter would hang off the right edge of a phone.
-/// Leaving the scale free is also what leaves the reader their pinch, so no `user-scalable` or
-/// `maximum-scale` belongs here either. A message cannot override any of this: the sanitiser
-/// drops `<meta>`.
+/// which is the condition under which Blink declines to shrink an over-wide message to fit, so a
+/// fixed-width newsletter would hang off the right edge of a phone. Leaving the scale free is also
+/// what leaves the reader their pinch, so no `user-scalable` or `maximum-scale` belongs here
+/// either. A message cannot override any of this: the sanitiser drops `<meta>`.
 #[must_use]
 pub fn render_document(body_fragment: &str, load_remote_images: bool) -> String {
     let img_src = if load_remote_images {

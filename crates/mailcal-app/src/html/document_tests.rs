@@ -59,9 +59,9 @@ fn csp_of(doc: &str) -> &str {
 fn the_viewport_pins_the_layout_width_and_leaves_the_scale_free() {
     // `width=device-width` is what makes a message's own `@media (max-width: …)` rules see the
     // pane the reader actually has. The scale is deliberately *not* pinned: an explicit
-    // `initial-scale` fixes the page at 1:1, which is precisely how both touch engines decide
-    // not to shrink an over-wide message to fit (docs/reading-zoom.md). A fixed-width newsletter
-    // would then hang off the right edge of a phone with no way back.
+    // `initial-scale` fixes the page at 1:1, which is precisely how Blink decides not to shrink an
+    // over-wide message to fit (docs/reading-zoom.md). A fixed-width newsletter would then hang off
+    // the right edge of a phone with no way back.
     let doc = render_document("<p>hi</p>", false);
     let viewport = viewport_of(&doc);
     assert!(viewport.contains("width=device-width"), "{viewport}");

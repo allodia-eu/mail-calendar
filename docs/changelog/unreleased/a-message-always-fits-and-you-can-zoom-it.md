@@ -3,18 +3,19 @@
 Platforms: all
 Bump: minor
 
-> Two halves of one contract, [`docs/reading-zoom.md`](../../reading-zoom.md). The shared reading
-> document declared `initial-scale=1`, which pins the page at 1:1, and that is exactly the condition
-> under which both touch engines decline to shrink an over-wide message: mail with no `@media` rules
-> at all, a table pinned to 600px in the markup and again inline, ran off the right edge of a phone
-> with nothing the reader could do about it. The declaration now names a width and no scale, Android
-> honours it at all (`useWideViewPort` is false by default, which ignores the tag outright) and
-> shrinks a too-wide message to fit (`loadWithOverviewMode`). The desktop hosts have no such setting
-> and the only way to compute the scale would be to measure the document from inside it, which needs
-> script in the message: they scroll sideways and the reader zooms out instead, which is what
-> Thunderbird does on a desktop too. Zoom itself is now on every client, 0.25× to 5×, and resets to
-> each message's own fit, so the three hosts whose zoom is the *view's* rather than the *page's*
-> (macOS, Windows, Linux) reset it explicitly on open.
+> Two halves of one contract, [`docs/reading-zoom.md`](../../reading-zoom.md). Mail with no `@media`
+> rules at all, a table pinned to 600px in the markup and again inline, ran off the right edge of a
+> phone with nothing the reader could do about it. The shared reading document declared
+> `initial-scale=1`, which pins the page at 1:1 and is the condition under which Blink declines to
+> shrink an over-wide message; it now names a width and no scale, Android honours that viewport at
+> all (`useWideViewPort` is false by default, which ignores the tag outright) and scales a too-wide
+> message down (`loadWithOverviewMode`). WebKit has no equivalent, measured rather than assumed, so
+> iOS/iPadOS measures the laid-out document through the host's own scroll view and applies
+> `pageZoom`, which re-lays-out rather than resampling. The desktop hosts can do neither: none of
+> the three engines exposes the document's width, and measuring it from inside the message would
+> need script there, so they scroll sideways and the reader zooms out instead, as Thunderbird does
+> on a desktop. Zoom itself is now on every client, 0.25× to 5×, and starts again at each message's
+> own fit, so every host whose zoom is the *view's* rather than the *page's* resets it on open.
 
 **English**
 

@@ -30,12 +30,24 @@ disagree about it show the reader two different newsletters from the same bytes.
    it. This is the half of real mail that has no `@media` rules at all: a table pinned to 600px in
    the markup and again inline. Rule 1 cannot help it, because there is nothing in it to reflow.
 
-   Only the touch engines offer this, and each needs rule 2 to be in force. **On the desktop hosts
-   there is no such setting**, and the only way to compute the scale would be to measure the
-   document's width from inside it, which needs script in the message: `rendering-security.md`
-   gates 1 and 2 forbid that, and no rendering convenience is worth reopening them. So a desktop
-   pane narrower than the message scrolls horizontally, and the reader zooms out under rule 4 if
-   they would rather see it whole. That is also what Thunderbird does on a desktop.
+   The two engines answer differently and neither is free. **Blink has a setting**
+   (`loadWithOverviewMode`), which needs rule 2 in force and then scales the rendered page: the
+   layout is untouched and everything simply gets smaller. **WebKit has no equivalent**, measured
+   rather than assumed: a 600px newsletter lays out at 600pt in a 402pt pane and runs off the edge,
+   `shrink-to-fit` does nothing for a document whose viewport names a width, and removing
+   `initial-scale` changes none of it. So on iOS/iPadOS the host measures the laid-out document and
+   applies `pageZoom`, which **re-lays-out** at the smaller scale rather than resampling. Both fit;
+   they are not the same mechanism, and the difference has a consequence worth knowing (see gaps).
+
+   ⚠️ The measurement is the host asking **its own view** a question (`scrollView.contentSize`),
+   never the message a question. Measuring from inside the document would need script in it, which
+   `rendering-security.md` gates 1 and 2 forbid, and no rendering convenience is worth reopening
+   them.
+
+   **On the desktop hosts there is no route at all**: macOS's `WKWebView` exposes no scroll view to
+   measure, and neither does WebView2 or WebKitGTK. A desktop pane narrower than the message
+   scrolls horizontally and the reader zooms out under rule 4 if they would rather see it whole.
+   That is also what Thunderbird does on a desktop.
 
 4. **The reader can zoom, with the gesture the platform already taught them**: pinch on a
    touchscreen, pinch on a trackpad, and the host's own zoom keys where it binds them. The range is
@@ -64,9 +76,9 @@ disagree about it show the reader two different newsletters from the same bytes.
 | Rule | Apple · `WKWebView` | Android · `WebView` | Windows · `WebView2` | Linux · `WebKitGTK` |
 |---|---|---|---|---|
 | 1 · lays out at the pane's width | honours the tag by default | `settings.useWideViewPort = true` (**false by default: the tag is ignored without it**) | honours the tag by default | honours the tag by default |
-| 3 · over-wide is scaled to fit | iOS/iPadOS: WebKit's own shrink-to-fit. macOS: n/a (see rule 3) | `settings.loadWithOverviewMode = true` | n/a (see rule 3) | n/a (see rule 3) |
+| 3 · over-wide is scaled to fit | iOS/iPadOS: `pageZoom`, from the host's own measure of the laid-out document (`fitReadingDocument`). macOS: n/a (see rule 3) | `settings.loadWithOverviewMode = true` | n/a (see rule 3) | n/a (see rule 3) |
 | 4 · reader zoom | macOS `allowsMagnification = true` (trackpad pinch); iOS/iPadOS the scroll view's own pinch, from the viewport | `builtInZoomControls = true` + `displayZoomControls = false` (pinch, without the legacy floating buttons) | `IsPinchZoomEnabled` + `IsZoomControlEnabled` (touch pinch, Ctrl+scroll, Ctrl +/−) | `GtkGestureZoom` + Ctrl+scroll → `zoom-level`, both controllers in the **`Capture`** phase |
-| 5 · resets per message | macOS `magnification = 1` in `loadReadingDocument`; iOS/iPadOS the page scale resets itself | page scale resets on load | **not reachable** (see gaps) | `set_zoom_level(1.0)` in `SecureWebView::load` / `clear` |
+| 5 · resets per message | `loadReadingDocument` resets both: macOS `magnification = 1`, iOS/iPadOS `pageZoom = 1`. Each is the **view's**, not the page's, so each survives a load | page scale resets on load | **not reachable** (see gaps) | `set_zoom_level(1.0)` in `SecureWebView::load` / `clear` |
 
 Source of truth per client: the same four files
 [`rendering-security.md`](rendering-security.md) names.
@@ -87,6 +99,15 @@ Source of truth per client: the same four files
   next one at that scale. The honest fix is an SDK that exposes the controller; the alternative,
   scaling the element with a `ScaleTransform`, would resample the rendered surface rather than
   re-lay-out the page and is worse than the gap.
+- **The fit reflows on iOS and does not on Android.** `loadWithOverviewMode` scales the rendered
+  page, so the layout is exactly what it was and everything is smaller. `pageZoom` re-lays-out at a
+  wider CSS viewport (402pt at 0.615 is 654 CSS px), so text reflows and stays crisp. Both satisfy
+  the rule, and the reflow is arguably the nicer result, but they are not interchangeable and one
+  case tells them apart: a message carrying `@media (max-width: 480px)` rules that **still**
+  overflows would stop matching them on iOS once the viewport widens, while on Android it keeps the
+  layout it had. Nothing in the seeded fixtures is shaped like that, because a message whose media
+  queries fire never reaches the fit path at all; it is written down because the first person to
+  meet it will otherwise think one of the two platforms is broken.
 - **On Linux, WebKitGTK carries a pinch gesture of its own, and whether the two compound is
   untested.** Every `WebKitWebView` installs a `GtkGestureZoom`, which is why our controllers are
   identified by name rather than by type (a lookup by type finds the toolkit's and proves nothing).
