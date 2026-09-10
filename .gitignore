@@ -67,3 +67,7 @@ AGENTS.local.md
 # building this repository is not Allodia, and because a build carrying it opens the real account
 # store: committing one would hand every checkout the production credential namespace.
 branding/allodia*
+
+# What the Windows UI suite photographs when a case fails (uitests/run-ui-tests.ps1). Emptied at
+# the start of every run, and uploaded by CI as an artifact; never a repo asset.
+clients/windows/uitests/failures/

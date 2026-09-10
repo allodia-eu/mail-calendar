@@ -576,9 +576,15 @@ jobs:
 
   windows:
     # Fast per-commit gate: x64 Debug only — Rust cdylib -> C# bindings (vendored binshim) ->
-    # WinUI app build -> headless FFI gate. The expensive both-arch RELEASE .msixupload is not
-    # built here at all: it carries the Store identity and the OAuth registrations, neither of which
-    # this repository holds, so it is built where they are.
+    # WinUI app build -> headless FFI gate -> the UI Automation suite against the running app. The
+    # expensive both-arch RELEASE .msixupload is not built here at all: it carries the Store
+    # identity and the OAuth registrations, neither of which this repository holds, so it is built
+    # where they are.
+    #
+    # The UI suite is a STEP of this job rather than a job of its own, because everything it needs
+    # is what this job just built. A second runner would repeat the checkout, the restore and the
+    # cdylib to look at the same binary, and Windows minutes bill at 2x. It also costs nothing on
+    # the critical path: this job runs about three minutes against the Apple job's eight or nine.
     name: Windows client (x64)
     needs: changes
     if: needs.changes.outputs.windows == 'true'
@@ -638,6 +644,45 @@ jobs:
       # measurement showing it beats a cold restore.
       - name: Build (x64, Debug) and verify the FFI binding
         run: ./clients/windows/build-and-run.ps1 -Arch x64 -Configuration Debug -NoRun
+
+      # The app is framework-dependent in both build shapes, so without this it does not start and
+      # every UI suite reports a missing window. Installed from the package the build just restored,
+      # at the version it resolved, so the runtime cannot be a different one from what was compiled
+      # against.
+      - name: Register the Windows App Runtime
+        run: ./clients/windows/uitests/install-windows-app-runtime.ps1 -Arch x64
+
+      # A runner comes up at 1024x768 and the showcase suites measure a 1440x900 window. Clipped,
+      # the two ways they lie are both silent: a screen grab past the edge returns black, so every
+      # theme reads as dark, and a NavigationView below its own breakpoint changes display mode, so
+      # the sidebar assertions measure a pane that is not the one shipped. `run-ui-tests.ps1`
+      # refuses to run on a desktop too small, so this is a precondition rather than a nicety.
+      - name: Give the desktop session a size the suites can measure
+        run: ./clients/windows/uitests/set-desktop-resolution.ps1 -Width 1920 -Height 1080
+
+      # `showcase,first-run` and not `harness`: the harness is a Linux container, and a GitHub
+      # Windows runner runs only Windows ones, so twelve suites cannot run here at all and are
+      # named as not selected rather than left to look like passes. What that leaves out is a real
+      # gap, stated in docs/background-sync.md and the runner's own header: nothing CI checks
+      # proves a mail action survived a round trip.
+      #
+      # No `continue-on-error`. A suite that is allowed to fail is a suite nobody fixes, and this
+      # one has already caught a shipped bug (an unread row that bolded nothing) that every
+      # headless gate passed.
+      - name: UI Automation suite (showcase + first-run)
+        run: ./clients/windows/uitests/run-ui-tests.ps1 -Dataset showcase,first-run
+
+      # The suite shoots the desktop at the moment a case throws, which is the only time the app is
+      # both up and in the state that failed: it stops the app on the way out, so a screenshot
+      # taken by a later step photographs an empty desktop. Nobody can attach a debugger to a
+      # runner, so this picture is the whole of the diagnosis that the failure text does not carry.
+      - name: Upload what the screen looked like when a case failed
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-ui-suite-failures
+          path: clients/windows/uitests/failures/
+          if-no-files-found: ignore
 
   android:
     # The Android client's unit suite: Robolectric supplies the Android framework and Compose's

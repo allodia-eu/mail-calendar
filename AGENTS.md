@@ -302,6 +302,11 @@ clients/windows/build-and-run.ps1 -NoRun        # cdylib -> bindings -> headless
 clients/windows/uitests/run-ui-tests.ps1        # UI Automation assertions against the RUNNING app
 ```
 
+CI runs the second one too, but only `-Dataset showcase,first-run`: the harness is a Linux
+container and a GitHub Windows runner runs only Windows ones, so the twelve **harness** suites, the
+ones that prove a mail action survived a round trip, run nowhere but a developer's machine. Run
+them before pushing anything that touches a mail or calendar write.
+
 On **Linux**, with GTK 4.14+ and libadwaita 1.5+ dev packages; other hosts exclude the crate.
 [`clients/linux/README.md`](clients/linux/README.md) has the commands and the one-time GNOME
 runtime install.

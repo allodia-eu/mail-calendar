@@ -16,6 +16,7 @@ NordSecurity's [`uniffi-bindgen-cs`](https://github.com/NordSecurity/uniffi-bind
 ./build-and-run.ps1 -Arch x64       # cross-build the x64 client (see the warning below)
 ./build-and-run.ps1 -Configuration Release -NoRun
 ./build-and-run.ps1 -SelfContained  # bundle the Windows App SDK; costs notifications
+./uitests/run-ui-tests.ps1          # UI Automation assertions against the RUNNING app
 ```
 
 **Leave `-Arch` off unless you specifically need the other architecture.** It defaults to the
@@ -286,6 +287,12 @@ remove the old package first (MSIX blocks reinstalling the same `1.0.0.0` with c
   - `Images/`, launcher art: MSIX tile/store PNGs + `app.ico` (exe icon), all derived from the
     brand source icon by `generate-assets.ps1`.
 - `MailcalVerify/`, the headless runtime gate (no UI, no network: drives the demo loop).
+- `uitests/`, the UI Automation suite: assertions against the app as it actually renders, which is
+  the whole class of bug `Mailcal.Tests` cannot see (a binding nothing assigns, a control that
+  opens in the wrong state). `run-ui-tests.ps1`'s header is the guide to writing one, and reading
+  it first is not optional: the dataset a suite declares decides whether it proves anything.
+  `set-desktop-resolution.ps1` and `install-windows-app-runtime.ps1` are the two things a CI runner
+  needs that a developer machine already has.
 - `build-and-run.ps1`, cdylib → bindings → gate → WinUI app → launch (the dev loop).
 - `package.ps1`, cdylib (both arches) → bindings → MSIX bundle → `.msixupload` (the Store path);
   `-Sign` instead builds a self-signed, installable sideload set for on-device testing.
