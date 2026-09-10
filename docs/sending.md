@@ -1,8 +1,8 @@
 # Sending: cross-platform contract
 
-**Scope.** Who a message says it is from, what every client shows while one is going out, and
-what it does when one goes out but leaves no copy behind. Binding on every platform that ships a
-composer.
+**Scope.** Who a message says it is from, what a forward takes with it, what every client shows
+while one is going out, and what it does when one goes out but leaves no copy behind. Binding on
+every platform that ships a composer.
 
 **Principle.** *Delivering a message and keeping the sender's copy of it are two different
 operations, and a client must never let the second one fail in silence.* A Sent copy is how a
@@ -78,6 +78,23 @@ Where the account holder owns the provider's copy (JMAP, Gmail), a change is pus
 best-effort. It is not reported: the user asked to be called something and, on this device,
 they now are.
 
+## What a forward carries
+
+A forward passes the message on, so the recipient gets what the sender was sent, not a copy of
+its text. The core puts the original's attachments on the outgoing draft: exactly the files the
+reading view lists, keeping each one's name and media type. The quoted body's inline `cid:`
+images are not among them; they are re-attached as the parts the quote references, so a forwarded
+logo is a picture in the message rather than a second file.
+
+**A forward whose files cannot be read is not sent.** The engine reads them from the message's
+raw source, which needs the account reachable or the source already cached, and when that fails
+the send fails and the user can try again. The alternative is a message saying "see attached"
+with nothing attached: nobody on either end can see that anything is missing, and a send cannot
+be taken back. This is the same rule as the Sent copy above, applied one step earlier.
+
+A **reply** carries none of this. It answers the message rather than passing it on, and sending
+someone their own file back is noise that repeats on every turn of a long thread.
+
 ## Rules
 
 1. **Never word an unfiled copy as a failed send.** The message *was* sent and the recipients
@@ -106,8 +123,17 @@ they now are.
 | Windows | ✅ InfoBar | ✅ InfoBar, `IsClosable=False` | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
 | Linux | ✅ banner | ✅ modal, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ dropdown |
 
+**A forward's files need nothing from a client**, so they are not a column: the core reads them
+from the original and puts them on the draft, which is why every platform in this table has the
+behaviour and none can opt out of it.
+
 ## Known gaps
 
+- **The composer does not show the files a forward will send.** They are added on submit, so the
+  attachment strip lists only what the user attached themselves, and the size of what is going
+  out is not visible until it has gone. Showing them means a compose-time read of the original
+  and a strip entry the user cannot remove, on four clients; the files reaching the recipient is
+  the half that was missing.
 - **The question does not survive a restart.** The core holds it in memory, so quitting with
   one open loses the chance to retry: the message stays sent, and the copy stays missing.
   Making it durable means recording an outbox op for a submission that already succeeded,
