@@ -303,7 +303,9 @@ val generateUniffiBindings = tasks.register<Exec>("generateUniffiBindings") {
     dependsOn(cargoBuildBindings)
     workingDir = repoRoot
     commandLine(
-        cargoExecutable, "run", "--quiet", "--bin", "uniffi-bindgen", "--",
+        // `-p`, not a bare `--bin`: the generator is its own crate and is deliberately outside
+        // the workspace default-members, so cargo does not look for its bin without being told.
+        cargoExecutable, "run", "--quiet", "-p", "mailcal-bindgen-uniffi", "--",
         "generate", "--library", hostCdylib.absolutePath,
         "--language", "kotlin", "--out-dir", "clients/android/app/src/main/java",
     )

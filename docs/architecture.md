@@ -187,7 +187,7 @@ flowchart LR
     end
 
     subgraph GEN["Generators: cargo run"]
-        UB["uniffi-bindgen<br/>in-repo binary, library mode"]
+        UB["mailcal-bindgen-uniffi<br/>in-repo binary, library mode"]
         UBCS["mailcal-bindgen-cs<br/>pinned uniffi-bindgen-cs"]
         L10N["mailcal-l10n"]
     end

@@ -2108,6 +2108,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcal-bindgen-uniffi"
+version = "0.8.2"
+dependencies = [
+ "uniffi",
+]
+
+[[package]]
 name = "mailcal-bindings"
 version = "0.8.2"
 dependencies = [
