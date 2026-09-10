@@ -173,6 +173,31 @@ that same file.
   from an entirely different place. Confirm the backtrace names the site you care about before
   changing anything, and finish on the shipped toolkit.
 
+- **A WinUI window's content has no `XamlRoot` while the window is being constructed, and a dialog
+  shown on one kills the process.** `ContentDialog.ShowAsync` throws
+  `ArgumentException("This element does not have a XamlRoot")`, and every prompt in this client is
+  raised from an `async void` handler or a discarded `Task`, so the throw reaches no `catch`: the
+  `async void` ones become an unhandled exception on the dispatcher and the process dies, the
+  discarded ones vanish into an unobserved task and the prompt is simply lost. It is a race, not a
+  constant, which is what makes it expensive to find: a prompt raised by a **core signal** rather
+  than a click is subscribed inside `MainWindow`'s constructor, so whether it wins depends on how
+  fast the account connects, and a local server or a primed cached snapshot answers in tens of
+  milliseconds. Measured at one launch in five against the harness.
+
+  It is reachable only while the question is **unanswered**, which is why it hides: the offer to
+  become the default mail app is put once, so a store that has answered it never races again, and
+  the developer who just hit it cannot reproduce it. `scripts/dev/harness.sh reset` clears the
+  client stores and brings it straight back, which is what turns it into a repro: delete
+  `default_mail_app_offer` from the dev store's `preferences.toml` and launch.
+
+  Wait for `FrameworkElement.Loaded`, which is the moment the message names, and treat "no root"
+  as **wait**, never as "no": a prompt that may be asked only once is spent if it is dropped.
+  `DialogHelper` refuses an unrooted dialog and logs it, so the crash cannot come back from a new
+  caller, but the floor only stops the crash; putting the question later is the caller's job. The
+  rule itself is `DefaultMailApp.WhenToAsk`
+  ([`DefaultMailApp.cs`](../clients/windows/Mailcal/Services/DefaultMailApp.cs)), WinUI-free so
+  `Mailcal.Tests` can state it; nothing that links WinUI can be unit-tested here at all.
+
 ## Interaction quality is not testable from a chair
 
 - **A synthetic swipe cannot reproduce the bugs that matter.** `adb input swipe`, and any test that

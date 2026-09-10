@@ -3,7 +3,15 @@
 // second dialog opens while one is showing, which a fast double-click on a Compose/Reply/
 // destructive button would otherwise trigger inside an async void handler (an unhandled
 // crash). Routing every dialog through here drops the second show instead.
+//
+// It refuses an UNROOTED dialog on the same terms, and for the same reason. Several prompts are
+// raised by a core signal rather than by a click, and those signals arrive while the window is
+// still being constructed: `ShowAsync` on an element with no XamlRoot throws ArgumentException
+// ("This element does not have a XamlRoot"), which inside an `async void` reaches no catch and
+// takes the process down. A caller that must not lose its question waits for a root of its own
+// accord; this is the floor under the ones that would otherwise crash.
 
+using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -22,11 +30,24 @@ internal static class DialogHelper
     /// </remarks>
     public static bool IsShowing => _open;
 
-    /// <summary>Shows <paramref name="dialog"/>, or returns <c>None</c> if one is already open.</summary>
+    /// <summary>
+    /// Shows <paramref name="dialog"/>, or returns <c>None</c> if one is already open or this one
+    /// has nowhere to open.
+    /// </summary>
     public static async Task<ContentDialogResult> ShowAsync(ContentDialog dialog)
     {
         if (_open)
         {
+            return ContentDialogResult.None;
+        }
+        // No XamlRoot, no dialog. Showing anyway is a crash rather than a bad dialog (see the
+        // header), and there is nothing to show it in either way, so this drops the prompt and
+        // says so: a caller reaching here asked before its window had a tree, which is a bug in
+        // the caller and leaves no other trace. The line names no copy, the dialog's own title
+        // included, because a title can carry a subject or a name.
+        if (dialog.XamlRoot is null)
+        {
+            Log.Warn("dropped a dialog raised before its window had a visual tree to open it in");
             return ContentDialogResult.None;
         }
         _open = true;
