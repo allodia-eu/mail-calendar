@@ -16,6 +16,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+mod common;
+
 /// A unique socket path for one test, well inside the 104-byte `sun_path` limit.
 fn socket_path(name: &str) -> std::path::PathBuf {
     let unique = SystemTime::now()
@@ -33,7 +35,7 @@ fn socket_path(name: &str) -> std::path::PathBuf {
 
 /// Spawns the relay against `endpoint`, with piped stdio.
 fn spawn(endpoint: &std::path::Path) -> std::process::Child {
-    Command::new(env!("CARGO_BIN_EXE_allodia-mcp"))
+    Command::new(common::relay_binary())
         .arg("--endpoint")
         .arg(endpoint)
         .stdin(Stdio::piped())

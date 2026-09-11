@@ -10,6 +10,16 @@
 # Fixed name on purpose: `{workspace-path-hash}` would give every worktree its own directory and
 # defeat the sharing. `{cargo-cache-home}` is CARGO_HOME, so no absolute path is committed.
 # `rustc-wrapper` stays out of a tracked file: it would break every dev lacking that binary.
+#
+# ⚠️ **Sharing the directory means never baking an absolute path into a compiled artifact.** The
+# cache key does not carry the worktree, so a test executable or example compiled by one checkout
+# is reused by the next; anything `env!` resolved at compile time travels with it. `env!(
+# "CARGO_BIN_EXE_<name>")` and `env!("CARGO_MANIFEST_DIR")` are the two that matter here, and both
+# fail in the same direction: the artifact reads or spawns a *different* checkout's copy, and once
+# that checkout is deleted it fails with `NotFound` in a tree whose diff cannot explain it. Cargo
+# exports both variables to the process at run time as well, computed by the run that is happening
+# now, so read them with `std::env::var` and keep the `env!` only as a fallback for running the
+# binary outside cargo (`crates/mailcal-mcp-shim/tests/common/mod.rs`).
 # ---------------------------------------------------------------------------------------------
 
 [build]
