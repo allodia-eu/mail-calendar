@@ -314,6 +314,7 @@ if [ "$RUN_CLIENTS" -eq 1 ]; then
   if [ "$(uname -s)" = "Darwin" ]; then
     run "apple (macOS app build + bindings)" ./clients/apple/Scripts/build-and-run.sh --macos --no-run
     run "apple (MailcalKit tests)" ./clients/apple/Scripts/test-kit.sh
+    run "apple (StoreKit purchases)" ./clients/apple/Scripts/test-storekit.sh
     run "apple (iOS simulator build)" ./clients/apple/Scripts/build-and-run.sh --iphone --no-run
   else
     skip "apple" "needs macOS + Xcode"

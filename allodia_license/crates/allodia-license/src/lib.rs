@@ -17,8 +17,8 @@
 //!
 //! **What the service sends, and what it does not.** A device is never handed a raw entitlement: it
 //! would be an unbound bearer that could drain a balance if it leaked. What arrives is derived:
-//! which plan, whether it is live, which capabilities to draw, how long to wait before asking
-//! again, so there is nothing here to treat as a credential.
+//! which plan is in force, which capabilities to switch on, how long to wait before asking again,
+//! so there is nothing here to treat as a credential.
 //!
 //! Signing in is Authorization Code with PKCE against the account service, which is an OAuth 2.0
 //! authorization server. That flow is `mailcal-oauth`'s, not this crate's: this one starts at the
@@ -31,23 +31,34 @@ use serde::{Deserialize, Serialize};
 mod accounts;
 mod cache;
 mod feature;
+mod link;
 mod projection;
+mod purchase;
 mod reconcile;
 mod refresh;
 mod signin;
+mod subscription;
+mod subscription_ops;
 pub use accounts::{
     AccountList, CalDavEndpoint, ConflictWith, DeletedAccount, ImapEndpoint, JmapAuth, Security,
     SmtpEndpoint, SyncedAccount, SyncedConfig,
 };
 pub use cache::{Cache, GRACE_SECONDS, Outcome, Stored};
 pub use feature::Feature;
+pub use link::{Ledger, LinkOutcome, Pending, Settled, StorePurchase};
 pub use projection::{NotSyncable, SetupPrefill, to_synced};
+pub use purchase::{Offer, Plan, ProductId, Store, StoreProduct, ordered};
 pub use reconcile::{Decision, LocalAccount, SyncState, fingerprint, reconcile};
 pub use refresh::Refresher;
 pub use signin::{
     Endpoints, Identity, Prompt, REDIRECT_HOST, SCOPES, SignIn, SignInError, account_url, api_url,
     available, host,
 };
+pub use subscription::{
+    Actions, Biller, OwnStatus, OwnSubscription, Prices, StoreStatus, StoreSubscription,
+    Subscription,
+};
+pub use subscription_ops::{Cancelled, Checkout, IntervalChange, Refusal, Resubscribed};
 
 /// The API this crate calls, relative to the account service's root.
 ///
@@ -174,6 +185,13 @@ pub enum Error {
     /// resolved by re-reading rather than by reporting a broken service.
     #[error("this account was changed elsewhere since it was last read")]
     Conflict(Option<accounts::ConflictWith>),
+    /// The service declined to do it, and said why as a stable code.
+    ///
+    /// A client switches on the code and writes its own words. **Never** the service's `message`,
+    /// which is the same rule grant health already keeps: a client that renders a service's own
+    /// sentence ships whatever the service happened to say.
+    #[error("the account service declined: {0:?}")]
+    Refused(Refusal),
 }
 
 /// A capability a plan turns on.
@@ -183,11 +201,16 @@ pub enum Error {
 /// it, which is also why nothing here maps an unknown label to "granted".
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Capability {
+    /// Syncing the account list between a person's devices. Free for everyone, so it arrives on
+    /// every plan including the free one a lapsed subscription degrades to.
+    AccountsSync,
+    /// Syncing settings between a person's devices.
+    SettingsSync,
     /// Real-time push on mobile, through the Allodia relay.
     Push,
     /// Send-later on providers whose protocol lacks it.
     SendLater,
-    /// Centralized deployment and administration.
+    /// Centralised deployment and administration.
     CentralAdmin,
     /// A label this version does not know.
     Unknown(String),
@@ -196,6 +219,8 @@ pub enum Capability {
 impl Capability {
     fn parse(label: &str) -> Self {
         match label {
+            "accounts_sync" => Self::AccountsSync,
+            "settings_sync" => Self::SettingsSync,
             "push" => Self::Push,
             "send_later" => Self::SendLater,
             "central_admin" => Self::CentralAdmin,
@@ -207,13 +232,23 @@ impl Capability {
 /// What the account may use, as the service last described it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Entitlement {
-    /// The plan's name, for display. `free` when nothing is active.
+    /// The plan in force **right now**, for display: what the account actually gets, not what was
+    /// bought. The service degrades it to `free` itself once a subscription has lapsed.
     pub plan: String,
-    /// Whether a paid plan is live. Anything but an active subscription is `false`.
-    pub active: bool,
-    /// What to draw. Empty on the free plan.
+    /// What to switch on, and **the only thing that gates a capability**.
+    ///
+    /// The service has already accounted for whether the subscription is paid up, so there is no
+    /// second condition to apply here and deliberately no `active` flag to get out of step with
+    /// it. Never empty for a plan the service recognises: `accounts_sync` is free for everyone.
     pub capabilities: BTreeSet<Capability>,
-    /// When the current period ends, as the service wrote it (RFC 3339), if there is one. For
+    /// The billing provider's own word for what happened to the subscription behind `plan`, or
+    /// `None` when there is no payment to have a status.
+    ///
+    /// **Never gate on this.** It exists so a client can say *why*, because "your payment failed"
+    /// and "your plan ended" need different words. An unrecognised value means something needs
+    /// attention.
+    pub payment_status: Option<String>,
+    /// When the current period ends, as the service wrote it (ISO 8601), if there is one. For
     /// display only: nothing decides anything from it, because the device's clock may disagree.
     pub current_period_end: Option<String>,
 }
@@ -227,19 +262,20 @@ impl Entitlement {
     pub fn free() -> Self {
         Self {
             plan: "free".to_owned(),
-            active: false,
             capabilities: BTreeSet::new(),
+            payment_status: None,
             current_period_end: None,
         }
     }
 
     /// Whether a capability is granted.
     ///
-    /// The list alone is never enough: a lapsed plan can still carry labels, so `active` is checked
-    /// on this side too rather than trusted to have been filtered on the other.
+    /// The list is the whole answer. The service degrades `plan` and empties what a lapsed
+    /// subscription used to grant before it sends this, so a second condition here could only ever
+    /// disagree with the one that actually decides.
     #[must_use]
     pub fn grants(&self, capability: &Capability) -> bool {
-        self.active && self.capabilities.contains(capability)
+        self.capabilities.contains(capability)
     }
 }
 
@@ -261,8 +297,9 @@ pub struct Answer {
 #[serde(rename_all = "camelCase")]
 struct AnswerBody {
     plan: String,
-    active: bool,
     capabilities: Vec<String>,
+    #[serde(default)]
+    payment_status: Option<String>,
     #[serde(default)]
     current_period_end: Option<String>,
     refresh_after_seconds: i64,
@@ -319,12 +356,12 @@ impl AccountService {
         Ok(Answer {
             entitlement: Entitlement {
                 plan: parsed.plan,
-                active: parsed.active,
                 capabilities: parsed
                     .capabilities
                     .iter()
                     .map(|label| Capability::parse(label))
                     .collect(),
+                payment_status: parsed.payment_status,
                 current_period_end: parsed.current_period_end,
             },
             refresh_after_seconds: parsed.refresh_after_seconds,

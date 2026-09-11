@@ -36,11 +36,21 @@ credential:
 
 | Field | Meaning |
 |---|---|
-| `plan` | The plan's name, for display. `free` when nothing is active. |
-| `active` | Whether a paid plan is live. |
-| `capabilities` | A closed list of labels. Empty on the free plan. |
-| `currentPeriodEnd` | RFC 3339, for display only. `null` when there is no plan. |
+| `plan` | The plan in force **right now**, for display: what the account gets, not what it bought. The service degrades it to `free` itself once a subscription has lapsed. Treat an unrecognised value as `free`. |
+| `capabilities` | A closed list of labels, and **the only thing that gates a capability**. Never empty for a plan the service recognises: `accounts_sync` is free for everyone, so it arrives on every plan including the free one a lapsed subscription degrades to. |
+| `paymentStatus` | The billing provider's own word for what happened, or `null` when there is no payment to have a status. **Never gated on.** |
+| `currentPeriodEnd` | ISO 8601, for display only. `null` when there is no period. |
 | `refreshAfterSeconds` | How long to wait before asking again. |
+
+⚠️ **There is no `active` flag, and adding one back would be a second opinion.** The service has
+already accounted for whether the subscription is paid up before it sends this: a lapsed one
+arrives as `free` with only what free grants. A client that re-applied the rule could only ever
+disagree with the one that actually decides, and the disagreement would be invisible from either
+side.
+
+**`paymentStatus` exists so a client can say *why*, not to decide anything.** "Your payment failed"
+and "your plan ended" need different words, and nothing else in the reply distinguishes them. An
+unrecognised value means something needs attention.
 
 **A duration, not a deadline.** The server sends how long to wait rather than a timestamp to wait
 until, because a device's clock can be wrong by any amount. Compared against a skewed clock, an
@@ -71,7 +81,8 @@ direction takes a capability from someone who paid for it, during an outage that
 **"You are not entitled" and "I could not ask" are different answers, and a client must never
 collapse them.**
 
-- The service replied `active: false`: a cancellation, a lapsed card, a plan that ended. It takes
+- The service replied, and what it sent no longer grants: a cancellation, a lapsed card, a plan
+  that ended, all of which arrive as `free` with the free capabilities. It takes
   effect **immediately**. The stored answer is replaced by what the server said.
 - The request did not arrive: an outage, a captive portal, a plane. The stored answer **stands**,
   until grace runs out.
@@ -85,7 +96,7 @@ failure produces an error anyone would report: both look like the app working.
 **Everything above is a rule about what to draw. None of it is access control, and no version of it
 could be.**
 
-The source is published, so anyone can delete the `active` check, return a paid entitlement from the
+The source is published, so anyone can delete the capability check, return a paid entitlement from the
 cache, or point the base URL at a service of their own. Moving the clock inside the core rather than
 taking it from the host would change none of that: it would only make the rules untestable, and a
 rule about thirty days that cannot be exercised on day thirty-one is a rule nobody exercises.
@@ -101,7 +112,7 @@ That costs nothing, because **every paid capability needs Allodia to do somethin
 | `send_later` | A server holds the message and submits it at the hour. |
 | `central_admin` | The administration surfaces are the service. |
 
-A build that flips `active` to true draws a switch and then gets a refusal. What it cannot do is
+A build that invents a capability draws a switch and then gets a refusal. What it cannot do is
 take a capability, because the capability is not on the device.
 
 **So the enforcement point is the server, on every request, resolved from the access token, never
@@ -124,7 +135,7 @@ prompt, never a modal:
 - a stored answer that will not parse, or was written by a newer version;
 - a capability label this version does not recognise: it is kept, and never granted, so a client
   older than a capability keeps working rather than guessing;
-- any capability at all when `active` is false, even if the list is non-empty.
+- a capability the service did not list, whatever the plan name beside it says.
 
 A person whose plan lapsed still has a complete mail and calendar client. Saying so is the whole
 posture: there is no state in which this app stops working because of Allodia.
@@ -361,9 +372,11 @@ Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ pl
   published six accounts and adopted the one the service already held. It needs a person at a
   browser with real credentials, so it is asserted nowhere and the other four clients have not
   been driven through it.
-- **Nothing writes an entitlement yet.** The account service has no billing, so every caller
-  correctly receives the free answer. Until that changes, none of the rules above can be observed
-  end to end against a real plan.
+- **Nothing has been entitled yet.** The read is verified against the production service
+  (2026-09-11): a grant carrying all five `mailcal:*` scopes, and `plan: free` with
+  `capabilities: ["accounts_sync"]` parsed back through `Cache`. Billing is configured there, so
+  what is missing is a real paid plan rather than the machinery, and the grace and degrade rules
+  stay unobserved against one until somebody buys.
 - **No client draws a paid capability**, so the grace and degrade rules are unit-tested in the core
   and unproven in a UI.
 - **Nothing refreshes the access token yet.** The grant is stored with its refresh token, and

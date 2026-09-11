@@ -284,6 +284,66 @@ targets:
   # command-line tool over MailcalBindings, drives the Rust loop against the real account and
   # asserts counts. Run: `xcodebuild -scheme MailcalVerify build && <product>` (needs
   # ~/.config/mailcal/account.toml). It is the one headless verifier target, and CI's runtime gate.
+  # The empty application the StoreKit tests run inside; see StoreKitTestHost/ for why one is
+  # needed and why it is not the mail app. Built only by those tests, and shipped nowhere.
+  StoreKitTestHost:
+    type: application
+    platform: macOS
+    deploymentTarget:
+      macOS: "15.0"
+    sources:
+      - path: StoreKitTestHost
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ${MAILCAL_APP_ID}storekittesthost
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+
+  # The App Store half of purchasing, against Xcode's own simulated store.
+  #
+  # Its own target rather than a case in MailcalKit's suite, and not by preference: that suite runs
+  # under `swift test`, which has no application to host StoreKit and no way to load a StoreKit
+  # Configuration. `SKTestSession` needs both, so the tests live here, hosted by the app, and run
+  # through xcodebuild.
+  #
+  # macOS only. The rules under test are the client's own (what is outstanding, what gets finished
+  # and when), none of them differ by platform, and a simulator boot per run would buy nothing.
+  StoreKitTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget:
+      macOS: "15.0"
+    sources:
+      - path: StoreKitTests
+    dependencies:
+      - target: StoreKitTestHost
+      - package: MailcalKit
+        product: MailcalUI
+      # The records cross the FFI, so they are MailcalBindings', not MailcalUI's, and a member has
+      # to come from a module the file itself imports (the package's MemberImportVisibility).
+      - package: MailcalKit
+        product: MailcalBindings
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ${MAILCAL_APP_ID}storekittests
+        # A test bundle has no plist of its own in this tree, and code signing refuses a bundle
+        # without one; generating it is Apple's own recommendation over carrying a file nobody
+        # edits.
+        GENERATE_INFOPLIST_FILE: YES
+        # `StoreKitTest.framework`'s own headers still declare `SKPaymentTransactionState`, which
+        # Apple deprecated in macOS 15. The project treats warnings as errors, and a warning inside
+        # a system framework's module is not ours to fix, so it stops the module from compiling at
+        # all. Silenced for the imported C module **only**: this target's own Swift is still held
+        # to the project rule, which is the difference between this and opting the target out.
+        OTHER_SWIFT_FLAGS: "$(inherited) -Xcc -Wno-deprecated-declarations"
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/StoreKitTestHost.app/Contents/MacOS/StoreKitTestHost"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
   MailcalVerify:
     type: tool
     platform: macOS

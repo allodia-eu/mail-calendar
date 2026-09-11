@@ -1,0 +1,76 @@
+{
+  "identifier" : "A1D0C6E8-3F4B-4E2A-9C7D-5B8E1F2A3C4D",
+  "nonRenewingSubscriptions" : [
+  ],
+  "products" : [
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : true,
+    "_failTransactionsEnabled" : false,
+    "_storeKitErrors" : [
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "20250911",
+      "localizations" : [
+      ],
+      "name" : "Allodia services",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+          ],
+          "codeOffers" : [
+          ],
+          "displayPrice" : "24.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "20250911001",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "The services Allodia runs, billed yearly.",
+              "displayName" : "Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "eu.allodia.mailcal.services.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Allodia services, yearly",
+          "subscriptionGroupID" : "20250911",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+          ],
+          "codeOffers" : [
+          ],
+          "displayPrice" : "2.49",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "20250911002",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "The services Allodia runs, billed monthly.",
+              "displayName" : "Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "eu.allodia.mailcal.services.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Allodia services, monthly",
+          "subscriptionGroupID" : "20250911",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

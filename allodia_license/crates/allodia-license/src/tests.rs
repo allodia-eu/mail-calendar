@@ -47,16 +47,16 @@ impl Transport for Fake {
     }
 }
 
-const ACTIVE: &str = r#"{"plan":"personal","active":true,
-    "capabilities":["push","send_later"],
+const ACTIVE: &str = r#"{"plan":"personal","paymentStatus":"active",
+    "capabilities":["accounts_sync","push","send_later"],
     "currentPeriodEnd":"2026-09-24T00:00:00.000Z","refreshAfterSeconds":43200}"#;
 
 fn paid() -> Answer {
     Answer {
         entitlement: Entitlement {
             plan: "personal".to_owned(),
-            active: true,
             capabilities: [Capability::Push].into_iter().collect(),
+            payment_status: Some("active".to_owned()),
             current_period_end: None,
         },
         refresh_after_seconds: 12 * 60 * 60,
@@ -78,8 +78,8 @@ fn an_entitlement_is_read_with_its_capabilities() {
     let service = AccountService::new("https://allodia.example/");
     let answer = service.entitlement(&fake, "tok_abc").unwrap();
 
-    assert!(answer.entitlement.active);
     assert_eq!(answer.entitlement.plan, "personal");
+    assert_eq!(answer.entitlement.payment_status.as_deref(), Some("active"));
     assert_eq!(answer.refresh_after_seconds, 43_200);
     assert!(answer.entitlement.grants(&Capability::Push));
     assert!(answer.entitlement.grants(&Capability::SendLater));
@@ -122,18 +122,42 @@ fn a_body_this_version_cannot_read_is_malformed_rather_than_a_panic() {
 }
 
 #[test]
-fn a_capability_on_an_inactive_plan_grants_nothing() {
-    // The service already refuses to list capabilities for a lapsed plan. This is the same rule on
-    // the side that draws the UI: a client must never grant on the list alone.
+fn a_lapsed_subscription_reads_as_free_and_still_says_why() {
+    // The service degrades `plan` and the capability list itself once a payment has failed, so
+    // what arrives is already the free application. What it also carries is `paymentStatus`, which
+    // is the only reason a client can tell "your payment failed" from "your plan ended"; it is
+    // never gated on, because the list above has already accounted for it.
     let fake = Fake::ok(
         200,
-        r#"{"plan":"personal","active":false,"capabilities":["push"],"refreshAfterSeconds":43200}"#,
+        r#"{"plan":"free","paymentStatus":"past_due","capabilities":["accounts_sync"],
+            "currentPeriodEnd":null,"refreshAfterSeconds":43200}"#,
     );
     let service = AccountService::new("https://allodia.example");
     let answer = service.entitlement(&fake, "tok_abc").unwrap();
 
-    assert!(!answer.entitlement.active);
+    assert_eq!(answer.entitlement.plan, "free");
+    assert_eq!(
+        answer.entitlement.payment_status.as_deref(),
+        Some("past_due")
+    );
     assert!(!answer.entitlement.grants(&Capability::Push));
+    // `accounts_sync` is free for everyone, so it survives the degrade. A client that treated a
+    // lapsed plan as "nothing at all" would take away something nobody was paying for.
+    assert!(answer.entitlement.grants(&Capability::AccountsSync));
+}
+
+#[test]
+fn a_free_plan_still_carries_the_capability_everyone_has() {
+    let fake = Fake::ok(
+        200,
+        r#"{"plan":"free","paymentStatus":null,"capabilities":["accounts_sync"],
+            "currentPeriodEnd":null,"refreshAfterSeconds":43200}"#,
+    );
+    let service = AccountService::new("https://allodia.example");
+    let answer = service.entitlement(&fake, "tok_abc").unwrap();
+
+    assert!(answer.entitlement.payment_status.is_none());
+    assert!(answer.entitlement.grants(&Capability::AccountsSync));
 }
 
 #[test]
@@ -142,7 +166,7 @@ fn an_unknown_capability_is_kept_but_never_granted() {
     // and above all does not treat "I do not recognise this" as permission.
     let fake = Fake::ok(
         200,
-        r#"{"plan":"business","active":true,"capabilities":["push","time_travel"],"refreshAfterSeconds":1}"#,
+        r#"{"plan":"business","paymentStatus":"active","capabilities":["push","time_travel"],"refreshAfterSeconds":1}"#,
     );
     let service = AccountService::new("https://allodia.example");
     let answer = service.entitlement(&fake, "tok_abc").unwrap();
@@ -299,6 +323,8 @@ fn sign_in_asks_for_a_refresh_token_and_for_nothing_that_reaches_mail() {
             "mailcal:entitlement:read",
             "mailcal:accounts:read",
             "mailcal:accounts:write",
+            "mailcal:subscription:read",
+            "mailcal:subscription:write",
         ]
     );
     assert!(crate::SCOPES.contains(&"offline_access"));
@@ -312,6 +338,19 @@ fn sign_in_asks_for_a_refresh_token_and_for_nothing_that_reaches_mail() {
             .filter(|scope| scope.contains("entitlement"))
             .all(|scope| !scope.contains("write")),
         "no scope may let a device write its own entitlement"
+    );
+    // `mailcal:subscription:write` is the one write near this line that could be mistaken for such
+    // a scope. It is not: what it permits is naming a purchase **a store made**, which the service
+    // then reads back from that store before it grants anything, and starting a checkout the
+    // service prices. The device asserts no plan and names no account, so the enforcement point
+    // stays where entitlement.md puts it.
+    assert!(
+        crate::SCOPES
+            .iter()
+            .filter(|scope| scope.contains("write"))
+            .all(|scope| *scope == "mailcal:accounts:write"
+                || *scope == "mailcal:subscription:write"),
+        "a new write scope needs deciding against the rule above, not adding beside it"
     );
     // Nothing here reaches mail. An Allodia account and a mail account are different things, and a
     // token issued for this app cannot touch the second.

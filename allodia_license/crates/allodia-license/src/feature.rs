@@ -25,11 +25,24 @@ pub enum Feature {
     ReadAccounts,
     /// Publishing this device's accounts to the others.
     WriteAccounts,
+    /// Reading what the account is subscribed to, for the account screen.
+    ReadSubscription,
+    /// Changing the subscription: attaching a store purchase, starting a checkout, cancelling.
+    WriteSubscription,
 }
 
 impl Feature {
-    /// Every feature a grant can be short of, so a caller can ask about all of them at once
-    /// rather than remembering the list.
+    /// The features whose absence is worth telling somebody about **before** they ask for one.
+    ///
+    /// These are what the app does on its own: reading the plan, syncing the account list. A grant
+    /// short of one of them is a grant that will quietly fail at something nobody asked for, so it
+    /// is worth a standing offer to sign in again.
+    ///
+    /// ⚠️ The two subscription features are deliberately **not** here. Opening the account screen
+    /// and buying something are things a person does deliberately, so the prompt belongs on that
+    /// screen rather than on everybody's account card. A grant short of them is also the ordinary
+    /// state of every grant issued before those scopes existed, and telling all of those people to
+    /// sign in again would be a prompt about a screen most of them will never open.
     pub const ALL: &'static [Self] = &[Self::Entitlement, Self::ReadAccounts, Self::WriteAccounts];
 
     /// The scope that permits it.
@@ -39,6 +52,8 @@ impl Feature {
             Self::Entitlement => "mailcal:entitlement:read",
             Self::ReadAccounts => "mailcal:accounts:read",
             Self::WriteAccounts => "mailcal:accounts:write",
+            Self::ReadSubscription => "mailcal:subscription:read",
+            Self::WriteSubscription => "mailcal:subscription:write",
         }
     }
 }

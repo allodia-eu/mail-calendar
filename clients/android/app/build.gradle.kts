@@ -392,6 +392,16 @@ dependencies {
     // and returns via a custom-scheme redirect the manifest intent-filter catches.
     implementation("androidx.browser:browser:1.10.0")
 
+    // Google Play's billing library, for buying a subscription to the services Allodia runs
+    // (the purchasing contract beside the Allodia Licence). The `-ktx` artifact is what supplies
+    // the suspending `queryProductDetails`/`queryPurchasesAsync`/`acknowledgePurchase` the billing
+    // code here awaits; the base artifact has only the listener callbacks.
+    //
+    // It ships in every build, branded or not. Nothing calls it without a purchase surface, and a
+    // dependency that came and went with an injected credential would make the two builds diverge
+    // in their dependency graph rather than only in what they offer.
+    implementation("com.android.billingclient:billing-ktx:8.0.0")
+
     // ---- Tests -------------------------------------------------------------------------------
     // The client's tests run on the JVM (`./gradlew :app:test`), never on a device: Robolectric
     // supplies the Android framework and the merged resources, and Compose's test rule drives the
