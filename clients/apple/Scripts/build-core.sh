@@ -160,9 +160,6 @@ install_generated "$ROOT/clients/composer/dist/editor.html" "$PKG/Sources/Mailca
 
 echo "==> [3/3] Assembling Mailcal.xcframework (${TARGETS[*]})"
 XCF="$ARTIFACTS/Mailcal.xcframework"
-# The slice list this framework was built from. A build that narrows or widens it (`--no-device`
-# after a full build, or the reverse) leaves a framework newer than every input and still wrong.
-SLICE_STAMP="$ARTIFACTS/.xcframework-slices"
 SLICE_ARGS=()
 SLICE_LIBS=()
 for t in "${TARGETS[@]}"; do
@@ -170,31 +167,38 @@ for t in "${TARGETS[@]}"; do
   SLICE_ARGS+=(-library "$ROOT/target/$t/$PROFILE/libmailcal_bindings.a" -headers "$HDR")
 done
 
-# Assembled only when an input actually moved, for the reason `install_generated` exists:
-# xcodebuild rewrites every byte, so assembling it unconditionally re-dates the framework Xcode
-# links against and costs a relink of every app target on a build where nothing changed. Cargo
-# leaves an archive it did not recompile alone, so the archives' own mtimes are the honest answer.
-xcframework_is_stale() {
-  [[ -d "$XCF" ]] || return 0
-  [[ -f "$SLICE_STAMP" && "$(cat "$SLICE_STAMP")" == "${TARGETS[*]}" ]] || return 0
-  local f
-  for f in "${SLICE_LIBS[@]}" "$HDR"/*; do
-    [[ "$f" -nt "$XCF" ]] && return 0
-  done
-  return 1
+# What this framework is made of: the slice list, and the content of every archive and header going
+# into it. CONTENT, not timestamps, and that distinction is the whole point.
+#
+# A cached Rust build keeps the compiled dependencies but not the linked artifact, so a runner
+# re-links `libmailcal_bindings.a` on every run and it arrives freshly dated. It arrives byte for
+# byte identical too, measured across separate runners. So a timestamp carries no information here,
+# and acting on one is expensive: `-create-xcframework` rewrites every byte, and a framework that
+# is merely re-dated recompiles MailcalBindings and all 115 files of MailcalUI above it. The
+# manifest decides whether to assemble; the reference file beside it carries the timestamp this
+# content was first assembled with, and goes back on at the end.
+XCF_MANIFEST="$MIRROR/.xcframework-manifest"
+XCF_REFERENCE="$MIRROR/.xcframework-reference"
+xcframework_manifest() {
+  printf '%s\n' "${TARGETS[*]}"
+  shasum -a 256 "${SLICE_LIBS[@]}" "$HDR"/* | awk '{print $1}'
 }
 
-if xcframework_is_stale; then
-  # Assembled beside the framework and swapped in, never in place: an interrupted `-create-xcframework`
-  # would otherwise leave a half-written directory that is newer than every input, which is exactly
-  # the shape the staleness check above reads as "up to date". The staging name still ends in
-  # `.xcframework`, which xcodebuild requires of its `-output`.
+XCF_WANT="$(xcframework_manifest)"
+XCF_CONTENT_MOVED=0
+if [[ ! -f "$XCF_MANIFEST" ]] || [[ "$(cat "$XCF_MANIFEST")" != "$XCF_WANT" ]]; then
+  XCF_CONTENT_MOVED=1
+fi
+
+if [[ "$XCF_CONTENT_MOVED" -eq 1 || ! -d "$XCF" ]]; then
+  # Assembled beside the framework and swapped in, never in place, so an interrupted
+  # `-create-xcframework` cannot leave a half-written directory standing as the real one. The
+  # staging name still ends in `.xcframework`, which xcodebuild requires of its `-output`.
   STAGED_XCF="$ARTIFACTS/.Mailcal-staged.xcframework"
   rm -rf "$STAGED_XCF"
   xcodebuild -create-xcframework "${SLICE_ARGS[@]}" -output "$STAGED_XCF" >/dev/null
   rm -rf "$XCF"
   mv "$STAGED_XCF" "$XCF"
-  printf '%s\n' "${TARGETS[*]}" >"$SLICE_STAMP"
 
   # Sign it with whatever local identity exists. Nothing about distribution depends on this, a
   # static archive carries no signature into the app, and xcodebuild never looks, but the Xcode IDE
@@ -214,6 +218,17 @@ if xcframework_is_stale; then
 else
   echo "    unchanged, kept: Mailcal.xcframework"
 fi
+
+# Mint a new reference the moment the content moves, and otherwise put the old one back over the
+# whole tree. What Xcode and SwiftPM compare is the timestamp, so a framework reassembled from
+# identical bytes has to look untouched or every target above it rebuilds.
+if [[ "$XCF_CONTENT_MOVED" -eq 1 ]]; then
+  mkdir -p "$MIRROR"
+  : >"$XCF_REFERENCE"
+  printf '%s\n' "$XCF_WANT" >"$XCF_MANIFEST"
+fi
+find "$XCF" -exec touch -r "$XCF_REFERENCE" {} +
+
 echo "==> Done. Slices: $(ls "$XCF" | grep -v Info.plist | grep -v _CodeSignature | tr '\n' ' ')"
 
 # The MCP stdio relay an assistant spawns to reach the running app (docs/mcp.md). A separate
