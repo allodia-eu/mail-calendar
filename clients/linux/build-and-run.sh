@@ -3,6 +3,13 @@
 #
 #   clients/linux/build-and-run.sh            # against the GNOME runtime the Flatpak ships on
 #   clients/linux/build-and-run.sh --host     # against this distribution's GTK (faster loop)
+#   clients/linux/build-and-run.sh --detach   # return once the window is up, app left running
+#
+# The client runs in the foreground: the script holds the terminal until the app quits, and Ctrl+C
+# stops it. `--detach` is for a caller that wants to drive the app rather than watch it. It waits
+# for the client to say its window is on screen, prints READY, and returns with the app still
+# running; stop it afterwards with `pkill -f mailcal-linux`. The wait is a real barrier, so a
+# launch that dies on the way up is reported as that rather than as a client that is up.
 #
 # The default is the runtime, because that is what a user gets. The development baseline tracks the
 # same GNOME generation, so the two are close; but they are separate builds on separate schedules
@@ -22,12 +29,14 @@ source "$ROOT/scripts/dev/lib.sh"
 source "$ROOT/scripts/dev/sdk.sh"
 
 TARGET=sdk
+DETACH=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --host) TARGET=host; shift ;;
     --sdk) TARGET=sdk; shift ;;
-    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
-    *) die "unknown argument '$1' (--host|--sdk)" ;;
+    --detach) DETACH=1; shift ;;
+    -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
+    *) die "unknown argument '$1' (--host|--sdk|--detach)" ;;
   esac
 done
 
@@ -39,6 +48,38 @@ require_cmd cargo
 bash "$ROOT/scripts/dev/composer-bundle.sh"
 
 log="${XDG_DATA_HOME:-$HOME/.local/share}/mailcal/mailcal.log"
+launch_log="$(dirname "$log")/mailcal-launch.log"
+
+# How long `--detach` waits for the window. Generous on purpose: a cold start, the first after a
+# build, or one on a machine that is busy compiling something else can take many seconds, and the
+# cost of too short a wait is not a slow run but a healthy launch reported as a broken one.
+READY_TIMEOUT=120
+
+# Run the client in the background, wait for its window, and return with it still running.
+#
+# Its own streams go to a file rather than to the caller's. This script returns while the app is
+# still writing, so a caller reading our output through a pipe would never see it close: the hang
+# this whole flag exists to remove. GTK's warnings and criticals reach the diagnostic log on their
+# own (crate::crash); what only lands here is a panic on the way up.
+#
+# ⚠️ The pid is the *wrapper* on the SDK path, because the client runs inside flatpak. It is a
+# liveness hint and nothing more: killing it leaves the app running, which is why stopping the
+# client is `pkill` here and `flatpak kill` in scripts/dev/test-linux-ui.sh, never this pid.
+launch_detached() { # <command...>
+  local offset pid outcome=0
+  mkdir -p "$(dirname "$launch_log")"
+  offset="$(log_size "$log")"
+  "$@" >"$launch_log" 2>&1 &
+  pid=$!
+  wait_for_log_marker "$log" "$offset" "$LINUX_READY_LOG_MARKER" "$READY_TIMEOUT" "$pid" || outcome=$?
+  case "$outcome" in
+    0) info "READY: the window is on screen. Stop the client with: pkill -f mailcal-linux" ;;
+    2) die "the client exited before its window appeared. What it printed: $launch_log" ;;
+    *) die "no window after ${READY_TIMEOUT}s. The client is still running as pid $pid.
+     What it printed: $launch_log
+     What it logged:  $log" ;;
+  esac
+}
 
 # The Allodia sign-in, when this build was given the registration that turns it on -- derived from
 # that registration rather than asked for separately, so the two halves cannot disagree
@@ -71,6 +112,10 @@ if [[ "$TARGET" == sdk ]]; then
     XDG_DATA_HOME XDG_CONFIG_HOME XDG_CACHE_HOME WAYLAND_DISPLAY DISPLAY; do
     [[ -n "${!name:-}" ]] && exec_env+=("--env=$name=${!name}")
   done
+  if [[ "$DETACH" == 1 ]]; then
+    launch_detached sdk_exec ${exec_env[@]+"${exec_env[@]}"} "$(sdk_target_dir)/debug/mailcal-linux"
+    exit 0
+  fi
   # A shell function, so no `exec`: the launcher waits on flatpak instead of replacing itself.
   sdk_exec ${exec_env[@]+"${exec_env[@]}"} "$(sdk_target_dir)/debug/mailcal-linux"
   exit $?
@@ -94,4 +139,8 @@ info "Building the Linux client"
 (cd "$ROOT" && cargo build -p mailcal-linux -p mailcal-mcp-shim --features "$FEATURES")
 info "Launching Allodia Mail & Calendar (distribution GTK)"
 info "Logs: $log (rotates .1-.3, ~4 MB cap): read them: scripts/dev/logs.sh linux --dump"
+if [[ "$DETACH" == 1 ]]; then
+  launch_detached "$ROOT/target/debug/mailcal-linux"
+  exit 0
+fi
 exec "$ROOT/target/debug/mailcal-linux"

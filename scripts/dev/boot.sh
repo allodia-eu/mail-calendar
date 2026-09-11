@@ -120,8 +120,11 @@ case "$platform" in
     fi
     exec "$REPO_ROOT/clients/android/build-and-run.sh" ;;
   linux)
-    [[ ${#PASSTHRU[@]} -eq 0 ]] || warn "ignoring extra args for linux (build-and-run.sh takes none): ${PASSTHRU[*]}"
-    exec "$REPO_ROOT/clients/linux/build-and-run.sh"
+    # `--detach` because the Linux client runs in the foreground: without it this script holds the
+    # terminal until someone quits the app, and a caller that was told boot.sh returns once the
+    # window is up waits instead for the session to end. It returns when the client says its
+    # window is on screen, and reports a launch that died on the way up as that.
+    exec "$REPO_ROOT/clients/linux/build-and-run.sh" --detach ${PASSTHRU[@]+"${PASSTHRU[@]}"}
     ;;
   windows)
     # The WinUI client is a PowerShell build; drive it through pwsh on the Windows host (this case
