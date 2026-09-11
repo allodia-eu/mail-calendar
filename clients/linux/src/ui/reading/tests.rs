@@ -1,5 +1,6 @@
 //! The attachment row's two rules (it names the file each control acts on, and neither of its
-//! lines is ever parsed as markup) and the page the body area is drawn on.
+//! lines is ever parsed as markup), the page the body area is drawn on, and what the pane's own
+//! header leaves to the row above it.
 
 use adw::prelude::PreferencesRowExt;
 use gtk::prelude::{ButtonExt, Cast, WidgetExt};
@@ -181,4 +182,45 @@ fn labels(root: &gtk::Widget) -> Vec<String> {
         child = node.next_sibling();
     }
     found
+}
+
+/// The pane sits a row below the mail surface's actions bar, so it carries neither the window's
+/// controls nor its title: a second set of controls lands short of the window's corner, and an
+/// `AdwHeaderBar` given no title of its own falls back to the window's, standing the application's
+/// name over the message being read.
+pub(crate) fn the_reading_header_leaves_the_window_its_corner_and_its_name() {
+    let window = adw::ApplicationWindow::builder().build();
+    let (sender, _receiver) = relm4::channel::<super::super::AppInput>();
+    let pane = ReadingPane::new(&window, sender);
+    let header = header_bar(pane.widget().clone().upcast_ref::<gtk::Widget>())
+        .expect("the pane is headed by its actions");
+
+    assert!(
+        !header.shows_end_title_buttons(),
+        "the actions bar above the pane holds the window's controls"
+    );
+    let title = header
+        .title_widget()
+        .expect("a header with no title widget shows the window's own");
+    assert!(
+        crate::ui::mailbox::tests::rendered_labels(&title)
+            .iter()
+            .all(String::is_empty),
+        "the header names nothing: the list beside it says which folder this message came from"
+    );
+}
+
+/// The first `AdwHeaderBar` under `root`, in tree order.
+fn header_bar(root: &gtk::Widget) -> Option<adw::HeaderBar> {
+    if let Some(header) = root.downcast_ref::<adw::HeaderBar>() {
+        return Some(header.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(node) = child {
+        if let Some(header) = header_bar(&node) {
+            return Some(header);
+        }
+        child = node.next_sibling();
+    }
+    None
 }

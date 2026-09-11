@@ -137,6 +137,9 @@ impl ContactsPane {
         // The rightmost pane carries the window controls, as the reading pane does beside the
         // mail list.
         let detail_header = adw::HeaderBar::new();
+        // An empty title, or the header falls back to the window's, standing the application's own
+        // name over the person being read; the list header beside it already names the page.
+        detail_header.set_title_widget(Some(&gtk::Label::new(None)));
         // Hidden until a person with an editable card is open; a directory contact has none.
         let edit = gtk::Button::with_label(l10n::contacts_edit());
         edit.update_property(&[AccessibleProperty::Label(l10n::contacts_edit())]);
