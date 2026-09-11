@@ -63,8 +63,9 @@ impl Cache {
 
     /// What to draw right now.
     ///
-    /// Anything that is not a live entitlement inside its grace is the free app: no stored answer,
-    /// a stored answer past grace, or an answer that says `active: false`.
+    /// Anything that is not a stored answer inside its grace is the free app: nothing stored, or a
+    /// stored answer past grace. What a stored answer *grants* is its capability list, which the
+    /// service has already degraded for a lapsed plan.
     #[must_use]
     pub fn effective(&self, now: i64) -> Entitlement {
         match &self.stored {

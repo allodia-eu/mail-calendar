@@ -19,7 +19,7 @@ use crate::{
     demo::DemoProvider,
     device_zone, logging,
     observer::{DebouncedObserver, ObserverBridge},
-    runtime,
+    runtime::runtime,
     showcase::{ShowcaseCalendarProvider, ShowcaseMailProvider},
     showcase_contacts::ShowcaseContactsProvider,
     showcase_data::{self, ShowcaseLocale},
@@ -92,6 +92,8 @@ pub(crate) fn build_demo(
         allodia_tokens: crate::allodia_tokens::Tokens::default(),
         #[cfg(feature = "allodia-license")]
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
+        #[cfg(feature = "allodia-license")]
+        allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
@@ -254,6 +256,8 @@ fn finish_showcase(
         allodia_tokens: crate::allodia_tokens::Tokens::default(),
         #[cfg(feature = "allodia-license")]
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
+        #[cfg(feature = "allodia-license")]
+        allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),

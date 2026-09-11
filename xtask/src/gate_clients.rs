@@ -50,6 +50,14 @@ fn apple(run: &Runner<'_>) -> Vec<Step> {
             "clients/apple/Scripts/test-kit.sh",
             &[],
         ),
+        // Its own script and its own Xcode target: the suite above runs under `swift test`, which
+        // has no application for StoreKit to resolve products against and no way to load a
+        // StoreKit Configuration.
+        run.external(
+            "apple (StoreKit purchases)",
+            "clients/apple/Scripts/test-storekit.sh",
+            &[],
+        ),
         run.external(
             "apple (iOS simulator build)",
             "clients/apple/Scripts/build-and-run.sh",
