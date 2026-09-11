@@ -284,6 +284,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::reading::attachment_tests::an_attachment_name_is_never_parsed_as_markup();
     crate::ui::reading::attachment_tests::an_attachment_button_still_reads_as_its_verb();
     crate::ui::reading::attachment_tests::the_page_survives_the_gap_before_the_next_body_lands();
+    crate::ui::reading::attachment_tests::
+        the_reading_header_leaves_the_window_its_corner_and_its_name();
     crate::ui::reading::canvas::tests::the_drawn_canvas_paints_the_page_the_core_names();
     crate::ui::reading::canvas::tests::the_web_view_base_is_the_same_page();
     crate::ui::modal::tests::a_modal_renders_its_title_in_native_chrome_only();
@@ -400,6 +402,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::selection_bar::tests::
         an_empty_selection_leaves_the_bar_standing_and_only_select_all_live();
     crate::ui::selection_bar::tests::the_bar_spans_both_panes_rather_than_riding_the_list();
+    crate::ui::selection_bar::tests::the_top_row_carries_the_window_controls();
     crate::ui::selection_bar::tests::
         the_pane_states_the_count_only_while_it_covers_something_worth_covering();
 

@@ -71,6 +71,12 @@ impl ReadingPane {
         let toolbar = adw::ToolbarView::new();
         let header = adw::HeaderBar::new();
         header.set_show_start_title_buttons(false);
+        // The selection bar above this pane is the mail surface's top row and carries the window's
+        // controls; a second set here would sit a row short of the window's own corner.
+        header.set_show_end_title_buttons(false);
+        // An empty title, or the header falls back to the window's, standing the application's own
+        // name over the message being read.
+        header.set_title_widget(Some(&gtk::Label::new(None)));
         let reply = action_button("mail-reply-sender-symbolic", l10n::action_reply());
         let reply_all = action_button("mail-reply-all-symbolic", l10n::action_reply_all());
         let forward = action_button("mail-forward-symbolic", l10n::action_forward());
