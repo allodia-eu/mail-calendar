@@ -61,6 +61,20 @@ $Suite = @{
   Env     = @{ MAILCAL_DEV_ACCOUNT = 'first-run' }
   Cases   = @(
     @{
+      # First, because every rule below describes the account-setup screen, and on a build with no
+      # Allodia registration three of them are a bare `return` and the fourth asserts that the card
+      # is absent. On the welcome screen, which is what the app draws just before this one, all
+      # four pass by describing something that is not there. Wait-DatasetReady is what guarantees
+      # the right screen; this case is what makes a failure say so.
+      Name = 'the screen under test is the account-setup form'
+      Body = {
+        Assert-True ($null -ne (Find-UiaElement -AutomationId 'DetectEmail' -Type 'Edit')) (
+          'the first-run dataset must settle on the account-setup form (docs/onboarding.md). A ' +
+          'welcome screen or a mailbox here means every rule below is about a screen the app is ' +
+          'not showing')
+      }
+    }
+    @{
       Name = 'the card, the sign-in line and the divider are absent together, or present together'
       Body = {
         $present = @(
