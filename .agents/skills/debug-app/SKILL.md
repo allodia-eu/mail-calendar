@@ -61,6 +61,15 @@ always sets) the app is launched directly rather than through LaunchServices, an
 go to `$TMPDIR/allodia-mail-launch.log` precisely so it does not hold its caller's stdout open;
 a launch that produced nothing on screen is diagnosed from that file.
 
+**On Linux the client runs in the foreground**, so `boot.sh` passes `--detach` and waits for it.
+The client writes `window on screen` to its diagnostic log once GTK has put the window up; the
+launcher returns on that line, prints `READY`, and leaves the app running with its own streams in
+`mailcal-launch.log` beside the log, for the same reason macOS does. The wait separates three
+answers: the window appeared, the client exited before it did, and neither within two minutes. A
+launch that died on the way up is reported as that, rather than costing the full timeout and then
+reading as a slow machine. Run `clients/linux/build-and-run.sh` without `--detach` to keep the
+terminal attached, which is what you want when you are watching it rather than driving it.
+
 Check before you build: `pgrep -f "MacOS/AllodiaMail"` says whether a dev build is already up.
 Screenshot a running app rather than booting it again, and reach for `-- --no-core` when only
 client code changed. Rebooting replaces the instance (the script `pkill`s the same binary first,

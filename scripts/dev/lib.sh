@@ -467,6 +467,39 @@ text_has_marker() { # <text> <marker>
   esac
 }
 
+# The size of <file> in bytes, or 0 when it does not exist yet. Taken before a launch and handed to
+# `log_slice_since`, so a marker from an earlier run never vouches for this one.
+log_size() { # <file>
+  if [[ -f "$1" ]]; then wc -c <"$1" | tr -d '[:space:]'; else printf '0'; fi
+}
+
+# The line the Linux client writes once GTK has put its window on screen. Kept in step with
+# clients/linux/src/logger.rs by scripts/dev/tests/test_linux_ready_marker.py: a launcher waiting
+# for a line the app no longer writes would report every healthy start as a failed one.
+LINUX_READY_LOG_MARKER='window on screen'
+
+# Wait for <marker> to appear in <file> past <offset>, while <pid> is still running.
+#
+# Returns 0 when the marker arrives, 1 on timeout, and 2 when the process is gone without having
+# written it. That third answer is the point: a client that dies during startup writes nothing more,
+# so a wait that only watches the clock reports a crash as a slow boot, one timeout later, and sends
+# the reader looking for a machine under load.
+wait_for_log_marker() { # <file> <offset> <marker> <timeout-seconds> <pid>
+  local file="$1" offset="$2" marker="$3" halves=$(( $4 * 2 )) pid="$5" waited=0
+  while :; do
+    if text_has_marker "$(log_slice_since "$file" "$offset")" "$marker"; then return 0; fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      # It can write the marker and exit between the two checks above, so ask once more before
+      # calling a launch that did come up a launch that died.
+      text_has_marker "$(log_slice_since "$file" "$offset")" "$marker" && return 0
+      return 2
+    fi
+    [[ "$waited" -lt "$halves" ]] || return 1
+    sleep 0.5
+    waited=$((waited + 1))
+  done
+}
+
 # ---- physical iOS devices (Apple) -------------------------------------------------------------
 #
 # The simulator helpers above cannot test background delivery: BGTaskScheduler never runs on a

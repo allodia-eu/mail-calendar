@@ -19,6 +19,19 @@ pub(crate) fn diagnostic_log_path() -> PathBuf {
     gtk::glib::user_data_dir().join("mailcal/mailcal.log")
 }
 
+/// Written once, when GTK has put the main window on screen.
+///
+/// A launcher cannot tell a client that is still starting from one that has already failed, and
+/// on Linux the app is run in the foreground, so there is no exit code to wait for either. This
+/// line is the answer: `build-and-run.sh --detach` waits for it before returning, and
+/// `scripts/dev/lib.sh` holds the same text as `LINUX_READY_LOG_MARKER`, which
+/// `scripts/dev/tests/test_linux_ready_marker.py` keeps in step with this constant.
+///
+/// It is in every build, not only a debug one. "Did a window ever come up?" is the first question
+/// asked of a log from a user whose app did nothing when they clicked it, and a marker compiled
+/// out of the build they are running cannot answer it.
+pub(crate) const WINDOW_ON_SCREEN: &str = "window on screen";
+
 #[derive(Clone, Copy, Debug)]
 struct RotationPolicy {
     max_bytes: u64,
