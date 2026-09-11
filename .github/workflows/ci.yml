@@ -8,7 +8,7 @@
 # `.cargo/config.toml` ABOVE this checkout — outside the repo, so never active in CI. The repo's own
 # `.cargo/config.toml` is tracked and pins the Windows static-CRT rustflags.)
 #
-# Cost discipline — macOS minutes bill at 10x and Windows at 2x, so four rules hold:
+# Cost discipline, in runner time and in the 10 GB cache budget. Four rules hold:
 #   1. Every expensive job gates on `changes`, which derives the affected areas from the actual
 #      change set (scripts/ci/changed-areas.sh). A manual run forces any subset via `areas`.
 #   2. Only `main` writes the shared caches — see the `save-if` notes on each cache step.
@@ -448,7 +448,7 @@ jobs:
     # pays once (VM boot, checkout, Xcode select, rustup, xcodegen, two cache restores) and each
     # wants its own Rust and DerivedData entries out of the repo's 10 GB cache budget. Against a
     # warm run of about two minutes, splitting buys under a minute of wall clock for roughly 40%
-    # more billed time on the runner that bills at 10x. Revisit it if the warm number climbs.
+    # more runner time. Revisit it if the warm number climbs.
     name: Apple clients (macOS + iOS)
     needs: changes
     if: needs.changes.outputs.apple == 'true'
@@ -533,7 +533,7 @@ jobs:
 
       # --no-device: the steps below link only `platform=macOS` and `generic/platform=iOS
       # Simulator`, so cross-compiling the physical-device slice here buys nothing but minutes on
-      # a 10x-billed runner. The trade is real: an error that only breaks the device slice now
+      # the workflow's slowest job. The trade is real: an error that only breaks the device slice now
       # surfaces when someone builds for a device (or at release) instead of here.
       - name: Build the Rust core -> XCFramework + bindings
         run: ./clients/apple/Scripts/build-core.sh --no-device
