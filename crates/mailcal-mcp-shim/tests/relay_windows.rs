@@ -26,6 +26,8 @@ use tokio::{
     net::windows::named_pipe::ServerOptions,
 };
 
+mod common;
+
 /// A unique pipe name for one test, so a leftover server from another test cannot answer.
 fn pipe_name(name: &str) -> String {
     let unique = SystemTime::now()
@@ -37,7 +39,7 @@ fn pipe_name(name: &str) -> String {
 
 /// Spawns the relay against `endpoint`, with piped stdio.
 fn spawn(endpoint: &str) -> std::process::Child {
-    Command::new(env!("CARGO_BIN_EXE_allodia-mcp"))
+    Command::new(common::relay_binary())
         .arg("--endpoint")
         .arg(endpoint)
         .stdin(Stdio::piped())
