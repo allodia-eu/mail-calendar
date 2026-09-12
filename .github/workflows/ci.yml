@@ -623,10 +623,14 @@ jobs:
           toolchain: ${{ needs.changes.outputs.toolchain }}
           targets: aarch64-apple-darwin,aarch64-apple-ios-sim
 
+      # `apple`'s entry, deliberately: both jobs run `build-core.sh --no-device`, so the compiled
+      # dependencies are the same ones and a second copy would be a second copy. A key of its own
+      # cost this job **372s** of Rust on its first run against the sibling's warm 98s, for nothing.
+      # Both save on main and the later one is told the key exists, which is the intended no-op.
       - name: Cache Rust build
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          shared-key: apple-ui
+          shared-key: apple
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install XcodeGen
