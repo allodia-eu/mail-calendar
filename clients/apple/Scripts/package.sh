@@ -484,15 +484,23 @@ asc_key_file() {
   done
   return 1
 }
-if [[ ${#EXPORT_EXTRA[@]} -gt 0 ]] && asc_ids_ready; then
+# Held as its own array because three commands need it: the archive, through EXPORT_EXTRA, and the
+# two `-exportArchive` calls, which resolve provisioning separately and each carry their own
+# `-allowProvisioningUpdates`. Giving it only to the archive is how an iOS build reached
+# "** ARCHIVE SUCCEEDED **" and then "exportArchive No Accounts".
+ASC_AUTH_ARGS=()
+if asc_ids_ready; then
   if ASC_KEY_FILE="$(asc_key_file)"; then
     echo "==> Provisioning updates authenticate with App Store Connect key $ASC_API_KEY_ID"
-    EXPORT_EXTRA+=(-authenticationKeyPath "$ASC_KEY_FILE"
+    ASC_AUTH_ARGS=(-authenticationKeyPath "$ASC_KEY_FILE"
                    -authenticationKeyID "$ASC_API_KEY_ID"
                    -authenticationKeyIssuerID "$ASC_API_ISSUER_ID")
   else
     echo "==> No AuthKey_$ASC_API_KEY_ID.p8 found; provisioning updates need a signed-in Xcode" >&2
   fi
+fi
+if [[ ${#EXPORT_EXTRA[@]} -gt 0 && ${#ASC_AUTH_ARGS[@]} -gt 0 ]]; then
+  EXPORT_EXTRA+=("${ASC_AUTH_ARGS[@]}")
 fi
 
 echo "==> Archiving ($SCHEME, Release, arm64, $DESTINATION)"
@@ -526,7 +534,8 @@ if [[ "$FLOW" == ios-device ]]; then
     -archivePath "$ARCHIVE" \
     -exportOptionsPlist "$EXPORT_PLIST" \
     -exportPath "$EXPORT" \
-    -allowProvisioningUpdates
+    -allowProvisioningUpdates \
+    ${ASC_AUTH_ARGS[@]+"${ASC_AUTH_ARGS[@]}"}
 
   IPA="$(/usr/bin/find "$EXPORT" -maxdepth 1 -name '*.ipa' | head -1)"
   [[ -n "$IPA" && -f "$IPA" ]] || fail "export produced no .ipa, check the log above."
@@ -613,7 +622,8 @@ if [[ "$FLOW" == ios-app-store ]]; then
     -archivePath "$ARCHIVE" \
     -exportOptionsPlist "$EXPORT_PLIST" \
     -exportPath "$EXPORT" \
-    -allowProvisioningUpdates
+    -allowProvisioningUpdates \
+    ${ASC_AUTH_ARGS[@]+"${ASC_AUTH_ARGS[@]}"}
 
   IPA="$(/usr/bin/find "$EXPORT" -maxdepth 1 -name '*.ipa' | head -1)"
   [[ -n "$IPA" && -f "$IPA" ]] || fail "export produced no .ipa, check the log above."
