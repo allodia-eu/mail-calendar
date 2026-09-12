@@ -13,6 +13,7 @@ use mailcal_viewmodel::{QuoteStyleKind, SwipeActionKind, SwipeDirection, ViewMod
 use super::Surface;
 use super::{BulkAction, ComposerBlob, SearchScope};
 use crate::{
+    ReaderId,
     invitations_rsvp::InvitationResponse,
     reference::{EventRef, FolderRef, MessageRef, RowRef, ThreadRef},
 };
@@ -60,11 +61,17 @@ pub enum Intent {
     /// the FFI. Any navigation that changes the list (select account/folder, search, switch
     /// view mode) resets the window to the first page.
     ShowMore,
-    /// Open a message (by key) for reading: fetch + cache its raw source, extract and
-    /// sanitise the body, and publish the [`Surface::Reading`] snapshot.
+    /// Open a message for reading: fetch + cache its raw source, extract and sanitise the body,
+    /// and publish it to `reader`'s slot as the [`Surface::Reading`] snapshot.
+    ///
+    /// The reader is named because a desktop has more than one: the pane, and every detached
+    /// reading window beside it (`docs/reading-window.md`), each holding a different message.
+    /// Nothing else about the open differs between them.
     OpenMessage {
-        /// The message to open; its account and provider key bound together, so a key
-        /// two accounts share resolves within the right one.
+        /// Which viewer the body is for.
+        reader: ReaderId,
+        /// The message to open; account and provider key bound together, so a key two
+        /// accounts share resolves within the right one.
         message: MessageRef,
     },
     /// Send a plain-text message through the durable outbox, then refresh.

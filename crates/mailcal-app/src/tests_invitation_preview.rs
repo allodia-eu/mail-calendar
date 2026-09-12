@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use fakes::{EVENT_KEY, InvitationFake, MESSAGE_KEY, invitation_app};
 use mailcal_viewmodel::ResponseStatus;
 
-use super::{Intent, MessageRef};
+use super::{Intent, MessageRef, ReaderId};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -33,8 +33,11 @@ async fn card(provider: InvitationFake) -> mailcal_viewmodel::InvitationCard {
     let app = invitation_app(provider, &surfaces);
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::RefreshCalendar).await;
-    app.dispatch(Intent::OpenMessage { message: invite() })
-        .await;
+    app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
+        message: invite(),
+    })
+    .await;
     app.reading_view()
         .invitation
         .expect("the message carries an invitation")
@@ -101,8 +104,11 @@ async fn an_unread_calendar_draws_nothing_at_all() {
     let app = invitation_app(InvitationFake::new().without_the_meeting(), &surfaces);
     app.dispatch(Intent::RefreshMail).await;
     // No RefreshCalendar: mail syncs first, so this is what a cold start actually looks like.
-    app.dispatch(Intent::OpenMessage { message: invite() })
-        .await;
+    app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
+        message: invite(),
+    })
+    .await;
 
     let card = app
         .reading_view()

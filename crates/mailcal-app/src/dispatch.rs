@@ -81,7 +81,7 @@ impl<P: Provider> App<P> {
                 self.grow_window();
                 self.rebuild_snapshot().await;
             }
-            Intent::OpenMessage { message } => self.open_message(message).await,
+            Intent::OpenMessage { reader, message } => self.open_message_in(reader, message).await,
             Intent::SubmitMail { to, subject, body } => self.submit_mail(to, subject, body).await,
             Intent::SubmitRichMail {
                 from,

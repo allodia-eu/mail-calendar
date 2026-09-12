@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use engine_api::AccountId;
-use mailcal_app::Intent as AppIntent;
+use mailcal_app::{Intent as AppIntent, ReaderId as AppReaderId};
 
 use crate::{
     AccountProvider, CalendarSnapshot, CalendarWriteStatus, ConnectionInfo, ConnectivitySnapshot,
@@ -113,6 +113,28 @@ impl MailcalApp {
     /// off and remote loads blocked, falling back to `plain` when `html` is `None`.
     pub fn reading_view(&self) -> ReadingSnapshot {
         self.app.reading_view().into()
+    }
+
+    /// One detached reading window's snapshot, on the same terms as
+    /// [`MailcalApp::reading_view`] (`docs/reading-window.md`).
+    ///
+    /// A `Surface::Reading` signal says that *some* reader's body changed, not which, so every
+    /// open window re-pulls its own. A window whose open has not landed yet, and one that has
+    /// been closed, both read as the empty snapshot: never as another window's message.
+    pub fn reading_window_view(&self, window: String) -> ReadingSnapshot {
+        self.app
+            .reading_view_in(&AppReaderId::Window(window))
+            .into()
+    }
+
+    /// Forgets a closed reading window's body.
+    ///
+    /// Not an `Intent`: it moves nothing, marks nothing, syncs nothing and signals nothing, so
+    /// the dispatch → snapshot loop has no part in it, the same reasoning that keeps
+    /// [`MailcalApp::save_attachment`] out of it. Call it as the window goes: a body is the
+    /// largest thing the core holds per viewer, and the pane's own slot cannot be named here.
+    pub fn close_reading_window(&self, window: String) {
+        self.app.close_reader(&AppReaderId::Window(window));
     }
 
     /// The current background mail-download progress (pulled after a

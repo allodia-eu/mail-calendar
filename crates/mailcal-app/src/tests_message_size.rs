@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, atomic::Ordering};
 
 use fakes::{FakeProvider, account, app, message, msg};
 
-use super::Intent;
+use super::{Intent, ReaderId};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -107,6 +107,7 @@ async fn lowering_the_cap_keeps_the_mail_readable() {
     );
     offline.store(true, Ordering::SeqCst);
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "huge"),
     })
     .await;
@@ -131,6 +132,7 @@ async fn raising_the_cap_fetches_what_the_lower_one_skipped() {
     // Skipped by the warm; with the provider down it cannot be read.
     offline.store(true, Ordering::SeqCst);
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "huge"),
     })
     .await;
@@ -143,6 +145,7 @@ async fn raising_the_cap_fetches_what_the_lower_one_skipped() {
     app.update_account_message_size_limit("acct-1", 0).await;
     offline.store(true, Ordering::SeqCst);
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "huge"),
     })
     .await;

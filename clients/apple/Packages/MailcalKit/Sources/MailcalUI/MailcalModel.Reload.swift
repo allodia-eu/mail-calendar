@@ -106,8 +106,13 @@ extension MailboxModel {
         selected = snapshot?.selected
         searchHorizon = snapshot?.searchHorizon
         // The reading body (a potentially large HTML string) only changes on a Reading
-        // signal, pull it just then, not on every mailbox refresh.
-        if case .reading = surface { reading = app?.readingView() }
+        // signal, pull it just then, not on every mailbox refresh. The signal names no reader,
+        // so every open detached window re-reads its own slot alongside the pane
+        // (`docs/reading-window.md`).
+        if case .reading = surface {
+            reading = app?.readingView()
+            reloadReadingWindows()
+        }
         // Counts only in the log; content renders on screen, not in stdout.
         print("[Mailcal] rendered \(rows.count) rows (\(mode))")
     }

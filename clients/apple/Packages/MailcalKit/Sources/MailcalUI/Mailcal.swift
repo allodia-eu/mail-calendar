@@ -10,11 +10,22 @@ import MailcalBindings
 import SwiftUI
 
 public struct ContentView: View {
-    @State var model = MailboxModel()
+    /// The app's one model, and through it its one core. Handed in rather than owned here: every
+    /// window this app opens is a view of the same running app, never a second instance of it
+    /// (`AppSession`, `docs/reading-window.md`).
+    ///
+    /// `@Bindable` rather than a plain property because two of the sheets below bind straight
+    /// into it; observation is unaffected, the wrapper only adds the projected value a
+    /// `@State`-owned model used to provide.
+    @Bindable var model: MailboxModel
     /// The swipe currently inside its undo window, and the rows it hides. Lives on the shell (not
     /// the list) so pushing the reading view on iPhone doesn't cancel the window.
     @State var swipeUndo = SwipeUndoController()
     @Environment(\.scenePhase) var scenePhase
+    #if os(macOS)
+    /// Opens a message in a window of its own (Mailcal.ReadingWindows.swift).
+    @Environment(\.openWindow) var openWindow
+    #endif
     /// What the window is actually painted in right now, the app's own choice when it has one,
     /// the host's setting when it does not. Read rather than derived, because it is the only value
     /// that already accounts for both. iOS/iPadOS hands it to the Settings cover; see there.
@@ -82,7 +93,9 @@ public struct ContentView: View {
     @State var didShowcaseDrive = false // one-shot guards for the MAILCAL_SHOWCASE_SCREEN driver
     @State var didShowcaseReply = false
 
-    public init() {}
+    public init(session: AppSession) {
+        self.model = session.model
+    }
 
     public var body: some View {
         Group {
@@ -430,60 +443,6 @@ public struct ContentView: View {
         guard model.addAccountWhenSettingsCloses else { return }
         model.addAccountWhenSettingsCloses = false
         model.addingAccount = true
-    }
-
-    /// The add-another-account form, out of the modifier chain above.
-    ///
-    /// Not a style choice: SwiftUI's type checker budgets per expression, and a chain of a dozen
-    /// modifiers carrying a call this size exhausts it, reporting the failure against whichever
-    /// unrelated line it gave up on.
-    @ViewBuilder
-    private var addAccountSheet: some View {
-        AccountSetupDetectView(
-            error: model.setupError,
-            cancel: {
-                model.addingAccount = false
-                model.setupError = nil
-                model.setupStartEmail = ""
-                model.setupStartOffer = nil
-            },
-            signInMicrosoft: { hint in model.signInWithMicrosoft(loginHint: hint) },
-            signInGoogle: { hint in model.signInWithGoogle(loginHint: hint) },
-            signingIn: model.microsoftSigningIn,
-            googleSigningIn: model.googleSigningIn,
-            connecting: model.isConnecting,
-            submit: { imapHost, username, password, smtpHost, caldavURL, imapSecurity, smtpSecurity in
-                model.submitSetup(
-                    imapHost: imapHost,
-                    username: username,
-                    password: password,
-                    smtpHost: smtpHost,
-                    caldavBaseUrl: caldavURL,
-                    imapSecurity: imapSecurity,
-                    smtpSecurity: smtpSecurity
-                )
-            },
-            submitJmap: { email, serverURL, password in
-                model.submitJmapSetup(
-                    email: email,
-                    serverURL: serverURL,
-                    password: password
-                )
-            },
-            jmapOAuthAvailable: { email, serverURL in
-                await model.jmapOAuthAvailable(email: email, serverURL: serverURL)
-            },
-            signInJmap: { email, serverURL in
-                await model.signInWithJmap(email: email, serverURL: serverURL)
-            },
-            detect: { email in await model.detectSetup(email: email) },
-            startEmail: model.setupStartEmail,
-            startOffer: model.setupStartOffer,
-            // Not the first account, so no card, but the accounts still to set up are not a
-            // pitch, and are offered here too (`docs/onboarding.md`).
-            onboarding: model,
-            firstRun: false
-        )
     }
 
 }

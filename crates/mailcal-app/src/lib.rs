@@ -21,7 +21,7 @@ use std::{
     },
 };
 
-use engine_api::{AccountId, Engine, MailListRow};
+use engine_api::Engine;
 use mailcal_viewmodel::{
     CalendarSnapshot, ContactsSnapshot, MailboxListSnapshot, ReadingSnapshot, ViewMode,
 };
@@ -90,9 +90,12 @@ mod prefetch;
 mod protocol;
 mod query;
 mod quote_settings;
+mod reader;
 mod reading;
+mod reading_trace;
 mod recipients;
 mod reference;
+mod row_cache;
 mod scope;
 mod send_settings;
 mod sender_identity;
@@ -141,13 +144,15 @@ pub use protocol::{
 };
 pub use query::{MessageDetail, MessagePage};
 use quote_settings::QuoteSettingsState;
+pub use reader::ReaderId;
 pub use recipients::RecipientMatch;
 pub use reference::{EventRef, FolderRef, MessageRef, RowRef, ThreadRef};
+use row_cache::CachedRows;
 use scope::Scope;
 use send_settings::SendSettingsState;
 pub use signatures::SignatureBody;
 use signatures::SignatureState;
-use surfaced::Surfaced;
+use surfaced::{Surfaced, SurfacedMap};
 use swipe_settings::SwipeSettingsState;
 use sync_progress::SyncProgressState;
 use sync_settings::SyncSettingsState;
@@ -163,40 +168,6 @@ use tuning::{
 pub use unfiled_copy::UnfiledCopy;
 use view_settings::load_view_mode;
 pub use zones::available_time_zones;
-
-/// One cached mailbox-list load: the accounts it spans, the window depth it was read at, and the
-/// shared, individually-`Arc`'d rows (see [`App::row_cache`]).
-struct CachedRows {
-    accounts: Vec<AccountId>,
-    window: usize,
-    rows: Arc<Vec<Arc<MailListRow>>>,
-}
-
-impl CachedRows {
-    /// Whether this load answers a read of `accounts` at `window`.
-    ///
-    /// The accounts must match exactly: a load of one account is not the unified list, and the
-    /// unified list is not one account's; while a **deeper or equal** window is a superset the
-    /// view simply truncates.
-    fn serves(&self, accounts: &[AccountId], window: usize) -> bool {
-        self.window >= window && self.accounts == accounts
-    }
-
-    /// Whether the shown list draws from `account` at all: a commit for one it does not span
-    /// changes nothing on screen.
-    fn spans(&self, account: &AccountId) -> bool {
-        self.accounts.contains(account)
-    }
-
-    /// An empty load for `accounts` at `window`; what a first sync splices its rows into.
-    fn empty(accounts: Vec<AccountId>, window: usize) -> Self {
-        Self {
-            accounts,
-            window,
-            rows: Arc::new(Vec::new()),
-        }
-    }
-}
 
 /// The app runtime: owns one [`Engine`] shared across every configured
 /// [`Account`], holds the surface + selection state, and notifies an [`AppObserver`]
@@ -242,7 +213,10 @@ pub struct App<P> {
     /// it after, discarding a result a newer query has already superseded; intents are
     /// spawned, so two keystrokes race and the loser must not win by finishing last.
     contacts_generation: AtomicU64,
-    reading: Surfaced<ReadingSnapshot>,
+    /// The open message body, one per reader: the pane, plus any detached reading window
+    /// (`crate::ReaderId`, `docs/reading-window.md`). Every reader is filled by the same open,
+    /// so a window inherits the mark-read, the retry and the pending threshold.
+    reading: SurfacedMap<ReaderId, ReadingSnapshot>,
     /// The unanswered "shall we email the organiser ourselves?" question, if a calendar server
     /// has just failed to deliver a reply. Session state, never persisted; one surviving a
     /// restart would ask about a meeting answered last week (see [`invitations_fallback`]).
@@ -474,6 +448,8 @@ mod tests_message_size;
 mod tests_query;
 #[cfg(test)]
 mod tests_reading;
+#[cfg(test)]
+mod tests_reading_windows;
 #[cfg(test)]
 mod tests_report;
 #[cfg(test)]
