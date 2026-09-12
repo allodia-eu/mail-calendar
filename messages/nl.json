@@ -30,9 +30,6 @@
 	"search_horizon_months": "Zoeken in de laatste {count} maanden",
 	"search_horizon_all": "Zoeken in alle berichten",
 	"search_horizon_change": "Wijzigen",
-	"view_label": "Weergave",
-	"view_flat": "Plat",
-	"view_threaded": "Threads",
 	"mail_no_subject": "(geen onderwerp)",
 
 	"mailbox_count_messages": "{count} berichten",

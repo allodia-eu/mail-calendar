@@ -30,9 +30,6 @@
 	"search_horizon_months": "Suche in den letzten {count} Monaten",
 	"search_horizon_all": "Suche in allen E-Mails",
 	"search_horizon_change": "Ändern",
-	"view_label": "Ansicht",
-	"view_flat": "Einzeln",
-	"view_threaded": "Unterhaltungen",
 	"mail_no_subject": "(kein Betreff)",
 
 	"mailbox_count_messages": "{count} Nachrichten",

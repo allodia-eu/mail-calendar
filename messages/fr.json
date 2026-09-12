@@ -30,9 +30,6 @@
 	"search_horizon_months": "Recherche dans les {count} derniers mois",
 	"search_horizon_all": "Recherche dans tous les messages",
 	"search_horizon_change": "Modifier",
-	"view_label": "Affichage",
-	"view_flat": "Messages isolés",
-	"view_threaded": "Conversations",
 	"mail_no_subject": "(sans objet)",
 
 	"mailbox_count_messages": "{count} messages",

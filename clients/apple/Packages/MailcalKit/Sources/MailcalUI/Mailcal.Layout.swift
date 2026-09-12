@@ -110,81 +110,73 @@ extension ContentView {
     #endif
 
     #if os(iOS)
-    /// The iPhone message list: native chrome, a `.searchable` bar, a `.plain` list that pulls
-    /// down to sync, and the view-mode/reset controls in the toolbar menu (the desktop
-    /// `messageList`'s fixed-width header/footer don't fit a phone).
+    /// The touch message list: native chrome, a `.searchable` bar, a `.plain` list that pulls down
+    /// to sync, and the horizon and sync strips as insets around the rows.
+    ///
+    /// **The list is this view, not a row inside a stack.** The navigation bar's title and search
+    /// field size themselves against the scroll view the navigation stack's content *is*, and
+    /// wrapped in a `VStack` it was not that: the field became pinned chrome that hid itself the
+    /// moment the refresh control moved the offset, so a pull dropped the field and threw the rows
+    /// up by its height. The two strips are safe-area insets for the same reason: they draw where
+    /// stack rows drew them without standing between the list and the bar.
     var compactMessageList: some View {
-        VStack(spacing: 0) {
-            SearchHorizonStrip(horizon: model.searchHorizon) { settingsCategory = .accounts }
-            // The count and the batched actions, over the rows they describe. Nothing selected
-            // draws nothing, so the list keeps its full height the rest of the time.
-            selectionBar
-            selectionBehaviour(
-                List {
-                    let rows = visibleRows
-                    ForEach(rows, id: \.rowID) { row in
-                        rowView(row)
-                            .listRowBackground(rowHighlight(row))
-                            .onAppear {
-                                if row.rowID == rows.last?.rowID {
-                                    Task { @MainActor in model.showMore() }
-                                }
+        selectionBehaviour(
+            List {
+                let rows = visibleRows
+                ForEach(rows, id: \.rowID) { row in
+                    rowView(row)
+                        .listRowBackground(rowHighlight(row))
+                        .onAppear {
+                            if row.rowID == rows.last?.rowID {
+                                Task { @MainActor in model.showMore() }
                             }
-                    }
+                        }
                 }
-                .listStyle(.plain)
-                // Sync, on a platform with no room for a button that says so.
-                .refreshable { await pullToSync() }
-                .searchable(text: $searchText, prompt: Text(L10n.search_placeholder()))
-                .onChange(of: searchText) { _, query in model.search(query) }
-            )
-            // Below the list, and outside it. As the list's first *row* it pushed every message
-            // down when a background sync began and back up when it ended; as a strip under the
-            // list it neither moves the rows nor scrolls away with them.
-            //
-            // The phone has no footer to put the background hint in, so it shares this strip:
-            // the same edge, without the bar. Both can be true at once (an awaited download while
-            // a poll tick catches another account up); the bar is the one the user is waiting on,
-            // so it wins the strip.
-            if let progress = model.syncProgress, progress.active {
-                Divider()
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text(syncProgressText(progress)).font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            } else if let hint = syncHintText(model.syncProgress) {
-                Divider()
-                HStack {
-                    Text(hint).font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
             }
-        }
+            .listStyle(.plain)
+            // Sync, on a platform with no room for a button that says so.
+            .refreshable { await pullToSync() }
+            .searchable(text: $searchText, prompt: Text(L10n.search_placeholder()))
+            .onChange(of: searchText) { _, query in model.search(query) }
+            // Under the search field, over the rows: how far back a search looked, then the count
+            // and the batched actions for the rows they describe. Neither is up most of the time,
+            // and an inset of nothing is no inset, so the list keeps its full height.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    SearchHorizonStrip(horizon: model.searchHorizon) { settingsCategory = .accounts }
+                    selectionBar
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) { VStack(spacing: 0) { syncStrip } }
+        )
     }
 
-    /// View-mode / reset, the message-list actions, shared by the iPhone and iPad toolbars.
+    /// What the list says about mail arriving, below the rows and outside the pull-to-refresh box
+    /// (`docs/sync-progress.md`). As the list's first *row* it pushed every message down when a
+    /// background sync began and back up when it ended.
     ///
-    /// **No Sync item**: on a touch platform syncing is the pull-to-refresh gesture on the list
-    /// itself (`pullToSync`), and a menu item beside it would be a second route to the same pass
-    /// on the surface with the least room for one.
-    var messageListMenu: some View {
-        Menu {
-            Picker(
-                L10n.view_label(),
-                selection: Binding(get: { model.mode }, set: { setViewMode($0) })
-            ) {
-                Text(L10n.view_flat()).tag(ViewMode.flat)
-                Text(L10n.view_threaded()).tag(ViewMode.threaded)
+    /// The phone has no footer to put the background hint in, so it shares this strip: the same
+    /// edge, without the bar. Both can be true at once (an awaited download while a poll tick
+    /// catches another account up); the bar is the one the user is waiting on, so it wins.
+    @ViewBuilder private var syncStrip: some View {
+        if let progress = model.syncProgress, progress.active {
+            Divider()
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(syncProgressText(progress)).font(.caption).foregroundStyle(.secondary)
+                Spacer()
             }
-            Button(role: .destructive) { confirmingReset = true } label: {
-                Label(L10n.action_reset_database(), systemImage: "trash")
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        } else if let hint = syncHintText(model.syncProgress) {
+            Divider()
+            HStack {
+                Text(hint).font(.caption).foregroundStyle(.secondary)
+                Spacer()
             }
-        } label: { Image(systemName: "ellipsis.circle") }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
     }
 
     /// Pull down to sync: the gesture that carries a touch platform's whole sync affordance.

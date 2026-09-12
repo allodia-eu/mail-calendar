@@ -59,14 +59,16 @@ extension ContentView {
         NavigationStack {
             compactMessageList
                 .navigationTitle(currentFolderName)
-                .navigationBarTitleDisplayMode(.inline)
+                // The folder name as a large title, which is what puts it and the search field
+                // under it inside the scroll view: a pull then carries the whole header down and
+                // opens the spinner above it, rather than hiding the field and jolting the rows.
+                .navigationBarTitleDisplayMode(.large)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) { sidebarToggle }
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         // A phone has no modifier keys, so picking several messages is a mode:
                         // Select enters it, Done leaves it (`docs/list-selection.md`).
                         selectToggleButton
-                        messageListMenu
                         Button { compose = .new } label: { Image(systemName: "square.and.pencil") }
                             .accessibilityLabel(L10n.action_compose())
                     }

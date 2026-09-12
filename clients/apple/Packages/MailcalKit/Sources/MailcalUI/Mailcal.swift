@@ -19,7 +19,6 @@ public struct ContentView: View {
     /// the host's setting when it does not. Read rather than derived, because it is the only value
     /// that already accounts for both. iOS/iPadOS hands it to the Settings cover; see there.
     @Environment(\.colorScheme) var windowScheme
-    @State var confirmingReset = false
     @State var compose: ComposeContext?
     /// The open draft's dirtiness, as reported by the hosted composer. macOS renders the composer in
     /// the detail column, so a click on another message can reach it, and must ask before dropping
@@ -264,18 +263,6 @@ public struct ContentView: View {
         .overlay(alignment: .top) { sendStatusBanner }
         .overlay(alignment: .bottom) { swipeUndoToast }
         .task(id: swipeUndo.pending?.id) { await runUndoWindow() }
-        // An `alert`, not a `confirmationDialog`: iPadOS presents the latter as a popover, and a
-        // popover DROPS the `.cancel`-role button, so this read as one destructive button with no
-        // way out. See the remove-account alert in Mailcal.swift for the full note.
-        .alert(
-            L10n.reset_title(),
-            isPresented: $confirmingReset
-        ) {
-            Button(L10n.reset_confirm(), role: .destructive) { model.reset() }
-            Button(L10n.action_cancel(), role: .cancel) {}
-        } message: {
-            Text(L10n.reset_message())
-        }
         // An `alert`, NOT a `confirmationDialog`: on iPad SwiftUI presents a confirmation dialog as
         // a popover, and a popover DROPS the `.cancel`-role button, the reasoning being that
         // tapping outside dismisses it. So this read as a single "Remove" button with no way out,

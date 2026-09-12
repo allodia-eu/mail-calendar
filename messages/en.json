@@ -30,9 +30,6 @@
 	"search_horizon_months": "Searching the last {count} months",
 	"search_horizon_all": "Searching all mail",
 	"search_horizon_change": "Change",
-	"view_label": "View",
-	"view_flat": "Flat",
-	"view_threaded": "Threaded",
 	"mail_no_subject": "(no subject)",
 
 	"mailbox_count_messages": "{count} messages",
