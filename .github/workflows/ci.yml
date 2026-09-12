@@ -569,19 +569,23 @@ jobs:
       # in-memory showcase dataset, so this needs no Docker harness, no account and no network,
       # which is the same trade the Windows UI job makes with `-Dataset showcase,first-run`.
       #
-      # **Two classes of four, and that is a budget rather than a judgement about the other two.**
-      # A UI test costs what no other gate here costs: a simulator to boot (~37s before a single
-      # assertion runs, measured on an 8-core M2 from a shut-down simulator) and then the app's own
-      # launch per test. The two that run are the two that hold something written down: the action
-      # row's order (docs/reading-actions.md) and the calendar pinch (docs/calendar.md), which is
-      # also the regression test for a gesture that reached the iOS grid not at all. The two that
-      # do not, `NavigationBarTests` and `ComposerPresentationTests`, run from
-      # `clients/apple/Scripts/test-ui.sh` on a developer's machine, and the second of them is the
-      # slowest test in the bundle by some way. Add a `--only` below to move one back.
+      # **Every class, because this is the only gate a contributor without a Mac can reach.** The
+      # suite is where four things are held that nothing below the UI observes: the reading action
+      # row's order (docs/reading-actions.md), the calendar pinch (docs/calendar.md), the mailbox
+      # bar's items being reachable by name, and a composer that opens twice. Running a subset of it
+      # here would leave the rest resting on whoever happens to own an iPhone.
+      #
+      # It is the most expensive step in this job by some way: a simulator boots before a single
+      # assertion runs, and then the app launches once per test. Two of these classes measured 7m12s
+      # on a standard macOS runner against 60s on an 8-core M2, so it is the runner's three cores
+      # rather than the work that sets the figure, and a slow reading here is not a symptom.
+      #
+      # ⚠️ **Narrowing this with `--only` is riskier than it looks.** The app restores the surface it
+      # was last on, so a class that does not put itself on the surface it needs is carried by
+      # whichever class ran before it. Every class here does put itself there, and running the whole
+      # bundle is what keeps that true; under a subset, nothing is checking it.
       - name: Test the iOS UI (showcase dataset)
-        run: |
-          clients/apple/Scripts/test-ui.sh --no-core \
-            --only ReadingActionRowTests --only CalendarPinchTests
+        run: clients/apple/Scripts/test-ui.sh --no-core
 
       - name: Build + run the headless FFI verifier (demo mode)
         working-directory: clients/apple

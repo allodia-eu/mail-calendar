@@ -257,8 +257,11 @@ carries the reasoning; two consequences are worth knowing before they surprise y
 Anything else your machine needs goes in [`AGENTS.local.md`](AGENTS.local.md), untracked.
 
 **Run `cargo xtask gate` before the first push of a branch**: `--clients` adds every client this
-host can actually build. CI costs real money and real minutes (macOS runners bill at **10×**), so a
-PR is where you *confirm* a green build, not where you discover one.
+host can actually build. A PR is where you *confirm* a green build, not where you discover one. That
+is no longer about money: this repository is public, so its runs are on standard runners, which are
+not metered, and the **10×** macOS multiplier applies to billed minutes rather than to these. It is
+about minutes that are still real, a reviewer's included: the longest job here is over twelve
+minutes, and a push that discovers a failure spends that twice.
 
 **The gate and every contract check it runs are one binary**, [`xtask/`](xtask), reached through the
 `cargo xtask` alias in [`.cargo/config.toml`](.cargo/config.toml). `cargo xtask --list` names them,
@@ -381,8 +384,8 @@ were broken right now, would this tell me?*
   (`clients/apple/UITests`), on a simulator or with `--device` on a connected iPhone. It is the only
   Apple gate that can drive a **gesture**, or read the iOS **navigation bar** at all, which `idb`
   reports as one unlabelled group. It needs a simulator, so the workspace gate leaves it out and CI
-  runs two of its four classes; run it before pushing anything that changes what an Apple screen
-  presents.
+  runs the whole of it, which makes CI the only place a contributor without a Mac reaches it at all;
+  run it before pushing anything that changes what an Apple screen presents.
 - **A `#![cfg(unix)]` test file reports `running 0 tests ... ok` on Windows**, which reads exactly
   like a pass. Any `cfg(windows)` / `cfg(unix)` branch needs a test *per branch*, and a
   cross-platform test count is not coverage: read the per-file `running N tests` lines.

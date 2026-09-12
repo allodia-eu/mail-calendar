@@ -33,6 +33,7 @@ source "$ROOT/scripts/dev/lib.sh"
 
 PROJECT="$HERE/AllodiaMail.xcodeproj"
 DERIVED_DATA="${DERIVED_DATA:-$HERE/build/DerivedData}"
+ARTIFACTS="$HERE/Packages/MailcalKit/artifacts"
 TARGET=AllodiaMailUITests
 BUILD_CORE=1
 ON_DEVICE=0
@@ -73,19 +74,33 @@ if [[ "$ON_DEVICE" -eq 1 ]]; then
   info "device: $UDID ($(device_name "$UDID")), team $TEAM"
   # The device slice of the core, which build-core.sh skips only when asked to.
   CORE_ARGS=()
+  # ⚠️ `--no-core` cannot mean "skip it" here when the slice a device needs is not there. A
+  # simulator-only core (`build-core.sh --no-device`, which is what CI and the gate build) leaves
+  # the xcframework without `ios-arm64`, and the failure is four copies of "no library for this
+  # platform was found", named against MailcalUI and the app rather than against the missing slice.
+  # scripts/dev/device.sh builds it in the same case for the same reason.
+  if [[ ! -d "$ARTIFACTS/Mailcal.xcframework/ios-arm64" ]]; then
+    [[ "$BUILD_CORE" -eq 1 ]] || info "the core has no device slice, building it despite --no-core"
+    BUILD_CORE=1
+  fi
 else
   if [[ -n "$SIMULATOR" ]]; then
     UDID="$(sim_udid_by_name "$SIMULATOR")" || die "no available simulator named '$SIMULATOR'"
   else
-    UDID="$(booted_sim_udid iphone)" || {
-      # A UI test needs a booted simulator, and booting one is not something to make the caller do
-      # by hand for a gate that is otherwise self-contained.
-      UDID="$(first_iphone_sim)" || die "no iPhone simulator available; pass --simulator <name>"
-      info "booting simulator $UDID"
-      xcrun simctl boot "$UDID"
-    }
+    UDID="$(booted_sim_udid iphone)" ||
+      UDID="$(first_iphone_sim)" ||
+      die "no iPhone simulator available; pass --simulator <name>"
   fi
+  # Boot it if it is not booted, and wait either way until it says it has finished.
+  #
+  # ⚠️ `simctl boot` returns as soon as the boot has STARTED, and a freshly booted (or freshly
+  # erased) device accepts an install several seconds before the services behind one are up. The
+  # install then fails with `Couldn't communicate with a helper application` naming
+  # `com.apple.installcoordinationd`, and XCUITest reports it against the first test in the bundle,
+  # so it reads as that test failing rather than as the device not being ready. `bootstatus` is the
+  # wait, and it is a no-op on a device that has already settled.
   info "simulator: $UDID"
+  xcrun simctl bootstatus "$UDID" -b >/dev/null
   TEAM=""
   CORE_ARGS=(--no-device)
 fi
