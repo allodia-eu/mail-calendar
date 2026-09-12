@@ -18,6 +18,11 @@
 #   scripts/dev/device.sh bgsync              # one background pass; reports the mark before/after
 #   scripts/dev/device.sh all                 # build + install + run
 #
+# Driving the UI on the same device is a different job and a different door:
+# clients/apple/Scripts/test-ui.sh --device runs the XCUITest suite, which relaunches the app
+# itself. It reads the same Developer Mode precondition these verbs do; the device it was written
+# against also had Settings -> Developer -> Enable UI Automation on.
+#
 # Env: MAILCAL_DEVICE (udid), DEVELOPMENT_TEAM (team id), BGSYNC_WAIT (seconds, default 22).
 # Note: the local Stalwart harness is loopback-only and NOT reachable from a physical device, so
 # device testing uses a real stored account (add it in the app). Send it real mail for `bgsync` to

@@ -2,8 +2,10 @@
 // has been dismissed must stay dismissed.
 //
 // Written as a free function over `Binding` rather than inline at the call site so `swift test`
-// can drive it. There is no Apple UI-test target, so a bug in the presentation lifecycle is
-// otherwise only ever found by hand, which is how this one was.
+// can drive it: what that pins is the binding's own rule, with no sheet in the picture. The
+// presentation itself is driven by `ComposerPresentationTests` in the UI suite
+// (`clients/apple/UITests`), which opens the composer, dismisses it and opens it again, because a
+// binding that is never cleared and one that is look identical until the control is used twice.
 
 import SwiftUI
 

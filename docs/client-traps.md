@@ -88,8 +88,11 @@ that same file.
   repaints once and then ignores the host for as long as the modal stays open. ContentView's
   `windowScheme` is the value to hand over: it already carries both cases. macOS needs none of
   this; a sheet shares the presenter's window and follows it live. Neither half is visible to
-  `swift test` (there is no Apple UI-test target): prove it on a simulator whose own appearance is
-  the *opposite* of the one under test, driving the picker with `idb` and flipping the host with
+  `swift test`, nor to anything the UI suite asserts on today: XCUITest matches on the accessibility
+  hierarchy, which carries no colour, so a modal on the wrong scheme satisfies every query in
+  [`../clients/apple/UITests`](../clients/apple/UITests). Reaching it there would mean comparing
+  pixels in a screenshot, and nothing does. Prove it on a simulator whose own appearance is the
+  *opposite* of the one under test, driving the picker with `idb` and flipping the host with
   `xcrun simctl ui <udid> appearance light|dark`.
 - **On Linux, hand a URI or a file to the desktop through the portal launchers, never through
   `AppInfo`.** `gtk::UriLauncher` for a URI, `gtk::FileLauncher` for a file

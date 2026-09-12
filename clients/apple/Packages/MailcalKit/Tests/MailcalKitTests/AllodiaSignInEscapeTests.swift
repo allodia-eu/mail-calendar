@@ -1,7 +1,9 @@
 // The way out of a sign-in that does not come back, on the one screen a person cannot skip
-// (docs/onboarding.md). There is no Apple UI-test target, so what is pinned here is the half that
-// is logic: the threshold the card waits before offering the way back, and the guarantee that an
-// escaped attempt never reaches the browser.
+// (docs/onboarding.md). What is pinned here is the half that is logic: the threshold the card waits
+// before offering the way back, and the guarantee that an escaped attempt never reaches the
+// browser. The other half, that the button is on screen when the state says so, stays hand-verified:
+// the UI suite (`clients/apple/UITests`) could reach it, but only by pressing a sign-in that opens
+// a browser at the real account service on every run.
 
 import Foundation
 import Testing
