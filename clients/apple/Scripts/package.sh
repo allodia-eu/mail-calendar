@@ -261,6 +261,7 @@ source "$CONFIG"
 : "${APPLE_DISTRIBUTION_IDENTITY:=}"
 : "${MAC_INSTALLER_IDENTITY:=}"
 : "${MAS_PROVISIONING_PROFILE:=}"
+: "${IOS_PROVISIONING_PROFILE:=}"
 : "${ASC_API_KEY_ID:=}"
 : "${ASC_API_ISSUER_ID:=}"
 
@@ -349,17 +350,113 @@ app-store)
   fi
   ;;
 ios-device | ios-app-store)
-  # iOS/iPadOS App Store uses AUTOMATIC signing, `xcodebuild -exportArchive` fetches/creates the
-  # Apple Distribution cert and the App Store provisioning profile at export time
-  # (-allowProvisioningUpdates), so there is no persistent cert to pre-check here beyond the team
-  # (asserted above). An Apple account must be signed into Xcode, and the team needs at least one
-  # registered device for the DEVELOPMENT-signed archive (same as Flow B; see clients/apple/README.md).
-  # xcodebuild surfaces both with its own clear errors, so we don't second-guess them here.
-  :
+  # The ARCHIVE is development-signed with automatic provisioning, which xcodebuild resolves from a
+  # signed-in Xcode account or from the App Store Connect key this script hands it; it surfaces both
+  # failures clearly, so they are not second-guessed here.
+  #
+  # The App Store EXPORT is manual, against an installed profile, so it needs the same distribution
+  # certificate name Flow B does. Checked here because the export is the last step of a long build.
+  if [[ "$FLOW" == ios-app-store ]]; then
+    case "$APPLE_DISTRIBUTION_IDENTITY" in
+      "" | *REPLACE*) fail "APPLE_DISTRIBUTION_IDENTITY is unset or still a placeholder in $CONFIG.
+       The iOS App Store export signs against an installed profile and needs the certificate name.
+       (Full steps: clients/apple/README.md.)" ;;
+    esac
+  fi
   ;;
 esac
 
 echo "==> Flow: $FLOW$([[ "$FLOW" == developer-id && "$NOTARIZE" -eq 0 ]] && echo ' (no notarization)')  ·  team: $DEVELOPMENT_TEAM"
+
+# Which installed provisioning profile signs this app, and with which of our certificates.
+# `resolve_profile <app-identifier> <cert-fingerprints> <explicit-path> <app-group-or-empty>`
+#                  `<platform>`
+# prints `path<tab>fingerprint<tab>uuid`, or nothing when none qualifies.
+#
+# One implementation for both Store flows. The predicate below is subtle enough that a second
+# copy would be the one nobody tested, and its comments record what each clause is load-bearing
+# for.
+resolve_profile() {
+  python3 - "$1" "$2" "$3" "$4" "$5" <<'PY'
+import glob, hashlib, os, plistlib, subprocess, sys
+appid, explicit, group, platform = sys.argv[1], sys.argv[3], sys.argv[4], sys.argv[5]
+candidates = {s.strip().upper() for s in sys.argv[2].split() if s.strip()}
+
+def decode(p):
+    try:
+        return plistlib.loads(subprocess.run(['security', 'cms', '-D', '-i', p],
+                                              capture_output=True).stdout)
+    except Exception:
+        return None
+
+# Which of our certs this profile authorises, if any. Returned so the caller signs with THAT one
+# rather than by name, the fingerprint is the only unique key when two certs share a name.
+def signing_cert(d):
+    listed = {hashlib.sha1(c).hexdigest().upper() for c in d.get('DeveloperCertificates', [])}
+    match = candidates & listed
+    return sorted(match)[0] if match else None
+
+# Every capability the signed app claims has to be in here, not just the app id and the cert.
+# Regenerating a profile mints a NEW file beside the old one, both match the app id, both list
+# the same cert, so a predicate that stops there is choosing between an outdated profile and a
+# current one on a coin toss it does not know it is flipping. (It was worse than a coin toss: the
+# scan was alphabetical, so `6186a9b6…` beat `a91000f9…` and the STALE profile won every time,
+# deterministically, no matter how many times you regenerated.)
+# The same entitlement under two names: macOS profiles carry
+# `com.apple.application-identifier`, iOS profiles carry a bare `application-identifier`. Reading
+# only one of them finds every profile on one platform and none on the other.
+def application_identifier(d):
+    ent = d.get('Entitlements', {})
+    return ent.get('com.apple.application-identifier') or ent.get('application-identifier')
+
+def authorizes(d):
+    if not d or application_identifier(d) != appid:
+        return False
+    # Both platforms' profiles carry the same application-identifier, so the app id alone chooses
+    # between a macOS profile and an iOS one by whichever the scan reached first. `Platform` is a
+    # list because one profile can serve several: an iOS profile reads ['iOS', 'xrOS', 'visionOS'].
+    if platform not in (d.get('Platform') or []):
+        return False
+    # A profile that lists devices is a development or ad-hoc one. Both callers here are Store
+    # flows, where such a profile is never the right answer and Xcode rejects it by name.
+    if d.get('ProvisionedDevices'):
+        return False
+    # Both Store flows sign manually, and `-exportArchive` refuses an Xcode-managed profile outright:
+    # "is Xcode managed, but signing settings require a manually managed profile". Xcode mints these
+    # for itself whenever it resolves signing, so a machine that has ever opened the project has
+    # several, and they sit beside the portal-created one matching everything it matches.
+    if d.get('IsXcodeManaged'):
+        return False
+    # The group is a macOS Store requirement: that app declares one and the profile has to grant it.
+    # An iOS App Store profile has no group to grant, so an empty argument means "do not ask", which
+    # is different from asking for '' and is why it is a separate branch rather than a default.
+    if group and group not in d.get('Entitlements', {}).get(
+            'com.apple.security.application-groups', []):
+        return False
+    return signing_cert(d) is not None
+
+if explicit:
+    ex = os.path.expanduser(explicit)
+    d = decode(ex)
+    if authorizes(d):
+        print(f"{ex}\t{signing_cert(d)}\t{d.get('UUID', '')}")
+    sys.exit(0)
+
+# Newest first among the qualifying ones: after a regeneration the freshest profile is the one
+# that reflects the App ID as it stands today, and the older ones are debris nobody prunes.
+found = []
+for base in ('~/Library/MobileDevice/Provisioning Profiles',
+             '~/Library/Developer/Xcode/UserData/Provisioning Profiles'):
+    for ext in ('*.provisionprofile', '*.mobileprovision'):
+        for p in glob.glob(os.path.join(os.path.expanduser(base), ext)):
+            d = decode(p)
+            if authorizes(d):
+                found.append((d.get('CreationDate'), p, signing_cert(d), d.get('UUID', '')))
+if found:
+    found.sort(key=lambda c: (c[0] is not None, c[0]), reverse=True)
+    print(f"{found[0][1]}\t{found[0][2]}\t{found[0][3]}")
+PY
+}
 
 # ---- Front half: release core + fresh project --------------------------------------------------
 if [[ "$BUILD_CORE" -eq 1 ]]; then
@@ -613,10 +710,45 @@ fi
 # Store) profile, and the full signature verifies deep. A rejection at delivery costs a build number
 # and a slow round-trip, so the gate must be able to fail here first.
 if [[ "$FLOW" == ios-app-store ]]; then
-  EXPORT_PLIST="$BUILD/ExportOptions.plist"
-  sed "s/__TEAM_ID__/$DEVELOPMENT_TEAM/g" "$HERE/Scripts/ExportOptions-AppStore-iOS.plist" >"$EXPORT_PLIST"
+  # Manual signing, against an installed profile, for the reason the template records: automatic
+  # signing asks App Store Connect to manage the distribution assets and is refused outright by a
+  # key without permission for that, while the profile it needs sits installed and unread.
+  #
+  # The profile decides the certificate, exactly as in Flow B: two certificates can share a common
+  # name, and only one of them is on the profile's list.
+  IOS_DIST_CANDIDATES="$(security find-identity -v -p codesigning \
+    | awk -F'"' -v name="$APPLE_DISTRIBUTION_IDENTITY" '$2 == name { split($1, a, " "); print a[2] }')"
+  [[ -n "$IOS_DIST_CANDIDATES" ]] || fail "no valid codesigning identity named '$APPLE_DISTRIBUTION_IDENTITY' is in the keychain.
+       Check the name in $CONFIG against: security find-identity -v -p codesigning"
+  # The brand's app id, not `BUNDLE_ID`: that one is read from the built macOS app's Info.plist,
+  # several steps further down and on a path this flow never takes.
+  IOS_BUNDLE_ID="$(brand_value MAILCAL_APP_ID)"
+  # No app group: the iOS app declares none, so there is nothing for a profile to grant.
+  IOS_PROFILE_MATCH="$(resolve_profile "$DEVELOPMENT_TEAM.$IOS_BUNDLE_ID" "$IOS_DIST_CANDIDATES" \
+                        "$IOS_PROVISIONING_PROFILE" "" iOS)"
+  IOS_PROFILE_FILE="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f1)"
+  IOS_PROFILE_UUID="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f3)"
+  [[ -n "$IOS_PROFILE_FILE" && -n "$IOS_PROFILE_UUID" ]] || fail "no installed iOS App Store provisioning profile for
+       $DEVELOPMENT_TEAM.$IOS_BUNDLE_ID authorises a valid '$APPLE_DISTRIBUTION_IDENTITY' cert.
+       Candidate certs in the keychain:
+$(echo "$IOS_DIST_CANDIDATES" | sed 's/^/         /')
+       It has to be one you created yourself: manual signing refuses an Xcode-managed profile, and
+       Xcode mints those for itself, so having one already is not the same as having this.
+       In the developer portal: Profiles ▸ + ▸ 'App Store Connect' ▸ App ID $IOS_BUNDLE_ID ▸ pick that
+       cert ▸ Generate ▸ Download, then copy it into place:
+         cp ~/Downloads/<name>.mobileprovision ~/Library/MobileDevice/Provisioning\\ Profiles/
+       (or point IOS_PROVISIONING_PROFILE=<path> at the download in $CONFIG). If the cert was
+       recently renewed, re-issue the profile so it lists the current one."
 
-  echo "==> iOS App Store: exporting the archive (app-store-connect, automatic distribution signing)"
+  EXPORT_PLIST="$BUILD/ExportOptions.plist"
+  sed -e "s/__TEAM_ID__/$DEVELOPMENT_TEAM/g" \
+      -e "s/__BUNDLE_ID__/$IOS_BUNDLE_ID/g" \
+      -e "s/__PROFILE_UUID__/$IOS_PROFILE_UUID/g" \
+      -e "s/__SIGNING_CERTIFICATE__/$APPLE_DISTRIBUTION_IDENTITY/g" \
+      "$HERE/Scripts/ExportOptions-AppStore-iOS.plist" >"$EXPORT_PLIST"
+
+  echo "==> iOS App Store: exporting the archive (app-store-connect, manual distribution signing)"
+  echo "    profile: $(basename "$IOS_PROFILE_FILE") ($IOS_PROFILE_UUID)"
   rm -rf "$EXPORT"; mkdir -p "$EXPORT"
   xcodebuild -exportArchive \
     -archivePath "$ARCHIVE" \
@@ -712,65 +844,13 @@ if [[ "$FLOW" == app-store ]]; then
     | awk -F'"' -v name="$APPLE_DISTRIBUTION_IDENTITY" '$2 == name { split($1, a, " "); print a[2] }')"
   [[ -n "$DIST_CANDIDATES" ]] || fail "no valid codesigning identity named '$APPLE_DISTRIBUTION_IDENTITY' is in the keychain.
        Check the name in $CONFIG against: security find-identity -v -p codesigning"
-  PROFILE_MATCH="$(python3 - "$DEVELOPMENT_TEAM.$BUNDLE_ID" "$DIST_CANDIDATES" "$MAS_PROVISIONING_PROFILE" "$APP_GROUP" <<'PY'
-import glob, hashlib, os, plistlib, subprocess, sys
-appid, explicit, group = sys.argv[1], sys.argv[3], sys.argv[4]
-candidates = {s.strip().upper() for s in sys.argv[2].split() if s.strip()}
-
-def decode(p):
-    try:
-        return plistlib.loads(subprocess.run(['security', 'cms', '-D', '-i', p],
-                                              capture_output=True).stdout)
-    except Exception:
-        return None
-
-# Which of our certs this profile authorises, if any. Returned so the caller signs with THAT one
-# rather than by name, the fingerprint is the only unique key when two certs share a name.
-def signing_cert(d):
-    listed = {hashlib.sha1(c).hexdigest().upper() for c in d.get('DeveloperCertificates', [])}
-    match = candidates & listed
-    return sorted(match)[0] if match else None
-
-# Every capability the signed app claims has to be in here, not just the app id and the cert.
-# Regenerating a profile mints a NEW file beside the old one, both match the app id, both list
-# the same cert, so a predicate that stops there is choosing between an outdated profile and a
-# current one on a coin toss it does not know it is flipping. (It was worse than a coin toss: the
-# scan was alphabetical, so `6186a9b6…` beat `a91000f9…` and the STALE profile won every time,
-# deterministically, no matter how many times you regenerated.)
-def authorizes(d):
-    if not d or d.get('Entitlements', {}).get('com.apple.application-identifier') != appid:
-        return False
-    if group not in d.get('Entitlements', {}).get('com.apple.security.application-groups', []):
-        return False
-    return signing_cert(d) is not None
-
-if explicit:
-    ex = os.path.expanduser(explicit)
-    d = decode(ex)
-    if authorizes(d):
-        print(f"{ex}\t{signing_cert(d)}")
-    sys.exit(0)
-
-# Newest first among the qualifying ones: after a regeneration the freshest profile is the one
-# that reflects the App ID as it stands today, and the older ones are debris nobody prunes.
-found = []
-for base in ('~/Library/MobileDevice/Provisioning Profiles',
-             '~/Library/Developer/Xcode/UserData/Provisioning Profiles'):
-    for ext in ('*.provisionprofile', '*.mobileprovision'):
-        for p in glob.glob(os.path.join(os.path.expanduser(base), ext)):
-            d = decode(p)
-            if authorizes(d):
-                found.append((d.get('CreationDate'), p, signing_cert(d)))
-if found:
-    found.sort(key=lambda c: (c[0] is not None, c[0]), reverse=True)
-    print(f"{found[0][1]}\t{found[0][2]}")
-PY
-)"
-  PROFILE_FILE="${PROFILE_MATCH%%$'\t'*}"
+  PROFILE_MATCH="$(resolve_profile "$DEVELOPMENT_TEAM.$BUNDLE_ID" "$DIST_CANDIDATES" \
+                    "$MAS_PROVISIONING_PROFILE" "$APP_GROUP" OSX)"
+  PROFILE_FILE="$(printf '%s' "$PROFILE_MATCH" | cut -f1)"
   # Sign with the FINGERPRINT, never the name: two valid certs can share a common name, and
   # `codesign --sign "<name>"` then fails "ambiguous", and if it did not, it would be a coin toss
   # between a cert this profile authorises and one it does not.
-  SIGN_ID="${PROFILE_MATCH##*$'\t'}"
+  SIGN_ID="$(printf '%s' "$PROFILE_MATCH" | cut -f2)"
   [[ -n "$PROFILE_FILE" ]] || fail "no Mac App Store provisioning profile for $DEVELOPMENT_TEAM.$BUNDLE_ID
        authorizes a valid '$APPLE_DISTRIBUTION_IDENTITY' cert AND grants the app group
        '$APP_GROUP'.
