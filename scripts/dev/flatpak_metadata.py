@@ -9,7 +9,8 @@ body is edited in one place and used verbatim). The name is not taken from there
 injected `MAILCAL_APP_NAME`, so the software centre and the launcher cannot disagree about what the
 app is called. The version and release dates come from `/VERSION` and the assembled notes under
 `docs/changelog/released/`, because [`docs/versioning.md`](../../docs/versioning.md) allows no
-hand-edited literal.
+hand-edited literal; each release's `<description>`, which is the "what changed" a software centre
+shows under a version, is that note's own Linux copy, in every catalog locale.
 
     scripts/dev/flatpak_metadata.py --out-dir <dir>
 
@@ -49,6 +50,7 @@ from changelog_fragments import (  # noqa: E402  (path set above so this runs as
     DocumentShapeError,
     catalog_locales,
     labelled_blocks,
+    load_releases,
 )
 from check_store_copy_length import (  # noqa: E402
     KEYSTORE_TOKEN,
@@ -71,6 +73,13 @@ APP_ID = brand.value("MAILCAL_APP_ID")
 # The paragraphs of the shared body this file is allowed to use. See the module docstring: two, and
 # which two is a rule `docs/store-listing.md` already states.
 FRAMING_PARAGRAPHS = 2
+
+# The platform whose release notes a software centre shows. A released note groups its copy by the
+# stores a section is pasted into, so one release can carry different bullets per platform; this
+# file describes the Linux build, and nothing else in the note is about the app a reader is looking
+# at. A release with no Linux section (one that shipped on other platforms only) therefore ships a
+# `<release>` with no description rather than another platform's copy.
+NOTES_PLATFORM = "linux"
 
 # `# 0.4.0; 2026-08-04`, the first line of an assembled release note. `release.py` writes it; this
 # is the only place the date of a release is recorded, so it is where AppStream's `date` comes from.
@@ -178,6 +187,50 @@ def releases(released_dir: Path) -> list[tuple[str, str]]:
     if not out:
         raise DocumentShapeError("docs/changelog/released/ holds no assembled notes")
     return sorted(out, key=lambda item: tuple(int(n) for n in item[0].split(".")), reverse=True)
+
+
+def release_notes(released_dir: Path) -> dict[str, dict[str, list[str]]]:
+    """`{version: {locale: [paragraph]}}`; what each release told a Linux user it changed.
+
+    AppStream calls this a release description, and a software centre with nothing to put there
+    writes "No details for this release" under every version it lists. The copy exists already: a
+    released note is assembled from the same fragments the stores are given, in every catalog
+    locale, so this reads it rather than asking anyone to write the history a second time.
+
+    Read through `changelog_fragments.parse_release`, which is the scraper `release.py` writes
+    those files with. `releases()` above reads only the first line of each, for the date; a second
+    parser for the body would be the reading nobody tested.
+
+    A locale whose block has a different number of paragraphs than English is refused: the XML
+    interleaves each translation directly after the paragraph it translates, which is how AppStream
+    falls a reader back when their language is missing one, and a locale out of step would attach
+    its sentences to the wrong originals.
+    """
+    by_language = {name: code for code, name in LOCALE_NAMES.items()}
+    out: dict[str, dict[str, list[str]]] = {}
+    for version, sections in load_releases(released_dir):
+        section = next((s for s in sections if NOTES_PLATFORM in s.platforms), None)
+        if section is None:
+            continue
+        paragraphs = {
+            by_language[label]: [" ".join(part.split()) for part in text.split("\n\n") if part.strip()]
+            for label, text in section.notes.items()
+            if label in by_language
+        }
+        if "en" not in paragraphs:
+            raise DocumentShapeError(
+                f"docs/changelog/released/{version}.md: the '{NOTES_PLATFORM}' section carries no "
+                "English note, which is the untagged paragraph every other locale falls back to."
+            )
+        for locale, lines in sorted(paragraphs.items()):
+            if len(lines) != len(paragraphs["en"]):
+                raise DocumentShapeError(
+                    f"docs/changelog/released/{version}.md: the {locale} note has {len(lines)} "
+                    f"paragraphs and the English one has {len(paragraphs['en'])}. Each translation "
+                    "is emitted directly after the paragraph it translates, so the two must match."
+                )
+        out[version] = paragraphs
+    return out
 
 
 def _screenshots_element(manifest: dict | None) -> str:
@@ -313,27 +366,86 @@ def _description_element(paragraphs: dict[str, list[str]], locales: list[str]) -
     return "\n".join(out)
 
 
-def _releases_element(history: list[tuple[str, str]], version: str) -> str:
-    """Every assembled release, newest first.
+def _translated_lines(
+    tag: str, index: int, paragraphs: dict[str, list[str]], locales: list[str], indent: str
+) -> list[str]:
+    """One note paragraph, each translation of it following the English original.
+
+    The same interleaving as `_description_element`, and for the same reason: it is how AppStream
+    falls a reader whose locale is missing a paragraph back to the untagged one above it.
+    """
+    out = [f"{indent}<{tag}>{escape(paragraphs['en'][index])}</{tag}>"]
+    out += [
+        f'{indent}<{tag} xml:lang="{locale}">{escape(paragraphs[locale][index])}</{tag}>'
+        for locale in locales
+        if locale != "en" and locale in paragraphs
+    ]
+    return out
+
+
+def _release_description(paragraphs: dict[str, list[str]], locales: list[str]) -> list[str]:
+    """A release's notes as AppStream description markup.
+
+    A release that changed one thing is a sentence and reads as one, so it is a `<p>`. Two or more
+    are a list of separate changes, which is what `<ul>` says and what a software centre draws with
+    the bullets a reader expects; the paragraphs are already the bullets every store is given.
+
+    Only `<p>`, `<ul>` and `<ol>` are valid inside a release description, so nothing here may grow
+    a heading or a nested block without `appstreamcli validate` refusing the file.
+    """
+    out = ["      <description>"]
+    if len(paragraphs["en"]) == 1:
+        out += _translated_lines("p", 0, paragraphs, locales, "        ")
+    else:
+        out.append("        <ul>")
+        for index in range(len(paragraphs["en"])):
+            out += _translated_lines("li", index, paragraphs, locales, "          ")
+        out.append("        </ul>")
+    out.append("      </description>")
+    return out
+
+
+def _releases_element(
+    history: list[tuple[str, str]],
+    version: str,
+    notes: dict[str, dict[str, list[str]]] | None = None,
+    locales: list[str] | None = None,
+) -> str:
+    """Every assembled release, newest first, each with what it told a Linux user it changed.
 
     `/VERSION` must be among them: it means "the version users currently have"
     (`docs/changelog.md`), so a metainfo whose newest release is not it would advertise a build that
     was never released; the same invariant `cargo xtask check-version-sync` enforces from the
     other side.
+
+    A release with no notes is still listed, with a date and nothing else. That is the honest shape
+    for one that shipped on other platforms only: a software centre writes "No details for this
+    release" under it, which is what happened, rather than a Linux user reading about a build they
+    could not install.
     """
     if version not in {entry[0] for entry in history}:
         raise MetadataError(
             f"/VERSION is {version}, which has no note under docs/changelog/released/. Cut the "
             "release with scripts/dev/release.py rather than editing /VERSION by hand."
         )
+    notes = notes or {}
+    locales = locales or ["en"]
     out = ["  <releases>"]
-    out += [f'    <release version="{ver}" date="{date}"/>' for ver, date in history]
+    for ver, date in history:
+        paragraphs = notes.get(ver)
+        if not paragraphs:
+            out.append(f'    <release version="{ver}" date="{date}"/>')
+            continue
+        out.append(f'    <release version="{ver}" date="{date}">')
+        out += _release_description(paragraphs, locales)
+        out.append("    </release>")
     out.append("  </releases>")
     return "\n".join(out)
 
 
 def metainfo(
-    template: str, *, name: str, summary_by_locale, paragraphs, history, version, locales, gallery=None
+    template: str, *, name: str, summary_by_locale, paragraphs, history, version, locales,
+    gallery=None, notes=None
 ) -> str:
     rendered = (
         template.replace("@APP_ID@", APP_ID)
@@ -341,7 +453,7 @@ def metainfo(
         .replace("@SUMMARIES@", _summary_elements(summary_by_locale, locales))
         .replace("@DESCRIPTION@", _description_element(paragraphs, locales))
         .replace("@SCREENSHOTS@", _screenshots_element(gallery))
-        .replace("@RELEASES@", _releases_element(history, version))
+        .replace("@RELEASES@", _releases_element(history, version, notes, locales))
     )
     left = re.findall(r"@[A-Z_]+@", rendered)
     if left:
@@ -377,7 +489,9 @@ def build(
         except ValueError:
             where = listing_file.as_posix()
         raise DocumentShapeError(f"{where}: {missing}") from missing
-    history = releases(repo_root / "docs" / "changelog" / "released")
+    released_dir = repo_root / "docs" / "changelog" / "released"
+    history = releases(released_dir)
+    notes = release_notes(released_dir)
     # Named by the caller, and out of this tree by default. A gallery is a set of URLs to images
     # of a *branded* build on the publisher's own host, so a copy committed here would survive the
     # one deletion that is supposed to un-brand a fork, and point its listing at our screenshots.
@@ -409,6 +523,7 @@ def build(
             version=version,
             locales=locales,
             gallery=gallery,
+            notes=notes,
         ),
         encoding="utf-8",
     )

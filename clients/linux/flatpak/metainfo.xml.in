@@ -8,9 +8,22 @@
 <component type="desktop-application">
   <id>@APP_ID@</id>
 
-  <!-- The app is proprietary; this file is not, so a software centre may redistribute it. -->
+  <!-- CC0 on this file, not on the app: it says a software centre may redistribute the listing.
+
+       `project_license` describes the binary that is shipped, which is not the same set of files
+       as the repository. The application is GPL-3.0-only (REUSE.toml, LICENSE), and the shipped
+       build additionally links `allodia_license/`, source-available under LicenseRef-Allodia-1.0.
+       Both halves are named because both are in the artifact; it is also why Flathub carries this
+       app as `extra-data` rather than building it.
+
+       What that costs, so nobody has to rediscover it: AppStream's `as_license_is_free_license()`
+       rejects any expression containing a `LicenseRef-` it does not know, whatever it is ANDed
+       with, so GNOME Software draws its orange "Proprietary / not developed in the open" panel.
+       That sentence is wrong about this project, and the field is still right; the only value that
+       turns the panel green is a bare `GPL-3.0-only`, which would be silent about code that is in
+       the binary. -->
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>LicenseRef-proprietary</project_license>
+  <project_license>GPL-3.0-only AND LicenseRef-Allodia-1.0</project_license>
 
   <name>@NAME@</name>
 @SUMMARIES@
@@ -60,13 +73,27 @@
        rating itself for what someone might be sent. -->
   <content_rating type="oars-1.1"/>
 
-  <!-- Three panes need room. Stated as a recommendation, not a requirement: the window still opens
-       narrower, and refusing to install on a small screen would be a worse answer than a cramped
-       one. -->
-  <recommends>
-    <display_length compare="ge">960</display_length>
+  <!-- Every way the client can be driven, and it needs none of them in particular: a keyboard, a
+       mouse or trackpad, and touch, which GTK delivers to the same widgets. `supports` rather than
+       `recommends`, which is not a shade of the same claim: a software centre reads a recommended
+       input device as one the app is not right without, and files a tablet as incompatible for
+       recommending a keyboard. A control left out is read as one the app cannot be used with, so
+       `touch` missing here is what put "Touchscreen Not Supported" on the listing. -->
+  <supports>
     <control>keyboard</control>
     <control>pointing</control>
+    <control>touch</control>
+  </supports>
+
+  <!-- Three panes need room. Stated as a recommendation, not a requirement: the window still opens
+       narrower, and refusing to install on a small screen would be a worse answer than a cramped
+       one.
+
+       `side="longest"` is load-bearing. The attribute defaults to `shortest`, so the same number
+       without it claims 960 px of *height*, which files every 1366x768 and 1600x900 laptop as a
+       machine this app is not recommended on. It is width the three panes need. -->
+  <recommends>
+    <display_length side="longest" compare="ge">960</display_length>
   </recommends>
 
 @RELEASES@

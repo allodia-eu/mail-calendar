@@ -166,6 +166,98 @@ class Releases(unittest.TestCase):
             meta._releases_element([("0.4.0", "2026-08-04")], "0.5.0")
 
 
+class ReleaseNotes(unittest.TestCase):
+    """The `<description>` under each version, which is what a software centre shows as "what
+    changed". Without it every release reads "No details for this release", which is what shipped
+    up to 0.8.2."""
+
+    @staticmethod
+    def _note(version: str, date: str, platforms: str, blocks: dict) -> str:
+        out = [f"# {version} \u2014 {date}", "", f"## {platforms}", "", "Paste into: (no store yet)", ""]
+        for language, text in blocks.items():
+            out += [f"**{language}**", "", "```", text, "```", ""]
+        return "\n".join(out)
+
+    def _released(self, directory: Path, *notes: tuple) -> None:
+        for version, date, platforms, blocks in notes:
+            (directory / f"{version}.md").write_text(
+                self._note(version, date, platforms, blocks), encoding="utf-8"
+            )
+
+    def test_one_change_is_a_paragraph_and_its_translations_follow_it(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            self._released(
+                directory,
+                ("0.9.0", "2026-09-10", "linux", {"English": "One thing changed.", "Nederlands": "Eén ding is gewijzigd."}),
+            )
+            notes = meta.release_notes(directory)
+        rendered = meta._releases_element([("0.9.0", "2026-09-10")], "0.9.0", notes, ["en", "nl"])
+        self.assertIn("<p>One thing changed.</p>", rendered)
+        # Directly after its original, which is how AppStream falls a reader back to the untagged
+        # paragraph when their own language is missing one.
+        self.assertIn(
+            "<p>One thing changed.</p>\n"
+            '        <p xml:lang="nl">Eén ding is gewijzigd.</p>',
+            rendered,
+        )
+        self.assertNotIn("<ul>", rendered, "a single change was drawn as a list")
+
+    def test_several_changes_become_a_list(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            self._released(
+                directory,
+                ("0.9.0", "2026-09-10", "linux", {"English": "First thing.\n\nSecond thing."}),
+            )
+            notes = meta.release_notes(directory)
+        rendered = meta._releases_element([("0.9.0", "2026-09-10")], "0.9.0", notes, ["en"])
+        self.assertIn("<ul>", rendered)
+        self.assertIn("<li>First thing.</li>", rendered)
+        self.assertIn("<li>Second thing.</li>", rendered)
+
+    def test_a_release_that_did_not_ship_on_linux_carries_no_description(self):
+        """It shipped on other platforms only, so there is nothing a Linux user was told.
+
+        Left as a bare `<release>` rather than given another platform's copy: a note about a build
+        this user could not install is worse than no note.
+        """
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            self._released(
+                directory,
+                ("0.9.0", "2026-09-10", "linux", {"English": "Linux got this."}),
+                ("0.8.0", "2026-09-01", "macos, ios", {"English": "Apple got this."}),
+            )
+            notes = meta.release_notes(directory)
+        self.assertNotIn("0.8.0", notes)
+        rendered = meta._releases_element(
+            [("0.9.0", "2026-09-10"), ("0.8.0", "2026-09-01")], "0.9.0", notes, ["en"]
+        )
+        self.assertIn('<release version="0.8.0" date="2026-09-01"/>', rendered)
+        self.assertIn("Linux got this.", rendered)
+        self.assertNotIn("Apple got this.", rendered)
+
+    def test_a_translation_out_of_step_with_the_english_is_refused(self):
+        """The two are zipped by position, so a locale short a paragraph would mistranslate.
+
+        Caught here rather than in the XML, which would validate perfectly and simply attach each
+        Dutch sentence to the wrong English one.
+        """
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            self._released(
+                directory,
+                ("0.9.0", "2026-09-10", "linux", {
+                    "English": "First thing.\n\nSecond thing.",
+                    "Nederlands": "Eerste ding.",
+                }),
+            )
+            with self.assertRaises(DocumentShapeError) as refused:
+                meta.release_notes(directory)
+        self.assertIn("paragraphs", str(refused.exception))
+
+
 class GeneratedFiles(unittest.TestCase):
     """The real documents, generated and parsed back."""
 
@@ -193,6 +285,45 @@ class GeneratedFiles(unittest.TestCase):
         self.assertIsNotNone(newest, "the metainfo carries no <release>")
         self.assertEqual(newest.get("version"), version)
         self.assertRegex(newest.get("date"), r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_the_newest_release_says_what_changed(self):
+        """A software centre writes "No details for this release" under a version with no
+        description, which is what every release read as up to 0.8.2."""
+        root = ElementTree.fromstring(self.metainfo)
+        newest = root.find("releases/release")
+        description = newest.find("description")
+        self.assertIsNotNone(
+            description, f"{newest.get('version')} tells a reader nothing about what changed"
+        )
+        # `<p>` for one change, `<ul>` for several; nothing else is valid in a release description.
+        self.assertTrue(
+            list(description),
+            "the release description is present but empty, which renders as no details at all",
+        )
+        for child in description:
+            self.assertIn(child.tag, ("p", "ul", "ol"))
+
+    def test_every_way_the_client_can_be_driven_is_declared(self):
+        """A control left out is read as one the app cannot be used with, not as one unstated.
+
+        Under `<supports>` rather than `<recommends>`: the client needs none of the three in
+        particular, and a recommended input device files a tablet as incompatible for lacking a
+        keyboard.
+        """
+        root = ElementTree.fromstring(self.metainfo)
+        controls = {element.text for element in root.findall("supports/control")}
+        self.assertEqual(controls, {"keyboard", "pointing", "touch"})
+
+    def test_the_screen_recommendation_names_the_side_it_means(self):
+        """`side` defaults to `shortest`, so the bare number claims a height rather than a width.
+
+        Three panes need width; without this attribute the same 960 files every 1366x768 laptop as
+        a machine the app is not recommended on.
+        """
+        root = ElementTree.fromstring(self.metainfo)
+        length = root.find("recommends/display_length")
+        self.assertIsNotNone(length, "the metainfo recommends no display size")
+        self.assertEqual(length.get("side"), "longest")
 
     def test_every_catalog_locale_reaches_both_files(self):
         root = ElementTree.fromstring(self.metainfo)
