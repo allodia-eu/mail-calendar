@@ -112,6 +112,7 @@
 	"a11y_expand_account": "Mappen tonen",
 	"a11y_collapse_account": "Mappen verbergen",
 	"a11y_unread_count": "{count} ongelezen",
+	"a11y_unread_count_one": "{count} ongelezen",
 	"a11y_resize_folder_pane": "Formaat van het mappenpaneel wijzigen",
 	"a11y_back": "Terug",
 	"a11y_timezone_settings": "Tijdzone-instellingen",
