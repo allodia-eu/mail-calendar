@@ -175,9 +175,12 @@ Fill it at boot, from `allodia_sign_in_available()`, and let whichever window op
 
 - **What Apple has on screen, it has by hand.** The way out and the absent-registration case are
   both there and both were seen: the second on a build with the registration removed, macOS by eye
-  and iOS against its accessibility tree. There is no Apple UI-test target, so what the suite pins
-  is the threshold and that an escaped hop ends as a cancellation rather than an error; that either
-  is ever *drawn* is invisible to every gate.
+  and iOS against its accessibility tree. An Apple UI suite exists now
+  ([`../clients/apple/UITests`](../clients/apple/UITests)) and could reach the first screen, but only
+  by pressing a sign-in that opens a browser at the real account service on every run, which is the
+  same reason the Windows suite leaves it alone. So what is pinned stays the threshold and that an
+  escaped hop ends as a cancellation rather than an error; that either is ever *drawn* is still
+  nobody's gate.
 - **The empty answer is written on all five and seen on three.** Android, Linux and iOS have been
   run and looked at; macOS and Windows are written against the same contract and compile, so their
   cells stay 🚧 until somebody reaches the state on them.

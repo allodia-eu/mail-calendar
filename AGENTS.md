@@ -293,8 +293,8 @@ and summarises. The order is cheapest-first rather than CI's, so the step most l
 your change fails first.
 
 Nothing in it needs a device, simulator, emulator or Docker: the suites that do stay out
-(`clients/windows/uitests`, `scripts/dev/test-linux-ui.sh`, `scripts/dev/test-android-native-fault.sh`,
-anything behind `scripts/dev/boot.sh`),
+(`clients/windows/uitests`, `clients/apple/Scripts/test-ui.sh`, `scripts/dev/test-linux-ui.sh`,
+`scripts/dev/test-android-native-fault.sh`, anything behind `scripts/dev/boot.sh`),
 because a gate that cannot run is a gate people stop running. `--clients` adds only the headless,
 host-appropriate ones and **says what it skipped and why**: a skip that reads like a pass is the
 failure this file keeps warning about.
@@ -377,6 +377,12 @@ were broken right now, would this tell me?*
   `import` still builds when a sibling imports the same symbol; xcodebuild's Debug
   `-enable-batch-mode` compiles in isolated batches and fails with `cannot find 'X' in scope`. Verify
   Apple with `clients/apple/Scripts/build-and-run.sh --macos --no-run` (add `--iphone`).
+- **And a build is not the screen.** `clients/apple/Scripts/test-ui.sh` is the XCUITest suite
+  (`clients/apple/UITests`), on a simulator or with `--device` on a connected iPhone. It is the only
+  Apple gate that can drive a **gesture**, or read the iOS **navigation bar** at all, which `idb`
+  reports as one unlabelled group. It needs a simulator, so the workspace gate leaves it out and CI
+  runs two of its four classes; run it before pushing anything that changes what an Apple screen
+  presents.
 - **A `#![cfg(unix)]` test file reports `running 0 tests ... ok` on Windows**, which reads exactly
   like a pass. Any `cfg(windows)` / `cfg(unix)` branch needs a test *per branch*, and a
   cross-platform test count is not coverage: read the per-file `running N tests` lines.

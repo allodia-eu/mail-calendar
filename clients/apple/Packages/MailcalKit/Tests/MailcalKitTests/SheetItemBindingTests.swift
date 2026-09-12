@@ -1,8 +1,10 @@
 // The rule a dismissed sheet has to obey: it stays dismissed.
 //
 // Driven against `sheetItemBinding` rather than a presented sheet, because `swift test` cannot
-// present one and there is no Apple UI-test target. The bug this pins was found by hand on an
-// iPhone: Cancel and Save both dismissed the event editor and both immediately reopened it.
+// present one. A real presentation is driven by `ComposerPresentationTests` in the UI suite
+// (`clients/apple/UITests`); what stays here is the binding's own rule, in milliseconds rather than
+// in a simulator. The bug this pins was found by hand on an iPhone: Cancel and Save both dismissed
+// the event editor and both immediately reopened it.
 
 import SwiftUI
 import Testing

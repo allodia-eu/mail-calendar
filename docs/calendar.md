@@ -545,6 +545,20 @@ simply not fed during a pinch.
   The peeking neighbour is drawn framed at its own first day too, so the week sliding into view is
   already where it will land. In whole-week zoom there is no day-scroll (`maxDayX` is zero), so this is
   a no-op there.
+- **On iOS a recognizer the grid needs goes on the *window*, never on the SwiftUI overlay that
+  carries it.** An overlay is a **sibling** of the content, not its ancestor, and UIKit offers a
+  touch only to the recognizers of the hit-test view and the views above it in that chain, which an
+  overlay is in neither of. So a recognizer installed on the overlay fires only once the overlay
+  becomes the hit target, and that costs the grid underneath every tap, drag and scroll it has. Both
+  catchers therefore keep a view that hit-tests to nothing, hang the recognizer on the window, and
+  narrow it to the grid in `gestureRecognizerShouldBegin`. **The failure is silent to everything but
+  a real gesture**: the view is built, the recognizer exists, the handler is simply never called, so
+  the grid draws perfectly, reports the zoom it was asked for, and cannot be zoomed. `CalendarPinchTests`
+  ([`../clients/apple/UITests`](../clients/apple/UITests)) is the gate, and it is the only kind of
+  gate that can be: no unit test holds a finger. ⚠️ `XCUIElement.pinch(withScale:velocity:)` moves
+  the fingers far less than its scale suggests, and at `withScale: 3` they end about 20 × 37 points
+  apart, under the 48-point floor each axis needs before its scale means anything, so a test written
+  to the obvious number passes over a grid that never moved.
 - **A pinch is two contacts, and each is captured and released on its own: the single owner does
   not make the platform's capture bookkeeping single, too.** The owner tracks a *set* of pointers and
   finalises only when the last lifts; the platform shell that feeds it must mirror that exactly. The

@@ -199,6 +199,14 @@ scripts/dev/control.sh iphone probe 400 89      # -> AXButton [395,84] Compose
 scripts/dev/control.sh iphone tap 400 89
 ```
 
+The limit is idb's, not the app's: XCUITest queries the same hierarchy **in-process** and gets the
+bar in full, `NavigationBar 'All Inboxes'` with a labelled `Button` per item and the search field
+under it. So an assertion that needs the bar, or needs a **gesture** (idb has neither pinch nor
+rotate), belongs in `clients/apple/Scripts/test-ui.sh`, not here. The two do not overlap much: this
+loop's whole point is asking an app that is *already* in a state someone cares about, in about a
+second and with no code, and XCUITest relaunches the app and runs a compiled script, which is what
+makes it repeatable and what makes it useless for exploring.
+
 **Assert VoiceOver reachability, not pixels: this is what a screenshot cannot do.** A container
 that sets `.accessibilityLabel` on `.accessibilityElement(children: .contain)` stays expanded on
 macOS but **collapses into one node on iOS**, so every control inside becomes unreachable while
