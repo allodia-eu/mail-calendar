@@ -25,7 +25,7 @@ use crate::l10n;
 const SEARCH_DELAY_MS: u32 = 250;
 
 pub(crate) struct SearchBar {
-    root: gtk::Box,
+    entry: gtk::SearchEntry,
     filter: gtk::Revealer,
     current: gtk::ToggleButton,
     /// The narrowing side's caption, which every render re-reads from the snapshot.
@@ -48,6 +48,7 @@ impl SearchBar {
         entry.set_margin_bottom(6);
         entry.set_margin_start(12);
         entry.set_margin_end(12);
+        entry.set_width_request(320);
         let input = sender.clone();
         entry.connect_search_changed(move |entry| {
             input.emit(AppInput::SearchMail(entry.text().to_string()));
@@ -116,12 +117,8 @@ impl SearchBar {
         let filter = gtk::Revealer::new();
         filter.set_child(Some(&revealed));
 
-        let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        root.append(&entry);
-        root.append(&filter);
-
         Self {
-            root,
+            entry,
             filter,
             current,
             current_label,
@@ -132,8 +129,12 @@ impl SearchBar {
         }
     }
 
-    pub(crate) fn widget(&self) -> &gtk::Box {
-        &self.root
+    pub(crate) fn entry(&self) -> &gtk::SearchEntry {
+        &self.entry
+    }
+
+    pub(crate) fn details(&self) -> &gtk::Revealer {
+        &self.filter
     }
 
     /// Brings the chrome to what the model and the core's snapshot say.

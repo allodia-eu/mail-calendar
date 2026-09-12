@@ -130,7 +130,7 @@ struct InvitationCardView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8).strokeBorder(tint.opacity(0.3), lineWidth: 1)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, readingInset)
         .padding(.bottom, 8)
         // No container `accessibilityLabel`. `children: .contain` is supposed to keep the card's
         // own elements reachable, and on macOS it does, but on iOS, labelling the container

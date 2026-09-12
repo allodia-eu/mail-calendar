@@ -43,6 +43,16 @@ that same file.
   them needs a title that lays out and does not draw (`.labelStyle(.iconOnly)` removes it from the
   layout too, and is what makes the button short). A screenshot is the only test that sees any of
   this; the suites all pass.
+
+  ⚠️ **The same layout traps from the other side, and that time there is no crash to read.** A
+  `.frame()` whose bounds are **all `nil`** is still an unbounded `_FlexFrameLayout`, so wrapping a
+  candidate row's buttons in one, to carry a minimum that only one platform sets, is enough to do
+  it. On macOS the app then launched, logged `app finished launching`, and stopped: no window, no
+  crash report, no further line, which reads as a broken launch or a window restored off-screen
+  rather than as the reading pane's action row. Carry a per-platform size in something bounded, the
+  glyph's own box
+  ([`ReadingView.swift`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/ReadingView.swift)'s
+  `iconBox`), never in a frame that is a no-op on the platform that does not want it.
 - **A WinUI button with no label stands at its glyph's height, not its row's**, because the default
   button style *centres* its content rather than stretching it. So the one icon-only control in a
   row of labelled ones comes up short and vertically centred: 54px against 64px on a 200% display.

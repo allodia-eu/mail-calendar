@@ -1,7 +1,4 @@
-//! What the folder pane must draw, and what it must never draw.
-//!
-//! The GTK halves are called from the crate's single `gtk::init` test (see
-//! [`super::super::mailbox::tests`]); the rest are plain unit tests.
+//! Folder-pane regressions, including GTK checks run by the crate's single `gtk::init` test.
 
 use std::collections::HashSet;
 
@@ -16,6 +13,10 @@ use crate::{
     l10n,
     ui::{AppInput, mailbox::tests::rendered_labels, model::empty_mailbox},
 };
+
+#[path = "folder_pane_group_tests.rs"]
+mod group;
+pub(crate) use group::the_unified_scope_is_an_expandable_group_with_an_inbox_child;
 
 fn folder(key: &str, name: &str, role: Option<FolderRole>, unread: u32) -> FolderRow {
     FolderRow {
@@ -108,8 +109,8 @@ pub(crate) fn the_pane_draws_every_account_its_folders_and_its_counts() {
     // Rule 1: the second account's tree is on screen even though neither is selected.
     assert_eq!(
         text.iter().filter(|entry| *entry == "Inbox").count(),
-        2,
-        "both accounts' inboxes must be on screen at once: {text:?}"
+        3,
+        "the unified and both accounts' inboxes must be on screen at once: {text:?}"
     );
     // Rule 12: the app's word, not the server's: `INBOX` and `Sent Items` are gone.
     assert!(
@@ -140,8 +141,8 @@ pub(crate) fn the_pane_draws_every_account_its_folders_and_its_counts() {
     let text = shown(&list);
     assert_eq!(
         text.iter().filter(|entry| *entry == "Inbox").count(),
-        1,
-        "only the open account's folders are drawn: {text:?}"
+        2,
+        "only the unified Inbox and the open account's folders are drawn: {text:?}"
     );
     assert!(
         !text.iter().any(|entry| entry == "Sales & Marketing"),
@@ -217,19 +218,19 @@ pub(crate) fn only_an_unreachable_account_gets_the_warning() {
     let warning = l10n::connectivity_account_unreachable();
 
     assert!(
-        widget_tooltips(pane_rows[5].upcast_ref())
+        widget_tooltips(pane_rows[6].upcast_ref())
             .iter()
             .any(|text| text == warning),
         "the affected account carries the warning"
     );
     assert!(
-        !widget_tooltips(pane_rows[1].upcast_ref())
+        !widget_tooltips(pane_rows[2].upcast_ref())
             .iter()
             .any(|text| text == warning),
         "a healthy account carries no warning"
     );
     assert!(
-        !widget_tooltips(pane_rows[6].upcast_ref())
+        !widget_tooltips(pane_rows[7].upcast_ref())
             .iter()
             .any(|text| text == warning),
         "the warning belongs to the account, not its inbox"
@@ -289,6 +290,13 @@ fn the_pane_is_rebuilt_when_a_tree_opens_or_a_count_moves() {
     unified.unified_unread = 0;
     assert_ne!(key, FolderPaneRendering::new(&unified, &HashSet::new()));
 
+    let mut collapsed_unified = two_accounts();
+    collapsed_unified.unified_expanded = false;
+    assert_ne!(
+        key,
+        FolderPaneRendering::new(&collapsed_unified, &HashSet::new())
+    );
+
     // Selection moves among the existing rows. Rebuilding the whole tree here puts that work
     // ahead of the message list on every folder switch.
     let mut selected = two_accounts();
@@ -329,17 +337,17 @@ pub(crate) fn the_pane_marks_where_the_core_says_we_are() {
     snapshot.selected = Some("inbox".to_owned());
     let (list, receiver) = pane(&snapshot);
 
-    // [All Inboxes, acct-1, its three folders, acct-2, its inbox]; the last row is the one the
-    // core has selected, and it is *not* the identically named row four above it.
+    // [All Accounts, Inbox, acct-1, its three folders, acct-2, its inbox]; the last row is the one
+    // the core has selected, and it is *not* the identically named row four above it.
     let pane_rows = rows(&list);
-    assert_eq!(pane_rows.len(), 7, "every account's tree is drawn");
+    assert_eq!(pane_rows.len(), 8, "every tree is drawn");
     assert_eq!(
         list.selected_row().as_ref(),
         pane_rows.last(),
         "the selected folder's own row carries the mark"
     );
 
-    let row = pane_rows[6]
+    let row = pane_rows[7]
         .downcast_ref::<adw::ActionRow>()
         .expect("a pane row is an ActionRow");
     row.activatable_widget()
@@ -360,7 +368,7 @@ pub(crate) fn the_pane_marks_where_the_core_says_we_are() {
 
     // The chevron opens a tree; it does not navigate. A different message entirely, which is
     // what keeps a click on it from moving the selection off the folder being read.
-    let chevron = buttons(pane_rows[5].upcast_ref::<gtk::Widget>())
+    let chevron = buttons(pane_rows[6].upcast_ref::<gtk::Widget>())
         .pop()
         .expect("an account row carries its disclosure control");
     chevron.emit_clicked();
@@ -376,8 +384,8 @@ pub(crate) fn the_pane_marks_where_the_core_says_we_are() {
     let (list, _receiver) = pane(&two_accounts());
     assert_eq!(
         list.selected_row().as_ref(),
-        rows(&list).first(),
-        "the unified row is marked while no account is selected"
+        rows(&list).get(1),
+        "the unified Inbox is marked while no account is selected"
     );
 }
 
@@ -410,7 +418,7 @@ pub(crate) fn an_optimistic_click_is_not_undone_by_the_previous_snapshot() {
     let mut selection = FolderPaneSelection::default();
     selection.sync(&list, &snapshot);
 
-    let clicked = rows(&list)[6].clone();
+    let clicked = rows(&list)[7].clone();
     list.select_row(Some(&clicked));
     selection.sync(&list, &snapshot);
 
@@ -472,7 +480,7 @@ fn widget_tooltips(root: &gtk::Widget) -> Vec<String> {
 #[test]
 fn the_list_header_names_the_scope_the_same_way_the_pane_does() {
     let mut snapshot = two_accounts();
-    assert_eq!(header_title(&snapshot), "All Inboxes");
+    assert_eq!(header_title(&snapshot), "Inbox");
 
     // An account with no folder chosen is that account's whole mailbox.
     snapshot.selected_account = Some("acct-1".to_owned());

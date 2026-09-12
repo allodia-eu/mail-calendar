@@ -38,6 +38,19 @@ impl Preferences {
     pub fn remove_account_expansion(&mut self, account: &str) -> bool {
         self.collapsed_accounts.remove(account)
     }
+
+    /// Whether the **All Accounts** group is open in the sidebar. Open by default, the same
+    /// way an account nobody has shut is, and for the same reason: the group holds the only
+    /// row that opens the unified list, so a shut default would hide it.
+    #[must_use]
+    pub const fn unified_expanded(&self) -> bool {
+        !self.unified_collapsed
+    }
+
+    /// Records whether the **All Accounts** group is open.
+    pub const fn set_unified_expanded(&mut self, expanded: bool) {
+        self.unified_collapsed = !expanded;
+    }
 }
 
 #[cfg(test)]
@@ -70,6 +83,30 @@ mod tests {
         assert!(prefs.account_expanded("acct-1"));
         assert!(!prefs.account_expanded("acct-2"));
         assert!(prefs.account_expanded("acct-3"));
+    }
+
+    #[test]
+    fn the_all_accounts_group_nobody_has_touched_is_expanded() {
+        let mut prefs = Preferences::default();
+        assert!(prefs.unified_expanded());
+
+        prefs.set_unified_expanded(false);
+        assert!(!prefs.unified_expanded());
+        assert!(prefs.unified_collapsed);
+
+        prefs.set_unified_expanded(true);
+        assert!(prefs.unified_expanded());
+    }
+
+    #[test]
+    fn the_group_and_the_accounts_collapse_independently() {
+        let mut prefs = Preferences::default();
+        prefs.set_unified_expanded(false);
+        assert!(prefs.account_expanded("acct-1"));
+
+        prefs.set_account_expanded("acct-1", false);
+        prefs.set_unified_expanded(true);
+        assert!(!prefs.account_expanded("acct-1"));
     }
 
     #[test]

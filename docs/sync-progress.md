@@ -82,7 +82,7 @@ that the mail ran out.
 | Platform | Bar | Hint | Where |
 |---|:---:|:---:|---|
 | macOS / iPadOS | ✅ under the list, above the footer | ✅ in the footer, beside the message count | `Mailcal.Detail.swift` |
-| iPhone | ✅ a strip under the list | ✅ the same strip (there is no footer); the bar wins when both are up | `Mailcal.Layout.swift` |
+| iPhone / iPadOS | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip (there is no footer); the bar wins when both are up | `Mailcal.Layout.swift` |
 | Windows | ✅ its own `Auto` row under the list | ✅ in the footer status line, between the message count and "Connected" | `Views/MailListView.xaml`, `Services/MailboxModel.SyncProgress.cs` |
 | Android | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip | `MailboxScreenParts.kt` |
 | Linux | ✅ a strip under the list; the bar wins over the hint | ✅ the mail list's bottom bar | `ui/shell.rs`, `ui/model.rs` |

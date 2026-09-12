@@ -59,8 +59,30 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
     /// </remarks>
     public ObservableCollection<FolderItem> Folders { get; } = new();
 
-    /// <summary>The All Inboxes badge: every account's Inbox unread, summed. <c>0</c> shows none.</summary>
+    /// <summary>The unified Inbox badge: every account's Inbox unread, summed. <c>0</c> shows
+    /// none. It belongs on that row rather than on the All Accounts heading above it, which
+    /// carries no count for the reason an account row carries none (docs/folder-pane.md, rule 8).</summary>
     public uint UnifiedUnread { get; private set; }
+
+    /// <summary>
+    /// Whether the All Accounts group's tree is open in the folder pane. The core's value, and
+    /// persisted by it: the pane renders this rather than remembering an answer of its own, which
+    /// is what makes it agree with the other platforms and survive a restart
+    /// (docs/folder-pane.md, rule 16).
+    /// </summary>
+    /// <remarks>
+    /// It notifies, unlike <see cref="UnifiedUnread"/> beside it, because the pane is reconciled
+    /// off a handful of named signals and this one arrives on its own: the persisted value comes
+    /// back in the first snapshot **after** the accounts are published, so a shell waiting for a
+    /// collection change would read the default and open a group the user had shut.
+    /// </remarks>
+    public bool UnifiedExpanded
+    {
+        get => _unifiedExpanded;
+        private set => Set(ref _unifiedExpanded, value);
+    }
+
+    private bool _unifiedExpanded = true;
 
     /// <summary>The mailbox rows currently shown, the visible window (the first page, grown
     /// by <see cref="ShowMore"/> as the list scrolls), in display order.</summary>
@@ -187,7 +209,7 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
         get => _selectedAccount;
         // The footer connection-status label is scoped to the selected account (or all accounts in
         // the unified view), so refresh it when the scope changes.
-        private set { if (Set(ref _selectedAccount, value)) { Raise(nameof(CurrentFolderName)); RaiseConnectionStatus(); } }
+        private set { if (Set(ref _selectedAccount, value)) { RaiseListTitle(); RaiseConnectionStatus(); } }
     }
 
     private string? _setupError;
@@ -242,7 +264,7 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
     public string? SelectedFolder
     {
         get => _selectedFolder;
-        private set { if (Set(ref _selectedFolder, value)) { Raise(nameof(CurrentFolderName)); } }
+        private set { if (Set(ref _selectedFolder, value)) { RaiseListTitle(); } }
     }
 
     private string _activeZone = MailcalBindingsMethods.DeviceTimeZone();
@@ -285,121 +307,9 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
         Raise(nameof(SendStatusBusyVisibility));
     }
 
-    // --- Bindable view helpers (so the XAML needs no converters) --------------
-
-    /// <summary>Whether the send hint should show (a send is in flight or just finished).</summary>
-    /// <remarks>SentNotFiled shows no transient hint: the standing UnfiledCopy question already says this, and says it with a button.</remarks>
-    public bool SendStatusVisible =>
-        _sendStatus != SendStatus.Idle && _sendStatus != SendStatus.SentNotFiled;
-    /// <summary>Shows the in-flight spinner only while the send hasn't completed yet.</summary>
-    public Visibility SendStatusBusyVisibility =>
-        _sendStatus == SendStatus.Sending ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>The send hint text for the current status.</summary>
-    public string SendStatusText => _sendStatus switch
-    {
-        SendStatus.Sending => L10n.SendStatusSending(),
-        SendStatus.Sent => L10n.SendStatusSent(),
-        SendStatus.Failed => L10n.SendStatusFailed(),
-        _ => string.Empty,
-    };
-    /// <summary>The info-bar severity for the current status.</summary>
-    public Microsoft.UI.Xaml.Controls.InfoBarSeverity SendStatusSeverity => _sendStatus switch
-    {
-        SendStatus.Failed => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error,
-        SendStatus.Sent => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success,
-        _ => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Informational,
-    };
-
-    // Background sync progress, the awaited download's bar and the background hint beside the
-    // footer's connection status, lives in MailboxModel.SyncProgress.cs.
-
-    // Connectivity, the offline state, the per-account unreachable outages, and the OS network
-    // watch that feeds the core, lives in MailboxModel.Connectivity.cs.
-
-    // The three top-level surfaces are mutually exclusive, and the welcome screen outranks both of
-    // the others: it is the first thing a new user sees, ahead of setup. `AnalyticsAsked` (see
-    // MailboxModel.Analytics.cs) reads true before the core has connected, so nothing flashes while
-    // the app is still starting.
-
-    /// <summary>Show the setup form on first run, or while adding another account.</summary>
-    public Visibility SetupVisibility =>
-        AnalyticsAsked && (NeedsSetup || AddingAccount) ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>Show the main shell once connected (hidden behind the welcome/setup screens).</summary>
-    public Visibility MainVisibility =>
-        AnalyticsAsked && !NeedsSetup && !AddingAccount ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>Show the setup form's Cancel button only when adding another account (not first run).</summary>
-    public Visibility AddingAccountVisibility => AddingAccount ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>
-    /// Show the form's Cancel button when adding another account OR whenever a Microsoft sign-in is
-    /// in flight, the browser step can hang indefinitely (the user closes the tab, or picks the
-    /// wrong app on the redirect), so a first-run sign-in needs an escape too, not only an add.
-    /// </summary>
-    public Visibility CancelVisibility =>
-        AddingAccount || IsSigningIn ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>
-    /// The Cancel button is enabled while a Microsoft sign-in is in flight (so it can abort the
-    /// hung wait), and otherwise whenever nothing is submitting. A bounded IMAP/JMAP connect still
-    /// disables it, that call errors out on its own, but the unbounded browser wait must not.
-    /// </summary>
-    public bool CancelEnabled => IsSigningIn || NotSubmitting;
-    /// <summary>Whether nothing is in flight, gates the form's Cancel button.</summary>
-    public bool NotSubmitting => !IsSubmitting;
-    /// <summary>Show the setup form's connect spinner only while a connect/add is in flight.</summary>
-    public Visibility SubmittingVisibility => IsSubmitting ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>The Connect button's label: a "connecting" status while in flight, else "Connect".</summary>
-    public string ConnectButtonText => IsSubmitting ? L10n.StatusConnecting() : L10n.ActionConnect();
-    /// <summary>Show the mailbox detail when the mail destination is active.</summary>
-    public Visibility MailVisibility =>
-        Destination == AppDestination.Mail ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>Show the calendar detail when active.</summary>
-    public Visibility CalendarVisibility =>
-        Destination == AppDestination.Calendar ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>Show the contacts detail when active.</summary>
-    public Visibility ContactsVisibility =>
-        Destination == AppDestination.Contacts ? Visibility.Visible : Visibility.Collapsed;
-    /// <summary>Whether a setup error should be surfaced.</summary>
-    public bool HasSetupError => !string.IsNullOrEmpty(SetupError);
-    /// <summary>Whether the device-zone-changed prompt should show.</summary>
-    public bool HasPendingZone => PendingDeviceZone is not null;
-    /// <summary>The body text of the zone-changed prompt.</summary>
-    public string ZonePromptText =>
-        L10n.TzChangedMessage(PendingDeviceZone ?? L10n.TzZoneNew());
-    /// <summary>The "keep current" button label of the zone-changed prompt.</summary>
-    public string KeepZoneText => L10n.TzKeep(ActiveZone);
-
-    /// <summary>
-    /// The current scope's title: the unified "All Inboxes" (no account selected), else the
-    /// selected folder's name or the account's "All Mail".
-    /// </summary>
-    public string CurrentFolderName
-    {
-        get
-        {
-            if (SelectedAccount is null)
-            {
-                return L10n.SidebarAllInboxes();
-            }
-            if (SelectedFolder is null)
-            {
-                return L10n.SidebarAllMail();
-            }
-            foreach (var folder in Folders)
-            {
-                if (folder.Key == SelectedFolder)
-                {
-                    return folder.Name;
-                }
-            }
-            return L10n.FolderFallback();
-        }
-    }
-
-    /// <summary>The mailbox footer count ("N messages" / "N conversations"), the folder's
-    /// full total, not the visible window (<see cref="Rows"/> holds only the loaded page).</summary>
-    public string MailCountText =>
-        Mode == ViewModeKind.Threaded
-            ? L10n.MailboxCountConversations((int)_total)
-            : L10n.MailboxCountMessages((int)_total);
+    // The bindable view helpers the XAML reads instead of converters (visibilities, the send
+    // hint, the list's own title and count) live in MailboxModel.ViewHelpers.cs, to keep this file
+    // within the 500-line limit.
 
     // --- Lifecycle ------------------------------------------------------------
 
@@ -449,6 +359,14 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
 
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>Announces the scope's name and the header built on it together, so the two can
+    /// never be raised apart.</summary>
+    private void RaiseListTitle()
+    {
+        Raise(nameof(CurrentFolderName));
+        Raise(nameof(ListTitle));
+    }
 
     private void Raise([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

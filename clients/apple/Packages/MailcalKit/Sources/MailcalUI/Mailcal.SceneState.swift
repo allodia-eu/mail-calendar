@@ -69,11 +69,6 @@ extension ContentView {
         model.showContacts()
     }
 
-    func setViewMode(_ mode: ViewMode) {
-        sceneViewMode = viewModeToken(mode)
-        model.setMode(mode)
-    }
-
     func removeAccount(_ id: String) {
         if sceneSelectedAccount == id || model.selectedAccount == id {
             sceneSelectedAccount = ""

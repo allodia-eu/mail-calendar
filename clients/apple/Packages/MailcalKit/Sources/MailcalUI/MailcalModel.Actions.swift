@@ -160,6 +160,12 @@ extension MailboxModel {
         app?.dispatch(intent: .setAccountExpanded(account: id, expanded: expanded))
     }
 
+    /// Opens or shuts the All Accounts group's tree. Not navigation: it moves neither the
+    /// selected account nor the selected folder (`docs/folder-pane.md`).
+    func setUnifiedExpanded(_ expanded: Bool) {
+        app?.dispatch(intent: .setUnifiedExpanded(expanded: expanded))
+    }
+
     /// One account's folders, as rows for the sidebar tree, each carrying an identity unique
     /// across the **whole** pane rather than within its own account.
     ///

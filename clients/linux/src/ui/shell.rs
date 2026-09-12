@@ -16,6 +16,7 @@ use super::{
     folder_pane::{self, FolderPaneRendering, FolderPaneSelection},
     invitation::ReplyPromptDialog,
     mail_actions::{self, PermanentDeleteDialog},
+    mail_toolbar::MailToolbar,
     mailbox::MailboxRendering,
     mailbox_progressive::ProgressiveRenderer,
     reading::{InvitationClock, ReadingPane},
@@ -121,24 +122,9 @@ impl AppWidgets {
         list_header.set_show_end_title_buttons(false);
         let subtitle = adw::WindowTitle::new(l10n::sidebar_all_inboxes(), "");
         list_header.set_title_widget(Some(&subtitle));
-        let compose = gtk::Button::from_icon_name("mail-message-new-symbolic");
-        compose.set_tooltip_text(Some(l10n::action_compose()));
-        compose.update_property(&[AccessibleProperty::Label(l10n::action_compose())]);
-        let input = sender.clone();
-        compose.connect_clicked(move |_| input.emit(AppInput::BeginNew));
-        list_header.pack_start(&compose);
-        let refresh = gtk::Button::from_icon_name("view-refresh-symbolic");
-        refresh.set_tooltip_text(Some(l10n::action_refresh()));
-        refresh.update_property(&[AccessibleProperty::Label(l10n::action_refresh())]);
-        let input = sender.clone();
-        refresh.connect_clicked(move |_| input.emit(AppInput::RefreshRequested));
-        list_header.pack_end(&refresh);
         list_toolbar.add_top_bar(&list_header);
-        // Under the header rather than in it: the field is one of three things the header would
-        // then hold in a pane the user can drag to 260 px, and the scope filter and horizon line
-        // it reveals need the full width anyway.
         let search = SearchBar::new(&sender);
-        list_toolbar.add_top_bar(search.widget());
+        list_toolbar.add_top_bar(search.details());
         list_toolbar.set_content(Some(&message_scroll));
         // One strip under the list: the foreground bar may take a row because the user awaits it;
         // the background hint borrows that same location and never moves the list's top edge.
@@ -209,11 +195,15 @@ impl AppWidgets {
         // The actions bar sits over both panes rather than inside the list; `mail_surface` holds
         // why.
         let mail = selection_bar::mail_surface(&selection_bar, &inner);
+        let mail_toolbar = MailToolbar::new(&sender, search.entry());
+        let mail_view = adw::ToolbarView::new();
+        mail_view.add_top_bar(mail_toolbar.widget());
+        mail_view.set_content(Some(&mail));
         let calendar = CalendarPane::new(&root, sender.clone());
         let contacts = ContactsPane::new(&root, sender.clone());
         let primary = gtk::Stack::new();
         primary.set_transition_type(gtk::StackTransitionType::Crossfade);
-        primary.add_named(&mail, Some("mail"));
+        primary.add_named(&mail_view, Some("mail"));
         primary.add_named(calendar.widget(), Some("calendar"));
         primary.add_named(contacts.widget(), Some("contacts"));
         let outer = gtk::Paned::new(gtk::Orientation::Horizontal);

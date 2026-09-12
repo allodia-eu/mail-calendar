@@ -53,6 +53,17 @@ pub enum Intent {
         /// Whether the tree is open.
         expanded: bool,
     },
+    /// Open or shut the **All Accounts** group's tree in the sidebar, and remember it across
+    /// launches.
+    ///
+    /// The group sits above the accounts and holds the unified Inbox row. It is
+    /// account-shaped, so it follows the same rules as `SetAccountExpanded`: not navigation,
+    /// independent of what is selected, persisted by the core. Render the chevron from
+    /// `MailboxListSnapshot::unified_expanded` (`docs/folder-pane.md`).
+    SetUnifiedExpanded {
+        /// Whether the group's tree is open.
+        expanded: bool,
+    },
     /// Set the name one account's outgoing mail is sent under: the `Name` in
     /// `Name <address>`.
     ///

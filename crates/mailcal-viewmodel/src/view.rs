@@ -125,12 +125,22 @@ pub struct MailboxListSnapshot {
     /// stays on screen while one account is selected, so selecting an account (or leaving
     /// mail for the calendar) no longer empties it.
     pub account_folders: Vec<AccountFolderRow>,
-    /// The unread count behind the unified "All Inboxes" row: every account's Inbox
-    /// unread, summed. `0` shows no badge.
+    /// The unread count behind the **All Accounts** group's Inbox row: every account's
+    /// Inbox unread, summed. `0` shows no badge.
     ///
-    /// Present in every view mode, because the row it badges is: the pane shows All
-    /// Inboxes whether or not an account is selected.
+    /// Present in every view mode, because the row it badges is: the pane shows the group
+    /// whether or not an account is selected.
     pub unified_unread: u32,
+    /// Whether the **All Accounts** group's tree is open in the folder pane.
+    ///
+    /// The group is account-shaped: one tree among the accounts', with the same rules
+    /// (`docs/folder-pane.md`). Expansion is the core's and is persisted, so a client
+    /// renders this and changes it with `Intent::SetUnifiedExpanded` rather than keeping a
+    /// copy that would disagree with the other platforms and reset on every restart.
+    ///
+    /// **Stamped at publish time**, never left at `bool::default()`: `false` is *shut*, and
+    /// the group holds the only row that opens the unified list.
+    pub unified_expanded: bool,
     /// The selected folder's key, or `None` for the account's unified all-mail view.
     pub selected: Option<String>,
     /// The mode the rows are grouped in.

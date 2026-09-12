@@ -1,5 +1,6 @@
-// The sidebar: a NavigationView accordion, All Inboxes, one expandable entry per account with
-// its folders, and Add Account, plus the Calendar footer entry and the Settings gear. The menu is
+// The sidebar: a NavigationView accordion, the All Accounts group over the unified Inbox, one
+// expandable entry per account with its folders, and Add Account, plus the Calendar footer entry
+// and the Settings gear. The menu is
 // BOUND to SidebarItems and reconciled in place from the model's Accounts/Folders/selection, so the
 // framework owns container realization and the native selection highlight. Split out of
 // MainWindow.xaml.cs to keep that file under the 500-line limit.
@@ -24,14 +25,16 @@ public sealed partial class MainWindow
     // Sentinel tags distinguishing the synthetic sidebar entries from folder keys; an account
     // entry carries AccountTagPrefix + its id, a folder child carries the raw folder key. The
     // three mail-side ones live in SidebarTree, which builds the entries that carry them.
+    private const string AllAccountsTag = SidebarTree.AllAccountsTag;
     private const string AllInboxesTag = SidebarTree.AllInboxesTag;
     private const string AddAccountTag = SidebarTree.AddAccountTag;
     private const string AccountTagPrefix = SidebarTree.AccountTagPrefix;
     private const string CalendarTag = "@calendar";
     private const string ContactsTag = "@contacts";
 
-    // Segoe Fluent glyphs: a tray for the unified inbox, a contact for an account, a folder
-    // for a mailbox, a plus for add-account.
+    // Segoe Fluent glyphs: a contact for an account, a folder for a mailbox, a plus for
+    // add-account. The All Accounts heading carries none, and the unified Inbox under it takes the
+    // Inbox role's own glyph through ForRole, like every other folder row.
     //
     // Written as \u escapes, not as the literal characters. These live in the Unicode private use
     // area, where they carry no meaning outside Segoe Fluent Icons and render as nothing (or as a
@@ -41,7 +44,6 @@ public sealed partial class MainWindow
     // to precisely that: a refactor retyped them from output that had dropped them, and every
     // sidebar icon silently disappeared.)
     private static readonly SidebarGlyphs Glyphs = new(
-        AllInboxes: "\uE715",  // Mail
         Account: "\uE77B",     // Contact
         Folder: "\uE8B7",      // Folder
         AddAccount: "\uE710",  // Add
@@ -145,10 +147,14 @@ public sealed partial class MainWindow
             // Their expansion is untouched, it is the core's, and it is waiting when mail returns.
             showFolders: Model.Destination == AppDestination.Mail,
             Model.UnifiedUnread,
+            Model.UnifiedExpanded,
             Model.IsAccountUnreachable,
-            OnAccountExpandedChanged,
+            OnExpandedChanged,
             new SidebarLabels(
-                L10n.SidebarAllInboxes(),
+                L10n.SidebarAllAccounts(),
+                // Through the one function the list header also calls, so the pane row and the
+                // header over the unified list cannot drift apart (rule 13).
+                FolderLabel.Unified(),
                 L10n.ActionAddAccount(),
                 // Saturating rather than unchecked: the label is decoration, and a mailbox past
                 // int.MaxValue unread should read as "a lot", not wrap to a negative number.
@@ -158,16 +164,30 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
-    /// A chevron click: tell the core, which persists it and re-publishes the snapshot.
+    /// A chevron click, on an account's tree or on the All Accounts group's: tell the core, which
+    /// persists it and re-publishes the snapshot.
     /// </summary>
     /// <remarks>
     /// Expanding is not navigating, this deliberately leaves the selected account and folder
     /// alone, which is what lets several accounts stand open at once and what keeps the tree as
     /// the user left it when they visit the calendar (docs/folder-pane.md).
     /// </remarks>
-    private void OnAccountExpandedChanged(SidebarItem item)
+    private void OnExpandedChanged(SidebarItem item)
     {
-        if (item.AccountId is { } id)
+        // A pane shutting takes every tree down with it, and the framework writes that back
+        // through the same two-way binding a chevron click uses. It is not the user shutting a
+        // tree, so the core must not hear about it: told, it would persist every account as
+        // collapsed, and the pane would come back empty and stay that way (docs/folder-pane.md,
+        // rules 2 and 3). Nothing is lost by ignoring it, a compact pane has no chevron to click.
+        if (!Nav.IsPaneOpen)
+        {
+            return;
+        }
+        if (item.IsGroup)
+        {
+            Model.SetUnifiedExpanded(item.IsExpanded);
+        }
+        else if (item.AccountId is { } id)
         {
             Model.SetAccountExpanded(id, item.IsExpanded);
         }
@@ -188,7 +208,12 @@ public sealed partial class MainWindow
         }
         if (Model.SelectedAccount is null)
         {
-            Nav.SelectedItem = SidebarItems.FirstOrDefault(i => i.Tag == AllInboxesTag);
+            // Under the group, not beside it: the unified Inbox is the group's child (rule 16), so
+            // the highlight is on a row the pane hides while the group is shut, which is exactly
+            // what a shut account's folders do.
+            Nav.SelectedItem = SidebarItems
+                .FirstOrDefault(i => i.Tag == AllAccountsTag)?
+                .Children.FirstOrDefault(c => c.Tag == AllInboxesTag);
             return;
         }
         var account = SidebarItems.FirstOrDefault(i => i.Tag == SidebarTree.TagFor(Model.SelectedAccount));
@@ -298,6 +323,11 @@ public sealed partial class MainWindow
                 break;
             case ContactsTag:
                 ShowContactsSurface();
+                break;
+            case AllAccountsTag:
+                // Nothing: the group's row navigates nowhere, and the framework has already
+                // opened or shut its tree (docs/folder-pane.md, rule 17). The core hears about it
+                // through the two-way IsExpanded binding, not from here.
                 break;
             case AllInboxesTag:
                 Model.SelectAccount(null);

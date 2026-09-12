@@ -41,6 +41,10 @@ impl<P: Provider> App<P> {
                 // it, so scrolling back to the top would be a visible non-sequitur.
                 self.set_account_expanded(&account, expanded).await;
             }
+            Intent::SetUnifiedExpanded { expanded } => {
+                // Same reasoning as the account trees above: the pane changed, the list did not.
+                self.set_unified_expanded(expanded).await;
+            }
             Intent::SelectFolder { folder } => {
                 // One write, so the account and the key can never be half-applied: a reader
                 // between two writes is how the same key got resolved against the wrong account.

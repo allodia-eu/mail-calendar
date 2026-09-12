@@ -20,6 +20,7 @@ use crate::l10n;
 /// account's tree, so several rows share the key `inbox`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum SidebarTarget {
+    UnifiedGroup,
     AllInboxes,
     Account(String),
     Folder { account: String, key: String },
@@ -59,7 +60,7 @@ pub(crate) fn folder_label(role: Option<&FolderRole>, name: &str) -> String {
 /// function every site calls is what stops the header and the tree disagreeing (rule 13).
 pub(crate) fn header_title(snapshot: &MailboxListSnapshot) -> String {
     let Some(account) = snapshot.selected_account.as_deref() else {
-        return l10n::sidebar_all_inboxes().to_owned();
+        return l10n::folder_inbox().to_owned();
     };
     let Some(key) = snapshot.selected.as_deref() else {
         return l10n::sidebar_all_mail().to_owned();
@@ -123,10 +124,10 @@ pub(crate) fn render(
     mailbox::install_styles();
     mailbox::clear(list);
 
-    let unified = unified_row(sender);
-    unified.set_title(l10n::sidebar_all_inboxes());
-    add_badge(&unified, snapshot.unified_unread);
-    list.append(&unified);
+    list.append(&unified_group_row(snapshot.unified_expanded, sender));
+    if snapshot.unified_expanded {
+        list.append(&unified_inbox_row(snapshot.unified_unread, sender));
+    }
 
     for account in &snapshot.accounts {
         let row = account_row(account, unreachable_accounts.contains(&account.id), sender);
@@ -156,9 +157,9 @@ pub(super) fn select_snapshot_row(list: &gtk::ListBox, snapshot: &MailboxListSna
 
 fn selected_row_index(snapshot: &MailboxListSnapshot) -> Option<i32> {
     let Some(selected_account) = snapshot.selected_account.as_deref() else {
-        return Some(0);
+        return snapshot.unified_expanded.then_some(1);
     };
-    let mut index = 1usize;
+    let mut index = 1 + usize::from(snapshot.unified_expanded);
     for account in &snapshot.accounts {
         if account.id == selected_account {
             let Some(selected_folder) = snapshot.selected.as_deref() else {
@@ -193,9 +194,39 @@ pub(super) fn folders_of<'a>(snapshot: &'a MailboxListSnapshot, account: &str) -
         .map_or(&[], |row| row.folders.as_slice())
 }
 
-fn unified_row(sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
+fn unified_inbox_row(unread: u32, sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
     let row = pane_row(INBOX_ICON, sender, &SidebarTarget::AllInboxes);
-    row.set_tooltip_text(Some(l10n::sidebar_all_inboxes()));
+    row.set_title(l10n::folder_inbox());
+    row.set_margin_start(18);
+    add_badge(&row, unread);
+    row
+}
+
+fn unified_group_row(expanded: bool, sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
+    let row = mailbox::plain_text_row();
+    row.set_title(l10n::sidebar_all_accounts());
+    row.set_title_lines(1);
+    row.set_activatable(true);
+    let button = gtk::Button::from_icon_name(if expanded {
+        "pan-down-symbolic"
+    } else {
+        "pan-end-symbolic"
+    });
+    button.add_css_class("flat");
+    button.set_valign(gtk::Align::Center);
+    let spoken = if expanded {
+        l10n::a11y_collapse_account()
+    } else {
+        l10n::a11y_expand_account()
+    };
+    button.set_tooltip_text(Some(spoken));
+    button.update_property(&[AccessibleProperty::Label(l10n::sidebar_all_accounts())]);
+    let input = sender.clone();
+    button.connect_clicked(move |_| {
+        input.emit(AppInput::ActivateSidebar(SidebarTarget::UnifiedGroup));
+    });
+    row.add_prefix(&button);
+    row.set_activatable_widget(Some(&button));
     row
 }
 
@@ -350,6 +381,7 @@ pub(crate) mod width {
 pub(super) struct FolderPaneRendering {
     accounts: Vec<RenderedAccount>,
     unified_unread: u32,
+    unified_expanded: bool,
 }
 
 /// Applies a snapshot selection once, leaving GTK's optimistic row mark alone until it changes.
@@ -412,6 +444,7 @@ impl FolderPaneRendering {
                 })
                 .collect(),
             unified_unread: snapshot.unified_unread,
+            unified_expanded: snapshot.unified_expanded,
         }
     }
 }
@@ -423,6 +456,9 @@ impl AppModel {
         // A pane row is a mail destination, so it takes the primary view back from the calendar.
         self.primary = PrimaryView::Mail;
         match target {
+            SidebarTarget::UnifiedGroup => self.dispatch(Intent::SetUnifiedExpanded {
+                expanded: !self.snapshot.unified_expanded,
+            }),
             SidebarTarget::AllInboxes => self.dispatch(Intent::SelectAccount { account: None }),
             SidebarTarget::Account(account) => self.select_account(account),
             // A folder tap names its account, in one intent: every account's tree is on

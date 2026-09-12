@@ -21,15 +21,25 @@
 #     (PaneToggleRequested -> Nav.IsPaneOpen) is exactly the kind of wiring that compiles, renders,
 #     and does nothing, the class of bug this whole suite exists for.
 #
+# And the caption is where the search field lives, which is the rest of this file (docs/search.md,
+# "Where the field lives"). That is a placement rule, so it is geometry: a field merely PRESENT in
+# the caption, drawn hard against one edge, satisfies every lookup and none of the rule. New Mail
+# is NOT here, deliberately, it is at the head of the actions bar under the caption
+# (SelectionBar.Tests.ps1), where a collapsed folder pane cannot take it off screen.
+#
 # Dataset is `showcase`: these are rules about markup and rendering, no mail action is dispatched,
 # and the pinned window frame keeps the caption's geometry predictable for the pixel sample.
 
-# Where to sample the caption. A fraction of the window's width, deliberately to the RIGHT of the
-# icon/title and to the LEFT of the caption buttons, that span is empty drag region in every
-# locale, so no glyph can land in the sample and drag the median. Y is inside the 48px caption at
-# any scale factor.
-$SampleXFraction = 0.55
-$SampleWidthPx = 120
+# Where to sample the caption: the gap between the search field and the caption buttons, which is
+# empty drag region in every locale, so no glyph can land in the sample and drag the median. Y is
+# inside the 48px caption at any scale factor.
+#
+# Measured from the field rather than taken as a fraction of the window, because the field is
+# centred and its width follows the window: a fixed fraction is over bare caption at one size and
+# over the field at another, and a sample taken over a control reads that control's fill rather
+# than the caption's. The light/dark rule below would then be asserting the wrong surface.
+$SampleWidthPx = 40
+$SampleGapPx = 24
 $SampleTop = 12
 $SampleHeight = 8
 
@@ -50,8 +60,12 @@ function Get-CaptionLuminance {
   $window = Get-MailcalWindow
   if (-not $window) { throw 'no Mailcal window, the dataset should have launched one' }
   $r = $window.Current.BoundingRectangle
-  $x = [int]($r.X + ($r.Width * $SampleXFraction))
+  $field = Get-RenderedBounds -Element (Get-CaptionSearchField) -What 'the search field'
+  $x = [int]($field.Right + $SampleGapPx)
   $y = [int]($r.Y + $SampleTop)
+  if (($x + $SampleWidthPx) -gt $r.Right) {
+    throw "no bare caption to sample: the search field ends at $($field.Right) and the window at $($r.Right)"
+  }
 
   $bmp = New-Object System.Drawing.Bitmap $SampleWidthPx, $SampleHeight
   try {
@@ -108,9 +122,17 @@ function Get-AppTitleBar {
 # The sidebar's first entry, whose width is how the pane's open/collapsed state is observed: an open
 # pane lays it out across the full OpenPaneLength, a collapsed one shrinks it to the icon strip.
 function Get-PaneItemWidth {
-  $item = Find-UiaElement -Name 'All Inboxes' -Type 'ListItem'
-  if (-not $item) { throw 'the sidebar has no "All Inboxes" entry, the shell is not showing' }
+  $item = Find-UiaElement -Name 'All Accounts' -Type 'ListItem'
+  if (-not $item) { throw 'the sidebar has no "All Accounts" entry, the shell is not showing' }
   $item.Current.BoundingRectangle.Width
+}
+
+# The search field. A SIBLING of the TitleBar control rather than its content (MainWindow.xaml says
+# why), so it is looked up on the window and not inside the caption control.
+function Get-CaptionSearchField {
+  $field = Find-UiaElement -AutomationId 'SearchBox'
+  if (-not $field) { throw 'the window''s top row carries no search field (docs/search.md)' }
+  $field
 }
 
 $Suite = @{
@@ -157,10 +179,11 @@ $Suite = @{
       Name = 'the pane toggle lives in the caption, and nowhere else'
       Body = {
         $bar = Get-AppTitleBar
-        $buttons = @(Find-UiaElements -Type 'Button' -Root $bar)
-        Assert-Equal 1 $buttons.Count (
-          'the caption carries exactly one button: the pane toggle. The system''s minimize / ' +
-          'maximize / close live outside the control, so a second one here means a stray affordance')
+        $buttons = @(Find-UiaElements -Type 'Button' -Root $bar | ForEach-Object { $_.Current.AutomationId })
+        Assert-Equal @('PART_PaneToggleButton') $buttons (
+          'the caption control carries exactly one button: the pane toggle. The system''s ' +
+          'minimize / maximize / close live outside it, and the search field beside it is not a ' +
+          "button, so anything else here is a stray affordance. Found: $($buttons -join ' | ')")
         # The NavigationView's own toggle is hidden (IsPaneToggleButtonVisible="False"), which is
         # the Fluent guidance once a custom title bar exists. Two hamburgers is the failure mode.
         $navToggle = Find-UiaElement -AutomationId 'TogglePaneButton'
@@ -172,8 +195,9 @@ $Suite = @{
     @{
       Name = 'the caption''s pane toggle collapses and reopens the sidebar'
       Body = {
-        $bar = Get-AppTitleBar
-        $toggle = Find-UiaElement -Type 'Button' -Root $bar
+        # By id, not "the first button in the caption": New Mail is in there too now, and a
+        # positional lookup would silently start toggling the composer open instead.
+        $toggle = Find-UiaElement -Type 'Button' -Root (Get-AppTitleBar) -AutomationId 'PART_PaneToggleButton'
         Assert-True ($null -ne $toggle) 'the caption must carry a pane toggle'
 
         $open = Get-PaneItemWidth
@@ -190,6 +214,31 @@ $Suite = @{
         Assert-Equal $open $reopened (
           'toggling twice must return the sidebar to where it started, the toggle flips a state, ' +
           'it does not set one')
+      }
+    },
+    @{
+      Name = 'the search field is centred over the WINDOW, not over a pane'
+      Body = {
+        # docs/search.md: the default scope is every account and every folder, so a field drawn
+        # over the message list was a control whose reach was wider than the column it sat on.
+        # Centred over the window is the honest placement, and it is the whole of the rule: a
+        # field merely present in the caption would pass a lookup and fail the reader.
+        $window = (Get-MailcalWindow).Current.BoundingRectangle
+        $field = Get-RenderedBounds -Element (Get-CaptionSearchField) -What 'the search field'
+        $fieldCentre = $field.Left + ($field.Width / 2)
+        $windowCentre = $window.X + ($window.Width / 2)
+        # Tight, because this is centred on the glass and not on what something else leaves over:
+        # the field is a sibling of the caption control rather than its content, for exactly that
+        # reason. The TitleBar's own centre slot is off by tens of pixels, which is what this
+        # number is set to catch.
+        Assert-True ([Math]::Abs($fieldCentre - $windowCentre) -le 2) `
+          "the search field's centre ($fieldCentre) must be the window's ($windowCentre): it belongs to the window, not to the message list or to the room the caption buttons leave"
+
+        # And the message list no longer carries one of its own: two fields for one query is worse
+        # than either placement.
+        $list = Find-UiaElement -AutomationId 'RowsList'
+        Assert-True ($null -eq (Find-UiaElement -Root $list -Type 'Edit')) `
+          'the message list must not draw a search field of its own as well'
       }
     }
   )

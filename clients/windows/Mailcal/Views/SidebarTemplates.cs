@@ -12,14 +12,20 @@ namespace Allodia.Mailcal.Views;
 
 /// <summary>
 /// Picks the account template (which carries the unreachable badge, the folder children and the
-/// "Remove account" context menu) for an account node, and the plain one for everything else,
-/// All Inboxes, each folder, and Add account.
+/// "Remove account" context menu) for an account node, the group template for the All Accounts
+/// heading, and the plain one for everything else: each folder, the unified Inbox, and Add account.
 /// </summary>
 /// <remarks>
 /// <para>
 /// A folder must NOT get the account template: its context menu would offer to remove an account,
 /// which is destructive and names the wrong thing. The discriminator is
 /// <see cref="SidebarItem.AccountId"/>, which is non-null on exactly the account rows.
+/// </para>
+/// <para>
+/// The All Accounts group needs a third: it carries children like an account row and no account id
+/// like a plain one, so neither existing discriminator separates it, and it is the one row in the
+/// pane that is a heading rather than a destination (docs/folder-pane.md, rule 17). Hence
+/// <see cref="SidebarItem.IsGroup"/>.
 /// </para>
 /// <para>
 /// One selector serves BOTH lists: a NavigationView applies its menu-item template to its footer
@@ -40,12 +46,19 @@ public sealed partial class SidebarItemTemplateSelector : DataTemplateSelector
     /// <summary>The template for an account row.</summary>
     public DataTemplate? Account { get; set; }
 
+    /// <summary>The template for the All Accounts heading.</summary>
+    public DataTemplate? Group { get; set; }
+
     /// <summary>The template for every other <see cref="SidebarItem"/>.</summary>
     public DataTemplate? Plain { get; set; }
 
     /// <inheritdoc/>
-    protected override DataTemplate? SelectTemplateCore(object item) =>
-        item is SidebarItem { AccountId: not null } ? Account : Plain;
+    protected override DataTemplate? SelectTemplateCore(object item) => item switch
+    {
+        SidebarItem { IsGroup: true } => Group,
+        SidebarItem { AccountId: not null } => Account,
+        _ => Plain,
+    };
 
     /// <inheritdoc/>
     protected override DataTemplate? SelectTemplateCore(object item, DependencyObject container) =>

@@ -51,13 +51,21 @@ fn bar() -> (SearchBar, relm4::Receiver<AppInput>) {
     (SearchBar::new(&sender), receiver)
 }
 
-/// The field, reached through the bar's own tree; nothing in the shipping code holds it, because
-/// nothing in the shipping code writes it.
 fn entry(bar: &SearchBar) -> gtk::SearchEntry {
-    bar.root
-        .first_child()
-        .and_then(|child| child.downcast::<gtk::SearchEntry>().ok())
-        .expect("the field is the first thing in the bar")
+    bar.entry().clone()
+}
+
+/// The window owns the field, while the scope and horizon stay over the list they describe.
+pub(crate) fn the_field_is_separate_from_the_list_details() {
+    let (bar, _receiver) = bar();
+    assert_ne!(
+        bar.entry().upcast_ref::<gtk::Widget>(),
+        bar.details().upcast_ref::<gtk::Widget>()
+    );
+    assert!(
+        bar.entry().parent().is_none(),
+        "the toolbar claims the field when the shell is assembled"
+    );
 }
 
 /// The filter and the horizon describe a **search**, so they are on screen for one and for nothing

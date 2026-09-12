@@ -91,7 +91,8 @@ public sealed partial class MainWindow : Window
         {
             if (e.PropertyName is nameof(MailboxModel.SelectedAccount)
                 or nameof(MailboxModel.SelectedFolder)
-                or nameof(MailboxModel.Destination))
+                or nameof(MailboxModel.Destination)
+                or nameof(MailboxModel.UnifiedExpanded))
             {
                 SyncNavItems();
             }

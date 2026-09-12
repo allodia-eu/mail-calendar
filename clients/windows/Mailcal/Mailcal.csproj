@@ -176,6 +176,12 @@
     <Content Include="Images\welcome-art.png" Link="Images\welcome-art.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- The caption's icon, loaded at runtime as ms-appx:///Images/TitleBarLogo.png, so it is
+         here for the same reason welcome-art.png is: both modes need it, and the glob below only
+         runs for the packaged one. Excluded there for the same reason too. -->
+    <Content Include="Images\TitleBarLogo.png" Link="Images\TitleBarLogo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <!-- MSIX packaging inputs, used only for the Store build (-p:Packaged=true). The Win32
@@ -188,9 +194,9 @@
     </AppxManifest>
     <!-- The tile/store PNGs the manifest references. The build-time source generate-assets.ps1
          derives the tiles + app.ico from lives in branding/, outside this glob, so it cannot bloat
-         the shipped MSIX. Exclude welcome-art.png: it is already included unconditionally above,
-         and including it twice is a build error. -->
-    <Content Include="Images\**\*.png" Exclude="Images\welcome-art.png" />
+         the shipped MSIX. Exclude the two that are already included unconditionally above:
+         including a file twice is a build error. -->
+    <Content Include="Images\**\*.png" Exclude="Images\welcome-art.png;Images\TitleBarLogo.png" />
   </ItemGroup>
 
   <!-- The Content copy above is conditional, so a missing cdylib would otherwise build green

@@ -25,6 +25,7 @@ pub(super) fn empty_mailbox() -> MailboxListSnapshot {
         folders: Vec::new(),
         account_folders: Vec::new(),
         unified_unread: 0,
+        unified_expanded: true,
         selected: None,
         mode: ViewMode::Threaded,
         rows: Vec::new(),

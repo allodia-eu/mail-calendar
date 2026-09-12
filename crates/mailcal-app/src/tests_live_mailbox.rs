@@ -272,6 +272,46 @@ async fn expanding_an_account_flips_only_that_account_and_navigates_nowhere() {
     assert!(app.mailbox_list().accounts.iter().all(|a| a.expanded));
 }
 
+/// The **All Accounts** group's tree, through the intent the clients dispatch: it starts open,
+/// shuts on its own, leaves every account's tree alone, and navigates nowhere.
+///
+/// The group's row is the pane's one row that does nothing but this, so a client has no other
+/// behaviour to fall back on if the state does not come back in the snapshot.
+#[tokio::test]
+async fn shutting_the_all_accounts_group_leaves_the_accounts_and_the_selection_alone() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        vec![account(
+            "acct-1",
+            FakeProvider::with(vec![message("m1", "a", "One")]),
+        )],
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(Intent::SelectAccount(Some("acct-1".to_owned())))
+        .await;
+
+    // Nobody has shut it, so it stands open: `bool::default()` would have shipped it shut, and
+    // shut hides the only row that opens the unified list.
+    assert!(app.mailbox_list().unified_expanded);
+
+    app.dispatch(Intent::SetUnifiedExpanded { expanded: false })
+        .await;
+
+    let snapshot = app.mailbox_list();
+    assert!(!snapshot.unified_expanded);
+    assert!(
+        snapshot.accounts.iter().all(|a| a.expanded),
+        "the group and the account trees are separate"
+    );
+    assert_eq!(snapshot.selected_account.as_deref(), Some("acct-1"));
+    assert!(snapshot.selected.is_none());
+
+    app.dispatch(Intent::SetUnifiedExpanded { expanded: true })
+        .await;
+    assert!(app.mailbox_list().unified_expanded);
+}
+
 /// A message re-sent whole must not lose the snippet the body sync computed for it.
 ///
 /// A provider with no server preview (IMAP) carries `None` on every object it sends, which means

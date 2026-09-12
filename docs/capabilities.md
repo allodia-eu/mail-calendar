@@ -31,6 +31,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | JMAP **OAuth sign-in**: "Sign in with your provider", discovered entirely from the standards (RFC 9728 → 8414 → 7591 → PKCE) with no per-provider code; offered only where the server advertises it, and the password/API-token path always remains ([`docs/jmap.md`](docs/jmap.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | JMAP **re-authentication**: an expired or revoked JMAP sign-in is renewed from the prompt, in place, against the account's own persisted grant; the account keeps its mail, folders and settings instead of needing a remove-and-re-add ([`docs/jmap.md`](docs/jmap.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Multi-account + unified inbox + account switcher | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Unified mail as an **All Accounts** group in the folder pane: one heading above your accounts, opening and shutting like they do and remembered across launches, with the unified Inbox as a folder under it ([docs](docs/folder-pane.md)) | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | Remove an account: per-account credential storage + in-app removal (right-click / long-press the account) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Your account list on every device**: with an Allodia account signed in, the mail accounts you add on one device are offered on the next: the address, the server names and ports, never a password and never your mail. An offer opens the ordinary setup screen with the typing done, so you enter the password once per device. Offered on the first screen and in Settings → Accounts ([docs](docs/onboarding.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Sign in to, create, manage or delete an **Allodia account**: the account for the services Allodia runs, in its own Settings category. It is not a mail account: it holds no mailbox, appears in no switcher, and its token cannot reach anyone's mail. Present only in a build carrying the registration, so a build from source has no such screen ([docs](allodia_license/entitlement.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -119,7 +120,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Per-mailbox sync behaviour: push (IMAP IDLE, capability-gated) / 15–120 min polling | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Background mail delivery: syncs when the app isn't foregrounded (desktop: while running; Android: WorkManager ~15 min; iOS/iPadOS: BGAppRefreshTask). Mobile cadence is **best-effort**: Android asks the user to exempt it from battery optimisation, without which Doze defers a pass by hours ([docs](docs/background-sync.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | New-mail notifications: local, and they say who it is from, what it is about and how it begins, from the background sync. On the desktop only mail that arrives **while the app is open**: the catch-up sync a launch begins with is already on screen, so it is not announced | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ |
-| Connection resilience: auto-reconnect after network loss (working Refresh / Try again), offline banner + per-account outage badge | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Connection resilience: auto-reconnect after network loss (working Sync / Try again), offline banner + per-account outage badge | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Time-zone-aware display + device-zone change prompt | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Localisation: English, Nederlands, Deutsch, Français, Español, Italiano, Português; the choice drives **dates** as well as copy (weekday/month names follow the app language, not the host's format locale; [`docs/timestamps.md`](docs/timestamps.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Diagnostic file log: rotating (1 MB × 3, privacy-safe), attachable for support | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -152,4 +153,3 @@ the date or the badges), because bolding every line of an unread mailbox disting
 Not yet started, and on the roadmap: the `JurisdictionGate`, and AI features of our own.
 
 > Keeping this matrix current is a hard rule: see [`AGENTS.md`](AGENTS.md).
-

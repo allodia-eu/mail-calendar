@@ -59,7 +59,8 @@ extension ContentView {
         } content: {
             compactMessageList
                 .navigationTitle(currentFolderName)
-                .navigationBarTitleDisplayMode(.inline)
+                // Large, for the reason the iPhone's is: see phoneMail.
+                .navigationBarTitleDisplayMode(.large)
                 // The default content-column width is too narrow for a mail list (hard-truncated
                 // subjects, wrapping dates), give it a comfortable width; the reading pane takes
                 // whatever is left.
@@ -69,8 +70,8 @@ extension ContentView {
                         // A phone has no modifier keys, so picking several messages is a mode:
                         // Select enters it, Done leaves it (`docs/list-selection.md`).
                         selectToggleButton
-                        messageListMenu
                         Button { compose = .new } label: { Image(systemName: "square.and.pencil") }
+                            .accessibilityLabel(L10n.action_compose())
                     }
                 }
         } detail: {

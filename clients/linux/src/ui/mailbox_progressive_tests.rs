@@ -37,6 +37,7 @@ fn snapshot(folder: &str) -> MailboxListSnapshot {
         folders: Vec::new(),
         account_folders: Vec::new(),
         unified_unread: 0,
+        unified_expanded: true,
         mode: ViewMode::Flat,
         rows,
         total: 100,
