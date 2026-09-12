@@ -645,12 +645,12 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      # ⚠️ **Do not boot the simulator early to get it off the critical path.** It reads as free
-      # time and it is not: a standard macOS runner has three cores, a booting simulator wants most
-      # of them, and the Rust cross-compile below is what it takes them from. Measured on one run,
-      # with the same warm cargo cache in both Apple jobs: cross-compiling took 74s next door and
-      # **226s** here, with nothing different but a simulator coming up beside it. `test-ui.sh`
-      # boots one when it needs one and waits for it, which is slower on paper and finishes sooner.
+      # Start the simulator now and let it boot behind the Rust build. A cold boot is a minute and a
+      # half that has nothing to do with the tests, and it is dead time if it is spent waiting.
+      # `test-ui.sh` waits for this one to finish booting rather than starting its own.
+      - name: Boot a simulator in the background
+        run: clients/apple/Scripts/test-ui.sh --boot
+
       - name: Build the Rust core -> XCFramework + bindings
         run: ./clients/apple/Scripts/build-core.sh --no-device
 
