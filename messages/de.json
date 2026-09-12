@@ -112,6 +112,7 @@
 	"a11y_expand_account": "Ordner einblenden",
 	"a11y_collapse_account": "Ordner ausblenden",
 	"a11y_unread_count": "{count} ungelesen",
+	"a11y_unread_count_one": "{count} ungelesen",
 	"a11y_resize_folder_pane": "Größe des Ordnerbereichs ändern",
 	"a11y_back": "Zurück",
 	"a11y_timezone_settings": "Zeitzoneneinstellungen",

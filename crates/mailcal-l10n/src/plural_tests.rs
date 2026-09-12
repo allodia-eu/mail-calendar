@@ -189,3 +189,70 @@ fn a_well_formed_pair_validates() {
     assert!(validate::check(&raw_with(&PLURAL_PAIR)).is_ok());
     assert!(validate::check(&raw_with(&NUMERAL_PAIR)).is_ok());
 }
+
+/// The shipped catalog, as the generators read it.
+fn shipped() -> Catalog {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(std::path::Path::parent)
+        .expect("the crate sits two levels under the repository root")
+        .to_path_buf();
+    let raw = super::parse::load(&root).expect("the shipped catalog loads");
+    Catalog::from_raw(&raw)
+}
+
+/// The template one locale carries for one key.
+fn template<'a>(catalog: &'a Catalog, key: &str, locale: &str) -> &'a str {
+    catalog
+        .message(key)
+        .unwrap_or_else(|| panic!("the catalog carries \"{key}\""))
+        .values
+        .get(locale)
+        .unwrap_or_else(|| panic!("\"{key}\" is translated into {locale}"))
+        .as_str()
+}
+
+/// The folder pane's unread badge states a number of messages, so it is a count like any other
+/// (`docs/folder-pane.md`). The cases above prove the mechanism; this one proves this key is
+/// wired into it, which is the half a mechanism test cannot see.
+#[test]
+fn the_unread_badge_is_a_plural_form() {
+    let catalog = shipped();
+
+    assert!(
+        catalog.has_singular("a11y_unread_count"),
+        "the unread badge reaches one whenever a folder holds a single unread message",
+    );
+    assert!(
+        catalog
+            .accessors()
+            .all(|m| m.key != "a11y_unread_count_one"),
+        "and its singular is reached through that accessor, never named by a client",
+    );
+}
+
+/// **The regression.** A partner that exists but reads identically to its plural is a pair that
+/// changes nothing, and it fails exactly where the bug was: French inflects the participle, so
+/// "1 non lus" was what a screen reader announced for a folder holding one message.
+///
+/// French alone, deliberately. The other six shipped languages word this badge without number
+/// agreement (English "unread", Dutch "ongelezen", German "ungelesen", Spanish "sin leer",
+/// Italian "da leggere", Portuguese "por ler"), so their two forms are the same sentence and
+/// asserting a difference there would be asserting bad grammar.
+#[test]
+fn french_inflects_the_unread_badge_and_the_other_languages_do_not() {
+    let catalog = shipped();
+
+    assert_ne!(
+        template(&catalog, "a11y_unread_count", "fr"),
+        template(&catalog, "a11y_unread_count_one", "fr"),
+        "French agrees the participle with the count, so the singular drops the s",
+    );
+    for locale in ["en", "nl", "de", "es", "it", "pt"] {
+        assert_eq!(
+            template(&catalog, "a11y_unread_count", locale),
+            template(&catalog, "a11y_unread_count_one", locale),
+            "{locale} words this badge without number agreement",
+        );
+    }
+}
