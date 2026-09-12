@@ -94,6 +94,11 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                                     null
                                 }
                             },
+                            // Straight through: the caller runs it off the main thread and turns a
+                            // throw into the composer's "couldn't attach the files" line.
+                            stageForwardFiles = { account, key, directory ->
+                                instance.stageForwardedAttachments(account, key, directory)
+                            },
                             // The From dropdown lists every configured account.
                             accounts = accounts,
                             onSaveAttachment = { account, key, attachmentId, destinationPath ->

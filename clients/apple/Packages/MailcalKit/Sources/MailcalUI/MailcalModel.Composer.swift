@@ -144,4 +144,30 @@ extension MailboxModel {
             }
         }.value
     }
+
+    /// The files the message `key` carries, staged for its forward composer to open holding
+    /// them. `nil` means they could not be read, which the composer says: an empty list would
+    /// read as a message with nothing attached.
+    ///
+    /// Off the main actor for the same reason as `saveAttachment`: the core decodes and writes
+    /// every file, and a large one must not block the UI.
+    func stageForwardedAttachments(
+        _ account: String,
+        _ key: String,
+        into directory: URL
+    ) async -> [ComposerFileAttachment]? {
+        guard let app else { return nil }
+        return await Task.detached {
+            do {
+                return try app.stageForwardedAttachments(
+                    account: account,
+                    key: key,
+                    stagingDirectory: directory.path
+                )
+            } catch {
+                print("[Mailcal] forward attachment staging failed: \(type(of: error))")
+                return nil
+            }
+        }.value
+    }
 }

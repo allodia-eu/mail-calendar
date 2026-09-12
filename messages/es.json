@@ -133,6 +133,7 @@
 	"compose_image_drop_inline": "Mostrar en el mensaje",
 	"compose_image_drop_attach": "Enviar como archivo",
 	"compose_image_failed": "No se ha podido añadir esta imagen al mensaje.",
+	"compose_forward_attachments_failed": "No se han podido adjuntar los archivos del mensaje original.",
 	"compose_discard_title": "¿Descartar el borrador?",
 	"compose_discard_message": "Este mensaje no se ha enviado. Si lo descartas, perderás lo que has escrito.",
 	"action_discard": "Descartar",

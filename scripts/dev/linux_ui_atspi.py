@@ -96,9 +96,17 @@ def find_nodes(
     contains_name: str | None = None,
     name_substring: str | None = None,
     description: str | None = None,
+    enabled_only: bool = False,
+    showing_only: bool = False,
     limit: int | None = None,
 ) -> list[Any]:
     """Find exact accessible names/roles, optionally below a named ancestor.
+
+    `enabled_only` and `showing_only` are applied **inside** the walk, before `limit` counts a
+    node. They have to be: the selection bar above the message list carries a button for each
+    verb the row menu offers, insensitive while nothing is selected and earlier in walk order, so
+    a `limit` that counted it would hand back the one node that cannot be pressed and then report
+    that it never became enabled.
 
     `name_substring` is the one inexact matcher, and it exists for the labels a client *composes*
     at runtime: a calendar block speaks its title, its time range, its calendar and; on an
@@ -128,6 +136,8 @@ def find_nodes(
             and _matches(node_role(candidate), role)
             and _contains(node_name(candidate), name_substring)
             and _matches(node_description(candidate), description)
+            and (not enabled_only or node_enabled(candidate))
+            and (not showing_only or node_showing(candidate))
             and (
                 contains_name is None
                 or any(
@@ -345,13 +355,12 @@ def wait_for_nodes(
             contains_name=contains_name,
             name_substring=name_substring,
             description=description,
+            enabled_only=enabled_only,
+            showing_only=showing_only,
             limit=result_limit,
         )
-        eligible = [node for node in matches if node_enabled(node)] if enabled_only else matches
-        if showing_only:
-            eligible = [node for node in eligible if node_showing(node)]
-        if eligible:
-            return eligible
+        if matches:
+            return matches
         time.sleep(0.1)
     target = name or role or "node"
     scope = f' within "{within}"' if within else ""

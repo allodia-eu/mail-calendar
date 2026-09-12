@@ -6,15 +6,17 @@
 //! arriving over a draft asks before replacing it, because a launch the user did not aim at this
 //! window must never throw away what they were writing.
 //!
-//! What is different is the payload: the composer opens already holding attachments, which no
-//! other route does. Their names and media types were decided by the shared core, so nothing here
-//! inspects a file.
+//! What is different is the payload: the composer opens already holding attachments, which only a
+//! forward otherwise does. Their names and media types were decided by the shared core, so nothing
+//! here inspects a file.
 //!
 //! One consequence is worth knowing before it surprises someone: a share-opened composer counts as
-//! **dirty from the moment it opens**, because [`super::composer_draft::headers_edited`] treats any
-//! attachment as something to lose. So navigating away from one asks, where navigating away from an
+//! **dirty from the moment it opens**, because [`super::composer_draft::headers_edited`] measures a
+//! share's files against zero. So navigating away from one asks, where navigating away from an
 //! untouched reply does not. That is the rule working, not a leak: the file was the user's choice
-//! in their file manager, exactly as a picked one is their choice in the dialog.
+//! in their file manager, exactly as a picked one is their choice in the dialog. A forward's staged
+//! files are the exception, and for the same reason read the other way: they are still in the
+//! mailbox, so abandoning the forward loses nothing.
 
 use mailcal_bindings::SharePrefill;
 

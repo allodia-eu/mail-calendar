@@ -1,7 +1,8 @@
 // Attachment staging for the rich composer: copying a user-picked `content://` document into the
 // app cache so Rust can read its bytes off the main thread, plus the filename/media-type probing
-// that feeds the outgoing MIME part. Split out of RichComposeScreen.kt to keep each file small;
-// behaviour is unchanged, the code is only relocated.
+// that feeds the outgoing MIME part, and the same for the files a forwarded message carries,
+// which the core writes into that cache. Split out of RichComposeScreen.kt to keep each file
+// small.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -57,6 +58,40 @@ internal fun rememberAttachmentPicker(
                 }
             }
         }
+    }
+}
+
+// What a forward composer opens holding: the files the original carries, already staged, and
+// whether staging failed. The two travel together because an empty list means opposite things
+// either way: nothing was attached, or everything was and none of it could be read.
+internal data class ForwardSeed(
+    val files: List<ComposerFileAttachment> = emptyList(),
+    val failed: Boolean = false,
+)
+
+// Stages the files a forwarded message carries, off the main thread, and hands the result back
+// on it. The core writes them into the app cache and answers with the name and media type the
+// sender gave each one, so a staged file and a picked one are the same thing by the time the
+// composer holds them.
+//
+// The caller opens the composer from `onSeeded` rather than before it: the composer must not be
+// on screen holding nothing while the files are still arriving, because the user can press Send
+// in that window and post exactly the forward this feature exists to prevent.
+internal fun stageForwardAttachments(
+    ctx: Context,
+    account: String,
+    key: String,
+    stage: (String, String, String) -> List<ComposerFileAttachment>,
+    onSeeded: (ForwardSeed) -> Unit,
+) {
+    val directory = File(ctx.cacheDir, "composer-attachments")
+    thread(name = "mailcal-stage-forward") {
+        val seed = try {
+            ForwardSeed(files = stage(account, key, directory.absolutePath))
+        } catch (_: Exception) {
+            ForwardSeed(failed = true)
+        }
+        Handler(Looper.getMainLooper()).post { onSeeded(seed) }
     }
 }
 

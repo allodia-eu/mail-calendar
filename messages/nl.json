@@ -133,6 +133,7 @@
 	"compose_image_drop_inline": "In het bericht tonen",
 	"compose_image_drop_attach": "Als bestand meesturen",
 	"compose_image_failed": "Kan deze afbeelding niet aan het bericht toevoegen.",
+	"compose_forward_attachments_failed": "Kan de bijlagen van het oorspronkelijke bericht niet toevoegen.",
 	"compose_discard_title": "Concept weggooien?",
 	"compose_discard_message": "Dit bericht is niet verzonden. Als je het weggooit, ben je kwijt wat je hebt geschreven.",
 	"action_discard": "Weggooien",

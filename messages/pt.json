@@ -133,6 +133,7 @@
 	"compose_image_drop_inline": "Mostrar na mensagem",
 	"compose_image_drop_attach": "Enviar como ficheiro",
 	"compose_image_failed": "Não foi possível adicionar esta imagem à mensagem.",
+	"compose_forward_attachments_failed": "Não foi possível anexar os ficheiros da mensagem original.",
 	"compose_discard_title": "Descartar o rascunho?",
 	"compose_discard_message": "Esta mensagem não foi enviada. Se a descartar, perde o que escreveu.",
 	"action_discard": "Descartar",

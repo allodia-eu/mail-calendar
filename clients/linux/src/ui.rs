@@ -28,6 +28,7 @@ mod composer_attach;
 mod composer_draft;
 mod composer_header;
 mod composer_model;
+mod composer_notice;
 mod composer_open;
 mod composer_share;
 mod composer_signature;
@@ -101,6 +102,7 @@ use composer_draft::PendingNavigation;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 use composer_model::ComposeKind;
 use composer_model::ComposeRequest;
+use composer_notice::ComposerNotice;
 use connectivity::ConnectivityState;
 use contacts::ContactsModel;
 pub(crate) use destinations::PrimaryView;
@@ -151,7 +153,8 @@ pub(crate) struct AppModel {
     pending_mail_delete: Option<DeleteTarget>,
     composer: Option<ComposeRequest>,
     composer_generation: u64,
-    composer_error: bool,
+    /// What the composer's error line is showing, or `None` when it shows nothing.
+    composer_error: Option<ComposerNotice>,
     /// The message or external draft waiting for the open composer to answer whether it is dirty.
     pending_navigation: Option<PendingNavigation>,
     /// A mail link received before an account exists. Account setup completing opens it.
@@ -339,7 +342,7 @@ impl SimpleComponent for AppModel {
             pending_mail_delete: None,
             composer: None,
             composer_generation: 0,
-            composer_error: false,
+            composer_error: None,
             pending_navigation: None,
             pending_mailto: None,
             pending_share: None,

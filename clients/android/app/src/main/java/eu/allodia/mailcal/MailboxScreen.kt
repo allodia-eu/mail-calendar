@@ -5,18 +5,14 @@
 package eu.allodia.mailcal
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -27,7 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.LaunchedEffect
@@ -122,6 +117,7 @@ internal fun MailboxScreen(
         files: List<ComposerFileAttachment>,
     ) -> Boolean,
     replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
+    stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
     suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
     // The signature library + lookups for the reply/forward composer, or null to leave signatures
     // out (a screenshot run, a test).
@@ -361,6 +357,7 @@ internal fun MailboxScreen(
                                 onReply = onReply,
                                 onForward = onForward,
                                 replyRecipients = replyRecipients,
+                                stageForwardFiles = stageForwardFiles,
                                 suggestionsFor = suggestionsFor,
                                 signatures = signatures,
                             )
@@ -471,29 +468,4 @@ internal fun MailboxScreen(
         onAccept = onAcceptTimeZoneChange,
         onDismiss = onDismissTimeZoneChange,
     )
-}
-
-// The floating "new mail" pill (a rounded, elevated primary-coloured chip with an up-arrow). Kept
-// as its own composable so `AnimatedVisibility` binds to the plain top-level overload rather than
-// the caller's Box/Column scope, which would otherwise reject the implicit receiver.
-@androidx.compose.runtime.Composable
-private fun NewMailPill(visible: Boolean, label: String, onClick: () -> Unit) {
-    AnimatedVisibility(visible = visible) {
-        Surface(
-            onClick = onClick,
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            shadowElevation = 4.dp,
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(painterResource(R.drawable.ic_keyboard_arrow_up), contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(label)
-            }
-        }
-    }
 }

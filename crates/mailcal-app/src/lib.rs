@@ -137,7 +137,7 @@ use mcp_settings::McpSettingsState;
 pub use prefetch::default_prefetch_size_limit;
 pub use protocol::{
     AppObserver, BulkAction, CalendarWriteStatus, ComposerBlob, ContactWriteStatus, Intent,
-    RecipientSuggestion, SearchScope, SendStatus, Surface,
+    RecipientSuggestion, SearchScope, SendStatus, StagedAttachment, Surface,
 };
 pub use query::{MessageDetail, MessagePage};
 use quote_settings::QuoteSettingsState;

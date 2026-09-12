@@ -358,8 +358,8 @@ impl AppWidgets {
                     self.sender.clone(),
                 );
             }
-            if model.composer_error {
-                self.composer.show_error();
+            if let Some(notice) = model.composer_error {
+                self.composer.show_error(notice.text());
             }
             // A navigation is waiting on this draft's answer. Issued from here because the model
             // renders behind a shared reference and cannot run the editor round trip itself.

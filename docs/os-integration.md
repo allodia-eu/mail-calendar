@@ -33,6 +33,11 @@ Files therefore reach the composer only through a channel that is **itself a use
 share sheet, an "Open With", or an explicit `--attach` argument. Adding a fifth is a decision, not
 a refactor.
 
+Forwarding a message is not a fifth, and is worth stating so nobody reads it as one. The files
+come from the mail the user is looking at, they are staged by the core rather than named by
+anything outside the app, and the action that puts them in the composer is the user pressing
+Forward ([`sending.md`](sending.md) → "What a forward carries"). No URI is involved at any point.
+
 ## What the core decides about a shared file
 
 Both the composer's own file picker and a share resolve their metadata through
@@ -99,8 +104,8 @@ must meet are Gate 12 and Gate 15 in [`composer-security.md`](composer-security.
 
 ## Known gaps
 
-- **Share ships everywhere but Apple**, which still needs a Share Extension target and a
-  composer that can be seeded with attachments.
+- **Share ships everywhere but Apple**, which still needs a Share Extension target. The composer
+  half is done: it opens holding files a forward staged, and a share's would arrive the same way.
 - **A `MimeType=` entry is a claim to *open* that type, and Linux has no way to say otherwise.**
   There is no key for "I will attach this but not display it", so appearing in "Open With" for a
   PDF also makes this app selectable as a PDF handler. The list is therefore kept to what a person

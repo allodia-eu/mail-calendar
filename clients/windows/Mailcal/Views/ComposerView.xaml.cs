@@ -47,6 +47,12 @@ public sealed partial class ComposerView : UserControl
     /// opened. Tracked eagerly because it needs no round-trip into the editor.</summary>
     private bool _headersDirty;
 
+    /// <summary>How many of the files the composer opened holding are not the user's own work: a
+    /// forward's staged originals, which are still in the mailbox. The baseline the live count is
+    /// measured against; zero for a share, whose files the user chose and would have to share
+    /// again.</summary>
+    private int _baselineAttachments;
+
     /// <summary>Whether the editor bundle has parsed, so its <c>window.*</c> hooks exist. Anything
     /// the user can trigger that talks to the editor gates on this.</summary>
     private bool _editorReady;
@@ -65,13 +71,14 @@ public sealed partial class ComposerView : UserControl
     {
         _model = model;
         _request = request;
-        // A share opens the composer already holding its files; every other route starts empty
-        // and fills this from the picker (docs/os-integration.md). Seeded here rather than in the
-        // loaded handler so the rows are there on the first render.
+        // A share, and a forward, open the composer already holding files; every other route
+        // starts empty and fills this from the picker (docs/os-integration.md). Seeded here
+        // rather than in the loaded handler so the rows are there on the first render.
         foreach (var file in request.Attachments ?? [])
         {
             _attachments.Add(new PickedComposerAttachment(file));
         }
+        _baselineAttachments = request.Kind == RichComposeKind.Forward ? _attachments.Count : 0;
         // `_attachments` is a plain list and the ListView is not bound to it in XAML, so the
         // picker re-assigns ItemsSource after every change. A seeded list needs the same
         // assignment, or the rows exist only in the list and the user sees, and can remove,
@@ -79,6 +86,12 @@ public sealed partial class ComposerView : UserControl
         if (_attachments.Count > 0)
         {
             AttachmentList.ItemsSource = _attachments;
+        }
+        // A forward whose files could not be read opens saying so. Silence here would be a
+        // message the user sends believing the original had nothing attached.
+        if (request.AttachmentsFailed)
+        {
+            ShowError(L10n.ComposeForwardAttachmentsFailed());
         }
         _onDone = onDone;
 
@@ -173,10 +186,15 @@ public sealed partial class ComposerView : UserControl
     /// editor document is compared against the seed it opened with, so a reply that merely carries
     /// its quoted original does NOT count as dirty until something is actually written above it
     /// (and flipping the quote-style toggle, which rewrites the document, does).
+    /// <para>The attachment count is measured against what the composer opened with, which is not
+    /// the same as zero. A forward's staged originals are still in the mailbox, so abandoning one
+    /// loses nothing and must not be worth a prompt; a share's files the user chose in Explorer and
+    /// would have to share again, so those count from the start. Removing a forwarded file, like
+    /// adding any file, changes the count and does count.</para>
     /// </summary>
     internal async Task<bool> IsDirtyAsync()
     {
-        if (_headersDirty || _attachments.Count > 0)
+        if (_headersDirty || _attachments.Count != _baselineAttachments)
         {
             return true;
         }
@@ -236,8 +254,9 @@ public sealed partial class ComposerView : UserControl
     }
 
     /// <summary>The one error line under the composer, which more than one failure writes to: a
-    /// send that couldn't be prepared, and a dropped picture that couldn't be shown. Each states
-    /// which failure it is rather than leaving the previous message standing.</summary>
+    /// send that couldn't be prepared, a dropped picture that couldn't be shown, a forward whose
+    /// files couldn't be read. Each states which failure it is rather than leaving the previous
+    /// message standing.</summary>
     internal void ShowError(string message)
     {
         PrepareError.Text = message;

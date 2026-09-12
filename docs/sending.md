@@ -1,8 +1,8 @@
 # Sending: cross-platform contract
 
-**Scope.** Who a message says it is from, what every client shows while one is going out, and
-what it does when one goes out but leaves no copy behind. Binding on every platform that ships a
-composer.
+**Scope.** Who a message says it is from, what a forward takes with it, what every client shows
+while one is going out, and what it does when one goes out but leaves no copy behind. Binding on
+every platform that ships a composer.
 
 **Principle.** *Delivering a message and keeping the sender's copy of it are two different
 operations, and a client must never let the second one fail in silence.* A Sent copy is how a
@@ -78,6 +78,42 @@ Where the account holder owns the provider's copy (JMAP, Gmail), a change is pus
 best-effort. It is not reported: the user asked to be called something and, on this device,
 they now are.
 
+## What a forward carries
+
+A forward passes the message on, so the recipient gets what the sender was sent, not a copy of
+its text. **The composer opens holding the original's files**, as ordinary attachments in the
+same list a picked file lands in: exactly the files the reading view shows, each keeping the name
+and media type its sender gave it. The quoted body's inline `cid:` images are not among them;
+they are re-attached as the parts the quote references, so a forwarded logo is a picture in the
+message rather than a second file.
+
+They are **removable**, like anything else in that list. A forward proposes the files, it does not
+impose them, which is what a person forwarding one page of a long thread expects and what every
+mail client they have used does.
+
+Four rules hold it together:
+
+1. **The core stages, the client shows.** `stage_forwarded_attachments` writes the files into a
+   directory the client names and answers with a name, media type and path for each. From there
+   they are indistinguishable from a picked file or a shared one: same list, same removal, same
+   submit. No client decides which parts of a message are files, and none reads a MIME part.
+2. **The composer opens after staging, never before.** A composer on screen holding nothing can
+   be sent in the window before the files arrive, which is exactly the forward-without-its-
+   attachments this exists to prevent. Staging reads the raw source the reading view has already
+   cached, so in the ordinary case there is nothing to wait for.
+3. **Files that cannot be read are said out loud.** Staging is all or nothing, and a failure
+   opens the composer with the error line set rather than with an empty attachment list. An empty
+   list is a claim: *this message had nothing attached*. Making it silently while the files sit
+   unreadable on a server is how a forward loses them without anyone noticing.
+4. **Carrying them is not a draft.** The "Discard draft?" guard measures the attachment count
+   against what the forward opened with, so abandoning one the user never typed into asks
+   nothing: the files are still in the mailbox and nothing is lost. Taking one off, like adding
+   one, is a decision about what goes out and does count. A **share**'s files count from the
+   start, because those the user chose in their file manager and would have to share again.
+
+A **reply** carries none of this. It answers the message rather than passing it on, and sending
+someone their own file back is noise that repeats on every turn of a long thread.
+
 ## Rules
 
 1. **Never word an unfiled copy as a failed send.** The message *was* sent and the recipients
@@ -106,8 +142,19 @@ they now are.
 | Windows | ✅ InfoBar | ✅ InfoBar, `IsClosable=False` | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
 | Linux | ✅ banner | ✅ modal, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ dropdown |
 
+| Platform | A forward opens holding the original's files | Removable | Failure said out loud | Not a draft on its own |
+|---|---|---|---|---|
+| macOS / iOS / iPadOS | ✅ | ✅ | ✅ composer error line | ✅ the guard watches for a *change* |
+| Android | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed |
+| Windows | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed |
+| Linux | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed |
+
 ## Known gaps
 
+- **A staged file outlives its composer.** The files are written into the client's own cache and
+  nothing deletes them when a forward is sent or abandoned, exactly as for an attachment opened
+  from the reading view. The OS reclaims that directory; until it does, a decoded copy of the
+  files is on disk.
 - **The question does not survive a restart.** The core holds it in memory, so quitting with
   one open loses the chance to retry: the message stays sent, and the copy stays missing.
   Making it durable means recording an outbox op for a submission that already succeeded,

@@ -99,6 +99,7 @@ private fun TestMailbox(position: MailListPosition, search: SearchBarState) {
         onReply = { _, _, _, _, _, _, _ -> true },
         onForward = { _, _, _, _, _, _, _ -> true },
         replyRecipients = { _, _, _ -> null },
+        stageForwardFiles = { _, _, _ -> emptyList() },
         onSubmitRich = { _, _, _, _, _ -> true },
         swipe = SwipeSettings(SwipeActionKind.DELETE, SwipeActionKind.DELETE),
         onArchive = { _, _ -> },

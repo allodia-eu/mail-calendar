@@ -5,6 +5,12 @@
 # are selected through GTK's AT-SPI tree, never by screen coordinates. The only mailbox is the local
 # Stalwart fixture, and every screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
 #
+# It expects the deterministic seed, the one `harness.sh up` lays down. Against a `--bulk` mailbox
+# it goes intermittently red somewhere it has no quarrel with: an AT-SPI poll is a walk of the whole
+# remote tree, about a second and a half over D-Bus once the bulk folders are in it, and the send
+# status the run asserts on is on screen for two and a half. Reseed with `harness.sh reset` before
+# reading such a failure as a regression.
+#
 #   scripts/dev/test-linux-ui.sh
 #   scripts/dev/test-linux-ui.sh --start-harness
 #   scripts/dev/test-linux-ui.sh --no-build --artifacts /tmp/mailcal-linux-ui
@@ -44,6 +50,12 @@ ATSPI="$REPO_ROOT/scripts/dev/linux_ui_atspi.py"
 REMOTE_SUBJECT="HTML message with a remote image"
 # Who that fixture is from, and so who a reply to it is addressed to.
 REMOTE_SENDER="news@example.com"
+# The fixture a forward is driven from, and the one file it carries. Both from the deterministic
+# seed rather than the bulk one, which --start-harness does not seed.
+ATTACHMENT_SUBJECT="Message with a text attachment"
+ATTACHMENT_FILE="report.csv"
+# Somewhere else to navigate to, for the leg that asks whether abandoning a forward stops the user.
+PLAIN_SUBJECT="Harness baseline message"
 # The three seeded iMIP fixtures (docker/stalwart/seed.sh). Monday's sits in the review/triage
 # overlap; the weekend one is on the day the living week deliberately leaves empty, which is the
 # only fixture that can tell the preview rule from the one it replaced; the published .ics is the
@@ -633,6 +645,42 @@ PY
   wait "$sent_wait_pid"
   capture sent
 
+  # Forwarding carries the original's files, shown as ordinary attachment rows
+  # (docs/sending.md -> "What a forward carries"). What only a live run shows is that the staging
+  # round trip through the core reaches the list the user can act on, rather than attaching the
+  # files somewhere the composer never draws.
+  open_mail_message "$ATTACHMENT_SUBJECT"
+  "$PYTHON" "$ATSPI" activate --name "Forward" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Write your message" --showing --timeout 30
+  # The row, and the control that takes it off again. A forward that carried the file while showing
+  # nothing is the shape this leg exists to catch, and it looks identical from outside.
+  "$PYTHON" "$ATSPI" wait \
+    --name "$ATTACHMENT_FILE" --role "list item" --enabled --showing --timeout 30
+  "$PYTHON" "$ATSPI" wait \
+    --name "Remove" --within "$ATTACHMENT_FILE" --enabled --showing --timeout 20
+  capture forward-attachments
+
+  # Abandoning an untouched forward asks nothing: its files are still in the mailbox. The absence
+  # of the attachment row is what says the navigation went through; a guard measuring the staged
+  # files against zero would have stopped it with a modal and left the row on screen.
+  open_mail_message "$PLAIN_SUBJECT"
+  "$PYTHON" "$ATSPI" wait --name "$ATTACHMENT_FILE" --absent --timeout 30
+  "$PYTHON" "$ATSPI" wait --name "Discard draft?" --absent --timeout 20
+
+  # Taking one off is a decision about what goes out, so the same navigation now does stop. Both
+  # halves are needed: the first alone passes just as well with the guard switched off entirely.
+  open_mail_message "$ATTACHMENT_SUBJECT"
+  "$PYTHON" "$ATSPI" activate --name "Forward" --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "$ATTACHMENT_FILE" --role "list item" --enabled --showing --timeout 30
+  "$PYTHON" "$ATSPI" activate --name "Remove" --within "$ATTACHMENT_FILE" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "$ATTACHMENT_FILE" --absent --timeout 20
+  open_mail_message "$PLAIN_SUBJECT"
+  "$PYTHON" "$ATSPI" wait --name "Discard draft?" --showing --timeout 30
+  capture forward-discard-prompt
+  "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Discard draft?" --absent --timeout 20
+
   # Search. What is worth driving here is the half a screenshot cannot check: that the core's
   # narrowing reaches the screen, that the two controls docs/search.md requires of a client are on
   # the accessibility bus at all, and that clearing the field puts the unsearched list back.
@@ -894,20 +942,31 @@ PY
 
   # Opening it read it, so the menu on its own row offers the way back rather than "Mark as read"
   #; the round trip, from a dispatch through the core to the snapshot the row is rebuilt from.
+  #
+  # Both assertions are scoped to the row. The selection bar above the list carries a "Mark as
+  # read" of its own, insensitive and naming the affirmative action while nothing is selected, so
+  # an unscoped --absent is a question about that bar rather than about this menu.
   "$PYTHON" "$ATSPI" activate \
     --name "More actions" --within "$MAIL_ACTION_SUBJECT" --timeout 20
-  "$PYTHON" "$ATSPI" wait --name "Mark as unread" --enabled --showing --timeout 20
-  "$PYTHON" "$ATSPI" wait --name "Mark as read" --absent --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "Mark as unread" --within "$MAIL_ACTION_SUBJECT" --within-role "list item" \
+    --enabled --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "Mark as read" --within "$MAIL_ACTION_SUBJECT" --within-role "list item" \
+    --absent --timeout 20
   capture mail-actions-menu
-  "$PYTHON" "$ATSPI" activate --name "Flag" --timeout 20
+  # Scoped to the row for the reason above, and here it decides which widget is pressed rather
+  # than only what is asserted: the bar's namesake acts on the selection, not on this message.
+  "$PYTHON" "$ATSPI" activate --name "Flag" --within "$MAIL_ACTION_SUBJECT" --timeout 20
   # Wait for the row to carry the flag before reopening its menu: the list reconciles in place, so
   # a menu opened mid-rebuild belongs to the widget being replaced and answers nothing.
   "$PYTHON" "$ATSPI" wait \
     --name "Flagged" --within "$MAIL_ACTION_SUBJECT" --showing --timeout 30
   "$PYTHON" "$ATSPI" activate \
     --name "More actions" --within "$MAIL_ACTION_SUBJECT" --timeout 20
-  "$PYTHON" "$ATSPI" wait --name "Unflag" --enabled --showing --timeout 20
-  "$PYTHON" "$ATSPI" activate --name "Unflag" --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "Unflag" --within "$MAIL_ACTION_SUBJECT" --enabled --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Unflag" --within "$MAIL_ACTION_SUBJECT" --timeout 20
   "$PYTHON" "$ATSPI" wait \
     --name "Flagged" --within "$MAIL_ACTION_SUBJECT" --absent --timeout 30
 

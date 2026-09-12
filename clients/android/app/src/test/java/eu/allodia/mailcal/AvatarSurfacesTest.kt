@@ -50,6 +50,7 @@ class AvatarSurfacesTest {
                         onReply = { _, _, _, _, _, _, _ -> true },
                         onForward = { _, _, _, _, _, _, _ -> true },
                         replyRecipients = { _, _, _ -> null },
+                        stageForwardFiles = { _, _, _ -> emptyList() },
                     )
                 }
             }

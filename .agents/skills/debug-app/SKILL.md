@@ -155,10 +155,12 @@ scripts/dev/control.sh linux activate "Load images"
 
 For the complete Linux proof, prefer `scripts/dev/test-linux-ui.sh --start-harness`. It owns a
 private Xvfb + D-Bus + AT-SPI session and asserts, against the seeded harness: blocked-image →
-opt-in → Reply → Send, search (narrowing, how far back, the scope filter, clearing it), the calendar
-agenda plus create → detail → edit → delete, three meeting-invitation fixtures, contacts, recipient
-autosuggest, and signatures. It preserves screenshots, tree, and logs under
-`target/ui-test-artifacts/linux/`. It drives **no mail action**: verify archive/trash/spam by hand.
+opt-in → Reply → Send, a forward and the files it carries into the composer, search (narrowing, how
+far back, the scope filter, clearing it), the calendar agenda plus create → detail → edit → delete,
+three meeting-invitation fixtures, contacts, recipient autosuggest, signatures, and mail actions
+(read, flag, archive) on a message it delivers for itself. It preserves screenshots, tree, and logs
+under `target/ui-test-artifacts/linux/`. Spam and permanent delete it leaves alone: verify those by
+hand.
 
 **On macOS, drive by label, never by pixel.** `find` resolves a label to coordinates that pipe
 straight into `tap`, so a flow survives a layout change:

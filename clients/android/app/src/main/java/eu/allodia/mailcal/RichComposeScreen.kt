@@ -27,7 +27,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,14 +38,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.DialogWindowProvider
-import androidx.core.view.WindowCompat
 import java.io.File
 import org.json.JSONObject
 import uniffi.mailcal_bindings.AccountRow
@@ -85,11 +81,14 @@ internal fun RichComposeMessageDialog(
     // as text, never markup (docs/composer-security.md, Gate 12), with the caret left after it
     // so the user writes on from there.
     initialBody: String = "",
-    // Files the composer opens already holding, from a share (docs/os-integration.md). Each is
-    // the shared core's answer about one shared item, name and media type included, so this list
-    // is displayed as given and never re-derived here. Removable like any picked file: a share
-    // proposes an attachment, it does not impose one.
+    // Files the composer opens already holding: a share (docs/os-integration.md), or the files a
+    // forwarded message carries. Each is the shared core's answer about one file, name and media
+    // type included, so this list is displayed as given and never re-derived here. Removable like
+    // any picked file: neither a share nor a forward imposes an attachment.
     initialAttachments: List<ComposerFileAttachment> = emptyList(),
+    // An error the composer opens showing, for a failure that happened before it did: the files
+    // a forward was to carry could not be read. Written to the same line as every other failure.
+    initialError: String? = null,
     // The quoted-original seed (a `Block::Quote`-shaped JSON) injected once the editor finishes
     // loading, or null for a new message / a reply with no body loaded; `quoteStyle` is the app
     // default the quote is seeded with.
@@ -136,9 +135,9 @@ internal fun RichComposeMessageDialog(
     // never hidden behind a tap the user doesn't know to make.
     var showCcBcc by remember { mutableStateOf(revealsCcBcc(initialCc, initialBcc)) }
     // The one error line under the composer, which more than one failure writes to: a send that
-    // couldn't be prepared, and a dropped picture that couldn't be shown. It carries the message
-    // rather than a flag, so each failure says which one it is.
-    var composerError by remember { mutableStateOf<String?>(null) }
+    // couldn't be prepared, a dropped picture that couldn't be shown, a forward whose files
+    // couldn't be read. It carries the message rather than a flag, so each says which it is.
+    var composerError by remember { mutableStateOf(initialError) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     // The single-scroll model: the WebView owns the one scroll (so its native caret-following and
     // drag-to-scroll just work), and the address-field header is a native overlay drawn on top of
@@ -153,6 +152,9 @@ internal fun RichComposeMessageDialog(
     // key would let a share arriving over an OPEN composer replace the files the user had
     // picked. A share reaching a busy composer waits (MailboxScreen), it does not overwrite.
     var attachments by remember { mutableStateOf(initialAttachments.map(::seededComposerFile)) }
+    // A forward's staged files are the baseline the discard guard measures against: they are still
+    // in the mailbox, so abandoning the forward loses nothing. A share's are the user's own choice.
+    val baselineAttachments = if (mode == RichComposeMode.Forward) initialAttachments.size else 0
     // Pictures dropped on the composer, waiting on the one question they raise. Held rather than
     // acted on, because the answer decides whether they become body content or attachments.
     var droppedPictures by remember { mutableStateOf<List<PickedComposerFile>>(emptyList()) }
@@ -204,7 +206,7 @@ internal fun RichComposeMessageDialog(
     val requestDismiss = dismiss@{
         if (composerHeadersEdited(
                 to, seededTo, cc, seededCc, bcc, seededBcc, subject, initialSubject,
-                attachments.size,
+                attachments.size, baselineAttachments,
             )
         ) {
             confirmingDiscard = true
@@ -479,21 +481,6 @@ internal fun RichComposeMessageDialog(
                     }
                 }
             }
-        }
-    }
-}
-
-// Point the enclosing dialog window's status/navigation-bar icons at the current theme, so they
-// stay legible against the composer drawing behind them. A no-op outside a dialog.
-@Composable
-internal fun SystemBarsMatchTheme() {
-    val view = LocalView.current
-    val lightBars = !LocalAppDark.current
-    SideEffect {
-        val window = (view.parent as? DialogWindowProvider)?.window ?: return@SideEffect
-        WindowCompat.getInsetsController(window, view).apply {
-            isAppearanceLightStatusBars = lightBars
-            isAppearanceLightNavigationBars = lightBars
         }
     }
 }

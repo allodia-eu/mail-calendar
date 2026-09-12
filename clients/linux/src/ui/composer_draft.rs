@@ -51,12 +51,19 @@ pub(crate) enum PendingNavigation {
 /// reply's To and a reply-all's Cc. Stopping someone to ask about a message they never typed into
 /// is exactly the noise this guard must not create. Typing something and deleting it again lands
 /// back on the opening values and counts as clean, which is true; there is nothing left to lose.
+///
+/// The attachment count is measured the same way, against `opened_with`, which is **not** simply
+/// what the composer opened holding. A forward's staged originals are still in the mailbox, so
+/// abandoning one loses nothing and must not be worth a prompt; a share's files the user chose in
+/// their file manager and would have to share again, so those count from the start. Removing a
+/// forwarded file, like adding any file, changes the count and does count.
 pub(crate) fn headers_edited(
     current: &HeaderValues,
     opening: &HeaderValues,
     attachments: usize,
+    opened_with: usize,
 ) -> bool {
-    current != opening || attachments > 0
+    current != opening || attachments != opened_with
 }
 
 /// Whether the editor holds anything beyond what was seeded into it.
@@ -74,6 +81,11 @@ pub(crate) struct DraftGuard {
     subject: gtk::Entry,
     files: Rc<RefCell<Vec<PickedFile>>>,
     opening: HeaderValues,
+    /// How many of the files the composer opened holding are **not** the user's own work: a
+    /// forward's staged originals, which are still in the mailbox. The baseline the live count is
+    /// measured against. Zero for a share, whose files the user did choose and would have to
+    /// share again.
+    opening_files: usize,
     seed: Rc<RefCell<Option<String>>>,
 }
 
@@ -84,6 +96,7 @@ impl DraftGuard {
         subject: gtk::Entry,
         files: Rc<RefCell<Vec<PickedFile>>>,
         opening: HeaderValues,
+        opening_files: usize,
         seed: Rc<RefCell<Option<String>>>,
     ) -> Self {
         Self {
@@ -92,6 +105,7 @@ impl DraftGuard {
             subject,
             files,
             opening,
+            opening_files,
             seed,
         }
     }
@@ -107,7 +121,12 @@ impl DraftGuard {
             bcc: self.rows.bcc.text(),
             subject: self.subject.text().to_string(),
         };
-        if headers_edited(&current, &self.opening, self.files.borrow().len()) {
+        if headers_edited(
+            &current,
+            &self.opening,
+            self.files.borrow().len(),
+            self.opening_files,
+        ) {
             sender.emit(AppInput::ComposerDraftChecked(true));
             return;
         }
@@ -287,7 +306,7 @@ impl AppModel {
     pub(super) fn commit_composer(&mut self, request: ComposeRequest) {
         self.primary = PrimaryView::Mail;
         self.composer_generation = self.composer_generation.wrapping_add(1);
-        self.composer_error = false;
+        self.composer_error = None;
         self.composer = Some(request);
     }
 
@@ -340,6 +359,7 @@ mod tests {
         assert!(!headers_edited(
             &reply_opened_with(),
             &reply_opened_with(),
+            0,
             0
         ));
     }
@@ -365,19 +385,40 @@ mod tests {
             },
         ] {
             assert!(
-                headers_edited(&edited, &reply_opened_with(), 0),
+                headers_edited(&edited, &reply_opened_with(), 0, 0),
                 "{edited:?} should count as edited"
             );
         }
     }
 
-    /// An attached file is work that would be lost even with every field untouched.
+    /// A file the user attached is work that would be lost even with every field untouched.
     #[test]
     fn an_attachment_alone_is_a_draft() {
         assert!(headers_edited(
             &reply_opened_with(),
             &reply_opened_with(),
-            1
+            1,
+            0
+        ));
+    }
+
+    /// A forward opens holding the original's files, and abandoning it loses nothing: they are
+    /// still in the mailbox. Measured against zero instead, every forward the user thought better
+    /// of would stop them with a prompt about work they never did.
+    #[test]
+    fn a_forward_nobody_touched_is_not_a_draft_for_carrying_the_originals_files() {
+        assert!(!headers_edited(
+            &reply_opened_with(),
+            &reply_opened_with(),
+            2,
+            2
+        ));
+        // Taking one off is a decision about what goes out, and it would be lost.
+        assert!(headers_edited(
+            &reply_opened_with(),
+            &reply_opened_with(),
+            1,
+            2
         ));
     }
 
@@ -388,10 +429,11 @@ mod tests {
             to: "bob@test.local".to_owned(),
             ..reply_opened_with()
         };
-        assert!(headers_edited(&typed, &reply_opened_with(), 0));
+        assert!(headers_edited(&typed, &reply_opened_with(), 0, 0));
         assert!(!headers_edited(
             &reply_opened_with(),
             &reply_opened_with(),
+            0,
             0
         ));
     }

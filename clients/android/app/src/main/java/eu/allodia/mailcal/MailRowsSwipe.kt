@@ -83,6 +83,7 @@ internal fun SwipeableFlatMessageRow(
         files: List<ComposerFileAttachment>,
     ) -> Boolean,
     replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
+    stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
     suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
     // The signature library + lookups for the reply/forward composer, or null to leave signatures
     // out (a screenshot run, a test).
@@ -164,6 +165,7 @@ internal fun SwipeableFlatMessageRow(
             onReply = onReply,
             onForward = onForward,
             replyRecipients = replyRecipients,
+            stageForwardFiles = stageForwardFiles,
             suggestionsFor = suggestionsFor,
             signatures = signatures,
         )
