@@ -165,11 +165,15 @@ jobs:
   # six-second grep onto its own machine buys a green tick and a boot.
   #
   # The nine contract checks are one Rust binary (`xtask`), so this job installs the pinned
-  # toolchain and takes the cache, which a job running shell scripts would not need. That is a real
-  # cost on an always-run job: a toolchain to install, the workspace to resolve, and the engine's
-  # git dependency to fetch before `-p xtask` compiles. What it buys is on the other side of the
-  # fence, where it matters more: under Git Bash on an arm64 developer machine those nine cost
-  # 209 s, against 4 s here, and the local gate is what people run before every push.
+  # toolchain and takes the cache, which a job running shell scripts would not need. Measured
+  # against the same job before the port: the install costs 8 s, the checks went from 4 s to 3 s
+  # (compiling the crate included, since `-p xtask` pulls in nothing), and the two script suites
+  # lost 8 s with the three Python tests that existed only to drive deleted shells. The job is a
+  # minute either way.
+  #
+  # The saving is on the other side of the fence, where it matters more: under Git Bash on an arm64
+  # developer machine those nine checks cost 209 s against 4 s here, and the local gate is what
+  # people run before every push.
   #
   # None of them sits behind the `changes` areas, and the reason is one reason, not thirteen: the
   # change most likely to break one of these turns on no area at all. A docs-only PR is what
