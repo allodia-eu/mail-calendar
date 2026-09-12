@@ -31,8 +31,8 @@ The editor runtime is bundled with the app and loaded from app assets:
 **The bundle is built, not hand-written.** Sources are TypeScript ESM modules under
 [`clients/composer/src/`](../clients/composer/src); `bun run build` inlines them into the single
 self-contained `clients/composer/dist/editor.html` every host loads. That artifact is committed (see its
-header for why), and `bun run check`, wired into [`gate.sh`](../scripts/dev/gate.sh), fails when it
-does not match its sources, so a client cannot ship a bundle nobody rebuilt. Every client's
+header for why), and `bun run check`, wired into [`cargo xtask gate`](../xtask/src/gate.rs), fails
+when it does not match its sources, so a client cannot ship a bundle nobody rebuilt. Every client's
 `build-and-run` script rebuilds it first ([`composer-bundle.sh`](../scripts/dev/composer-bundle.sh)),
 so a source edit reaches the app you launch rather than the one you last built.
 

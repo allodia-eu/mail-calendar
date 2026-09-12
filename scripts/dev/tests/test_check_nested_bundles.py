@@ -27,7 +27,8 @@ SCRIPT = Path(__file__).resolve().parents[3] / "clients" / "apple" / "Scripts" /
 # Invoke the gate through bash by name rather than executing it by path. Windows cannot execute a
 # `.sh` at all (`OSError: [WinError 193]`), which failed all eleven of these before the shebang was
 # ever consulted; so the suite that exists to be runnable anywhere ran on macOS only. bash is not
-# a new prerequisite: `scripts/dev/gate.sh`, which runs this suite, is itself a bash script.
+# a new prerequisite: the script under test is one, and Git Bash is a documented Windows
+# prerequisite for this tree (AGENTS.md).
 # An absolute path to Git Bash on Windows: a bare "bash" resolves through CreateProcess,
 # which searches System32 -- WSL's launcher -- before PATH. See bashtools.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

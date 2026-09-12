@@ -52,8 +52,8 @@ pub(crate) enum ShowcaseScreen {
 /// where every offered screen exists; a name this client has no surface for would otherwise
 /// photograph the *inbox* and file it under that screen's name; a clean, well-lit,
 /// correctly-sized capture of the wrong screen, which nothing downstream can detect. Refusing makes
-/// the run fail at the launch instead. `check-showcase-flag.sh` holds the arms below against the
-/// list `scripts/dev/showcase.sh` offers Linux.
+/// the run fail at the launch instead. `cargo xtask check-showcase-flag` holds the arms below
+/// against the list `scripts/dev/showcase.sh` offers Linux.
 pub(crate) fn parse_screen(raw: Option<&str>) -> Result<ShowcaseScreen, String> {
     match raw
         .map(|value| value.trim().to_ascii_lowercase())

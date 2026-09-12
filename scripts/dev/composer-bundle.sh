@@ -24,7 +24,7 @@ if ! command -v bun >/dev/null 2>&1; then
 fi
 
 # `build.ts` needs no dependencies (only Bun's own APIs), so this never touches the network,
-# `bun install` belongs to the test/typecheck steps in gate.sh, not to a client build.
+# `bun install` belongs to the test/typecheck steps in `cargo xtask gate`, not to a client build.
 if (cd "$COMPOSER" && bun run build.ts --check >/dev/null 2>&1); then
   echo "==> Composer editor: dist/editor.html is up to date"
 else

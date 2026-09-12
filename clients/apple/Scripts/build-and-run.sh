@@ -246,7 +246,7 @@ fi
 
 # Decide between a connected iPhone/iPad and a simulator. A device that is plugged in is the one
 # the developer meant, so it wins, but only when the app is actually going to be launched:
-# `--no-run` is what scripts/dev/gate.sh builds, and that must stay the SIMULATOR slice CI links.
+# `--no-run` is what `cargo xtask gate` builds, and that must stay the SIMULATOR slice CI links.
 # --iphone/--ipad pick the simulator FAMILY; a physical device is whichever one is connected (a
 # device's name is user-chosen, so it says nothing reliable about which family it belongs to).
 resolve_destination() {

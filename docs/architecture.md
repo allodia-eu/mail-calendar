@@ -150,7 +150,7 @@ Reading the map:
   under `allodia_license/`, is source-available under its own licence, and reaches the app as an
   **optional, off-by-default** dependency of `mailcal-bindings`, the same argument as the two
   crates above, since signing in opens sockets. A build without the feature has no Allodia
-  sign-in and is a complete mail and calendar client, which `scripts/ci/check-license-dir.sh`
+  sign-in and is a complete mail and calendar client, which `cargo xtask check-license-dir`
   exists to keep true ([`../allodia_license/entitlement.md`](../allodia_license/entitlement.md),
   [`pledge.md`](pledge.md) promise 4).
 - **`JurisdictionGate`** is not yet in code. The sovereignty rule it will enforce is stated in

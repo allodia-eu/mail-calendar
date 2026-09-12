@@ -65,7 +65,7 @@ class RealTree(unittest.TestCase):
         for expected in ("AGENTS.md", "README.md", "docs/calendar.md",
                          ".agents/skills/mail-harness/SKILL.md", "branding/default-listing.md",
                          "crates/mailcal-app/src/lib.rs", "clients/apple/README.md",
-                         "scripts/dev/gate.sh"):
+                         "scripts/dev/lib.sh", "xtask/src/gate.rs"):
             self.assertIn(expected, scanned, f"{expected} is in a swept area but is not scanned")
 
     def test_an_exemption_names_a_path_that_exists(self) -> None:

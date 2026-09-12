@@ -100,8 +100,9 @@ class EntitlementsGuard(unittest.TestCase):
         done = self.check(
             "<plist><dict>\n"
             "<key>com.apple.security.app-sandbox</key><true/>\n"
-            # A stand-in team id, never the real one: check-public-hygiene.sh denies Allodia's
-            # reservations by name, and a fixture is exactly where one gets copied in by habit.
+            # A stand-in team id, never the real one: `cargo xtask check-public-hygiene` denies
+            # Allodia's reservations by name, and a fixture is exactly where one gets copied in
+            # by habit.
             "<key>com.apple.application-identifier</key><string>ABCDE12345.eu.allodia.mailcal</string>\n"
             "</dict></plist>\n"
         )

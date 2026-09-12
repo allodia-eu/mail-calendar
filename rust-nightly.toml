@@ -1,4 +1,4 @@
-# The nightly rustfmt pin. `scripts/dev/gate.sh` and the `lint` job in
+# The nightly rustfmt pin. `cargo xtask gate` and the `lint` job in
 # `.github/workflows/ci.yml` both read `channel` from here, so a local `cargo fmt` and CI's
 # `fmt --check` are never two different builds of rustfmt: nightly rustfmt output drifts between
 # dates, and stable silently ignores most of `rustfmt.toml` rather than failing.

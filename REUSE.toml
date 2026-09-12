@@ -7,7 +7,7 @@
 # it does catch is the case the blanket must not swallow, and all three are vendoring mistakes:
 # a file carrying its own SPDX header fails until that licence's text is in LICENSES/; a
 # misspelled or deprecated identifier fails the same way; and a text left in LICENSES/ after the
-# code that needed it is gone fails as unused. Run in CI and in scripts/dev/gate.sh.
+# code that needed it is gone fails as unused. Run in CI and in `cargo xtask gate`.
 #
 # `GPL-3.0-only`, not `-or-later`: docs/pledge.md pledges GPL-3.0, and `-or-later` would grant
 # terms under a licence nobody has read yet.
@@ -31,7 +31,7 @@ SPDX-License-Identifier = "GPL-3.0-only"
 # --- The one directory that is not the application ----------------------------------------------
 # `allodia_license/` holds the client surfaces for capabilities that only exist because Allodia
 # runs a service behind them. It is source-available, not GPL, and the open tree builds without it
-# — scripts/ci/check-license-dir.sh is what proves the second half.
+# — `cargo xtask check-license-dir` is what proves the second half.
 
 [[annotations]]
 path = "allodia_license/**"

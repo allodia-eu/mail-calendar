@@ -22,8 +22,8 @@ import ios_devices as subject
 
 # The shape `devicectl list devices --json-output -` reports for a phone on USB, trimmed to the
 # fields the rule reads, with the name and udid replaced by stand-ins (a real device name is a
-# person's, and check-public-hygiene.sh is right to refuse one). `tunnelState` is kept because it
-# is the field that looks like the answer and is not.
+# person's, and `cargo xtask check-public-hygiene` is right to refuse one). `tunnelState` is kept
+# because it is the field that looks like the answer and is not.
 CONNECTED_IPHONE = {
     "deviceProperties": {"name": "A test iPhone", "osVersionNumber": "18.7.8"},
     "hardwareProperties": {"udid": "00008110-000A1B2C3D4E0026", "platform": "iOS"},

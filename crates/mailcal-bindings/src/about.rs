@@ -24,8 +24,9 @@ pub struct Attribution {
 /// the app is built on.
 #[derive(uniffi::Record)]
 pub struct AboutInfo {
-    /// The app version, the one [`/VERSION`](../../../VERSION) holds; `check-version-sync.sh`
-    /// keeps the crate version equal to it, so this cannot drift from what a release announces.
+    /// The app version, the one [`/VERSION`](../../../VERSION) holds;
+    /// `cargo xtask check-version-sync` keeps the crate version equal to it, so this cannot
+    /// drift from what a release announces.
     pub version: String,
     /// Where to ask for help.
     pub support_url: String,
@@ -101,8 +102,8 @@ mod tests {
     #[test]
     fn about_reports_the_release_the_version_file_holds() {
         let about = about_info(AboutPlatform::Linux);
-        // `check-version-sync.sh` gates the other direction; this catches a client that reads the
-        // version from somewhere else entirely.
+        // `cargo xtask check-version-sync` gates the other direction; this catches a client
+        // that reads the version from somewhere else entirely.
         assert_eq!(about.version, env!("CARGO_PKG_VERSION"));
         assert!(
             about.version.split('.').count() == 3

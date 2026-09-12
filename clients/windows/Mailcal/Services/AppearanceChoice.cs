@@ -32,7 +32,7 @@ internal static class AppearanceChoice
     /// <summary>
     /// <c>MAILCAL_APPEARANCE</c>, or null in a release build, a shipped app must not have its
     /// theme flipped by a stray environment variable, the same property the dev-account and
-    /// showcase switches hold (scripts/ci/check-dev-account.sh).
+    /// showcase switches hold (<c>cargo xtask check-dev-account</c>).
     /// </summary>
     private static string? OverrideRaw
     {

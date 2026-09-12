@@ -81,10 +81,11 @@ EXTRA_SCREENS=(signatures)
 # list, and a capture of the inbox filed under another screen's name passes every later check.
 #
 # Every platform now reaches the whole set; Linux was the exception until it drew the invitation
-# card, and it stays spelled out rather than folded into the default arm: `check-showcase-flag.sh`
-# reads this arm to hold what Linux is offered against what `showcase.rs` accepts, and a list it
-# cannot parse is a check that cannot fail. Linux's client *refuses* a name it has no surface for,
-# so the failure this guards against is loud; but loud partway through a 35-shot run.
+# card, and it stays spelled out rather than folded into the default arm:
+# `cargo xtask check-showcase-flag` reads this arm to hold what Linux is offered against what
+# `showcase.rs` accepts, and a list it cannot parse is a check that cannot fail. Linux's client
+# *refuses* a name it has no surface for, so the failure this guards against is loud; but loud
+# partway through a 35-shot run.
 store_screens_for() { # <platform>: what `--screen all` captures
   case "$1" in
     linux) printf '%s\n' list reply settings add-account calendar invitation ;;

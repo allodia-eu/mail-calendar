@@ -21,7 +21,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "The nightly rustfmt pin lives in rust-nightly.toml so scripts/dev/gate.sh and ci.yml read one value and cannot drift. Renovate's built-in `uses-with` support only sees a literal `toolchain:` in a workflow, so the pin needs this manager to keep being bumped — same package and datasource it resolved there.",
+      "description": "The nightly rustfmt pin lives in rust-nightly.toml so `cargo xtask gate` and ci.yml read one value and cannot drift. Renovate's built-in `uses-with` support only sees a literal `toolchain:` in a workflow, so the pin needs this manager to keep being bumped — same package and datasource it resolved there.",
       "managerFilePatterns": ["/^rust-nightly\\.toml$/"],
       "matchStrings": ["channel\\s*=\\s*\"(?<currentValue>nightly-\\d{4}-\\d{2}-\\d{2})\""],
       "depNameTemplate": "rust",

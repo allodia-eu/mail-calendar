@@ -66,7 +66,7 @@ One directory is not the application: [`allodia_license/`](allodia_license) hold
 surfaces for capabilities that exist only because Allodia runs a service behind them. Using those
 needs a subscription, and the [Allodia License](allodia_license/LICENSE.md) publishes the code to
 be read and audited rather than reused. It changes nothing about the app: the application builds,
-tests and runs without that directory, and `scripts/ci/check-license-dir.sh` fails if anything
+tests and runs without that directory, and `cargo xtask check-license-dir` fails if anything
 outside it so much as names something inside.
 
 Why this licence, what stays free in every build, and what a paid Allodia service may ever be:

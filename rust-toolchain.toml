@@ -9,8 +9,8 @@
 # and get fixed — not a red build on someone's unrelated change.
 #
 # `cargo fmt` is the one exception: rustfmt.toml uses nightly-only options, so formatting runs on
-# the nightly pinned in rust-nightly.toml instead. Run it via scripts/dev/gate.sh, which reads that
-# file — the same one ci.yml reads (see AGENTS.md).
+# the nightly pinned in rust-nightly.toml instead. Run it via `cargo xtask gate`, which reads
+# that file — the same one ci.yml reads (see AGENTS.md).
 [toolchain]
 channel = "1.97.0"
 components = ["clippy"]

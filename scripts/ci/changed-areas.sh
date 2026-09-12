@@ -96,9 +96,15 @@ classify() {
       # The seeded Stalwart server the gated JMAP live test runs against.
       docker/*) rust=true ;;
       # The nightly rustfmt pin. Its only readers are the `lint` job's fmt step and
-      # scripts/dev/gate.sh; nothing is compiled from it, so a bump needs the Rust area rather than
-      # a six-job fan-out. Reformatting it causes lands as crates/* edits, which fan out below.
+      # `cargo xtask gate`; nothing is compiled from it, so a bump needs the Rust area rather
+      # than a six-job fan-out. Reformatting it causes lands as crates/* edits, which fan out
+      # below.
       rust-nightly.toml) rust=true ;;
+      # The task runner. Nothing is compiled from it into a client, and the always-run `checks`
+      # job builds and runs it whatever this says; what the Rust area adds is `cargo test
+      # --workspace`, which is where its own suite lives. Without this arm it falls to the
+      # catch-all below and turns on six client builds to test a check.
+      xtask/*) rust=true ;;
       # The core, its lockfile and its toolchain pin are compiled into every client, so they fan
       # out to everything. /VERSION is embedded by every client (docs/versioning.md), so it does too.
       crates/* | Cargo.toml | Cargo.lock | rustfmt.toml | rust-toolchain.toml | VERSION) enable_all ;;

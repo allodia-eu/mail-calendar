@@ -26,7 +26,7 @@ crate-type = ["cdylib", "lib"]
 dev-harness = ["mailcal-account/dev-harness"]
 # Allodia's own builds only. `allodia_license/` is source-available rather than GPL and the open
 # tree has to build without it (docs/pledge.md, promise 4), so the dependency below is optional and
-# off, and scripts/ci/check-license-dir.sh allows exactly this one line to name the directory.
+# off, and cargo xtask check-license-dir allows exactly this one line to name the directory.
 #
 # It is *this* crate rather than `mailcal-app` for the reason `mailcal-mcp` and `mailcal-telemetry`
 # are: signing in opens sockets, and this is the only crate that may. What the feature changes is

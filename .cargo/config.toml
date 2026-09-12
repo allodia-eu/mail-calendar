@@ -1,6 +1,11 @@
 # Cargo settings that must hold for EVERY build of this workspace — not only the ones the client
 # build scripts drive. This file is tracked; see the engine-override note at the bottom.
 
+# The repository's task runner: `cargo xtask --list`, `cargo xtask gate`. The alias resolves from
+# any directory in the workspace, so a check runs the same way wherever it is invoked from.
+[alias]
+xtask = "run --package xtask --quiet --"
+
 # ---------------------------------------------------------------------------------------------
 # One build directory for every checkout, so worktrees share the compile work instead of each
 # growing a multi-GB `target/`. Intermediates only: binaries and test executables still land in

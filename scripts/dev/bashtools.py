@@ -15,7 +15,7 @@ a word of the script:
     <3>WSL (420 - Relay) ERROR: CreateProcessParseCommon:1023: getpwuid(0) failed 2
 
 That produced errors that look like the scripts under test misbehaving when nothing in this repo was
-involved, and it turned `scripts/dev/gate.sh` permanently red on a Windows dev box; which is the
+involved, and it turned the local gate permanently red on a Windows dev box; which is the
 failure mode AGENTS.md keeps warning about, because a gate that cannot run is a gate people stop
 running.
 

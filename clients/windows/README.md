@@ -119,7 +119,8 @@ It backs `MailcalApp.NewShowcase(…, ShowcaseLocale)` (bindings `new_showcase` 
 `boot::build_showcase`), kept separate from the four-row `new_demo` fixture the headless gate
 asserts on. `ShowcaseMode.IsOn` is `#if DEBUG`-gated, as on Apple (`#if DEBUG`) and Android
 (`FLAG_DEBUGGABLE`), so a shipped build ignores the flag outright rather than trusting nobody sets
-it, `scripts/ci/check-showcase-flag.sh` keeps that guard, and the launcher's mailbox banner, honest.
+it, `cargo xtask check-showcase-flag` keeps that guard, and the launcher's mailbox banner,
+honest.
 
 **Dual-arch:** both `arm64` and `x64` are first-class. .NET 10 + the Windows App SDK build
 each RID; the script pairs each with the matching Rust target (`aarch64-pc-windows-msvc` /

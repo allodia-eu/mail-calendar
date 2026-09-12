@@ -32,7 +32,7 @@ EXEMPT_PARTS = (
 # guarding that half of the tree, which is how the reader-facing docs went unwatched once already.
 # `:(glob)` keeps the last entry to root-level markdown, since a bare `*.md` matches at any depth.
 SWEPT_ROOTS = ("crates", "clients", "scripts", "docs", ".agents", "messages", "branding",
-               "allodia_license", "docker", ":(glob)*.md")
+               "allodia_license", "docker", "xtask", ":(glob)*.md")
 
 COMMENT = re.compile(r"^\s*(?:/\*\*|/\*|///|//!|//|#|\*|--|<!--)\s?(.*)")
 FENCE = re.compile(r"^\s*```")
@@ -45,9 +45,9 @@ SYMBOL_REFERENCE = re.compile(
 
 # `--others --exclude-standard` alongside `--cached` is not optional: without it `git ls-files`
 # reads the index, so a file added but not yet staged is invisible and this passes on the very
-# change that introduces what it forbids. `check-public-hygiene.sh` already says so about
-# `git grep --untracked`, and AGENTS.md says it about `check-file-length.sh`; this checker had the
-# same hole and neither. Ignored paths (target/, .env) stay ignored either way.
+# change that introduces what it forbids. `cargo xtask check-public-hygiene` already says so about
+# `git grep --untracked`, and AGENTS.md says it about `cargo xtask check-file-length`; this
+# checker had the same hole and neither. Ignored paths (target/, .env) stay ignored either way.
 def tracked() -> list[tuple[str, Path]]:
     names = subprocess.run(["git", "-C", str(ROOT), "ls-files", "--cached", "--others",
                             "--exclude-standard", *SWEPT_ROOTS],

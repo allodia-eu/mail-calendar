@@ -110,8 +110,8 @@ Two different things, kept distinct on purpose:
   is recorded once, in the heading of `docs/changelog/released/<X.Y.Z>.md`, so rebuilding an old
   tag emits the same metainfo it did the first time, rather than one claiming the release happened
   today. `/VERSION` must have a note there or the build fails, which is the same invariant
-  `check-version-sync.sh` enforces from the other side. The diagnostic log separately stamps a
-  source fingerprint and build epoch. That identifies a support artifact; it is not a Flatpak
+  `cargo xtask check-version-sync` enforces from the other side. The diagnostic log separately
+  stamps a source fingerprint and build epoch. That identifies a support artifact; it is not a Flatpak
   version and is never published as one.
 
 ## Committed mirrors (the only hand-synced values)
@@ -160,7 +160,7 @@ client derives it:
    `scripts/dev/bump-version.sh`), never a per-client literal and never in a feature PR.
 2. Keep the derivation identical in spirit across platforms: marketing version = `/VERSION`, build
    number derived per store, no committed value except the two pinned mirrors.
-3. The version-sync check ([`scripts/ci/check-version-sync.sh`](../scripts/ci/check-version-sync.sh))
+3. The version-sync check ([`cargo xtask check-version-sync`](../xtask/src/version_sync.rs))
    fails the build if a mirror drifts, a derivation stops reading `/VERSION`, or `/VERSION` names a
    release with no note under `docs/changelog/released/`; it runs on **every** push, not behind
    change-area gating, because `/VERSION` feeds every client.

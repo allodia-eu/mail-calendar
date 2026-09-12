@@ -1,0 +1,17 @@
+# The repository's own task runner. It is a workspace member so it shares the lockfile, the
+# dependency versions and the lints, and so its own tests run in `cargo test --workspace`; it is
+# deliberately absent from `default-members`, so a bare `cargo build` never compiles it.
+#
+# It has no dependencies, and that is a constraint rather than an accident: every crate added here
+# is one more thing to compile before a check that is supposed to be instant can run, and one more
+# thing the always-run pipeline job has to fetch before it can say anything at all.
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+license.workspace = true
+
+[lints]
+workspace = true

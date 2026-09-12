@@ -518,7 +518,8 @@ class ReadsTheRealDocuments(unittest.TestCase):
 
     def test_the_real_releases_are_read_and_include_the_last_released_version(self) -> None:
         """`audit_releases` would happily measure zero files. /VERSION's own note must be among
-        them; the same property `check-version-sync.sh` enforces, asserted where it can be seen."""
+        them; the same property `cargo xtask check-version-sync` enforces, asserted where it can
+        be seen."""
         version = (fragments_module.REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
         self.assertIn(version, [name for name, _ in fragments_module.load_releases()])
 

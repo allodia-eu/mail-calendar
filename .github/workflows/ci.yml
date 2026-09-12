@@ -144,7 +144,7 @@ jobs:
       # rust-toolchain.toml (stable, for everything) and rust-nightly.toml (the rustfmt pin) are
       # the single sources of truth for the two Rust versions this repo uses. Parse them once here
       # and feed them to every job's toolchain install, so neither is duplicated in YAML:
-      # scripts/dev/gate.sh reads the same two files, which is what keeps local and CI identical.
+      # cargo xtask gate reads the same two files, which is what keeps local and CI identical.
       - name: Read the pinned Rust toolchains
         id: toolchain
         run: |
@@ -157,13 +157,19 @@ jobs:
           echo "channel=$channel" >>"$GITHUB_OUTPUT"
           echo "nightly=$nightly" >>"$GITHUB_OUTPUT"
 
-  # `checks` is every gate that needs no Rust toolchain, no cache and no area filter, in ONE job.
+  # `checks` is every gate that needs no device, no service and no area filter, in ONE job.
   #
   # One job because they were under two minutes of work spread over thirteen runners, and a runner
   # costs far more than the seconds it works for: a fresh VM to boot and a slot out of the
   # account's parallel-job allowance, which the client builds then queue behind. Splitting a
-  # six-second grep onto its own machine buys a green tick and a boot. Nothing about the checks
-  # themselves changed here; only where they run.
+  # six-second grep onto its own machine buys a green tick and a boot.
+  #
+  # The nine contract checks are one Rust binary (`xtask`), so this job installs the pinned
+  # toolchain and takes the cache, which a job running shell scripts would not need. That is a real
+  # cost on an always-run job: a toolchain to install, the workspace to resolve, and the engine's
+  # git dependency to fetch before `-p xtask` compiles. What it buys is on the other side of the
+  # fence, where it matters more: under Git Bash on an arm64 developer machine those nine cost
+  # 209 s, against 4 s here, and the local gate is what people run before every push.
   #
   # None of them sits behind the `changes` areas, and the reason is one reason, not thirteen: the
   # change most likely to break one of these turns on no area at all. A docs-only PR is what
@@ -174,67 +180,46 @@ jobs:
   # most likely to break it can skip is not a gate.
   #
   # `if: ${{ !cancelled() }}` on every step buys back the one thing separate jobs gave: a failing
-  # step no longer hides the twelve behind it, so a PR still learns every rule it broke in a
+  # step no longer hides the steps behind it, so a PR still learns every rule it broke in a
   # single run. A failed step still fails the job; the condition only stops GitHub's default
-  # `success()` from skipping the rest.
+  # `success()` from skipping the rest. `cargo xtask checks` does the same thing inside its own
+  # step, for the nine it runs.
   #
   # Ordered cheapest first, so the log's first error arrives in seconds. The two steps that fetch
   # something (the REUSE action's container, bun) are last for the same reason.
   checks:
     name: Repo-wide checks
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out the product core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # No linter in any of these languages has a per-file length lint, so this is the only thing
-      # that enforces the 500-line rule, and it has to see C# and Kotlin as well as Rust.
-      - name: File length (<= 500 lines)
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-file-length.sh
+      # `needs: changes` above is for this one output, never for an area: the job runs whatever the
+      # change set says, as the header explains.
+      - name: Install the pinned Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
 
-      # One app version across all clients (docs/versioning.md).
-      - name: Version sync (one /VERSION)
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-version-sync.sh
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: checks
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # A cross-client contract whose failure mode is silent and photogenic: a capture run against
-      # the developer's real mailbox looks exactly like a working one.
-      - name: Showcase flag contract
+      # Nine contract checks, in one process, reporting every one that failed rather than stopping
+      # at the first: `cargo xtask --list` names them and each is runnable on its own. Among them
+      # is the only thing enforcing the 500-line rule, since no linter in any of these languages
+      # has a per-file length lint, and it has to see C# and Kotlin as well as Rust; the
+      # showcase-flag and dev-account contracts, whose failure mode is silent and photogenic; the
+      # two Linux rules no run-time gate can see (a portal call that works only inside a desktop
+      # session, and a second Tokio runtime that works exactly once); the brand every client must
+      # still derive its identity from; what a public repository must not carry; and the promise
+      # that the default build does not reach into `allodia_license/`.
+      - name: Repository contract checks
         if: ${{ !cancelled() }}
-        run: scripts/ci/check-showcase-flag.sh
-
-      # Likewise silent when broken: the injected harness account (a fixture hand-written in four
-      # languages) and the debug-only trust of the harness's self-signed IMAP certificate.
-      - name: Dev-account (harness) contract
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-dev-account.sh
-
-      # Also invisible to every other gate: the banned call resolves fine against a desktop's
-      # application database and wedges inside a Flatpak, so only the packaged build shows it.
-      - name: Desktop hand-off (portal launchers)
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-desktop-handoff.sh
-
-      # Same shape, one layer down: a portal caller that owns its Tokio runtime works exactly once
-      # and then parks a thread for the life of the process, which no run-time gate sees.
-      - name: One shared Tokio runtime for every portal caller
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-portal-runtime.sh
-
-      # Every client still takes its name and application id from branding/ (docs/branding.md).
-      - name: Every client derives its identity from the brand
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-branding.sh
-
-      - name: The tree carries nothing a public repository must not
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-public-hygiene.sh
-
-      - name: The default build does not reach into allodia_license/
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-license-dir.sh
+        run: cargo xtask checks
 
       # The checkers' own tests, before the checkers run against the real tree: several of these
       # scrape hand-written markdown, and the way they fail is by silently measuring nothing.
@@ -416,7 +401,7 @@ jobs:
 
       # The line above builds `allodia-license` as a workspace member but never turns the feature
       # on, so every `#[cfg(feature = "allodia-license")]` arm in mailcal-bindings goes uncompiled
-      # and a break there reaches a release build unseen. The twin of gate.sh's `allodia tests`.
+      # and a break there reaches a release build unseen. The twin of the gate's `allodia tests`.
       - name: Build + test the Allodia sign-in feature
         run: cargo test -p mailcal-bindings --features allodia-license
 
@@ -992,7 +977,7 @@ jobs:
       # trust path do not leak into the production-shaped binary.
       #
       # Tag-only (rule 3 in the header). The cheap half of this property is still checked on every
-      # push: `check-dev-account.sh`, in the always-run `changes` job, greps for the
+      # push: `cargo xtask check-dev-account`, in the always-run `checks` job, greps for the
       # `#![cfg(debug_assertions)]` on dev_account.rs, the `cfg(not(...))` arm in tls.rs, and
       # `dev-harness` never being a default feature. What only a release COMPILE can catch is a
       # call site that escaped a `cfg` arm — boot.rs reaching dev_account:: unguarded builds
