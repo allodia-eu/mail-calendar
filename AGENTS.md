@@ -442,8 +442,8 @@ were broken right now, would this tell me?*
   turns on every area. Add a path to that `case` when you add a directory. Mark **`CI OK`** required
   in the branch ruleset, never the individual jobs: a skipped job reports *no* status, so a
   docs-only PR would wait forever, and `ci-ok` counts a skip as success. Caches save only on `main`,
-  since a PR-ref cache is readable by nothing else and evicts main's. **Coverage gap:** the `apple`
-  job never links `aarch64-apple-ios`, so a device-only break surfaces at
+  since a PR-ref cache is readable by nothing else and evicts main's. **Coverage gap:** neither Apple
+  job links `aarch64-apple-ios`, so a device-only break surfaces at
   [`device.sh`](scripts/dev/device.sh) or at release.
 - **The Android and Linux release builds run on a `v*` tag, not on every push**, being the two
   longest steps and each proving a property of the shipped artifact. What that costs between tags:
