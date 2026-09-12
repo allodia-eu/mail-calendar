@@ -193,6 +193,9 @@ impl<P: Provider> App<P> {
             .account_folders
             .clone_from(&current.account_folders);
         snapshot.unified_unread = current.unified_unread;
+        // Read rather than carried over: it is a lock away, and the authoritative rebuild
+        // stamps it the same way (`restamp_expansion`).
+        snapshot.unified_expanded = self.unified_expanded();
         if snapshot == current {
             return false;
         }

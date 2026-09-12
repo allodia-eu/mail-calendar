@@ -73,17 +73,28 @@ type "monitor", each slowing the others: the same query measured ~2.0–2.5 s pe
 The delay buys latency back; it does not decide what is shown. Which of the searches still in
 flight may reach the screen is rule 10, and it is settled in the core.
 
+## Where the field lives
+
+Rules 1 to 8 are about what a search *answers*, and none of them moves with the box it is typed
+into. What the placement has to respect is rule 2: the default scope is **every account and every
+folder**, so a field that sits over the message list is a control whose reach is wider than the
+column it is drawn on.
+
+On a desktop it therefore belongs to the **window**, centred in its top row, which is Outlook's own
+placement and the only surface whose centre is not a pane's. On a phone the list is the window, so
+the field stays the platform's own list search (`.searchable`, a `SearchBar` on Android).
+
 ## Per-platform
 
-| Platform | Newest-first order | Trash excluded by default | Scope filter (rule 4) | Back/exit restores the view | Horizon stated (rule 8) | Grouping obeyed (rule 9) | Clear (×) in the field | Debounced (rule 10) | Where |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|---|
-| Shared core | ✅ | ✅ | ✅ (`Intent::SetSearchScope`) | ✅ | ✅ (`search_horizon`) | ✅ | n/a | ✅ (`search_generation`) | `crates/mailcal-app/src/snapshot_search.rs` |
-| Android | ✅ | ✅ | ✅ | ✅ (incl. system back) | ✅ | ✅ | ✅ | ✅ | `clients/android/.../SearchBar.kt` |
-| macOS | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ | ✅ | `clients/apple/…/Mailcal.Detail.swift` |
-| iOS/iPadOS | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ (`.searchable`) | ✅ | `clients/apple/…/Mailcal.Layout.swift` |
-| Windows | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ (`AutoSuggestBox`) | ✅ | `clients/windows/…/MailListView.xaml.cs` |
-| Linux | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (`gtk::SearchEntry`) | ✅ | `clients/linux/src/ui/search/bar.rs` |
-| MCP (`search`, `list_messages`) | ✅ | ✅ | ✅ | n/a | ✅ (`sync_depth_months`) | n/a | n/a | n/a | `crates/mailcal-mcp/src/tools/read.rs` |
+| Platform | Newest-first order | Trash excluded by default | Scope filter (rule 4) | Back/exit restores the view | Horizon stated (rule 8) | Grouping obeyed (rule 9) | Clear (×) in the field | Debounced (rule 10) | The field sits | Where |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|---|---|
+| Shared core | ✅ | ✅ | ✅ (`Intent::SetSearchScope`) | ✅ | ✅ (`search_horizon`) | ✅ | n/a | ✅ (`search_generation`) | n/a | `crates/mailcal-app/src/snapshot_search.rs` |
+| Android | ✅ | ✅ | ✅ | ✅ (incl. system back) | ✅ | ✅ | ✅ | ✅ | over the list | `clients/android/.../SearchBar.kt` |
+| macOS | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ | ✅ | centred in the window toolbar | `clients/apple/…/Mailcal.Toolbar.swift`, `SearchHorizonStrip.swift` |
+| iOS/iPadOS | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ (`.searchable`) | ✅ | `.searchable` over the list | `clients/apple/…/SearchHorizonStrip.swift` |
+| Windows | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ (`AutoSuggestBox`) | ✅ | ⬜ the list's header row | `clients/windows/…/SearchHorizonLine.cs` |
+| Linux | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (`gtk::SearchEntry`) | ✅ | ⬜ under the list header | `clients/linux/src/ui/search/bar.rs` |
+| MCP (`search`, `list_messages`) | ✅ | ✅ | ✅ | n/a | ✅ (`sync_depth_months`) | n/a | n/a | n/a | n/a | `crates/mailcal-mcp/src/tools/read.rs` |
 
 Rule 9 does not apply to MCP, deliberately: that surface answers with **messages**, whatever the
 user's list is set to. A caller pages it by offset and asks for one message's body by key, and a
@@ -98,6 +109,9 @@ conversation is not addressable that way. `query_search` passes `ViewMode::Flat`
   search reports every scope as complete unconditionally today
   (`store-sqlite/src/search_ops/mod.rs`, `assemble_results`), so there is nothing to read. The
   progress surface says a sync is running in the meantime (`docs/sync-progress.md`).
+- **The field is in the window's top row on macOS only.** Windows still draws it in the message
+  list's own header row and Linux in a bar under the list header; both have a place for it (the
+  WinUI `TitleBar`'s centre `Content`, an `AdwHeaderBar` title widget), and neither has moved.
 - **The scope filter is on Android and Linux only.** macOS, iOS/iPadOS and Windows get the
   ordering and the Trash default from the core, but offer no way to narrow to the current folder
   yet; their search is always "all mail". Bringing them up is client wiring: the intent already

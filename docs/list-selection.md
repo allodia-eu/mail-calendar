@@ -58,6 +58,13 @@ selection itself is the client's, and rule 1 says why.
    dead buttons taking height from a list that has less of it to give. That bar keeps the count,
    which on the desktop moves to the reading pane (rule 10).
 
+   **One thing on the standing bar is not a selection action: Sync.** It acts on the mailbox, so
+   it is never disabled, and it sits past a divider after the selection's own buttons rather than
+   among them. It is on the bar because that is where a user reaches for it, the way Outlook's own
+   toolbar carries Sync beside Delete and Archive, and because the alternative was a footer button
+   nobody looks at. It is **not** on the mode bar the phones and the iPad raise: that bar is the
+   selection mode's chrome, and syncing there is the pull-to-refresh gesture on the list itself.
+
 6. **Archive and delete ask nothing.** Both are recoverable, and a confirmation over fifty rows
    the user deliberately picked is a dialog they will learn to dismiss unread. **Delete
    permanently keeps whatever confirmation its single-row path already has on that platform**, so
@@ -123,13 +130,13 @@ selection itself is the client's, and rule 1 says why.
 
 ## Per-platform
 
-| Platform | Enter | Extend | Bar | Count | Delete key | Escape | Row menu | Where |
-|---|---|---|---|---|:---:|:---:|:---:|---|
-| macOS | ⌘-click a row | ⇧-click a range | standing, over both panes | reading pane | ✅ | ✅ | ✅ | `Mailcal.Selection.swift` |
-| iPhone / iPadOS | **Select** in the toolbar | tap toggles | over the list, with the mode | on the bar | — | — | ✅ | `Mailcal.Selection.swift` |
-| Windows | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | `MainWindow.xaml`, `Views/MailListView.Selection.cs` |
-| Android | long-press a row | tap toggles | contextual top bar | on the bar | — | — | — | `MailSelectionBar.kt` |
-| Linux | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | `ui/selection_bar.rs`, `ui/selection_input.rs` |
+| Platform | Enter | Extend | Bar | Count | Delete key | Escape | Row menu | Sync on the bar | Where |
+|---|---|---|---|---|:---:|:---:|:---:|:---:|---|
+| macOS | ⌘-click a row | ⇧-click a range | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ✅ | `Mailcal.Selection.swift` |
+| iPhone / iPadOS | **Select** in the toolbar | tap toggles | over the list, with the mode | on the bar | — | — | ✅ | n/a: pull to refresh | `Mailcal.Selection.swift` |
+| Windows | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ⬜ still a footer button | `MainWindow.xaml`, `Views/MailListView.Selection.cs` |
+| Android | long-press a row | tap toggles | contextual top bar | on the bar | — | — | — | n/a: pull to refresh | `MailSelectionBar.kt` |
+| Linux | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ⬜ still a header button | `ui/selection_bar.rs`, `ui/selection_input.rs` |
 
 **Row menu** is rule 12: a menu opened on a selected row acts on the whole selection. Android is
 the one dash, and has nothing to reconcile: long-press is how a selection *starts* there, so a row
@@ -165,6 +172,9 @@ all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
 - **iPad hardware keyboards get no shortcuts**, though the platform supports them: the rule above
   binds the three desktops, and adding iPad means deciding what Escape does to a selection mode
   that has its own Done button.
+- **Sync is on the macOS bar only.** Windows still carries it as a footer button under the message
+  list and Linux as a header button over the list; both are the same one-line dispatch
+  (`Intent::RefreshMail`) moved to the bar, beside the buttons that are already there.
 - **Nothing verifies the desktop behaviour end to end.** Each client's rules have unit tests, and
   the batch has its own in `tests_selection.rs`, but what a ⇧-click does to a real list is a
   toolkit behaviour: `clients/windows/uitests` is the one suite that could assert it, and it does

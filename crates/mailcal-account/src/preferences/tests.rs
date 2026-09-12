@@ -83,6 +83,7 @@ fn save_then_load_round_trips_the_preferences() {
         mcp_allow_direct_send: true,
         mcp_require_known_recipient: false,
         collapsed_accounts: BTreeSet::from(["me@imap.example.com".to_owned()]),
+        unified_collapsed: true,
     };
     // Saving creates the nested parent dirs and the load reads the values back.
     save_preferences(&path, &prefs).unwrap();
@@ -118,6 +119,8 @@ fn an_older_preferences_file_opens_every_folder_tree() {
     let prefs: Preferences = toml::from_str("display_timezone = \"Europe/Amsterdam\"").unwrap();
     assert!(prefs.collapsed_accounts.is_empty());
     assert!(prefs.account_expanded("me@imap.example.com"));
+    // And the All Accounts group with them, for the same reason.
+    assert!(prefs.unified_expanded());
 }
 
 #[test]

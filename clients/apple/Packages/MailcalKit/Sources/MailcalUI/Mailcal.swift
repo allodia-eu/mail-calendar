@@ -251,6 +251,12 @@ public struct ContentView: View {
 
     private var mainView: some View {
         baseLayout
+        // New Mail and the search field, in the window's own top row (Mailcal.Toolbar.swift).
+        // Attached here rather than to the `WindowGroup`, for the reason the mail-link routing
+        // below is: both need this view's model.
+        #if os(macOS)
+        .toolbar { windowToolbar }
+        #endif
         .safeAreaInset(edge: .top) { offlineBanner }
         .safeAreaInset(edge: .top) { mailReauthBanner }
         .safeAreaInset(edge: .top) { signInExpiredBanner }

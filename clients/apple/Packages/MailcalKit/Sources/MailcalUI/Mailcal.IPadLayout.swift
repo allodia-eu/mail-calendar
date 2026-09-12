@@ -71,6 +71,7 @@ extension ContentView {
                         selectToggleButton
                         messageListMenu
                         Button { compose = .new } label: { Image(systemName: "square.and.pencil") }
+                            .accessibilityLabel(L10n.action_compose())
                     }
                 }
         } detail: {

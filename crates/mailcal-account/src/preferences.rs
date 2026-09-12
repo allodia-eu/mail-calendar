@@ -250,6 +250,13 @@ pub struct Preferences {
     /// serialized TOML order is stable across writes.
     #[serde(default)]
     pub collapsed_accounts: BTreeSet<String>,
+    /// Whether the sidebar's **All Accounts** group is shut.
+    ///
+    /// The shut state, not the open one, for the reason `collapsed_accounts` above stores
+    /// the collapsed accounts: the group a user has never touched stands open, and
+    /// `bool::default()` is `false`. Read it through [`Preferences::unified_expanded`].
+    #[serde(default)]
+    pub unified_collapsed: bool,
 }
 
 /// The `serde` default for a flag that is on unless the user turns it off.
@@ -291,6 +298,7 @@ impl Default for Preferences {
             mcp_allow_direct_send: false,
             mcp_require_known_recipient: true,
             collapsed_accounts: BTreeSet::new(),
+            unified_collapsed: false,
         }
     }
 }

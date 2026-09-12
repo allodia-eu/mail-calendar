@@ -103,6 +103,7 @@ extension MailboxModel {
         folders = snapshot?.folders ?? []
         accountFolders = snapshot?.accountFolders ?? []
         unifiedUnread = snapshot?.unifiedUnread ?? 0
+        unifiedExpanded = snapshot?.unifiedExpanded ?? true
         selected = snapshot?.selected
         searchHorizon = snapshot?.searchHorizon
         // The reading body (a potentially large HTML string) only changes on a Reading
