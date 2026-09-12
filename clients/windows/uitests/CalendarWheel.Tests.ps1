@@ -87,6 +87,47 @@ function Get-CalendarPeriod {
     Select-Object -First 1).Current.Name
 }
 
+<#
+.SYNOPSIS
+The period heading once it reads something other than -From, or (with -Is) exactly that.
+.DESCRIPTION
+The grid comes to rest ASYNCHRONOUSLY: the pan keeps ticking after the last notch, so how long the
+heading takes to catch up is a property of the machine rather than of the gesture. A sleep long
+enough on a developer's desktop is a coin toss on a loaded CI runner, and the failure it produced
+was a quiet one, the suite reading the OLD heading and reporting that the wheel moved nothing while
+the screenshot saved beside the report showed it having moved.
+
+Only where a change is the thing being asserted. The heading names a MONTH, so it is a coarse
+oracle: a short travel legitimately leaves it alone, and waiting for a change there would be
+waiting for something that must not happen. Those reads stay behind the settle in
+`Invoke-GridWheel`, which is the best this oracle allows.
+
+The timeout is what keeps a wait an assertion: a wheel that genuinely moves nothing polls for ten
+seconds and returns the heading unchanged, failing exactly as it did before.
+#>
+function Wait-CalendarPeriod {
+  param(
+    [string] $From,
+    [string] $Is,
+    [int] $TimeoutSec = 10
+  )
+  $done = if ($PSBoundParameters.ContainsKey('Is')) {
+    { param($now) $now -eq $Is }
+  } else {
+    { param($now) $now -ne $From }
+  }
+  # A deadline rather than a loop count: reading the heading walks the automation tree, which costs
+  # about as long as the gap between reads, so counting iterations waits half again as long as
+  # -TimeoutSec says and reports a duration nobody can reconcile with the number in the code.
+  $deadline = [Diagnostics.Stopwatch]::StartNew()
+  do {
+    $now = Get-CalendarPeriod
+    if (& $done $now) { return $now }
+    Start-Sleep -Milliseconds 200
+  } while ($deadline.Elapsed.TotalSeconds -lt $TimeoutSec)
+  return Get-CalendarPeriod
+}
+
 $Suite = @{
   Dataset = 'showcase'
   Cases   = @(
@@ -99,7 +140,7 @@ $Suite = @{
 
         Invoke-GridWheel -Notches 24
 
-        $after = Get-CalendarPeriod
+        $after = Wait-CalendarPeriod -From $before
         Assert-True ($after -ne $before) (
           "the grid still says '$after' after 24 wheel notches. A wheel that moves nothing is the " +
           'defect this suite exists for, and it is invisible to every headless gate: the owner and ' +
@@ -119,12 +160,15 @@ $Suite = @{
         Invoke-GridWheel -Notches 12
         $short = Get-CalendarPeriod
 
+        # Today animates back like any other travel, so the return is waited for rather than slept
+        # through, or this leg starts from wherever the animation had got to.
         Invoke-UiaElement $today
-        Start-Sleep -Milliseconds 800
-        Assert-Equal $origin (Get-CalendarPeriod) 'Today puts the grid back where it started'
+        Assert-Equal $origin (Wait-CalendarPeriod -Is $origin) 'Today puts the grid back where it started'
 
         Invoke-GridWheel -Notches 48
-        $long = Get-CalendarPeriod
+        # Waited for, unlike $short above: 48 notches is the leg that has to leave the month, which
+        # is the whole of what this case claims.
+        $long = Wait-CalendarPeriod -From $origin
 
         # The grid is a continuous strip, not a pager: four times the input goes four times as far,
         # so the two legs cannot land on the same span. A page turn per gesture would.
