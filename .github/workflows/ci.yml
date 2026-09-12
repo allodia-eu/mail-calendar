@@ -602,11 +602,13 @@ jobs:
         uses: irgaly/xcode-cache@4141f139f00e335c6e1031fb93e667181f86146f # v1.9.2
         with:
           key: xcode-deriveddata-ui-${{ runner.os }}-${{ github.sha }}
-          # Falls back to the `apple` job's entry, which is most of the same compiled output, so the
-          # first run on a new key is not a build from nothing.
-          restore-keys: |
-            xcode-deriveddata-ui-${{ runner.os }}-
-            xcode-deriveddata-${{ runner.os }}-
+          # ⚠️ Its **own** prefix only, never a fallback to `xcode-deriveddata-<os>-`. That would
+          # read the `apple` job's entry when this one has none, and `delete-used-deriveddata-cache`
+          # below drops whatever it restored, so the first run on main would delete the sibling's
+          # cache and leave that job cold. The bootstrap it would have bought is one build, once;
+          # the products differ anyway, this side holding the testability-enabled build and the test
+          # bundle.
+          restore-keys: xcode-deriveddata-ui-${{ runner.os }}-
           deriveddata-directory: ${{ github.workspace }}/clients/apple/build
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
           delete-used-deriveddata-cache: ${{ github.ref == 'refs/heads/main' }}
@@ -623,15 +625,22 @@ jobs:
           toolchain: ${{ needs.changes.outputs.toolchain }}
           targets: aarch64-apple-darwin,aarch64-apple-ios-sim
 
-      # `apple`'s entry, deliberately: both jobs run `build-core.sh --no-device`, so the compiled
-      # dependencies are the same ones and a second copy would be a second copy. A key of its own
-      # cost this job **372s** of Rust on its first run against the sibling's warm 98s, for nothing.
-      # Both save on main and the later one is told the key exists, which is the intended no-op.
+      # Restores `apple`'s entry and **never writes one**. Both jobs run
+      # `build-core.sh --no-device`, which is two slices rather than one (`aarch64-apple-ios-sim`
+      # and `aarch64-apple-darwin`), so what they compile is the same and a key of its own bought
+      # this job a second copy of it: 372s of Rust on a first run against the sibling's warm 98s.
+      #
+      # ⚠️ Reading a shared key is safe; writing one is not. Two jobs writing one key means the
+      # cache holds whichever finished first, so the moment their cargo work stops being identical,
+      # the job that compiles *more* starts restoring an entry that is missing what only it builds,
+      # and pays for it on every run afterwards. Nothing warns about that, and the symmetry it
+      # depends on is not written down anywhere it would be checked. `apple` owns the entry; this
+      # job is a reader.
       - name: Cache Rust build
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           shared-key: apple
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: false
 
       - name: Install XcodeGen
         run: brew install xcodegen
