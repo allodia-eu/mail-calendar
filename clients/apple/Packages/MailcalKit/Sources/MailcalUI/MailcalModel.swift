@@ -118,7 +118,7 @@ final class MailboxModel {
     /// the same terms: `.failed` means "we could not confirm this saved", never "rejected". Its
     /// own slot rather than the calendar's, so the contacts list does not report a calendar save.
     var contactWriteStatus: ContactWriteStatus = .idle
-    /// The unanswered question raised when a calendar server that promised to tell the organizer
+    /// The unanswered question raised when a calendar server that promised to tell the organiser
     /// reported that it could not (pulled on a `Surface::InvitationReply` signal). Non-`nil`
     /// presents the modal; the core clears it the moment it is answered, so `nil` is also what
     /// closes it, the host never dismisses it on its own.

@@ -96,7 +96,7 @@ pub struct InvitationPreview {
 
 /// The meeting-invitation card for the open message.
 ///
-/// A host draws it **above** the message body. Times are UTC instants for the host to localize
+/// A host draws it **above** the message body. Times are UTC instants for the host to localise
 /// (`docs/timestamps.md`); the core ships no display tzdata.
 #[derive(uniffi::Record)]
 pub struct InvitationCard {
@@ -237,7 +237,7 @@ impl From<AppInvitationCard> for InvitationCard {
     }
 }
 
-/// The question a host asks when a calendar server that promised to tell the organizer
+/// The question a host asks when a calendar server that promised to tell the organiser
 /// reported that it could not (RFC 6638 §3.2.9); offering to email them instead.
 ///
 /// Raised **after** the answer is stored, because that is when the server says so. So the

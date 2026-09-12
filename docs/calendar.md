@@ -330,7 +330,7 @@ read as commitments, never as unanswered holds. Getting that wrong draws a user'
 and lets a new invitation claim the slot was free.
 
 **So is a meeting *we* called.** An `ORGANIZER` line carries no `PARTSTAT`: it is not an answer
-slot, and RFC 5545 defaults a missing one to `NEEDS-ACTION`, so a server that decodes the organizer
+slot, and RFC 5545 defaults a missing one to `NEEDS-ACTION`, so a server that decodes the organiser
 into the participant list (SabreDAV/CalDAV routinely does) reports the person who *called* the
 meeting as not having replied to it. Read literally, the user's own meeting is drawn dotted and the
 conflict rule (which skips unanswered) then tells the next invitation the slot is free. RFC 5546
@@ -359,7 +359,7 @@ contradicting another.
 
 Three decisions the core makes once, so no client repeats them:
 
-- **One row per address**, not per line. The split shape above would otherwise print the organizer
+- **One row per address**, not per line. The split shape above would otherwise print the organiser
   twice, and only on the servers that split them. The merge keeps the **explicit** `PARTSTAT` over
   an absent one, and that test is made on the **raw** status rather than the mapped answer: the
   organiser inference turns an absent answer into `Accepted`, so a mapped test would let a bare

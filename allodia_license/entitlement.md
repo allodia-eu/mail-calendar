@@ -264,7 +264,7 @@ discovered, so a literal sign-up address would be a second source of truth and w
 advertises it in `prompt_values_supported`; a build sends it **only** when that list carries it,
 which is the same rule `AuthStyle::Discovered` already applies to everything else.
 
-**Manage account opens the service's own page the same way sign-in opens the authorization
+**Manage account opens the service's own page the same way sign-in opens the authorisation
 request**, using the platform's **in-app browser tab** where there is one (RFC 8252 Appendix B):
 `ASWebAuthenticationSession` on Apple, a Custom Tab on Android, the system browser on Windows and
 Linux, which have no such thing. One mechanism, not two, and the reason is not tidiness: an in-app

@@ -12,7 +12,7 @@
 //!    Tabs, or a packaged-app protocol activation) and captures the redirect back to the registered
 //!    custom scheme. This half is inherently platform-specific and lives in the native client, not
 //!    here.
-//! 3. [`OAuthClient::complete`] validates the returned `state`, then exchanges the authorization
+//! 3. [`OAuthClient::complete`] validates the returned `state`, then exchanges the authorisation
 //!    `code` (+ PKCE verifier) for a [`TokenSet`].
 //! 4. [`OAuthClient::refresh`] re-mints an access token from a stored refresh token.
 //!
@@ -168,7 +168,7 @@ impl OAuthClient {
         &self.provider
     }
 
-    /// Starts a flow: mints a fresh PKCE pair + `state` and builds the authorization
+    /// Starts a flow: mints a fresh PKCE pair + `state` and builds the authorisation
     /// URL. The caller opens the URL and holds the returned `state`/verifier for
     /// [`OAuthClient::complete`]. `login_hint` (the address being connected, when known)
     /// pre-fills and targets that Microsoft account instead of showing the picker.

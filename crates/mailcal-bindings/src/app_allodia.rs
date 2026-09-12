@@ -110,7 +110,7 @@ impl MailcalApp {
     /// `None` when this build has no Allodia sign-in, which is the same answer
     /// [`crate::allodia_sign_in_available`] gives and the same reason to draw nothing.
     ///
-    /// A client opens it in the platform's **in-app browser tab**: the one the authorization
+    /// A client opens it in the platform's **in-app browser tab**: the one the authorisation
     /// request already uses; because that shares the system browser's cookies and the page then
     /// opens already signed in. An embedded web view has its own cookie jar and would show a login
     /// page instead.

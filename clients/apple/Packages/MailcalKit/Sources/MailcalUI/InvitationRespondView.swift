@@ -20,7 +20,7 @@ import SwiftUI
 ///   absent, because the core **refuses** a note it cannot carry rather than dropping it: an
 ///   offered field would not merely lose the text, it would lose the whole answer.
 /// - **`canChooseNotify`**, the server sends the reply the moment the status changes and no
-///   client can stop it. The toggle is absent for the same reason: one that emails the organizer
+///   client can stop it. The toggle is absent for the same reason: one that emails the organiser
 ///   anyway is worse than none.
 ///
 /// On both harness accounts, and on any CalDAV or JMAP account, this is three buttons and nothing

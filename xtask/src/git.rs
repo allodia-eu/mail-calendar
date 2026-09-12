@@ -152,6 +152,44 @@ pub(crate) fn ls_files(root: &Path, pathspecs: &[&str]) -> Result<Vec<String>, S
         .collect())
 }
 
+/// Every path matching `pathspecs` that git knows about, tracked or not.
+///
+/// `--others --exclude-standard` alongside `--cached` is not optional for a checker: without it
+/// `git ls-files` reads the index, so a file added but not yet staged is invisible and the check
+/// passes on the very change that introduces what it forbids. Ignored paths stay ignored either
+/// way, so this widens the search without widening the noise.
+///
+/// # Errors
+///
+/// Fails when git cannot be run or reports an error.
+pub(crate) fn listed(root: &Path, pathspecs: &[&str]) -> Result<Vec<String>, String> {
+    let output = Command::new("git")
+        .args([
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ])
+        .args(pathspecs)
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("could not run git ls-files: {e}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "git ls-files failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .split('\0')
+        .filter(|p| !p.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
+
 /// Reads a file, or explains which one could not be read.
 ///
 /// # Errors

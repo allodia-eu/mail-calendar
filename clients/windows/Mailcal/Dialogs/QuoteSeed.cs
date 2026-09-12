@@ -2,7 +2,7 @@
 // reading view's already-sanitised HTML (and plain text) for the open message; the attribution
 // is localised here, the Rust core carries no runtime localisation, so, like date display, the
 // client formats it (L10n + the date already localised onto OpenedMessage). The shape matches the
-// Rust composer's Block::Quote so it round-trips through the shared editor; the core re-sanitizes
+// Rust composer's Block::Quote so it round-trips through the shared editor; the core re-sanitises
 // the body on submit (docs/composer-security.md, Gate 10). The Windows twin of macOS's QuoteSeed.swift.
 
 using System.Text.Json.Nodes;

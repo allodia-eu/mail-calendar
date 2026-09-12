@@ -164,7 +164,7 @@ public sealed partial class ReadingView
 
     // Hand a clicked link's URL to the OS default handler. Whether to open it is the
     // shared-Rust launch policy (a strict scheme allowlist, http(s)/mailto only; mail is
-    // hostile input) so every client is identical and consistent with what the sanitizer
+    // hostile input) so every client is identical and consistent with what the sanitiser
     // keeps; never data:/file:/custom schemes. See docs/rendering-security.md.
     private void TryOpenExternally(string? uri)
     {

@@ -117,6 +117,15 @@ debug = 0
 [profile.dev.package."*"]
 debug = 0
 
+# The task runner is optimised even in `dev`, because `cargo xtask` is a `cargo run` and would
+# otherwise scan the tree unoptimised. Its checkers walk every character of every line of prose in
+# the repository, and that is exactly the shape a debug build is slow at: measured on this tree,
+# the spelling rule takes 1,567ms at `opt-level = 0` and 273ms at 2, and the dash rule 1,472ms
+# against 206ms. The crate has no dependencies, so what the optimisation costs is five seconds of
+# compile, once, when the crate itself changes.
+[profile.dev.package.xtask]
+opt-level = 2
+
 # Release parts company with dev and test above, for a reason that applies only here: the
 # panic hook (crates/mailcal-bindings/src/crash.rs) writes a backtrace into the user's diagnostic
 # log, and that backtrace is the ONLY record of where the core died — the FFI boundary carries a

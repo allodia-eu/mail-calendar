@@ -29,7 +29,7 @@ public sealed partial class MailboxModel
 
     /// <summary>
     /// Runs a sign-in and returns <c>null</c> on success or when the user gave up, and the failure
-    /// text otherwise. The core reads the service's own OAuth metadata, mints the authorization
+    /// text otherwise. The core reads the service's own OAuth metadata, mints the authorisation
     /// URL, exchanges the redirect, asks whose account it is and stores the grant.
     /// </summary>
     internal async Task<string?> SignInToAllodiaAsync(bool create = false)

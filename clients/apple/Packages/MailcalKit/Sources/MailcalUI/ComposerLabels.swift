@@ -17,7 +17,7 @@ enum ComposerLabels {
     /// Both halves of a mismatch fail silently: a key the bundle does not know is dropped by
     /// `mergeLabels`, and one it knows but this omits keeps its English default. Nothing throws and
     /// nothing logs, so the set is pinned by `ComposerLabelsTests` and across the clients by
-    /// `scripts/ci/check_composer_labels.py`.
+    /// `cargo xtask check-composer-labels`.
     static func values() -> [String: String] {
         [
             "placeholder": L10n.editor_placeholder(),

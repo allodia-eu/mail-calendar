@@ -15,40 +15,23 @@ use crate::{
     gate_exec::Runner,
 };
 
-/// The checkers that are still Python, in the order the gate runs them.
+/// The two checkers that stay Python, and why each does.
 ///
-/// They are named here rather than spread through the list below so that what is left to port is
-/// one list a reader can count.
-const PYTHON_EARLY: &[(&str, &str)] = &[
+/// `check_store_copy_length.py` imports the changelog-fragment parser and the brand reader that
+/// `release.py`, `flatpak_metadata.py`, `announcement.py`, `store_payload.py` and
+/// `msix_manifest.py` share. Porting it would fork them, which is the one thing that file was
+/// written to avoid: a fragment and a listing field must never be read by two subtly different
+/// parsers. It costs a fifth of a second.
+///
+/// `check_user_docs.py` checks the help pages, and they are not in this tree (AGENTS.md: they
+/// belong to whoever publishes the app). It skips on the first line here, so porting it would be
+/// thirty kilobytes of checker for a directory this repository does not have.
+const PYTHON_CHECKS: &[(&str, &str)] = &[
     (
         "store copy (field limits)",
         "scripts/ci/check_store_copy_length.py",
     ),
     ("user docs (contract)", "scripts/ci/check_user_docs.py"),
-];
-
-/// The Python checkers that run after the showcase and dev-account contracts.
-const PYTHON_LATE: &[(&str, &str)] = &[
-    (
-        "log hygiene (no repo paths in log lines)",
-        "scripts/ci/check_log_hygiene.py",
-    ),
-    (
-        "british english (prose and comments)",
-        "scripts/ci/check_british_english.py",
-    ),
-    (
-        "dash punctuation (prose and comments)",
-        "scripts/ci/check_dash_hygiene.py",
-    ),
-    (
-        "composer labels (every client sends every one)",
-        "scripts/ci/check_composer_labels.py",
-    ),
-    (
-        "surface publish (no signal without a snapshot)",
-        "scripts/ci/check_surface_publish.py",
-    ),
 ];
 
 /// Every step, in order, run as the list is built.
@@ -112,16 +95,20 @@ pub(crate) fn all(root: &Path, clients: bool, palette: &Palette) -> Vec<Step> {
         &["lint", "--lines"],
     ));
 
-    for (label, script) in PYTHON_EARLY {
+    for (label, script) in PYTHON_CHECKS {
         out.push(run.external(label, "python3", &[script]));
     }
 
     out.push(run.named("check-showcase-flag"));
     out.push(run.named("check-dev-account"));
 
-    for (label, script) in PYTHON_LATE {
-        out.push(run.external(label, "python3", &[script]));
-    }
+    // The two writing rules and the three silent-failure rules, all in this process. Together they
+    // replaced 19.3s of Python with under a second.
+    out.push(run.named("check-log-hygiene"));
+    out.push(run.named("check-british-english"));
+    out.push(run.named("check-dash-hygiene"));
+    out.push(run.named("check-composer-labels"));
+    out.push(run.named("check-surface-publish"));
 
     // The script suites, discovered so a new helper's tests are picked up by existing.
     out.push(run.sequence(
@@ -211,13 +198,19 @@ pub(crate) fn print_list(clients: bool) {
         println!("   {name:<24} in-process");
     }
     println!("   reuse                    reuse lint: required; the gate fails without it");
-    for (_, script) in PYTHON_EARLY {
+    for (_, script) in PYTHON_CHECKS {
         println!("   {script}");
     }
-    println!("   check-showcase-flag      in-process");
-    println!("   check-dev-account        in-process");
-    for (_, script) in PYTHON_LATE {
-        println!("   {script}");
+    for name in [
+        "check-showcase-flag",
+        "check-dev-account",
+        "check-log-hygiene",
+        "check-british-english",
+        "check-dash-hygiene",
+        "check-composer-labels",
+        "check-surface-publish",
+    ] {
+        println!("   {name:<24} in-process");
     }
     println!("   script tests             unittest discover (scripts/dev/tests, scripts/ci/tests)");
     println!("   composer                 typecheck + bun test + bun run check: requires bun");

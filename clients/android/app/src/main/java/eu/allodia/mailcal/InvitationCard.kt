@@ -5,7 +5,7 @@
 // geometry. This file localises and arranges; it computes no counts of its own, so this client and
 // the next cannot disagree about whether a meeting clashes.
 //
-// SECURITY (Gate 8, docs/rendering-security.md), the summary, location, description and organizer
+// SECURITY (Gate 8, docs/rendering-security.md), the summary, location, description and organiser
 // name are attacker-controlled sender content, and they reach the screen without passing the HTML
 // sanitiser, the CSP or a WebView. Compose's `Text(String)` renders them as text and nothing else:
 // styling on Android requires an `AnnotatedString`, which a plain `String` can never become by

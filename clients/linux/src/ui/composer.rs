@@ -343,7 +343,7 @@ fn connect_send(
 ///
 /// One map for the composer **and** the Settings signature editor: the bundle keeps no
 /// translations of its own, and a host that sends a partial map leaves those controls in English
-/// with nothing to say so (`scripts/ci/check_composer_labels.py`).
+/// with nothing to say so (`cargo xtask check-composer-labels`).
 pub(super) fn editor_labels() -> serde_json::Value {
     json!({
         "placeholder": l10n::editor_placeholder(),

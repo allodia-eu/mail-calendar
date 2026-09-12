@@ -47,7 +47,7 @@ pub enum Surface {
     /// refused or unconfirmed write earns.
     ContactsStatus,
     /// A pending question about an invitation reply the calendar server could not deliver
-    /// (pulled via `App::reply_prompt`); drives the modal that offers to email the organizer
+    /// (pulled via `App::reply_prompt`); drives the modal that offers to email the organiser
     /// ourselves. `None` means there is nothing to ask.
     InvitationReply,
     /// A message that was sent but whose copy is not in the account's Sent folder (pulled via

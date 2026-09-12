@@ -168,7 +168,7 @@ fn check_meta(params: Option<&Value>) -> Result<(), RpcError> {
         )));
     };
     if !MODERN_PROTOCOL_VERSIONS.contains(&version) {
-        // Never a generic code. The specification's stdio fallback is keyed on *not* recognizing
+        // Never a generic code. The specification's stdio fallback is keyed on *not* recognising
         // the error: anything else here tells a dual-era client this server is legacy, and it
         // would drop to the handshake instead of retrying from the list below.
         return Err(RpcError::new(
