@@ -124,6 +124,28 @@ class TreeSelectionTests(unittest.TestCase):
         self.assertEqual(subject.find_nodes(root, name="Message sent", limit=1), [banner])
         self.assertEqual(root.requested_children, [0])
 
+    def test_a_limited_find_counts_only_nodes_that_pass_the_state_filter(self) -> None:
+        """The selection bar's copy of a verb must not consume the one match asked for.
+
+        It carries a button for every verb the row menu offers, insensitive while nothing is
+        selected and earlier in walk order. Counted before the filter, it is the node handed
+        back, and pressing it is impossible: the caller waits out its timeout being told the
+        button never became enabled, with an enabled one on screen the whole time.
+        """
+        bar_flag = FakeNode("Flag", "push button", enabled=False)
+        menu_flag = FakeNode("Flag", "push button", actions=["press"])
+        root = FakeNode(
+            "Allodia Mail & Calendar",
+            "application",
+            FakeNode("Selection bar", "panel", bar_flag),
+            FakeNode("Message list", "list", menu_flag),
+        )
+
+        self.assertEqual(
+            subject.find_nodes(root, name="Flag", enabled_only=True, limit=1), [menu_flag]
+        )
+        self.assertEqual(subject.find_nodes(root, name="Flag", limit=1), [bar_flag])
+
     def test_find_can_scope_a_role_to_a_named_ancestor(self) -> None:
         self.assertEqual(
             subject.find_nodes(
