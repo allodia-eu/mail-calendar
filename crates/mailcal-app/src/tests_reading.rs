@@ -15,7 +15,7 @@ use engine_api::{AccountId, EmailAddress};
 use engine_provider::MailEdit;
 use fakes::{FakeProvider, account, app, message, msg};
 
-use super::{Intent, Surface};
+use super::{Intent, ReaderId, Surface};
 use crate::Account;
 
 #[allow(clippy::duplicate_mod)]
@@ -35,6 +35,7 @@ async fn opening_an_unread_message_marks_it_read_on_the_server() {
     // Opening the message both publishes the reading view and marks it Seen on the server, so the
     // read state reflects that the user has now seen it: no separate mark-read action needed.
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m1"),
     })
     .await;
@@ -71,6 +72,7 @@ async fn opening_an_already_read_message_does_not_re_mark_it() {
     app.dispatch(Intent::RefreshMail).await;
 
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m1"),
     })
     .await;
@@ -108,6 +110,7 @@ async fn open_message_waits_for_a_still_dialing_account_then_loads() {
         let app = Arc::clone(&app);
         async move {
             app.dispatch(Intent::OpenMessage {
+                reader: ReaderId::Pane,
                 message: msg("acct-1", "m1"),
             })
             .await;
@@ -159,6 +162,7 @@ async fn open_message_gives_up_after_the_dial_window_when_no_provider_connects()
     .await;
 
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m1"),
     })
     .await;
@@ -181,6 +185,7 @@ async fn a_fast_open_never_announces_a_wait() {
     surfaces.lock().unwrap().clear();
 
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m1"),
     })
     .await;
@@ -224,6 +229,7 @@ async fn an_open_that_outlasts_the_threshold_announces_the_wait_first() {
         let app = Arc::clone(&app);
         async move {
             app.dispatch(Intent::OpenMessage {
+                reader: ReaderId::Pane,
                 message: msg("acct-1", "m1"),
             })
             .await;

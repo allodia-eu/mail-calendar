@@ -13,7 +13,7 @@ use fakes::{
     FakeConnector, FakeProvider, account, app, app_with_connector, message, msg, open_folder,
 };
 
-use super::{Intent, Surface};
+use super::{Intent, ReaderId, Surface};
 use crate::helpers::{forward_subject, reply_subject};
 
 #[allow(clippy::duplicate_mod)]
@@ -86,6 +86,7 @@ async fn open_message_fetches_sanitizes_and_publishes_the_body() {
     surfaces.lock().unwrap().clear();
 
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m1"),
     })
     .await;
@@ -128,6 +129,7 @@ async fn open_message_resolves_inline_cid_images_to_data_uris() {
 
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m1"),
     })
     .await;
@@ -160,6 +162,7 @@ async fn open_message_lists_and_saves_downloadable_attachments() {
 
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m1"),
     })
     .await;
@@ -204,6 +207,7 @@ async fn an_exported_message_is_the_delivered_bytes_unaltered() {
 
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m1"),
     })
     .await;
@@ -265,6 +269,7 @@ async fn open_message_surfaces_to_cc_and_bcc_recipients_formatted() {
     );
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m1"),
     })
     .await;
@@ -284,6 +289,7 @@ async fn open_message_flags_a_load_error_when_the_body_cannot_be_fetched() {
 
     // A key that isn't in the account's synced set can't resolve a message → load_error.
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "does-not-exist"),
     })
     .await;
@@ -383,6 +389,7 @@ async fn failing_bodies_do_not_block_older_mail_from_warming() {
 
     // m249 is the oldest message, ranked behind all 210 failures; it must still be warm.
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m249"),
     })
     .await;
@@ -426,6 +433,7 @@ async fn a_body_conflict_resyncs_the_folder_and_warms_its_renumbered_keys() {
     app.dispatch(Intent::RefreshMail).await;
     offline.store(true, Ordering::SeqCst);
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "c-new"),
     })
     .await;
@@ -458,6 +466,7 @@ async fn mail_arriving_on_a_later_refresh_is_warmed_by_that_refresh() {
     offline.store(true, Ordering::SeqCst);
 
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m3"),
     })
     .await;

@@ -23,7 +23,11 @@
 //! `cargo xtask check-surface-publish` keeps the door shut: it fails if a published surface is
 //! signalled anywhere but here, or if one of these fields is declared as a bare `Mutex`.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    sync::{Arc, Mutex},
+};
 
 use crate::{AppObserver, Surface};
 
@@ -81,6 +85,89 @@ impl<T: Clone> Surfaced<T> {
     }
 }
 
+/// Several snapshots of one kind, one per reader, behind a single surface.
+///
+/// The reading body is the only surface with more than one viewer: beside the pane, a desktop
+/// opens a message in a window of its own (`docs/reading-window.md`). It lives here rather than as
+/// a map beside the observer so that [`Surfaced`]'s rule still holds over it: every store
+/// completes before the signal announcing it, and no signal can be raised without a store.
+pub(crate) struct SurfacedMap<K, V> {
+    values: Mutex<HashMap<K, V>>,
+    surface: Surface,
+    observer: Arc<dyn AppObserver>,
+}
+
+impl<K, V> core::fmt::Debug for SurfacedMap<K, V> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // The values hold the user's mail; the surface alone identifies the cell.
+        f.debug_struct("SurfacedMap")
+            .field("surface", &self.surface)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<K: Eq + Hash, V: Clone + Default> SurfacedMap<K, V> {
+    /// An empty cell bound to `surface` and `observer`.
+    pub(crate) fn new(surface: Surface, observer: Arc<dyn AppObserver>) -> Self {
+        Self {
+            values: Mutex::new(HashMap::new()),
+            surface,
+            observer,
+        }
+    }
+
+    /// Stores `value` for `key` and then announces it.
+    pub(crate) fn publish(&self, key: K, value: V) {
+        self.values
+            .lock()
+            .expect("surfaced-map mutex poisoned")
+            .insert(key, value);
+        self.observer.surface_changed(self.surface);
+    }
+
+    /// `key`'s current value, or the default when nothing has been published for it.
+    ///
+    /// A reader that has published nothing and one that has since been closed read alike, which
+    /// is what a host wants of both: a window that goes away while its open is still in flight
+    /// must not leave a body behind for the next pull to render.
+    pub(crate) fn get(&self, key: &K) -> V {
+        self.values
+            .lock()
+            .expect("surfaced-map mutex poisoned")
+            .get(key)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Forgets `key`'s snapshot, signalling nothing: the reader it belonged to is gone. A body is
+    /// the largest thing the core holds per viewer, so it is dropped rather than left to the end
+    /// of the session.
+    pub(crate) fn close(&self, key: &K) {
+        self.values
+            .lock()
+            .expect("surfaced-map mutex poisoned")
+            .remove(key);
+    }
+
+    /// Replaces the value held by every reader whose current one satisfies `showing`, then
+    /// announces the lot once.
+    ///
+    /// For a body that changed underneath its readers rather than one a reader asked for:
+    /// answering an invitation rewrites that message's card, and a window showing it has to say
+    /// what the pane says.
+    pub(crate) fn republish_where(&self, showing: impl Fn(&V) -> bool, value: &V) {
+        {
+            let mut values = self.values.lock().expect("surfaced-map mutex poisoned");
+            for held in values.values_mut() {
+                if showing(held) {
+                    *held = value.clone();
+                }
+            }
+        }
+        self.observer.surface_changed(self.surface);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{
@@ -88,7 +175,7 @@ mod tests {
         atomic::{AtomicUsize, Ordering},
     };
 
-    use super::Surfaced;
+    use super::{Surfaced, SurfacedMap};
     use crate::{AppObserver, Surface};
 
     /// An observer that pulls the cell the moment it is signalled, which is exactly what a host
@@ -205,6 +292,88 @@ mod tests {
                 .unwrap()
                 .iter()
                 .all(|seen| seen.starts_with('v'))
+        );
+    }
+
+    /// A counting observer, for the keyed cell: what matters there is which keys were written
+    /// and how many signals it took, not what a pull returned mid-write.
+    struct Counting(Mutex<usize>);
+
+    impl AppObserver for Counting {
+        fn surface_changed(&self, _surface: Surface) {
+            *self.0.lock().unwrap() += 1;
+        }
+    }
+
+    fn keyed() -> (SurfacedMap<&'static str, String>, Arc<Counting>) {
+        let observer = Arc::new(Counting(Mutex::new(0)));
+        (
+            SurfacedMap::new(
+                Surface::Reading,
+                Arc::clone(&observer) as Arc<dyn AppObserver>,
+            ),
+            observer,
+        )
+    }
+
+    #[test]
+    fn each_key_holds_its_own_value_and_an_unwritten_one_is_the_default() {
+        let (cell, _) = keyed();
+        cell.publish("pane", "first".to_owned());
+        cell.publish("w1", "second".to_owned());
+        assert_eq!(cell.get(&"pane"), "first");
+        assert_eq!(cell.get(&"w1"), "second");
+        assert_eq!(
+            cell.get(&"never-opened"),
+            "",
+            "an unwritten key reads as the default, never as another key's value"
+        );
+    }
+
+    #[test]
+    fn closing_a_key_frees_it_and_leaves_the_others() {
+        let (cell, observer) = keyed();
+        cell.publish("pane", "first".to_owned());
+        cell.publish("w1", "second".to_owned());
+        let signals = *observer.0.lock().unwrap();
+
+        cell.close(&"w1");
+
+        assert_eq!(cell.get(&"w1"), "");
+        assert_eq!(cell.get(&"pane"), "first");
+        assert_eq!(
+            *observer.0.lock().unwrap(),
+            signals,
+            "a close announces nothing: the reader it belonged to is gone"
+        );
+    }
+
+    #[test]
+    fn a_republish_rewrites_only_the_keys_that_match_and_signals_once() {
+        // The invitation case: an answer rewrites the card for every reader that was showing
+        // that message, and must leave a reader on a different one exactly as it was.
+        let (cell, observer) = keyed();
+        cell.publish("pane", "invitation".to_owned());
+        cell.publish("w1", "invitation".to_owned());
+        cell.publish("w2", "something else".to_owned());
+        let signals = *observer.0.lock().unwrap();
+
+        cell.republish_where(
+            |held| held == "invitation",
+            &"invitation, answered".to_owned(),
+        );
+
+        assert_eq!(cell.get(&"pane"), "invitation, answered");
+        assert_eq!(cell.get(&"w1"), "invitation, answered");
+        assert_eq!(
+            cell.get(&"w2"),
+            "something else",
+            "a reader on another message keeps what it had"
+        );
+        assert_eq!(
+            *observer.0.lock().unwrap(),
+            signals + 1,
+            "one signal for the lot, however many readers it touched"
         );
     }
 }

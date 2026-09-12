@@ -43,14 +43,23 @@ struct OpenedMessage: Identifiable, Hashable {
 /// `private` on a top-level declaration is file-scoped).
 let attachmentBarCap: CGFloat = 176
 
-/// The reading pane: a header plus the fetched body, or a spinner until the body for this
-/// message arrives (the fetch is async, a network round-trip on the first open). It lives
-/// inline as the third pane beside the message list (sidebar | list | reading); a fresh
-/// instance is created per opened message (keyed by the selected row), so its per-message
-/// state resets on selection.
+/// The reading view: a header plus the fetched body, or a spinner until the body for this
+/// message arrives (the fetch is async, a network round-trip on the first open).
+///
+/// **One view, three hosts.** It is the third pane beside the message list (sidebar | list |
+/// reading), the screen an iPhone pushes, and the whole of a detached reading window on the
+/// desktop (`docs/reading-window.md`). What differs between them is where the body comes from
+/// (`source`) and what the actions do, both handed in; nothing here knows which host it is in,
+/// which is what keeps a window from drifting away from the pane it was opened out of.
+///
+/// A fresh instance is created per opened message (keyed by the row), so its per-message state
+/// resets on selection.
 struct ReadingView: View {
     var model: MailboxModel
     let message: OpenedMessage
+    /// Which of the core's reading slots this view's body arrives in: the pane's, or one
+    /// detached window's. Two views can be on screen at once and each must read only its own.
+    var source: ReadingSource = .pane
     /// Header-toolbar actions, owned by the host (they open the composer / act on the message
     /// and clear the pane) so the reading view stays a pure renderer.
     let onReply: () -> Void
@@ -108,8 +117,12 @@ struct ReadingView: View {
     ///
     /// Not `private`: ReadingView.Attachments.swift's `attachmentBar` reads it too.
     var bodySnapshot: ReadingSnapshot? {
-        guard let reading = model.reading, reading.key == message.key else { return nil }
-        return reading
+        let slot: ReadingSnapshot? = switch source {
+        case .pane: model.reading
+        case .window(let id): model.readingWindows[id]?.body
+        }
+        guard let slot, slot.key == message.key else { return nil }
+        return slot
     }
 
     /// The reading header's sender: the full `Name <email>` from the body snapshot once it

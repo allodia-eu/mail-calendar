@@ -20,7 +20,7 @@ use fakes::{
     ALIAS, InvitationFake, MEETING_UID, MESSAGE_KEY, RecordedPuts, RecordedSends, invitation_app,
 };
 
-use super::{CalendarWriteStatus, Intent, InvitationResponse, MessageRef};
+use super::{CalendarWriteStatus, Intent, InvitationResponse, MessageRef, ReaderId};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -339,8 +339,11 @@ async fn the_card_offers_the_two_controls_this_route_can_actually_honour() {
     let app = invitation_app(InvitationFake::new().without_server_scheduling(), &surfaces);
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::RefreshCalendar).await;
-    app.dispatch(Intent::OpenMessage { message: invite() })
-        .await;
+    app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
+        message: invite(),
+    })
+    .await;
 
     let card = app
         .reading_view()
@@ -363,8 +366,11 @@ async fn a_card_with_no_route_offers_no_buttons_at_all() {
     let app = invitation_app(InvitationFake::new().with_no_route(), &surfaces);
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::RefreshCalendar).await;
-    app.dispatch(Intent::OpenMessage { message: invite() })
-        .await;
+    app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
+        message: invite(),
+    })
+    .await;
 
     let card = app
         .reading_view()

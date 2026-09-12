@@ -103,9 +103,16 @@ final class MailboxModel {
     /// override may also deliberately differ from the stored choice.
     var appearance: Appearance = AppearanceMode.atLaunch()
     var timezone: TimeZoneSnapshot?
-    /// The open message's fetched, sanitised body (the reading view pulls this on a
-    /// `Surface::Reading` signal). `nil` until a message is opened.
+    /// The **pane's** open message: its fetched, sanitised body (pulled on a `Surface::Reading`
+    /// signal). `nil` until a message is opened.
     var reading: ReadingSnapshot?
+    /// Every detached reading window, keyed by its core reader id (`docs/reading-window.md`).
+    ///
+    /// One entry per open window, so this is also the list of them: the registry the main window
+    /// sweeps when it closes, and what tells the reload pass whose body to re-pull. The pane is
+    /// the field above and is deliberately not a key here, exactly as the core keeps the two
+    /// apart: nothing a window mints can name the pane's slot.
+    var readingWindows: [String: DetachedReading] = [:]
     /// The outgoing-send hint (pulled on a `Surface::Sending` signal): `.sending` while a
     /// send is in flight, then the terminal `.sent`/`.failed` which auto-clears to `.idle`.
     var sendStatus: SendStatus = .idle

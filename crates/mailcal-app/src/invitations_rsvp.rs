@@ -303,8 +303,13 @@ impl<P: Provider> App<P> {
     /// answering an invitation is no reason to do: the user may well have answered from the
     /// list without opening it.
     async fn republish_reading(&self, message: MessageRef) {
+        let key = message.key.as_str().to_owned();
         let snapshot = self.fetch_reading(message).await;
-        self.reading.publish(snapshot);
+        // Every reader showing this message, not only the pane: a detached window
+        // (`docs/reading-window.md`) drawing the same card must not go on offering an answer that
+        // has already been given.
+        self.reading
+            .republish_where(|held| held.key == key, &snapshot);
     }
 
     /// The stored [`Event`] a `UID` names in `account`, looked up across the meeting's own

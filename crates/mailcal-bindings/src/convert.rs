@@ -15,22 +15,21 @@ use mailcal_account::{EventDrag, EventEdge as AppEventEdge, EventEdit};
 use mailcal_app::{
     BulkAction as AppBulkAction, CalendarWriteStatus as AppCalendarWriteStatus,
     ContactWriteStatus as AppContactWriteStatus, EventRef, FolderRef, Intent as AppIntent,
-    InvitationResponse as AppInvitationResponse, MessageRef,
+    InvitationResponse as AppInvitationResponse, MessageRef, ReaderId as AppReaderId,
     RecipientSuggestion as AppRecipientSuggestion, RowRef, SearchScope as AppSearchScope,
     SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
 };
 use mailcal_viewmodel::{
-    AccountSyncProgress as AppAccountSyncProgress, AttachmentRow as AppAttachmentRow,
-    CalendarSnapshot as AppCalendarSnapshot, ConnectivitySnapshot as AppConnectivity,
-    EventRow as AppEventRow, ReadingSnapshot as AppReading,
+    AccountSyncProgress as AppAccountSyncProgress, CalendarSnapshot as AppCalendarSnapshot,
+    ConnectivitySnapshot as AppConnectivity, EventRow as AppEventRow,
     SyncProgressSnapshot as AppSyncProgress,
 };
 
 use crate::{
-    AccountSyncProgress, AttachmentRow, BulkAction, CalendarSnapshot, CalendarWriteStatus,
-    ConnectionInfo, ConnectivitySnapshot, ContactWriteStatus, EventEdge, EventRow, HttpVersion,
-    Intent, InvitationResponse, ReadingSnapshot, RecipientSuggestion, SearchScope, SelectedRow,
-    SendStatus, Surface, SyncProgressSnapshot, TlsVersion,
+    AccountSyncProgress, BulkAction, CalendarSnapshot, CalendarWriteStatus, ConnectionInfo,
+    ConnectivitySnapshot, ContactWriteStatus, EventEdge, EventRow, HttpVersion, Intent,
+    InvitationResponse, RecipientSuggestion, SearchScope, SelectedRow, SendStatus, Surface,
+    SyncProgressSnapshot, TlsVersion,
 };
 
 impl From<AppSurface> for Surface {
@@ -166,6 +165,15 @@ impl TryFrom<Intent> for AppIntent {
             },
             Intent::ShowMore => Self::ShowMore,
             Intent::OpenMessage { account, key } => Self::OpenMessage {
+                reader: AppReaderId::Pane,
+                message: message(account, key)?,
+            },
+            Intent::OpenMessageInWindow {
+                window,
+                account,
+                key,
+            } => Self::OpenMessage {
+                reader: AppReaderId::Window(window),
                 message: message(account, key)?,
             },
             Intent::SubmitMail { to, subject, body } => Self::SubmitMail { to, subject, body },
@@ -386,41 +394,6 @@ impl From<AppRecipientSuggestion> for RecipientSuggestion {
         Self {
             to: suggestion.to,
             cc: suggestion.cc,
-        }
-    }
-}
-
-impl From<AppReading> for ReadingSnapshot {
-    fn from(snapshot: AppReading) -> Self {
-        Self {
-            key: snapshot.key,
-            from: snapshot.from,
-            avatar: snapshot.avatar.into(),
-            to: snapshot.to,
-            cc: snapshot.cc,
-            bcc: snapshot.bcc,
-            html: snapshot.html,
-            plain: snapshot.plain,
-            has_remote_images: snapshot.has_remote_images,
-            load_error: snapshot.load_error,
-            attachments: snapshot
-                .attachments
-                .into_iter()
-                .map(AttachmentRow::from)
-                .collect(),
-            invitation: snapshot.invitation.map(Into::into),
-            pending: snapshot.pending,
-        }
-    }
-}
-
-impl From<AppAttachmentRow> for AttachmentRow {
-    fn from(row: AppAttachmentRow) -> Self {
-        Self {
-            id: row.id,
-            file_name: row.file_name,
-            media_type: row.media_type,
-            size: row.size,
         }
     }
 }

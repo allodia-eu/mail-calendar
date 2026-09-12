@@ -86,9 +86,26 @@ pub enum Intent {
     /// navigation (select account/folder, search, switch view mode) resets it to the first
     /// page.
     ShowMore,
-    /// Open a message (by key) for reading: fetch + cache its source, extract and
-    /// sanitise the body, then publish the [`Surface::Reading`] snapshot.
+    /// Open a message (by key) for reading in the **pane**: fetch + cache its source, extract
+    /// and sanitise the body, then publish the [`Surface::Reading`] snapshot, which is read
+    /// back with [`MailcalApp::reading_view`](crate::MailcalApp::reading_view).
     OpenMessage {
+        /// The id of the account that owns the message (the row's `account`).
+        account: String,
+        /// The message's provider key.
+        key: String,
+    },
+    /// [`Intent::OpenMessage`], into a detached reading window rather than the pane
+    /// (`docs/reading-window.md`), so the two show different messages at the same time. The
+    /// fetch, the mark-read and the loading threshold are the pane's; only the slot differs,
+    /// and it is read back with
+    /// [`MailcalApp::reading_window_view`](crate::MailcalApp::reading_window_view).
+    OpenMessageInWindow {
+        /// The window's id: the host mints one per window and keeps it for the window's life,
+        /// then spends it on
+        /// [`MailcalApp::close_reading_window`](crate::MailcalApp::close_reading_window). The
+        /// pane's slot is not a string and cannot be named here.
+        window: String,
         /// The id of the account that owns the message (the row's `account`).
         account: String,
         /// The message's provider key.

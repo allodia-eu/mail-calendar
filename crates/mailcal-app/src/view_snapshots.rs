@@ -9,7 +9,7 @@ use std::sync::atomic::Ordering;
 use engine_api::Provider;
 use mailcal_viewmodel::{CalendarSnapshot, MailboxListSnapshot, ReadingSnapshot, TimeZoneSnapshot};
 
-use crate::{App, SendStatus};
+use crate::{App, ReaderId, SendStatus};
 
 impl<P: Provider> App<P> {
     /// The current mailbox-list snapshot (pulled after a `surface_changed` signal).
@@ -24,11 +24,21 @@ impl<P: Provider> App<P> {
         self.calendar.get()
     }
 
-    /// The current reading-view snapshot (pulled after a `Surface::Reading` signal): the
-    /// open message's key and its fetched, sanitised body.
+    /// The reading **pane**'s snapshot (pulled after a `Surface::Reading` signal): the open
+    /// message's key and its fetched, sanitised body.
     #[must_use]
     pub fn reading_view(&self) -> ReadingSnapshot {
-        self.reading.get()
+        self.reading_view_in(&ReaderId::Pane)
+    }
+
+    /// One reader's snapshot: the pane's, or a detached reading window's
+    /// (`docs/reading-window.md`).
+    ///
+    /// A signal announces that *some* reader's body changed, so every open reader re-pulls its
+    /// own. An unknown or closed reader reads as the empty snapshot, never as another reader's.
+    #[must_use]
+    pub fn reading_view_in(&self, reader: &ReaderId) -> ReadingSnapshot {
+        self.reading.get(reader)
     }
 
     /// The current display-timezone setting (pulled after a `Surface::Settings` signal):

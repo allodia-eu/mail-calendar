@@ -63,6 +63,20 @@ enum ComposeContext: Identifiable {
         case .mailLink(let request): return "mailLink:\(request.id)"
         }
     }
+
+    /// What a window showing this draft is called: its subject, which is what the Window menu,
+    /// ⌘-Tab and Mission Control read, and the only thing that tells two open drafts apart there
+    /// (`docs/reading-window.md`). A draft that has no subject yet is named for what it is.
+    var windowTitle: String {
+        switch self {
+        case let .reply(_, _, _, _, subject, _, _),
+             let .replyAll(_, _, _, _, subject, _, _),
+             let .forward(_, _, subject, _, _, _):
+            return subject.isEmpty ? L10n.compose_title_new() : subject
+        case .new, .agentDraft, .mailLink:
+            return L10n.compose_title_new()
+        }
+    }
 }
 
 /// One `mailto:` link the OS handed us, already decoded by the shared core.
