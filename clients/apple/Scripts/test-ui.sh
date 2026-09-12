@@ -14,6 +14,7 @@
 #   Scripts/test-ui.sh --device             # the connected iPhone/iPad
 #   Scripts/test-ui.sh --only NavigationBarTests   # one class, or one test
 #   Scripts/test-ui.sh --no-core            # skip the Rust rebuild
+#   Scripts/test-ui.sh --no-build           # the caller already ran build-for-testing (CI)
 #
 # Every test drives the in-memory showcase dataset, so nothing here needs the Docker harness, a
 # stored account or a network. That is what lets the device leg run the same suite: the harness is
@@ -37,7 +38,6 @@ ARTIFACTS="$HERE/Packages/MailcalKit/artifacts"
 TARGET=AllodiaMailUITests
 BUILD_CORE=1
 BUILD_TESTS=1
-BOOT_ONLY=0
 ON_DEVICE=0
 SIMULATOR="${SIMULATOR:-}"
 ONLY=()
@@ -49,8 +49,7 @@ while [[ $# -gt 0 ]]; do
     --only) ONLY+=("${2:?--only needs a test class or class/method}"); shift ;;
     --no-core) BUILD_CORE=0 ;;
     --no-build) BUILD_TESTS=0 ;;
-    --boot) BOOT_ONLY=1 ;;
-    -h | --help) sed -n '2,26p' "$0"; exit 0 ;;
+    -h | --help) sed -n '2,27p' "$0"; exit 0 ;;
     *) die "unknown option '$1' (want: --device, --simulator <name>, --only <test>, --no-core)" ;;
   esac
   shift
@@ -70,8 +69,6 @@ first_iphone_sim() {
 }
 
 is_macos || die "the Apple UI suite needs macOS (Xcode + a simulator or a connected device)"
-
-[[ "$BOOT_ONLY" -eq 1 && "$ON_DEVICE" -eq 1 ]] && die "--boot is for a simulator; a device is already on"
 
 if [[ "$ON_DEVICE" -eq 1 ]]; then
   UDID="$(device_udid)" || die "no physical iOS device found: connect one, or set MAILCAL_DEVICE=<udid>"
@@ -106,13 +103,6 @@ else
   # so it reads as that test failing rather than as the device not being ready. `bootstatus` is the
   # wait, and it is a no-op on a device that has already settled.
   info "simulator: $UDID"
-  # `--boot` starts one and returns. A cold boot is a minute and a half of a CI runner's time that
-  # has nothing to do with the tests, so the job starts one while the Rust core is still compiling
-  # and this run finds it already up.
-  if [[ "$BOOT_ONLY" -eq 1 ]]; then
-    xcrun simctl boot "$UDID" 2>/dev/null || true
-    exit 0
-  fi
   xcrun simctl bootstatus "$UDID" -b >/dev/null
   SETTLE_UDID="$UDID"
   TEAM=""
