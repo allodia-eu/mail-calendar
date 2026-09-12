@@ -7,6 +7,7 @@ using System;
 using System.Threading;
 using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
 using Windows.System;
@@ -21,6 +22,10 @@ public sealed partial class MainWindow
     // answered, and two dialogs would stack.
     private int _offeringDefaultMailApp;
 
+    // Set while the offer is waiting for the window's content to reach the visual tree, so a burst
+    // of account signals subscribes to Loaded once rather than once per account.
+    private bool _offerAwaitingTree;
+
     /// <summary>
     /// Puts the offer up, if the core says it is due. Called when the account list changes, which
     /// is the earliest honest moment: before there is an account the app cannot send mail, so the
@@ -28,16 +33,27 @@ public sealed partial class MainWindow
     /// </summary>
     private async void OfferDefaultMailAppIfDue()
     {
-        if (!Model.ShouldOfferDefaultMailApp())
+        // The three refusals and their reasons are DefaultMailApp.WhenToAsk's, which is where they
+        // can be unit-tested; what is here is only the acting on them. Both "wait" answers come
+        // back: the screen frees on the next account change or the next launch, and the tree
+        // arrives at Loaded, below.
+        var content = Content as FrameworkElement;
+        var timing = DefaultMailApp.WhenToAsk(
+            due: Model.ShouldOfferDefaultMailApp(),
+            screenTaken: DialogHelper.IsShowing
+                || _pendingShare is not null
+                || _pendingMailLink is not null,
+            rooted: content?.XamlRoot is not null);
+        if (timing is DefaultMailApp.Timing.WaitForVisualTree
+            && content is not null
+            && !_offerAwaitingTree)
         {
-            return;
+            _offerAwaitingTree = true;
+            content.Loaded += OfferDefaultMailAppOnceRooted;
         }
-        // Never while something else owns the screen, and never ahead of a launch the user did
-        // aim at us. DialogHelper drops a second show and answers `None`, which is also what its
-        // close button answers, so an offer put now would be recorded as declined without anyone
-        // having been asked, and this one is put once. It waits for the next account change, or
-        // the next launch, both of which come back here.
-        if (DialogHelper.IsShowing || _pendingShare is not null || _pendingMailLink is not null)
+        // The second half of the condition is the same question WhenToAsk was just asked; it is
+        // here because the compiler cannot carry that answer across the call.
+        if (timing is not DefaultMailApp.Timing.Ask || content?.XamlRoot is not { } root)
         {
             return;
         }
@@ -48,7 +64,7 @@ public sealed partial class MainWindow
         try
         {
             var taken = await DialogHelper.ConfirmAsync(
-                Content.XamlRoot,
+                root,
                 L10n.DefaultMailAppOfferTitle(),
                 L10n.DefaultMailAppOfferMessage(),
                 L10n.DefaultMailAppOfferAccept(),
@@ -66,6 +82,14 @@ public sealed partial class MainWindow
         {
             Volatile.Write(ref _offeringDefaultMailApp, 0);
         }
+    }
+
+    /// <summary>Puts the offer once the content is rooted, having been asked for too early.</summary>
+    private void OfferDefaultMailAppOnceRooted(object sender, RoutedEventArgs args)
+    {
+        ((FrameworkElement) sender).Loaded -= OfferDefaultMailAppOnceRooted;
+        _offerAwaitingTree = false;
+        OfferDefaultMailAppIfDue();
     }
 
     /// <summary>

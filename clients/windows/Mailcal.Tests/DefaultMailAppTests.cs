@@ -58,4 +58,51 @@ public class DefaultMailAppTests
         // key. The core treats null as "not the default", which is the recoverable way round.
         Assert.Null(DefaultMailApp.IsDefault);
     }
+
+    [Fact]
+    public void AnOfferWithNowhereToOpenWaitsForOneRatherThanBeingPut()
+    {
+        // The regression. The signal that asks this is raised while the window is still being
+        // constructed, so an account that connects in tens of milliseconds arrives before there
+        // is a visual tree; putting a dialog on an unrooted element throws out of an `async void`,
+        // which reaches no catch and killed the process on one launch in five.
+        Assert.Equal(
+            DefaultMailApp.Timing.WaitForVisualTree,
+            DefaultMailApp.WhenToAsk(due: true, screenTaken: false, rooted: false));
+    }
+
+    [Fact]
+    public void ARootedWindowWithNothingElseOnItIsWhenTheOfferIsPut()
+    {
+        Assert.Equal(
+            DefaultMailApp.Timing.Ask,
+            DefaultMailApp.WhenToAsk(due: true, screenTaken: false, rooted: true));
+    }
+
+    [Fact]
+    public void SomethingTheUserAimedAtUsOutranksTheOffer()
+    {
+        // A share or a mail link the user chose this app for, or a dialog already up: the offer
+        // would be dropped and recorded as declined without anyone being asked, and it is put
+        // once. Reported as waiting, never as settled, so the next signal puts it.
+        Assert.Equal(
+            DefaultMailApp.Timing.WaitForScreen,
+            DefaultMailApp.WhenToAsk(due: true, screenTaken: true, rooted: true));
+    }
+
+    [Fact]
+    public void AnOfferTheCoreHasSettledIsNotWaitingForAnything()
+    {
+        // Distinct from either wait: nothing is going to make this due again, so a caller must
+        // not subscribe to a tree it will never use.
+        foreach (var screenTaken in new[] { true, false })
+        {
+            foreach (var rooted in new[] { true, false })
+            {
+                Assert.Equal(
+                    DefaultMailApp.Timing.NotDue,
+                    DefaultMailApp.WhenToAsk(due: false, screenTaken, rooted));
+            }
+        }
+    }
 }
