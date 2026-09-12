@@ -5,7 +5,7 @@
 // view localises and arranges; it computes no counts of its own, so this client and the next cannot
 // disagree about whether a meeting clashes.
 //
-// SECURITY (Gate 8, docs/rendering-security.md), the summary, location, description and organizer
+// SECURITY (Gate 8, docs/rendering-security.md), the summary, location, description and organiser
 // name are attacker-controlled sender content, and they reach the screen without passing the HTML
 // sanitiser, the CSP or a web view. So every one of them goes through `Text(verbatim:)`.
 //

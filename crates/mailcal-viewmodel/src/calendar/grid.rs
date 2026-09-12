@@ -78,7 +78,7 @@ pub struct Occurrence {
     ///
     /// An event with no attendees (the user's own appointment) is
     /// [`ResponseStatus::Accepted`]: they put it in their own diary, so it is a commitment, not
-    /// an unanswered hold. A [`ResponseStatus::NeedsAction`] occurrence is a hold the organizer
+    /// an unanswered hold. A [`ResponseStatus::NeedsAction`] occurrence is a hold the organiser
     /// is still waiting on, which a client draws as a **dotted** block.
     ///
     /// [`ResponseStatus::Declined`] never reaches a grid: the core filters those out upstream

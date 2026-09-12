@@ -21,6 +21,9 @@
 //! once per check, pays cargo's freshness check every time, which costs more than the checks do.
 
 mod branding;
+mod british_english;
+mod british_english_words;
+mod dash_hygiene;
 mod desktop_handoff;
 mod dev_account;
 mod file_length;
@@ -35,6 +38,7 @@ mod gate_steps;
 mod git;
 mod license_dir;
 mod portal_runtime;
+mod prose;
 mod prune;
 mod public_hygiene;
 mod report;
@@ -112,6 +116,16 @@ pub(crate) const TASKS: &[Task] = &[
         name: "check-dev-account",
         label: "dev account contract",
         run: dev_account::run,
+    },
+    Task {
+        name: "check-british-english",
+        label: "british english (prose and comments)",
+        run: british_english::run,
+    },
+    Task {
+        name: "check-dash-hygiene",
+        label: "dash punctuation (prose and comments)",
+        run: dash_hygiene::run,
     },
 ];
 

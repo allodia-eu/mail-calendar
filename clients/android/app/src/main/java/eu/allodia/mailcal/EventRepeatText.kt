@@ -4,7 +4,7 @@
 // every part the rule leaves out, put the weekdays in week order, and dropped the rules it cannot
 // state exactly, so this is a `when` over a closed set and a catalog lookup. Weekday and month
 // names come from the platform's own locale data, the way the grid's headings and the detail's
-// dates do (`CalendarFormat`), rather than from the catalog: they are the one part of a localized
+// dates do (`CalendarFormat`), rather than from the catalog: they are the one part of a localised
 // string we do not have to translate ourselves.
 package eu.allodia.mailcal
 

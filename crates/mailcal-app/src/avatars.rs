@@ -327,7 +327,7 @@ impl Drop for AvatarPassGuard<'_> {
 /// The card's photo resource, if it advertises one.
 ///
 /// A card may carry several media (a `PHOTO` and a `LOGO`), and only the photo is a person.
-/// A resource with no `kind` is taken as the photo: CardDAV's `PHOTO` property is normalized
+/// A resource with no `kind` is taken as the photo: CardDAV's `PHOTO` property is normalised
 /// with `kind: "photo"`, but a source that states nothing is far more likely to mean its one
 /// image than a logo.
 fn photo_resource(card: &ContactCard) -> Option<ContactResource> {

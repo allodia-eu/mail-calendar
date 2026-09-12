@@ -344,7 +344,7 @@ fn an_older_preferences_file_without_signature_assignments_defaults_to_empty() {
 
 #[test]
 fn an_older_file_without_a_reply_fallback_asks_rather_than_assuming() {
-    // The direction this must default in: an upgrade has to *ask* before emailing an organizer
+    // The direction this must default in: an upgrade has to *ask* before emailing an organiser
     // on the user's behalf. Defaulting to `Always` would mean every existing install silently
     // gained permission to send mail it had never been asked about.
     let prefs: Preferences = toml::from_str("display_timezone = \"Europe/Amsterdam\"").unwrap();

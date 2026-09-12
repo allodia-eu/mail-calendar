@@ -1,6 +1,6 @@
 //! Widget-level regressions for conversation rows and the unread weight.
 //!
-//! These are functions rather than `#[test]`s, and [`super::tests`] calls them: GTK initializes
+//! These are functions rather than `#[test]`s, and [`super::tests`] calls them: GTK initialises
 //! **once, on one thread**, and libtest gives every `#[test]` a thread of its own: two of them
 //! racing into `gtk::init` abort the process in the IM module ("Two different plugins tried to
 //! register 'IBusIMContext'"). So the crate keeps exactly one GTK test, and what it covers lives

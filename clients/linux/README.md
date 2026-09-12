@@ -313,7 +313,7 @@ user namespace. The wrapper detects that case and disables only WebKit's nested 
 the outer Codex sandbox still contains the deterministic harness run. A normal developer or CI run
 keeps WebKit's own sandbox enabled.
 
-The calendar performance script needs a real display and GPU. It builds an optimized
+The calendar performance script needs a real display and GPU. It builds an optimised
 `dev-harness` binary inside the pinned GNOME SDK, scrolls a week holding at least 125 events for 600
 frames, and reads completed GDK presentation timestamps. It fails if p90 exceeds 1.5 refresh
 intervals or more than 5% of the motion misses that boundary. The sighted measurement runs without

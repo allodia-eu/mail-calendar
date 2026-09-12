@@ -316,7 +316,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // Infinite scroll: the list calls this as it nears the end; showMore
                             // grows the window (guarded) and the core re-projects the next page.
                             onShowMore = { showMore() },
-                            // Tapping a message opens its reading view (body fetched + sanitized
+                            // Tapping a message opens its reading view (body fetched + sanitised
                             // by the core).
                             onOpen = { opened -> openMessage(instance, opened) },
                             // Tapping a conversation opens its latest message; the reading screen

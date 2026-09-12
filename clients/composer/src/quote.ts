@@ -102,7 +102,7 @@ export function setComposerQuote(editor: HTMLElement, seed: QuoteSeed): void {
     // invisible to a MIME check, obvious to a person, who sees their reply lose the message they
     // answered.
     //
-    // Rendered as TEXT, never markup: this is the one place a quoted body is not already sanitized
+    // Rendered as TEXT, never markup: this is the one place a quoted body is not already sanitised
     // HTML from the core, and `textContent` cannot introduce an element whatever it contained.
     body.textContent = seed.body_plain || "";
     body.classList.add("aq-plain");

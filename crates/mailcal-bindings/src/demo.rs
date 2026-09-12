@@ -144,7 +144,7 @@ impl Provider for DemoProvider {
         message: &Message,
     ) -> ProviderResult<RawMime> {
         // A demo HTML body carrying hostile content (a script + a remote tracking image)
-        // so the reading view demonstrates HTML rendering and the core's sanitization
+        // so the reading view demonstrates HTML rendering and the core's sanitisation
         // (both are stripped before the host sees the body).
         let subject = message
             .envelope

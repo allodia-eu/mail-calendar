@@ -39,7 +39,7 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
-    /// Open a row for reading: record its header for the reading view, then fetch + sanitize
+    /// Open a row for reading: record its header for the reading view, then fetch + sanitise
     /// the body. A flat row opens its own message; a conversation row opens its latest message
     /// (a thread has no key of its own, <see cref="MailRow.LatestKey"/> stands in), so reading
     /// works in threaded mode too. The header's key is the opened message key, so the reading

@@ -109,7 +109,7 @@ pub struct EventDetail {
     /// Everyone on the event, organiser first; empty for an appointment nobody was invited to.
     ///
     /// **Attacker-controlled plain text**, projected by
-    /// [`mailcal_viewmodel::event_attendees`]: one row per address, an unanswered organizer
+    /// [`mailcal_viewmodel::event_attendees`]: one row per address, an unanswered organiser
     /// counted as attending, and every name and address sanitised. Attendees are **read-only**
     /// throughout the product; editing them means sending iTIP updates, which is a separate
     /// feature: so an editor shows this list without offering to change it.

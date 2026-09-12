@@ -336,7 +336,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   Android. macOS is runtime-confirmed; iOS/iPadOS, Windows, and Android are code-complete pending a
   runtime smoke test. A quoted original's inline `cid:` images now render: the reading-view body the
   quote seeds from already has its `cid:` references resolved to inline `data:` URIs
-  ([`docs/rendering-security.md`](rendering-security.md) Layer 1), and the submit-time re-sanitizer
+  ([`docs/rendering-security.md`](rendering-security.md) Layer 1), and the submit-time re-sanitiser
   (Gate 10) preserves `data:` images. On submit the shared core then turns each quoted `data:` image
   back into a `cid:` reference to a re-attached `multipart/related` part, **preserving the original
   inbound `Content-ID`** (`html::restore_cid_images` + `reattach_quote_cids`, keyed on the engine's

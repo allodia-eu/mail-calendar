@@ -271,7 +271,7 @@ impl<P: Provider> App<P> {
         }
     }
 
-    /// Builds the iTIP `REPLY` and sends it as an iMIP message: the step the organizer
+    /// Builds the iTIP `REPLY` and sends it as an iMIP message: the step the organiser
     /// actually sees.
     ///
     /// The `SEQUENCE` and `UID` come from the **invitation**, not from the stored copy, because
@@ -282,7 +282,7 @@ impl<P: Provider> App<P> {
     /// # Errors
     ///
     /// Returns the reason the reply did not go out: no organiser to answer, no mail provider,
-    /// or a submission failure. Never reports a failed send as sent: a reply the organizer
+    /// or a submission failure. Never reports a failed send as sent: a reply the organiser
     /// never got is the exact failure this route exists to prevent.
     pub(crate) async fn send_imip_reply(
         &self,

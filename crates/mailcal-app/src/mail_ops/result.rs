@@ -35,7 +35,7 @@ const COALESCE_WINDOW: Duration = Duration::from_secs(2);
 
 /// Why a mail action did not happen.
 ///
-/// A **closed enum**, never a message: user-facing strings live in the clients' localization
+/// A **closed enum**, never a message: user-facing strings live in the clients' localisation
 /// catalogs, and this crosses into an adapter rather than a UI. A caller that needs to explain
 /// the failure to a person maps the variant itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -186,7 +186,7 @@ private fun FolderDrawerSheet(
 // what a provider reporting no count means (docs/folder-pane.md). NavigationDrawerItem takes a
 // nullable badge slot, so "no badge" costs no layout rather than an empty one.
 //
-// The number alone reads as a list position to a screen reader, so the row carries the localized
+// The number alone reads as a list position to a screen reader, so the row carries the localised
 // sentence; the Text itself is cleared, or the count would be announced twice.
 private fun unreadBadge(unread: UInt, ctx: android.content.Context): (@Composable () -> Unit)? =
     if (unread == 0u) {

@@ -26,7 +26,7 @@ pub(super) fn dev_secrets(namespace: &str) -> Option<Arc<SecretStore>> {
 /// The answer when this build has no keyring to write to at all.
 ///
 /// The core requires a store, and requiring it is the point: a rotated refresh token that reaches
-/// none leaves the persisted credential behind the server's, and a replay-detecting authorization
+/// none leaves the persisted credential behind the server's, and a replay-detecting authorisation
 /// server answers the superseded token by revoking the grant (`docs/provider-oauth.md` rule 5). So
 /// both methods **refuse** rather than quietly succeeding; an error the core can act on, instead
 /// of a credential dropped in silence.

@@ -156,7 +156,7 @@ pub(crate) fn matched_attendee(event: &Event, my_addresses: &[String]) -> Option
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Delivery {
     /// The calendar server schedules (RFC 6638, or a cloud API that always does): storing the
-    /// answer *is* sending it, and sending an iMIP message of our own would reach the organizer
+    /// answer *is* sending it, and sending an iMIP message of our own would reach the organiser
     /// twice.
     Server,
     /// Nobody schedules, but the mail transport can carry an iTIP object with its `method=`

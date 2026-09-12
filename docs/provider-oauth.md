@@ -466,7 +466,7 @@ IMAP/CalDAV, so account setup routes straight to this OAuth flow, never to serve
 autodetection. It reuses the whole state machine above; the deltas are:
 
 - **`access_type=offline` + `prompt=consent`, not `offline_access`** (rule 6). Google issues a
-  refresh token only with `access_type=offline`, and re-prompting consent on every authorization
+  refresh token only with `access_type=offline`, and re-prompting consent on every authorisation
   guarantees one comes back even for an already-consented account. The core still treats a
   completed sign-in with no refresh token as an error.
 - **Full scopes: `https://mail.google.com/` + `https://www.googleapis.com/auth/calendar`.** The
@@ -766,7 +766,7 @@ the doctrine's "provider sync" language for *account connection* specifically.)
   A real account showed **eight** entries after ~two weeks of testing. Nothing breaks, and the
   user can revoke them, but it is untidy in a surface that exists for the user to audit who has
   access to their mail. The fix is not to re-register less: it is to **revoke the old grant** on
-  a successful re-authentication, via the RFC 7009 `revocation_endpoint` when the authorization
+  a successful re-authentication, via the RFC 7009 `revocation_endpoint` when the authorisation
   server's RFC 8414 metadata advertises one (we already parse that document). Deliberately not
   done here: it is a network call on a path that has just recovered a broken account, and it
   wants its own change with its own failure handling: a revoke that fails must never fail the

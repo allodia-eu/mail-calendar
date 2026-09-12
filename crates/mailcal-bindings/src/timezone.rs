@@ -30,7 +30,7 @@ pub fn device_time_zone() -> String {
 }
 
 /// Every IANA time-zone id the engine's bundled tzdb can resolve, sorted: the list a host
-/// fills its time-zone picker with, so it only ever offers a zone the engine can localize
+/// fills its time-zone picker with, so it only ever offers a zone the engine can localise
 /// against. One authoritative list shared by every client, instead of each host's OS zone
 /// set (which on Windows collapses cities like `Europe/Amsterdam` into a single zone).
 #[uniffi::export]

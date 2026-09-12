@@ -586,7 +586,7 @@ The audit also found substantial evidence that the intended architecture works w
 
 - Mail mutations, durable outbox behaviour, search scope/order, account connection logic and mailbox
   projection are Rust-owned.
-- Calendar overlap, recurrence materialization, conflict data, unit-free event geometry and colors
+- Calendar overlap, recurrence materialization, conflict data, unit-free event geometry and colours
   are shared; clients multiply into pixels.
 - Contacts canonicalization and merge-by-email, shared-account disclosure data, ordering and search
   run in Rust.

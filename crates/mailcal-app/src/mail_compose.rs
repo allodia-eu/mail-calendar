@@ -308,7 +308,7 @@ fn rich_draft(
     blobs: Vec<ComposerBlob>,
     inline_parts: &[InlinePart],
 ) -> Option<Draft> {
-    // A quoted original is HTML the editor round-tripped back to us; untrusted. Re-sanitize
+    // A quoted original is HTML the editor round-tripped back to us; untrusted. Re-sanitise
     // every quote body to the inert subset before it is rendered into the outgoing message, so
     // an edited (or injected) quote can never carry script/handlers into a sent draft. This is
     // the composer-security gate for quoted content; it runs in the shared core, so it holds on

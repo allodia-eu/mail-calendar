@@ -80,7 +80,7 @@ byte-wise, and the *only* thing it has to prove is that the RSVP gate rejects it
   1 → 2. A reader that keyed off the summary rather than `METHOD` would mis-title the card.
 - **Each `cancel` file** is its own `request` cancelled, so `METHOD:CANCEL` is pinned in all
   three senders' shapes rather than assumed to be the request with a different word.
-- **No capture names the account's own identity** (`me@test.local`). Each is recognized
+- **No capture names the account's own identity** (`me@test.local`). Each is recognised
   through its own recipient headers; `Delivered-To: alice@test.local`, Gmail's `+invite`
   alias, Exchange's `+optional` one, and the internal capture's bare `To:`: so these also pin
   the zero-configuration alias path (§4 source 2) against real headers rather than a `To:`

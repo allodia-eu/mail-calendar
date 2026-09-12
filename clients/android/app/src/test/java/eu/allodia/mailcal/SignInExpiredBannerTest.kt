@@ -1,6 +1,6 @@
 // The expired-sign-in banner's one decision: is there a sign-in this app can re-run, or must the
 // user go to Settings? It reads the core's `account_provider`, and JMAP is the family where the
-// answer is not decided by the protocol, an account connected by SIGNING IN can be re-authorized
+// answer is not decided by the protocol, an account connected by SIGNING IN can be re-authorised
 // in place, while one holding a pasted password/API token has no browser flow at all.
 //
 // Worth pinning because getting it wrong is silent in both directions: a missing button leaves a

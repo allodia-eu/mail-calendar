@@ -6,7 +6,7 @@
 // This view localises and arranges; it computes no counts of its own, so this client and the next
 // cannot disagree about whether a meeting clashes.
 //
-// SECURITY (Gate 8, docs/rendering-security.md), the summary, location, description and organizer
+// SECURITY (Gate 8, docs/rendering-security.md), the summary, location, description and organiser
 // name are attacker-controlled sender content, and they reach the screen without passing the HTML
 // sanitiser, the CSP or a WebView2. Every one of them is assigned to `TextBlock.Text`, which WinUI
 // renders as text and nothing else: markup on this platform needs either a `RichTextBlock` with
