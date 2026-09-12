@@ -5,28 +5,30 @@ what survives a restart, what the unread badge counts, and which icon a folder g
 
 **Principle.** The pane is **furniture, not navigation**. It shows the user where their mail lives
 and how much of it is waiting; it does not rearrange itself because they looked somewhere else. A
-person who opens their Archive and then clicks All Inboxes has not asked for their folders to go
-away.
+person who opens their Archive and then clicks the unified Inbox has not asked for their folders to
+go away.
 
 ## The rules
 
 | # | Rule | Why |
 |---|---|---|
 | 1 | **Every account's folders are on screen at once.** A client renders `MailboxListSnapshot::account_folders`, which the core populates in **every** view: the unified inbox, one account's mailbox, search results, and while the calendar or contacts is showing. `folders` (the selected account's) is **not** the pane's source. | The pane used to be fed the selected account's folders alone, so choosing All Inboxes, or the account next door, emptied it. That is the bug this contract exists for. |
-| 2 | **Expansion is independent of selection.** Any number of accounts may stand open. Selecting an account, a folder, All Inboxes, the calendar or contacts changes **nothing** about which trees are open. | Outlook's model, and the one people expect. Tying the two means every navigation is also a collapse. |
+| 2 | **Expansion is independent of selection.** Any number of trees may stand open. Selecting an account, a folder, the unified Inbox, the calendar or contacts changes **nothing** about which trees are open. | Outlook's model, and the one people expect. Tying the two means every navigation is also a collapse. |
 | 3 | **Expansion lives in the core and is persisted**, per account id, across launches. A client renders `AccountRow::expanded` and changes it with `Intent::SetAccountExpanded`; it keeps **no** expansion state of its own. | Client-held state disagrees between platforms and is lost on every restart, which is what the user reported. One owner, one answer, and the answer is still there tomorrow. |
 | 4 | **A new account opens expanded**, and so does every account on the first launch after this shipped. The persisted set holds the accounts the user **collapsed**, not the ones they expanded. | The default has to be the useful one, and storing the exception is what makes "never touched it" mean *open* rather than `bool::default()`. |
 | 5 | **The count is the server's, not the store's**, and counts **messages** (`Mailbox::unread_count`, engine). | A store holds only the synced window: three months by default. Counting rows would show 12 where the user's other client shows 545. Only JMAP offers the conversation form, so a portable field cannot mean that. |
 | 6 | **No badge at zero.** `0` deliberately folds together "nothing unread" and "this provider reports no count", because both mean there is nothing truthful to show. | A `0` badge claims we looked and found nothing. On a provider that reports no count (Gmail today), that is a lie on every folder. |
-| 7 | **All Inboxes shows every account's Inbox unread, summed** (`MailboxListSnapshot::unified_unread`): Inbox only, never every folder. | It badges the unified list, and that list holds inbox mail. Summing Junk and Archive into it would count mail those rows will never show. |
-| 8 | **Account rows carry no count.** | The count belongs to the folders, as in Outlook; a roll-up sits directly above an identical number on the Inbox row beneath it. |
+| 7 | **The unified Inbox row shows every account's Inbox unread, summed** (`MailboxListSnapshot::unified_unread`): Inbox only, never every folder. | It badges the unified list, and that list holds inbox mail. Summing Junk and Archive into it would count mail those rows will never show. |
+| 8 | **Account rows carry no count**, and neither does the All Accounts row. | The count belongs to the folders, as in Outlook; a roll-up sits directly above an identical number on the Inbox row beneath it. |
 | 9 | **Icons come from the folder's role** (`FolderRow::role`, RFC 6154 SPECIAL-USE / JMAP), never from its name. A role with no distinct icon, and every custom folder, takes the plain folder. | The name is whatever the server calls it. A name test picks the wrong icon in six of the seven shipped languages, and on any server whose folders were renamed. |
 | 10 | **Icons are native per platform**; the contract fixes the *meaning*, not the artwork. | A Lucide glyph beside Segoe Fluent in a WinUI pane, or beside SF Symbols in a macOS sidebar, reads as a bug. Semantic parity, not pixel parity. |
 | 11 | **On a desktop the pane is horizontally resizable**, by dragging its trailing edge, and the width is remembered across launches. It has a floor, a ceiling, and it yields to the window: the mail beside it keeps a minimum width. | An account address is as long as it is. A fixed pane clips `eva.jansen@example.c…` mid-domain, and with several accounts that is precisely the row the user needs to read. Truncation is unavoidable at *some* width, so the row also carries its full address as a tooltip. |
 | 12 | **A known folder is called what *we* call it**, from the app's catalog, keyed on `FolderRow::role`. Everything else keeps the server's name. `Other` keeps it too. | The server's name for a special folder is not a name the user chose: `INBOX` shouting in capitals (the one name IMAP mandates), `Deleted Items` from Exchange, `[Gmail]/Sent Mail`. Naming them ourselves is what every mail client does, and it is what makes the folder list follow the **app's** language rather than the server's. `Other` is exempt because the core collapses flagged, important and all-mail into it: one word for three folders would be a lie. |
-| 13 | The rename applies **wherever a folder is named**, not only in the pane: the list header, the sync-settings folder list, the account settings dialog. | A folder called two things in one app is worse than one called something odd in both. |
+| 13 | The rename applies **wherever a folder is named**, not only in the pane: the list header, the sync-settings folder list, the account settings dialog. The unified scope is named by its own row, so the header over the unified list reads **Inbox**. | A folder called two things in one app is worse than one called something odd in both. Naming the *group* there instead would put a word on the header that no row the user can select carries. |
 | 14 | **A folder is opened by naming it and its account together**, in one intent: `Intent::SelectFolder { account, key }`. There is no folder-only form, and the account is the one whose tree the row sits under, never whichever is selected. An account's whole mailbox is `Intent::SelectAccount`, which is the pane's only other destination. | A folder key is unique only within its account, and every account's tree is on screen (rule 1), so a bare key gets resolved against whichever account happens to be selected. From All Inboxes there is none, and the core's unified scope ignores the folder outright: the click does nothing at all. Two intents cannot express it either: each `dispatch` spawns its own task on a multi-threaded runtime, so an account issued first only *starts* first, and when the folder's handler wins the account's clears the folder it just set. |
 | 15 | **Every folder row exposes one named native primary action to assistive technology.** The disclosure control remains separate because expanding an account is not opening it. | Focus and Return are keyboard mechanics, not a semantic action a screen reader can invoke. A row with no action is visible but unreachable. |
+| 16 | **The unified list is a group, not a row.** **All Accounts** stands above the accounts as one more tree, with the same rules (2, 3, 4, 8) and its own persisted expansion (`MailboxListSnapshot::unified_expanded`, `Intent::SetUnifiedExpanded`). Its children are the folders the unified scope has, which today is **Inbox** alone; that child is the destination (`Intent::SelectAccount { account: None }`), it carries the badge rule 7 describes, and it is what the message-list header names (rule 13). | The group is the shape the unified scope is *growing into*: a unified Sent and Drafts are folders under one heading, not three more top-level rows. It is also what makes rule 8 cover it: a count on the heading would sit directly above the identical number on the Inbox row beneath. |
+| 17 | **The group's own row navigates nowhere; activating it opens or shuts its tree.** The whole row is that control, unlike an account's, which is a destination and so needs a chevron of its own (rule 2). A shut group therefore takes the unified Inbox off screen, exactly as a shut account takes its folders. | Outlook's behaviour, and the honest one: the group heading would otherwise claim an "all mail, every account" scope the core does not have (`Scope` reaches every account's Inbox, not every account's everything). A row that navigates *and* discloses needs two targets in one row, which is what the chevron is for where the row really is a destination. |
 
 ## Where each rule lives
 
@@ -35,7 +37,9 @@ Rules 12 and 13 are client-side by construction: the core has no locale (`AGENTS
 own catalog: `FolderLabel.For` (Windows), `folderLabel(role:name:)` (Apple), `folderLabel`
 (Android), `folder_pane::folder_label` (Linux), over `folder_inbox` … `folder_trash`. Because a
 folder is named in more than one screen, each of those is a single function every site calls,
-rather than a `switch` per screen.
+rather than a `switch` per screen. The header half of rule 13 is the same shape and is tested as
+one: `listTitle` (Apple), `folder_pane::header_title` (Linux), `FolderLabel.Unified` behind
+`MailboxModel.CurrentFolderName` (Windows).
 
 **A renamed special folder takes the app's word anyway.** Someone whose Archive is called
 "Archief 2024" on the server sees "Archive". That is deliberate and matches Outlook, Apple Mail and
@@ -54,6 +58,13 @@ Rules 1, 5, 6, 7 and 9 are core-side and a client gets them by rendering the sna
 `unified_unread`. Rules 2–4 are [`folder_pane.rs`](../crates/mailcal-app/src/folder_pane.rs) plus
 `Preferences::collapsed_accounts`. Rules 8 and 10 are the client's to keep.
 
+Rule 16's expansion is the same file and the same shape as rules 2–4, over
+`Preferences::unified_collapsed`: the **shut** state is what is stored, so a group nobody has
+touched stands open. It is stamped onto every snapshot at publish time (`restamp_expansion`)
+rather than set by the projection, because `bool::default()` is *shut* and shut is the one value
+that would hide the unified Inbox. Rule 17 is the client's: only it knows whether a row it drew
+navigates.
+
 The count reaches the core from the engine, which asks the server for it: JMAP `unreadEmails` and
 Graph `unreadItemCount` ride along on the folder object; IMAP has no such field, so the folder-list
 sync also asks: one round trip via `LIST … RETURN (STATUS (UNSEEN))` (RFC 5819) where the server
@@ -61,14 +72,14 @@ advertises LIST-STATUS, else one `STATUS` per mailbox.
 
 ## Per-platform
 
-| Platform | Tree source | Expansion control | Badge | Role icons | Resizable | Opens with its account | Semantic primary action |
-|---|---|---|---|---|---|---|---|
-| Windows | `account_folders` → `SidebarTree.Reconcile` | `NavigationViewItem.IsExpanded`, two-way → `Intent.SetAccountExpanded` | accent `TextBlock`, trailing | Segoe Fluent (`MainWindow.Sidebar.cs`, `RoleGlyph`) | ✅ `SidebarSplitter` → `OpenPaneLength`, persisted (`PaneLayoutStore`) | `MailboxModel.SelectFolder` ← `SidebarItem.OwnerAccountId` | `NavigationViewItem.Invoke` |
-| macOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols (`Mailcal.Layout.swift`, `folderIcon`) | ✅ 220–320 pt: the `HSplitView` pane in `macOSLayout`, autosaved by AppKit (`SplitViewAutosave`) | `selectFolder(in:key:)` | SwiftUI `Button` |
-| iPadOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: fixed column, per the platform | `selectFolder(in:key:)` | SwiftUI `Button` |
-| iOS (iPhone) | `model.accountFolders` → `sidebarList` in a drawer | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: a drawer is not resizable | `selectFolder(in:key:)` | SwiftUI `Button` |
-| Android | `accountFolders` → `FolderDrawerScaffold` | chevron `IconButton` → `Intent.SetAccountExpanded` | `NavigationDrawerItem` badge slot | Material Symbols (`FolderDrawer.kt`, `folderIcon`) | n/a: a modal drawer is not resizable | `FolderDrawer.kt`, off the row's own account | `NavigationDrawerItem` click semantics |
-| Linux | `account_folders` → `folder_pane::render` | chevron `GtkButton` → `Intent::SetAccountExpanded` | accent `GtkLabel` pill, trailing | symbolic icons (`folder_pane.rs`, `role_icon`): Adwaita's, except the bundled inbox and archive it has none of | ✅ 200–560 px: the `GtkPaned`, persisted (`HostPreferences::folder_pane_width`) | `activate_sidebar` → `SidebarTarget::Folder` | row-named `GtkButton`, also the `AdwActionRow` activatable widget |
+| Platform | Tree source | Expansion control | Badge | Role icons | Resizable | Opens with its account | Semantic primary action | All Accounts group (16, 17) |
+|---|---|---|---|---|---|---|---|---|
+| Windows | `account_folders` → `SidebarTree.Reconcile` | `NavigationViewItem.IsExpanded`, two-way → `Intent.SetAccountExpanded` | accent `TextBlock`, trailing | Segoe Fluent (`MainWindow.Sidebar.cs`, `RoleGlyph`) | ✅ `SidebarSplitter` → `OpenPaneLength`, persisted (`PaneLayoutStore`) | `MailboxModel.SelectFolder` ← `SidebarItem.OwnerAccountId` | `NavigationViewItem.Invoke` | ✅ `SidebarTree` group row, `SelectsOnInvoked="False"` → `Intent.SetUnifiedExpanded` |
+| macOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols (`Mailcal.Sidebar.swift`, `folderIcon`) | ✅ 220–320 pt: the `HSplitView` pane in `macOSLayout`, autosaved by AppKit (`SplitViewAutosave`) | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ `allAccountsGroup` → `setUnifiedExpanded` |
+| iPadOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: fixed column, per the platform | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane |
+| iOS (iPhone) | `model.accountFolders` → `sidebarList` in a drawer | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: a drawer is not resizable | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane |
+| Android | `accountFolders` → `FolderDrawerScaffold` | chevron `IconButton` → `Intent.SetAccountExpanded` | `NavigationDrawerItem` badge slot | Material Symbols (`FolderDrawer.kt`, `folderIcon`) | n/a: a modal drawer is not resizable | `FolderDrawer.kt`, off the row's own account | `NavigationDrawerItem` click semantics | ⬜ still one flat "All Inboxes" row |
+| Linux | `account_folders` → `folder_pane::render` | chevron `GtkButton` → `Intent::SetAccountExpanded` | accent `GtkLabel` pill, trailing | symbolic icons (`folder_pane.rs`, `role_icon`): Adwaita's, except the bundled inbox and archive it has none of | ✅ 200–560 px: the `GtkPaned`, persisted (`HostPreferences::folder_pane_width`) | `activate_sidebar` → `SidebarTarget::Folder` | row-named `GtkButton`, also the `AdwActionRow` activatable widget | ✅ `SidebarTarget::UnifiedGroup` → `Intent::SetUnifiedExpanded` |
 
 The iPhone draws the same pane as the desktop, in a drawer over the whole screen (opened from the
 toolbar or a drag off the leading edge). Calendar and Contacts are **not** on it there: they are
@@ -107,8 +118,22 @@ gesture needs a real mouse.
 - **The count refreshes with the folder-list sync, not instantly.** Reading a message updates the
   badge when the sync that follows the action lands, the same moment the row's own unread dot
   clears, so the two never disagree on screen. There is no optimistic local delta.
-- **The selected account and folder are still not persisted.** Every launch opens on All Inboxes,
-  with the tree restored. Only expansion survives a restart; where you *were* does not.
+- **The selected account and folder are still not persisted.** Every launch opens on the unified
+  Inbox, with the trees restored. Only expansion survives a restart; where you *were* does not.
+- **Rules 16 and 17 are not on Android.** It still draws the unified list as one flat row named
+  from `sidebar_all_inboxes` ("All Inboxes"), and its list header still names it the same way.
+  Nothing in the core is missing: `unified_expanded` is in every snapshot,
+  `Intent::SetUnifiedExpanded` is in the FFI enum, and `sidebar_all_accounts` is in every catalog
+  locale, so it is a drawer change and a header change in its own toolkit.
+- **The Windows group heading carries no icon**, where every row beside it does. Its whole row is
+  the disclosure control (rule 17) and the framework's trailing chevron is the state, so a glyph in
+  the leading slot would make it read as one more account row. Rule 10 leaves the artwork to each
+  platform, and this is that latitude used; if it ever reads as a missing icon rather than as a
+  heading, the fix is a glyph, not a destination.
+- **The group has one child.** A unified Sent, Drafts and Archive are what rule 16's shape is for,
+  and none of them exists: the core's unified scope reaches every account's **Inbox** only
+  ([`scope.rs`](../crates/mailcal-app/src/scope.rs)), so a second child would need a scope to
+  select before it needed a row to sit on.
 
 ## Enforcement
 
@@ -117,7 +142,8 @@ When you change the folder pane on any client:
 1. Render `account_folders`, not `folders`, and take expansion from `AccountRow::expanded`. A
    client that stores its own has broken rules 2 and 3 in a way that looks perfectly fine until it
    is restarted.
-2. Hide the badge at zero (rule 6) and keep the account rows bare (rule 8).
+2. Hide the badge at zero (rule 6) and keep the account rows bare (rule 8), the All Accounts row
+   included: its count belongs on the Inbox row beneath it.
 3. Map icons from the role (rule 9) in that platform's own icon set (rule 10), and **look at
    them**. A private-use codepoint that does not exist renders as an invisible glyph or a tofu box,
    and the pane keeps drawing as though nothing happened. A *named* icon fails the same way: GTK
@@ -136,5 +162,8 @@ When you change the folder pane on any client:
    space between, and on a wide pane most of a row is that space. A layout gap is not automatically
    hit-testable (a SwiftUI `Spacer` is not); clicks landed on nothing until the row got an explicit
    content shape.
-6. Apply the change to **every** platform that ships a folder pane, update the matrix above, and
+6. **Do not give the All Accounts row a destination** (rule 17). It reads as one more account row,
+   and an account row navigates; this one would have to claim a scope the core has no `Scope` for,
+   and the Inbox child under it is already that click.
+7. Apply the change to **every** platform that ships a folder pane, update the matrix above, and
    record any shortfall under Known gaps rather than leaving it silent.

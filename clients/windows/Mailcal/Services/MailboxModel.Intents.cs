@@ -74,6 +74,22 @@ public sealed partial class MailboxModel
         _app?.Dispatch(new Intent.SetAccountExpanded(id, expanded));
     }
 
+    /// <summary>
+    /// Opens or shuts the All Accounts group's tree in the sidebar; the core persists it.
+    /// </summary>
+    /// <remarks>
+    /// The group's row navigates nowhere, so this is the whole of what activating it does
+    /// (docs/folder-pane.md, rule 17). Like <see cref="SetAccountExpanded"/> it moves the local
+    /// value **first**: the dispatch is asynchronous and the collapse itself makes the shell
+    /// reconcile the pane before the core's snapshot arrives, so without this the reconcile
+    /// re-applies the value the user just changed and the tree springs back open within a frame.
+    /// </remarks>
+    public void SetUnifiedExpanded(bool expanded)
+    {
+        UnifiedExpanded = expanded;
+        _app?.Dispatch(new Intent.SetUnifiedExpanded(expanded));
+    }
+
     /// <summary>The email of account <paramref name="id"/>, for display (falls back to the id).</summary>
     public string AccountEmail(string id)
     {

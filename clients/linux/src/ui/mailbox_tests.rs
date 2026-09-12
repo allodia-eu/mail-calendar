@@ -397,6 +397,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     folder_pane::a_server_named_row_is_never_parsed_as_markup();
     folder_pane::every_role_icon_resolves_to_a_real_glyph();
     folder_pane::only_an_unreachable_account_gets_the_warning();
+    folder_pane::the_unified_scope_is_an_expandable_group_with_an_inbox_child();
     folder_pane::the_pane_marks_where_the_core_says_we_are();
     folder_pane::moving_the_selection_reuses_the_pane();
     folder_pane::an_optimistic_click_is_not_undone_by_the_previous_snapshot();
@@ -404,11 +405,13 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
 
     crate::ui::selection_bar::tests::every_action_icon_resolves_to_a_real_glyph();
     crate::ui::selection_bar::tests::
-        an_empty_selection_leaves_the_bar_standing_and_only_select_all_live();
+        an_empty_selection_disables_only_the_actions_that_need_a_selection();
+    crate::ui::selection_bar::tests::sync_is_after_the_selection_actions_and_always_live();
     crate::ui::selection_bar::tests::the_bar_spans_both_panes_rather_than_riding_the_list();
-    crate::ui::selection_bar::tests::the_top_row_carries_the_window_controls();
     crate::ui::selection_bar::tests::
         the_pane_states_the_count_only_while_it_covers_something_worth_covering();
+
+    crate::ui::mail_toolbar::tests::new_mail_and_search_belong_to_the_window_toolbar();
 
     destinations::every_destination_icon_resolves_to_a_real_glyph();
     destinations::the_switcher_navigates_on_a_press_and_stays_quiet_when_the_model_moves();
@@ -440,6 +443,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     search::a_render_behind_the_typing_leaves_the_field_alone();
     search::escape_leaves_search();
     search::typing_is_debounced_on_the_contracts_beat();
+    search::the_field_is_separate_from_the_list_details();
 
     signatures::a_signatures_own_text_is_never_parsed_as_markup();
 

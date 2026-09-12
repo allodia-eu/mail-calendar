@@ -90,12 +90,13 @@ $Suite = @{
         # The other half of "its own row": the footer moved from Grid.Row 3 to 4 to make space for
         # it. Get that renumbering wrong and the two share a row, drawn over each other, which
         # the XAML compiler is perfectly happy with.
+        # The footer is a status line alone now: New Mail is in the window's top row and Sync
+        # on the actions bar above the list, so the connection status is the one control left
+        # down here to compare against.
         $bar = Get-RenderedBounds -Element (Get-DownloadBar) -What 'the download bar'
-        foreach ($id in 'ConnectionStatus', 'ComposeButton', 'RefreshButton') {
-          $el = Get-RenderedBounds -Element (Find-UiaElement -AutomationId $id) -What "the footer's $id"
-          Assert-True ($el.Top -ge $bar.Bottom) `
-            "$id starts at $($el.Top), above the bar's bottom ($($bar.Bottom)), the footer keeps its own row under the bar, and overlapping controls still render"
-        }
+        $el = Get-RenderedBounds -Element (Find-UiaElement -AutomationId 'ConnectionStatus') -What "the footer's connection status"
+        Assert-True ($el.Top -ge $bar.Bottom) `
+          "the connection status starts at $($el.Top), above the bar's bottom ($($bar.Bottom)), the footer keeps its own row under the bar, and overlapping controls still render"
       }
     },
     @{

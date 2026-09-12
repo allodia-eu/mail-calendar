@@ -173,7 +173,7 @@ reopen_app_on() { # <subject> <log-prefix>
 # enough to keep the suite quick is a sleep that calls a slow notification an absent one.
 notified_for() { # <subject> <capture-file>
   "$REPO_ROOT/scripts/dev/harness.sh" deliver --subject "$1" >/dev/null
-  "$PYTHON" "$ATSPI" activate --name "Refresh" --role "push button" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Sync" --role "push button" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "$1" --role "list item" --showing --timeout 60
   for _ in {1..200}; do
     grep -Fq "$1" "$2" 2>/dev/null && return 0
@@ -375,6 +375,29 @@ run_inside_session() {
   MAILCAL_FAKE_DEVICE_TIMEZONE=""
 
   "$PYTHON" "$ATSPI" wait --name "Message list" --role list --timeout 60
+  "$PYTHON" "$ATSPI" wait --name "New Mail" --role "push button" --enabled --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Search mail" --enabled --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Sync" --role "push button" --enabled --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "All Accounts" --role "push button" --enabled --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "Inbox" --role "push button" --index 1 --enabled --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "All Accounts" --role "push button" --timeout 20
+  for _ in {1..100}; do
+    grep -q '^unified_collapsed = true$' "$core_preferences" && break
+    sleep 0.05
+  done
+  grep -q '^unified_collapsed = true$' "$core_preferences" ||
+    die "the All Accounts group did not persist its shut state"
+  "$PYTHON" "$ATSPI" activate --name "All Accounts" --role "push button" --timeout 20
+  for _ in {1..100}; do
+    grep -q '^unified_collapsed = false$' "$core_preferences" && break
+    sleep 0.05
+  done
+  grep -q '^unified_collapsed = false$' "$core_preferences" ||
+    die "the All Accounts group did not persist its open state"
+  "$PYTHON" "$ATSPI" wait \
+    --name "Inbox" --role "push button" --index 1 --enabled --showing --timeout 20
   # Folder and message rows expose a native primary-action button. Invoking it over AT-SPI, not
   # Return or a pointer coordinate, is the accessibility contract this run qualifies.
   local archive_measure inbox_measure archive_switch_ms inbox_switch_ms
@@ -385,8 +408,8 @@ run_inside_session() {
   printf '%s\n' "$archive_measure"
   archive_switch_ms="$(printf '%s\n' "$archive_measure" | sed -n 's/^elapsed_ms=//p')"
   inbox_measure="$("$PYTHON" "$ATSPI" measure \
-    --name "All Inboxes" --role "push button" \
-    --within "All Inboxes" --within-role "list item" \
+    --name "Inbox" --role "push button" --index 0 \
+    --within "Inbox" --within-role "list item" \
     --until-role "list item" --until-within "Message list" --until-within-role list \
     --until-showing --timeout 30)"
   printf '%s\n' "$inbox_measure"
@@ -909,7 +932,7 @@ PY
   # half a screenshot cannot check, and a popover is in its own surface where a window capture
   # cannot see it either.
   "$PYTHON" "$ATSPI" activate --name "Mail" --timeout 20
-  "$PYTHON" "$ATSPI" activate --name "Compose" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "New Mail" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "To" --role text --enabled --showing --timeout 30
   # `--role text`: the caption label beside the field carries the same accessible name on purpose
   # (that association is what tells a screen reader To from Bcc), and only the entry takes text.
@@ -936,7 +959,7 @@ PY
   # touched, so the leg is as repeatable as the calendar one above.
   "$REPO_ROOT/scripts/dev/harness.sh" deliver --subject "$MAIL_ACTION_SUBJECT" >/dev/null
   "$PYTHON" "$ATSPI" activate --name "Mail" --timeout 20
-  "$PYTHON" "$ATSPI" activate --name "Refresh" --role "push button" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Sync" --role "push button" --timeout 20
   open_mail_message "$MAIL_ACTION_SUBJECT"
   # This leg asserts that archiving removes the message from the folder it was delivered to.
   # Global search deliberately keeps archived mail, so narrow to the Inbox before the write.
@@ -961,6 +984,8 @@ PY
   capture mail-actions-menu
   # Scoped to the row for the reason above, and here it decides which widget is pressed rather
   # than only what is asserted: the bar's namesake acts on the selection, not on this message.
+  "$PYTHON" "$ATSPI" wait \
+    --name "Flag" --within "$MAIL_ACTION_SUBJECT" --enabled --showing --timeout 20
   "$PYTHON" "$ATSPI" activate --name "Flag" --within "$MAIL_ACTION_SUBJECT" --timeout 20
   # Wait for the row to carry the flag before reopening its menu: the list reconciles in place, so
   # a menu opened mid-rebuild belongs to the widget being replaced and answers nothing.

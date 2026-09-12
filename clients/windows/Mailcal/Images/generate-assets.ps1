@@ -54,8 +54,15 @@ function New-Scaled([int]$w, [int]$h) {
   return $bmp
 }
 
-# The manifest's tiles + splash + store logo. Square tiles fill; Wide/Splash centre (see above).
+# The manifest's tiles + splash + store logo, plus the caption icon. Square tiles fill;
+# Wide/Splash centre (see above).
+#
+# TitleBarLogo.png is not a manifest asset: it is what MainWindow.xaml's TitleBar draws, and it is
+# a PNG rather than app.ico because WinUI decodes an .ico to its first frame, the 16px one, and
+# then scales that up to whatever the display asks for. 64px covers 16 logical pixels up to a 400%
+# scale factor, so the decoder is always scaling down.
 $assets = [ordered]@{
+  'TitleBarLogo.png'      = @(64, 64)
   'Square44x44Logo.png'   = @(44, 44)
   'Square71x71Logo.png'   = @(71, 71)
   'Square150x150Logo.png' = @(150, 150)

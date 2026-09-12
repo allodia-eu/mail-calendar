@@ -1,142 +1,33 @@
-// The sidebar accordion's shape, and, the regression these exist for, what it COSTS.
+// The folder pane's rules on Windows (docs/folder-pane.md), as the bound accordion's shape.
 //
-// The NavigationView is bound to the collection SidebarTree reconciles, so every collection event
-// reaching it is a container the framework must realise. The sidebar used to be rebuilt by hand
-// instead (MenuItems.Clear() + a fresh NavigationViewItem tree) once per event, and the model
-// refills its collections with Clear() + one Add() per entry, so opening a real 57-folder account
-// meant sixty full rebuilds and ten seconds of frozen UI thread, sixteen on the second visit. The
-// core's half of the same refresh takes 2 ms.
+// They are the kind that fail silently: an expansion driven off the selection looks perfectly
+// reasonable until you notice the tree emptying itself, an unread badge that never updates looks
+// like a folder with no new mail, and a heading that navigates looks like one more account row
+// until it claims a scope the core has no Scope for.
 //
-// None of that is visible to a screenshot or to UI Automation: both see the correct sidebar either
-// way, only slower. So the cost is asserted here as arithmetic, TreeCounter records every
-// event the framework would have heard, which is exactly the kind of check that could not fail
-// before, because there was nothing counting.
-//
-// The pane's own rules (docs/folder-pane.md) are pinned here too, and they are the kind that fail
-// silently: an expansion driven off the selection looks perfectly reasonable until you notice the
-// tree emptying itself, and an unread badge that never updates looks like a folder with no new mail.
+// What the same reconcile COSTS is SidebarTreeCostTests, and the fixtures both use are
+// SidebarFixture.
 
 using System.Collections.ObjectModel;
 using Allodia.Mailcal.ViewModels;
 using Xunit;
 
+using static Allodia.Mailcal.Tests.SidebarFixture;
+
 namespace Allodia.Mailcal.Tests;
 
 public class SidebarTreeTests
 {
-    private static readonly SidebarLabels Labels =
-        new("All Inboxes", "Add account…", count => $"{count} unread");
-
-    private static readonly SidebarGlyphs Glyphs = new(
-        "all-inboxes",
-        "account",
-        "folder",
-        "add",
-        role => role switch
-        {
-            SidebarFolderRole.Inbox => "inbox-glyph",
-            SidebarFolderRole.Sent => "sent-glyph",
-            SidebarFolderRole.Trash => "trash-glyph",
-            _ => "folder",
-        });
-
-    // Counts every collection event anywhere in the tree, the stand-in for the containers the
-    // NavigationView realises, since a real one needs a window.
-    //
-    // It has to follow the CHILDREN collections, not just the root: an account's folders are the
-    // ones that churn, and they live on that account's item. A counter watching only the root
-    // reports a confident zero while fifty-seven folder rows are being rebuilt, which is exactly
-    // what the first draft of this file did.
-    private sealed class TreeCounter
-    {
-        // ObservableCollection doesn't override Equals, so the default comparer is reference
-        // identity, which is what "have I already hooked this one?" means here.
-        private readonly HashSet<ObservableCollection<SidebarItem>> _hooked = [];
-
-        public TreeCounter(ObservableCollection<SidebarItem> root) => Hook(root);
-
-        public int Events { get; private set; }
-
-        private void Hook(ObservableCollection<SidebarItem> collection)
-        {
-            if (!_hooked.Add(collection))
-            {
-                return;
-            }
-            collection.CollectionChanged += (_, e) =>
-            {
-                Events++;
-                foreach (var item in e.NewItems?.Cast<SidebarItem>() ?? [])
-                {
-                    Hook(item.Children);
-                }
-            };
-            foreach (var item in collection)
-            {
-                Hook(item.Children);
-            }
-        }
-    }
-
-    private static FolderItem Folder(string key, string name, SidebarFolderRole role = SidebarFolderRole.None, uint unread = 0) =>
-        new() { Key = key, Name = name, Role = role, Unread = unread };
-
-    /// <summary>The folder list as the model projects one: the synthetic null-key "All Mail" head,
-    /// then the real folders.</summary>
-    private static List<FolderItem> Folders(int count) =>
-        [
-            new FolderItem { Key = null, Name = "All Mail" },
-            .. Enumerable.Range(0, count).Select(i => Folder($"f{i}", $"Folder {i}")),
-        ];
-
-    private static AccountItem Account(
-        string id,
-        bool expanded = true,
-        IReadOnlyList<FolderItem>? folders = null) =>
-        new()
-        {
-            Id = id,
-            Email = id + "@example.com",
-            // Nameless, which is the ordinary first-run state, so the From label is the address
-            // alone. Nothing in this file draws it; it is here because the record requires it, and
-            // a fixture that invented a name would suggest the pane shows one.
-            SendLabel = id + "@example.com",
-            Expanded = expanded,
-            Folders = folders ?? [],
-        };
-
-    private static List<AccountItem> Accounts(params string[] ids) =>
-        [.. ids.Select(id => Account(id))];
-
-    private static void Sync(
-        ObservableCollection<SidebarItem> target,
-        IReadOnlyList<AccountItem> accounts,
-        string? selected = null,
-        bool showFolders = true,
-        uint unifiedUnread = 0,
-        Func<string, bool>? unreachable = null,
-        Action<SidebarItem>? onExpanded = null) =>
-        SidebarTree.Reconcile(
-            target,
-            accounts,
-            selected,
-            showFolders,
-            unifiedUnread,
-            unreachable ?? (_ => false),
-            onExpanded ?? (_ => { }),
-            Labels,
-            Glyphs);
-
     [Fact]
-    public void Builds_all_inboxes_then_accounts_then_add_account()
+    public void Builds_the_all_accounts_group_then_accounts_then_add_account()
     {
         var target = new ObservableCollection<SidebarItem>();
         Sync(target, Accounts("a", "b"));
 
         Assert.Equal(
-            [SidebarTree.AllInboxesTag, "acct:a", "acct:b", SidebarTree.AddAccountTag],
+            [SidebarTree.AllAccountsTag, "acct:a", "acct:b", SidebarTree.AddAccountTag],
             target.Select(i => i.Tag));
-        Assert.Equal("All Inboxes", target[0].Content);
+        Assert.Equal("All Accounts", target[0].Content);
         Assert.Equal("a@example.com", target[1].Content);
         // Add account is an action, not a destination, so it must never hold the selection.
         Assert.False(target[^1].SelectsOnInvoked);
@@ -144,10 +35,90 @@ public class SidebarTreeTests
     }
 
     [Fact]
+    public void The_unified_list_is_a_group_over_an_inbox_row_not_a_row_of_its_own()
+    {
+        // Rule 16 (docs/folder-pane.md): the unified scope is a tree like an account's, and the
+        // destination is the Inbox *under* the heading. The group is the shape a unified Sent and
+        // Drafts need; today it has the one child, because the core's unified scope reaches every
+        // account's Inbox and nothing else.
+        var target = new ObservableCollection<SidebarItem>();
+        Sync(target, Accounts("a", "b"), unifiedUnread: 12);
+
+        var group = target[0];
+        Assert.True(group.IsGroup);
+        Assert.Equal("All Accounts", group.Content);
+        // Rule 17: the heading navigates nowhere. Activating it opens or shuts its tree, which is
+        // why it must not take the selection an account row does.
+        Assert.False(group.SelectsOnInvoked);
+        // Rule 8, which the group is inside: the count belongs to the row beneath, never to the
+        // heading directly above the identical number.
+        Assert.False(group.ShowUnread);
+        Assert.Equal(string.Empty, group.UnreadLabel);
+
+        var inbox = Assert.Single(group.Children);
+        Assert.Equal(SidebarTree.AllInboxesTag, inbox.Tag);
+        Assert.Equal("Inbox", inbox.Content);
+        Assert.Equal("inbox-glyph", inbox.Glyph);
+        Assert.Equal(12u, inbox.Unread);
+        Assert.True(inbox.SelectsOnInvoked);
+        // It names no owning account: the unified scope belongs to none, and the shell reads the
+        // tag rather than an account id to know what the click meant.
+        Assert.Null(inbox.OwnerAccountId);
+    }
+
+    [Fact]
+    public void A_shut_group_takes_the_unified_inbox_off_screen_like_a_shut_account()
+    {
+        var target = new ObservableCollection<SidebarItem>();
+        var toggles = new List<bool>();
+        void Refresh(bool expanded) => Sync(
+            target,
+            Accounts("a"),
+            unifiedExpanded: expanded,
+            onExpanded: i => toggles.Add(i.IsExpanded));
+
+        Refresh(expanded: true);
+        Assert.True(target[0].IsExpanded);
+
+        Refresh(expanded: false);
+        Assert.False(target[0].IsExpanded);
+        // The row is still in the data, as a shut account's folders are: the framework draws it
+        // or not off IsExpanded, so shutting costs no container work either way.
+        Assert.Single(target[0].Children);
+        // And the account beside it is untouched: the two trees are independent (rule 2).
+        Assert.True(target[1].IsExpanded);
+
+        // The core's own value coming back, five times over, is not five user actions.
+        for (var i = 0; i < 5; i++)
+        {
+            Refresh(expanded: false);
+        }
+        Assert.Empty(toggles);
+    }
+
+    [Fact]
+    public void The_groups_chevron_reaches_the_core_and_says_it_is_the_group()
+    {
+        // The shell dispatches SetUnifiedExpanded for the group and SetAccountExpanded for an
+        // account, off the same callback, so what it reads to tell them apart is asserted here.
+        var target = new ObservableCollection<SidebarItem>();
+        var toggles = new List<(bool Group, string? Account, bool Expanded)>();
+        Sync(
+            target,
+            Accounts("a"),
+            onExpanded: i => toggles.Add((i.IsGroup, i.AccountId, i.IsExpanded)));
+
+        target[0].IsExpanded = false;
+        target[1].IsExpanded = false;
+
+        Assert.Equal([(true, null, false), (false, "a", false)], toggles);
+    }
+
+    [Fact]
     public void Every_account_carries_its_own_folders_not_just_the_selected_one()
     {
         // The regression this replaced: the pane was fed the SELECTED account's folders alone, so
-        // choosing All Inboxes, or the account next to it, emptied the tree on screen.
+        // choosing the unified Inbox, or the account next to it, emptied the tree on screen.
         var target = new ObservableCollection<SidebarItem>();
         var accounts = new List<AccountItem>
         {
@@ -217,11 +188,15 @@ public class SidebarTreeTests
         var accounts = new List<AccountItem> { Account("a", folders: Folders(3)) };
         var toggles = new List<(string Id, bool Expanded)>();
 
-        Sync(target, accounts, showFolders: true, onExpanded: i => toggles.Add((i.AccountId!, i.IsExpanded)));
-        Sync(target, accounts, showFolders: false, onExpanded: i => toggles.Add((i.AccountId!, i.IsExpanded)));
+        Sync(target, accounts, showFolders: true, onExpanded: i => toggles.Add((i.AccountId ?? i.Tag, i.IsExpanded)));
+        Sync(target, accounts, showFolders: false, onExpanded: i => toggles.Add((i.AccountId ?? i.Tag, i.IsExpanded)));
 
         Assert.Empty(target[1].Children);
         Assert.False(target[1].IsExpanded);
+        // The All Accounts group goes with them: the unified Inbox is a folder, and the calendar
+        // is not what a folder pane is for.
+        Assert.Empty(target[0].Children);
+        Assert.False(target[0].IsExpanded);
         // Crucially, the core was never told the user shut anything, so coming back to mail
         // restores the tree rather than reopening a collapsed one.
         Assert.Empty(toggles);
@@ -229,6 +204,8 @@ public class SidebarTreeTests
         Sync(target, accounts, showFolders: true);
         Assert.True(target[1].IsExpanded);
         Assert.Equal(3, target[1].Children.Count);
+        Assert.True(target[0].IsExpanded);
+        Assert.Single(target[0].Children);
     }
 
     [Fact]
@@ -257,7 +234,7 @@ public class SidebarTreeTests
     }
 
     [Fact]
-    public void Unread_counts_land_on_folders_and_on_all_inboxes_and_vanish_at_zero()
+    public void Unread_counts_land_on_folders_and_on_the_unified_inbox_and_vanish_at_zero()
     {
         var target = new ObservableCollection<SidebarItem>();
         var accounts = new List<AccountItem>
@@ -286,11 +263,13 @@ public class SidebarTreeTests
         Assert.Equal(string.Empty, sent.UnreadLabel);
 
         Assert.Equal(4u, target[1].Children[2].Unread);
-        Assert.Equal(548u, target[0].Unread);
-        Assert.True(target[0].ShowUnread);
+        Assert.Equal(548u, target[0].Children[0].Unread);
+        Assert.True(target[0].Children[0].ShowUnread);
 
-        // The account row itself stays bare, the count sits on the folders, as in Outlook.
+        // The account row itself stays bare, the count sits on the folders, as in Outlook, and
+        // the All Accounts heading is bare for the same reason (rule 8).
         Assert.False(target[1].ShowUnread);
+        Assert.False(target[0].ShowUnread);
     }
 
     [Fact]
@@ -313,160 +292,4 @@ public class SidebarTreeTests
         Assert.Equal(
             ["inbox-glyph", "sent-glyph", "folder", "folder"],
             target[1].Children.Select(c => c.Glyph));
-    }
-
-    [Fact]
-    public void A_refresh_that_changes_nothing_raises_nothing()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        var counter = new TreeCounter(target);
-        var accounts = new List<AccountItem> { Account("a", folders: Folders(20)), Account("b") };
-        Sync(target, accounts, selected: "a");
-        var settled = counter.Events;
-
-        // A background sync re-signals the same state many times a second. Each one used to tear
-        // the whole menu down and build it again.
-        for (var i = 0; i < 10; i++)
-        {
-            Sync(target, accounts, selected: "a");
-        }
-
-        Assert.Equal(settled, counter.Events);
-        Assert.Equal(20, target[1].Children.Count);
-    }
-
-    [Fact]
-    public void A_count_that_moves_costs_a_property_change_not_a_container()
-    {
-        // New mail arrives constantly, and it moves a number on a row that is otherwise identical.
-        // If that went through the collection, every delivery would re-realise the folder tree.
-        var target = new ObservableCollection<SidebarItem>();
-        var counter = new TreeCounter(target);
-        Sync(target, [Account("a", folders: [Folder("inbox", "Inbox", SidebarFolderRole.Inbox, 3)])]);
-        var inbox = target[1].Children[0];
-        var settled = counter.Events;
-
-        Sync(
-            target,
-            [Account("a", folders: [Folder("inbox", "Inbox", SidebarFolderRole.Inbox, 4)])],
-            unifiedUnread: 4);
-
-        Assert.Equal(4u, inbox.Unread);
-        Assert.Same(inbox, target[1].Children[0]);
-        Assert.Equal(settled, counter.Events);
-    }
-
-    [Fact]
-    public void An_unchanged_entry_keeps_its_identity_across_a_refresh()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        Sync(target, [Account("a", folders: Folders(5)), Account("b")], selected: "a");
-        var account = target[1];
-        var folder = account.Children[2];
-
-        // A folder renamed elsewhere in the list must not cost the others their containers.
-        var renamed = Folders(5);
-        renamed[1] = Folder("f0", "Renamed");
-        Sync(target, [Account("a", folders: renamed), Account("b")], selected: "a");
-
-        Assert.Same(account, target[1]);
-        Assert.Same(folder, target[1].Children[2]);
-        Assert.Equal("Renamed", target[1].Children[0].Content);
-    }
-
-    [Fact]
-    public void The_outage_badge_flips_in_place_rather_than_replacing_the_row()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        var counter = new TreeCounter(target);
-        Sync(target, Accounts("a", "b"));
-        var account = target[1];
-        var settled = counter.Events;
-
-        Sync(target, Accounts("a", "b"), unreachable: id => id == "a");
-
-        Assert.True(account.ShowBadge);
-        Assert.Same(account, target[1]);
-        // A re-badge is a property change on a row that stays put, not a collection event.
-        Assert.Equal(settled, counter.Events);
-    }
-
-    [Fact]
-    public void A_new_account_arrives_with_its_folders_already_attached()
-    {
-        // The cost bound, restated for the shape the pane has now, and it got cheaper. An
-        // account's folders are assembled onto its row BEFORE the row joins the bound collection,
-        // so a 57-folder account joining is ONE event: the framework realises the row and reads
-        // its children itself. The core builds `account_folders` in a single pass, so there is no
-        // per-folder burst left to pay for.
-        const int FolderCount = 57;
-        var target = new ObservableCollection<SidebarItem>();
-        var counter = new TreeCounter(target);
-        Sync(target, [Account("a", folders: Folders(9))]);
-        var before = counter.Events;
-
-        Sync(target, [Account("a", folders: Folders(9)), Account("b", folders: Folders(FolderCount))]);
-
-        Assert.Equal(1, counter.Events - before);
-        Assert.Equal(9, target[1].Children.Count);
-        Assert.Equal(FolderCount, target[2].Children.Count);
-    }
-
-    [Fact]
-    public void Growing_an_open_accounts_folder_list_stays_linear_in_what_arrived()
-    {
-        // The case the counter can still see, and the one the original regression was about: an
-        // account already on screen, whose folders a sync then fills in. Rebuilding instead of
-        // reconciling made this quadratic, 60 teardowns of a ~60-item tree, ~3,500 controls, ten
-        // seconds of frozen UI thread. Reconciling touches only the rows that actually arrived.
-        const int FolderCount = 57;
-        var target = new ObservableCollection<SidebarItem>();
-        var counter = new TreeCounter(target);
-        Sync(target, [Account("a", folders: Folders(9))]);
-        var settled = counter.Events;
-
-        // The folder list lands one chunk at a time, as a streaming sync commits it.
-        var all = Folders(FolderCount);
-        for (var i = 9; i <= FolderCount; i++)
-        {
-            Sync(target, [Account("a", folders: all.Take(i + 1).ToList())]);
-        }
-
-        var spent = counter.Events - settled;
-        // One insert per folder that actually appeared (57 − 9), and not one event more: the
-        // folders already on screen keep their containers through every one of those refreshes.
-        Assert.Equal(FolderCount - 9, spent);
-        Assert.InRange(spent, 0, 2 * FolderCount);
-        Assert.Equal(FolderCount, target[1].Children.Count);
-    }
-
-    [Fact]
-    public void A_removed_account_takes_its_row_with_it()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        Sync(target, [Account("a"), Account("b", folders: Folders(2)), Account("c")], selected: "b");
-        Sync(target, [Account("a"), Account("c")]);
-
-        Assert.Equal(
-            [SidebarTree.AllInboxesTag, "acct:a", "acct:c", SidebarTree.AddAccountTag],
-            target.Select(i => i.Tag));
-    }
-
-    [Fact]
-    public void Reordered_accounts_are_moved_rather_than_rebuilt()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        Sync(target, Accounts("a", "b", "c"));
-        var a = target[1];
-        var c = target[3];
-
-        // The core adds accounts as they connect, so the order can genuinely change between boots.
-        Sync(target, Accounts("c", "a", "b"));
-
-        Assert.Equal(
-            [SidebarTree.AllInboxesTag, "acct:c", "acct:a", "acct:b", SidebarTree.AddAccountTag],
-            target.Select(i => i.Tag));
-        Assert.Same(c, target[1]);
-        Assert.Same(a, target[2]);
-    }
-}
+    }}

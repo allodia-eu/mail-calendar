@@ -28,7 +28,8 @@ function Get-SidebarRow {
   Find-UiaElement -Root (Get-MailcalWindow) -Name $Name -Type 'ListItem'
 }
 
-# Every row in the pane with that name, there are two "Inbox" rows, one per account.
+# Every row in the pane with that name, in pane order. There are three "Inbox" rows: the group's
+# unified one, then one per account.
 function Get-SidebarRows {
   param([Parameter(Mandatory)] [string] $Name)
   @(Find-UiaElements -Root (Get-MailcalWindow) -Name $Name -Type 'ListItem')
@@ -66,6 +67,30 @@ function Test-RowOnScreen {
   ($null -ne $row) -and (-not $row.Current.IsOffscreen)
 }
 
+# The All Accounts group's one child, the unified Inbox. Looked up INSIDE the group's own row, not
+# by position among the rows named Inbox: every account calls its inbox the same thing (rule 13
+# working as intended), and a shut group takes its child out of the tree altogether, so a
+# positional lookup would quietly re-aim itself at an account's Inbox and report it on screen.
+# Null while the group is shut.
+function Get-UnifiedInbox {
+  $group = Get-SidebarRow -Name 'All Accounts'
+  if (-not $group) { throw 'the pane has no All Accounts group, so there is no unified Inbox' }
+  Find-UiaElement -Root $group -Name 'Inbox' -Type 'ListItem'
+}
+
+# Every row with that name that is actually on screen. `Get-SidebarRows` counts the tree, which a
+# shut account's folders stay in; this counts what the user can see.
+function Get-OnScreenRows {
+  param([Parameter(Mandatory)] [string] $Name)
+  @(Get-SidebarRows -Name $Name | Where-Object { -not $_.Current.IsOffscreen })
+}
+
+# The group heading's expand/collapse pattern, the control its whole row is (rule 17).
+function Get-GroupExpander {
+  (Get-SidebarRow -Name 'All Accounts').GetCurrentPattern(
+    [System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+}
+
 # What the mail list calls the scope it is showing, the one place on screen that says which
 # mailbox the pane actually opened. A TextBlock's automation Name IS its text, so this reads the
 # rendered string rather than the property behind it.
@@ -99,16 +124,18 @@ $Suite = @{
       Body = {
         # The regression above, stated as the thing it costs: a row with no name is a row a
         # screen reader cannot read and automation cannot find, however right it looks.
-        foreach ($name in @('All Inboxes', $First, $Second, 'Drafts', 'Archive')) {
+        foreach ($name in @('All Accounts', $First, $Second, 'Drafts', 'Archive')) {
           Assert-True ($null -ne (Get-SidebarRow -Name $name)) "the pane has a row named '$name'"
         }
-        Assert-Equal 2 (Get-SidebarRows -Name 'Inbox').Count 'both accounts show their Inbox'
+        # Three Inboxes: the unified one under All Accounts, and one per account.
+        Assert-Equal 3 (Get-SidebarRows -Name 'Inbox').Count `
+          'the group and both accounts each show an Inbox'
       }
     },
     @{
       Name = 'both accounts show their folders while neither is selected'
       Body = {
-        # The pane opens on All Inboxes, no account selected, and BOTH trees are on screen.
+        # The pane opens on the unified Inbox, no account selected, and BOTH trees are on screen.
         # Under the old rule (expansion WAS selection) at most one account could ever have
         # folders showing, and on this screen none of them would.
         Assert-Equal 2 (Get-SidebarRows -Name 'Sent').Count `
@@ -118,15 +145,18 @@ $Suite = @{
       }
     },
     @{
-      Name = 'the unread count reads as a sentence, on the folder and on All Inboxes'
+      Name = 'the unread count reads as a sentence, on the folder and on the unified Inbox'
       Body = {
-        # "Inbox, 4" read aloud is a position in a list; the badge carries the words.
-        $inbox = (Get-SidebarRows -Name 'Inbox')[0]
-        Assert-Equal '4 unread' (Get-RowUnread -Row $inbox) 'the Inbox badge names what it counts'
-        # And the roll-up is the sum across BOTH accounts (4 + 1), not the selected one's.
-        $unified = Get-SidebarRow -Name 'All Inboxes'
-        Assert-Equal '5 unread' (Get-RowUnread -Row $unified) `
-          'All Inboxes sums every account inbox'
+        # "Inbox, 4" read aloud is a position in a list; the badge carries the words. The rows are
+        # in pane order, so the one after the group's own is the first account's.
+        $rows = Get-SidebarRows -Name 'Inbox'
+        Assert-Equal '4 unread' (Get-RowUnread -Row $rows[1]) 'the Inbox badge names what it counts'
+        # And the roll-up is the sum across BOTH accounts (4 + 1), not the selected one's. It is on
+        # the Inbox under the group, never on the heading above it (rule 8).
+        Assert-Equal '5 unread' (Get-RowUnread -Row (Get-UnifiedInbox)) `
+          'the unified Inbox sums every account inbox'
+        Assert-True ($null -eq (Get-RowUnread -Row (Get-SidebarRow -Name 'All Accounts'))) `
+          'and the All Accounts heading carries no roll-up of its own'
       }
     },
     @{
@@ -160,12 +190,88 @@ $Suite = @{
         # …and the other account's stay, which is the whole rule: expansion is per account and
         # nothing about it is shared with the selection.
         Assert-True (Test-RowOnScreen -Name $Second) 'the other account is still there'
-        Assert-True (Test-RowOnScreen -Name 'All Inboxes') 'and the unified row is untouched'
+        Assert-True (Test-RowOnScreen -Name 'All Accounts') 'and the group above them is untouched'
 
         # Put it back, so the next run starts from the seeded default.
         $pattern.Expand()
         Start-Sleep -Milliseconds 800
         Assert-True (Test-RowOnScreen -Name 'Drafts') 'reopening restores the tree'
+      }
+    },
+    @{
+      Name = 'the unified list is a group over an Inbox, and the header names the Inbox'
+      Body = {
+        # Rule 16: the unified scope is a tree like an account's, and what the user selects is the
+        # Inbox *under* the heading. Rule 13 then decides the header: the group is named by its own
+        # row, so the list over it reads "Inbox", not "All Accounts", which is a word no row the
+        # user can select carries.
+        $group = Get-SidebarRow -Name 'All Accounts'
+        Assert-True ($null -ne $group) 'the pane opens with an All Accounts group'
+        Assert-Equal 'Expanded' (Get-GroupExpander).Current.ExpandCollapseState.ToString() `
+          'a group nobody has shut opens expanded, because shut hides the only route to the unified list'
+        $unified = Get-UnifiedInbox
+        Assert-True (($null -ne $unified) -and (-not $unified.Current.IsOffscreen)) `
+          'its Inbox is on screen'
+        Assert-Equal 'Inbox' (Get-MailboxHeader) 'and the list over it is named by that row'
+      }
+    },
+    @{
+      Name = 'the group''s row opens and shuts its tree rather than navigating'
+      Body = {
+        # Rule 17. Invoking the heading must not move the selection: the scope stays what it was,
+        # and the tree is what changes. A heading that navigated would have to claim an "all mail,
+        # every account" scope the core has no Scope for.
+        $before = Get-MailboxHeader
+        $inboxes = (Get-OnScreenRows -Name 'Inbox').Count
+        Assert-Equal 3 $inboxes 'the group and both accounts each show an Inbox to begin with'
+
+        Invoke-UiaElement (Get-SidebarRow -Name 'All Accounts') -SettleMs 800
+
+        Assert-Equal 'Collapsed' (Get-GroupExpander).Current.ExpandCollapseState.ToString() `
+          'activating the heading shuts its tree'
+        Assert-Equal $before (Get-MailboxHeader) `
+          'and navigates nowhere: the list is still showing what it was'
+        # A shut group takes the unified Inbox off screen, exactly as a shut account takes its
+        # folders. Counted rather than looked up by name: the accounts' Inbox rows are called the
+        # same thing, and both of those must still be there.
+        Assert-Equal 2 (Get-OnScreenRows -Name 'Inbox').Count `
+          'the unified Inbox goes with it, and the accounts keep theirs'
+        # The accounts beside it are untouched: the trees are independent (rule 2).
+        Assert-True (Test-RowOnScreen -Name $First) 'the accounts below are untouched'
+
+        Invoke-UiaElement (Get-SidebarRow -Name 'All Accounts') -SettleMs 800
+        Assert-Equal 'Expanded' (Get-GroupExpander).Current.ExpandCollapseState.ToString() `
+          'and activating it again opens the tree back up'
+        Assert-Equal 3 (Get-OnScreenRows -Name 'Inbox').Count `
+          'the unified Inbox comes back with it'
+      }
+    },
+    @{
+      Name = 'collapsing the pane is not the user shutting a tree'
+      Body = {
+        # The regression this is here for: a pane on its way to the icon strip takes every tree
+        # down with it, and the framework reports that through the same two-way binding a chevron
+        # click uses. Told, the core persisted it, so the pane came back with every account shut
+        # and stayed that way for good (docs/folder-pane.md, rules 2 and 3).
+        $account = Get-SidebarRow -Name $First
+        $tree = $account.GetCurrentPattern(
+          [System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+        Assert-Equal 'Expanded' $tree.Current.ExpandCollapseState.ToString() `
+          'the account opens expanded, or this proves nothing'
+
+        $toggle = Find-UiaElement -Type 'Button' -AutomationId 'PART_PaneToggleButton'
+        if (-not $toggle) { throw 'no pane toggle in the caption, so the pane cannot be shut' }
+        Invoke-UiaElement $toggle -SettleMs 900
+        Invoke-UiaElement $toggle -SettleMs 900
+
+        # Read the row again: the pane rebuilt its containers on the way back.
+        $reopened = (Get-SidebarRow -Name $First).GetCurrentPattern(
+          [System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+        Assert-Equal 'Expanded' $reopened.Current.ExpandCollapseState.ToString() `
+          'and the tree the user left open is open again once the pane is back'
+        Assert-True (Test-RowOnScreen -Name 'Drafts') 'with its folders on screen'
+        Assert-Equal 3 (Get-OnScreenRows -Name 'Inbox').Count `
+          'and the All Accounts group came back with them'
       }
     },
     @{
@@ -175,7 +281,7 @@ $Suite = @{
         # folder did NOTHING AT ALL, no list change, no header change, and the highlight snapped
         # straight back to All Inboxes. The core's unified scope ignores a folder outright (there
         # is no account for the key to belong to), so the shell has to name the account alongside it.
-        Assert-Equal 'All Inboxes' (Get-MailboxHeader) 'the app opens on the unified list'
+        Assert-Equal 'Inbox' (Get-MailboxHeader) 'the app opens on the unified Inbox'
 
         # Drafts belongs to the first account and to no other, so opening it needs that account
         # selected, which nothing has done.
@@ -204,8 +310,8 @@ $Suite = @{
           'the first account''s Sent, under the same folder key, holds its own mail'
 
         # Back to the unified list, so the suite leaves the app where it found it.
-        Open-SidebarRow -Row (Get-SidebarRow -Name 'All Inboxes') -Expect 'All Inboxes'
-        Assert-Equal 'All Inboxes' (Get-MailboxHeader) 'and All Inboxes takes it back'
+        Open-SidebarRow -Row (Get-UnifiedInbox) -Expect 'Inbox'
+        Assert-Equal 'Inbox' (Get-MailboxHeader) 'and the unified Inbox takes it back'
       }
     }
   )

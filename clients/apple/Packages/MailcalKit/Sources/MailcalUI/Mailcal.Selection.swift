@@ -132,7 +132,7 @@ extension ContentView {
     }
     #endif
 
-    /// The bar of message actions: the count, and the actions the contract gives it.
+    /// The bar of message actions: the actions the contract gives it, plus, on the desktop, Sync.
     ///
     /// On macOS it is **standing chrome** over both the list and the reading pane, and its actions
     /// are merely disabled while nothing is picked (`docs/list-selection.md`, rule 5): a bar that
@@ -216,6 +216,21 @@ extension ContentView {
             Label(L10n.action_clear_selection(), systemImage: "xmark")
         }
         .disabled(selection.isEmpty)
+        #if os(macOS)
+        // Sync stands on the same bar and is **not** a selection action: it acts on the
+        // mailbox, so it is never disabled, and it sits past a divider rather than among the
+        // buttons that grey out together (`docs/list-selection.md`, rule 5). The phones get the
+        // pull-to-refresh gesture instead, so their bar, which is the selection mode's own
+        // chrome, keeps only the actions that mode is for.
+        //
+        // The divider carries a height because a `Divider` in an `HStack` takes every point it
+        // is offered: left free it stretched the bar over the whole window and pushed the
+        // message list halfway down it, with the buttons centred in the hole.
+        Divider().frame(height: 20)
+        Button { model.refresh() } label: {
+            Label(L10n.action_refresh(), systemImage: "arrow.clockwise")
+        }
+        #endif
     }
 
     /// Leaves the selection, and on the phone and iPad the mode with it.

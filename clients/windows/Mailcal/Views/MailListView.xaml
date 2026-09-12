@@ -220,24 +220,18 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Header: folder title + search. The title and the search box are both flexible (star)
-             so the row reflows to the pane width, the title trims with an ellipsis rather than
-             wrapping a character per line when the pane is narrow, and the search box shrinks
-             instead of forcing the controls to overflow. (Conversation grouping moved to the
-             Settings dialog, reached from the pane's Settings gear.) -->
-        <Grid Grid.Row="0" Padding="16,12" ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="60" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" x:Name="HeaderText" VerticalAlignment="Center"
+        <!-- Header: what the list is showing, and nothing else. The search field left this row
+             for the window's top row (MainWindow.xaml): it searches every account and every folder
+             rather than the column it sat over, so the window's centre is where it belongs
+             (docs/search.md). The title trims with an ellipsis rather than wrapping a character
+             per line when the pane is narrow. (Conversation grouping moved to the Settings dialog,
+             reached from the pane's Settings gear.) -->
+        <Grid Grid.Row="0" Padding="16,12">
+            <TextBlock x:Name="HeaderText" VerticalAlignment="Center"
                        Style="{StaticResource SubtitleTextBlockStyle}"
                        TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                        AutomationProperties.AutomationId="MailboxHeader"
-                       Text="{x:Bind Model.CurrentFolderName, Mode=OneWay}" />
-            <AutoSuggestBox Grid.Column="1" x:Name="SearchBox" QueryIcon="Find"
-                            HorizontalAlignment="Stretch" MinWidth="120" MaxWidth="240"
-                            PlaceholderText="{x:Bind l10n:L10n.SearchPlaceholder()}" TextChanged="OnSearchChanged" />
+                       Text="{x:Bind Model.ListTitle, Mode=OneWay}" />
         </Grid>
 
         <!-- Both bars bind Visibility as well as IsOpen: a closed InfoBar stays visible at zero
@@ -367,8 +361,10 @@
             </InfoBar.ActionButton>
         </InfoBar>
 
-        <!-- Footer: count + connection status, compose, refresh. (Reset + per-account sync
-             settings moved to the Settings dialog, reached from the pane's Settings gear.) -->
+        <!-- Footer: the status line alone. New Mail moved to the window's top row and Sync to the
+             actions bar above the list, which is where a user reaches for them (docs/list-selection.md,
+             rule 5). (Reset + per-account sync settings are in the Settings dialog, reached from
+             the pane's Settings gear.) -->
         <!-- Background-download progress: a thin bar with a "downloading Y of X" count beside it,
              shown only while a sync is fetching mail (the Auto row collapses when idle).
 
@@ -392,11 +388,7 @@
                        Text="{x:Bind Model.SyncProgressText, Mode=OneWay}" />
         </Grid>
 
-        <Grid Grid.Row="4" Padding="16,10" ColumnSpacing="8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <Grid Grid.Row="4" Padding="16,10">
             <!-- The status line. A Grid, not a StackPanel: a horizontal StackPanel measures its
                  children against infinite width, so a long hint takes its full desired width and
                  pushes the connection status past the column's edge, where the Grid clips it away
@@ -404,7 +396,7 @@
                  gives when the row runs out of room; the status keeps its width and stays on
                  screen. Spacing is per-element margin rather than ColumnSpacing so the gap
                  disappears with the hint. -->
-            <Grid Grid.Column="0" VerticalAlignment="Center">
+            <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="{x:Bind Model.SyncHintColumnWidth, Mode=OneWay}" />
@@ -456,12 +448,6 @@
                     </Button.Flyout>
                 </Button>
             </Grid>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                <Button Content="{x:Bind l10n:L10n.ActionCompose()}" Style="{StaticResource AccentButtonStyle}" Click="OnCompose"
-                        AutomationProperties.AutomationId="ComposeButton" />
-                <Button Content="{x:Bind l10n:L10n.ActionRefresh()}" Click="OnRefresh"
-                        AutomationProperties.AutomationId="RefreshButton" />
-            </StackPanel>
         </Grid>
     </Grid>
 </UserControl>

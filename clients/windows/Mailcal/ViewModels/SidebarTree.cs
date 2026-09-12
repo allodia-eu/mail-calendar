@@ -19,25 +19,27 @@ using System.Collections.ObjectModel;
 namespace Allodia.Mailcal.ViewModels;
 
 /// <summary>The localised labels and strings the synthetic sidebar entries carry.</summary>
-/// <param name="AllInboxes">The unified "all inboxes" entry.</param>
+/// <param name="AllAccounts">The All Accounts group's heading.</param>
+/// <param name="UnifiedInbox">The group's one child, the unified Inbox. The Inbox role's own name
+/// from the app's catalog, the same word the message-list header uses for that scope
+/// (docs/folder-pane.md, rule 13).</param>
 /// <param name="AddAccount">The "add another account" action.</param>
 /// <param name="UnreadLabel">What a screen reader says for an unread badge, given its count,
 /// "545 unread". A delegate rather than a string because it is a formatted message, and this
 /// assembly cannot reach L10n.cs.</param>
 public readonly record struct SidebarLabels(
-    string AllInboxes,
+    string AllAccounts,
+    string UnifiedInbox,
     string AddAccount,
     Func<uint, string> UnreadLabel);
 
 /// <summary>The Segoe Fluent glyphs the sidebar entries carry.</summary>
-/// <param name="AllInboxes">A tray, for the unified inbox.</param>
 /// <param name="Account">A contact, for an account.</param>
 /// <param name="Folder">A folder, for a mailbox with no special role.</param>
 /// <param name="AddAccount">A plus, for add-account.</param>
 /// <param name="ForRole">The glyph for a folder's special role, supplied by the shell, which is
 /// where the codepoints live.</param>
 public readonly record struct SidebarGlyphs(
-    string AllInboxes,
     string Account,
     string Folder,
     string AddAccount,
@@ -46,7 +48,10 @@ public readonly record struct SidebarGlyphs(
 /// <summary>Reconciles the bound sidebar collection toward the model's current state.</summary>
 public static class SidebarTree
 {
-    /// <summary>The tag of the unified "all inboxes" entry.</summary>
+    /// <summary>The tag of the All Accounts group's heading row.</summary>
+    public const string AllAccountsTag = "@all-accounts";
+
+    /// <summary>The tag of the unified Inbox, the All Accounts group's one child.</summary>
     public const string AllInboxesTag = "@all-inboxes";
 
     /// <summary>The tag of the "add another account" action.</summary>
@@ -59,24 +64,29 @@ public static class SidebarTree
     public static string TagFor(string accountId) => AccountTagPrefix + accountId;
 
     /// <summary>
-    /// Brings <paramref name="target"/> in line with the model: All Inboxes, one entry per account
-    /// over its own folders, then Add account. Entries that are already right are left alone,
-    /// including their generated containers, so a refresh that changes nothing mutates nothing.
+    /// Brings <paramref name="target"/> in line with the model: the All Accounts group over the
+    /// unified Inbox, one entry per account over its own folders, then Add account. Entries that
+    /// are already right are left alone, including their generated containers, so a refresh that
+    /// changes nothing mutates nothing.
     /// </summary>
     /// <remarks>
-    /// Two rules this shape exists to hold (docs/folder-pane.md). **Every** account carries its
+    /// Three rules this shape exists to hold (docs/folder-pane.md). **Every** account carries its
     /// folders, not just the selected one, the pane used to be fed the selected account's folders
-    /// alone, so choosing All Inboxes emptied it. And expansion comes from
-    /// <see cref="AccountItem.Expanded"/>, which the core persists, rather than from
-    /// <paramref name="selectedAccount"/>, so selecting an account no longer shuts the account
-    /// beside it, and the tree survives a restart.
+    /// alone, so choosing the unified Inbox emptied it. Expansion comes from
+    /// <see cref="AccountItem.Expanded"/> and <paramref name="unifiedExpanded"/>, which the core
+    /// persists, rather than from <paramref name="selectedAccount"/>, so selecting an account no
+    /// longer shuts the account beside it, and the trees survive a restart. And the unified list is
+    /// a **group**, not a row (rule 16): the heading navigates nowhere, and the Inbox under it is
+    /// what carries the badge and the destination.
     /// </remarks>
     /// <param name="target">The collection the NavigationView is bound to.</param>
     /// <param name="accounts">The configured accounts, in the core's order, each with its folders.</param>
     /// <param name="selectedAccount">The selected account's id, or <c>null</c> for the unified view.</param>
     /// <param name="showFolders">Whether folders belong on screen at all, false on the calendar and
     /// contacts destinations, where the mail tree is not what the pane is for.</param>
-    /// <param name="unifiedUnread">The All Inboxes badge: every account's Inbox unread, summed.</param>
+    /// <param name="unifiedUnread">The unified Inbox badge: every account's Inbox unread, summed.</param>
+    /// <param name="unifiedExpanded">Whether the All Accounts group's tree is open, the core's own
+    /// value (<c>MailboxListSnapshot.UnifiedExpanded</c>).</param>
     /// <param name="isUnreachable">Whether an account's server couldn't be reached on its last sync.</param>
     /// <param name="onExpandedChanged">Where a user's chevron click goes, the shell dispatches it
     /// to the core, which persists it.</param>
@@ -88,19 +98,29 @@ public static class SidebarTree
         string? selectedAccount,
         bool showFolders,
         uint unifiedUnread,
+        bool unifiedExpanded,
         Func<string, bool> isUnreachable,
         Action<SidebarItem> onExpandedChanged,
         SidebarLabels labels,
         SidebarGlyphs glyphs)
     {
-        var allInboxes = Existing(target, AllInboxesTag) ?? new SidebarItem
+        // The group's heading. No glyph and no destination: its row IS the disclosure control
+        // (rule 17), and an icon beside the accounts' would read as one more account row, which is
+        // the thing that rule exists to prevent. The chevron the framework draws for an item with
+        // children is what says which way activating it goes.
+        var group = Existing(target, AllAccountsTag) ?? new SidebarItem
         {
-            Tag = AllInboxesTag,
-            Glyph = glyphs.AllInboxes,
+            Tag = AllAccountsTag,
+            IsGroup = true,
+            SelectsOnInvoked = false,
+            ExpandedChanged = onExpandedChanged,
         };
-        allInboxes.Content = labels.AllInboxes;
-        SetUnread(allInboxes, unifiedUnread, labels);
-        var wanted = new List<SidebarItem>(accounts.Count + 2) { allInboxes };
+        group.Content = labels.AllAccounts;
+        // `ApplyExpanded`, not the setter: this is the core's own value coming back, and feeding
+        // it to the core again as a "user toggled it" is a rebuild per refresh.
+        group.ApplyExpanded(showFolders && unifiedExpanded);
+        ReconcileUnified(group.Children, showFolders, unifiedUnread, labels, glyphs);
+        var wanted = new List<SidebarItem>(accounts.Count + 2) { group };
 
         foreach (var account in accounts)
         {
@@ -132,6 +152,36 @@ public static class SidebarTree
         add.Content = labels.AddAccount;
         wanted.Add(add);
 
+        Apply(target, wanted);
+    }
+
+    /// <summary>
+    /// The All Accounts group's children: the unified Inbox, and nothing else yet.
+    /// </summary>
+    /// <remarks>
+    /// A unified Sent, Drafts and Archive are the shape the group exists for, and none of them
+    /// exists: the core's unified scope reaches every account's Inbox only, so a second child would
+    /// need a scope to select before it needed a row to sit on (docs/folder-pane.md).
+    /// <para>
+    /// The badge is here rather than on the heading, for the reason an account row carries none: a
+    /// roll-up would sit directly above the identical number on the row beneath it (rule 8).
+    /// </para>
+    /// </remarks>
+    private static void ReconcileUnified(
+        ObservableCollection<SidebarItem> target,
+        bool showFolders,
+        uint unifiedUnread,
+        SidebarLabels labels,
+        SidebarGlyphs glyphs)
+    {
+        var inbox = Existing(target, AllInboxesTag) ?? new SidebarItem
+        {
+            Tag = AllInboxesTag,
+            Glyph = glyphs.ForRole(SidebarFolderRole.Inbox),
+        };
+        inbox.Content = labels.UnifiedInbox;
+        SetUnread(inbox, unifiedUnread, labels);
+        List<SidebarItem> wanted = showFolders ? [inbox] : [];
         Apply(target, wanted);
     }
 

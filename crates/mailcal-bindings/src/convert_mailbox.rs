@@ -137,6 +137,7 @@ impl From<AppSnapshot> for MailboxListSnapshot {
                 .map(AccountFolderRow::from)
                 .collect(),
             unified_unread: snapshot.unified_unread,
+            unified_expanded: snapshot.unified_expanded,
             selected: snapshot.selected,
             mode: snapshot.mode.into(),
             rows: snapshot.rows.into_iter().map(SnapshotRow::from).collect(),

@@ -48,6 +48,45 @@ import Testing
         #expect(folderIcon(.other) == "folder")
     }
 
+    // MARK: the list header names the row the pane selected
+
+    @Test func theUnifiedListIsCalledWhatItsRowIsCalled() {
+        // The All Accounts group's child, not the group: the header and the pane row carry the
+        // same word, and "All Accounts" is a word no row the user can select has.
+        #expect(
+            listTitle(selectedAccount: nil, selectedFolder: nil, folders: [])
+                == L10n.folder_inbox()
+        )
+        // A folder that is *not* selected must not name the header either way round.
+        #expect(
+            listTitle(selectedAccount: nil, selectedFolder: "sent", folders: [])
+                == L10n.folder_inbox()
+        )
+    }
+
+    @Test func anAccountsOwnScopeNamesItsFolderOrItsWholeMailbox() {
+        let folders = [folder("archive", "Archief 2024", .archive), folder("tenders", "Tenders", nil)]
+
+        #expect(
+            listTitle(selectedAccount: "work", selectedFolder: nil, folders: folders)
+                == L10n.sidebar_all_mail()
+        )
+        // The app's word for a role-bearing folder, the server's for one the user made.
+        #expect(
+            listTitle(selectedAccount: "work", selectedFolder: "archive", folders: folders)
+                == L10n.folder_archive()
+        )
+        #expect(
+            listTitle(selectedAccount: "work", selectedFolder: "tenders", folders: folders)
+                == "Tenders"
+        )
+        // A key the folder list has moved on from (a rename, a sync): named, never blank.
+        #expect(
+            listTitle(selectedAccount: "work", selectedFolder: "gone", folders: folders)
+                == L10n.folder_fallback()
+        )
+    }
+
     // MARK: every row in the pane is its own row
 
     @Test func twoAccountsInboxesAreTwoRows() {

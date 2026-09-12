@@ -58,6 +58,20 @@ selection itself is the client's, and rule 1 says why.
    dead buttons taking height from a list that has less of it to give. That bar keeps the count,
    which on the desktop moves to the reading pane (rule 10).
 
+   **What is on the standing bar and is not a selection action sits past a divider, and is never
+   disabled.** **Sync** is that everywhere the bar stands: it acts on the mailbox, so it goes after
+   the selection's own buttons rather than among them. It is on the bar because that is where a
+   user reaches for it, the way Outlook's own toolbar carries Sync beside Delete and Archive, and
+   because the alternative was a footer button nobody looks at. It is **not** on the mode bar the
+   phones and the iPad raise: that bar is the selection mode's chrome, and syncing there is the
+   pull-to-refresh gesture on the list itself.
+
+   On **Windows** the bar spans the whole window rather than the two mail panes, and **New Mail**
+   is the second such button, at its head. That is a placement decision the platform forces: the
+   folder pane collapses to an icon strip, so a New Mail living in the pane can be taken off screen
+   by the pane toggle, and nothing else in the app writes a message. The bar is the one row that is
+   always there and always the same width.
+
 6. **Archive and delete ask nothing.** Both are recoverable, and a confirmation over fifty rows
    the user deliberately picked is a dialog they will learn to dismiss unread. **Delete
    permanently keeps whatever confirmation its single-row path already has on that platform**, so
@@ -123,13 +137,13 @@ selection itself is the client's, and rule 1 says why.
 
 ## Per-platform
 
-| Platform | Enter | Extend | Bar | Count | Delete key | Escape | Row menu | Where |
-|---|---|---|---|---|:---:|:---:|:---:|---|
-| macOS | ⌘-click a row | ⇧-click a range | standing, over both panes | reading pane | ✅ | ✅ | ✅ | `Mailcal.Selection.swift` |
-| iPhone / iPadOS | **Select** in the toolbar | tap toggles | over the list, with the mode | on the bar | — | — | ✅ | `Mailcal.Selection.swift` |
-| Windows | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | `MainWindow.xaml`, `Views/MailListView.Selection.cs` |
-| Android | long-press a row | tap toggles | contextual top bar | on the bar | — | — | — | `MailSelectionBar.kt` |
-| Linux | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | `ui/selection_bar.rs`, `ui/selection_input.rs` |
+| Platform | Enter | Extend | Bar | Count | Delete key | Escape | Row menu | Sync on the bar | Where |
+|---|---|---|---|---|:---:|:---:|:---:|:---:|---|
+| macOS | ⌘-click a row | ⇧-click a range | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ✅ | `Mailcal.Selection.swift` |
+| iPhone / iPadOS | **Select** in the toolbar | tap toggles | over the list, with the mode | on the bar | — | — | ✅ | n/a: pull to refresh | `Mailcal.Selection.swift` |
+| Windows | Ctrl-click a row | Shift-click, Ctrl+A | standing, over the whole window | reading pane | ✅ | ✅ | ✅ | ✅, and New Mail at the head | `MainWindow.xaml`, `Views/MailListView.Selection.cs` |
+| Android | long-press a row | tap toggles | contextual top bar | on the bar | — | — | — | n/a: pull to refresh | `MailSelectionBar.kt` |
+| Linux | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ✅ | `ui/selection_bar.rs`, `ui/selection_input.rs` |
 
 **Row menu** is rule 12: a menu opened on a selected row acts on the whole selection. Android is
 the one dash, and has nothing to reconcile: long-press is how a selection *starts* there, so a row

@@ -31,14 +31,13 @@ extension ReadingView {
             if exporting {
                 ProgressView().controlSize(.small)
             } else if iconsOnly {
-                Image(systemName: "ellipsis").frame(minWidth: 24, minHeight: 24)
+                Image(systemName: "ellipsis").frame(minWidth: iconBox, minHeight: iconBox)
             } else {
                 Label(L10n.a11y_more_actions(), systemImage: "ellipsis")
                     .labelStyle(UntitledIconLabelStyle())
             }
         }
         .buttonStyle(.bordered)
-        .controlSize(compactActions ? .large : .small)
         .accessibilityLabel(L10n.a11y_more_actions())
         .popover(isPresented: $overflowOpen, arrowEdge: .bottom) {
             overflowItems

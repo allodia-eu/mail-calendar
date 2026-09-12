@@ -273,9 +273,15 @@ pub struct MailboxListSnapshot {
     pub folders: Vec<FolderRow>,
     /// Every account's sorted folder list: the folder pane's source, populated in every view.
     pub account_folders: Vec<AccountFolderRow>,
-    /// The badge on the unified "All Inboxes" row: every account's Inbox unread, summed.
-    /// `0` shows no badge.
+    /// The badge on the **All Accounts** group's Inbox row: every account's Inbox unread,
+    /// summed. `0` shows no badge. The group's own row carries none, as an account's does not.
     pub unified_unread: u32,
+    /// Whether the **All Accounts** group's tree is open in the folder pane.
+    ///
+    /// Render the chevron from this and change it with `Intent::SetUnifiedExpanded`; the
+    /// state is the core's and persisted, so a client that keeps its own copy will disagree
+    /// with the other platforms and lose it on restart (`docs/folder-pane.md`).
+    pub unified_expanded: bool,
     /// The selected folder's key, or `None` for the account's unified all-mail view.
     pub selected: Option<String>,
     /// The mode the rows are grouped in.

@@ -158,6 +158,7 @@ impl TryFrom<Intent> for AppIntent {
             Intent::SetAccountExpanded { account, expanded } => {
                 Self::SetAccountExpanded { account, expanded }
             }
+            Intent::SetUnifiedExpanded { expanded } => Self::SetUnifiedExpanded { expanded },
             Intent::SetAccountSenderName { account, name } => {
                 Self::SetAccountSenderName { account, name }
             }

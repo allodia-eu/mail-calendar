@@ -72,8 +72,13 @@ final class MailboxModel {
     /// Every account's sorted folder list, keyed by account id in ``accounts`` order. Populated in
     /// every view, so the pane never empties.
     var accountFolders: [AccountFolderRow] = []
-    /// The All Inboxes badge: every account's Inbox unread, summed. `0` shows none.
+    /// The badge on the All Accounts group's Inbox row: every account's Inbox unread, summed.
+    /// `0` shows none.
     var unifiedUnread: UInt32 = 0
+    /// Whether the All Accounts group's tree is open in the pane. The core's, and persisted, like
+    /// every account's own (`docs/folder-pane.md` rule 3); seeded open because that is the state
+    /// of a group nobody has shut, so the very first frame agrees with the core.
+    var unifiedExpanded = true
     var selected: String?
     /// How far back the active search looked, or `nil` when the list is not a search, the sync
     /// depth of the accounts its scope covered (`docs/search.md`).

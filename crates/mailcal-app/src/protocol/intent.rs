@@ -48,6 +48,13 @@ pub enum Intent {
         /// Whether the tree is open.
         expanded: bool,
     },
+    /// Open or shut the **All Accounts** group's tree, and remember it across launches. One more
+    /// tree in the pane, under [`Intent::SetAccountExpanded`]'s rules; its row navigates nowhere,
+    /// so this is the only thing activating it does.
+    SetUnifiedExpanded {
+        /// Whether the group's tree is open.
+        expanded: bool,
+    },
     /// Show one folder's mail. A [`FolderRef`], never a bare key: a key is unique only within
     /// its account, and there is no folder-only form (`docs/folder-pane.md`, rule 14). An
     /// account's own all-mail view is [`Intent::SelectAccount`].

@@ -16,11 +16,13 @@ use super::{AppInput, selection::SelectionSummary};
 use crate::l10n;
 
 pub(crate) struct SelectionBar {
-    root: gtk::WindowHandle,
+    root: gtk::Box,
     /// The read and flag buttons, whose label, icon and action come from what is selected rather
     /// than from a fixed pair (`docs/list-selection.md`, rule 5).
     read: PairedButton,
     flag: PairedButton,
+    #[cfg(test)]
+    sync: gtk::Button,
     /// Everything that names the selection, so it goes insensitive with an empty one. Select all
     /// is deliberately absent: it is how a pointer starts a selection in the first place.
     needs_selection: Vec<gtk::Button>,
@@ -83,6 +85,10 @@ impl SelectionBar {
         let input = sender.clone();
         clear.connect_clicked(move |_| input.emit(AppInput::ClearSelection));
 
+        let sync = labelled_button(SYNC_ICON, l10n::action_refresh());
+        let input = sender.clone();
+        sync.connect_clicked(move |_| input.emit(AppInput::RefreshRequested));
+
         let actions = gtk::Box::new(gtk::Orientation::Horizontal, 10);
         for button in [
             &read.button,
@@ -95,6 +101,11 @@ impl SelectionBar {
         ] {
             actions.append(button);
         }
+        let divider = gtk::Separator::new(gtk::Orientation::Vertical);
+        divider.set_margin_top(6);
+        divider.set_margin_bottom(6);
+        actions.append(&divider);
+        actions.append(&sync);
         // Horizontal scrolling rather than a squeeze: the window can be narrowed until the seven
         // buttons no longer fit, and a row of them that vanishes takes the delete the user was
         // reaching for with it.
@@ -115,16 +126,6 @@ impl SelectionBar {
         bar.set_margin_start(4);
         bar.set_margin_end(4);
         bar.append(&scroll);
-        // The bar is the mail surface's top row, so the window's own controls belong on it. The
-        // reading pane's header sits a row below, and a close button there is a close button short
-        // of the corner a pointer is thrown at. Every other page carries them on its rightmost
-        // header, which is that page's top row.
-        bar.append(&gtk::WindowControls::new(gtk::PackType::End));
-
-        // A row holding the close button is the window's caption row, so it drags and double-clicks
-        // like one; the buttons and the scroller still claim their own presses first.
-        let root = gtk::WindowHandle::new();
-        root.set_child(Some(&bar));
         let needs_selection = vec![
             read.button.clone(),
             flag.button.clone(),
@@ -134,14 +135,16 @@ impl SelectionBar {
             clear,
         ];
         Self {
-            root,
+            root: bar,
             read,
             flag,
+            #[cfg(test)]
+            sync,
             needs_selection,
         }
     }
 
-    pub(crate) fn widget(&self) -> &gtk::WindowHandle {
+    pub(crate) fn widget(&self) -> &gtk::Box {
         &self.root
     }
 
@@ -276,6 +279,7 @@ pub(super) fn action_icon(action: BulkAction) -> &'static str {
 
 pub(super) const SELECT_ALL_ICON: &str = "edit-select-all-symbolic";
 pub(super) const CLEAR_ICON: &str = "window-close-symbolic";
+pub(super) const SYNC_ICON: &str = "view-refresh-symbolic";
 
 #[cfg(test)]
 #[path = "selection_bar_tests.rs"]

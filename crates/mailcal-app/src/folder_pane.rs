@@ -1,4 +1,4 @@
-//! Which accounts have their folder tree open in the sidebar.
+//! Which trees are open in the sidebar: one per account, plus the **All Accounts** group's.
 //!
 //! Held in memory and consulted on **every** snapshot rebuild; including one per search
 //! keystroke: so it cannot be a file read the way the per-sync settings are. The persisted
@@ -36,6 +36,22 @@ impl FolderPaneState {
         self.prefs.account_expanded(account)
     }
 
+    /// Whether the All Accounts group's tree is open; `true` for a group nobody has shut.
+    pub(crate) const fn unified(&self) -> bool {
+        self.prefs.unified_expanded()
+    }
+
+    /// Records whether the All Accounts group is open and persists it. Returns whether
+    /// anything changed, for the reason `set` below does.
+    fn set_unified(&mut self, expanded: bool) -> bool {
+        if self.prefs.unified_expanded() == expanded {
+            return false;
+        }
+        self.prefs.set_unified_expanded(expanded);
+        self.persist();
+        true
+    }
+
     /// Records whether `account`'s tree is open and persists it. Returns whether anything
     /// changed, so a client re-asserting the state it already has costs no disk write and no
     /// snapshot rebuild.
@@ -64,6 +80,7 @@ impl FolderPaneState {
             on_disk
                 .collapsed_accounts
                 .clone_from(&self.prefs.collapsed_accounts);
+            on_disk.unified_collapsed = self.prefs.unified_collapsed;
             let _ = save_preferences(path, &on_disk);
         }
     }
@@ -95,6 +112,32 @@ impl<P: Provider> App<P> {
             .lock()
             .expect("folder-pane mutex poisoned")
             .expanded(account)
+    }
+
+    /// Opens or shuts the All Accounts group's tree, and persists the choice.
+    ///
+    /// The group is one more tree in the pane, so it follows the account trees' rules: not
+    /// navigation, independent of what is selected, and remembered across launches
+    /// (`docs/folder-pane.md`).
+    // `async` with no inner `await`: see `set_account_expanded`.
+    #[allow(clippy::unused_async)]
+    pub async fn set_unified_expanded(&self, expanded: bool) {
+        let changed = self
+            .folder_pane
+            .lock()
+            .expect("folder-pane mutex poisoned")
+            .set_unified(expanded);
+        if changed {
+            self.rebuild_snapshot().await;
+        }
+    }
+
+    /// Whether the All Accounts group's tree is open; read while stamping a snapshot.
+    pub(crate) fn unified_expanded(&self) -> bool {
+        self.folder_pane
+            .lock()
+            .expect("folder-pane mutex poisoned")
+            .unified()
     }
 
     /// Forgets an account's expansion state (account removal).
@@ -146,12 +189,31 @@ mod tests {
     }
 
     #[test]
+    fn the_all_accounts_group_opens_expanded_and_its_shut_state_survives_a_reload() {
+        // `bool::default()` is `false` here too, and shut is the one default that would hide
+        // the group's own Inbox row: the only route to the unified list.
+        assert!(FolderPaneState::new(None).unified());
+        let path = scratch_prefs("unified");
+
+        let mut state = FolderPaneState::new(Some(path.clone()));
+        assert!(state.set_unified(false));
+        assert!(!state.unified());
+        // Shutting the group leaves every account's own tree alone.
+        assert!(state.expanded("acct-1"));
+
+        assert!(!FolderPaneState::new(Some(path)).unified());
+    }
+
+    #[test]
     fn re_asserting_the_current_state_changes_nothing() {
         let mut state = FolderPaneState::new(None);
         // Already expanded: no write, no snapshot rebuild.
         assert!(!state.set("acct-1", true));
         assert!(state.set("acct-1", false));
         assert!(!state.set("acct-1", false));
+        assert!(!state.set_unified(true));
+        assert!(state.set_unified(false));
+        assert!(!state.set_unified(false));
     }
 
     #[test]
@@ -164,9 +226,12 @@ mod tests {
         let mut state = FolderPaneState::new(Some(path.clone()));
         state.set("acct-1", false);
 
+        state.set_unified(false);
+
         let after = load_preferences(&path);
         assert_eq!(after.quote_style, QuoteStyle::LineAndHeader);
         assert!(after.collapsed_accounts.contains("acct-1"));
+        assert!(after.unified_collapsed);
     }
 
     #[test]

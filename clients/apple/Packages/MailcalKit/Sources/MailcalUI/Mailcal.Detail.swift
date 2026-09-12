@@ -121,6 +121,9 @@ extension ContentView {
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 Divider()
             }
+            // A status line, and nothing else. New Mail moved to the window toolbar and Sync to
+            // the actions bar, which is where a user coming from Outlook reaches for either; a
+            // footer is the one place on the window neither of them is looked for.
             HStack {
                 Text(footer).font(.caption).foregroundStyle(.secondary)
                 // The background-sync hint: a pass nobody started, named in the status line the
@@ -130,48 +133,25 @@ extension ContentView {
                     Text(hint).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button(L10n.action_compose()) { compose = .new }
-                    .buttonStyle(.borderedProminent)
-                Button(L10n.action_refresh()) { model.refresh() }
             }
             .padding(10)
         }
     }
 
+    /// What the list is showing, and nothing else.
+    ///
+    /// The search field left this row for the window toolbar (Mailcal.Toolbar.swift): it searches
+    /// every account and folder rather than the column it sat over, so the window's centre is
+    /// where it belongs. Settings is reached from the sidebar (or ⌘,), which is where every other
+    /// destination in this app lives.
     private var messageListHeader: some View {
-        HStack(spacing: 10) {
-            Text(searchText.isEmpty ? currentFolderName : L10n.search_results())
-                .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(minWidth: 72, maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 4) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField(L10n.search_placeholder(), text: $searchText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(minWidth: 140, idealWidth: 180, maxWidth: 220)
-                    .onChange(of: searchText) { _, query in model.search(query) }
-                // The way out of search, and the only one this layout has: the phone's field
-                // carries its own and the sidebar's back gesture is not on screen here. Emptying
-                // the field is what leaves search (`onChange` above dispatches the clear), so the
-                // button has one job and the core has one route in.
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel(L10n.search_clear())
-                    .help(L10n.search_clear())
-                }
-            }
-            // Settings is reached from the sidebar (or ⌘,), which is where every other destination
-            // in this app lives. A second gear over the message list offered the same screen twice
-            // from two different places, so this header stays on what it is for: the folder and the
-            // search field.
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        Text(searchText.isEmpty ? currentFolderName : L10n.search_results())
+            .font(.headline)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(minWidth: 72, maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
     }
 
     /// The calendar: the paged time grid, the month, or the agenda.

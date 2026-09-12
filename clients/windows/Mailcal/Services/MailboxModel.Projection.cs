@@ -108,6 +108,7 @@ public sealed partial class MailboxModel
         SyncAccounts(snapshot.Accounts, snapshot.AccountFolders);
         SyncFolders(snapshot.Folders);
         UnifiedUnread = snapshot.UnifiedUnread;
+        UnifiedExpanded = snapshot.UnifiedExpanded;
         Mode = snapshot.Mode == ViewMode.Threaded ? ViewModeKind.Threaded : ViewModeKind.Flat;
         SelectedAccount = snapshot.SelectedAccount;
         SelectedFolder = snapshot.Selected;
@@ -178,7 +179,7 @@ public sealed partial class MailboxModel
         }
 
         // The derived mail count/name labels may have changed with the collections.
-        Raise(nameof(CurrentFolderName));
+        RaiseListTitle();
         Raise(nameof(MailCountText));
 
         // The reading body (a potentially large HTML string) only changes on a Reading

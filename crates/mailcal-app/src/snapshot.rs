@@ -272,6 +272,9 @@ impl<P: Provider> App<P> {
         for row in &mut snapshot.accounts {
             row.expanded = self.account_expanded(&row.id);
         }
+        // The All Accounts group is one more tree in the same pane, and the projection never
+        // sets it, so this is also where it is filled in at all.
+        snapshot.unified_expanded = self.unified_expanded();
     }
 
     /// Fetches every account's sorted folder list in `account_rows` order: for the
