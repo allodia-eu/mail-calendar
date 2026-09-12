@@ -191,6 +191,13 @@ imap_append "$MAIL_DIR/09-reply-all.eml" INBOX
 log "appending the many-attachment fixture to INBOX (reading-view overflow; sequence-safe)"
 imap_append "$MAIL_DIR/10-many-attachments.eml" INBOX
 
+# Sequence-safe for the same reason, and the counterpart to 08-html.eml on the fitting rule
+# (docs/reading-zoom.md): 600px in the markup and again inline, with no media query anywhere, so a
+# pane narrower than that has nothing to reflow. It is the case a responsive newsletter cannot
+# stand in for, because a responsive one fits by adapting and this one can only fit by scaling.
+log "appending the fixed-width newsletter to INBOX (reading-view fit-to-width; sequence-safe)"
+imap_append "$MAIL_DIR/11-fixed-width-newsletter.eml" INBOX
+
 log "putting calendar fixtures into the default calendar"
 put_calendar "$CAL_DIR/one-off.ics" oneoff-2001
 put_calendar "$CAL_DIR/recurring-weekly.ics" weekly-2002

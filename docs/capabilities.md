@@ -41,6 +41,9 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Folder and message rows expose a named native action a screen reader can invoke | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Threaded conversation view: the whole conversation (received + your Sent replies, across folders): inline on desktop, a conversation reading screen on Android + archive conversation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Reading view (sanitised HTML, inline CID images, recipient headers, remote-image gating, retry) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A message is laid out against the **reading pane's own width**, so a newsletter's own mobile rules apply on a phone and in a narrow pane ([docs](docs/reading-zoom.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A message too wide to reflow (a fixed 600px newsletter) is **scaled down to fit** rather than cut off at the right edge; the desktop panes scroll sideways instead, no engine offering the fit without script in the message ([docs](docs/reading-zoom.md)) | ✅ | — | ✅ | — | ✅ | — |
+| **Pinch to zoom a message**, touchscreen or trackpad, 0.25×–5×, starting again at each message's own fit; Windows adds Ctrl+scroll and Ctrl +/−, Linux Ctrl+scroll ([docs](docs/reading-zoom.md)) | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Offline-first bodies: synced message bodies auto-download after **every** sync (add, refresh, IDLE push), as wide as the transport allows, so opens are instant, the synced window reads offline, and body search covers it. Each account chooses its own cap (2/5/10 MB or no limit), defaulting to 2 MB on a phone and no limit on a computer | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Reading **pane**: 3-pane desktop layout (sidebar \| list \| reading) | ✅ | ✅ | ✅ (iPad) | ✅ | — | ✅ |
 | Reading-view actions: reply / reply-all / forward / archive / delete | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

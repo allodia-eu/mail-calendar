@@ -118,6 +118,9 @@ impl SecureWebView {
 
         let expecting_load = Rc::new(Cell::new(false));
         install_navigation_gates(&view, kind, Rc::clone(&expecting_load));
+        if kind == DocumentKind::Reading {
+            install_zoom_gestures(&view);
+        }
 
         let paint = Rc::new(std::cell::RefCell::new(PaintGate::default()));
         if kind == DocumentKind::Reading {
@@ -182,6 +185,11 @@ impl SecureWebView {
         }
         self.last_document.replace(Some(next.clone()));
         self.paint.borrow_mut().asked();
+        // A zoom belongs to the message it was made on (`docs/reading-zoom.md`). `zoom-level` is
+        // the view's, not the document's, so it outlives a load. Reset here rather than beside
+        // each `load_html`: the deferred replay in `compile_filter` re-loads the document this
+        // call registered, so it is the same message and must keep nothing of its own.
+        self.view.set_zoom_level(1.0);
         if !self.filter_ready.get() {
             return;
         }
@@ -196,6 +204,7 @@ impl SecureWebView {
     pub(crate) fn clear(&self) {
         self.last_document.replace(None);
         self.paint.borrow_mut().asked();
+        self.view.set_zoom_level(1.0);
         if !self.filter_ready.get() {
             return;
         }
@@ -255,6 +264,100 @@ fn build_context_menu(
         ContextMenuAction::SelectAll,
     ));
     false
+}
+
+/// The range the reader may zoom the message to, matching what a browser offers.
+const ZOOM_RANGE: std::ops::RangeInclusive<f64> = 0.25..=5.0;
+
+/// How far a held pinch must have moved before the message is laid out again.
+///
+/// `zoom-level` is a **page** zoom: each change re-lays-out the whole document in the web process,
+/// which is a great deal more work than a touchscreen's report rate. Spent on every
+/// `scale-changed`, the queued layouts outrun what the engine can do and the message crawls along
+/// behind the fingers. So a held pinch buys a layout only where it has moved enough to see, and the
+/// scale the gesture actually ended on is applied in full when it ends.
+const ZOOM_GESTURE_STEP: f64 = 0.05;
+
+/// Names on our own zoom controllers.
+///
+/// Not decoration: **WebKitGTK installs a `GtkGestureZoom` of its own on every `WebView`**, so
+/// `observe_controllers()` answers with one whether or not we added anything. A test that looks for
+/// "a `GestureZoom`" therefore finds the toolkit's and passes over a host that installs none, which
+/// is how the composer briefly appeared to have a zoom it never had. Ours are identified by name.
+pub(super) const PINCH_CONTROLLER: &str = "mailcal-reading-pinch";
+pub(super) const SCROLL_CONTROLLER: &str = "mailcal-reading-ctrl-scroll";
+
+/// Pinch and Ctrl+scroll zoom for the reading view (`docs/reading-zoom.md`). WebKitGTK carries a
+/// `zoom-level` but binds nothing of ours to it, so unlike the other three hosts this one has to
+/// supply both gestures itself.
+///
+/// ⚠️ **Both controllers must be in the `Capture` phase.** The web view claims a pinch and a scroll
+/// for its own handling, so a controller left in the default `Bubble` phase is never reached and
+/// the gesture silently does nothing. A scroll without Ctrl still `Proceed`s, so ordinary scrolling
+/// reaches the page untouched.
+fn install_zoom_gestures(view: &WebView) {
+    let zoom = gtk::GestureZoom::new();
+    zoom.set_name(Some(PINCH_CONTROLLER));
+    zoom.set_propagation_phase(gtk::PropagationPhase::Capture);
+    // The scale a pinch reports is relative to where that pinch began, not to 1, so the level it
+    // started from has to be captured when it does.
+    let started_at = Rc::new(Cell::new(1.0_f64));
+    // The level the gesture has asked for, whether or not it has been paid for yet.
+    let asked_for = Rc::new(Cell::new(1.0_f64));
+    let begin_view = view.clone();
+    let begin_level = Rc::clone(&started_at);
+    let begin_asked = Rc::clone(&asked_for);
+    zoom.connect_begin(move |gesture, _| {
+        // The claim is what keeps the pinch ours, on a touchscreen and on a touchpad alike.
+        // WebKitGTK's own `GtkGestureZoom` drives its magnification: the rendered page is scaled
+        // on the compositor while the gesture is held and committed to a page scale when it ends.
+        // An unclaimed gesture reports the event unhandled, it carries on past the capture phase
+        // and both run, so the picture moves at the product of the two scales and the commit
+        // leaves the page layer scaled with no offset for one frame, which the reader sees as the
+        // message jumping to its top-left corner and back on release. `zoom-level` is the scale
+        // `docs/reading-zoom.md` rules 4 and 5 are written against, and this makes it the only one.
+        gesture.set_state(gtk::EventSequenceState::Claimed);
+        begin_level.set(begin_view.zoom_level());
+        begin_asked.set(begin_view.zoom_level());
+    });
+    let pinch_view = view.clone();
+    let pinch_asked = Rc::clone(&asked_for);
+    let pinch_level = Rc::clone(&started_at);
+    zoom.connect_scale_changed(move |_, scale| {
+        let level = clamp_zoom(pinch_level.get() * scale);
+        pinch_asked.set(level);
+        if (level - pinch_view.zoom_level()).abs() >= level * ZOOM_GESTURE_STEP {
+            pinch_view.set_zoom_level(level);
+        }
+    });
+    let end_view = view.clone();
+    zoom.connect_end(move |_, _| end_view.set_zoom_level(asked_for.get()));
+    view.add_controller(zoom);
+
+    let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
+    scroll.set_name(Some(SCROLL_CONTROLLER));
+    scroll.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let scroll_view = view.clone();
+    scroll.connect_scroll(move |controller, _, dy| {
+        if !controller
+            .current_event_state()
+            .contains(gtk::gdk::ModifierType::CONTROL_MASK)
+        {
+            return glib::Propagation::Proceed;
+        }
+        // A tenth per notch, compounding, so a step covers the same proportion of the range
+        // wherever the reader already is.
+        let step = if dy < 0.0 { 1.1 } else { 1.0 / 1.1 };
+        scroll_view.set_zoom_level(clamp_zoom(scroll_view.zoom_level() * step));
+        glib::Propagation::Stop
+    });
+    view.add_controller(scroll);
+}
+
+/// Holds a zoom level inside `ZOOM_RANGE`. A pinch reports an unbounded scale, so without this a
+/// long enough one leaves the message at a size with no gesture back.
+fn clamp_zoom(level: f64) -> f64 {
+    level.clamp(*ZOOM_RANGE.start(), *ZOOM_RANGE.end())
 }
 
 fn hardened_settings(kind: DocumentKind) -> Settings {
@@ -356,62 +459,5 @@ fn compile_filter(setup: &FilterSetup, sender: relm4::Sender<AppInput>, kind: Do
 }
 
 #[cfg(test)]
-mod tests {
-    use webkit6::LoadEvent;
-
-    use super::PaintGate;
-
-    /// The sequences below are what WebKitGTK actually emits, read off a `load-changed` handler
-    /// on this toolkit version. They are fixtures rather than a reading of the documentation,
-    /// because the documented order is the one this gate already got wrong.
-    ///
-    /// The reading pane reveals the view on `painted()`, so a gate that answers `true` too early
-    /// puts the black first frame back, and one that never answers `true` leaves the body area
-    /// blank for the life of the message. Only the first is recoverable by the next render, which
-    /// is why `Started` gates `Finished` rather than a count of loads in flight: a spurious
-    /// `Finished` costs one early reveal, a missing one costs the message.
-    #[test]
-    fn a_cancelled_load_does_not_hand_its_completion_to_the_next_message() {
-        // Two opens with a render turn between them, which is every open: the first load has
-        // committed by the time the second is asked for, and its `Finished` then arrives *after*
-        // the call that cancelled it and *before* the new load starts.
-        let mut gate = PaintGate::default();
-        gate.asked();
-        assert!(!gate.observed(LoadEvent::Started));
-        assert!(!gate.observed(LoadEvent::Committed));
-        assert!(gate.observed(LoadEvent::Finished), "the first page arrives");
-        assert!(gate.painted());
-
-        gate.asked();
-        assert!(
-            !gate.painted(),
-            "nothing on screen belongs to the new message"
-        );
-        assert!(
-            !gate.observed(LoadEvent::Finished),
-            "the cancelled load's completion is not this message's"
-        );
-        assert!(
-            !gate.painted(),
-            "revealing here shows a view that has not painted, which is the black frame"
-        );
-        assert!(!gate.observed(LoadEvent::Started));
-        assert!(!gate.observed(LoadEvent::Committed));
-        assert!(gate.observed(LoadEvent::Finished));
-        assert!(gate.painted());
-    }
-
-    #[test]
-    fn two_asks_inside_one_turn_still_reveal_the_page() {
-        // `load_html` twice with no turn between coalesces: the first load never starts, so only
-        // one set of events ever arrives. A gate counting loads in flight would wait for a second
-        // `Finished` that is never coming, and hold the body area blank.
-        let mut gate = PaintGate::default();
-        gate.asked();
-        gate.asked();
-        assert!(!gate.observed(LoadEvent::Started));
-        assert!(!gate.observed(LoadEvent::Committed));
-        assert!(gate.observed(LoadEvent::Finished));
-        assert!(gate.painted());
-    }
-}
+#[path = "webview_tests.rs"]
+pub(crate) mod tests;

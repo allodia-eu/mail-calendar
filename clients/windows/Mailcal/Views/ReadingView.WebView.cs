@@ -123,6 +123,14 @@ public sealed partial class ReadingView
         settings.AreHostObjectsAllowed = false;
         settings.IsWebMessageEnabled = false;
         settings.AreDefaultContextMenusEnabled = false;
+        // The reader's zoom: touch pinch, and Ctrl+scroll / Ctrl +/- (docs/reading-zoom.md). Both
+        // default to true, and are stated anyway, because this file is where the reading host's
+        // behaviour is read off and a default a later WebView2 changes would take the pinch away
+        // silently. What cannot be stated here is rule 5's reset per message: the zoom factor lives
+        // on CoreWebView2Controller, which the WinUI 3 WebView2 element does not surface, so a zoom
+        // outlives the message it was made on. Recorded under that contract's "Known gaps".
+        settings.IsPinchZoomEnabled = true;
+        settings.IsZoomControlEnabled = true;
         // Block in-view navigations; allow only our NavigateToString. A clicked link opens
         // in the default browser instead (OnNavigationStarting).
         core.NavigationStarting += OnNavigationStarting;

@@ -290,6 +290,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         the_overflow_offers_the_export_named_after_the_subject_on_screen();
     crate::ui::reading::canvas::tests::the_drawn_canvas_paints_the_page_the_core_names();
     crate::ui::reading::canvas::tests::the_web_view_base_is_the_same_page();
+    crate::ui::webview::tests::the_readers_zoom_gestures_listen_ahead_of_the_web_view();
+    crate::ui::webview::tests::opening_another_message_starts_again_at_its_own_fit();
     crate::ui::modal::tests::a_modal_renders_its_title_in_native_chrome_only();
     crate::ui::avatar::tests::avatars_and_unread_dots_are_presentational();
     crate::ui::settings::tests::a_closed_settings_window_is_not_on_screen();

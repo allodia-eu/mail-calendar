@@ -11,6 +11,11 @@ platform (Linux, web, …). It applies the security posture in
 raising a gate on one platform raises it for **all**; see the enforcement rule at the end and in
 [`../AGENTS.md`](../AGENTS.md). Raising the bar anywhere raises it everywhere.
 
+**Not here:** how the body is *sized* once these gates are met (the width it lays out against, what
+happens when it is wider than the pane, and the reader's zoom) is [`reading-zoom.md`](reading-zoom.md).
+The two meet at one point, stated there: a client may honour the document's viewport declaration
+only because Layer 1 below drops the message's own `<meta>`.
+
 ## The layers
 
 Defence in depth: each layer holds even if another is weakened. Layers 1–2 are **shared Rust**
@@ -25,9 +30,14 @@ core sanitises it **once** for every client (never re-implemented per platform):
 - **Removed:** `<script>` + contents, event handlers (`on*`), `<iframe>`/`<object>`/`<embed>`/
   `<form>`, `<base>`/`<meta>` (so a message can't set its own refresh/CSP), and any URL scheme
   other than `http(s)`/`mailto`/`data`/`cid`.
-- **Kept:** presentational HTML/CSS: inline `style`, `<style>` blocks, `class` (stripping CSS
-  makes real mail illegible), and remote `<img>` sources (the load is gated downstream, not the
-  markup).
+- **Kept:** presentational HTML/CSS: inline `style`, `<style>` blocks, `class` and `id` (stripping
+  CSS makes real mail illegible), and remote `<img>` sources (the load is gated downstream, not the
+  markup). `id` is a selector hook exactly like `class`: a newsletter's mobile layout commonly
+  hangs off it alone, its container table carrying a fixed `width="600"` that only
+  `table[id=templateContainer]{width:100% !important}`, inside a `max-width:480px` `@media` block,
+  narrows. It is kept **unprefixed**, or that rule would match nothing and the message would lay
+  out 600px wide in a phone's ~384px viewport. Nothing here collides: the reading document holds
+  one message and no script.
 - **Reported:** `has_remote_images`: whether the body *would* load a remote resource (remote
   `<img>`, CSS `url(...)`, `@import`, protocol-relative `//…`, refs inside `<style>`), so a client
   offers the "load remote images" confirmation only when there is something to gate.
@@ -183,7 +193,7 @@ Source of truth per client:
   `clients/android/app/src/main/java/eu/allodia/mailcal/InvitationCard.kt`,
   `clients/windows/Mailcal/Views/InvitationCardView.cs`,
   `clients/linux/src/ui/invitation/card.rs`
-- macOS + iOS/iPadOS (shared Apple client): `clients/apple/Packages/MailcalKit/Sources/MailcalUI/ReadingView.swift`,
+- macOS + iOS/iPadOS (shared Apple client): `clients/apple/Packages/MailcalKit/Sources/MailcalUI/ReadingWebView.swift`,
   one `WKWebView` host serves every Apple platform. On iOS/iPadOS the external-link handoff uses
   `UIApplication.open`, attachment Open uses Quick Look and attachment Save the share sheet: the
   iOS analogues of macOS's `NSWorkspace.open` / save panel (`PlatformShims.swift`).

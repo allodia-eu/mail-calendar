@@ -1,0 +1,67 @@
+From: Wide Sender <wide@example.com>
+To: Alice Tester <alice@test.local>
+Subject: Fixed-width newsletter that cannot reflow
+Date: Mon, 05 Jan 2026 11:15:00 +0000
+Message-ID: <wide-0011@test.local>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt-0011"
+
+--alt-0011
+Content-Type: text/plain; charset=utf-8
+
+The plain-text alternative of the fixed-width fixture.
+
+The HTML part is a 600px table with no media queries at all, which is the half
+of real mail that cannot adapt itself to a narrow pane.
+
+--alt-0011
+Content-Type: text/html; charset=utf-8
+
+<html>
+  <head>
+    <title>Fixed-width newsletter</title>
+  </head>
+  <body style="margin:0;padding:0;background:#eeeeee;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#eeeeee;">
+      <tr>
+        <td align="center" style="padding:20px;">
+          <table width="600" cellpadding="0" cellspacing="0" border="0"
+                 style="width:600px;background:#ffffff;font-family:Georgia,serif;">
+            <tr>
+              <td style="padding:24px;">
+                <h1 style="margin:0 0 12px;font-size:26px;color:#16598d;">A column pinned to 600px</h1>
+                <p style="margin:0 0 12px;font-size:15px;line-height:1.6;">
+                  Nothing in this message adapts. There is no viewport tag, no
+                  <code>&#64;media</code> block and no percentage width anywhere inside the
+                  container: the table is 600 pixels wide in the markup and again in its inline
+                  style, which is how a great deal of real mail is still authored.
+                </p>
+                <p style="margin:0 0 12px;font-size:15px;line-height:1.6;">
+                  A reading pane narrower than 600px therefore has nothing to work with. The
+                  contract's answer is to scale the whole page down until it fits rather than let
+                  this sentence run off the right edge, and to leave the reader a pinch to get
+                  back in. See docs/reading-zoom.md.
+                </p>
+                <table width="552" cellpadding="0" cellspacing="0" border="0"
+                       style="width:552px;border-collapse:collapse;font-size:14px;">
+                  <tr>
+                    <td style="border:1px solid #d9d9d9;padding:8px;width:184px;">First column</td>
+                    <td style="border:1px solid #d9d9d9;padding:8px;width:184px;">Second column</td>
+                    <td style="border:1px solid #d9d9d9;padding:8px;width:184px;">Third column</td>
+                  </tr>
+                  <tr>
+                    <td style="border:1px solid #d9d9d9;padding:8px;">A fixed cell</td>
+                    <td style="border:1px solid #d9d9d9;padding:8px;">Another fixed cell</td>
+                    <td style="border:1px solid #d9d9d9;padding:8px;">The rightmost cell</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+
+--alt-0011--

@@ -9,6 +9,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import java.io.ByteArrayInputStream
@@ -104,6 +105,28 @@ private class RemotePolicy {
     var allowRemote = false
 }
 
+// Every WebSettings flag the reading host depends on, in one place so the JVM suite can state
+// them: each is a contract cell, and every one of them is a default this happens to agree or
+// disagree with, which a reader of the factory below cannot tell apart.
+internal fun WebSettings.applyReadingPolicy() {
+    // The native half of the rendering gates (docs/rendering-security.md).
+    javaScriptEnabled = false
+    allowFileAccess = false
+    allowContentAccess = false
+    // Fitting (docs/reading-zoom.md). `useWideViewPort` is what makes the shared document's
+    // `width=device-width` reach the engine at all: left at its default of **false** the viewport
+    // tag is ignored outright, so a newsletter's own mobile rules never fire and it lays out at
+    // 600px on a phone. Honouring a viewport tag is safe here precisely because the sanitiser
+    // drops `<meta>`, so the only one in the document is ours. `loadWithOverviewMode` then scales
+    // a message too wide for the pane down until it fits, which is the case no `@media` rule can
+    // reach; it does nothing without the wide viewport above.
+    useWideViewPort = true
+    loadWithOverviewMode = true
+    // The reader's pinch, without the legacy floating +/- buttons over the message.
+    builtInZoomControls = true
+    displayZoomControls = false
+}
+
 // Renders the core's sanitised HTML in a hardened WebView. The full document (strict CSP,
 // base styling, remote-image gating) is produced by shared Rust (`renderMessageHtml`); this
 // adds the native defenses: JavaScript disabled, in-view navigation blocked (tapped links
@@ -135,9 +158,7 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean) {
                 .graphicsLayer { this.alpha = alpha },
             factory = { context ->
             WebView(context).apply {
-                settings.javaScriptEnabled = false
-                settings.allowFileAccess = false
-                settings.allowContentAccess = false
+                settings.applyReadingPolicy()
                 webViewClient = object : WebViewClient() {
                     // First frame is painted: reveal (fade in) and nudge the owner to redraw.
                     override fun onPageCommitVisible(view: WebView?, url: String?) {
