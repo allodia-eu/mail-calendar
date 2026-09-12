@@ -20,7 +20,7 @@
 //! the calendar preferences, whose pull (`calendar_page`) recomputes from state written before the
 //! call rather than from the stored snapshot.
 //!
-//! `scripts/ci/check_surface_publish.py` keeps the door shut: it fails if a published surface is
+//! `cargo xtask check-surface-publish` keeps the door shut: it fails if a published surface is
 //! signalled anywhere but here, or if one of these fields is declared as a bare `Mutex`.
 
 use std::sync::{Arc, Mutex};

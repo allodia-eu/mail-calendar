@@ -212,15 +212,17 @@ jobs:
           shared-key: checks
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # Nine contract checks, in one process, reporting every one that failed rather than stopping
-      # at the first: `cargo xtask --list` names them and each is runnable on its own. Among them
-      # is the only thing enforcing the 500-line rule, since no linter in any of these languages
-      # has a per-file length lint, and it has to see C# and Kotlin as well as Rust; the
+      # Fourteen contract checks, in one process, reporting every one that failed rather than
+      # stopping at the first: `cargo xtask --list` names them and each is runnable on its own.
+      # Among them is the only thing enforcing the 500-line rule, since no linter in any of these
+      # languages has a per-file length lint, and it has to see C# and Kotlin as well as Rust; the
       # showcase-flag and dev-account contracts, whose failure mode is silent and photogenic; the
       # two Linux rules no run-time gate can see (a portal call that works only inside a desktop
       # session, and a second Tokio runtime that works exactly once); the brand every client must
-      # still derive its identity from; what a public repository must not carry; and the promise
-      # that the default build does not reach into `allodia_license/`.
+      # still derive its identity from; what a public repository must not carry; the promise that
+      # the default build does not reach into `allodia_license/`; the two writing rules; and the
+      # three whose breakage is silent by construction (a log line naming this tree, a toolbar
+      # label no client sends, a surface signalled without a snapshot behind it).
       - name: Repository contract checks
         if: ${{ !cancelled() }}
         run: cargo xtask checks
@@ -251,35 +253,6 @@ jobs:
       - name: The user documentation can be published as it stands
         if: ${{ !cancelled() }}
         run: python3 scripts/ci/check_user_docs.py
-
-      # A log line describes the user's mail, never our source tree (docs/logging.md). The lines
-      # this catches ship all the way to a user's device, where a path into this repository is
-      # meaningless to the reader and frozen against every later refactor.
-      - name: No log line names this repository
-        if: ${{ !cancelled() }}
-        run: python3 scripts/ci/check_log_hygiene.py
-
-      - name: Prose and comments are British English
-        if: ${{ !cancelled() }}
-        run: python3 scripts/ci/check_british_english.py
-
-      - name: No dash punctuation remains in swept prose
-        if: ${{ !cancelled() }}
-        run: python3 scripts/ci/check_dash_hygiene.py
-
-      # The shared editor's chrome is localised by each client passing its own strings in. The
-      # change that breaks it adds a toolbar control, touching the composer bundle and one client,
-      # which is not the client the label then goes missing from.
-      - name: Every client sends the shared editor every label
-        if: ${{ !cancelled() }}
-        run: python3 scripts/ci/check_composer_labels.py
-
-      # A snapshot the host pulls and the signal that tells it to are one operation (`Surfaced`).
-      # The type enforces it for anyone who uses it; this refuses the ways round it, which compile
-      # fine and fail as a stale paint rather than a panic.
-      - name: A published surface is only ever signalled by publishing it
-        if: ${{ !cancelled() }}
-        run: python3 scripts/ci/check_surface_publish.py
 
       # The repository states its licensing once, for every file at once, in REUSE.toml rather
       # than in a header on each source file. The blanket annotation matches every path, so what

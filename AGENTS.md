@@ -63,8 +63,9 @@ attention, human or agent alike. Write the fact, not the story around it.
   and renaming one there compiles fine and resolves to nothing. Rust and Swift backtick theirs so
   the eye catches it; C# and Kotlin do not.
 
-  Both rules have checkers (`check_dash_hygiene.py`, `check_british_english.py`) that carry the
-  exempt paths, so the tree is clean and an existing spelling or dash is a mistake, not precedent.
+  Both rules have checkers (`cargo xtask check-dash-hygiene`, `cargo xtask check-british-english`)
+  that carry the exempt paths, so the tree is clean and an existing spelling or dash is a mistake,
+  not precedent.
   [`docs/privacy-policy.md`](docs/privacy-policy.md) is exempt from both: it is a published
   contract whose text does not move without a version bump, both locales and the website mirror
   travelling together.
@@ -100,7 +101,8 @@ attention, human or agent alike. Write the fact, not the story around it.
   or a "this looks wrong but isn't". Anything a reader gets from the signature and body is noise.
 - **A log line is product surface, not a comment.** It describes the user's mail, never our source
   tree: no repo path, doc reference, issue number or internal jargon
-  ([`docs/logging.md`](docs/logging.md); `check_log_hygiene.py` catches the machine-decidable part).
+  ([`docs/logging.md`](docs/logging.md); `cargo xtask check-log-hygiene` catches the
+  machine-decidable part).
 - **Say it once.** A rule belongs in exactly one place (this file, a doc under [`docs/`](docs), or
   the code) and everything else links to it. Restating a doc's rules creates two copies that drift.
 - **Write it in the repo, never only in an agent memory.** A memory lives on one machine, in one
@@ -264,10 +266,18 @@ PR is where you *confirm* a green build, not where you discover one.
 `cargo xtask` alias in [`.cargo/config.toml`](.cargo/config.toml). `cargo xtask --list` names them,
 each is runnable on its own, and `cargo xtask checks` runs all of them and reports every one that
 failed rather than stopping at the first, which is what the always-run `checks` job invokes. Rust
-rather than shell because on Windows a shell is an emulated x86_64 Cygwin process per command:
-those nine checks cost **209 s** under Git Bash on an arm64 developer machine and **4 s** here,
-three minutes of which was one script starting `wc` once per file. The crate has no dependencies,
-so the only thing it costs before an instant check can run is its own compile.
+rather than shell and Python because on Windows a shell is an emulated x86_64 Cygwin process per
+command, and because a rule read over the whole tree is work a compiled language does in a
+different order of magnitude: the fourteen checks cost **229 s** as nine shell scripts and five
+Python ones on an arm64 developer machine, and **5 s** here. The crate has no dependencies, so the
+only thing it costs before an instant check can run is its own compile, and it is built at
+`opt-level = 2` even in `dev` because these rules walk every character of every comment.
+
+**Two checkers are still Python, and stay so.** `check_store_copy_length.py` imports the
+changelog-fragment parser and the brand reader that five other Python tools share, and porting it
+would fork them, which is the one thing that file exists to prevent. `check_user_docs.py` checks
+help pages this tree does not carry, so it skips on its first line here. Together they cost a third
+of a second.
 
 **On Windows the shell is Git Bash, a prerequisite rather than a preference.** The gate itself does
 not need it, which is most of why the checks live in a binary; what is still bash is the harness,

@@ -18,7 +18,7 @@ namespace Allodia.Mailcal.Services;
 /// Both halves of a key mismatch fail silently: a key the bundle does not know is dropped by its
 /// <c>mergeLabels</c>, and one it knows but this omits keeps its English default. Nothing throws and
 /// nothing logs, so the set is pinned across the clients by
-/// <c>scripts/ci/check_composer_labels.py</c>. It cannot live in <c>Mailcal.Tests</c>: that project
+/// <c>cargo xtask check-composer-labels</c>. It cannot live in <c>Mailcal.Tests</c>: that project
 /// is plain <c>net10.0</c> and <c>L10n</c> needs a Windows TFM.
 /// </remarks>
 internal static class ComposerLabels

@@ -23,6 +23,7 @@
 mod branding;
 mod british_english;
 mod british_english_words;
+mod composer_labels;
 mod dash_hygiene;
 mod desktop_handoff;
 mod dev_account;
@@ -37,6 +38,7 @@ mod gate_exec;
 mod gate_steps;
 mod git;
 mod license_dir;
+mod log_hygiene;
 mod portal_runtime;
 mod prose;
 mod prune;
@@ -44,6 +46,7 @@ mod public_hygiene;
 mod report;
 mod showcase_flag;
 mod showcase_lists;
+mod surface_publish;
 mod version_sync;
 
 use std::{
@@ -126,6 +129,21 @@ pub(crate) const TASKS: &[Task] = &[
         name: "check-dash-hygiene",
         label: "dash punctuation (prose and comments)",
         run: dash_hygiene::run,
+    },
+    Task {
+        name: "check-log-hygiene",
+        label: "log hygiene (no repo paths in log lines)",
+        run: log_hygiene::run,
+    },
+    Task {
+        name: "check-composer-labels",
+        label: "composer labels (every client sends every one)",
+        run: composer_labels::run,
+    },
+    Task {
+        name: "check-surface-publish",
+        label: "surface publish (no signal without a snapshot)",
+        run: surface_publish::run,
     },
 ];
 

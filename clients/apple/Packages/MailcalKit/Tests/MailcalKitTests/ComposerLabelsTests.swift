@@ -1,5 +1,5 @@
 // The editor chrome's label payload. The cross-client key set is checked by
-// `scripts/ci/check_composer_labels.py`, which reads all four clients' maps; what it cannot see is
+// `cargo xtask check-composer-labels`, which reads all four clients' maps; what it cannot see is
 // whether the strings actually RESOLVE. A catalog lookup that comes back empty passes every textual
 // check and reaches the bundle as a key it drops, leaving that one control English in an otherwise
 // translated toolbar, with nothing anywhere to say so.

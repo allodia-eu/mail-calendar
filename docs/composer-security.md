@@ -234,7 +234,7 @@ cell is filled.
 
 The "editor chrome localised" row is the one whose failure is invisible: the bundle ships English
 defaults, so a host that sends nothing, sends a key the bundle does not know, or omits one it does,
-just shows English for that control. `scripts/ci/check_composer_labels.py` holds it: every client
+just shows English for that control. `cargo xtask check-composer-labels` holds it: every client
 must send exactly the keys `clients/composer/src/labels.ts` declares, and must actually call the
 hook. Add a toolbar control and the label goes in all four clients in the same change.
 
