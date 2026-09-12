@@ -400,18 +400,18 @@ jobs:
         run: docker compose down -v
 
   apple:
-    # Cross-compile the Rust core to an XCFramework, generate the Xcode project, build the macOS +
-    # iOS app targets, and build + run the headless FFI verifier (demo mode — deterministic, no
-    # credentials). Runner: macos-26 — arm64, macOS 26 + Xcode 26.4 (our minimum).
+    # Cross-compile the Rust core to an XCFramework, run the MailcalKit suite, build the macOS app,
+    # and build + run the headless FFI verifier (demo mode — deterministic, no credentials).
+    # Runner: macos-26 — arm64, macOS 26 + Xcode 26.4 (our minimum).
     #
-    # ONE job for both platforms, not one each. A macOS leg and an iOS leg would each compile a
-    # single Rust slice and a single platform's Swift, which is genuinely half the work, but a
-    # standard macOS runner has 3 cores, so the two legs also each pay the ~70s of setup this one
-    # pays once (VM boot, checkout, Xcode select, rustup, xcodegen, two cache restores) and each
-    # wants its own Rust and DerivedData entries out of the repo's 10 GB cache budget. Against a
-    # warm run of about two minutes, splitting buys under a minute of wall clock for roughly 40%
-    # more runner time. Revisit it if the warm number climbs.
-    name: Apple clients (macOS + iOS)
+    # **iOS is next door, in `apple-ui`, and that split is deliberate.** Both platforms were built
+    # here while the job was about two minutes warm: splitting it then would have paid ~70s of setup
+    # twice (VM boot, checkout, Xcode select, rustup, xcodegen, two cache restores) and wanted a
+    # second pair of cache entries out of the repo's 10 GB budget, to save under a minute. The UI
+    # suite changed the arithmetic rather than the argument, being minutes of simulator rather than
+    # seconds of compiler. The setup is still paid twice and the caches are still doubled; what it
+    # buys is now worth those. Keep an eye on the cache budget.
+    name: Apple clients (macOS + verifier)
     needs: changes
     if: needs.changes.outputs.apple == 'true'
     runs-on: macos-26
@@ -493,10 +493,10 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      # --no-device: the steps below link only `platform=macOS` and `generic/platform=iOS
-      # Simulator`, so cross-compiling the physical-device slice here buys nothing but minutes on
-      # the workflow's slowest job. The trade is real: an error that only breaks the device slice now
-      # surfaces when someone builds for a device (or at release) instead of here.
+      # --no-device: nothing here links `platform=iOS`, so cross-compiling the physical-device
+      # slice buys nothing but minutes. The trade is real, and `apple-ui` makes the same one: an
+      # error that only breaks the device slice surfaces when somebody builds for a device (or at
+      # release) rather than here.
       - name: Build the Rust core -> XCFramework + bindings
         run: ./clients/apple/Scripts/build-core.sh --no-device
 
@@ -531,30 +531,16 @@ jobs:
             -destination 'platform=macOS' -configuration Debug \
             -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
 
+      # The iOS compile gate, and it lives here rather than in `apple-ui` because that job does not
+      # run on a pull request: without this step a branch that breaks the iOS build would be green
+      # until it merged. It is a plain `build`, so it never meets the test action that used to
+      # invalidate it; `apple-ui` owns a derived data cache of its own.
       - name: Build the iOS app
         working-directory: clients/apple
         run: |
           xcodebuild -project AllodiaMail.xcodeproj -scheme AllodiaMail \
             -destination 'generic/platform=iOS Simulator' -configuration Debug \
             -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
-
-      # The UI suite (clients/apple/UITests), on a booted iPhone simulator. Every test drives the
-      # in-memory showcase dataset, so this needs no Docker harness, no account and no network,
-      # which is the same trade the Windows UI job makes with `-Dataset showcase,first-run`.
-      #
-      # **Two classes of four, and that is a budget rather than a judgement about the other two.**
-      # A UI test costs what no other gate here costs: a simulator to boot (~37s before a single
-      # assertion runs, measured on an 8-core M2 from a shut-down simulator) and then the app's own
-      # launch per test. The two that run are the two that hold something written down: the action
-      # row's order (docs/reading-actions.md) and the calendar pinch (docs/calendar.md), which is
-      # also the regression test for a gesture that reached the iOS grid not at all. The two that
-      # do not, `NavigationBarTests` and `ComposerPresentationTests`, run from
-      # `clients/apple/Scripts/test-ui.sh` on a developer's machine, and the second of them is the
-      # slowest test in the bundle by some way. Add a `--only` below to move one back.
-      - name: Test the iOS UI (showcase dataset)
-        run: |
-          clients/apple/Scripts/test-ui.sh --no-core \
-            --only ReadingActionRowTests --only CalendarPinchTests
 
       - name: Build + run the headless FFI verifier (demo mode)
         working-directory: clients/apple
@@ -563,6 +549,143 @@ jobs:
             -destination 'platform=macOS' -configuration Debug \
             -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
           MAILCAL_DEMO=1 ./build/Build/Products/Debug/MailcalVerify
+
+
+  # The iOS app and the UI suite, beside the `apple` job rather than after it.
+  #
+  # **Why a second macOS job, when the comment on `apple` argues against splitting one.** That
+  # argument was about halving a two-minute job: two legs each paying ~70s of setup to save under a
+  # minute, for 40% more runner time. This is a different trade. The UI suite is minutes of
+  # simulator rather than seconds of compiler, and it was the longest thing in the workflow by some
+  # way, so the setup it pays twice buys back several minutes of everybody's wall clock. Runner time
+  # is the cheaper of the two here: this repository is public, so the minutes are not metered, while
+  # a pull request waiting is a person waiting.
+  #
+  # It also un-does a collision. `build` and `test` are two different builds of the same targets
+  # (the test action compiles the whole graph with `-enable-testing`, which `build` passes to
+  # nothing), and they share one derived data directory, so running both in one job made each undo
+  # the other: 234s of recompiling on every run, invisible, because both commands were doing exactly
+  # what they were asked. This job runs `build-for-testing` and nothing else, so the question does
+  # not arise; `clients/apple/Scripts/test-ui.sh` carries the detail.
+  apple-ui:
+    name: Apple UI suite (iOS simulator)
+    needs: changes
+    # **Not on a pull request.** At ~11 minutes it is the slowest thing in the workflow by a factor
+    # of three, and a branch with several pushes pays it on each one. So it runs after the merge,
+    # and `workflow_dispatch` is the way to ask for it on a branch that deserves one.
+    #
+    # ⚠️ What that costs: a UI test now fails on **main** rather than on the pull request that broke
+    # it. `clients/apple/Scripts/test-ui.sh` before pushing is what keeps that rare, and it is the
+    # only Apple gate a contributor without a Mac cannot run at all, so a reviewer of somebody
+    # else's Apple change should expect to run it for them.
+    #
+    # It also means this job only ever runs where caches are written, so it always restores its own
+    # warm entry rather than a pull request's cold one.
+    if: >-
+      needs.changes.outputs.apple == 'true'
+      && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    runs-on: macos-26
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Its own cache entry, not `apple`'s. Two jobs writing one key race, and the products differ
+      # anyway: this one holds the testability-enabled build and the test bundle, that one does not.
+      - name: Cache Xcode DerivedData
+        uses: irgaly/xcode-cache@4141f139f00e335c6e1031fb93e667181f86146f # v1.9.2
+        with:
+          key: xcode-deriveddata-ui-${{ runner.os }}-${{ github.sha }}
+          # ⚠️ Its **own** prefix only, never a fallback to `xcode-deriveddata-<os>-`. That would
+          # read the `apple` job's entry when this one has none, and `delete-used-deriveddata-cache`
+          # below drops whatever it restored, so the first run on main would delete the sibling's
+          # cache and leave that job cold. The bootstrap it would have bought is one build, once;
+          # the products differ anyway, this side holding the testability-enabled build and the test
+          # bundle.
+          restore-keys: xcode-deriveddata-ui-${{ runner.os }}-
+          deriveddata-directory: ${{ github.workspace }}/clients/apple/build
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          delete-used-deriveddata-cache: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Select the newest Xcode 26 (26.4+ for Swift 6.3)
+        run: |
+          APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$APP" ]; then sudo xcode-select -s "$APP"; fi
+          xcodebuild -version
+
+      - name: Set up Rust (Apple targets)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+          targets: aarch64-apple-darwin,aarch64-apple-ios-sim
+
+      # Restores `apple`'s entry and **never writes one**. Both jobs run
+      # `build-core.sh --no-device`, which is two slices rather than one (`aarch64-apple-ios-sim`
+      # and `aarch64-apple-darwin`), so what they compile is the same and a key of its own bought
+      # this job a second copy of it: 372s of Rust on a first run against the sibling's warm 98s.
+      #
+      # ⚠️ Reading a shared key is safe; writing one is not. Two jobs writing one key means the
+      # cache holds whichever finished first, so the moment their cargo work stops being identical,
+      # the job that compiles *more* starts restoring an entry that is missing what only it builds,
+      # and pays for it on every run afterwards. Nothing warns about that, and the symmetry it
+      # depends on is not written down anywhere it would be checked. `apple` owns the entry; this
+      # job is a reader.
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: apple
+          save-if: false
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # Start the simulator here and let it boot behind the Rust build. `test-ui.sh` waits for this
+      # one rather than starting its own.
+      #
+      # ⚠️ **Do not move this step or delete it without measuring.** A standard macOS runner has
+      # three cores and a booting simulator wants most of them, so the boot is never free; all it
+      # can do is take them from something. All three placements were measured on one branch with
+      # the same caches, and the obvious readings of the result are both wrong:
+      #
+      #   here, before the Rust build   cross-compile 226s, Swift 169s, tests 176s   11m06s
+      #   no boot step at all           cross-compile 116s, Swift 160s, tests 391s   13m02s
+      #   after it, before the Swift    cross-compile 110s, Swift 581s, tests 229s   16m35s
+      #
+      # Reading one line at a time says this step is the problem: it is what makes the cross-compile
+      # 226s instead of 116s. Deleting it moves the boot into the test step, serial and on the
+      # critical path, and costs two minutes. Moving it one step later is worse again, because the
+      # Swift build is the most parallel thing in the job and minds the competition far more than
+      # cargo does.
+      - name: Boot a simulator in the background
+        run: clients/apple/Scripts/test-ui.sh --boot
+
+      - name: Build the Rust core -> XCFramework + bindings
+        run: ./clients/apple/Scripts/build-core.sh --no-device
+
+      # The brand has to be loaded before xcodegen runs, or every identifier is the literal
+      # placeholder and the app is built with no CFBundleIdentifier to launch it by
+      # (docs/branding.md).
+      - name: Generate the Xcode project
+        run: |
+          . scripts/dev/lib.sh
+          (cd clients/apple && xcodegen generate)
+          brand_assert_expanded clients/apple/AllodiaMail.xcodeproj/project.pbxproj
+          brand_assert_expanded clients/apple/App/Info.plist
+
+      # This is the iOS compile gate as well as the test build: `build-for-testing` compiles the app
+      # exactly as `build` would, plus the test bundle. There is no second iOS build anywhere.
+      - name: Build the iOS app and the UI bundle
+        working-directory: clients/apple
+        run: |
+          xcodebuild build-for-testing -project AllodiaMail.xcodeproj -scheme AllodiaMail \
+            -destination 'generic/platform=iOS Simulator' -configuration Debug \
+            -derivedDataPath build/DerivedData -quiet COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Test the iOS UI (showcase dataset)
+        run: clients/apple/Scripts/test-ui.sh --no-core --no-build
 
   windows:
     # Fast per-commit gate: x64 Debug only — Rust cdylib -> C# bindings (vendored binshim) ->
@@ -1102,7 +1225,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux]
+    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, apple-ui, windows, android, android-native-fault, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

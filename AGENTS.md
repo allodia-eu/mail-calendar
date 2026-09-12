@@ -260,8 +260,11 @@ carries the reasoning; two consequences are worth knowing before they surprise y
 Anything else your machine needs goes in [`AGENTS.local.md`](AGENTS.local.md), untracked.
 
 **Run `cargo xtask gate` before the first push of a branch**: `--clients` adds every client this
-host can actually build. CI costs real money and real minutes (macOS runners bill at **10×**), so a
-PR is where you *confirm* a green build, not where you discover one.
+host can actually build. A PR is where you *confirm* a green build, not where you discover one. That
+is no longer about money: this repository is public, so its runs are on standard runners, which are
+not metered, and the **10×** macOS multiplier applies to billed minutes rather than to these. It is
+about minutes that are still real, a reviewer's included: the longest job here is over twelve
+minutes, and a push that discovers a failure spends that twice.
 
 **The gate and every contract check it runs are one binary**, [`xtask/`](xtask), reached through the
 `cargo xtask` alias in [`.cargo/config.toml`](.cargo/config.toml). `cargo xtask --list` names them,
@@ -391,9 +394,12 @@ were broken right now, would this tell me?*
 - **And a build is not the screen.** `clients/apple/Scripts/test-ui.sh` is the XCUITest suite
   (`clients/apple/UITests`), on a simulator or with `--device` on a connected iPhone. It is the only
   Apple gate that can drive a **gesture**, or read the iOS **navigation bar** at all, which `idb`
-  reports as one unlabelled group. It needs a simulator, so the workspace gate leaves it out and CI
-  runs two of its four classes; run it before pushing anything that changes what an Apple screen
-  presents.
+  reports as one unlabelled group. It needs a simulator, so the workspace gate leaves it out, and it
+  is the slowest job in the pipeline by a factor of three, so **CI runs it on `main` and not on a
+  pull request**. ⚠️ That puts it the wrong way round from every other gate here: a UI test fails
+  after the merge rather than before it. Run it yourself before pushing anything that changes what
+  an Apple screen presents, and, since it is the one Apple gate somebody without a Mac cannot run,
+  expect to run it for them when reviewing. `workflow_dispatch` asks for it on a branch.
 - **A `#![cfg(unix)]` test file reports `running 0 tests ... ok` on Windows**, which reads exactly
   like a pass. Any `cfg(windows)` / `cfg(unix)` branch needs a test *per branch*, and a
   cross-platform test count is not coverage: read the per-file `running N tests` lines.
@@ -450,8 +456,8 @@ were broken right now, would this tell me?*
   turns on every area. Add a path to that `case` when you add a directory. Mark **`CI OK`** required
   in the branch ruleset, never the individual jobs: a skipped job reports *no* status, so a
   docs-only PR would wait forever, and `ci-ok` counts a skip as success. Caches save only on `main`,
-  since a PR-ref cache is readable by nothing else and evicts main's. **Coverage gap:** the `apple`
-  job never links `aarch64-apple-ios`, so a device-only break surfaces at
+  since a PR-ref cache is readable by nothing else and evicts main's. **Coverage gap:** neither Apple
+  job links `aarch64-apple-ios`, so a device-only break surfaces at
   [`device.sh`](scripts/dev/device.sh) or at release.
 - **The Android and Linux release builds run on a `v*` tag, not on every push**, being the two
   longest steps and each proving a property of the shipped artifact. What that costs between tags:

@@ -679,6 +679,27 @@ the iPhone 17 Pro simulator (iOS 26.5); a device wants Developer Mode, like ever
 check if a device run installs and then cannot attach, but nothing here has established that it is
 required.
 
+⚠️ **To get a clean app, uninstall the app. Never erase or reboot the simulator.**
+
+```sh
+xcrun simctl uninstall booted eu.allodia.mailcal          # seconds
+xcrun simctl uninstall booted eu.allodia.mailcal.uitests.xctrunner
+```
+
+Erasing is the reflex and it is the wrong one, by a wide margin: with a running simulator and the app
+uninstalled the whole sequence below is **80s**, and from a shut-down, erased device it is **220s**,
+almost all of it boot. It also buys nothing, because everything a test can see of the last run lives
+in the app's own **data container**, which an uninstall drops: `@SceneStorage` (the surface the app
+comes back to, `Library/Saved Application State/<id>.savedState/KnownSceneSessions`), the settings,
+and the log. The showcase dataset is in memory and was never on the device at all.
+
+The exception is reproducing a **runner's** first boot, where the device really is shut down, and
+that is worth doing once after changing the boot or install path rather than on every iteration. It
+is the condition that hides the install race the suite waits for
+([`test-ui.sh`](../clients/apple/Scripts/test-ui.sh)): a device that booted seconds ago answers an
+install with `Failed to set metadata`, and xcodebuild reports that as `TEST EXECUTE FAILED` against
+whichever test is first.
+
 ### Correction: WinUI touch **can** be synthesized (2026-07-13)
 
 This file, and the `verify-windows-ui` skill, used to say a WinUI gesture "needs real touch/pen/
