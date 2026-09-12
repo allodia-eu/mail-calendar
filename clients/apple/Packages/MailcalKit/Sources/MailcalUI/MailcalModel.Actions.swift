@@ -1,6 +1,10 @@
 import Foundation
 import MailcalBindings
 
+/// How long the field stays quiet before the core is asked, matching Windows, Android and Linux
+/// so a search costs the same on every platform.
+private let searchDebounceMilliseconds = 250
+
 extension MailboxModel {
     /// Whether the device is currently offline, drives the offline banner.
     var isOffline: Bool { connectivity?.offline ?? false }
@@ -103,8 +107,27 @@ extension MailboxModel {
 
     /// Run a ranked full-text search, or clear it (empty query) to return to the folder
     /// view. The engine ranks; the app maps the hits back to messages and re-notifies.
+    ///
+    /// **Typing does not mean searching** (`docs/search.md`). A search is a full-text query per
+    /// account plus a store read per hit, so dispatching one per keystroke runs a word's worth
+    /// of them at once, each slowing the others; the core drops the ones the next keystroke
+    /// superseded, but they are still work nobody wanted. The core is asked once, when the
+    /// typing stops.
+    ///
+    /// Clearing stays immediate: leaving search is a navigation, and waiting a quarter of a
+    /// second to give the user their mailbox back would read as the app hesitating.
     func search(_ query: String) {
-        app?.dispatch(intent: .search(query: query.isEmpty ? nil : query))
+        searchDebounce?.cancel()
+        searchDebounce = nil
+        guard !query.isEmpty else {
+            app?.dispatch(intent: .search(query: nil))
+            return
+        }
+        searchDebounce = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(searchDebounceMilliseconds))
+            guard !Task.isCancelled else { return }
+            self?.app?.dispatch(intent: .search(query: query))
+        }
     }
 
     /// Open a message (by key) for reading: the app fetches + caches its source, extracts

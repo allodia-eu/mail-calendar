@@ -24,6 +24,8 @@ use crate::{
     reference::MessageRef,
 };
 
+pub(crate) mod forward;
+
 impl<P: Provider> App<P> {
     /// Renders a shared composer document, resolves host blob bytes, and submits the
     /// resulting rich draft through the durable outbox. `from` is the account the user picked in
@@ -153,6 +155,10 @@ impl<P: Provider> App<P> {
     /// continues the conversation without answering a message. That is what puts the sent
     /// copy on the thread it came from; without it, every forward you send is a new
     /// one-message conversation sitting beside the discussion it belongs to.
+    ///
+    /// The original's **files** reach this through `blobs` like any other attachment: the
+    /// composer opened holding them ([`App::stage_forwarded_attachments`]) and the user may
+    /// have removed some, so what arrives here is what they chose to send.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn submit_rich_forward(
         &self,

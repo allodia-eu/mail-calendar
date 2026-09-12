@@ -11,11 +11,23 @@
 #   ./build-and-run.ps1                 # build + run for the host arch (Debug)
 #   ./build-and-run.ps1 -Arch x64       # cross-build the x64 client
 #   ./build-and-run.ps1 -Configuration Release -NoRun
+#   ./build-and-run.ps1 -SelfContained  # bundle the runtime, for a machine that has none
 [CmdletBinding()]
 param(
   [ValidateSet('arm64', 'x64')] [string] $Arch,
   [ValidateSet('Debug', 'Release')] [string] $Configuration = 'Debug',
-  [switch] $NoRun
+  [switch] $NoRun,
+  # Bundle the Windows App SDK (`WindowsAppSDKSelfContained`, not .NET's own `SelfContained`)
+  # instead of building against the runtime installed on this machine, which is the default and
+  # what the Store build ships.
+  #
+  # It costs notifications, and silently: the component that hosts them lives in the runtime's own
+  # package, so `AppNotificationManager.Register` fails with ERROR_MOD_NOT_FOUND, the app carries
+  # on perfectly otherwise, and the only symptom is a mailbox that never notifies. So this is for
+  # one case, a machine without the matching runtime (`Get-AppxPackage
+  # Microsoft.WindowsAppRuntime.2`; Visual Studio installs it), where the default build refuses to
+  # start at all. Never reach for it while working on anything notification-shaped.
+  [switch] $SelfContained
 )
 $ErrorActionPreference = 'Stop'
 
@@ -231,8 +243,12 @@ if (Get-Command bun -ErrorAction SilentlyContinue) {
 
 # 6. Build the WinUI 3 app for the paired RID, bundling the arch-matched native DLL.
 Write-Host "==> Building the WinUI app ($rid)" -ForegroundColor Cyan
-& dotnet build (Join-Path $here 'Mailcal') -c $Configuration -r $rid `
-  "-p:Platform=$platform" "-p:NativeLib=$nativeLib" "-p:McpRelay=$mcpRelay"
+$appArgs = @("-p:Platform=$platform", "-p:NativeLib=$nativeLib", "-p:McpRelay=$mcpRelay")
+if ($SelfContained) {
+  Write-Host "==> Self-contained: this build bundles the Windows App SDK and CANNOT raise notifications" -ForegroundColor Yellow
+  $appArgs += '-p:WindowsAppSDKSelfContained=true'
+}
+& dotnet build (Join-Path $here 'Mailcal') -c $Configuration -r $rid @appArgs
 if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 
 # Locate the built exe robustly (the Platform + RID nest into the output path).

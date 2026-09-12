@@ -496,7 +496,7 @@ log. Its presence proves the fictional engine was really built, not merely that 
 the current one, and it checks the seeded locale too. A failed assertion stops the client rather than
 leaving a window of real mail in front of a shutter. The marker lives in `scripts/dev/lib.sh`
 (`SHOWCASE_LOG_MARKER`); it is spelled in Rust, bash, and PowerShell, and
-[`scripts/ci/check-showcase-flag.sh`](../scripts/ci/check-showcase-flag.sh) keeps the three in step.
+[`cargo xtask check-showcase-flag`](../xtask/src/showcase_flag.rs) keeps the three in step.
 
 Each platform's log plumbing differs (`~/.local/share` on macOS, the simulator's data container,
 `run-as … files/logs/app.log` on Android), so the abort has been exercised on each, by seeding one
@@ -652,6 +652,32 @@ every configuration, honours a second launch of the already-running app (a short
 the release-safe twin of `MAILCAL_CALENDAR`. Both end at `MainWindow.ShowCalendarSurface`, so the
 grid opens on today, scrolled to now. This is what a "Calendar" Start-menu shortcut or a jump-list
 entry would point at.
+
+### Apple: the other half, for assertions rather than exploration
+
+`control.sh` drives an app that is **already running**, in about a second and with no code, which is
+what makes it the loop to reach for while working something out. Two things it cannot do: hold a
+**gesture**, and read the iOS **navigation bar** (idb reports the top bar as one unlabelled group,
+and stops identically in Apple's own Settings app).
+
+[`clients/apple/Scripts/test-ui.sh`](../clients/apple/Scripts/test-ui.sh) is the other half.
+XCUITest queries the same accessibility hierarchy **in-process**, so it gets the bar in full, and it
+can pinch. It relaunches the app and runs a compiled script, which is what makes it repeatable and
+what makes it useless for exploring; the two do not compete for the same job.
+
+```sh
+clients/apple/Scripts/test-ui.sh                           # the booted iPhone simulator
+clients/apple/Scripts/test-ui.sh --device                  # the connected iPhone/iPad
+clients/apple/Scripts/test-ui.sh --only CalendarPinchTests # one class, or one test
+```
+
+Every test drives the in-memory showcase dataset, so none of it wants the harness, an account or a
+network, and that is what lets the device leg run the *same* suite rather than a subset: the harness
+is loopback-only and a device cannot reach it (§6). Verified on an iPhone 13 Pro (iOS 18.7) and on
+the iPhone 17 Pro simulator (iOS 26.5); a device wants Developer Mode, like every device build.
+**Settings → Developer → Enable UI Automation** was on for those runs and is the first switch to
+check if a device run installs and then cannot attach, but nothing here has established that it is
+required.
 
 ### Correction: WinUI touch **can** be synthesized (2026-07-13)
 
@@ -889,11 +915,11 @@ before believing the paragraph above.
   under the *test* profile, and although the Cargo book describes that profile as inheriting `dev`,
   the top-level `debug` key measurably does not come with it: setting it on `dev` alone rebuilds
   nothing for `cargo test`, and adding `[profile.test]` rebuilds everything. So the fix applied to
-  `cargo build` and never to `gate.sh`, the command that does essentially all of the building
-  anyone waits on. Measured in the engine repo, `cargo test --workspace --all-features --no-run`
-  after touching one crate: **368s before, 149s after, twice.** The `package."*"` override *is*
-  inherited and needs no twin, which is exactly why dependencies were covered and our own crates
-  were not.
+  `cargo build` and never to `cargo xtask gate`, the command that does essentially all of the
+  building anyone waits on. Measured in the engine repo, `cargo test --workspace
+  --all-features --no-run` after touching one crate: **368s before, 149s after, twice.** The
+  `package."*"` override *is* inherited and needs no twin, which is exactly why dependencies were
+  covered and our own crates were not.
 - **`cargo rustc --crate-type`, not a third `[lib] crate-type`.** Crate-type is not per-target, so a
   declared iOS `staticlib` made Windows, Android and Linux each build a 1.9 GB archive only
   [`build-core.sh`](clients/apple/Scripts/build-core.sh) opens. A disk fix, not a time one.
@@ -903,11 +929,11 @@ before believing the paragraph above.
 - **The incremental cache, which no cargo reclaims.** Cargo keeps a session directory per
   compilation context and prunes none of them (every engine re-pin and every local-engine
   `[patch]` toggle mints a fresh set), and its `clean gc` collects `$CARGO_HOME`, not `target/`.
-  Two days of one branch left 20 GiB. A **green** [`gate.sh`](scripts/dev/gate.sh) now drops it past
-  a 5 GiB cap. "Nine seconds on the next rebuild" is the cost of dropping a *small* one: dropping
-  a 3.6 GiB cache by hand cost **70 crates recompiled and 323 s**, so it is a disk trade, not a free
-  one. Do **not** reach for `cargo clean` instead: that takes `deps/` with it, which is the rebuild
-  this section is about.
+  Two days of one branch left 20 GiB. A **green** [`cargo xtask gate`](../xtask/src/prune.rs) now
+  drops it past a 5 GiB cap. "Nine seconds on the next rebuild" is the cost of dropping a *small*
+  one: dropping a 3.6 GiB cache by hand cost **70 crates recompiled and 323 s**, so it is a disk
+  trade, not a free one. Do **not** reach for `cargo clean` instead: that takes `deps/` with it,
+  which is the rebuild this section is about.
 - **Stale test binaries, which no cargo reclaims either.** Every rebuild links a new test executable
   under a new hash and leaves the old one; a day of iterating left **434 of them, 5.7 GB**. They
   cost disk, and on macOS they cost more than that (see below). Deleting executables in
@@ -951,9 +977,9 @@ churn, not accumulation, which is why deleting "old" directories reclaims nothin
 `cache.auto-clean-frequency`. Here that whole global cache is 1.6 GB and its GC reports zero files;
 the 20 GiB is in `target/`, which no version of cargo garbage-collects.
 
-So [`gate.sh`](../scripts/dev/gate.sh) does it: a **green** gate drops the cache once it is past a
-5 GiB cap. A red gate leaves it alone, because that is when you are still iterating and the cache
-is worth its disk. What that costs, measured on an M-series Mac:
+So [`cargo xtask gate`](../xtask/src/prune.rs) does it: a **green** gate drops the cache once it is
+past a 5 GiB cap. A red gate leaves it alone, because that is when you are still iterating and the
+cache is worth its disk. What that costs, measured on an M-series Mac:
 `cargo build -p mailcal-bindings` after a one-line edit in `mailcal-app`:
 
 | | rebuild |
@@ -1012,11 +1038,15 @@ build reverts to `link.exe` and is slower, never wrong.
 
 ### Worktrees each grow their own `target/`
 
-A `.claude/worktrees/*` checkout is a separate Cargo workspace, so it builds a full target dir of its
-own, several GB per worktree, none of it shared with main. Point them at one directory
-(`CARGO_TARGET_DIR=D:\repos\.cargo-target`) and they share a cache instead. The trade is real and
-worth knowing: Cargo takes a **lock** on the target dir, so two builds in two worktrees serialize
-rather than run at once.
+A `.claude/worktrees/*` checkout is a separate Cargo workspace, so it would build a full target dir
+of its own, several GB per worktree. What stops it is `build.build-dir` in
+[`.cargo/config.toml`](../.cargo/config.toml), which every checkout reads: the intermediates go to
+one shared directory and only the final artifacts stay local. Nothing to set up per machine.
+
+Prefer it to a shared `CARGO_TARGET_DIR`. Both share the compile work and both make builds
+serialise on a lock, but a shared target dir also shares the **final** artifacts, so two worktrees
+on different revisions overwrite each other's binaries and whichever built last is the one you run.
+`build-dir` shares only the intermediates.
 
 ## Known gaps / follow-ups
 

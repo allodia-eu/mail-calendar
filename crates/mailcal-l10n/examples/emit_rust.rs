@@ -8,7 +8,15 @@
 
 fn main() {
     let out = std::env::args().nth(1).expect("usage: emit_rust <out-dir>");
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    // Asked of the cargo running this, not of the compile that produced it. Every checkout shares
+    // one build directory (`.cargo/config.toml`), so a cached example carries the absolute path of
+    // whichever worktree built it first, and would read that tree's catalog while reporting the
+    // accessors as this one's. The compiled value is the fallback, for running the binary
+    // directly.
+    let manifest = std::env::var("CARGO_MANIFEST_DIR")
+        .unwrap_or_else(|_| env!("CARGO_MANIFEST_DIR").to_owned());
+    let manifest = std::path::Path::new(&manifest);
+    let root = manifest
         .parent()
         .and_then(std::path::Path::parent)
         .expect("crates/mailcal-l10n has a repository root");

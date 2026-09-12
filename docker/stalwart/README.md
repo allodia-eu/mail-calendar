@@ -128,8 +128,9 @@ So: **`11xxx` is the engine, `12xxx` is this repo**; HTTP is `18080` there and `
 `18081` is already the engine's SabreDAV harness (do not reuse it). The project name here is
 `mailcal-core-harness`. A third harness takes `13xxx` / `38080`. The numbers appear in
 [`docker-compose.yml`](docker-compose.yml), [`../../scripts/dev/lib.sh`](../../scripts/dev/lib.sh) and
-the four clients' injected dev account: [`check-dev-account.sh`](../../scripts/ci/check-dev-account.sh)
-fails the build if those drift apart, so changing one means changing all of them.
+the four clients' injected dev account:
+[`cargo xtask check-dev-account`](../../xtask/src/dev_account.rs) fails the build if those drift
+apart, so changing one means changing all of them.
 
 ## Seeded accounts
 

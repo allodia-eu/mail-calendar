@@ -22,12 +22,35 @@ extension ContentView {
                      subject: replySubject, quote: seed.quote, quoteStyle: seed.style)
     }
 
-    /// Opens the forward composer, seeding the quoted original the same way as a reply.
+    /// Opens the forward composer, seeding the quoted original the same way as a reply and the
+    /// attachment list with the files the original carries.
+    ///
+    /// The composer opens **after** staging, not before: on screen holding nothing it can be
+    /// sent in the window before the files arrive, which is the forward without its attachments
+    /// this exists to prevent. Staging reads from the raw source the reading view has already
+    /// cached, so in the ordinary case there is nothing to wait for.
     func beginForward(_ account: String, _ key: String, subject: String) {
         let seed = quoteSeed(account, key, isForward: true)
-        compose = .forward(account: account, key: key,
-                           subject: MailcalBindings.forwardSubject(original: subject),
-                           quote: seed.quote, quoteStyle: seed.style)
+        let forwardSubject = MailcalBindings.forwardSubject(original: subject)
+        Task { @MainActor in
+            let staged = await model.stageForwardedAttachments(
+                account, key, into: forwardStagingDirectory()
+            )
+            compose = .forward(
+                account: account, key: key, subject: forwardSubject,
+                quote: seed.quote, quoteStyle: seed.style,
+                attachments: ForwardAttachments(files: staged ?? [], failed: staged == nil)
+            )
+        }
+    }
+
+    /// A directory of this composer's own under the app's temporary storage, so two forwards
+    /// never share a staged file. The OS reclaims what is left behind, as it does for an
+    /// attachment opened from the reading view.
+    private func forwardStagingDirectory() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("forward-attachments", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
     }
 
     /// The quoted-original seed for a reply/forward of `(account, key)`, plus the default style.

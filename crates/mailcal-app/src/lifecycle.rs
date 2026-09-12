@@ -19,12 +19,11 @@ use tokio::sync::{RwLock, watch};
 
 use crate::{
     Account, App, AppObserver, CalendarWriteStatus, ContactWriteStatus, MailboxConnector, PAGE,
-    SearchScope, Surface, Telemetry, TimeZoneInit, background_sync::NotifyMarksState,
-    calendar_cache, calendar_prefs::CalendarPrefsState, display_settings::DisplaySettingsState,
-    folder_pane, load_view_mode, mcp_settings::McpSettingsState,
-    quote_settings::QuoteSettingsState, scope::Scope, send_settings::SendSettingsState,
-    sender_names, signatures::SignatureState, surfaced::Surfaced,
-    swipe_settings::SwipeSettingsState, sync, sync_progress::SyncProgressState,
+    Surface, Telemetry, TimeZoneInit, background_sync::NotifyMarksState, calendar_cache,
+    calendar_prefs::CalendarPrefsState, display_settings::DisplaySettingsState, folder_pane,
+    load_view_mode, mcp_settings::McpSettingsState, quote_settings::QuoteSettingsState,
+    scope::Scope, send_settings::SendSettingsState, sender_names, signatures::SignatureState,
+    surfaced::Surfaced, swipe_settings::SwipeSettingsState, sync, sync_progress::SyncProgressState,
     sync_settings::SyncSettingsState, timezone::TimeZoneState,
 };
 
@@ -85,8 +84,7 @@ impl<P: Provider> App<P> {
             view_mode: Mutex::new(view_mode),
             prefs_path: prefs_path.clone(),
             visible_limit: Mutex::new(PAGE),
-            search_query: Mutex::new(None),
-            search_scope: Mutex::new(SearchScope::default()),
+            search: Mutex::new(crate::snapshot_search::SearchState::default()),
             timezone: Mutex::new(TimeZoneState::new(
                 timezone.device_zone,
                 timezone.prefs_path,

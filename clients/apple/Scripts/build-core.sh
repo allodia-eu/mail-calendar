@@ -27,8 +27,6 @@ IOS_DEPLOYMENT_TARGET=18.0
 MACOS_DEPLOYMENT_TARGET=15.0
 
 # Apple silicon only; add x86_64-apple-darwin if the Mac support policy ever widens.
-# The simulator slice must stay in the list unconditionally: step [2/3] generates the Swift
-# bindings from its dylib.
 TARGETS=(aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin)
 
 # Cargo profile: `debug` (dev loop, the default) or `release` (packaging). The profile name is
@@ -45,16 +43,20 @@ for arg in "$@"; do
   esac
 done
 
+# The slice step [2/3] reads UniFFI's metadata out of. Every slice carries the same metadata, so
+# the last one this build produced will do, and the slice list stays free to narrow.
+BINDGEN_SLICE="${TARGETS[${#TARGETS[@]} - 1]}"
+
 # `cargo rustc --crate-type`, not `cargo build`, and this script is the only caller that does it.
 # Both crate types are needed here and nowhere else: step [3/3] links `libmailcal_bindings.a` into
-# every xcframework slice (an iOS app bundle can't ship a loose dylib), and step [2/3] reads the
-# ios-sim `.dylib` to generate the Swift bindings. Cargo has no per-target crate-type, so the
+# every xcframework slice (an iOS app bundle can't ship a loose dylib), and step [2/3] reads a
+# slice's `.dylib` to generate the Swift bindings. Cargo has no per-target crate-type, so the
 # manifest lists only what every host needs (`cdylib`, `lib`) and the Apple-only `staticlib` is
 # asked for right here, see crates/mailcal-bindings/Cargo.toml. Leaving it in the manifest cost
 # Windows, Android and Linux 1.9 GB of archive apiece that nothing on those platforms opens.
 #
-# `--lib` is required, not decoration: the package also has a `uniffi-bindgen` bin target, and
-# `cargo rustc` refuses to apply `--crate-type` when the selection is ambiguous.
+# `--lib` names the target the crate types apply to. The package has an example beside the library,
+# and `cargo rustc` refuses to apply `--crate-type` when the selection is ambiguous.
 BINDINGS_CRATE_TYPES=(--lib --crate-type staticlib --crate-type cdylib)
 
 # The Allodia sign-in, when this build was given the registration that turns it on -- derived from
@@ -90,14 +92,62 @@ for t in "${TARGETS[@]}"; do
   esac
 done
 
+# Everything generated below is written through `install_generated`, which leaves a file whose bytes
+# did not move alone, timestamp included. Xcode and SwiftPM both decide what to recompile from
+# mtimes, and this script regenerates unconditionally, so rewriting the 20,000-line
+# `mailcal_bindings.swift` with identical bytes is enough to recompile it and all 115 files of
+# MailcalUI behind it, however warm the build cache. The C# generator preserves timestamps for the
+# same reason (crates/mailcal-bindgen-cs).
+#
+# Holding a file still is not enough on a runner, where a checkout has none of these: they are
+# gitignored, so each one is written fresh whatever this does locally. Hence the mirror under
+# `build/`, the directory CI caches, holding the previous run's copy beside the build products made
+# from it. A file this generation does not change is restored from there WITH the timestamp those
+# products were built against, so they stay up to date.
+MIRROR="$HERE/build/generated"
+install_generated() {
+  local src=$1 dst=$2
+  local mirror="$MIRROR/${dst#"$HERE"/}"
+  mkdir -p "$(dirname "$dst")" "$(dirname "$mirror")"
+  if ! cmp -s "$src" "$dst"; then
+    if cmp -s "$src" "$mirror"; then
+      cp -p "$mirror" "$dst"
+    else
+      cp "$src" "$dst"
+    fi
+  fi
+  cmp -s "$dst" "$mirror" || cp -p "$dst" "$mirror"
+}
+
 echo "==> [2/3] Regenerating Swift bindings + L10n into MailcalBindings"
-mkdir -p "$BIND"
-rm -f "$BIND"/*.swift
-cargo run --manifest-path "$ROOT/Cargo.toml" --quiet --bin uniffi-bindgen -- \
-  generate --library "$ROOT/target/aarch64-apple-ios-sim/$PROFILE/libmailcal_bindings.dylib" \
-  --language swift --out-dir "$BIND"
+# Generated into a staging directory, so `install_generated` has the file already in place, and the
+# mirror, to compare against.
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+cargo run --manifest-path "$ROOT/Cargo.toml" --quiet -p mailcal-bindgen-uniffi -- \
+  generate --library "$ROOT/target/$BINDGEN_SLICE/$PROFILE/libmailcal_bindings.dylib" \
+  --language swift --out-dir "$STAGE"
 cargo run --manifest-path "$ROOT/Cargo.toml" --quiet -p mailcal-l10n -- \
-  generate --target swift --root "$ROOT" --out "$BIND"
+  generate --target swift --root "$ROOT" --out "$STAGE"
+
+# A Swift SPM target must hold ONLY Swift files, move the C header + modulemap out to the
+# xcframework's Headers (the binary target vends the `mailcal_bindingsFFI` C module from there).
+HDR="$ARTIFACTS/headers"
+install_generated "$STAGE/mailcal_bindingsFFI.h" "$HDR/mailcal_bindingsFFI.h"
+install_generated "$STAGE/mailcal_bindingsFFI.modulemap" "$HDR/module.modulemap"
+rm -f "$STAGE/mailcal_bindingsFFI.h" "$STAGE/mailcal_bindingsFFI.modulemap"
+
+mkdir -p "$BIND"
+for f in "$STAGE"/*.swift; do
+  [[ -e "$f" ]] || continue
+  install_generated "$f" "$BIND/$(basename "$f")"
+done
+# Drop what an earlier generation left behind and this one did not produce; a stale binding
+# compiles and then disagrees with the core.
+for f in "$BIND"/*.swift; do
+  [[ -e "$f" ]] || continue
+  [[ -e "$STAGE/$(basename "$f")" ]] || rm -f "$f"
+done
 
 # Bundle the shared rich-composer editor (clients/composer/dist/editor.html) into MailcalUI as an SPM
 # resource so it loads via Bundle.module, without it the composer WKWebView falls back to an
@@ -106,42 +156,80 @@ cargo run --manifest-path "$ROOT/Cargo.toml" --quiet -p mailcal-l10n -- \
 # Rebuilt from clients/composer/src first, so what gets copied is what the sources say (the bundle
 # is committed, not generated per build, see scripts/dev/composer-bundle.sh).
 bash "$ROOT/scripts/dev/composer-bundle.sh"
-COMPOSER="$PKG/Sources/MailcalUI/composer"
-mkdir -p "$COMPOSER"
-cp "$ROOT/clients/composer/dist/editor.html" "$COMPOSER/editor.html"
-
-# A Swift SPM target must hold ONLY Swift files, move the C header + modulemap out to the
-# xcframework's Headers (the binary target vends the `mailcal_bindingsFFI` C module from there).
-HDR="$ARTIFACTS/headers"
-rm -rf "$HDR"; mkdir -p "$HDR"
-mv "$BIND/mailcal_bindingsFFI.h" "$HDR/"
-mv "$BIND/mailcal_bindingsFFI.modulemap" "$HDR/module.modulemap"
+install_generated "$ROOT/clients/composer/dist/editor.html" "$PKG/Sources/MailcalUI/composer/editor.html"
 
 echo "==> [3/3] Assembling Mailcal.xcframework (${TARGETS[*]})"
-rm -rf "$ARTIFACTS/Mailcal.xcframework"
+XCF="$ARTIFACTS/Mailcal.xcframework"
 SLICE_ARGS=()
+SLICE_LIBS=()
 for t in "${TARGETS[@]}"; do
+  SLICE_LIBS+=("$ROOT/target/$t/$PROFILE/libmailcal_bindings.a")
   SLICE_ARGS+=(-library "$ROOT/target/$t/$PROFILE/libmailcal_bindings.a" -headers "$HDR")
 done
-xcodebuild -create-xcframework "${SLICE_ARGS[@]}" \
-  -output "$ARTIFACTS/Mailcal.xcframework" >/dev/null
 
-# Sign it with whatever local identity exists. Nothing about distribution depends on this, a
-# static archive carries no signature into the app, and xcodebuild never looks, but the Xcode IDE
-# will not use a binary target it has not been told to trust, and for an UNSIGNED one it decides
-# that per content. This script rewrites the content on every run, so the IDE re-asks ("The
-# Framework Mailcal.xcframework is unsigned") after every core rebuild; with that dialog standing,
-# a build fails with "no library for this platform was found in Mailcal.xcframework", an error
-# that describes a missing slice while all three are on disk. Signed, the trust is recorded against
-# the author and asked once. (Ad-hoc "-" would put us back on the content: its identity IS the
-# cdhash.) A machine with no identity loses only the IDE convenience.
-SIGN_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null |
-  awk -F'"' '/Apple Development|Developer ID/ {print $2; exit}')"
-if [[ -n "$SIGN_IDENTITY" ]]; then
-  codesign --force --sign "$SIGN_IDENTITY" --timestamp=none "$ARTIFACTS/Mailcal.xcframework" ||
-    echo "warning: could not sign Mailcal.xcframework; Xcode will ask to trust it after each rebuild" >&2
+# What this framework is made of: the slice list, and the content of every archive and header going
+# into it. CONTENT, not timestamps, and that distinction is the whole point.
+#
+# A cached Rust build keeps the compiled dependencies but not the linked artifact, so a runner
+# re-links `libmailcal_bindings.a` on every run and it arrives freshly dated. It arrives byte for
+# byte identical too, measured across separate runners. So a timestamp carries no information here,
+# and acting on one is expensive: `-create-xcframework` rewrites every byte, and a framework that
+# is merely re-dated recompiles MailcalBindings and all 115 files of MailcalUI above it. The
+# manifest decides whether to assemble; the reference file beside it carries the timestamp this
+# content was first assembled with, and goes back on at the end.
+XCF_MANIFEST="$MIRROR/.xcframework-manifest"
+XCF_REFERENCE="$MIRROR/.xcframework-reference"
+xcframework_manifest() {
+  printf '%s\n' "${TARGETS[*]}"
+  shasum -a 256 "${SLICE_LIBS[@]}" "$HDR"/* | awk '{print $1}'
+}
+
+XCF_WANT="$(xcframework_manifest)"
+XCF_CONTENT_MOVED=0
+if [[ ! -f "$XCF_MANIFEST" ]] || [[ "$(cat "$XCF_MANIFEST")" != "$XCF_WANT" ]]; then
+  XCF_CONTENT_MOVED=1
 fi
-echo "==> Done. Slices: $(ls "$ARTIFACTS/Mailcal.xcframework" | grep -v Info.plist | grep -v _CodeSignature | tr '\n' ' ')"
+
+if [[ "$XCF_CONTENT_MOVED" -eq 1 || ! -d "$XCF" ]]; then
+  # Assembled beside the framework and swapped in, never in place, so an interrupted
+  # `-create-xcframework` cannot leave a half-written directory standing as the real one. The
+  # staging name still ends in `.xcframework`, which xcodebuild requires of its `-output`.
+  STAGED_XCF="$ARTIFACTS/.Mailcal-staged.xcframework"
+  rm -rf "$STAGED_XCF"
+  xcodebuild -create-xcframework "${SLICE_ARGS[@]}" -output "$STAGED_XCF" >/dev/null
+  rm -rf "$XCF"
+  mv "$STAGED_XCF" "$XCF"
+
+  # Sign it with whatever local identity exists. Nothing about distribution depends on this, a
+  # static archive carries no signature into the app, and xcodebuild never looks, but the Xcode IDE
+  # will not use a binary target it has not been told to trust, and for an UNSIGNED one it decides
+  # that per content. Assembling the framework rewrites that content, so the IDE re-asks ("The
+  # Framework Mailcal.xcframework is unsigned"); with that dialog standing, a build fails with
+  # "no library for this platform was found in Mailcal.xcframework", an error that describes a
+  # missing slice while all three are on disk. Signed, the trust is recorded against the author and
+  # asked once. (Ad-hoc "-" would put us back on the content: its identity IS the cdhash.) A machine
+  # with no identity loses only the IDE convenience.
+  SIGN_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null |
+    awk -F'"' '/Apple Development|Developer ID/ {print $2; exit}')"
+  if [[ -n "$SIGN_IDENTITY" ]]; then
+    codesign --force --sign "$SIGN_IDENTITY" --timestamp=none "$XCF" ||
+      echo "warning: could not sign Mailcal.xcframework; Xcode will ask to trust it after each rebuild" >&2
+  fi
+else
+  echo "    unchanged, kept: Mailcal.xcframework"
+fi
+
+# Mint a new reference the moment the content moves, and otherwise put the old one back over the
+# whole tree. What Xcode and SwiftPM compare is the timestamp, so a framework reassembled from
+# identical bytes has to look untouched or every target above it rebuilds.
+if [[ "$XCF_CONTENT_MOVED" -eq 1 ]]; then
+  mkdir -p "$MIRROR"
+  : >"$XCF_REFERENCE"
+  printf '%s\n' "$XCF_WANT" >"$XCF_MANIFEST"
+fi
+find "$XCF" -exec touch -r "$XCF_REFERENCE" {} +
+
+echo "==> Done. Slices: $(ls "$XCF" | grep -v Info.plist | grep -v _CodeSignature | tr '\n' ' ')"
 
 # The MCP stdio relay an assistant spawns to reach the running app (docs/mcp.md). A separate
 # BINARY, not a library slice: an MCP client executes it as a child process, so it ships beside

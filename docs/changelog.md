@@ -249,8 +249,8 @@ genuinely does not work.
 ## Releases
 
 [`/VERSION`](../VERSION) holds the **last released** version: the number users currently have, not
-the one we are building. Every version listed here has a note; `check-version-sync.sh` proves that
-`/VERSION` does, and that no note claims a version above it.
+the one we are building. Every version listed here has a note; `cargo xtask check-version-sync`
+proves that `/VERSION` does, and that no note claims a version above it.
 
 | Version | Date | What shipped |
 |---|---|---|
@@ -320,5 +320,5 @@ This contract is binding via [`../AGENTS.md`](../AGENTS.md). When you ship a use
 The machine half is the store-copy step of the `checks` job
 ([`check_store_copy_length.py`](../scripts/ci/check_store_copy_length.py)): unknown platform tag,
 bad `Bump:`, missing locale, over-cap note. The version-sync step
-([`check-version-sync.sh`](../scripts/ci/check-version-sync.sh)) proves `/VERSION` names a release
+([`cargo xtask check-version-sync`](../xtask/src/version_sync.rs)) proves `/VERSION` names a release
 that has a note. Neither can check whether the note is *true*: that is rule 4, and it is yours.

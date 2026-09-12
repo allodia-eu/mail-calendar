@@ -107,8 +107,9 @@ public sealed partial class SettingsDialog : ContentDialog
         ("composing", L10n.SettingsCategoryComposing()),
         // Its own category, not a sub-screen of Composing: a signature is a standalone entity reused
         // across accounts, and "Settings → Signatures" is the path people already look for
-        // (docs/settings.md slot 5). Notifications, slot 6, is mobile-only and absent here.
+        // (docs/settings.md slot 6).
         ("signatures", L10n.SettingsCategorySignatures()),
+        ("notifications", L10n.SettingsCategoryNotifications()),
         ("privacy", L10n.SettingsCategoryPrivacy()),
         ("accounts", L10n.SettingsCategoryAccounts()),
         ("advanced", L10n.SettingsCategoryAdvanced()),
@@ -139,6 +140,7 @@ public sealed partial class SettingsDialog : ContentDialog
             "reading" => BuildReading(),
             "composing" => BuildComposing(),
             "signatures" => BuildSignatures(),
+            "notifications" => BuildNotifications(),
             "privacy" => BuildPrivacy(),
             "accounts" => BuildAccounts(),
             "advanced" => BuildAdvanced(),

@@ -259,7 +259,8 @@ impl AppModel {
             } else {
                 ComposeKind::Reply
             }),
-            AppInput::BeginForward => self.begin_compose(ComposeKind::Forward),
+            AppInput::BeginForward => self.stage_forward(sender.input_sender().clone()),
+            AppInput::ForwardStaged(staged) => self.begin_forward(staged),
             AppInput::CancelComposer => self.composer = None,
             AppInput::ComposerDraftChecked(edited) => self.draft_checked(edited),
             AppInput::DiscardDraft => self.take_pending_navigation(),
@@ -281,6 +282,19 @@ impl AppModel {
                     .to_owned(),
                 );
             }
+            AppInput::ExportMessage { destination } => {
+                self.export_message(destination, sender.input_sender().clone());
+            }
+            AppInput::MessageExported(saved) => {
+                self.notice = Some(
+                    if saved {
+                        l10n::message_saved()
+                    } else {
+                        l10n::message_save_failed()
+                    }
+                    .to_owned(),
+                );
+            }
             AppInput::AttachmentDecoded(result) => {
                 self.launch_attachment(result, sender.input_sender().clone());
             }
@@ -290,7 +304,10 @@ impl AppModel {
             AppInput::WebViewReady | AppInput::ReadingBodyPainted => {}
             AppInput::WebViewUnavailable => {
                 self.webview_available = false;
-                self.composer_error = self.composer.is_some();
+                self.composer_error = self
+                    .composer
+                    .is_some()
+                    .then_some(super::composer_notice::ComposerNotice::Prepare);
             }
             // The Settings button names no category, so it reopens on the last one asked for.
             AppInput::OpenSettings => self.settings.open(None),

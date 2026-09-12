@@ -5,6 +5,7 @@
 #   ./run-ui-tests.ps1                       # every suite whose dataset is available
 #   ./run-ui-tests.ps1 -Filter Unread*       # one file
 #   ./run-ui-tests.ps1 -RequireHarness       # a missing harness FAILS instead of skipping
+#   ./run-ui-tests.ps1 -Dataset showcase,first-run   # only the datasets named, and say so
 #
 # ---------------------------------------------------------------------------------------------
 # WHY THIS EXISTS, AND WHAT IT IS FOR
@@ -23,6 +24,14 @@
 # It is NOT a replacement for the headless suites, it is slower, it needs a desktop session, and
 # it can only run on Windows. Put a rule in `Mailcal.Tests` whenever the rule can be expressed
 # without WinUI. Put it here when the thing under test is what the user actually sees.
+#
+# WHAT CI RUNS, AND WHAT IT DOES NOT. The Windows job runs `-Dataset showcase,first-run` after its
+# build, on the same runner, and a failure is red. The twelve HARNESS suites cannot run there at
+# all: the harness is a Linux container and a GitHub Windows runner runs only Windows ones. So
+# nothing CI checks proves a mail action survived a round trip, and the suites that do are run by
+# hand (docs/background-sync.md carries the same gap for background sync). CI names them as not
+# selected rather than letting them take the "the harness is not up" skip, which would silently
+# reach a different set the day anything listened on that port.
 #
 # ---------------------------------------------------------------------------------------------
 # WRITING A SUITE
@@ -61,9 +70,15 @@
 # SUITES SHARE AN APP, AND WHAT THAT ASKS OF YOURS
 #
 # Suites declaring the same Dataset AND the same Env values run against ONE launch, in file order.
-# A launch per file spent most of the run starting the app: measured over these 21 suites, 578s
-# total, of which 410s was getting an app up and 167s was the assertions. Grouped, the same 21
-# suites take 12-13 launches and about 140s of setup.
+# A launch per file spent most of the run starting the app, so grouping them was worth about 270s
+# when it was introduced.
+#
+# EVERY RUN NOW REPORTS ITS OWN NUMBERS, per suite and in the summary, split into setup and cases,
+# because the two are shortened by different things and one total hides which grew: setup is app
+# starts and the between-suite reset, and comes down by sharing a launch; cases are UI Automation
+# tree walks, and come down by walking less. Read them before optimising anything here. The
+# measurement that used to be quoted in this paragraph was two changes out of date, and a stale
+# number is worse than none: it sends the next person after the half that is already cheap.
 #
 # Two rules follow, and the runner enforces the first for you:
 #
@@ -108,12 +123,34 @@
 param(
   [string] $Filter = '*',
   [switch] $RequireHarness,
+  # Which datasets to run, for a host that cannot serve them all. CI passes
+  # `showcase,first-run`, because a GitHub Windows runner can only run WINDOWS containers and the
+  # harness is a Linux one.
+  #
+  # A DECLARATION, not an optimisation. Leaving it out and letting the harness suites take the
+  # "the harness is not up" skip reaches the same 19 suites today, and silently reaches a
+  # different set the day anything starts listening on that port. What is deliberately excluded
+  # is named in the summary, on its own line, next to what merely happened to be unavailable.
+  #
+  # No ValidateSet, and one comma-separated string is accepted as well as a list, because the two
+  # ways of launching this disagree: `pwsh -File … -Dataset showcase,first-run` hands the whole
+  # thing over as ONE string, while the same words inside a pwsh script are an array. ValidateSet
+  # rejected the first with "the argument does not belong to the set", which reads as a wrong
+  # value rather than a quoting difference and sent the reader looking at the wrong thing.
+  [string[]] $Dataset = @('showcase', 'harness', 'first-run'),
   # Leave the app running afterwards, for poking at a failure by hand.
   [switch] $KeepApp
 )
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $windows = Join-Path $here '..'
+
+$KnownDatasets = @('showcase', 'harness', 'first-run')
+$Dataset = @($Dataset | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$unknown = @($Dataset | Where-Object { $KnownDatasets -notcontains $_ })
+if ($unknown.Count -gt 0) {
+  throw "unknown dataset(s) '$($unknown -join ', ')'; -Dataset takes any of: $($KnownDatasets -join ', ')."
+}
 
 # Not a nicety: the whole suite drives a WinUI window over UI Automation, and both are Windows.
 # Exit 0 rather than 1 so a `for each platform` loop on a Mac does not read as a red build, but
@@ -231,17 +268,112 @@ foreach ($file in $files) {
   }
 }
 
+# Where a failing case's screenshot goes. Emptied at the start of a run, so what is in it belongs
+# to this run: a stale picture of a failure someone already fixed is worse than none, because it
+# is read as evidence.
+$FailureShots = Join-Path $here 'failures'
+Remove-Item -Recurse -Force -LiteralPath $FailureShots -ErrorAction SilentlyContinue
+$ShotsTaken = 0
+
+<#
+.SYNOPSIS
+Shoots the whole desktop into uitests/failures, named for the case that just threw.
+.DESCRIPTION
+At the moment of the throw, which is the only moment worth photographing: the runner stops the app
+on its way out and relaunches between groups, so a picture taken by anything downstream, a later
+workflow step included, is of an empty desktop or of a different suite's app.
+
+The WHOLE desktop, not the app window: a case can fail precisely because the window is gone, and
+`screenshot.ps1` is the store-capture tool, which asserts about frame insets and would turn a
+diagnostic into a second failure.
+
+Never throws. A capture that fails must not replace the real failure with its own, so this
+swallows everything and says so in one line.
+#>
+function Save-FailureShot {
+  param([Parameter(Mandatory)] [string] $Suite, [Parameter(Mandatory)] [string] $Case)
+  try {
+    if ($script:ShotsTaken -ge 12) { return }
+    Add-Type -AssemblyName System.Drawing
+    Add-Type -AssemblyName System.Windows.Forms
+    $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $safe = ($Case -replace '[^A-Za-z0-9]+', '-').Trim('-')
+    if ($safe.Length -gt 60) { $safe = $safe.Substring(0, 60) }
+    New-Item -ItemType Directory -Force -Path $script:FailureShots | Out-Null
+    $path = Join-Path $script:FailureShots "$Suite-$safe.png"
+    $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+    try {
+      $g = [System.Drawing.Graphics]::FromImage($bmp)
+      try { $g.CopyFromScreen($bounds.X, $bounds.Y, 0, 0, $bmp.Size) } finally { $g.Dispose() }
+      $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+    }
+    finally { $bmp.Dispose() }
+    $script:ShotsTaken++
+    Write-Host "        shot: $path" -ForegroundColor DarkGray
+  }
+  catch {
+    Write-Host "        (could not capture the screen: $($_.Exception.Message))" -ForegroundColor DarkGray
+  }
+}
+
+<#
+.SYNOPSIS
+Throws unless the desktop is big enough to hold the window the showcase suites measure.
+.DESCRIPTION
+The showcase dataset pins the window to 1440x900 LOGICAL units (MainWindow.Showcase.cs), the store
+capture's frame. On a smaller desktop that window is clipped, and the two ways it then lies are
+both silent: `CopyFromScreen` over a region past the screen edge returns BLACK, so the luminance
+suites read every theme as dark; and a NavigationView narrower than its own breakpoint switches
+display mode, so the sidebar assertions measure a pane that is not the one shipped.
+
+A GitHub Windows runner comes up at 1024x768, which fails both. It is settable
+(`set-desktop-resolution.ps1`), so this throws with the number rather than letting twenty suites
+fail one at a time in ways that name the toolkit instead of the screen.
+
+Compared in LOGICAL units, which is why it goes through Get-DesktopLogicalSize rather than reading
+`Screen.PrimaryScreen.Bounds` here: PowerShell 7 is DPI aware, so that property answers in physical
+pixels and would pass a desktop half the size it needs. A 2880x1800 display at 200% is 1440x900,
+which fits exactly, and is why showcase.ps1 grew `-NoCapture`.
+#>
+function Assert-DesktopFitsShowcase {
+  $size = Get-DesktopLogicalSize
+  if ($size[0] -ge 1440 -and $size[1] -ge 900) { return }
+  throw "the desktop is $($size[0])x$($size[1]) logical pixels, and the showcase suites measure a 1440x900 window, so it would be clipped. Raise the resolution (uitests/set-desktop-resolution.ps1), or pass -Dataset harness."
+}
+
+if (($Dataset -contains 'showcase') -and ($plan.Dataset -contains 'showcase')) {
+  Assert-DesktopFitsShowcase
+}
+
 $passed = 0
 $failed = @()
 $skipped = @()
+$excluded = @()
 $launches = 0
+$launchSeconds = 0.0
+$caseSeconds = 0.0
+$wall = [Diagnostics.Stopwatch]::StartNew()
 
 foreach ($group in ($plan | Group-Object -Property Key)) {
   $members = @($group.Group)
-  $dataset = $members[0].Dataset
+  # Deliberately NOT the lower-case twin of the parameter above. PowerShell variable names are
+  # case-INSENSITIVE, so that name IS `-Dataset`, and a parameter declared `[string[]]` keeps its
+  # type constraint: assigning this group's name to it coerces the name back into a one-element
+  # ARRAY, which then reaches `Start-Dataset`'s `[string]` parameter and fails every suite in the
+  # run with "cannot convert value to type System.String". Same trap as $children in uia.ps1.
+  $groupDataset = $members[0].Dataset
   $groupEnv = $members[0].Env
 
-  if ($dataset -eq 'harness' -and -not (Test-HarnessUp)) {
+  # Not selected. Reported apart from the skips below, because the two are different answers: this
+  # one is a decision the caller made, that one is a host that could not serve the dataset.
+  if ($Dataset -notcontains $groupDataset) {
+    foreach ($member in $members) {
+      $excluded += "$($member.Name): dataset '$groupDataset' is not in -Dataset"
+    }
+    continue
+  }
+
+  if ($groupDataset -eq 'harness' -and -not (Test-HarnessUp)) {
     foreach ($member in $members) {
       $reason = "$($member.Name): the harness is not up (scripts/dev/harness.sh up)"
       if ($RequireHarness) { $failed += $reason; Write-Host "FAIL  $reason" -ForegroundColor Red }
@@ -269,20 +401,24 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
     # entitled to reuse", the state after a launch fails, and after a suite whose setup threw.
     $clean = $null
     foreach ($entry in $members) {
-      Write-Host "==> $($entry.Name)  [dataset: $dataset]" -ForegroundColor Cyan
+      Write-Host "==> $($entry.Name)  [dataset: $groupDataset]" -ForegroundColor Cyan
       # Load the suite HERE, into script scope, so its own top-level variables are the ones its
       # case bodies close over, see the warning on the grouping pass above.
       $Suite = $null
       . $entry.Path
+      # Timed in two halves, because they are shortened by different things and a single total
+      # hides which one grew: setup is app starts and the between-suite reset, and comes down by
+      # sharing a launch; cases are UI Automation tree walks, and come down by walking less.
+      $setup = [Diagnostics.Stopwatch]::StartNew()
       try {
         if ($null -eq $clean) {
-          Start-Dataset $dataset
+          Start-Dataset $groupDataset
           $launches++
           $clean = Get-SurfaceFingerprint
         }
         elseif (-not (Reset-AppSurface $clean)) {
           Write-Host '    the suite before left a surface this runner cannot put away; relaunching' -ForegroundColor DarkGray
-          Start-Dataset $dataset
+          Start-Dataset $groupDataset
           $launches++
           $clean = Get-SurfaceFingerprint
         }
@@ -296,10 +432,14 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
         foreach ($case in $Suite.Cases) {
           $failed += "$($entry.Name) / $($case.Name): setup failed, $($_.Exception.Message)"
         }
+        $launchSeconds += $setup.Elapsed.TotalSeconds
         $clean = $null
         continue
       }
+      $setup.Stop()
+      $launchSeconds += $setup.Elapsed.TotalSeconds
 
+      $cases = [Diagnostics.Stopwatch]::StartNew()
       foreach ($case in $Suite.Cases) {
         try {
           & $case.Body
@@ -310,8 +450,13 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
           $failed += "$($entry.Name) / $($case.Name): $($_.Exception.Message)"
           Write-Host "  FAIL  $($case.Name)" -ForegroundColor Red
           Write-Host "        $($_.Exception.Message)" -ForegroundColor Red
+          Save-FailureShot -Suite $entry.Name -Case $case.Name
         }
       }
+      $cases.Stop()
+      $caseSeconds += $cases.Elapsed.TotalSeconds
+      Write-Host ("      {0:N1}s setup + {1:N1}s in {2} case(s)" -f
+        $setup.Elapsed.TotalSeconds, $cases.Elapsed.TotalSeconds, $Suite.Cases.Count) -ForegroundColor DarkGray
     }
   }
   finally {
@@ -321,11 +466,29 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
 
 if (-not $KeepApp) { Get-Process Mailcal -ErrorAction SilentlyContinue | Stop-Process -Force }
 
+$ran = $plan.Count - $excluded.Count - $skipped.Count
+
 Write-Host ''
-Write-Host "$passed passed, $($failed.Count) failed, $($skipped.Count) skipped  ($launches app launches for $($plan.Count) suites)"
+Write-Host "$passed passed, $($failed.Count) failed, $($skipped.Count) skipped, $($excluded.Count) not selected"
+Write-Host ("$ran suite(s) ran in {0:N0}s: {1:N0}s setup over $launches app launch(es), {2:N0}s in cases" -f
+  $wall.Elapsed.TotalSeconds, $launchSeconds, $caseSeconds)
 foreach ($s in $skipped) { Write-Host "  SKIPPED: $s" -ForegroundColor Yellow }
+# One line, not one per suite: an excluded dataset is a whole block of the suite the caller asked
+# not to run, and printing nineteen identical reasons buries the skips above that are not that.
+if ($excluded.Count -gt 0) {
+  Write-Host ("  NOT SELECTED: $($excluded.Count) suite(s), -Dataset is " + ($Dataset -join ',')) -ForegroundColor Yellow
+}
 if ($failed.Count -gt 0) {
   foreach ($f in $failed) { Write-Host "  FAILED:  $f" -ForegroundColor Red }
+  exit 1
+}
+# A run that measured nothing is a failure, not a pass. On this host the reachable ways to get here
+# are a -Filter matching only suites whose dataset was excluded, and a -Dataset naming only the
+# harness on a machine that has none: both leave a green step that checked nothing, which is the
+# single most expensive shape a CI gate can take. The non-Windows case above exits 0 deliberately,
+# and says SKIPPED out loud, because there the whole suite is inapplicable rather than empty.
+if ($ran -le 0) {
+  Write-Host 'FAILED: no suite ran at all, so this run proves nothing.' -ForegroundColor Red
   exit 1
 }
 exit 0

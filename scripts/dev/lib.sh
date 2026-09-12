@@ -428,7 +428,7 @@ Run scripts\\dev on the Windows machine, or use clients/windows/build-and-run.ps
 # fictional engine was actually built; not merely that a flag was set somewhere.
 #
 # The marker is duplicated in three languages (Rust emits it; bash and PowerShell match it), so
-# scripts/ci/check-showcase-flag.sh asserts all three copies still agree.
+# `cargo xtask check-showcase-flag` asserts all three copies still agree.
 SHOWCASE_LOG_MARKER='showcase (screenshot) app starting (in-memory engine, seeded'
 
 # The marker a run in <locale> must log. Rust's `{locale:?}` renders the ShowcaseLocale variant,
@@ -467,6 +467,39 @@ text_has_marker() { # <text> <marker>
   esac
 }
 
+# The size of <file> in bytes, or 0 when it does not exist yet. Taken before a launch and handed to
+# `log_slice_since`, so a marker from an earlier run never vouches for this one.
+log_size() { # <file>
+  if [[ -f "$1" ]]; then wc -c <"$1" | tr -d '[:space:]'; else printf '0'; fi
+}
+
+# The line the Linux client writes once GTK has put its window on screen. Kept in step with
+# clients/linux/src/logger.rs by scripts/dev/tests/test_linux_ready_marker.py: a launcher waiting
+# for a line the app no longer writes would report every healthy start as a failed one.
+LINUX_READY_LOG_MARKER='window on screen'
+
+# Wait for <marker> to appear in <file> past <offset>, while <pid> is still running.
+#
+# Returns 0 when the marker arrives, 1 on timeout, and 2 when the process is gone without having
+# written it. That third answer is the point: a client that dies during startup writes nothing more,
+# so a wait that only watches the clock reports a crash as a slow boot, one timeout later, and sends
+# the reader looking for a machine under load.
+wait_for_log_marker() { # <file> <offset> <marker> <timeout-seconds> <pid>
+  local file="$1" offset="$2" marker="$3" halves=$(( $4 * 2 )) pid="$5" waited=0
+  while :; do
+    if text_has_marker "$(log_slice_since "$file" "$offset")" "$marker"; then return 0; fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      # It can write the marker and exit between the two checks above, so ask once more before
+      # calling a launch that did come up a launch that died.
+      text_has_marker "$(log_slice_since "$file" "$offset")" "$marker" && return 0
+      return 2
+    fi
+    [[ "$waited" -lt "$halves" ]] || return 1
+    sleep 0.5
+    waited=$((waited + 1))
+  done
+}
+
 # ---- physical iOS devices (Apple) -------------------------------------------------------------
 #
 # The simulator helpers above cannot test background delivery: BGTaskScheduler never runs on a
@@ -480,18 +513,18 @@ APP_PREFS_REL="Library/Application Support/mailcal/preferences.toml"
 
 # Emit "<udid>\t<name> (<os>)" for every CONNECTED physical iOS/iPadOS device.
 #
-# Two sections of `xctrace list devices` are deliberately dropped. "== Simulators ==" is obvious;
-# "== Devices Offline ==" is not, and costs the auto-detection below its whole point; a device
-# that was plugged in once is remembered there forever, so a laptop that has ever seen a second
-# iPhone or iPad would report "multiple devices" from then on and refuse to pick either. An offline
-# device can be neither built for nor installed to.
+# ⚠️ **Asked of `devicectl`, not of `xctrace list devices`.** That listing sorts a device into an
+# "== Devices Offline ==" section that a live, usable device can sit in, so auto-detection built on
+# it answers "no physical iOS device found" while the phone is plugged in and working. Measured on
+# an iPhone 13 Pro, iOS 18.7.8, USB, Developer Mode on: xctrace called it offline, `devicectl`
+# called it available, and `device.sh build|install|run` all worked against it. `devicectl` is also
+# what every operation in device.sh already uses, so this asks the tool that will be used.
 #
-# Physical UDIDs are 8hex-16hex (modern) or 40 hex (older); the Mac host's own 8-4-4-4-12 UUID
-# carries no OS parenthetical, so the shape excludes it.
+# The selection rule and what each part rules out is in scripts/dev/ios_devices.py, which is where
+# it can be tested with nothing plugged in.
 list_connected_devices() {
-  xcrun xctrace list devices 2>/dev/null |
-    sed -nE '/^== Devices Offline ==/q; /^== Simulators ==/q;
-             s/^(.*) \(([0-9.]+)\) \(([0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})\)$/\3	\1 (\2)/p'
+  xcrun devicectl list devices --json-output - 2>/dev/null |
+    python3 "$(dirname "${BASH_SOURCE[0]}")/ios_devices.py"
 }
 
 # The UDID of the physical iOS/iPadOS device to target. Honours $MAILCAL_DEVICE; else auto-detects

@@ -37,7 +37,14 @@ $EdgeTolerancePx = 1.5
 The rendered rectangle of each button in the actions bar, keyed by automation id.
 #>
 function Get-BarButtonBounds {
-  $null = Wait-UiaElement -AutomationId 'SelectionBar' -TimeoutSec 30
+  # Waited on the first BUTTON, not on #SelectionBar. That id is on a `Border`, and UI Automation's
+  # control view carries no Border at all, so waiting for it could only ever run its timeout out and
+  # answer $null: thirty seconds a case, discarded on the next line, while the case went on to pass
+  # on elements it found by other means. A wait nobody reads the result of is not a wait, so this
+  # one waits for something that exists and THROWS when it does not arrive.
+  if (-not (Wait-UiaElement -Type 'Button' -AutomationId $BarButtons[0] -TimeoutSec 30)) {
+    throw "the actions bar never drew its #$($BarButtons[0]) button, so there is no row to measure"
+  }
   $bounds = [ordered] @{}
   foreach ($id in $BarButtons) {
     $button = Find-UiaElement -Type 'Button' -AutomationId $id

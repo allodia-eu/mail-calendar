@@ -127,7 +127,7 @@ pub use connector::MailboxConnector;
 pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;
 use display_settings::DisplaySettingsState;
-pub use helpers::{forward_subject, reply_subject};
+pub use helpers::{export_file_name, forward_subject, reply_subject};
 pub use html::{Canvas, MESSAGE_CANVAS, render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;
@@ -137,7 +137,7 @@ use mcp_settings::McpSettingsState;
 pub use prefetch::default_prefetch_size_limit;
 pub use protocol::{
     AppObserver, BulkAction, CalendarWriteStatus, ComposerBlob, ContactWriteStatus, Intent,
-    RecipientSuggestion, SearchScope, SendStatus, Surface,
+    RecipientSuggestion, SearchScope, SendStatus, StagedAttachment, Surface,
 };
 pub use query::{MessageDetail, MessagePage};
 use quote_settings::QuoteSettingsState;
@@ -258,11 +258,7 @@ pub struct App<P> {
     /// the list: so a folder switch always opens at the first page, and scrolling loads more.
     /// A background sync preserves it (the host keeps whatever it had scrolled into view).
     visible_limit: Mutex<usize>,
-    search_query: Mutex<Option<String>>,
-    /// Which folders the active search covers. Session state, never persisted: it is a filter
-    /// on one search, and [`Intent::Search`]`(None)` resets it, so a search always opens on
-    /// the default rather than inheriting how the last one was narrowed.
-    search_scope: Mutex<SearchScope>,
+    search: Mutex<snapshot_search::SearchState>,
     timezone: Mutex<TimeZoneState>,
     /// The persisted per-account synchronisation-behaviour choices (push vs. poll). The
     /// snapshot the host renders is assembled in [`sync_settings`](crate::sync_settings) by

@@ -169,9 +169,10 @@ private func handleFatalSignal(_ number: Int32) {
 
 #if DEBUG
 /// Kills this launch on purpose, a couple of seconds in, so each fault shape can be driven by hand
-/// and the tail of `mailcal.log` read afterwards. There is no Apple UI-test target, so this is the
-/// only way any of the above is exercised at all, and it is worth re-running whenever this file
-/// moves, because both defects found while writing it were invisible to every other gate.
+/// and the tail of `mailcal.log` read afterwards. This is still the only way any of the above is
+/// exercised: the UI suite (`clients/apple/UITests`) drives a running app and a crashed app is
+/// exactly what it cannot assert against. Worth re-running whenever this file moves, because both
+/// defects found while writing it were invisible to every other gate.
 ///
 /// `MAILCAL_CRASH_TEST=objc|trap|abort|segv`, DEBUG-only, in the same style as `MAILCAL_SHOWCASE`
 /// and `MAILCAL_DEV_ACCOUNT`. Never set in a shipped build, and compiled out of one.

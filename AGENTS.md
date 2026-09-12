@@ -92,9 +92,9 @@ attention, human or agent alike. Write the fact, not the story around it.
   // ✓ Read-only: no client offers to change a reminder yet.
   ```
 
-  `check-public-hygiene.sh` catches the shapes a grep can decide, and the ✗ above is not one of
-  them, which is the usual relationship between a rule and its checker. The domain's own word is
-  untouched: a gesture's propagation phase and an Xcode build phase are lowercase.
+  `cargo xtask check-public-hygiene` catches the shapes a grep can decide, and the ✗ above is not
+  one of them, which is the usual relationship between a rule and its checker. The domain's own word
+  is untouched: a gesture's propagation phase and an Xcode build phase are lowercase.
 - **Comment sparingly.** A comment earns its place when it carries what the code cannot: a
   non-obvious invariant, an outside constraint (a protocol, a platform bug, a server's behaviour),
   or a "this looks wrong but isn't". Anything a reader gets from the signature and body is noise.
@@ -179,6 +179,7 @@ silent. Two couplings apply to everything user-facing: copy may not out-run the 
 | [`search.md`](docs/search.md) | Newest-first ordering (never relevance); default scope is every account and folder except Trash; the scope filter mirrors the mailbox list; leaving search restores the view it opened from. |
 | [`list-selection.md`](docs/list-selection.md) | Selecting several messages: the **selection** is the client's, because its list control already carries the modifier, focus and assistive-technology behaviour; the **batch** is the core's one intent, so a hundred rows cost one sync per account rather than a hundred. A conversation row stands for its whole thread, and a move never takes a Sent copy out of Sent. A selection is scoped to the list on screen and clears with it; the desktop keys are bound on the list, never app-wide. |
 | [`folder-pane.md`](docs/folder-pane.md) | Every account's folders on screen at once; expansion is independent of selection, lives in the core and survives a restart; the unread count is the **server's** and counts messages; no badge at zero; All Inboxes sums the inboxes only; icons come from the folder's **role**, in each platform's native set. |
+| [`reading-actions.md`](docs/reading-actions.md) | The action row above an open message: reply/reply-all/forward at the start, archive/delete at the end, the **overflow menu** last of all, on every platform including phones. What may go behind it: an action on the message as a document, never a duplicate of a row button, never something irreversible. Exporting writes the **delivered bytes**, never a rebuild of the reading view, under a name the core derives from the subject the client displays. |
 | [`avatars.md`](docs/avatars.md) | The circle beside a person: what it is *of* (the canonical **address**, never the name), monogram then photo but never blank, the colour from a stable hash of the address, hidden from assistive technology, and the raster-only sniff a path must pass before a client sees it. |
 | [`reporting.md`](docs/reporting.md) | Marking spam is a **report to the provider**, not a folder move: the report files the message itself, so a client never moves it as well. Which verdicts exist is read from `Capabilities::mail_report` (Gmail has no phishing verdict), and no client may claim the provider acted unless its evidence is `Acknowledged`. A provider that cannot report still gets the message filed. |
 | [`contacts.md`](docs/contacts.md) | One person = a shared canonical email, **never** a name; a merged row says it is a merge and names the accounts; an edit names one **source card**, never the person, and only a writable book is offered. |
@@ -241,20 +242,39 @@ a build given none drops those two routes from the setup wizard rather than fail
 `.env` looks exactly like a regression in whatever you are working on: check `oauth_routes()`
 before chasing one.
 
-**Run `scripts/dev/gate.sh` before the first push of a branch**: `--clients` adds every client this
-host can actually build. That is the whole local obligation. Each client is verified on the host it
-belongs to and CI covers the rest, so on a Mac the answer is macOS and iOS, and Windows and Linux
-are the runners' to prove.
+**Every checkout shares one build directory, and [`.cargo/config.toml`](.cargo/config.toml) already
+sets it up.** Each worktree is its own Cargo workspace, so left alone each compiles this dependency
+tree into a `target/` of its own, several GB apiece: five worktrees and a main checkout reached
+**54 GB** on one machine. `build.build-dir` sends the intermediates to one shared directory and
+leaves binaries, cdylibs and test executables in each worktree's `target/`, so worktrees on
+different revisions share the compile work without overwriting each other's output. That file
+carries the reasoning; two consequences are worth knowing before they surprise you:
 
-⚠️ **Never build or test a client on a host that is not its own**, and a container is not an
-exception: standing a Linux image up on a Mac to compile `mailcal-linux` costs several gigabytes of
-disk and a long cold build, and buys a result the Linux runner produces anyway. The same goes for
-the WinUI client. Write the change, say which platforms you could not exercise here, and let CI
-answer for them.
+- ⚠️ **A nearly empty `target/` is the expected shape, not a broken build.**
+- Cargo locks the build directory for the length of a build, so a second worktree prints
+  `Blocking waiting for file lock on build directory` and waits. Builds serialise rather than
+  oversubscribe the cores. `CARGO_BUILD_BUILD_DIR` opts one build out.
 
-**On Windows the shell is Git Bash, a prerequisite rather than a preference.** The gate and half
-the checks are bash scripts, and Actions' `shell: bash` on `windows-*` runners is Git Bash too, so
-the dev box and CI run the same interpreter. Set `MAILCAL_BASH` if yours lives somewhere unusual.
+Anything else your machine needs goes in [`AGENTS.local.md`](AGENTS.local.md), untracked.
+
+**Run `cargo xtask gate` before the first push of a branch**: `--clients` adds every client this
+host can actually build. CI costs real money and real minutes (macOS runners bill at **10×**), so a
+PR is where you *confirm* a green build, not where you discover one.
+
+**The gate and every contract check it runs are one binary**, [`xtask/`](xtask), reached through the
+`cargo xtask` alias in [`.cargo/config.toml`](.cargo/config.toml). `cargo xtask --list` names them,
+each is runnable on its own, and `cargo xtask checks` runs all of them and reports every one that
+failed rather than stopping at the first, which is what the always-run `checks` job invokes. Rust
+rather than shell because on Windows a shell is an emulated x86_64 Cygwin process per command:
+those nine checks cost **209 s** under Git Bash on an arm64 developer machine and **4 s** here,
+three minutes of which was one script starting `wc` once per file. The crate has no dependencies,
+so the only thing it costs before an instant check can run is its own compile.
+
+**On Windows the shell is Git Bash, a prerequisite rather than a preference.** The gate itself does
+not need it, which is most of why the checks live in a binary; what is still bash is the harness,
+the capture drivers, each client's own build script, and the scripts the Python suites drive.
+Actions' `shell: bash` on `windows-*` runners is Git Bash too, so the dev box and CI run the same
+interpreter. Set `MAILCAL_BASH` if yours lives somewhere unusual.
 
 ⚠️ **On Windows, a bare tool name is a name Windows also has**, and `System32` answers first.
 `bash.exe` there is *WSL's* launcher: `CreateProcess` searches `System32` before `PATH`, so
@@ -269,13 +289,13 @@ the FAT-to-NTFS volume converter, and it is worse: `command -v` finds it and `co
 Windows and fails on the first real call, several steps later, in whatever it was meant to produce.
 
 **Run the script, never a list assembled from memory**: a half-run gate drops a step, and it is
-never a random one. `scripts/dev/gate.sh --list` prints the order, `--keep-going` runs everything
+never a random one. `cargo xtask gate --list` prints the order, `--keep-going` runs everything
 and summarises. The order is cheapest-first rather than CI's, so the step most likely to fail on
 your change fails first.
 
 Nothing in it needs a device, simulator, emulator or Docker: the suites that do stay out
-(`clients/windows/uitests`, `scripts/dev/test-linux-ui.sh`, `scripts/dev/test-android-native-fault.sh`,
-anything behind `scripts/dev/boot.sh`),
+(`clients/windows/uitests`, `clients/apple/Scripts/test-ui.sh`, `scripts/dev/test-linux-ui.sh`,
+`scripts/dev/test-android-native-fault.sh`, anything behind `scripts/dev/boot.sh`),
 because a gate that cannot run is a gate people stop running. `--clients` adds only the headless,
 host-appropriate ones and **says what it skipped and why**: a skip that reads like a pass is the
 failure this file keeps warning about.
@@ -294,10 +314,21 @@ clients/windows/build-and-run.ps1 -NoRun        # cdylib -> bindings -> headless
 clients/windows/uitests/run-ui-tests.ps1        # UI Automation assertions against the RUNNING app
 ```
 
-On **Linux**, with GTK 4.14+ and libadwaita 1.5+ dev packages; other hosts exclude the crate and
-leave it to the runner rather than reaching for a container.
+CI runs the second one too, but only `-Dataset showcase,first-run`: the harness is a Linux
+container and a GitHub Windows runner runs only Windows ones, so the twelve **harness** suites, the
+ones that prove a mail action survived a round trip, run nowhere but a developer's machine. Run
+them before pushing anything that touches a mail or calendar write.
+
+On **Linux**, with GTK 4.14+ and libadwaita 1.5+ dev packages; other hosts exclude the crate.
 [`clients/linux/README.md`](clients/linux/README.md) has the commands and the one-time GNOME
 runtime install.
+
+**A client the host cannot build is CI's to verify, and a container is not a way around that.**
+Standing up a Linux image on a Mac to compile `mailcal-linux`, or reaching for the WinUI client
+from anywhere but Windows, costs gigabytes of image and cache and a cold compile, on a machine
+someone is working on, to produce the answer the runner produces anyway. Run
+`cargo xtask gate --clients`, which already limits itself to what this host owns, and **say
+which platforms went unexercised locally** rather than finding a way to exercise them.
 
 ⚠️ **A host build compiles against the distribution's GTK, not the runtime's**, so it proves the
 code compiles and its logic holds, not that the toolkit the user gets behaves. What runs against
@@ -332,10 +363,14 @@ were broken right now, would this tell me?*
   cause.
   Android regenerates via Gradle (`generateUniffiBindings` / `generateL10n`, which is why the android
   CI job installs Rust); other clients via their build scripts. By hand:
-  `cargo run --bin uniffi-bindgen -- generate target/debug/libmailcal_bindings.dylib
+  `cargo run -p mailcal-bindgen-uniffi -- generate target/debug/libmailcal_bindings.dylib
   --language <swift|kotlin> --out-dir <…>`, then the `mailcal-l10n` generator. C# is a **separate
   generator**: `cargo run -p mailcal-bindgen-cs -- --library <cdylib> --out-dir <…>`, which still
   needs its `--library` flag (UniFFI's own binary auto-detects a library and ignores it).
+  Both generators are crates of their own and outside `default-members`, so `-p` is required and a
+  bare `--bin` finds neither. That separation is load-bearing: a bin target drags its package's
+  whole dependency tree in behind it, so a generator living in `mailcal-bindings` builds the engine
+  again, and on the Apple path for the host, a target the cross-compiled slices share nothing with.
 - **Android tests run on JDK 17**, pinned by `kotlin { jvmToolchain(17) }`. Unpinned, Gradle uses the
   daemon's JDK and Robolectric reads the *host* JDK's locale data: Dutch July is `jul` on 21 and
   `jul.` on 17. Assert that copy is *Dutch*, not *which* Dutch.
@@ -343,6 +378,12 @@ were broken right now, would this tell me?*
   `import` still builds when a sibling imports the same symbol; xcodebuild's Debug
   `-enable-batch-mode` compiles in isolated batches and fails with `cannot find 'X' in scope`. Verify
   Apple with `clients/apple/Scripts/build-and-run.sh --macos --no-run` (add `--iphone`).
+- **And a build is not the screen.** `clients/apple/Scripts/test-ui.sh` is the XCUITest suite
+  (`clients/apple/UITests`), on a simulator or with `--device` on a connected iPhone. It is the only
+  Apple gate that can drive a **gesture**, or read the iOS **navigation bar** at all, which `idb`
+  reports as one unlabelled group. It needs a simulator, so the workspace gate leaves it out and CI
+  runs two of its four classes; run it before pushing anything that changes what an Apple screen
+  presents.
 - **A `#![cfg(unix)]` test file reports `running 0 tests ... ok` on Windows**, which reads exactly
   like a pass. Any `cfg(windows)` / `cfg(unix)` branch needs a test *per branch*, and a
   cross-platform test count is not coverage: read the per-file `running N tests` lines.
@@ -378,7 +419,7 @@ were broken right now, would this tell me?*
 - **The Rust toolchain is pinned** in [`rust-toolchain.toml`](rust-toolchain.toml), which CI parses
   too. Bumping it is a **standalone PR**: a new stable that adds a default-warn lint turns the build
   red, and that PR is where it gets fixed.
-- **Format on the pinned nightly**, which [`gate.sh`](scripts/dev/gate.sh) selects for you.
+- **Format on the pinned nightly**, which [`cargo xtask gate`](xtask/src/gate.rs) selects for you.
   [`rustfmt.toml`](rustfmt.toml) uses nightly-only options that stable *warns about and ignores*
   rather than failing on, so a floating `+nightly` goes green locally and red in CI. The date lives
   in one file, [`rust-nightly.toml`](rust-nightly.toml), which the gate and
@@ -386,11 +427,11 @@ were broken right now, would this tell me?*
   ⚠️ `cargo +<pin>` auto-installs a missing toolchain **without** rustfmt, then fails with
   `'cargo-fmt' is not installed`, which reads like a bad pin. The gate installs it for you.
 - **The 500-line limit** is enforced by
-  [`check-file-length.sh`](scripts/ci/check-file-length.sh) in the always-run `checks` job, because
-  no linter in these languages has a per-file length lint. It covers `*.rs`, `*.cs`, `*.ts`, `*.js`,
-  `*.html`, `*.swift` and `*.kt`. It reads `git ls-files`, so **an unstaged new file is invisible
-  to it**: inspect untracked files before calling a change green, and use `git grep --untracked` in
-  any new contract check. Generated files are invisible for the same reason and correctly so, which
+  [`cargo xtask check-file-length`](xtask/src/file_length.rs) in the always-run `checks` job,
+  because no linter in these languages has a per-file length lint. It covers `*.rs`, `*.cs`,
+  `*.ts`, `*.js`, `*.html`, `*.swift` and `*.kt`. It reads `git ls-files`, so **an unstaged new file
+  is invisible to it**: inspect untracked files before calling a change green, and use
+  `git grep --untracked` in any new contract check. Generated files are invisible for the same reason and correctly so, which
   is why the 20,000-line UniFFI Kotlin bindings need no exemption. The one `EXCLUDED` entry is the
   committed composer bundle; "it is hard to split" is never a reason to add another.
 - **CI builds only what a change can break, and only `main` writes caches.** Jobs gate on
@@ -407,7 +448,7 @@ were broken right now, would this tell me?*
   nothing in CI reads `proguard-rules.pro`, because the JVM suite runs unminified, so a keep rule
   broken by a dependency bump waits for the tag; and the only remaining check on a dev fixture
   escaping a `cfg` arm is textual
-  ([`check-dev-account.sh`](scripts/ci/check-dev-account.sh)), so a leaking *call site* compiles
+  ([`cargo xtask check-dev-account`](xtask/src/dev_account.rs)), so a leaking *call site* compiles
   fine in debug. Build a release variant by hand before tagging if a change touched shrinker rules
   or the debug-only fixtures.
 
@@ -439,8 +480,8 @@ were broken right now, would this tell me?*
   every seed carries English's keys, folders and bodies **and** that no two locales share a calendar
   event-title list, since parity alone passes a seed copied from English; `AppCulture` resolves
   against the emitted list, so a picker language cannot render its own words over the host's dates;
-  and [`check-showcase-flag.sh`](scripts/ci/check-showcase-flag.sh) compares the three lists in step
-  5. **The Windows locale list stays its own file** (`L10nLocales.cs`) because `L10n.cs` needs a
+  and [`cargo xtask check-showcase-flag`](xtask/src/showcase_flag.rs) compares the three lists in
+  step 5. **The Windows locale list stays its own file** (`L10nLocales.cs`) because `L10n.cs` needs a
   Windows TFM that `Mailcal.Tests` does not have.
 - **Android is modern-only.** `minSdk` is **31**; prefer modern APIs, no legacy back-compat shims
   unless asked.
@@ -493,6 +534,7 @@ accounts. Full loop and per-platform paths: [`docs/debugging.md`](docs/debugging
 | Architecture map (layering, crates, ports) | [`docs/architecture.md`](docs/architecture.md) |
 | Cross-cutting product contracts | [`docs/`](docs), see the table above |
 | Debugging a client against the local mail server | [`docs/debugging.md`](docs/debugging.md) |
+| The local gate and every contract check it runs | [`xtask/`](xtask), as `cargo xtask gate` / `cargo xtask <check>` |
 | Repo-local agent/debug skills | [`.agents/skills`](.agents/skills) |
 | The PIM sync engine | [`allodia-eu/email-calendar-sync-engine`](https://github.com/allodia-eu/email-calendar-sync-engine), pinned by commit in [`Cargo.toml`](Cargo.toml); its own `AGENTS.md` governs engine work |
 | Native clients | [`clients/`](clients): `apple`, `windows`, `android`, `linux` |

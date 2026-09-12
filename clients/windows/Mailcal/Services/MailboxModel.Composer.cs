@@ -156,4 +156,28 @@ public sealed partial class MailboxModel
         return false;
 #endif
     }
+
+    /// <summary>The files a message carries, staged into <paramref name="stagingDirectory"/> for
+    /// its forward composer to open holding them. <c>null</c> means they could not be read, which
+    /// the composer says: an empty list would read as a message with nothing attached.</summary>
+    /// <remarks>Decodes and writes every file, so call it off the UI thread.</remarks>
+    internal IReadOnlyList<ComposerFileAttachment>? StageForwardedAttachments(
+        string account,
+        string key,
+        string stagingDirectory)
+    {
+        if (_app is null)
+        {
+            return null;
+        }
+        try
+        {
+            return _app.StageForwardedAttachments(account, key, stagingDirectory);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"forward attachment staging failed: {ex.GetType().Name}");
+            return null;
+        }
+    }
 }

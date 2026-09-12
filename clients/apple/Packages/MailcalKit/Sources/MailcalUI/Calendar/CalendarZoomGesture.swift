@@ -268,6 +268,14 @@ struct CalendarZoomGesture: ViewModifier {
 #if os(iOS)
     /// A transparent UIKit view whose only job is to own a two-finger pinch and report **where the
     /// fingers are**, which is the one thing SwiftUI's gesture will not tell us.
+    ///
+    /// The recognizer goes on the **window**, not on this view, and the same reasoning binds the
+    /// scroll catcher beside it (`CalendarScrollGesture`): a SwiftUI overlay is a sibling of the
+    /// content, not its ancestor, and UIKit offers a touch only to the recognizers of the hit-test
+    /// view and its ancestors. A recognizer attached here fires only if this view becomes the hit
+    /// target, which would cost the grid below every tap, drag and scroll it has. So the view stays
+    /// transparent, the recognizer sits on the window, and `gestureRecognizerShouldBegin` keeps it
+    /// to pinches aimed at the grid.
     private struct PinchCatcher: UIViewRepresentable {
         let onPinch: (CGFloat, CGFloat, CGPoint) -> Void
         let onSettled: () -> Void
@@ -276,13 +284,9 @@ struct CalendarZoomGesture: ViewModifier {
 
         func makeUIView(context: Context) -> UIView {
             let view = PassthroughView()
-            let pinch = UIPinchGestureRecognizer(
-                target: context.coordinator, action: #selector(Coordinator.handle(_:))
-            )
-            // Let the scroll views underneath keep working: a one-finger drag is theirs, and a pinch
-            // only ever involves two.
-            pinch.delegate = context.coordinator
-            view.addGestureRecognizer(pinch)
+            view.onAttach = { [coordinator = context.coordinator] host, window in
+                coordinator.attach(over: host, to: window)
+            }
             return view
         }
 
@@ -290,20 +294,59 @@ struct CalendarZoomGesture: ViewModifier {
             context.coordinator.parent = self
         }
 
-        /// Transparent to touches it does not itself claim, so the grid below stays scrollable.
+        static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+            coordinator.detach()
+        }
+
+        /// Transparent to touches, so taps and drags fall straight through to the grid.
         final class PassthroughView: UIView {
-            override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-                // Never become the hit target: the gesture recognizer still sees every touch, but
-                // taps and drags fall straight through to the content.
-                nil
+            var onAttach: ((UIView, UIWindow) -> Void)?
+
+            override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
+
+            override func didMoveToWindow() {
+                super.didMoveToWindow()
+                if let window { onAttach?(self, window) }
             }
         }
 
+        @MainActor
         final class Coordinator: NSObject, UIGestureRecognizerDelegate {
             var parent: PinchCatcher
+            private weak var host: UIView?
+            private weak var recognizer: UIPinchGestureRecognizer?
             private var lastSpread: CGSize?
 
             init(_ parent: PinchCatcher) { self.parent = parent }
+
+            func attach(over host: UIView, to window: UIWindow) {
+                self.host = host
+                if let recognizer {
+                    // Already attached, and to this window: nothing to do. To a *different* one (the
+                    // view moved between scenes) it has to follow, or the grid silently stops
+                    // zooming.
+                    guard recognizer.view !== window else { return }
+                    recognizer.view?.removeGestureRecognizer(recognizer)
+                }
+                let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handle(_:)))
+                // Let the scroll views underneath keep working: a one-finger drag is theirs, and a
+                // pinch only ever involves two.
+                pinch.delegate = self
+                window.addGestureRecognizer(pinch)
+                recognizer = pinch
+            }
+
+            func detach() {
+                guard let recognizer else { return }
+                recognizer.view?.removeGestureRecognizer(recognizer)
+            }
+
+            /// Only pinches aimed at the grid. Everything else stays with whatever owns it, so a
+            /// pinch on the mailbox list or the sidebar never reaches the calendar's zoom.
+            func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+                guard let host, host.window != nil else { return false }
+                return host.bounds.contains(gestureRecognizer.location(in: host))
+            }
 
             func gestureRecognizer(
                 _ gestureRecognizer: UIGestureRecognizer,
@@ -311,15 +354,17 @@ struct CalendarZoomGesture: ViewModifier {
             ) -> Bool { true }
 
             @objc func handle(_ recognizer: UIPinchGestureRecognizer) {
-                guard let view = recognizer.view, recognizer.numberOfTouches == 2 else {
+                guard let host, recognizer.numberOfTouches == 2 else {
                     if recognizer.state == .ended || recognizer.state == .cancelled {
                         lastSpread = nil
                         parent.onSettled()
                     }
                     return
                 }
-                let a = recognizer.location(ofTouch: 0, in: view)
-                let b = recognizer.location(ofTouch: 1, in: view)
+                // In the host's coordinates, not the window's: the focal point is fed back into the
+                // grid's own scroll offsets, which are measured from the grid's top-left.
+                let a = recognizer.location(ofTouch: 0, in: host)
+                let b = recognizer.location(ofTouch: 1, in: host)
                 let spread = CGSize(width: abs(a.x - b.x), height: abs(a.y - b.y))
 
                 switch recognizer.state {

@@ -127,3 +127,35 @@ pub(crate) fn the_bar_spans_both_panes_rather_than_riding_the_list() {
         "and the split is the second, taking the height the bar leaves"
     );
 }
+
+/// The bar is the surface's first row, so it is what stands in the window's top corner and the
+/// window's own controls ride it. The reading pane's header is a row below: a close button there
+/// is a close button short of the corner the pointer is thrown at.
+pub(crate) fn the_top_row_carries_the_window_controls() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let bar = SelectionBar::new(&sender);
+    let split = gtk::Paned::new(gtk::Orientation::Horizontal);
+    split.set_start_child(Some(&gtk::Label::new(Some("list"))));
+    split.set_end_child(Some(&gtk::Label::new(Some("reading"))));
+    let surface = mail_surface(&bar, &split);
+
+    assert_eq!(
+        surface.first_child().as_ref(),
+        Some(bar.widget().upcast_ref::<gtk::Widget>()),
+        "the controls reach the window's corner only while the bar is the surface's first row"
+    );
+    let row = bar
+        .widget()
+        .child()
+        .expect("the row the window is dragged by wraps the actions");
+    let controls = row
+        .last_child()
+        .expect("the row is not empty")
+        .downcast::<gtk::WindowControls>()
+        .expect("the window's controls are the last thing on the row");
+    assert_eq!(
+        controls.side(),
+        gtk::PackType::End,
+        "minimise, maximise and close belong at the trailing edge"
+    );
+}

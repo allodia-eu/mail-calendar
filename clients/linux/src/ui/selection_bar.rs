@@ -16,7 +16,7 @@ use super::{AppInput, selection::SelectionSummary};
 use crate::l10n;
 
 pub(crate) struct SelectionBar {
-    root: gtk::Box,
+    root: gtk::WindowHandle,
     /// The read and flag buttons, whose label, icon and action come from what is selected rather
     /// than from a fixed pair (`docs/list-selection.md`, rule 5).
     read: PairedButton,
@@ -106,15 +106,25 @@ impl SelectionBar {
         // Leading, where a toolbar's buttons live and where Outlook puts the same six. The bar
         // carries no count: that is the reading pane's, over the rows it would otherwise be
         // describing from a distance (`docs/list-selection.md`, rule 10).
-        let root = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-        root.add_css_class("toolbar");
+        let bar = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+        bar.add_css_class("toolbar");
         // Over the `toolbar` class's own padding: seven buttons shoulder to shoulder read as one
         // long control rather than as seven things to choose between.
-        root.set_margin_top(4);
-        root.set_margin_bottom(4);
-        root.set_margin_start(4);
-        root.set_margin_end(4);
-        root.append(&scroll);
+        bar.set_margin_top(4);
+        bar.set_margin_bottom(4);
+        bar.set_margin_start(4);
+        bar.set_margin_end(4);
+        bar.append(&scroll);
+        // The bar is the mail surface's top row, so the window's own controls belong on it. The
+        // reading pane's header sits a row below, and a close button there is a close button short
+        // of the corner a pointer is thrown at. Every other page carries them on its rightmost
+        // header, which is that page's top row.
+        bar.append(&gtk::WindowControls::new(gtk::PackType::End));
+
+        // A row holding the close button is the window's caption row, so it drags and double-clicks
+        // like one; the buttons and the scroller still claim their own presses first.
+        let root = gtk::WindowHandle::new();
+        root.set_child(Some(&bar));
         let needs_selection = vec![
             read.button.clone(),
             flag.button.clone(),
@@ -131,7 +141,7 @@ impl SelectionBar {
         }
     }
 
-    pub(crate) fn widget(&self) -> &gtk::Box {
+    pub(crate) fn widget(&self) -> &gtk::WindowHandle {
         &self.root
     }
 

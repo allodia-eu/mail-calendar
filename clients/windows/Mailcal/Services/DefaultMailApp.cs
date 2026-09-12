@@ -58,4 +58,44 @@ internal static class DefaultMailApp
         string.IsNullOrEmpty(aumid)
             ? "ms-settings:defaultapps"
             : $"ms-settings:defaultapps?registeredAUMID={Uri.EscapeDataString(aumid)}";
+
+    /// <summary>What to do about the offer right now.</summary>
+    internal enum Timing
+    {
+        /// <summary>Nothing: the core says the question is settled, or too early to ask.</summary>
+        NotDue,
+
+        /// <summary>Not now, because something the user aimed at owns the screen.</summary>
+        WaitForScreen,
+
+        /// <summary>Not now, because there is nowhere on screen to put it yet.</summary>
+        WaitForVisualTree,
+
+        /// <summary>Ask.</summary>
+        Ask,
+    }
+
+    /// <summary>
+    /// Whether the offer may be put, given what else the window is doing.
+    /// </summary>
+    /// <remarks>
+    /// Here, rather than inline at the one call site, because each of the three refusals was
+    /// learnt the hard way and only this file can be unit-tested. In order:
+    /// <list type="bullet">
+    /// <item>a dialog already showing, or a share or mail link the user did aim at us, would get
+    /// this offer dropped and recorded as declined, and it is put once;</item>
+    /// <item><paramref name="rooted"/> false is the crash. The signal that asks this is raised
+    /// while the window is still being constructed, so an account that connects in tens of
+    /// milliseconds arrives before the window has a visual tree, and showing a dialog on an
+    /// unrooted element throws out of an <c>async void</c>, which reaches no catch and takes the
+    /// process down.</item>
+    /// </list>
+    /// Both refusals are "wait", never "no": the caller comes back on the next signal that makes
+    /// them false, so a deferred offer is put, not lost.
+    /// </remarks>
+    internal static Timing WhenToAsk(bool due, bool screenTaken, bool rooted) =>
+        !due ? Timing.NotDue
+        : screenTaken ? Timing.WaitForScreen
+        : !rooted ? Timing.WaitForVisualTree
+        : Timing.Ask;
 }

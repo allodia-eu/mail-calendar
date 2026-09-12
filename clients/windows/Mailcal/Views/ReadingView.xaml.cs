@@ -223,6 +223,15 @@ public sealed partial class ReadingView : UserControl
     // fallback, or an empty state.
     private void Render()
     {
+        // An export failure belongs to the message it happened on, and this pane is reused for
+        // the next one; left standing it would accuse a message that exported fine. Keyed to that
+        // message rather than cleared on every pass: Render runs on each reading snapshot, so a
+        // background sync committing behind an open message would otherwise take the error off
+        // the screen seconds after the person was told about it.
+        if (_model?.OpenedMessage?.Key != _exportErrorKey)
+        {
+            ClearExportError();
+        }
         if (_model?.OpenedMessage is not { } opened)
         {
             ShowNoSelection(); // no message selected, the pane rests on its placeholder.
@@ -348,7 +357,7 @@ public sealed partial class ReadingView : UserControl
     {
         ContentRoot.Visibility = Visibility.Visible;
         NoSelectionPanel.Visibility = Visibility.Collapsed;
-        SubjectText.Text = string.IsNullOrEmpty(opened.Subject) ? "(no subject)" : opened.Subject;
+        SubjectText.Text = string.IsNullOrEmpty(opened.Subject) ? L10n.MailNoSubject() : opened.Subject;
         FromText.Text = opened.From;
         // The face the list row already drew, so opening a message never flashes an empty circle,
         // or, worse, replaces a photograph with initials (docs/avatars.md).

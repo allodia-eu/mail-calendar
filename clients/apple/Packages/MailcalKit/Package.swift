@@ -59,8 +59,13 @@ let package = Package(
         // simulator. What is tested here is what the CLIENT decides, the page↔date mapping, the
         // zoom clamps, the all-day overflow rule, the localised copy. The core's layout has its own
         // Rust tests; this is the multiplication and the arithmetic on top of it.
+        //
+        // `MailcalKitTests`, not `MailcalUITests`, which is what it was called and what it reads
+        // as: an Xcode UI-testing bundle now exists (clients/apple/UITests), and two targets whose
+        // names differ by which one means "tests of MailcalUI" and which means "tests through the
+        // UI" is a trap with no upside.
         .testTarget(
-            name: "MailcalUITests",
+            name: "MailcalKitTests",
             dependencies: ["MailcalUI"],
             swiftSettings: [
                 .enableUpcomingFeature("MemberImportVisibility"),

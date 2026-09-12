@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+use gtk::prelude::WidgetExt;
 use mailcal_bindings::{
     Appearance, Intent, MailboxListSnapshot, MailcalApp, ReplyPrompt, ViewMode,
 };
@@ -27,6 +28,7 @@ mod composer_attach;
 mod composer_draft;
 mod composer_header;
 mod composer_model;
+mod composer_notice;
 mod composer_open;
 mod composer_share;
 mod composer_signature;
@@ -100,6 +102,7 @@ use composer_draft::PendingNavigation;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 use composer_model::ComposeKind;
 use composer_model::ComposeRequest;
+use composer_notice::ComposerNotice;
 use connectivity::ConnectivityState;
 use contacts::ContactsModel;
 pub(crate) use destinations::PrimaryView;
@@ -150,7 +153,8 @@ pub(crate) struct AppModel {
     pending_mail_delete: Option<DeleteTarget>,
     composer: Option<ComposeRequest>,
     composer_generation: u64,
-    composer_error: bool,
+    /// What the composer's error line is showing, or `None` when it shows nothing.
+    composer_error: Option<ComposerNotice>,
     /// The message or external draft waiting for the open composer to answer whether it is dirty.
     pending_navigation: Option<PendingNavigation>,
     /// A mail link received before an account exists. Account setup completing opens it.
@@ -231,6 +235,16 @@ impl SimpleComponent for AppModel {
         // The core installed the log sink on the way through, so GTK's own warnings and criticals
         // now have somewhere to land (crate::crash).
         crash::capture_toolkit_diagnostics();
+        // Nothing above this point means the window is up: the launch can still fail between here
+        // and the first frame, and a caller waiting to drive the app has no other way to tell a
+        // slow start from a dead one. `map` is GTK putting it on screen, and it fires again on a
+        // remap, so the line is written once ([`logger::WINDOW_ON_SCREEN`]).
+        let announced = std::cell::Cell::new(false);
+        root.connect_map(move |_| {
+            if !announced.replace(true) {
+                log::info!("{}", logger::WINDOW_ON_SCREEN);
+            }
+        });
         // The same moment, for the same reason: a fault record needs the file to exist. Linux has
         // no tombstone and no Error Reporting, so the shared log is the only place a segfault in
         // the core or in GTK leaves a trace the user can hand over.
@@ -328,7 +342,7 @@ impl SimpleComponent for AppModel {
             pending_mail_delete: None,
             composer: None,
             composer_generation: 0,
-            composer_error: false,
+            composer_error: None,
             pending_navigation: None,
             pending_mailto: None,
             pending_share: None,

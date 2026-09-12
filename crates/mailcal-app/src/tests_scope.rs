@@ -156,6 +156,70 @@ async fn a_transient_folder_connect_failure_retries_on_the_next_open() {
 }
 
 #[tokio::test]
+async fn a_refresh_re_syncs_the_folder_on_screen() {
+    // A folder the eager bind skipped is downloaded once, when it is opened, and no account
+    // pass names it afterwards: it binds no provider of its own, and only the Inbox is watched.
+    // So standing in a mailing-list folder, the pull the user asked for republished exactly the
+    // rows already on screen, and restarting the app was the only way to see new mail in it.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let connector = FakeConnector::new(vec![(
+        "binutils".to_owned(),
+        vec![message("c1", "binutils", "Patch v1")],
+    )]);
+    let folders = connector.folders();
+    let app = app_with_connector(
+        vec![account("acct-1", FakeProvider::new())],
+        connector,
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(open_folder("acct-1", "binutils")).await;
+    assert_eq!(flat_subjects(&app.mailbox_list()), vec!["Patch v1"]);
+
+    // Mail lands in the folder while the user is standing in it…
+    for (_, messages) in folders.lock().unwrap().iter_mut() {
+        messages.push(message("c2", "binutils", "Patch v2"));
+    }
+
+    // …and the refresh they ask for brings it back.
+    app.dispatch(Intent::RefreshMail).await;
+    assert!(
+        flat_subjects(&app.mailbox_list())
+            .iter()
+            .any(|s| s == "Patch v2"),
+        "the refresh must reach the open folder: {:?}",
+        flat_subjects(&app.mailbox_list()),
+    );
+}
+
+#[tokio::test]
+async fn a_refresh_does_not_reconnect_a_folder_the_account_already_binds() {
+    // INBOX and the SPECIAL-USE role folders sync with the account pass itself, so connecting
+    // one again afterwards is a second login and a second download of a folder that has just
+    // synced: on every poll tick, of every account.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let connector = FlakyConnector::new("a", vec![message("c1", "a", "Never on demand")], 0);
+    let attempts = connector.attempts();
+    let app = app_with_connector(
+        vec![account("acct-1", FakeProvider::new())],
+        connector,
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+
+    // "a" is the fake's role-Inbox mailbox: opening it needs no connection of its own, and
+    // neither does the refresh that follows.
+    app.dispatch(open_folder("acct-1", "a")).await;
+    app.dispatch(Intent::RefreshMail).await;
+
+    assert_eq!(
+        *attempts.lock().unwrap(),
+        0,
+        "an eagerly bound folder is synced by the pass, never on its own connection",
+    );
+}
+
+#[tokio::test]
 async fn unified_inbox_merges_accounts_and_selecting_one_filters() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = app(

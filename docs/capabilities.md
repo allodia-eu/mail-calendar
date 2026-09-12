@@ -48,8 +48,10 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Reading **pane**: 3-pane desktop layout (sidebar \| list \| reading) | ✅ | ✅ | ✅ (iPad) | ✅ | — | ✅ |
 | Reading-view actions: reply / reply-all / forward / archive / delete | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Archive/delete **advances the reading pane** to the next message down (the one above, at the end of the list) instead of emptying it, where a pane exists beside the list; the iPhone still pops back | — | ✅ | ✅ (iPad) | ✅ | — | ✅ |
+| Reading-view **overflow menu** (at the end of the action row, after archive and delete) with **Save as .eml**: writes the message exactly as it was delivered, so it opens in any other mail client as the message the sender actually sent. A save panel on a computer, the share sheet on a phone ([docs](docs/reading-actions.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Email attachments: list/save/open received files (open via the OS default handler, or the OS's own viewer where there is none, Quick Look on iPhone/iPad) + attach files in composer | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Rich HTML composer: new / reply / reply-all / forward (editable To/Cc/Bcc); **inline in the reading pane** on macOS + Windows, full-screen/modal on iPhone, iPad + Android | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **A forward opens holding the original's files**: the attachments the reading view lists are there in the composer as ordinary attachments, removable one by one, and a forward whose files cannot be read says so instead of opening as if there were none ([docs](docs/sending.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composing keeps the mailbox live: the composer replaces the reading pane rather than blacking it out; clicking another message mid-draft prompts Discard / Keep editing | — | ✅ | — | ✅ | — | ✅ |
 | Composer **From** account picker + app-level default send account | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer formatting: bold/italic/underline, font size, **text + highlight colour**, bullets and numbering **nested to any depth** (Tab / Shift+Tab), tables with **add/remove row + column** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -110,12 +112,13 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Search: `from:`/`to:` DSL, unified across accounts; **newest first**, every folder but Trash ([`docs/search.md`](docs/search.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Search scope filter: narrow an active search to the current folder (or, in the unified view, the inboxes) and back to all mail | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
 | Search says **how far back it looked**: results state the sync depth they cover ("Searching the last 3 months"), with a link to change it, so an empty answer never reads as "there is no such message" ([`docs/search.md`](docs/search.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Search results follow the **conversation grouping** the list is set to: a match is shown as the conversation it belongs to, carrying the whole thread and labelled by the message that matched | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Configurable **per-account** fetch depth and **message size** + on-demand folder sync + progress | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Sync progress: a download you started gets a bar **under** the list (never over it, so no row moves); a background pass gets a subtle status-line note naming which accounts are catching up, through **both** phases (its folders, then the message bodies that follow) and only once mail is actually arriving ([docs](docs/sync-progress.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Unified, categorised **Settings screen** (language, appearance, time zone, conversation grouping, swipe actions, per-account fetch depth + message size + sync behaviour, quote style, default send account, reset, About) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Per-mailbox sync behaviour: push (IMAP IDLE, capability-gated) / 15–120 min polling | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Background mail delivery: syncs when the app isn't foregrounded (desktop: while running; Android: WorkManager ~15 min; iOS/iPadOS: BGAppRefreshTask). Mobile cadence is **best-effort**: Android asks the user to exempt it from battery optimisation, without which Doze defers a pass by hours ([docs](docs/background-sync.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| New-mail notifications: local, sender + subject, from the background sync | ✅ | ⬜ | ✅ | ⬜ | ✅ | ✅ |
+| New-mail notifications: local, and they say who it is from, what it is about and how it begins, from the background sync. On the desktop only mail that arrives **while the app is open**: the catch-up sync a launch begins with is already on screen, so it is not announced | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ |
 | Connection resilience: auto-reconnect after network loss (working Refresh / Try again), offline banner + per-account outage badge | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Time-zone-aware display + device-zone change prompt | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Localisation: English, Nederlands, Deutsch, Français, Español, Italiano, Português; the choice drives **dates** as well as copy (weekday/month names follow the app language, not the host's format locale; [`docs/timestamps.md`](docs/timestamps.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

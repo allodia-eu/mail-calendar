@@ -65,7 +65,9 @@ struct ReadingView: View {
     /// A compact (iPhone) width never fits the labelled action buttons, so they render icon-only
     /// with larger tap targets. macOS/iPad decide per-row instead (see `actionToolbar`), keeping
     /// the labels whenever they fit at the pane's current width.
-    private var compactActions: Bool {
+    ///
+    /// Not `private`: ReadingView.Overflow.swift sizes the overflow button to match the row.
+    var compactActions: Bool {
         #if os(iOS)
         hSizeClass == .compact
         #else
@@ -90,6 +92,16 @@ struct ReadingView: View {
     /// Save spin independently. Not `private`, see `attachmentError`.
     @State var openingIDs: Set<UInt32> = []
     @State var savingIDs: Set<UInt32> = []
+    /// Whether the overflow's popover is open. Not `private`, see `attachmentError`.
+    @State var overflowOpen = false
+    /// Whether an export is in flight, so the overflow button spins and the item ignores
+    /// re-taps while the source is fetched and written. Not `private`, see `attachmentError`.
+    @State var exporting = false
+    /// A transient export failure, shown under the action row rather than in the attachment bar:
+    /// most messages carry no attachments, and that bar is not drawn for them, so an error put
+    /// there would be invisible on exactly the messages people export. Not `private`, see
+    /// `attachmentError`.
+    @State var exportError: String?
 
     /// The body snapshot for this message, once it has arrived (ignore a stale one for a
     /// previously-opened message).
@@ -199,14 +211,21 @@ struct ReadingView: View {
     /// outgrow the row and leave every button clipped to "Beant…". So the labelled row is offered
     /// first and the icon-only row is the fallback whenever the labels can't be drawn in full.
     private var actionToolbar: some View {
-        Group {
-            if compactActions {
-                actionRow(iconsOnly: true)
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    actionRow(iconsOnly: false)
+        VStack(alignment: .leading, spacing: 4) {
+            Group {
+                if compactActions {
                     actionRow(iconsOnly: true)
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        actionRow(iconsOnly: false)
+                        actionRow(iconsOnly: true)
+                    }
                 }
+            }
+            if let exportError {
+                Text(exportError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
         }
         .padding(.horizontal, 12)
@@ -223,6 +242,8 @@ struct ReadingView: View {
             Spacer(minLength: 12)
             toolbarButton(L10n.action_archive(), "archivebox", iconsOnly, action: onArchive)
             toolbarButton(L10n.action_delete(), "trash", iconsOnly, role: .destructive, action: onDelete)
+            // Last of all, after both mailbox actions (docs/reading-actions.md).
+            overflowMenu(iconsOnly: iconsOnly)
         }
     }
 

@@ -9,16 +9,19 @@
 //! list was showing; one folder of one account, that account's whole mailbox, or (in the
 //! unified view) every account's Inbox.
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc, time::Instant};
 
-use engine_api::{AccountId, MailListRow, Mailbox, MailboxRole, Provider, ProviderKey};
+use engine_api::{AccountId, MailListRow, Mailbox, MailboxRole, Provider, ProviderKey, ThreadId};
 use mailcal_account::SyncDepth;
 use mailcal_viewmodel::{
-    AccountFolderRow, AccountMessage, AccountRow, MailboxListSnapshot, SearchHorizon,
+    AccountFolderRow, AccountMessage, AccountRow, MailboxListSnapshot, SearchHorizon, ViewMode,
     sorted_folder_rows, view,
 };
 
-use crate::{App, SEARCH_FETCH_LIMIT, SEARCH_LIMIT, SearchScope};
+use crate::{
+    App, SEARCH_FETCH_LIMIT, SEARCH_LIMIT, SearchScope,
+    snapshot::{is_outgoing, owner_email},
+};
 
 impl<P: Provider> App<P> {
     /// Full-text search projected into the mailbox list; every account the active scope
@@ -28,23 +31,35 @@ impl<P: Provider> App<P> {
     /// [`SEARCH_FETCH_LIMIT`]; this reads that as a *candidate set*, filters it to the scope,
     /// and hands [`view::search_results`] the survivors to order by date and cap at
     /// [`SEARCH_LIMIT`].
+    ///
+    /// `mode` is the user's list grouping, which a search obeys like any other list: threaded,
+    /// the matches are grouped into the conversations they belong to.
     pub(super) async fn search_snapshot(
         &self,
         selected_account: Option<&AccountId>,
         selected_folder: Option<&str>,
         query: &str,
+        mode: ViewMode,
         account_rows: &[AccountRow],
     ) -> MailboxListSnapshot {
-        let scope = *self
-            .search_scope
-            .lock()
-            .expect("search-scope mutex poisoned");
+        let scope = self.search_state().scope;
         // Every account's folder list, read once: it decides the navigation drawer's rows,
         // which key is an account's Trash, and which is its Inbox.
         let mailboxes = self.account_mailboxes(account_rows).await;
-        let hits = self
-            .search_hits(query, scope, selected_account, selected_folder, &mailboxes)
+        let mut hits = self
+            .search_hits(
+                query,
+                scope,
+                selected_account,
+                selected_folder,
+                account_rows,
+                &mailboxes,
+            )
             .await;
+        if mode == ViewMode::Threaded {
+            self.complete_search_threads(&mut hits, account_rows, &mailboxes)
+                .await;
+        }
         let account_folders: Vec<AccountFolderRow> = mailboxes
             .iter()
             .map(|(id, folders)| AccountFolderRow {
@@ -52,7 +67,8 @@ impl<P: Provider> App<P> {
                 folders: sorted_folder_rows(folders),
             })
             .collect();
-        let mut snapshot = view::search_results(&hits, account_rows, account_folders, SEARCH_LIMIT);
+        let mut snapshot =
+            view::search_results(&hits, account_rows, account_folders, mode, SEARCH_LIMIT);
         // Keep the host's navigation on the searched scope: a search must not flip the account
         // switcher to "All Inboxes" or unhighlight the folder the user is standing in. The
         // client also renders its scope filter from these fields (they name the "this folder"
@@ -73,6 +89,42 @@ impl<P: Provider> App<P> {
         );
         snapshot.selected = selected_folder.map(str::to_owned);
         snapshot
+    }
+
+    /// The active search, and the generation that dates it, read together.
+    pub(crate) fn search_state(&self) -> SearchState {
+        self.search.lock().expect("search mutex poisoned").clone()
+    }
+
+    /// Replaces the active search and marks every snapshot rebuild now in flight as answering
+    /// one the user has moved on from, so each is dropped instead of published.
+    ///
+    /// Intents are spawned, not queued, so typing a word runs a search per keystroke
+    /// concurrently. They finish out of order and by wildly different margins: a two-letter
+    /// prefix matches half the mailbox and resolves every hit from the store, so it can take a
+    /// second and a half while the full query takes a tenth. Publishing unconditionally hands
+    /// the screen to whichever finishes last, which is reliably the broadest and least useful
+    /// one, and nothing corrects it until the next unrelated rebuild.
+    ///
+    /// Leaving search drops the scope filter with it, in the same write: the next search opens
+    /// across everything rather than silently inheriting how the last one was narrowed, since a
+    /// filter the user can no longer see is one they will not think of (`docs/search.md`, rule
+    /// 6).
+    pub(crate) fn set_search(&self, query: Option<String>) {
+        let mut state = self.search.lock().expect("search mutex poisoned");
+        if query.is_none() {
+            state.scope = SearchScope::default();
+        }
+        state.query = query;
+        state.generation = state.generation.wrapping_add(1);
+    }
+
+    /// Narrows or widens the active search. The query is unchanged; what is superseded is every
+    /// answer to the old scope, so this bumps the generation exactly as a keystroke does.
+    pub(crate) fn set_search_scope(&self, scope: SearchScope) {
+        let mut state = self.search.lock().expect("search mutex poisoned");
+        state.scope = scope;
+        state.generation = state.generation.wrapping_add(1);
     }
 
     /// How far back the accounts in `searched` hold mail: the **narrowest** of their sync
@@ -110,6 +162,7 @@ impl<P: Provider> App<P> {
         scope: SearchScope,
         selected_account: Option<&AccountId>,
         selected_folder: Option<&str>,
+        account_rows: &[AccountRow],
         mailboxes: &[(AccountId, Vec<Mailbox>)],
     ) -> Vec<AccountMessage> {
         let mut hits: Vec<AccountMessage> = Vec::new();
@@ -129,20 +182,83 @@ impl<P: Provider> App<P> {
                 .mail_by_keys(id, &keys)
                 .await
                 .unwrap_or_default();
+            let owner = owner_email(account_rows, id.as_str());
             hits.extend(
                 resolved
                     .into_iter()
                     .filter(|row| filter.keeps(row))
                     .map(|row| AccountMessage {
-                        // Search renders flat rows (no threading), so scope/direction are
-                        // unused here; every surviving hit is shown, in one merged list.
+                        // **`in_scope` means "matched the query" here**, not "is in the folder
+                        // on screen": a search is its own list. The threaded projection reads
+                        // it twice, and both readings are the ones this search wants: a
+                        // conversation is listed only if a message in it matched, and it sorts
+                        // on its newest *matching* message, so a thread does not climb the
+                        // results because of a reply that has nothing to do with the query.
+                        outgoing: is_outgoing(&row, owner),
                         row: Arc::new(row),
                         in_scope: true,
-                        outgoing: false,
                     }),
             );
         }
         hits
+    }
+
+    /// Adds the **non-matching** members of every conversation the hits touch, so a threaded
+    /// search row carries its whole conversation rather than the fragment that matched.
+    ///
+    /// Each addition is marked out of scope (`in_scope: false`), which is what keeps the two
+    /// rules of a threaded search true: a conversation nobody's query touched is never listed,
+    /// and a thread is ordered by its newest match rather than by its newest message. Its
+    /// members still render, and expand, and dedup against their cross-folder copies, exactly
+    /// as they do in the mailbox list.
+    ///
+    /// One indexed read for every shown thread, never one per thread; the same read the mailbox
+    /// list's completion makes.
+    async fn complete_search_threads(
+        &self,
+        hits: &mut Vec<AccountMessage>,
+        account_rows: &[AccountRow],
+        mailboxes: &[(AccountId, Vec<Mailbox>)],
+    ) {
+        let threads: HashSet<&str> = hits
+            .iter()
+            .filter_map(|hit| hit.row.mail.thread_id.as_ref().map(ThreadId::as_str))
+            .collect();
+        if threads.is_empty() {
+            return;
+        }
+        let present: HashSet<(&str, &str)> =
+            hits.iter().map(|hit| (hit.account(), hit.key())).collect();
+        let hidden = self.pending_hidden_keys();
+        let accounts: Vec<AccountId> = mailboxes.iter().map(|(id, _)| id.clone()).collect();
+        let started = Instant::now();
+        let extra = self
+            .engine
+            .mail_on_threads(&accounts, threads.iter().copied())
+            .await
+            .unwrap_or_default();
+        log::debug!(
+            "search thread completion: {} thread(s) -> {} member(s) in {}ms",
+            threads.len(),
+            extra.len(),
+            started.elapsed().as_millis(),
+        );
+        let added: Vec<AccountMessage> = extra
+            .into_iter()
+            .filter(|row| {
+                !present.contains(&(row.account.as_str(), row.mail.key.as_str()))
+                    && !hidden.contains(&(
+                        row.account.as_str().to_owned(),
+                        row.mail.key.as_str().to_owned(),
+                    ))
+            })
+            .map(|row| AccountMessage {
+                outgoing: is_outgoing(&row, owner_email(account_rows, row.account.as_str())),
+                row: Arc::new(row),
+                in_scope: false,
+            })
+            .collect();
+        hits.extend(added);
     }
 
     /// Every account's folder list, in switcher order.
@@ -160,6 +276,25 @@ impl<P: Provider> App<P> {
         }
         out
     }
+}
+
+/// The search the user is looking at: what they typed, and a counter that dates it.
+///
+/// One value behind one lock, because a rebuild has to read both and they have to agree: read
+/// separately, a rebuild can capture the query a keystroke has just written while still holding
+/// the generation from before it, and then discard a list that was current after all.
+///
+/// `query` is `None` when the list is not a search; a blank field clears rather than searching
+/// for "" (`Intent::Search`). `scope` is which folders it covers. Both are session state, never
+/// persisted, and they travel together because a rebuild needs both to mean one search.
+///
+/// The generation counts every change, a scope change included, and wraps: nothing reads it as a
+/// quantity, only for equality with the value a rebuild started from.
+#[derive(Clone, Default)]
+pub(crate) struct SearchState {
+    pub(crate) query: Option<String>,
+    pub(crate) scope: SearchScope,
+    pub(crate) generation: u64,
 }
 
 /// The accounts the active `scope` searches, each paired with the filter its hits must pass.

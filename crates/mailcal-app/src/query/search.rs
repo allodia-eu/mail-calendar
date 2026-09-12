@@ -3,7 +3,7 @@
 //! Split out of `query.rs` to stay under the 500-line limit.
 
 use engine_api::{AccountId, Provider};
-use mailcal_viewmodel::view;
+use mailcal_viewmodel::{ViewMode, view};
 
 use super::{MessagePage, list::page_from};
 use crate::{App, SearchScope, snapshot_search::searched};
@@ -58,10 +58,20 @@ impl<P: Provider> App<P> {
         };
         let searched = searched(scope, account, folder, &mailboxes);
         let hits = self
-            .search_hits(query, scope, account, folder, &mailboxes)
+            .search_hits(query, scope, account, folder, &account_rows, &mailboxes)
             .await;
         let total = hits.len();
-        let snapshot = view::search_results(&hits, &[], Vec::new(), offset.saturating_add(limit));
+        // **Flat, whatever the user's list is set to.** This surface answers with messages: a
+        // caller pages it by offset and asks for one message's body by key, and a conversation
+        // is not addressable that way. The grouping is a property of the list on screen, and
+        // there is no screen here.
+        let snapshot = view::search_results(
+            &hits,
+            &[],
+            Vec::new(),
+            ViewMode::Flat,
+            offset.saturating_add(limit),
+        );
         let mut page = page_from(snapshot, offset);
         // `search_results` reports the *shown* row count as its total; the honest total is how
         // many hits survived the scope filter, which is what a caller pages against.

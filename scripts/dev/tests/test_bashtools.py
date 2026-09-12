@@ -5,7 +5,7 @@ The rule worth pinning is an **ordering**, and it is invisible to every other te
 the `bash.exe` in `System32` is WSL's launcher, it ships with the OS whether or not a working
 distribution does, and it wins a bare `shutil.which("bash")`. When WSL is installed but broken it
 then fails before reading a word of the script under test, and the errors read as the script
-misbehaving. That turned `scripts/dev/gate.sh` permanently red on a Windows dev box; the exact
+misbehaving. That turned the local gate permanently red on a Windows dev box; the exact
 "a gate that cannot run is a gate people stop running" failure AGENTS.md warns about.
 
 So `find_bash()` preferring Git Bash is not a nicety, and a test that only checked "some bash was

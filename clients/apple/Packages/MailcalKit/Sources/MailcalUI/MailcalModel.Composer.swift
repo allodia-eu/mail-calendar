@@ -128,4 +128,46 @@ extension MailboxModel {
             }
         }.value
     }
+
+    /// Write the open message out as a `.eml` at the destination the host chose
+    /// (docs/reading-actions.md). Off the main actor, like `saveAttachment`: the raw source may
+    /// not be cached yet, and fetching it must not block the UI.
+    func saveMessageSource(_ account: String, _ key: String, to url: URL) async -> Bool {
+        guard let app else { return false }
+        return await Task.detached {
+            do {
+                try app.saveMessageSource(account: account, key: key, destinationPath: url.path)
+                return true
+            } catch {
+                print("[Mailcal] message export failed: \(type(of: error))")
+                return false
+            }
+        }.value
+    }
+
+    /// The files the message `key` carries, staged for its forward composer to open holding
+    /// them. `nil` means they could not be read, which the composer says: an empty list would
+    /// read as a message with nothing attached.
+    ///
+    /// Off the main actor for the same reason as `saveAttachment`: the core decodes and writes
+    /// every file, and a large one must not block the UI.
+    func stageForwardedAttachments(
+        _ account: String,
+        _ key: String,
+        into directory: URL
+    ) async -> [ComposerFileAttachment]? {
+        guard let app else { return nil }
+        return await Task.detached {
+            do {
+                return try app.stageForwardedAttachments(
+                    account: account,
+                    key: key,
+                    stagingDirectory: directory.path
+                )
+            } catch {
+                print("[Mailcal] forward attachment staging failed: \(type(of: error))")
+                return nil
+            }
+        }.value
+    }
 }

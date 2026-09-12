@@ -31,6 +31,21 @@ pub struct Message {
     pub values: BTreeMap<String, String>,
 }
 
+/// The suffix marking a message as the **singular** partner of the key it is appended to:
+/// `mailbox_count_conversations_one` beside `mailbox_count_conversations`.
+///
+/// The unsuffixed key carries the plural, so a message that never needs a singular is written
+/// exactly as before and a singular is purely additive. Only the emitters read this: a key with
+/// a partner gets an accessor that picks between the two, and the partner itself gets none, so
+/// no caller ever names a grammatical form.
+///
+/// **A partner keeps the `{count}`.** `"{count} conversation"`, never `"1 conversation"`, and
+/// that is also what separates this from the older pairs beside it in the catalog
+/// (`invitation_attendees_one`, `"1 attendee"`): those spell the numeral into the sentence, so
+/// they are separate messages a caller chooses between itself, and they keep their own
+/// accessors. See [`Catalog::is_singular`].
+pub const ONE_SUFFIX: &str = "_one";
+
 /// A validated catalog: the base-locale key set, each key carrying its per-locale values.
 #[derive(Debug, Clone)]
 pub struct Catalog {
@@ -75,6 +90,66 @@ impl Catalog {
             messages,
         }
     }
+}
+
+impl Catalog {
+    /// Whether `key` has a singular partner, and so needs an accessor that chooses by count.
+    #[must_use]
+    pub fn has_singular(&self, key: &str) -> bool {
+        self.singular_of(key).is_some()
+    }
+
+    /// The singular partner of `key`, when it has one.
+    #[must_use]
+    pub fn singular_of(&self, key: &str) -> Option<&Message> {
+        let partner = format!("{key}{ONE_SUFFIX}");
+        self.is_singular(&partner)
+            .then(|| self.message(&partner))
+            .flatten()
+    }
+
+    /// The messages an emitter turns into accessors: every message except the singular
+    /// partners, which are reached through their plural's accessor rather than named directly.
+    /// They stay in the emitted **tables**, which is where the accessor looks them up.
+    pub fn accessors(&self) -> impl Iterator<Item = &Message> {
+        self.messages.iter().filter(|m| !self.is_singular(&m.key))
+    }
+
+    /// Whether `key` is a singular partner an accessor should choose for the caller.
+    ///
+    /// Three conditions, and each rules out a real message in this catalog. The stem must exist
+    /// (`setup_allodia_have_one` is a sentence, not a plural). Both halves must carry `{count}`,
+    /// which is what the choice is made on and what tells a *plural form* from the older pairs
+    /// that spell the numeral in (`invitation_attendees_one`, `"1 attendee"`): those stay
+    /// ordinary messages with their own accessors, chosen between at the call site. And the two
+    /// placeholder sets must match, so either branch formats with the arguments the accessor
+    /// declares.
+    #[must_use]
+    pub fn is_singular(&self, key: &str) -> bool {
+        let Some(stem) = key.strip_suffix(ONE_SUFFIX) else {
+            return false;
+        };
+        let (Some(singular), Some(plural)) = (self.message(key), self.message(stem)) else {
+            return false;
+        };
+        let carries_count = |m: &Message| m.placeholders.iter().any(|p| p == "count");
+        carries_count(singular)
+            && carries_count(plural)
+            && sorted(&singular.placeholders) == sorted(&plural.placeholders)
+    }
+
+    /// One message by key.
+    #[must_use]
+    pub fn message(&self, key: &str) -> Option<&Message> {
+        self.messages.iter().find(|m| m.key == key)
+    }
+}
+
+/// A sorted copy, for comparing two placeholder sets regardless of the order they appear in.
+fn sorted(names: &[String]) -> Vec<&str> {
+    let mut out: Vec<&str> = names.iter().map(String::as_str).collect();
+    out.sort_unstable();
+    out
 }
 
 /// The accessor parameter type for a placeholder.

@@ -8,7 +8,7 @@
 # `.cargo/config.toml` ABOVE this checkout — outside the repo, so never active in CI. The repo's own
 # `.cargo/config.toml` is tracked and pins the Windows static-CRT rustflags.)
 #
-# Cost discipline — macOS minutes bill at 10x and Windows at 2x, so four rules hold:
+# Cost discipline, in runner time and in the 10 GB cache budget. Four rules hold:
 #   1. Every expensive job gates on `changes`, which derives the affected areas from the actual
 #      change set (scripts/ci/changed-areas.sh). A manual run forces any subset via `areas`.
 #   2. Only `main` writes the shared caches — see the `save-if` notes on each cache step.
@@ -95,6 +95,13 @@ concurrency:
 #
 # Locally the same names come from a gitignored `.env`; the real environment wins over it.
 env:
+  # `.cargo/config.toml` points `build.build-dir` outside the checkout so worktrees share one copy
+  # of the compile work. A runner has no worktrees, and the caching here is built around `target/`:
+  # `Swatinem/rust-cache` saves that directory and a few `~/.cargo` subpaths, knows nothing about a
+  # build directory, and would let every job recompile the tree from scratch. Pointing the build
+  # directory back at `target/` restores the layout the caches and the scripts below expect.
+  CARGO_BUILD_BUILD_DIR: ${{ github.workspace }}/target
+
   MAILCAL_GOOGLE_DESKTOP_CLIENT_ID: "1234567890-ci.apps.googleusercontent.com"
   MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET: "not-a-real-secret"
   MAILCAL_GOOGLE_IOS_CLIENT_ID: "1234567890-ci-ios.apps.googleusercontent.com"
@@ -137,7 +144,7 @@ jobs:
       # rust-toolchain.toml (stable, for everything) and rust-nightly.toml (the rustfmt pin) are
       # the single sources of truth for the two Rust versions this repo uses. Parse them once here
       # and feed them to every job's toolchain install, so neither is duplicated in YAML:
-      # scripts/dev/gate.sh reads the same two files, which is what keeps local and CI identical.
+      # cargo xtask gate reads the same two files, which is what keeps local and CI identical.
       - name: Read the pinned Rust toolchains
         id: toolchain
         run: |
@@ -150,13 +157,23 @@ jobs:
           echo "channel=$channel" >>"$GITHUB_OUTPUT"
           echo "nightly=$nightly" >>"$GITHUB_OUTPUT"
 
-  # `checks` is every gate that needs no Rust toolchain, no cache and no area filter, in ONE job.
+  # `checks` is every gate that needs no device, no service and no area filter, in ONE job.
   #
   # One job because they were under two minutes of work spread over thirteen runners, and a runner
   # costs far more than the seconds it works for: a fresh VM to boot and a slot out of the
   # account's parallel-job allowance, which the client builds then queue behind. Splitting a
-  # six-second grep onto its own machine buys a green tick and a boot. Nothing about the checks
-  # themselves changed here; only where they run.
+  # six-second grep onto its own machine buys a green tick and a boot.
+  #
+  # The nine contract checks are one Rust binary (`xtask`), so this job installs the pinned
+  # toolchain and takes the cache, which a job running shell scripts would not need. Measured
+  # against the same job before the port: the install costs 8 s, the checks went from 4 s to 3 s
+  # (compiling the crate included, since `-p xtask` pulls in nothing), and the two script suites
+  # lost 8 s with the three Python tests that existed only to drive deleted shells. The job is a
+  # minute either way.
+  #
+  # The saving is on the other side of the fence, where it matters more: under Git Bash on an arm64
+  # developer machine those nine checks cost 209 s against 4 s here, and the local gate is what
+  # people run before every push.
   #
   # None of them sits behind the `changes` areas, and the reason is one reason, not thirteen: the
   # change most likely to break one of these turns on no area at all. A docs-only PR is what
@@ -167,67 +184,46 @@ jobs:
   # most likely to break it can skip is not a gate.
   #
   # `if: ${{ !cancelled() }}` on every step buys back the one thing separate jobs gave: a failing
-  # step no longer hides the twelve behind it, so a PR still learns every rule it broke in a
+  # step no longer hides the steps behind it, so a PR still learns every rule it broke in a
   # single run. A failed step still fails the job; the condition only stops GitHub's default
-  # `success()` from skipping the rest.
+  # `success()` from skipping the rest. `cargo xtask checks` does the same thing inside its own
+  # step, for the nine it runs.
   #
   # Ordered cheapest first, so the log's first error arrives in seconds. The two steps that fetch
   # something (the REUSE action's container, bun) are last for the same reason.
   checks:
     name: Repo-wide checks
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out the product core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # No linter in any of these languages has a per-file length lint, so this is the only thing
-      # that enforces the 500-line rule, and it has to see C# and Kotlin as well as Rust.
-      - name: File length (<= 500 lines)
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-file-length.sh
+      # `needs: changes` above is for this one output, never for an area: the job runs whatever the
+      # change set says, as the header explains.
+      - name: Install the pinned Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
 
-      # One app version across all clients (docs/versioning.md).
-      - name: Version sync (one /VERSION)
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-version-sync.sh
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: checks
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # A cross-client contract whose failure mode is silent and photogenic: a capture run against
-      # the developer's real mailbox looks exactly like a working one.
-      - name: Showcase flag contract
+      # Nine contract checks, in one process, reporting every one that failed rather than stopping
+      # at the first: `cargo xtask --list` names them and each is runnable on its own. Among them
+      # is the only thing enforcing the 500-line rule, since no linter in any of these languages
+      # has a per-file length lint, and it has to see C# and Kotlin as well as Rust; the
+      # showcase-flag and dev-account contracts, whose failure mode is silent and photogenic; the
+      # two Linux rules no run-time gate can see (a portal call that works only inside a desktop
+      # session, and a second Tokio runtime that works exactly once); the brand every client must
+      # still derive its identity from; what a public repository must not carry; and the promise
+      # that the default build does not reach into `allodia_license/`.
+      - name: Repository contract checks
         if: ${{ !cancelled() }}
-        run: scripts/ci/check-showcase-flag.sh
-
-      # Likewise silent when broken: the injected harness account (a fixture hand-written in four
-      # languages) and the debug-only trust of the harness's self-signed IMAP certificate.
-      - name: Dev-account (harness) contract
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-dev-account.sh
-
-      # Also invisible to every other gate: the banned call resolves fine against a desktop's
-      # application database and wedges inside a Flatpak, so only the packaged build shows it.
-      - name: Desktop hand-off (portal launchers)
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-desktop-handoff.sh
-
-      # Same shape, one layer down: a portal caller that owns its Tokio runtime works exactly once
-      # and then parks a thread for the life of the process, which no run-time gate sees.
-      - name: One shared Tokio runtime for every portal caller
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-portal-runtime.sh
-
-      # Every client still takes its name and application id from branding/ (docs/branding.md).
-      - name: Every client derives its identity from the brand
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-branding.sh
-
-      - name: The tree carries nothing a public repository must not
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-public-hygiene.sh
-
-      - name: The default build does not reach into allodia_license/
-        if: ${{ !cancelled() }}
-        run: scripts/ci/check-license-dir.sh
+        run: cargo xtask checks
 
       # The checkers' own tests, before the checkers run against the real tree: several of these
       # scrape hand-written markdown, and the way they fail is by silently measuring nothing.
@@ -409,7 +405,7 @@ jobs:
 
       # The line above builds `allodia-license` as a workspace member but never turns the feature
       # on, so every `#[cfg(feature = "allodia-license")]` arm in mailcal-bindings goes uncompiled
-      # and a break there reaches a release build unseen. The twin of gate.sh's `allodia tests`.
+      # and a break there reaches a release build unseen. The twin of the gate's `allodia tests`.
       - name: Build + test the Allodia sign-in feature
         run: cargo test -p mailcal-bindings --features allodia-license
 
@@ -434,6 +430,14 @@ jobs:
     # Cross-compile the Rust core to an XCFramework, generate the Xcode project, build the macOS +
     # iOS app targets, and build + run the headless FFI verifier (demo mode — deterministic, no
     # credentials). Runner: macos-26 — arm64, macOS 26 + Xcode 26.4 (our minimum).
+    #
+    # ONE job for both platforms, not one each. A macOS leg and an iOS leg would each compile a
+    # single Rust slice and a single platform's Swift, which is genuinely half the work, but a
+    # standard macOS runner has 3 cores, so the two legs also each pay the ~70s of setup this one
+    # pays once (VM boot, checkout, Xcode select, rustup, xcodegen, two cache restores) and each
+    # wants its own Rust and DerivedData entries out of the repo's 10 GB cache budget. Against a
+    # warm run of about two minutes, splitting buys under a minute of wall clock for roughly 40%
+    # more runner time. Revisit it if the warm number climbs.
     name: Apple clients (macOS + iOS)
     needs: changes
     if: needs.changes.outputs.apple == 'true'
@@ -447,13 +451,36 @@ jobs:
       - name: Check out the product core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Xcode's build cache. Restoring it takes the three xcodebuild steps below from ~117s to
-      # ~30s: a git checkout stamps every source file with a fresh mtime, which would invalidate
-      # DerivedData, so this action restores the recorded mtimes alongside it. Measured locally:
-      # the macOS app rebuilds in 2-12s warm vs 45-59s cold — and it stays that fast even when
-      # build-core.sh regenerates the XCFramework, because Xcode then relinks rather than
-      # recompiles. (SourcePackages caching does nothing here: MailcalKit has no external SwiftPM
+      # Xcode's build cache. A git checkout stamps every source file with a fresh mtime, which
+      # would invalidate DerivedData, so this action restores the recorded mtimes alongside it.
+      # (SourcePackages caching does nothing here: MailcalKit has no external SwiftPM
       # dependencies.) Runs before build-core.sh so the restored mtimes precede any regeneration.
+      #
+      # `clients/apple/build` holds three things now, and all three are the same trade: keep what
+      # the last run produced so this one need not rebuild it.
+      #   - `Build/`, Xcode's own products for the app targets and the verifier.
+      #   - `KitSPM/`, where the MailcalKit suite builds (clients/apple/Scripts/test-kit.sh). Its
+      #     default `.build` is inside the package and nothing cached it, so the suite was a
+      #     from-scratch compile of MailcalUI on every run, warm cache or not.
+      #   - `generated/`, build-core.sh's mirror of the files it generates. They are gitignored, so
+      #     a checkout has none of them and every one would otherwise arrive freshly dated and
+      #     recompile MailcalBindings and all of MailcalUI behind it.
+      # The XCFramework is not mirrored, because that would cache ~540 MB of static archive. It is
+      # kept still a cheaper way: `generated/` also holds a manifest of the archives' hashes and a
+      # reference timestamp, and build-core.sh puts that timestamp back over the framework whenever
+      # the content has not moved. A freshly dated framework does NOT merely cost a relink, which is
+      # what it looks like: it recompiles MailcalBindings and all of MailcalUI above it, and it
+      # happens on every run, because rust-cache keeps the compiled dependencies but not the linked
+      # archive. Measured: the suite spends 96-193s with the framework re-dated and 10-12s without.
+      # Measured on an 8-core M2, with the cargo build directory warm and every generated file
+      # deleted the way a checkout leaves it: build-core 7.1s, the suite 1.1s, the macOS app 2.5s,
+      # the iOS app 3.3s, the verifier 2.6s. Delete `generated/` as well, which is the same run
+      # without the mirror, and the suite costs 41.0s, the macOS app 20.3s and the iOS app 46.7s.
+      #
+      # `KitSPM/` is 785 MB of it, most of that the static archive SwiftPM copies in and the test
+      # binary and dSYM it links, so the entry grows from ~537 MB to roughly 850 MB packed. That is
+      # ~14s more to restore against the 100-190s the suite used to spend recompiling, and one
+      # entry at a time, since main still deletes the one it just used.
       - name: Cache Xcode DerivedData
         uses: irgaly/xcode-cache@4141f139f00e335c6e1031fb93e667181f86146f # v1.9.2
         with:
@@ -495,21 +522,31 @@ jobs:
 
       # --no-device: the steps below link only `platform=macOS` and `generic/platform=iOS
       # Simulator`, so cross-compiling the physical-device slice here buys nothing but minutes on
-      # a 10x-billed runner. The trade is real: an error that only breaks the device slice now
+      # the workflow's slowest job. The trade is real: an error that only breaks the device slice now
       # surfaces when someone builds for a device (or at release) instead of here.
       - name: Build the Rust core -> XCFramework + bindings
         run: ./clients/apple/Scripts/build-core.sh --no-device
 
       # The client's own tests: plain logic, no UI, no simulator — the page<->date mapping, the zoom
       # clamps, the all-day overflow rule, the localised copy. They run before the app builds, because
-      # a broken rule should fail in seconds rather than after two xcodebuild invocations.
+      # a broken rule should fail in seconds rather than after two xcodebuild invocations. The script
+      # owns where SwiftPM builds, and why it must not be where Xcode does.
       - name: Test MailcalKit
-        working-directory: clients/apple/Packages/MailcalKit
-        run: swift test
+        run: clients/apple/Scripts/test-kit.sh
 
+      # The brand has to be in the environment BEFORE xcodegen runs. XcodeGen substitutes `${VAR}`
+      # from the environment and leaves the literal text behind when nothing set it, so a bare
+      # `xcodegen generate` writes an app whose bundle identifier is the string `${MAILCAL_APP_ID}`
+      # (docs/branding.md). That compiles and links, which is why it went unnoticed here: the two
+      # build steps below never ask what the app is called. The UI suite does, and cannot start at
+      # all, because an id in that shape is not written to Info.plist and CoreSimulator reports the
+      # app as having no CFBundleIdentifier. `brand_assert_expanded` is what says so next time.
       - name: Generate the Xcode project
-        working-directory: clients/apple
-        run: xcodegen generate
+        run: |
+          . scripts/dev/lib.sh
+          (cd clients/apple && xcodegen generate)
+          brand_assert_expanded clients/apple/AllodiaMail.xcodeproj/project.pbxproj
+          brand_assert_expanded clients/apple/App/Info.plist
 
       # The three xcodebuild invocations share one derived-data path, so the app builds and the
       # verifier reuse each other's MailcalKit build products instead of compiling it three times.
@@ -528,6 +565,24 @@ jobs:
             -destination 'generic/platform=iOS Simulator' -configuration Debug \
             -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
 
+      # The UI suite (clients/apple/UITests), on a booted iPhone simulator. Every test drives the
+      # in-memory showcase dataset, so this needs no Docker harness, no account and no network,
+      # which is the same trade the Windows UI job makes with `-Dataset showcase,first-run`.
+      #
+      # **Two classes of four, and that is a budget rather than a judgement about the other two.**
+      # A UI test costs what no other gate here costs: a simulator to boot (~37s before a single
+      # assertion runs, measured on an 8-core M2 from a shut-down simulator) and then the app's own
+      # launch per test. The two that run are the two that hold something written down: the action
+      # row's order (docs/reading-actions.md) and the calendar pinch (docs/calendar.md), which is
+      # also the regression test for a gesture that reached the iOS grid not at all. The two that
+      # do not, `NavigationBarTests` and `ComposerPresentationTests`, run from
+      # `clients/apple/Scripts/test-ui.sh` on a developer's machine, and the second of them is the
+      # slowest test in the bundle by some way. Add a `--only` below to move one back.
+      - name: Test the iOS UI (showcase dataset)
+        run: |
+          clients/apple/Scripts/test-ui.sh --no-core \
+            --only ReadingActionRowTests --only CalendarPinchTests
+
       - name: Build + run the headless FFI verifier (demo mode)
         working-directory: clients/apple
         run: |
@@ -538,9 +593,22 @@ jobs:
 
   windows:
     # Fast per-commit gate: x64 Debug only — Rust cdylib -> C# bindings (vendored binshim) ->
-    # WinUI app build -> headless FFI gate. The expensive both-arch RELEASE .msixupload is not
-    # built here at all: it carries the Store identity and the OAuth registrations, neither of which
-    # this repository holds, so it is built where they are.
+    # WinUI app build -> headless FFI gate -> the UI Automation suite against the running app. The
+    # expensive both-arch RELEASE .msixupload is not built here at all: it carries the Store
+    # identity and the OAuth registrations, neither of which this repository holds, so it is built
+    # where they are.
+    #
+    # The UI suite is a STEP of this job rather than a job of its own, because everything it needs
+    # is what this job just built. A second runner would repeat the checkout, the restore and the
+    # cdylib to look at the same binary, and would not finish any sooner: it could only start once
+    # the build it depends on had.
+    #
+    # It is not free, and both figures are worth knowing. The suite and the two prerequisites below
+    # add about 170s. On a warm cache that leaves this job at 373s against the Apple job's 506s, so
+    # it stays off the critical path; on a cache cold enough to spend 420s in the build alone it
+    # becomes the longest job in the run, at 716s. And a Windows-ONLY change skips every other job,
+    # so there this job IS the run, whichever way the cache went. The 20-minute bound has room, but
+    # a minute added here is a minute on every push that touches this client.
     name: Windows client (x64)
     needs: changes
     if: needs.changes.outputs.windows == 'true'
@@ -600,6 +668,45 @@ jobs:
       # measurement showing it beats a cold restore.
       - name: Build (x64, Debug) and verify the FFI binding
         run: ./clients/windows/build-and-run.ps1 -Arch x64 -Configuration Debug -NoRun
+
+      # The app is framework-dependent in both build shapes, so without this it does not start and
+      # every UI suite reports a missing window. Installed from the package the build just restored,
+      # at the version it resolved, so the runtime cannot be a different one from what was compiled
+      # against.
+      - name: Register the Windows App Runtime
+        run: ./clients/windows/uitests/install-windows-app-runtime.ps1 -Arch x64
+
+      # A runner comes up at 1024x768 and the showcase suites measure a 1440x900 window. Clipped,
+      # the two ways they lie are both silent: a screen grab past the edge returns black, so every
+      # theme reads as dark, and a NavigationView below its own breakpoint changes display mode, so
+      # the sidebar assertions measure a pane that is not the one shipped. `run-ui-tests.ps1`
+      # refuses to run on a desktop too small, so this is a precondition rather than a nicety.
+      - name: Give the desktop session a size the suites can measure
+        run: ./clients/windows/uitests/set-desktop-resolution.ps1 -Width 1920 -Height 1080
+
+      # `showcase,first-run` and not `harness`: the harness is a Linux container, and a GitHub
+      # Windows runner runs only Windows ones, so twelve suites cannot run here at all and are
+      # named as not selected rather than left to look like passes. What that leaves out is a real
+      # gap, stated in docs/background-sync.md and the runner's own header: nothing CI checks
+      # proves a mail action survived a round trip.
+      #
+      # No `continue-on-error`. A suite that is allowed to fail is a suite nobody fixes, and this
+      # one has already caught a shipped bug (an unread row that bolded nothing) that every
+      # headless gate passed.
+      - name: UI Automation suite (showcase + first-run)
+        run: ./clients/windows/uitests/run-ui-tests.ps1 -Dataset showcase,first-run
+
+      # The suite shoots the desktop at the moment a case throws, which is the only time the app is
+      # both up and in the state that failed: it stops the app on the way out, so a screenshot
+      # taken by a later step photographs an empty desktop. Nobody can attach a debugger to a
+      # runner, so this picture is the whole of the diagnosis that the failure text does not carry.
+      - name: Upload what the screen looked like when a case failed
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-ui-suite-failures
+          path: clients/windows/uitests/failures/
+          if-no-files-found: ignore
 
   android:
     # The Android client's unit suite: Robolectric supplies the Android framework and Compose's
@@ -902,7 +1009,7 @@ jobs:
       # trust path do not leak into the production-shaped binary.
       #
       # Tag-only (rule 3 in the header). The cheap half of this property is still checked on every
-      # push: `check-dev-account.sh`, in the always-run `changes` job, greps for the
+      # push: `cargo xtask check-dev-account`, in the always-run `checks` job, greps for the
       # `#![cfg(debug_assertions)]` on dev_account.rs, the `cfg(not(...))` arm in tls.rs, and
       # `dev-harness` never being a default feature. What only a release COMPILE can catch is a
       # call site that escaped a `cfg` arm — boot.rs reaching dev_account:: unguarded builds

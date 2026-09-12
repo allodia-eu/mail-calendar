@@ -15,6 +15,8 @@ NordSecurity's [`uniffi-bindgen-cs`](https://github.com/NordSecurity/uniffi-bind
 ./build-and-run.ps1                 # build + run for the host arch (Debug), the everyday form
 ./build-and-run.ps1 -Arch x64       # cross-build the x64 client (see the warning below)
 ./build-and-run.ps1 -Configuration Release -NoRun
+./build-and-run.ps1 -SelfContained  # bundle the Windows App SDK; costs notifications
+./uitests/run-ui-tests.ps1          # UI Automation assertions against the RUNNING app
 ```
 
 **Leave `-Arch` off unless you specifically need the other architecture.** It defaults to the
@@ -117,7 +119,8 @@ It backs `MailcalApp.NewShowcase(…, ShowcaseLocale)` (bindings `new_showcase` 
 `boot::build_showcase`), kept separate from the four-row `new_demo` fixture the headless gate
 asserts on. `ShowcaseMode.IsOn` is `#if DEBUG`-gated, as on Apple (`#if DEBUG`) and Android
 (`FLAG_DEBUGGABLE`), so a shipped build ignores the flag outright rather than trusting nobody sets
-it, `scripts/ci/check-showcase-flag.sh` keeps that guard, and the launcher's mailbox banner, honest.
+it, `cargo xtask check-showcase-flag` keeps that guard, and the launcher's mailbox banner,
+honest.
 
 **Dual-arch:** both `arm64` and `x64` are first-class. .NET 10 + the Windows App SDK build
 each RID; the script pairs each with the matching Rust target (`aarch64-pc-windows-msvc` /
@@ -128,9 +131,15 @@ versa.
 
 - **Rust** with the MSVC toolchain (the script adds the second arch's target itself).
 - **.NET 10 SDK** (`dotnet --version` ≥ 10).
-- **Windows App SDK 2.x**, pulled in automatically as the `Microsoft.WindowsAppSDK` NuGet
-  package (currently `2.4.0`); the app is unpackaged and WinAppSDK-self-contained, so no
-  separate runtime install and no MSIX are needed.
+- **Windows App SDK 2.x**, both halves. The build pulls the `Microsoft.WindowsAppSDK` NuGet
+  package (currently `2.4.0`) itself; the matching **Windows App Runtime** has to be *installed*,
+  because the dev loop is framework-dependent, like the Store build. Visual Studio puts it there,
+  so a machine set up for this repo already has it: `Get-AppxPackage Microsoft.WindowsAppRuntime.2`
+  should list your architecture. Without it the app builds and then refuses to start.
+  `./build-and-run.ps1 -SelfContained` bundles the SDK instead, for a machine that has no runtime
+  and cannot get one; it costs **notifications**, which cannot be registered from a self-contained
+  app at all and fail silently ([`docs/client-traps.md`](../../docs/client-traps.md)). No MSIX is
+  needed in either shape.
 - **Windows 11 SDK `10.0.26100`** (24H2), the build targets it; the OS floor is Windows 10
   2004 (`10.0.19041`). **Visual Studio 2026** (or its Build Tools) provides both.
 - **`uniffi-bindgen-cs`** needs **no install**, it's vendored as the `mailcal-bindgen-cs`
@@ -162,9 +171,8 @@ installable via `winget`.
 What `-p:Packaged=true` flips (see `Mailcal.csproj`):
 
 - **Unpackaged → MSIX** (`WindowsPackageType`), pulling in `Package.appxmanifest` + the `Images/`
-  tiles.
-- **WinApp SDK self-contained → framework-dependent**, the Store delivers the WinApp SDK
-  framework package as a dependency, so it stays out of the upload.
+  tiles. The WinApp SDK stays **framework-dependent**, as the dev loop already is, so it never
+  enters the upload: the Store delivers that framework package as a dependency.
 - **.NET → self-contained per-RID**, so the package runs on a clean Windows 10 (2004+) box with
   no .NET 10 installed. Each arch in the bundle is paired with its matching Rust `mailcal_bindings.dll`.
 
@@ -280,6 +288,12 @@ remove the old package first (MSIX blocks reinstalling the same `1.0.0.0` with c
   - `Images/`, launcher art: MSIX tile/store PNGs + `app.ico` (exe icon), all derived from the
     brand source icon by `generate-assets.ps1`.
 - `MailcalVerify/`, the headless runtime gate (no UI, no network: drives the demo loop).
+- `uitests/`, the UI Automation suite: assertions against the app as it actually renders, which is
+  the whole class of bug `Mailcal.Tests` cannot see (a binding nothing assigns, a control that
+  opens in the wrong state). `run-ui-tests.ps1`'s header is the guide to writing one, and reading
+  it first is not optional: the dataset a suite declares decides whether it proves anything.
+  `set-desktop-resolution.ps1` and `install-windows-app-runtime.ps1` are the two things a CI runner
+  needs that a developer machine already has.
 - `build-and-run.ps1`, cdylib → bindings → gate → WinUI app → launch (the dev loop).
 - `package.ps1`, cdylib (both arches) → bindings → MSIX bundle → `.msixupload` (the Store path);
   `-Sign` instead builds a self-signed, installable sideload set for on-device testing.

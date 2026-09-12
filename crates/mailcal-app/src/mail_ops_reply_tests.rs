@@ -1,8 +1,10 @@
-//! Tests for **rich reply and forward**: that the shared rich-draft path derives the
+//! Tests for **rich reply**: that the shared rich-draft path derives the
 //! recipient/subject/threading from the stored original (exactly as the plain versions
 //! did) and carries the composer-rendered HTML body and attachment manifest. A child of
 //! [`super`] (the rich-submit tests), reusing its `rich_document` and `SilentObserver`
 //! fixtures; split into its own file to keep each test module under the 500-line limit.
+//!
+//! The reply/forward fixtures live here and the forward tests are a child module on them.
 
 use std::sync::{Arc, Mutex};
 
@@ -34,6 +36,9 @@ struct ThreadProvider {
     mailboxes: Vec<Mailbox>,
     messages: Vec<Message>,
     submissions: Arc<Mutex<Vec<Draft>>>,
+    /// Serves an error instead of the raw source, so a test can drive the path where a
+    /// forward cannot read the files it is meant to carry.
+    source_fails: bool,
 }
 
 impl ThreadProvider {
@@ -48,7 +53,13 @@ impl ThreadProvider {
             mailboxes: vec![inbox],
             messages,
             submissions: Arc::new(Mutex::new(Vec::new())),
+            source_fails: false,
         }
+    }
+
+    fn failing_source(mut self) -> Self {
+        self.source_fails = true;
+        self
     }
 
     fn submissions(&self) -> Arc<Mutex<Vec<Draft>>> {
@@ -128,17 +139,25 @@ impl Provider for ThreadProvider {
         ))
     }
 
-    /// Serves a `multipart/related` original carrying one inline `image/png` part
+    /// Serves an original carrying both kinds of part: one inline `image/png`
     /// (`Content-ID: <part1.demo@allodia.local>`, base64 `aGVsbG8=` = `hello`), so a
-    /// reply/forward can re-derive the inline parts and re-attach them as `cid:` on send.
+    /// reply/forward can re-derive the inline parts and re-attach them as `cid:` on send,
+    /// and one downloadable `invoice.pdf` (base64 `SU5WT0lDRQ==` = `INVOICE`), which is what
+    /// a forward has to carry on to its recipient.
     async fn fetch_message_source(
         &self,
         _account: &AccountId,
         _message: &Message,
     ) -> ProviderResult<RawMime> {
+        if self.source_fails {
+            return Err(engine_provider::ProviderError::retryable(
+                "message source unavailable",
+            ));
+        }
         Ok(RawMime::new(
             concat!(
-                "Content-Type: multipart/related; boundary=\"b\"\r\n\r\n",
+                "Content-Type: multipart/mixed; boundary=\"m\"\r\n\r\n",
+                "--m\r\nContent-Type: multipart/related; boundary=\"b\"\r\n\r\n",
                 "--b\r\nContent-Type: text/html\r\n\r\n",
                 "<p>Logo:</p><img src=\"cid:part1.demo@allodia.local\">\r\n",
                 "--b\r\nContent-Type: image/png\r\n",
@@ -146,6 +165,10 @@ impl Provider for ThreadProvider {
                 "Content-Transfer-Encoding: base64\r\n",
                 "Content-Disposition: inline\r\n\r\naGVsbG8=\r\n",
                 "--b--\r\n",
+                "--m\r\nContent-Type: application/pdf\r\n",
+                "Content-Disposition: attachment; filename=\"invoice.pdf\"\r\n",
+                "Content-Transfer-Encoding: base64\r\n\r\nSU5WT0lDRQ==\r\n",
+                "--m--\r\n",
             )
             .as_bytes()
             .to_vec(),
@@ -159,7 +182,12 @@ impl CalendarWrites for ThreadProvider {}
 /// the app and the submission log. The caller dispatches `RefreshMail` to load the
 /// originals into the store before replying/forwarding.
 fn reply_app(messages: Vec<Message>) -> (Arc<App<ThreadProvider>>, Arc<Mutex<Vec<Draft>>>) {
-    let provider = ThreadProvider::with(messages);
+    app_over(ThreadProvider::with(messages))
+}
+
+/// [`reply_app`] over an already-built provider, for a test that configures one (a source
+/// that will not serve).
+fn app_over(provider: ThreadProvider) -> (Arc<App<ThreadProvider>>, Arc<Mutex<Vec<Draft>>>) {
     let submissions = provider.submissions();
     let app = App::new(
         Engine::open_in_memory().unwrap(),
@@ -306,55 +334,6 @@ async fn rich_reply_threads_and_carries_the_composer_html() {
     assert_eq!(references, vec!["root@remote", "parent@remote"]);
 }
 
-/// A forward belongs to the conversation it came from. It carries the original's
-/// `References` chain (but no `In-Reply-To`, because it answers nothing) and that chain is
-/// what puts the Sent copy on the thread. Without it, every forward the user sends becomes a
-/// separate one-message conversation sitting beside the discussion it is part of.
-#[tokio::test(start_paused = true)]
-async fn rich_forward_sets_fwd_subject_and_threads_on_references() {
-    let (app, submissions) = reply_app(vec![original_message("m1")]);
-    app.dispatch(Intent::RefreshMail).await;
-
-    let (document, blobs) = reply_document();
-    let intent = Intent::SubmitRichForward {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: None,
-        to: "dest@forward.test".to_owned(),
-        cc: "watcher@forward.test".to_owned(),
-        bcc: String::new(),
-        subject: None,
-        document,
-        blobs,
-    };
-    let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
-    assert_eq!(app.send_status(), SendStatus::Sent);
-
-    let submissions = submissions.lock().unwrap();
-    assert_eq!(submissions.len(), 1);
-    let draft = &submissions[0];
-    // Recipients are the explicitly given addresses; Fwd: subject.
-    assert_eq!(draft.to.len(), 1);
-    assert_eq!(draft.to[0].email, "dest@forward.test");
-    assert_eq!(draft.cc.len(), 1);
-    assert_eq!(draft.cc[0].email, "watcher@forward.test");
-    assert_eq!(draft.subject, "Fwd: Quarterly report");
-    // Rich body present (a forward through the rich path still renders the composer).
-    assert_eq!(draft.text_body, "Hello [Chart]");
-    assert!(draft.html_body.is_some());
-    assert_eq!(draft.attachments.len(), 2);
-    // Threading: the original's chain plus the original itself, and no reply pointer.
-    let references: Vec<&str> = draft
-        .references
-        .iter()
-        .map(MessageIdHeader::as_str)
-        .collect();
-    assert_eq!(references, vec!["root@remote", "parent@remote"]);
-    assert!(
-        draft.in_reply_to.is_none(),
-        "a forward continues a thread; it does not answer a message"
-    );
-}
-
 #[tokio::test]
 async fn reply_recipients_for_a_plain_reply_is_reply_to_with_no_cc() {
     let (app, _submissions) = reply_app(vec![original_message("m1")]);
@@ -464,6 +443,11 @@ async fn rich_reply_with_no_recipients_fails_without_sending() {
     assert_eq!(app.send_status(), SendStatus::Failed);
     assert!(submissions.lock().unwrap().is_empty());
 }
+
+// The forward tests (threading, and the original's files travelling with it) live in their own
+// file, as a child module reusing this file's fixtures.
+#[path = "mail_ops_forward_tests.rs"]
+mod forward;
 
 // Submit-time quote-body hardening (re-sanitisation + `data:`→`cid:` inline re-attachment)
 // lives in its own file (each test module stays under the 500-line limit), as a child module it

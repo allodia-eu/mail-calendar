@@ -129,8 +129,42 @@
                                 <TextBlock x:Name="DeleteLabel" Text="{x:Bind l10n:L10n.ActionDelete()}" />
                             </StackPanel>
                         </Button>
+                        <!-- Last of all, after both mailbox actions (docs/reading-actions.md).
+                             A DropDownButton rather than a Button: it is a menu, and WinUI's own
+                             chevron is what says so. It stays an icon at every width, unlike the
+                             buttons before it, because its PLACE is what identifies it, so it has
+                             no label to collapse.
+                             Stretched for that same reason, as SelectionClear is in MainWindow.xaml:
+                             the default button style centres its content, so the one button in the
+                             row carrying no label stands at its glyph's height rather than the
+                             row's, which is ragged at the labelled width and invisible at the
+                             icon-only one. Asserted by uitests/ReadingActionRow.Tests.ps1. -->
+                        <DropDownButton x:Name="ReadingOverflow"
+                                        VerticalAlignment="Stretch"
+                                        ToolTipService.ToolTip="{x:Bind l10n:L10n.A11yMoreActions()}"
+                                        AutomationProperties.AutomationId="ReadingOverflow"
+                                        AutomationProperties.Name="{x:Bind l10n:L10n.A11yMoreActions()}">
+                            <DropDownButton.Content>
+                                <FontIcon Glyph="&#xE712;" FontSize="14" />
+                            </DropDownButton.Content>
+                            <DropDownButton.Flyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem x:Name="ExportEmlItem"
+                                                    Click="OnExportEml"
+                                                    Text="{x:Bind l10n:L10n.ActionSaveAsEml()}"
+                                                    AutomationProperties.AutomationId="ReadingExportEml" />
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
                     </StackPanel>
                 </ScrollViewer>
+                <!-- An export failure, under the action row rather than in the attachment strip:
+                     most messages carry no attachments, that strip is collapsed for them, and an
+                     error put there would be invisible on exactly the messages people export. -->
+                <TextBlock x:Name="ExportError" Visibility="Collapsed"
+                           AutomationProperties.AutomationId="ReadingExportError"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
             </StackPanel>
 
             <!-- The meeting-invitation card, above everything the sender wrote. Its content is

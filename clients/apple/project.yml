@@ -34,6 +34,14 @@ targets:
     type: application
     # A single multiplatform app target, iOS here covers both iPhone and iPad.
     supportedDestinations: [macOS, iOS]
+    # The UI suite hangs off this scheme's test action rather than getting a scheme of its own, so
+    # `xcodebuild test -scheme AllodiaMail` is the one way to run it and there is no second scheme
+    # to keep in step. ⚠️ Declaring a top-level `schemes:` block instead turns XcodeGen's
+    # autogeneration off for every OTHER target, and `-scheme MailcalVerify` then resolves to
+    # nothing; this per-target form leaves the rest alone.
+    scheme:
+      testTargets:
+        - AllodiaMailUITests
     sources:
       - App
     dependencies:
@@ -300,3 +308,40 @@ targets:
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
+
+  # The UI suite: XCUITest against the running app, on a simulator or a physical iPhone/iPad.
+  # Sources and their reasoning are in UITests/; Scripts/test-ui.sh runs it.
+  #
+  # It is the only gate here that can drive a touch gesture, and the only one that can read the iOS
+  # navigation bar at all: `idb` reports the top bar as one unlabelled group, so the exploratory
+  # tooling cannot reach Compose, More, Select, Send or Cancel (.agents/skills/debug-app). XCUITest
+  # queries the accessibility hierarchy in-process and gets every item with its label.
+  #
+  # NOT to be confused with the SwiftPM target `MailcalKitTests` (Packages/MailcalKit/Tests), which
+  # is the client's plain-logic suite and touches no UI. That one was called `MailcalUITests`, which
+  # is what it reads as, and was renamed when this target arrived.
+  #
+  # iOS only, and that is the suite rather than the mechanism: every test here drives the iPhone's
+  # own shape (a bottom tab bar, a folder drawer, a pushed reading view), none of which macOS has.
+  # Add macOS to `supportedDestinations` with the first test written for it.
+  AllodiaMailUITests:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS]
+    sources:
+      - UITests
+    dependencies:
+      - target: AllodiaMail
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ${MAILCAL_APP_ID}.uitests
+        # The runner needs an Info.plist to sign against and has no source for one of its own.
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        # Ad-hoc for the simulator; a physical device refuses an ad-hoc signed bundle, so the
+        # runner follows the app's own arrangement and signs with the per-machine team from
+        # signing.xcconfig. Empty in a fresh checkout, which only a device run ever notices.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+        CODE_SIGN_IDENTITY[sdk=iphoneos*]: Apple Development
+        DEVELOPMENT_TEAM[sdk=iphoneos*]: $(MAILCAL_DEVELOPMENT_TEAM)

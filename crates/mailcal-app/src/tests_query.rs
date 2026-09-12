@@ -111,8 +111,8 @@ async fn reads_never_move_the_users_screen() {
     let before = (
         app.mailbox_list(),
         app.scope.lock().unwrap().clone(),
-        app.search_query.lock().unwrap().clone(),
-        *app.search_scope.lock().unwrap(),
+        app.search_state().query,
+        app.search_state().scope,
         app.visible_limit(),
     );
     surfaces.lock().unwrap().clear();
@@ -123,8 +123,8 @@ async fn reads_never_move_the_users_screen() {
     let after = (
         app.mailbox_list(),
         app.scope.lock().unwrap().clone(),
-        app.search_query.lock().unwrap().clone(),
-        *app.search_scope.lock().unwrap(),
+        app.search_state().query,
+        app.search_state().scope,
         app.visible_limit(),
     );
     assert_eq!(

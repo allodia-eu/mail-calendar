@@ -53,6 +53,6 @@ cargo update --workspace --offline --quiet 2>/dev/null ||
   { echo "bump-version.sh: could not refresh Cargo.lock; a --locked build will fail" >&2; exit 1; }
 
 # 4. Prove it.
-scripts/ci/check-version-sync.sh
+cargo xtask check-version-sync
 
 echo "Bumped ${old:-<none>} -> $new. Review 'git diff', then commit and tag (e.g. git tag v$new) when releasing."

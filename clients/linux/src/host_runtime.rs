@@ -10,9 +10,10 @@
 //! process**, and the state machine that thread was serving parked with it.
 //!
 //! So there is exactly one runtime, it is never dropped, and no other module may build its own.
-//! `check-portal-runtime.sh` enforces that last part. No unit test can: `OnceLock` makes "two
-//! calls hand back the same runtime" true by construction, whatever any other module does, so
-//! asserting it here would pin nothing. What has to hold is a fact about the source tree.
+//! `cargo xtask check-portal-runtime` enforces that last part. No unit test can: `OnceLock`
+//! makes "two calls hand back the same runtime" true by construction, whatever any other
+//! module does, so asserting it here would pin nothing. What has to hold is a fact about the
+//! source tree.
 
 use std::sync::OnceLock;
 

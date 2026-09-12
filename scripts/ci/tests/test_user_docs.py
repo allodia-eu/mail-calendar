@@ -411,7 +411,7 @@ class PathsReadTheSameEverywhere(unittest.TestCase):
     ordinary `Path` and assert there is no backslash; cannot fail on macOS or Linux, where `str()`
     and `as_posix()` return the same characters whether or not the fix is present. That is exactly
     how the bug survived: six tests in `scripts/dev/tests/` asserted slash-separated paths, passed
-    for everyone who ran them, and turned `scripts/dev/gate.sh` red on every Windows checkout. So
+    for everyone who ran them, and turned the local gate red on every Windows checkout. So
     the separator is pinned against a path type that *has* a different one, which any host can run.
     """
 

@@ -61,7 +61,11 @@ rustup target add "$rust_target" >/dev/null
 # cargo-ndk supplies the NDK linker and sysroot, the same way the cdylib cross-build does, so this
 # script and clients/android/build-and-run.sh agree about what an Android build means.
 echo "==> Cross-compiling the bindings test binary"
-(cd "$REPO_ROOT" && cargo ndk -t "$ndk_abi" test -p mailcal-bindings --no-run)
+# A test executable is never uplifted to `target/`; it stays in cargo's build directory, which
+# `.cargo/config.toml` points outside the checkout. Pin it for this one build so the find below
+# has a path to look in that does not depend on whose config is in effect.
+build_dir="$REPO_ROOT/target/android-native-fault"
+(cd "$REPO_ROOT" && CARGO_BUILD_BUILD_DIR="$build_dir" cargo ndk -t "$ndk_abi" test -p mailcal-bindings --no-run)
 
 # Found on disk rather than read from `--message-format=json`, because cargo-ndk swallows cargo's
 # stdout: the JSON never reaches this script, and neither do the human-readable `Executable` lines
@@ -71,7 +75,7 @@ echo "==> Cross-compiling the bindings test binary"
 # macOS ships BSD find, where it is not merely absent but *fatal*; and under `set -o pipefail`
 # that kills the script at this assignment, before the `[[ -n ]]` guard below can say why.
 binary="$(
-  find "$REPO_ROOT/target/$rust_target/debug/deps" -maxdepth 1 -type f -perm -u+x \
+  find "$build_dir/$rust_target/debug/deps" -maxdepth 1 -type f -perm -u+x \
     -name 'mailcal_bindings-*' ! -name '*.*' -exec ls -t {} + 2>/dev/null | head -1
 )"
 [[ -n "$binary" ]] || die "cargo produced no test binary for $rust_target"

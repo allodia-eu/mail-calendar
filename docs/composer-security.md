@@ -31,8 +31,8 @@ The editor runtime is bundled with the app and loaded from app assets:
 **The bundle is built, not hand-written.** Sources are TypeScript ESM modules under
 [`clients/composer/src/`](../clients/composer/src); `bun run build` inlines them into the single
 self-contained `clients/composer/dist/editor.html` every host loads. That artifact is committed (see its
-header for why), and `bun run check`, wired into [`gate.sh`](../scripts/dev/gate.sh), fails when it
-does not match its sources, so a client cannot ship a bundle nobody rebuilt. Every client's
+header for why), and `bun run check`, wired into [`cargo xtask gate`](../xtask/src/gate.rs), fails
+when it does not match its sources, so a client cannot ship a bundle nobody rebuilt. Every client's
 `build-and-run` script rebuilds it first ([`composer-bundle.sh`](../scripts/dev/composer-bundle.sh)),
 so a source edit reaches the app you launch rather than the one you last built.
 
@@ -265,6 +265,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | `Cc`/`Bcc` collapsed by default, revealed when pre-filled | `revealsCcBcc(cc:bcc:)` seeds `showsCcBcc`; held by `RecipientTokenTests`, and on a mail link's own shape by `MailLinkTests` | `revealsCcBcc(cc, bcc)` opens the row; held by a JVM test | `RecipientTokens.RevealsCcBcc` sets the chevron's `IsChecked`; the rule is held by `Mailcal.Tests` and the collapse itself by a UI test that asks the running window for the fields, plus the mail-link suite that reads the pre-filled pills off it | `reveals_cc_bcc` sets the chevron; held by the crate's GTK test, which reads the row's visibility off the widget |
 | `mailto:` body seeded as text | `initialBody` → the shared editor's `setPlainText`, as `textContent` | `window.setPlainText` (shared editor) assigns one paragraph per line via `textContent` | (same: shared editor, the same call the assistant-draft path uses) | (same: shared editor; the body is JSON-encoded data, never script) |
 | Shared files named and typed by the core (Gate 15) | ⬜ no share target registered | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` → `prefillFromShare`; `ShareLaunch` gates the action, the bytes are copied out of the sender's provider into app cache first | MSIX `windows.shareTarget` (any file type, plus Text and WebLink) → `PrefillFromShare`; the shared bytes are staged out of the `ShareOperation` before it reports complete, since its access ends there | desktop `MimeType=` + `%U` and `--attach` → `prefill_from_share`; the composer opens holding `ComposeRequest::files` |
+| A forward's own files, staged by the core | `stageForwardedAttachments` into the app's temporary directory, seeded through `initialAttachments` | (same call) into the app cache, seeded through `initialAttachments` | (same call) into the temp directory, seeded through `ComposeRequest.Attachments` | (same call) into the app cache (owner-only), seeded through `ComposeRequest::files` |
 
 ## Known gaps / follow-ups
 
@@ -391,10 +392,9 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 - **Sharing *into* the app (Gate 15) ships on Android, Linux and Windows; Apple is ⬜.**
   `prefill_from_share` decodes a share, names and types its files and reports what it refused,
   with suites in `mailcal-composer`, `mailcal-bindings`, the Linux crate, the Android JVM suite
-  and `Mailcal.Tests`. What Apple still needs is a Share Extension target and an
-  `initialAttachments` seed on its composer, the structural change the other three have made:
-  without it a composer's attachment list can only be filled by its own picker.
-  [`os-integration.md`](os-integration.md) has the per-platform state.
+  and `Mailcal.Tests`. What Apple still needs is a Share Extension target; its composer now takes
+  an `initialAttachments` seed, which forwarding put there, so the structural half is done on all
+  four. [`os-integration.md`](os-integration.md) has the per-platform state.
 - Linux hosts the same editor inline in its detail column for new mail, reply, reply-all,
   and forward, with native attachment picking and the shared Rust submission methods. The
   optional per-message quote-style picker is still outstanding; until then Linux seeds the style

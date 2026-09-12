@@ -8,7 +8,7 @@ publish.workspace = true
 license.workspace = true
 
 # `cdylib` is what every host actually loads (the Windows DLL, the Android .so, the macOS dylib);
-# `lib` stays for the in-crate uniffi-bindgen, the tests, and mailcal-linux.
+# `lib` stays for the tests and mailcal-linux.
 #
 # `staticlib` is NOT here, and that is deliberate. An iOS app bundle can't ship a loose dylib, so
 # the iOS slice links a static archive into the XCFramework, but crate-type is not per-target, so
@@ -26,7 +26,7 @@ crate-type = ["cdylib", "lib"]
 dev-harness = ["mailcal-account/dev-harness"]
 # Allodia's own builds only. `allodia_license/` is source-available rather than GPL and the open
 # tree has to build without it (docs/pledge.md, promise 4), so the dependency below is optional and
-# off, and scripts/ci/check-license-dir.sh allows exactly this one line to name the directory.
+# off, and cargo xtask check-license-dir allows exactly this one line to name the directory.
 #
 # It is *this* crate rather than `mailcal-app` for the reason `mailcal-mcp` and `mailcal-telemetry`
 # are: signing in opens sockets, and this is the only crate that may. What the feature changes is
@@ -76,7 +76,10 @@ time = { workspace = true }
 iana-time-zone = { workspace = true }
 # `new_account`'s error type (FFI-surfaced) derives thiserror's Display.
 thiserror = { workspace = true }
-uniffi = { workspace = true, features = ["cli"] }
+# No `cli` feature: the generator that needs it is `mailcal-bindgen-uniffi`, a crate of its own.
+# Asking for it here linked `uniffi_bindgen` and clap into every cross-compiled slice, none of
+# which ever runs a generator.
+uniffi = { workspace = true }
 # `rt-multi-thread` spawns the per-account watch/poll tasks; `time` powers the poll timers
 # (`tokio::time::interval`) and the watch reconnect backoff (`sleep`).
 tokio = { workspace = true, features = ["rt-multi-thread", "time"] }

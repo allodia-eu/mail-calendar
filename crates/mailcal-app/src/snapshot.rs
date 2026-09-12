@@ -67,22 +67,34 @@ impl<P: Provider> App<P> {
     /// search when a query is active, else the unified all-inboxes (no account selected) or one
     /// account's folder view; then signals [`Surface::MailboxList`].
     pub(super) async fn rebuild_snapshot(&self) {
+        // The search is captured here rather than deeper in: this rebuild answers it as it
+        // stands now and spends the next store reads doing so. Query and generation travel
+        // together into `rebuild_snapshot_for`, which re-checks the generation before
+        // publishing; see [`set_search`](Self::set_search) for what that defends against.
+        let search = self.search_state();
+        self.rebuild_snapshot_for(search.query.as_deref(), search.generation)
+            .await;
+    }
+
+    /// [`rebuild_snapshot`](Self::rebuild_snapshot) for one captured search: the list is built,
+    /// then published **only** if no newer search has landed while it was being built.
+    ///
+    /// The query and its generation are parameters rather than reads at the top because
+    /// together they are what an in-flight rebuild carries, and handing a test the pair an
+    /// *older* one carried reproduces the race exactly, without having to win a scheduling
+    /// coin-toss for it.
+    pub(crate) async fn rebuild_snapshot_for(&self, query: Option<&str>, generation: u64) {
         let start = Instant::now();
         let account_rows = self.account_rows().await;
         // One read of one lock: the account and the folder are one value, so a snapshot can
         // never pair a folder key with an account that was not showing it.
         let scope = self.scope.lock().expect("scope mutex poisoned").clone();
-        let query = self
-            .search_query
-            .lock()
-            .expect("search mutex poisoned")
-            .clone();
         let mode = *self.view_mode.lock().expect("view-mode mutex poisoned");
         let limit = self.visible_limit();
         let window = self.load_window();
 
         let mut snapshot = if let Some(query) = query {
-            self.search_snapshot(scope.account(), scope.folder(), &query, &account_rows)
+            self.search_snapshot(scope.account(), scope.folder(), query, mode, &account_rows)
                 .await
         } else {
             self.mailbox_snapshot(
@@ -102,6 +114,16 @@ impl<P: Provider> App<P> {
         // yet. A map read per row: the fetch that answers the rest happens after the
         // snapshot is published, so a face arriving never delays the list appearing.
         let unresolved = self.attach_photos(&mut snapshot);
+        if self.search_state().generation != generation {
+            // The row COUNT, never the query: a search term is the user's own words and a
+            // length is all a reader needs to tell a dropped list from a published one.
+            log::info!(
+                "rebuild_snapshot: {rows} row(s) superseded by a newer search after {}ms, \
+                 dropped",
+                start.elapsed().as_millis(),
+            );
+            return;
+        }
         self.mailbox_list.publish(snapshot);
         log::info!(
             "rebuild_snapshot: {rows} row(s) of {total} in {}ms",

@@ -46,10 +46,15 @@
 #   * Anything needing the mouse FROM THIS SCRIPT. UIA drives patterns, not pointers, and the
 #     cursor-moving approaches tried here all addressed the cursor in 96-DPI space while UIA
 #     reports physical pixels, so on a scaled display they click somewhere else entirely.
-#   * A BARE LAYOUT PANEL. A Grid or StackPanel holding only other controls gets no automation peer,
-#     so it is not in the tree and an AutomationProperties.AutomationId on it reaches nothing, a
-#     wait for that id can only time out, however long you give it. Measure the row through a
-#     CONTROL inside it (a ScrollViewer, a TextBlock), whose x:Name is already its AutomationId.
+#   * A BARE LAYOUT PANEL. A Grid, StackPanel or BORDER holding only other controls gets no
+#     automation peer, so it is not in the tree and an AutomationProperties.AutomationId on it
+#     reaches nothing, a wait for that id can only time out, however long you give it. Measure the
+#     row through a CONTROL inside it (a ScrollViewer, a TextBlock), whose x:Name is already its
+#     AutomationId.
+#     ⚠️ The cost is invisible, which is why this is worth re-reading: #SelectionBar is on a Border,
+#     and SelectionBar.Tests waited thirty seconds for it, twice a run, then DISCARDED the $null
+#     and passed on elements it found by other means. A whole minute of every run, and nothing on
+#     screen or in the summary said so. If a wait's result is not read, it is not a wait.
 #
 # CONTEXT FLYOUTS ARE REACHABLE, with the right tool (corrected 2026-07-31). This header used to
 # say they were not: "neither a synthetic right-click nor the Apps key opens one; the row's
@@ -109,6 +114,16 @@ namespace Allodia
     public static class UiaDpi
     {
         [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        /// <summary>The primary display's DPI, for a question asked before there is a window.</summary>
+        [DllImport("user32.dll")] public static extern uint GetDpiForSystem();
+
+        /// <summary>
+        /// Focus a window before typing at it. Only the system file picker needs this: it is the
+        /// one surface here driven by keystrokes rather than by an automation pattern, and
+        /// SendKeys goes to whatever holds focus.
+        /// </summary>
+        [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     }
 }
 '@
@@ -139,6 +154,49 @@ function Get-UiaScale {
   $dpi = [Allodia.UiaDpi]::GetDpiForWindow([IntPtr] $window.Current.NativeWindowHandle)
   if ($dpi -eq 0) { throw 'the window reports no DPI, so a XAML size cannot be compared against a measured one' }
   $dpi / 96.0
+}
+
+<#
+.SYNOPSIS
+The name THIS build calls itself: "MailCal" unbranded, whatever `branding/allodia.env` says when
+that file is present.
+.DESCRIPTION
+Never write the branded name in a suite. The app's name is injected, not written in a client
+(docs/branding.md), so a literal asserts against a build nobody but the brand owner makes: CI is
+unbranded, every fork is unbranded, and the caption there reads "MailCal". The failure names the
+caption rather than the branding, which is how this cost a CI run to find.
+
+Read out of the generated resource the app itself compiles, `Strings/en/Resources.resw`, rather
+than by parsing `branding/*.env` again: the resolution order lives in `scripts/dev/brand.sh` and a
+fourth copy of it is a copy that can disagree. `en` because the showcase dataset pins that locale,
+and the product name is one string in all seven languages anyway.
+#>
+function Get-BrandAppTitle {
+  $resw = Join-Path $PSScriptRoot 'Mailcal/Strings/en/Resources.resw'
+  if (-not (Test-Path -LiteralPath $resw)) {
+    throw "no generated $resw; build the client first (build-and-run.ps1 -NoRun), the l10n codegen writes it."
+  }
+  $value = ([xml] (Get-Content -Raw -LiteralPath $resw)).SelectSingleNode("//data[@name='app_title']/value")
+  if (-not $value) { throw "the generated $resw carries no app_title" }
+  $value.InnerText
+}
+
+<#
+.SYNOPSIS
+The desktop's size in the LOGICAL units a XAML window is sized in: @(width, height).
+.DESCRIPTION
+For the one question that has to be answered before the app exists: is this desktop big enough to
+hold the window the suites are about to measure? `Screen.PrimaryScreen.Bounds` alone will not do
+it. PowerShell 7 is per-monitor DPI aware, so that property reports PHYSICAL pixels, 2880x1920 on
+a 200% display; comparing it against a size written in XAML says yes to a desktop half the size
+it needs. Dividing by the system scale puts both sides in the same unit.
+#>
+function Get-DesktopLogicalSize {
+  Add-Type -AssemblyName System.Windows.Forms
+  $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+  $dpi = [Allodia.UiaDpi]::GetDpiForSystem()
+  $scale = if ($dpi -gt 0) { $dpi / 96.0 } else { 1.0 }
+  @([int] [Math]::Round($bounds.Width / $scale), [int] [Math]::Round($bounds.Height / $scale))
 }
 
 <#
@@ -325,6 +383,15 @@ started when the click returns, so the first two walks can agree simply because 
 yet. The floor is the minimum time this waits before it is willing to believe "settled".
 #>
 function Wait-UiaQuiet {
+  # THE HOT PATH OF THE WHOLE SUITE, so that nobody optimises it twice. Each turn reads three
+  # properties off every node, and two consecutive turns have to agree, so one settle is at least
+  # two full walks. Measured on the showcase list, 130 nodes: 309ms a walk.
+  #
+  # A UI Automation CacheRequest over the same recursion, which is the obvious fix because it
+  # collapses the property reads into the FindAll that fetched the node, gets it to 254ms and
+  # returns a byte-identical shape. 18%. The cost is not the property reads: it is one COM
+  # FindAll per node plus PowerShell's own recursion, and a cache request changes neither. Not
+  # worth a second walk function and a cached/live split across the file. Measured 2026-09-10.
   param([int] $CapMs = 1200, [int] $FloorMs = 300, [int] $PollMs = 120)
   $timer = [Diagnostics.Stopwatch]::StartNew()
   $previous = $null
@@ -534,6 +601,79 @@ function Wait-MailRowCount {
     $last = $n
   }
   return $last
+}
+
+<#
+.SYNOPSIS
+Answer the system Save As dialog with -Destination, and wait for it to close. Asserts nothing about
+the file: read the BYTES afterwards, which is the only evidence the write actually happened.
+.DESCRIPTION
+A FileSavePicker (the .eml export, Settings -> Diagnostics -> Export log) opens the classic Save As
+dialog, and three things about it defeat every obvious approach:
+
+  * It is a CHILD window (class #32770) of the app window, never a top-level one, so polling
+    RootElement's children for a new window finds nothing and reads as "the picker never opened".
+  * Its controls expose a DEGENERATE tree: the filename box (#1001 under #FileNameControlHost) and
+    the Save button (#1) are patternless Panes, with no ValuePattern, no InvokePattern, and
+    SetFocus() throws. So there is nothing here to Invoke or Set-UiaText.
+  * The keyboard works. The filename box has default focus, so ^a plus the path plus ENTER saves.
+
+The path is escaped for SendKeys: +, ^, %, ~ and the bracket characters are all operators there,
+and a path holding one would otherwise be typed as a chord and land the file somewhere else.
+.EXAMPLE
+Save-ThroughFilePicker -Destination (Join-Path $env:TEMP 'export.eml')
+#>
+function Save-ThroughFilePicker {
+  param(
+    [Parameter(Mandatory)] [string] $Destination,
+    [int] $TimeoutSec = 20,
+    # Receives the name the app PRE-FILLED, before it is replaced. The suggested name is the only
+    # evidence of what the client asked the core to call the file, and it is gone once ^a lands.
+    [ref] $SuggestedName
+  )
+  Add-Type -AssemblyName System.Windows.Forms
+  $condition = New-Object System.Windows.Automation.PropertyCondition(
+    $script:UiaElement::ClassNameProperty, '#32770')
+  $dialog = $null
+  for ($i = 0; $i -lt $TimeoutSec * 2; $i++) {
+    Start-Sleep -Milliseconds 500
+    try {
+      $window = Get-MailcalWindow
+      if ($window) { $dialog = $window.FindFirst($script:UiaChildren, $condition) }
+    } catch { }
+    if ($dialog) { break }
+  }
+  if (-not $dialog) { throw "no Save As dialog within ${TimeoutSec}s; it is a #32770 CHILD of the app window, so this is the picker not opening rather than the search missing it" }
+  if ($SuggestedName) {
+    # The filename box is #1001, under #FileNameControlHost, and the scoping is not tidiness: the
+    # ADDRESS BAND carries a #1001 of its own ("Address: Documents"), and it sorts first in a walk
+    # of the whole dialog. An unscoped read hands back the directory as a confident file name.
+    $nameHost = Get-UiaTree -Root $dialog | Where-Object { $_.Current.AutomationId -eq 'FileNameControlHost' } | Select-Object -First 1
+    $box = if ($nameHost) { Get-UiaTree -Root $nameHost | Where-Object { $_.Current.AutomationId -eq '1001' } | Select-Object -First 1 } else { $null }
+    if (-not $box) { throw 'the Save As dialog exposes no #1001 filename box under #FileNameControlHost, so the pre-filled name cannot be read' }
+    # Name, not ValuePattern: these controls are patternless Panes (see above), and the pre-filled
+    # text is what the Pane reports as its Name.
+    $SuggestedName.Value = $box.Current.Name
+  }
+  $handle = [IntPtr] $dialog.Current.NativeWindowHandle
+  [void][Allodia.UiaDpi]::SetForegroundWindow($handle)
+  Start-Sleep -Milliseconds 600
+  $keys = $Destination -replace '([+^%~()\[\]{}])', '{$1}'
+  [System.Windows.Forms.SendKeys]::SendWait('^a')
+  Start-Sleep -Milliseconds 300
+  [System.Windows.Forms.SendKeys]::SendWait($keys)
+  Start-Sleep -Milliseconds 400
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  for ($i = 0; $i -lt $TimeoutSec * 2; $i++) {
+    Start-Sleep -Milliseconds 500
+    $still = $null
+    try {
+      $window = Get-MailcalWindow
+      if ($window) { $still = $window.FindFirst($script:UiaChildren, $condition) }
+    } catch { }
+    if (-not $still) { return }
+  }
+  throw "the Save As dialog was still up ${TimeoutSec}s after ENTER; the path may have been refused"
 }
 
 <#

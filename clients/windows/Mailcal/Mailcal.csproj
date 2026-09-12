@@ -5,9 +5,10 @@
        the Windows twin of ../../macos and ../../android. Same dispatch(Intent) in /
        surface_changed + immutable-snapshot out loop; only the renderer differs.
 
-       Unpackaged + WinAppSDK-self-contained so `dotnet run` works with no MSIX and no
-       separately installed runtime. Dual-arch: build with -r win-arm64 or -r win-x64;
-       build-and-run.ps1 builds the matching Rust cdylib and points NativeLib at it. -->
+       Unpackaged so `dotnet run` needs no MSIX, and framework-dependent against the installed
+       Windows App Runtime, which is what lets it raise notifications (see below). Dual-arch:
+       build with -r win-arm64 or -r win-x64; build-and-run.ps1 builds the matching Rust cdylib
+       and points NativeLib at it. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <!-- Latest-only: build against the Windows 11 24H2 SDK (10.0.26100), .NET 10, no legacy
@@ -20,7 +21,7 @@
          so this is what makes the analytics app_version real. The Store-visible MSIX package version
          is stamped separately by package.ps1 into Package.appxmanifest. $(MSBuildThisFileDirectory)
          is clients/windows/Mailcal, so ..\..\..\VERSION is the repo root. The version-sync check
-         (scripts/ci/check-version-sync.sh) fails if this stops reading /VERSION; bump with
+         (`cargo xtask check-version-sync`) fails if this stops reading /VERSION; bump with
          scripts/dev/bump-version.sh. -->
     <_RawVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\..\..\VERSION'))</_RawVersion>
     <Version>$(_RawVersion.Trim())</Version>
@@ -43,8 +44,8 @@
     <EnableMsixTooling>true</EnableMsixTooling>
     <!-- We supply our own entry point (Program.Main) to single-instance the app and route the
          Microsoft OAuth custom-scheme redirect (eu.allodia.mailcal://auth) into the running
-         instance; see Program.cs. The bootstrap auto-initializer (unpackaged self-contained) runs
-         via a module initializer, independent of Main, so taking Main over is safe.
+         instance; see Program.cs. The bootstrap auto-initializer (unpackaged) runs via a module
+         initializer, independent of Main, so taking Main over is safe.
 
          The generated App.g.i.cs gates its entry point behind `#if !DISABLE_XAML_GENERATED_MAIN`,
          and the WinAppSDK targets STILL don't turn this MSBuild property into that compile symbol
@@ -59,15 +60,26 @@
          BEFORE Application.Start, and the generated body starts the app unconditionally. -->
     <DISABLE_XAML_GENERATED_MAIN>true</DISABLE_XAML_GENERATED_MAIN>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
-    <!-- Opt-in packaging. A bare build / `dotnet run` / build-and-run.ps1 stays UNPACKAGED +
-         WinAppSDK-self-contained, exactly the spike's dev loop. package.ps1 passes
-         -p:Packaged=true to produce the Store MSIX instead. -->
+    <!-- Opt-in packaging. A bare build / `dotnet run` / build-and-run.ps1 stays UNPACKAGED;
+         package.ps1 passes -p:Packaged=true to produce the Store MSIX instead. -->
     <WindowsPackageType Condition="'$(Packaged)' == 'true'">MSIX</WindowsPackageType>
     <WindowsPackageType Condition="'$(Packaged)' != 'true'">None</WindowsPackageType>
-    <!-- Unpackaged dev: bundle the WinApp SDK so `dotnet run` needs no runtime install.
-         Packaged/Store: framework-dependent, the Store delivers the WinApp SDK framework
-         package as a dependency, so it stays out of the upload. -->
-    <WindowsAppSDKSelfContained Condition="'$(Packaged)' != 'true'">true</WindowsAppSDKSelfContained>
+    <!-- Framework-dependent in BOTH shapes, against the installed Windows App Runtime. For the
+         Store that is simply how it ships: the runtime is a package dependency, so it stays out
+         of the upload. For the dev loop it is a deliberate choice, because a self-contained build
+         cannot register for notifications at all, the component that hosts them lives in the
+         runtime's own package, and `AppNotificationManager.Register` fails with
+         ERROR_MOD_NOT_FOUND while everything else works. The app carries on without them, so the
+         symptom is a mailbox that quietly never notifies (docs/client-traps.md).
+
+         The cost is that a dev machine needs the matching runtime installed, which Visual Studio
+         puts there (`Get-AppxPackage Microsoft.WindowsAppRuntime.2`). Without it the app refuses
+         to start, loudly, which is a better failure than the silent one above.
+         `build-and-run.ps1 -SelfContained` bundles it again for a machine that has none.
+
+         Deliberately unconditional rather than `Condition="'$(Packaged)' != 'true'"`: both shapes
+         want the same answer, and one line that says so cannot drift from the other. -->
+    <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
     <!-- Packaged: self-contain .NET (per-RID) so the MSIX runs on a clean Windows 10 box
          with no .NET 10 installed, the Store delivers the WinApp SDK, but not .NET. -->
     <SelfContained Condition="'$(Packaged)' == 'true'">true</SelfContained>

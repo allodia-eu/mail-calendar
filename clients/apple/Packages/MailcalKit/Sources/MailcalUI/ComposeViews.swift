@@ -37,11 +37,19 @@ extension EventRow {
 /// `agentDraft` is a new message an AI assistant composed and asked the app to open, **unsent**
 /// (docs/mcp.md). It carries its request's own id, so asking twice for the same message opens the
 /// composer twice rather than the second request looking like the first and doing nothing.
+/// What a forward composer opens holding: the files the original carries, already staged by the
+/// core, and whether staging failed. The two travel together because an empty list means opposite
+/// things either way: nothing was attached, or everything was and none of it could be read.
+struct ForwardAttachments {
+    var files: [ComposerFileAttachment] = []
+    var failed = false
+}
+
 enum ComposeContext: Identifiable {
     case new
     case reply(account: String, key: String, to: String, cc: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind)
     case replyAll(account: String, key: String, to: String, cc: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind)
-    case forward(account: String, key: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind)
+    case forward(account: String, key: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind, attachments: ForwardAttachments)
     case agentDraft(AgentDraftRequest)
     case mailLink(MailLinkRequest)
 
@@ -50,7 +58,7 @@ enum ComposeContext: Identifiable {
         case .new: return "new"
         case .reply(_, let key, _, _, _, _, _): return "reply:\(key)"
         case .replyAll(_, let key, _, _, _, _, _): return "replyAll:\(key)"
-        case .forward(_, let key, _, _, _): return "forward:\(key)"
+        case .forward(_, let key, _, _, _, _): return "forward:\(key)"
         case .agentDraft(let request): return "agent:\(request.id)"
         case .mailLink(let request): return "mailLink:\(request.id)"
         }

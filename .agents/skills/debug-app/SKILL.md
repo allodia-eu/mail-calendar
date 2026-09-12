@@ -61,6 +61,15 @@ always sets) the app is launched directly rather than through LaunchServices, an
 go to `$TMPDIR/allodia-mail-launch.log` precisely so it does not hold its caller's stdout open;
 a launch that produced nothing on screen is diagnosed from that file.
 
+**On Linux the client runs in the foreground**, so `boot.sh` passes `--detach` and waits for it.
+The client writes `window on screen` to its diagnostic log once GTK has put the window up; the
+launcher returns on that line, prints `READY`, and leaves the app running with its own streams in
+`mailcal-launch.log` beside the log, for the same reason macOS does. The wait separates three
+answers: the window appeared, the client exited before it did, and neither within two minutes. A
+launch that died on the way up is reported as that, rather than costing the full timeout and then
+reading as a slow machine. Run `clients/linux/build-and-run.sh` without `--detach` to keep the
+terminal attached, which is what you want when you are watching it rather than driving it.
+
 Check before you build: `pgrep -f "MacOS/AllodiaMail"` says whether a dev build is already up.
 Screenshot a running app rather than booting it again, and reach for `-- --no-core` when only
 client code changed. Rebooting replaces the instance (the script `pkill`s the same binary first,
@@ -146,10 +155,12 @@ scripts/dev/control.sh linux activate "Load images"
 
 For the complete Linux proof, prefer `scripts/dev/test-linux-ui.sh --start-harness`. It owns a
 private Xvfb + D-Bus + AT-SPI session and asserts, against the seeded harness: blocked-image →
-opt-in → Reply → Send, search (narrowing, how far back, the scope filter, clearing it), the calendar
-agenda plus create → detail → edit → delete, three meeting-invitation fixtures, contacts, recipient
-autosuggest, and signatures. It preserves screenshots, tree, and logs under
-`target/ui-test-artifacts/linux/`. It drives **no mail action**: verify archive/trash/spam by hand.
+opt-in → Reply → Send, a forward and the files it carries into the composer, search (narrowing, how
+far back, the scope filter, clearing it), the calendar agenda plus create → detail → edit → delete,
+three meeting-invitation fixtures, contacts, recipient autosuggest, signatures, and mail actions
+(read, flag, archive) on a message it delivers for itself. It preserves screenshots, tree, and logs
+under `target/ui-test-artifacts/linux/`. Spam and permanent delete it leaves alone: verify those by
+hand.
 
 **On macOS, drive by label, never by pixel.** `find` resolves a label to coordinates that pipe
 straight into `tap`, so a flow survives a layout change:
@@ -187,6 +198,14 @@ Cancel. They *are* in the accessibility tree (VoiceOver reaches them; `probe` re
 scripts/dev/control.sh iphone probe 400 89      # -> AXButton [395,84] Compose
 scripts/dev/control.sh iphone tap 400 89
 ```
+
+The limit is idb's, not the app's: XCUITest queries the same hierarchy **in-process** and gets the
+bar in full, `NavigationBar 'All Inboxes'` with a labelled `Button` per item and the search field
+under it. So an assertion that needs the bar, or needs a **gesture** (idb has neither pinch nor
+rotate), belongs in `clients/apple/Scripts/test-ui.sh`, not here. The two do not overlap much: this
+loop's whole point is asking an app that is *already* in a state someone cares about, in about a
+second and with no code, and XCUITest relaunches the app and runs a compiled script, which is what
+makes it repeatable and what makes it useless for exploring.
 
 **Assert VoiceOver reachability, not pixels: this is what a screenshot cannot do.** A container
 that sets `.accessibilityLabel` on `.accessibilityElement(children: .contain)` stays expanded on

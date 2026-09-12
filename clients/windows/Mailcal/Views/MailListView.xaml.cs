@@ -19,6 +19,13 @@ public sealed partial class MailListView : UserControl
     /// <summary>The shared app model (set by the host via <see cref="Init"/>).</summary>
     public MailboxModel? Model { get; private set; }
 
+    // How long the field stays quiet before the core is asked, matching macOS, Android and
+    // Linux so a search costs the same on every platform.
+    private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(250);
+
+    private DispatcherTimer? _searchDebounce;
+    private string _pendingSearch = "";
+
     /// <summary>Initialises the control.</summary>
     public MailListView() => this.InitializeComponent();
 
@@ -87,9 +94,37 @@ public sealed partial class MailListView : UserControl
             return;
         }
         var query = sender.Text;
-        Model?.Search(query);
-        // Re-label the header for the search context, like macOS's "Search results".
+        // Re-label the header for the search context, like macOS's "Search results". Immediate,
+        // whatever the query costs: the header describes the field, not the results.
         HeaderText.Text = string.IsNullOrEmpty(query) ? (Model?.CurrentFolderName ?? L10n.FolderFallback()) : L10n.SearchResults();
+        if (string.IsNullOrEmpty(query))
+        {
+            // Leaving search is a navigation, not a query: never made to wait.
+            _searchDebounce?.Stop();
+            Model?.Search(query);
+            return;
+        }
+        ScheduleSearch(query);
+    }
+
+    // Restart the debounce; the tick fires on the UI thread, where a dispatched intent belongs.
+    // A search is a full-text query per account plus a store read per hit (docs/search.md,
+    // "Typing does not mean searching"), so the core is asked once, when the typing stops,
+    // rather than once per keystroke.
+    private void ScheduleSearch(string query)
+    {
+        _pendingSearch = query;
+        if (_searchDebounce is null)
+        {
+            _searchDebounce = new DispatcherTimer { Interval = SearchDebounce };
+            _searchDebounce.Tick += (_, _) =>
+            {
+                _searchDebounce!.Stop();
+                Model?.Search(_pendingSearch);
+            };
+        }
+        _searchDebounce.Stop();
+        _searchDebounce.Start();
     }
 
     // The right-clicked row, captured via the menu item's Tag (robust against flyout

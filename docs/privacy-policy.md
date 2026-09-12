@@ -1,6 +1,6 @@
 # Privacy Policy: Allodia Mail & Calendar
 
-**Version 2.2 · Effective: 2026-08-28**
+**Version 2.3 · Effective: 2026-09-09**
 
 Allodia Mail & Calendar is a mail and calendar app that runs on your device and connects to the
 mail provider **you** choose. This policy explains, in plain language, what that means for your
@@ -119,8 +119,8 @@ Privacy protections that are built in, on every platform:
   events, never message content, subjects, addresses, or credentials. It is capped at a few
   megabytes, and stays on your device unless you yourself choose to send it to us (§8).
 - **New-mail notifications are generated on your device.** No notification service of ours sees
-  your mail. Whether a preview (sender, subject) appears on your lock screen follows your OS
-  notification settings.
+  your mail. Whether a preview (the sender, the subject, and the message's opening line) appears
+  on your lock screen follows your OS notification settings.
 - **Credentials live in the platform keystore** (Keychain, Windows Credential Manager, Android
   Keystore, or the Linux system keyring through Secret Service), never in the app's database. The
   message store is protected by your device's encryption at rest.

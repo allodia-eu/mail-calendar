@@ -12,7 +12,7 @@ Be specific about what ran and where. "Ran the gate on macOS" and "tried it on a
 different claims, and both beat "works".
 -->
 
-- [ ] `scripts/dev/gate.sh` is green
+- [ ] `cargo xtask gate` is green
 - [ ] Tests cover the behaviour — a bug fix has a regression test that fails without the change
 
 ## Contracts

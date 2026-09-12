@@ -1,0 +1,33 @@
+# UniFFI's own binding generator, exposing its `main()` as a `cargo run` target so the Swift and
+# Kotlin bindings come from a Cargo.lock-pinned generator rather than a separately `cargo install`ed
+# binary. Kept OUT of the workspace default-members (see the root Cargo.toml), so only a
+# binding-generation step builds it. Its C# sibling is `mailcal-bindgen-cs`.
+#
+# Its own crate rather than a bin target inside `mailcal-bindings`, and that is the whole point of
+# it: a bin carries its package's entire dependency tree, so asking cargo for this one built the
+# engine, `mailcal-app` and the FFI crate a second time. On the Apple path that second build is for
+# the host, a target the cross-compiled slices share nothing with, and it cost a third of
+# `build-core.sh`. In library mode the generator reads the metadata out of the cdylib it is pointed
+# at, so it needs the FFI crate's output and none of its dependencies: 327 units became 126.
+[package]
+name = "mailcal-bindgen-uniffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+license.workspace = true
+
+[lints]
+workspace = true
+
+# The name every call site and upstream's own documentation use.
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/main.rs"
+
+[dependencies]
+# `cli` is the feature carrying `uniffi_bindgen` and clap, and it belongs here rather than on
+# `mailcal-bindings`, where it was compiled into every cross-compiled slice that never runs a
+# generator. Pinned to the workspace's UniFFI: a generator built against a different one cannot
+# read the cdylib's metadata.
+uniffi = { workspace = true, features = ["cli"] }

@@ -33,6 +33,11 @@ Files therefore reach the composer only through a channel that is **itself a use
 share sheet, an "Open With", or an explicit `--attach` argument. Adding a fifth is a decision, not
 a refactor.
 
+Forwarding a message is not a fifth, and is worth stating so nobody reads it as one. The files
+come from the mail the user is looking at, they are staged by the core rather than named by
+anything outside the app, and the action that puts them in the composer is the user pressing
+Forward ([`sending.md`](sending.md) → "What a forward carries"). No URI is involved at any point.
+
 ## What the core decides about a shared file
 
 Both the composer's own file picker and a share resolve their metadata through
@@ -66,7 +71,11 @@ answers **no** when:
   something the person has not seen working);
 - the app is already the default;
 - the offer has already been put, whatever came of it. **Once.** A prompt closed without an answer
-  counts as answered: an unanswered question is not permission to ask again.
+  counts as answered: an unanswered question is not permission to ask again. "Once" is a promise
+  only a store can keep, so a core with **no preferences file** never puts the offer at all: the
+  showcase dataset and the demo run on an in-memory one, and there the offer came back on every
+  launch, over the mailbox, which is both the screen a store capture photographs and the one a UI
+  suite has to get past to reach Settings.
 
 Where the host cannot tell whether it is already the default it reports `None`, which is treated as
 "not default": offering where we need not is recoverable, staying silent where we are not is the
@@ -91,12 +100,12 @@ must meet are Gate 12 and Gate 15 in [`composer-security.md`](composer-security.
 | **iOS / iPadOS** | 🚧 `CFBundleURLTypes` declared, and inert until the entitlement lands | ⬜ Share Extension | **Only with Apple's grant.** The `com.apple.developer.mail-client` entitlement is requested by email and excludes the browser entitlement. There is no prompt API; the app deep-links to Settings → Apps → Default Apps. |
 | **Windows** | ✅ MSIX `windows.protocol` `mailto` | ✅ `windows.shareTarget` (any file type, plus Text and WebLink) | **Deep link only**, by design since Windows 10: open `ms-settings:defaultapps?registeredAUMID=…`, the parameter for a packaged app. (`registeredApp` / `registeredAppUser` name an installer's own `RegisteredApplications` key, which this app does not write.) An AUMID is absent in an unpackaged build, and the plain page opens instead. |
 | **Android** | ✅ `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` | ✅ `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` | **No, and nothing to add.** There is no `ROLE_EMAIL` in `RoleManager`; the chooser is the mechanism, and it already works. |
-| **Linux** | ✅ desktop `MimeType=x-scheme-handler/mailto` | ✅ curated `MimeType=` ("Open With") + a local `--attach`, both through `Exec=mailcal %U` | **No, and it cannot even tell.** No default-apps portal was ever shipped, and inside a Flatpak `GAppInfo` has no host application database to ask, which is why [`check-desktop-handoff.sh`](../scripts/ci/check-desktop-handoff.sh) already bans those calls. The desktop entry declares the handler; the user chooses it in their desktop's settings. |
+| **Linux** | ✅ desktop `MimeType=x-scheme-handler/mailto` | ✅ curated `MimeType=` ("Open With") + a local `--attach`, both through `Exec=mailcal %U` | **No, and it cannot even tell.** No default-apps portal was ever shipped, and inside a Flatpak `GAppInfo` has no host application database to ask, which is why [`cargo xtask check-desktop-handoff`](../xtask/src/desktop_handoff.rs) already bans those calls. The desktop entry declares the handler; the user chooses it in their desktop's settings. |
 
 ## Known gaps
 
-- **Share ships everywhere but Apple**, which still needs a Share Extension target and a
-  composer that can be seeded with attachments.
+- **Share ships everywhere but Apple**, which still needs a Share Extension target. The composer
+  half is done: it opens holding files a forward staged, and a share's would arrive the same way.
 - **A `MimeType=` entry is a claim to *open* that type, and Linux has no way to say otherwise.**
   There is no key for "I will attach this but not display it", so appearing in "Open With" for a
   PDF also makes this app selectable as a PDF handler. The list is therefore kept to what a person

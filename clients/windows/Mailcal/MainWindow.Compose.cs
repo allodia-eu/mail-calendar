@@ -115,10 +115,22 @@ public sealed partial class MainWindow
         BringToForeground();
     }
 
-    /// <summary>Opens the forward composer for a message (recipients entered fresh).</summary>
-    internal void ComposeForward(string account, string key, string subject)
+    /// <summary>Opens the forward composer for a message (recipients entered fresh), holding the
+    /// files the original carries.</summary>
+    /// <remarks>The composer opens <em>after</em> staging, not before: on screen holding nothing
+    /// it can be sent in the window before the files arrive, which is the forward without its
+    /// attachments this staging exists to prevent. Staging reads from the raw source the reading
+    /// pane has already cached, so in the ordinary case there is nothing to wait for.</remarks>
+    internal async void ComposeForward(string account, string key, string subject)
     {
         var quoting = Model.QuoteSettings;
+        var quote = QuoteSeedFor(account, key, isForward: true);
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "forward-attachments",
+            Guid.NewGuid().ToString("N"));
+        var staged = await Task.Run(
+            () => Model.StageForwardedAttachments(account, key, directory));
         BeginCompose(new ComposeRequest(
             RichComposeKind.Forward,
             account,
@@ -126,10 +138,12 @@ public sealed partial class MainWindow
             InitialFrom: Model.SendAccount(account)?.Id,
             InitialTo: string.Empty,
             InitialCc: string.Empty,
-            Quote: QuoteSeedFor(account, key, isForward: true),
+            Quote: quote,
             QuoteStyle: quoting.Style,
             QuoteStylePerMessage: quoting.PerMessage,
-            InitialSubject: MailcalBindingsMethods.ForwardSubject(subject)));
+            InitialSubject: MailcalBindingsMethods.ForwardSubject(subject),
+            Attachments: staged,
+            AttachmentsFailed: staged is null));
     }
 
     // The quoted original for a reply/forward of (account, key). There is something to quote only

@@ -94,6 +94,11 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                                     null
                                 }
                             },
+                            // Straight through: the caller runs it off the main thread and turns a
+                            // throw into the composer's "couldn't attach the files" line.
+                            stageForwardFiles = { account, key, directory ->
+                                instance.stageForwardedAttachments(account, key, directory)
+                            },
                             // The From dropdown lists every configured account.
                             accounts = accounts,
                             onSaveAttachment = { account, key, attachmentId, destinationPath ->
@@ -102,6 +107,15 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                                     true
                                 } catch (e: MailcalException) {
                                     Log.w(TAG, "attachment save failed: ${e.javaClass.simpleName}")
+                                    false
+                                }
+                            },
+                            onExportMessage = { account, key, destinationPath ->
+                                try {
+                                    instance.saveMessageSource(account, key, destinationPath)
+                                    true
+                                } catch (e: MailcalException) {
+                                    Log.w(TAG, "message export failed: ${e.javaClass.simpleName}")
                                     false
                                 }
                             },

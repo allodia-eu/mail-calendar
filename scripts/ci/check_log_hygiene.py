@@ -65,8 +65,9 @@ SUFFIXES = {".rs", ".kt", ".swift", ".cs"}
 def tracked_sources(roots: list[str]) -> list[Path]:
     """Every tracked source file under `roots`, plus untracked ones.
 
-    `git ls-files --others --exclude-standard` is included deliberately: `check-file-length.sh`
-    reads only the index, so a brand-new file it has never seen is invisible to it until staged.
+    `git ls-files --others --exclude-standard` is included deliberately:
+    `cargo xtask check-file-length` reads only the index, so a brand-new file it has never seen
+    is invisible to it until staged.
     A checker that cannot see the file you just wrote fails at the one moment it matters.
     """
     listed: set[Path] = set()

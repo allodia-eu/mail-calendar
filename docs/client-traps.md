@@ -27,6 +27,36 @@ that same file.
   lines into a 20,000-line generated file, with `Parameter name expected`. Swift and C# take `///`
   line comments and never see it, which is what makes this Kotlin's alone. Describe the sequence
   rather than typing it.
+- **A SwiftUI `Menu` is not a `Button` with a menu attached, and a row of buttons shows it.** Its
+  chrome is its own: it takes its height from neither `.buttonStyle(.bordered)`, nor a `.frame` on
+  the menu, nor one on its label, nor `.menuStyle(.button)`, so beside real buttons it draws
+  visibly shorter and nothing sizes it. Worse, it has no finite ideal *width*, so inside a
+  `ViewThatFits` (which sizes every candidate ideally) the flex-frame placement traps:
+  `EXC_BREAKPOINT` in `_FlexFrameLayout.commonPlacement`, on the first layout of the pane, which
+  reads as a crash on opening a message rather than as a layout bug. Both halves went away by
+  making the control an ordinary `Button` that presents a `.popover`
+  ([`ReadingView.Overflow.swift`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/ReadingView.Overflow.swift)):
+  same pieces as its neighbours, therefore same metrics, and a width the row can measure.
+
+  The second half of matching is the *content*: a labelled row's buttons are as tall as their
+  title's **line box**, which is taller than the glyph beside it, so an icon-only button among
+  them needs a title that lays out and does not draw (`.labelStyle(.iconOnly)` removes it from the
+  layout too, and is what makes the button short). A screenshot is the only test that sees any of
+  this; the suites all pass.
+- **A WinUI button with no label stands at its glyph's height, not its row's**, because the default
+  button style *centres* its content rather than stretching it. So the one icon-only control in a
+  row of labelled ones comes up short and vertically centred: 54px against 64px on a 200% display.
+  The fix is `VerticalAlignment="Stretch"` on that control, which ties it to the tallest button in
+  the row and keeps doing so when text scaling moves it. This has bitten twice, the actions bar's
+  clear button and the reading row's overflow, and both are the same shape as the SwiftUI `Menu`
+  above: the odd control in a row of ordinary ones.
+
+  What makes it expensive is *when* it is visible. Both rows collapse their labels on a narrow
+  pane, and at that width every button is the glyph's height, so the odd one matches **by
+  accident**. A test that measures one width passes over the defect; the assertion has to force the
+  labelled width and say so when it cannot reach it
+  ([`ReadingActionRow.Tests.ps1`](../clients/windows/uitests/ReadingActionRow.Tests.ps1),
+  [`SelectionBar.Tests.ps1`](../clients/windows/uitests/SelectionBar.Tests.ps1)).
 - **`Path.GetInvalidFileNameChars()` answers differently per host, and `Mailcal.Tests` is not a
   Windows assembly.** On Windows it returns the familiar set; on Linux, `/` and NUL alone, so `:`,
   `*`, `?` and `\` all come back as legal. The Windows client only ever *runs* on Windows, but its
@@ -58,12 +88,15 @@ that same file.
   repaints once and then ignores the host for as long as the modal stays open. ContentView's
   `windowScheme` is the value to hand over: it already carries both cases. macOS needs none of
   this; a sheet shares the presenter's window and follows it live. Neither half is visible to
-  `swift test` (there is no Apple UI-test target): prove it on a simulator whose own appearance is
-  the *opposite* of the one under test, driving the picker with `idb` and flipping the host with
+  `swift test`, nor to anything the UI suite asserts on today: XCUITest matches on the accessibility
+  hierarchy, which carries no colour, so a modal on the wrong scheme satisfies every query in
+  [`../clients/apple/UITests`](../clients/apple/UITests). Reaching it there would mean comparing
+  pixels in a screenshot, and nothing does. Prove it on a simulator whose own appearance is the
+  *opposite* of the one under test, driving the picker with `idb` and flipping the host with
   `xcrun simctl ui <udid> appearance light|dark`.
 - **On Linux, hand a URI or a file to the desktop through the portal launchers, never through
   `AppInfo`.** `gtk::UriLauncher` for a URI, `gtk::FileLauncher` for a file
-  (`check-desktop-handoff.sh` catches the shapes a grep can decide).
+  (`cargo xtask check-desktop-handoff` catches the shapes a grep can decide).
 
   `g_app_info_launch_default_for_uri` resolves against the **desktop's application database**. A
   Flatpak has none, so GIO falls back through GVFS onto the session bus, and the call is
@@ -101,13 +134,21 @@ that same file.
   the nastiest shape, since it seeds the shared connection and then drops its runtime on the way
   out, so the first notification of the session hangs and the cause is three files away. Everything
   goes through [`host_runtime`](../clients/linux/src/host_runtime.rs), which owns the one runtime
-  and never drops it; `check-portal-runtime.sh` refuses a second one anywhere else in the client.
+  and never drops it; `cargo xtask check-portal-runtime` refuses a second one anywhere else in
+  the client.
 
   **The tell is that it works exactly once.** The first portal call of the process succeeds, so a
   manual check passes and a screenshot proves nothing; only the second one hangs. Bound a portal
   exchange nobody is waiting on, so one that stops answering costs a single pass rather than the
   session: `notifications::post` does. Unlocking the keyring is the exception and stays unbounded,
   because it legitimately waits on the desktop's own password prompt.
+- **GNOME collapses whitespace in a notification body, so a line break there is not a line
+  break.** Every run of whitespace becomes one space, in the banner and in the expanded message
+  list alike, so a body built as `subject\nsnippet` reaches the user as one sentence with no
+  visible boundary; a daemon that does honour a break (dunst, mako) shows it, so a manual check on
+  one desktop says nothing about the other. Anything two-part in a body carries its own separator
+  ([`notifications.rs`](../clients/linux/src/ui/notifications.rs)), and both halves are flattened
+  the way the list row flattens them so the same message cannot be quoted two ways.
 - **Linux libadwaita rows parse titles _and subtitles_ as Pango markup by default.**
   `adw::ActionRow` / `PreferencesRow` text may hold localised ampersands or untrusted subjects, so
   set `use_markup(false)` unless the string was deliberately produced as escaped markup. A row that
@@ -147,6 +188,32 @@ that same file.
   widgets it was written for (the invitation buttons). **GTK exposes no getter for any of it**, so
   a widget test cannot see this at all: the only oracle is an AT-SPI run
   (`scripts/dev/test-linux-ui.sh`), which is where the assertion belongs.
+- **A self-contained Windows App SDK build cannot raise a notification, and says nothing about
+  it.** `AppNotificationManager.Register()` fails with `ERROR_MOD_NOT_FOUND` (`0x8007007E`) when
+  the app bundles the runtime (`WindowsAppSDKSelfContained`) rather than using the installed one:
+  the component that hosts notifications ships in the runtime's own package, which a self-contained
+  app does not have. The app is otherwise perfectly healthy, the new-mail scan behind the
+  notifications still runs and still advances its marks, so the symptom is a mailbox that quietly
+  never notifies, which reads as a broken feature. This is why **both** shapes are
+  framework-dependent, the dev loop as much as the Store build, and why bundling is an opt-in
+  nobody should reach for while working on notifications (`build-and-run.ps1 -SelfContained`, for
+  a machine with no matching `Microsoft.WindowsAppRuntime.2`). The log line is
+  `notifications: could not register`, and a registration that succeeded reports the system's own
+  answer beside it.
+- **Registering for notifications on the UI thread pumps it, and work already queued runs
+  early.** `Register()` is a COM call, and a COM call on an STA thread dispatches waiting messages
+  while it waits. Called from `OnLaunched`, that lets the first account's connect continuation run
+  before the window's content has a `XamlRoot`, and every prompt that opens on one dies with
+  "This element does not have a XamlRoot" (the default-mail-app offer is the one that found it).
+  Nothing about the failure names notifications. Queue it at
+  `DispatcherQueuePriority.Low` instead, which runs once the window has laid out. The same caution
+  applies to any COM or WinRT call placed between constructing a window and activating it.
+- **An unpackaged app must hand its notifications a display name.** `Register()` takes an overload
+  with a display name and an icon URI; the parameterless one leaves an unpackaged registration with
+  neither, since there is no manifest to read them from, and the shell then heads the app's mail
+  with the executable's file name ("Mailcal") and a blank icon. Nothing fails, so the only way to
+  notice is to look at one. Packaged builds take the parameterless call: their identity already
+  carries both.
 - **A key controller on a `GtkEntry` must be in the `Capture` phase to see Return.** The entry
   claims it first for its own `activate`, so a bubble-phase handler, the default, never gets it,
   while Down, Up and Escape arrive normally. The result is a keyboard path that is *half* working:
@@ -172,6 +239,31 @@ that same file.
   the app raises need not reproduce under `cargo test`, and the suite can raise the same message
   from an entirely different place. Confirm the backtrace names the site you care about before
   changing anything, and finish on the shipped toolkit.
+
+- **A WinUI window's content has no `XamlRoot` while the window is being constructed, and a dialog
+  shown on one kills the process.** `ContentDialog.ShowAsync` throws
+  `ArgumentException("This element does not have a XamlRoot")`, and every prompt in this client is
+  raised from an `async void` handler or a discarded `Task`, so the throw reaches no `catch`: the
+  `async void` ones become an unhandled exception on the dispatcher and the process dies, the
+  discarded ones vanish into an unobserved task and the prompt is simply lost. It is a race, not a
+  constant, which is what makes it expensive to find: a prompt raised by a **core signal** rather
+  than a click is subscribed inside `MainWindow`'s constructor, so whether it wins depends on how
+  fast the account connects, and a local server or a primed cached snapshot answers in tens of
+  milliseconds. Measured at one launch in five against the harness.
+
+  It is reachable only while the question is **unanswered**, which is why it hides: the offer to
+  become the default mail app is put once, so a store that has answered it never races again, and
+  the developer who just hit it cannot reproduce it. `scripts/dev/harness.sh reset` clears the
+  client stores and brings it straight back, which is what turns it into a repro: delete
+  `default_mail_app_offer` from the dev store's `preferences.toml` and launch.
+
+  Wait for `FrameworkElement.Loaded`, which is the moment the message names, and treat "no root"
+  as **wait**, never as "no": a prompt that may be asked only once is spent if it is dropped.
+  `DialogHelper` refuses an unrooted dialog and logs it, so the crash cannot come back from a new
+  caller, but the floor only stops the crash; putting the question later is the caller's job. The
+  rule itself is `DefaultMailApp.WhenToAsk`
+  ([`DefaultMailApp.cs`](../clients/windows/Mailcal/Services/DefaultMailApp.cs)), WinUI-free so
+  `Mailcal.Tests` can state it; nothing that links WinUI can be unit-tested here at all.
 
 ## Interaction quality is not testable from a chair
 

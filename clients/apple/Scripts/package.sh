@@ -462,6 +462,47 @@ ios-device | ios-app-store)
   ;;
 esac
 
+# `-allowProvisioningUpdates` resolves a profile through an *account*: Xcode's, on a developer's
+# Mac, and nothing at all on a build runner, where the archive ends in "No Accounts: Add a new
+# account in Accounts settings" after the cross-compile has already been paid for. An App Store
+# Connect key authenticates the same request without one, and this build already knows which key and
+# where Apple's tooling keeps it, so it is handed over whenever it is configured. On a Mac with an
+# account nothing changes: the key simply answers first.
+#
+# Appended to EXPORT_EXTRA rather than to the archive alone, because `-exportArchive` resolves
+# profiles the same way and fails the same way.
+asc_key_file() {
+  local dir
+  for dir in ./private_keys "$HOME/private_keys" "$HOME/.private_keys" \
+             "$HOME/.appstoreconnect/private_keys"; do
+    if [[ -f "$dir/AuthKey_$ASC_API_KEY_ID.p8" ]]; then
+      # Absolute: xcodebuild is run from elsewhere, and a relative key path resolves against its
+      # working directory rather than this script's.
+      echo "$(cd "$dir" && pwd -P)/AuthKey_$ASC_API_KEY_ID.p8"
+      return 0
+    fi
+  done
+  return 1
+}
+# Held as its own array because three commands need it: the archive, through EXPORT_EXTRA, and the
+# two `-exportArchive` calls, which resolve provisioning separately and each carry their own
+# `-allowProvisioningUpdates`. Giving it only to the archive is how an iOS build reached
+# "** ARCHIVE SUCCEEDED **" and then "exportArchive No Accounts".
+ASC_AUTH_ARGS=()
+if asc_ids_ready; then
+  if ASC_KEY_FILE="$(asc_key_file)"; then
+    echo "==> Provisioning updates authenticate with App Store Connect key $ASC_API_KEY_ID"
+    ASC_AUTH_ARGS=(-authenticationKeyPath "$ASC_KEY_FILE"
+                   -authenticationKeyID "$ASC_API_KEY_ID"
+                   -authenticationKeyIssuerID "$ASC_API_ISSUER_ID")
+  else
+    echo "==> No AuthKey_$ASC_API_KEY_ID.p8 found; provisioning updates need a signed-in Xcode" >&2
+  fi
+fi
+if [[ ${#EXPORT_EXTRA[@]} -gt 0 && ${#ASC_AUTH_ARGS[@]} -gt 0 ]]; then
+  EXPORT_EXTRA+=("${ASC_AUTH_ARGS[@]}")
+fi
+
 echo "==> Archiving ($SCHEME, Release, arm64, $DESTINATION)"
 # ARCHS=arm64 is a command-line override, so it applies to EVERY target in the build, including the
 # MailcalKit SPM package targets, which don't inherit the app target's EXCLUDED_ARCHS and would
@@ -493,7 +534,8 @@ if [[ "$FLOW" == ios-device ]]; then
     -archivePath "$ARCHIVE" \
     -exportOptionsPlist "$EXPORT_PLIST" \
     -exportPath "$EXPORT" \
-    -allowProvisioningUpdates
+    -allowProvisioningUpdates \
+    ${ASC_AUTH_ARGS[@]+"${ASC_AUTH_ARGS[@]}"}
 
   IPA="$(/usr/bin/find "$EXPORT" -maxdepth 1 -name '*.ipa' | head -1)"
   [[ -n "$IPA" && -f "$IPA" ]] || fail "export produced no .ipa, check the log above."
@@ -580,7 +622,8 @@ if [[ "$FLOW" == ios-app-store ]]; then
     -archivePath "$ARCHIVE" \
     -exportOptionsPlist "$EXPORT_PLIST" \
     -exportPath "$EXPORT" \
-    -allowProvisioningUpdates
+    -allowProvisioningUpdates \
+    ${ASC_AUTH_ARGS[@]+"${ASC_AUTH_ARGS[@]}"}
 
   IPA="$(/usr/bin/find "$EXPORT" -maxdepth 1 -name '*.ipa' | head -1)"
   [[ -n "$IPA" && -f "$IPA" ]] || fail "export produced no .ipa, check the log above."

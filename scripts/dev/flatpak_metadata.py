@@ -318,7 +318,8 @@ def _releases_element(history: list[tuple[str, str]], version: str) -> str:
 
     `/VERSION` must be among them: it means "the version users currently have"
     (`docs/changelog.md`), so a metainfo whose newest release is not it would advertise a build that
-    was never released; the same invariant `check-version-sync.sh` enforces from the other side.
+    was never released; the same invariant `cargo xtask check-version-sync` enforces from the
+    other side.
     """
     if version not in {entry[0] for entry in history}:
         raise MetadataError(

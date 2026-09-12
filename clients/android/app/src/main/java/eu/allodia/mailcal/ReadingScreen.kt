@@ -7,12 +7,6 @@
 // gate added/raised on one platform must be applied to all of them (and recorded there).
 package eu.allodia.mailcal
 
-import android.os.Handler
-import android.os.Looper
-import android.widget.Toast
-import java.io.File
-import java.util.UUID
-import kotlin.concurrent.thread
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
@@ -65,9 +59,7 @@ import uniffi.mailcal_bindings.Recipients
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.RecipientSuggestion
 import uniffi.mailcal_bindings.ThreadMessage
-import uniffi.mailcal_bindings.forwardSubject
 import uniffi.mailcal_bindings.messageCanvas
-import uniffi.mailcal_bindings.replySubject
 
 // The header context for an opened message (the row the user tapped). The body itself is
 // pulled from the core's `reading` snapshot, matched by `key`. `account` is the owning
@@ -185,6 +177,9 @@ internal fun ReadingScreen(
         files: List<ComposerFileAttachment>,
     ) -> Boolean,
     replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
+    // Writes the files a message carries into the given directory, for a forward to carry them
+    // on. Blocking, so it is called off the main thread; throws when they cannot be read.
+    stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
     suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
     // The signature library + lookups for the reply/forward composer, or null to leave signatures
     // out (a screenshot run, a test).
@@ -197,6 +192,7 @@ internal fun ReadingScreen(
         attachmentId: UInt,
         destinationPath: String,
     ) -> Boolean,
+    onExportMessage: (account: String, key: String, destinationPath: String) -> Boolean,
     onArchive: (account: String, key: String) -> Unit,
     onDelete: (account: String, key: String) -> Unit,
     // Screenshot only: opens the composer in this mode as soon as the message is shown, so the
@@ -211,6 +207,8 @@ internal fun ReadingScreen(
     var loadRemoteImages by remember(message.key) { mutableStateOf(false) }
     // The open rich composer (null = closed, else the active mode), like the list rows.
     var composing by remember(message.key) { mutableStateOf<RichComposeMode?>(null) }
+    // The original's files, staged before the forward composer opens (see the Forward action).
+    var forwardSeed by remember(message.key) { mutableStateOf(ForwardSeed()) }
     // Screenshot only: open it once the body has loaded, the quoted original (and the sample reply
     // text seeded above it) only exist then, exactly as for a user-driven reply.
     if (initialComposing != null) {
@@ -224,39 +222,8 @@ internal fun ReadingScreen(
     ) { uri ->
         val attachment = pendingSave
         pendingSave = null
-        if (uri == null || attachment == null) {
-            return@rememberLauncherForActivityResult
-        }
-        // The core decodes + writes the whole part and then we copy it to the picked location:
-        // both off the main thread (the connect path threads blocking core calls for the same
-        // reason), reporting the result back on the main thread.
-        val account = message.account
-        val key = message.key
-        thread(name = "mailcal-save-attachment") {
-            val temp = File(ctx.cacheDir, "saved-attachments/${UUID.randomUUID()}.part")
-            temp.parentFile?.mkdirs()
-            val saved = onSaveAttachment(account, key, attachment.id, temp.absolutePath)
-            val copied = if (saved) {
-                try {
-                    ctx.contentResolver.openOutputStream(uri)?.use { output ->
-                        temp.inputStream().use { input -> input.copyTo(output) }
-                    } != null
-                } catch (_: Exception) {
-                    false
-                } finally {
-                    temp.delete()
-                }
-            } else {
-                temp.delete()
-                false
-            }
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(
-                    ctx,
-                    if (copied) L10n.attachment_saved(ctx) else L10n.attachment_save_failed(ctx),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            }
+        if (uri != null && attachment != null) {
+            saveAttachmentTo(ctx, uri, message.account, message.key, attachment, onSaveAttachment)
         }
     }
     // This screen renders outside the Scaffold (which would pad its content), so it must clear
@@ -283,7 +250,14 @@ internal fun ReadingScreen(
             IconButton(onClick = { composing = RichComposeMode.ReplyAll }) {
                 Icon(painterResource(R.drawable.ic_reply_all), contentDescription = L10n.action_reply_all(ctx))
             }
-            IconButton(onClick = { composing = RichComposeMode.Forward }) {
+            // Forward opens once the original's files are staged, not before: a composer on screen
+            // holding nothing can be sent in the window before they arrive.
+            IconButton(onClick = {
+                stageForwardAttachments(ctx, message.account, message.key, stageForwardFiles) {
+                    forwardSeed = it
+                    composing = RichComposeMode.Forward
+                }
+            }) {
                 Icon(painterResource(R.drawable.ic_forward), contentDescription = L10n.action_forward(ctx))
             }
             Spacer(modifier = Modifier.weight(1f))
@@ -305,6 +279,15 @@ internal fun ReadingScreen(
                     tint = MaterialTheme.colorScheme.error,
                 )
             }
+            // Last of all, after both mailbox actions (docs/reading-actions.md).
+            ReadingOverflowMenu(
+                // The subject this screen DISPLAYS, so an untitled message exports under the
+                // same words it is shown under.
+                subject = message.subject.ifEmpty { L10n.mail_no_subject(ctx) },
+                account = message.account,
+                key = message.key,
+                onExportMessage = onExportMessage,
+            )
         }
         HorizontalDivider()
         // When the open message is part of a multi-message conversation, list the other messages
@@ -435,60 +418,21 @@ internal fun ReadingScreen(
             }
         }
     }
-    // The rich composer overlay for reply/reply-all/forward (its own window), mirroring the
-    // list rows: the same hardened editor, its rendered document riding submitRichReply/
-    // submitRichForward. Reply/reply-all open with To/Cc pre-filled from the core.
     composing?.let { mode ->
-        val prefill = remember(message.key, mode) {
-            if (mode == RichComposeMode.Reply || mode == RichComposeMode.ReplyAll) {
-                replyRecipients(message.account, message.key, mode == RichComposeMode.ReplyAll)
-            } else {
-                null
-            }
-        }
-        // Seed the quoted original from this message's already-sanitised reading body (null when
-        // the body hasn't arrived yet, the composer then opens empty, as on a list-row reply).
-        val quote = ComposerQuote.seedJson(
-            ctx = ctx,
-            style = quoteSettings.style,
+        ReadingComposerOverlay(
+            mode = mode,
             message = message,
             reading = reading,
-            isForward = mode == RichComposeMode.Forward,
-            initialText = if (mode == RichComposeMode.Forward) null else composerInitialText,
-        )
-        RichComposeMessageDialog(
+            accounts = accounts,
+            quoteSettings = quoteSettings,
+            forwardSeed = forwardSeed,
+            replyRecipients = replyRecipients,
             suggestionsFor = suggestionsFor,
             signatures = signatures,
-            mode = mode,
-            accounts = accounts,
-            // A reply/forward opens on the account that received the mail, the address it was
-            // sent to. The user can switch it in the From dropdown.
-            initialFrom = message.account,
-            initialTo = prefill?.to ?: "",
-            initialCc = prefill?.cc ?: "",
-            // Derived by the CORE, not here: the field is editable, so what it opens with is what
-            // gets sent unless the user changes it, and a client-side "Re: " + subject differs
-            // from the core's on a reply to a reply.
-            initialSubject = if (mode == RichComposeMode.Forward) {
-                forwardSubject(message.subject)
-            } else {
-                replySubject(message.subject)
-            },
-            quote = quote,
-            quoteStyle = quoteSettings.style,
-            quoteStylePerMessage = quoteSettings.perMessage,
-            onDismiss = { composing = null },
-            onSubmitRich = { from, recipients, subject, documentJson, files ->
-                val sent = if (mode == RichComposeMode.Forward) {
-                    onForward(message.account, message.key, from, recipients, subject, documentJson, files)
-                } else {
-                    onReply(message.account, message.key, from, recipients, subject, documentJson, files)
-                }
-                if (sent) {
-                    composing = null
-                }
-                sent
-            },
+            composerInitialText = composerInitialText,
+            onClose = { composing = null },
+            onReply = onReply,
+            onForward = onForward,
         )
     }
 }

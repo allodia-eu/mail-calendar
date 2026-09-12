@@ -1,7 +1,8 @@
 // Raises local new-mail notifications on iOS/iPadOS from a background-sync outcome
-// (docs/background-sync.md). One notification per account, sender + subject in the body; the OS
-// hides the preview on the lock screen per the user's system setting. This deliberately shows
-// content (the user chose it), distinct from the never-log-content diagnostic-log rule.
+// (docs/background-sync.md). One notification per message: the sender as its title, then the
+// subject and how the message begins; the OS hides all of it on the lock screen per the user's
+// system setting. This deliberately shows content (the user chose it), distinct from the
+// never-log-content diagnostic-log rule.
 #if os(iOS)
 import Foundation
 import MailcalBindings
@@ -57,7 +58,7 @@ enum MailNotifier {
     ) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = sender(message)
-        content.body = message.subject
+        content.body = body(message)
         content.subtitle = account.accountLabel
         content.sound = .default
         // iOS collapses same-thread notifications into one expandable stack per account.
@@ -70,6 +71,17 @@ enum MailNotifier {
     private static func sender(_ preview: NewMailPreview) -> String {
         if let name = preview.senderName, !name.isEmpty { return name }
         return preview.sender
+    }
+
+    /// What the message is about and how it begins. The account label already holds the
+    /// subtitle, so those two share the body, on their own lines, the subject first: a banner
+    /// truncates from the end, so the line that must survive goes at the top. The snippet is
+    /// left out entirely where the account has none yet (an IMAP account has none until the
+    /// body sync has run), so a notification never ends on a blank line.
+    private static func body(_ preview: NewMailPreview) -> String {
+        let snippet = preview.preview.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !snippet.isEmpty else { return preview.subject }
+        return "\(preview.subject)\n\(snippet)"
     }
 }
 #endif

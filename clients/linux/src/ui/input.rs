@@ -11,7 +11,7 @@ use super::{
     allodia::AllodiaOutcome,
     allodia_sync::AllodiaSyncOutcome,
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
-    composer_model::ComposerSubmission,
+    composer_model::{ComposerSubmission, PickedFile},
     contacts::EditTarget,
     folder_pane::SidebarTarget,
     google::GoogleOutcome,
@@ -142,6 +142,10 @@ pub(crate) enum AppInput {
     BeginNew,
     BeginReply(bool),
     BeginForward,
+    /// The files the forwarded message carries, staged off the GTK thread, or `Err` when they
+    /// could not be read. The composer opens on this rather than on `BeginForward`: on screen
+    /// holding nothing it can be sent in the window before they arrive.
+    ForwardStaged(Result<Vec<PickedFile>, ()>),
     CancelComposer,
     /// The open draft's answer to "would anything be lost?": see [`super::composer_draft`].
     ComposerDraftChecked(bool),
@@ -159,6 +163,11 @@ pub(crate) enum AppInput {
         file_name: String,
     },
     AttachmentSaved(bool),
+    /// Write the open message out as the file the user just named.
+    ExportMessage {
+        destination: PathBuf,
+    },
+    MessageExported(bool),
     AttachmentDecoded(Result<PathBuf, ()>),
     /// The desktop refused to open a decoded attachment; the portal's answer, which arrives
     /// after the launch rather than from it.
@@ -329,6 +338,7 @@ impl fmt::Debug for AppInput {
             Self::BeginNew => "BeginNew",
             Self::BeginReply(_) => "BeginReply",
             Self::BeginForward => "BeginForward",
+            Self::ForwardStaged(_) => "ForwardStaged",
             Self::CancelComposer => "CancelComposer",
             Self::ComposerDraftChecked(_) => "ComposerDraftChecked",
             Self::DiscardDraft => "DiscardDraft",
@@ -337,6 +347,8 @@ impl fmt::Debug for AppInput {
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::OpenAttachment { .. } => "OpenAttachment",
             Self::AttachmentSaved(_) => "AttachmentSaved",
+            Self::ExportMessage { .. } => "ExportMessage",
+            Self::MessageExported(_) => "MessageExported",
             Self::AttachmentDecoded(_) => "AttachmentDecoded",
             Self::AttachmentOpenFailed => "AttachmentOpenFailed",
             Self::WebViewReady => "WebViewReady",

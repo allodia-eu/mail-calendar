@@ -201,6 +201,13 @@ impl ComposerPane {
                 bcc: request.initial_bcc.clone(),
                 subject: request.subject.clone(),
             },
+            // A forward's staged files are not work to lose: they are still in the mailbox, so
+            // they are the baseline rather than a draft. A share's are the user's own choice.
+            if request.kind == ComposeKind::Forward {
+                request.files.len()
+            } else {
+                0
+            },
             seed,
         )));
         connect_send(
@@ -223,9 +230,9 @@ impl ComposerPane {
         self.signature.replace(signature);
     }
 
-    pub(crate) fn show_error(&self) {
+    pub(crate) fn show_error(&self, text: &str) {
         if let Some(error) = self.error.borrow().as_ref() {
-            error.set_text(l10n::compose_prepare_error());
+            error.set_text(text);
             error.set_visible(true);
         }
         if let Some(send) = self.send.borrow().as_ref() {

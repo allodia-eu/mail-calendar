@@ -189,6 +189,16 @@ public sealed partial class MailboxModel
             PullReading();
         }
 
+        // A mailbox signal is the live runtime saying it committed mail, so it is also the only
+        // honest moment to ask whether any of it is worth a notification: the desktop raises them
+        // off its own IDLE/poll cadence rather than a schedule of its own
+        // (docs/background-sync.md). Off the UI thread, and collapsed when they burst
+        // (MailboxModel.Notifications.cs).
+        if (changed == Surface.MailboxList)
+        {
+            CollectNewMail();
+        }
+
         Log.Info($"reload: rows={Rows.Count} ({Mode}), folders={Folders.Count}, "
             + $"events={Events.Count}, zone={zone} "
             + $"(FFI pull {pullMs}ms, total {reloadSw.ElapsedMilliseconds}ms)");
