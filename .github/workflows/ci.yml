@@ -645,6 +645,26 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # Start the simulator here and let it boot behind the Rust build. `test-ui.sh` waits for this
+      # one rather than starting its own.
+      #
+      # ⚠️ **Do not move this step or delete it without measuring.** A standard macOS runner has
+      # three cores and a booting simulator wants most of them, so the boot is never free; all it
+      # can do is take them from something. All three placements were measured on one branch with
+      # the same caches, and the obvious readings of the result are both wrong:
+      #
+      #   here, before the Rust build   cross-compile 226s, Swift 169s, tests 176s   11m06s
+      #   no boot step at all           cross-compile 116s, Swift 160s, tests 391s   13m02s
+      #   after it, before the Swift    cross-compile 110s, Swift 581s, tests 229s   16m35s
+      #
+      # Reading one line at a time says this step is the problem: it is what makes the cross-compile
+      # 226s instead of 116s. Deleting it moves the boot into the test step, serial and on the
+      # critical path, and costs two minutes. Moving it one step later is worse again, because the
+      # Swift build is the most parallel thing in the job and minds the competition far more than
+      # cargo does.
+      - name: Boot a simulator in the background
+        run: clients/apple/Scripts/test-ui.sh --boot
+
       - name: Build the Rust core -> XCFramework + bindings
         run: ./clients/apple/Scripts/build-core.sh --no-device
 
@@ -657,21 +677,6 @@ jobs:
           (cd clients/apple && xcodegen generate)
           brand_assert_expanded clients/apple/AllodiaMail.xcodeproj/project.pbxproj
           brand_assert_expanded clients/apple/App/Info.plist
-
-      # ⚠️ **Where this sits is worth more than it looks, and all three placements were measured.**
-      # A standard macOS runner has three cores and a booting simulator wants most of them, so the
-      # boot is never free; the only question is what it takes them from.
-      #
-      #   before the Rust build   cross-compile 74s -> 226s, test step 176s   job 11m06s
-      #   not at all              cross-compile 116s,        test step 391s   job 13m02s
-      #   here                    (this is the one being measured)
-      #
-      # Left out entirely, the boot lands in the test step, serial and on the critical path, which
-      # was the worst of the three. Ahead of the Rust build it inflated the cross-compile by more
-      # than it saved. Here it overlaps the Swift build, which spends much of its time in single
-      # module compiles rather than saturating every core.
-      - name: Boot a simulator in the background
-        run: clients/apple/Scripts/test-ui.sh --boot
 
       # This is the iOS compile gate as well as the test build: `build-for-testing` compiles the app
       # exactly as `build` would, plus the test bundle. There is no second iOS build anywhere.
