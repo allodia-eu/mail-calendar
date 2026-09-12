@@ -383,9 +383,12 @@ were broken right now, would this tell me?*
 - **And a build is not the screen.** `clients/apple/Scripts/test-ui.sh` is the XCUITest suite
   (`clients/apple/UITests`), on a simulator or with `--device` on a connected iPhone. It is the only
   Apple gate that can drive a **gesture**, or read the iOS **navigation bar** at all, which `idb`
-  reports as one unlabelled group. It needs a simulator, so the workspace gate leaves it out and CI
-  runs the whole of it, which makes CI the only place a contributor without a Mac reaches it at all;
-  run it before pushing anything that changes what an Apple screen presents.
+  reports as one unlabelled group. It needs a simulator, so the workspace gate leaves it out, and it
+  is the slowest job in the pipeline by a factor of three, so **CI runs it on `main` and not on a
+  pull request**. ⚠️ That puts it the wrong way round from every other gate here: a UI test fails
+  after the merge rather than before it. Run it yourself before pushing anything that changes what
+  an Apple screen presents, and, since it is the one Apple gate somebody without a Mac cannot run,
+  expect to run it for them when reviewing. `workflow_dispatch` asks for it on a branch.
 - **A `#![cfg(unix)]` test file reports `running 0 tests ... ok` on Windows**, which reads exactly
   like a pass. Any `cfg(windows)` / `cfg(unix)` branch needs a test *per branch*, and a
   cross-platform test count is not coverage: read the per-file `running N tests` lines.

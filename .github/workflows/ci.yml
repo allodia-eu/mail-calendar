@@ -558,6 +558,17 @@ jobs:
             -destination 'platform=macOS' -configuration Debug \
             -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
 
+      # The iOS compile gate, and it lives here rather than in `apple-ui` because that job does not
+      # run on a pull request: without this step a branch that breaks the iOS build would be green
+      # until it merged. It is a plain `build`, so it never meets the test action that used to
+      # invalidate it; `apple-ui` owns a derived data cache of its own.
+      - name: Build the iOS app
+        working-directory: clients/apple
+        run: |
+          xcodebuild -project AllodiaMail.xcodeproj -scheme AllodiaMail \
+            -destination 'generic/platform=iOS Simulator' -configuration Debug \
+            -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
+
       - name: Build + run the headless FFI verifier (demo mode)
         working-directory: clients/apple
         run: |
@@ -586,7 +597,20 @@ jobs:
   apple-ui:
     name: Apple UI suite (iOS simulator)
     needs: changes
-    if: needs.changes.outputs.apple == 'true'
+    # **Not on a pull request.** At ~11 minutes it is the slowest thing in the workflow by a factor
+    # of three, and a branch with several pushes pays it on each one. So it runs after the merge,
+    # and `workflow_dispatch` is the way to ask for it on a branch that deserves one.
+    #
+    # ⚠️ What that costs: a UI test now fails on **main** rather than on the pull request that broke
+    # it. `clients/apple/Scripts/test-ui.sh` before pushing is what keeps that rare, and it is the
+    # only Apple gate a contributor without a Mac cannot run at all, so a reviewer of somebody
+    # else's Apple change should expect to run it for them.
+    #
+    # It also means this job only ever runs where caches are written, so it always restores its own
+    # warm entry rather than a pull request's cold one.
+    if: >-
+      needs.changes.outputs.apple == 'true'
+      && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: macos-26
     timeout-minutes: 20
     permissions:
