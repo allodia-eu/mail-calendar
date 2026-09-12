@@ -5,74 +5,28 @@ import SwiftUI
 import MailcalBindings
 
 extension ContentView {
-    /// Opens the reply (or reply-all) composer for a message, computing the core's suggested
-    /// recipients once and carrying them in the compose context.
+    /// Opens the reply (or reply-all) composer for a message, in the shell's own composer: the
+    /// detail column on macOS, a full-screen cover on iOS.
     ///
-    /// The Subject the composer opens with is derived by the CORE, not here: the field is
-    /// editable, so what it opens with is what gets sent unless the user changes it, and a
-    /// client-side `"Re: " + subject` differs from the core's on a reply to a reply.
+    /// What the draft opens *with* is `MailboxModel.replyDraft`, shared with the detached reading
+    /// window's action row (`docs/reading-window.md`). The pane's own open message is what the
+    /// quote comes from, when it is this one.
     func beginReply(_ account: String, _ key: String, subject: String, all: Bool) {
-        let prefill = model.replyRecipients(account, key, all)
-        let seed = quoteSeed(account, key, isForward: false)
-        let replySubject = MailcalBindings.replySubject(original: subject)
-        compose = all
-            ? .replyAll(account: account, key: key, to: prefill?.to ?? "", cc: prefill?.cc ?? "",
-                        subject: replySubject, quote: seed.quote, quoteStyle: seed.style)
-            : .reply(account: account, key: key, to: prefill?.to ?? "", cc: prefill?.cc ?? "",
-                     subject: replySubject, quote: seed.quote, quoteStyle: seed.style)
-    }
-
-    /// Opens the forward composer, seeding the quoted original the same way as a reply and the
-    /// attachment list with the files the original carries.
-    ///
-    /// The composer opens **after** staging, not before: on screen holding nothing it can be
-    /// sent in the window before the files arrive, which is the forward without its attachments
-    /// this exists to prevent. Staging reads from the raw source the reading view has already
-    /// cached, so in the ordinary case there is nothing to wait for.
-    func beginForward(_ account: String, _ key: String, subject: String) {
-        let seed = quoteSeed(account, key, isForward: true)
-        let forwardSubject = MailcalBindings.forwardSubject(original: subject)
-        Task { @MainActor in
-            let staged = await model.stageForwardedAttachments(
-                account, key, into: forwardStagingDirectory()
-            )
-            compose = .forward(
-                account: account, key: key, subject: forwardSubject,
-                quote: seed.quote, quoteStyle: seed.style,
-                attachments: ForwardAttachments(files: staged ?? [], failed: staged == nil)
-            )
-        }
-    }
-
-    /// A directory of this composer's own under the app's temporary storage, so two forwards
-    /// never share a staged file. The OS reclaims what is left behind, as it does for an
-    /// attachment opened from the reading view.
-    private func forwardStagingDirectory() -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("forward-attachments", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    }
-
-    /// The quoted-original seed for a reply/forward of `(account, key)`, plus the default style.
-    /// A showcase reply to the designated message also carries sample body text, so the store
-    /// screenshot shows a written reply rather than an empty composer.
-    private func quoteSeed(
-        _ account: String,
-        _ key: String,
-        isForward: Bool
-    ) -> (quote: String?, style: QuoteStyleKind) {
-        let style = model.quoteSettingsNow().style
-        guard let opened = openedMessage, opened.account == account, opened.key == key else {
-            return (nil, style)
-        }
-        let quote = ComposerQuote.seedJSON(
-            style: style,
-            message: opened,
-            reading: model.reading,
-            isForward: isForward,
-            initialText: isForward ? nil : ShowcaseMode.replyText(account: account, key: key)
+        compose = model.replyDraft(
+            account: account, key: key, subject: subject, all: all,
+            quotingFrom: openedMessage, body: model.reading
         )
-        return (quote, style)
+    }
+
+    /// Opens the forward composer in the shell, once the original's files have been staged into
+    /// it (`MailboxModel.forwardDraft` says why the wait is on this side of the open).
+    func beginForward(_ account: String, _ key: String, subject: String) {
+        Task { @MainActor in
+            compose = await model.forwardDraft(
+                account: account, key: key, subject: subject,
+                quotingFrom: openedMessage, body: model.reading
+            )
+        }
     }
 
     /// Opens a message for reading: records the header and asks the core to fetch its body.
@@ -201,6 +155,14 @@ extension ContentView {
         }
         .padding(.vertical, 3)
         .contentShape(Rectangle())
+        #if os(macOS)
+        // Double-click opens the message in a window of its own (`docs/reading-window.md`).
+        // **Before** the single-click gesture below, which is how SwiftUI tells the two apart:
+        // the double-click is then delivered on its own and the single one does not run, so the
+        // pane and the selection are left exactly as they were, which is the rule the contract
+        // states. It also means a double-click can never reach the unsent-draft prompt.
+        .onTapGesture(count: 2) { openInWindow(message) }
+        #endif
         // A modified click (or a tap in selection mode) is aimed at the selection alone: opening
         // as well would fetch and display a body for every row added to a twenty-row set.
         .onTapGesture { if click() { open(message) } }
@@ -234,6 +196,14 @@ extension ContentView {
         Button { open(message) } label: {
             Label(L10n.action_open(), systemImage: "envelope.open")
         }
+        #if os(macOS)
+        // The same thing double-clicking does, and the reason it is on the menu: a gesture is not
+        // reachable from the keyboard or by a screen reader, so the feature would otherwise exist
+        // only for people using a pointer (`docs/reading-window.md`).
+        Button { openInWindow(message) } label: {
+            Label(L10n.action_open_in_window(), systemImage: "macwindow.on.rectangle")
+        }
+        #endif
         Divider()
         Button { beginReply(message.account, message.key, subject: message.subject, all: false) } label: {
             Label(L10n.action_reply(), systemImage: "arrowshape.turn.up.left")
@@ -421,6 +391,19 @@ extension ContentView {
         .padding(.leading, 30)
         .background(isOpenMessage(message.account, message.key) ? Color.accentColor.opacity(0.15) : Color.clear)
         .contentShape(Rectangle())
+        #if os(macOS)
+        // A conversation's sub-row is a message, so it opens in a window like any other. The
+        // conversation *header* is not: double-clicking there expands and collapses the thread,
+        // which is what it already did (`docs/reading-window.md`).
+        .onTapGesture(count: 2) { openInWindow(thread, message) }
+        #endif
         .onTapGesture { openThreadMessage(thread, message) }
+        #if os(macOS)
+        .contextMenu {
+            Button { openInWindow(thread, message) } label: {
+                Label(L10n.action_open_in_window(), systemImage: "macwindow.on.rectangle")
+            }
+        }
+        #endif
     }
 }
