@@ -1,23 +1,15 @@
-// The message reading view: renders the open message's body that the Rust core fetched and
+// The message reading view: the header, the action row and the body the Rust core fetched and
 // (for HTML) sanitised. The HTML document, its strict CSP, base styling, and remote-image
-// gating, is built in shared Rust (`renderMessageHtml`) so every client behaves
-// identically; this view only supplies the unavoidably-native bits: a WKWebView with
-// JavaScript off and in-view navigation blocked (clicked links open in the default
-// browser instead), plus the plain-text fallback. Remote images are
-// blocked by default behind a "load remote images" confirmation. Split into its own file to
-// keep Mailcal.swift under the 500-line limit.
+// gating, is built in shared Rust (`renderMessageHtml`) so every client behaves identically;
+// the web view that hosts it is in ReadingWebView.swift. Remote images are blocked by
+// default behind a "load remote images" confirmation. Split into its own file to keep
+// Mailcal.swift under the 500-line limit.
 //
 // The security gates here are a CROSS-PLATFORM CONTRACT, see docs/rendering-security.md. Any
 // gate added/raised on one platform must be applied to all of them (and recorded there).
 
-#if os(macOS)
-import AppKit
-#else
-import UIKit
-#endif
 import MailcalBindings
 import SwiftUI
-import WebKit
 
 /// The header context for an opened message (the row the user tapped). The body itself is
 /// pulled from the model's `reading` snapshot, matched by `key`.
@@ -43,6 +35,15 @@ struct OpenedMessage: Identifiable, Hashable {
 /// `private` on a top-level declaration is file-scoped).
 let attachmentBarCap: CGFloat = 176
 
+/// How far from the pane's edges the reading view draws, one value so the header, the recipients,
+/// the action row, the attachment bar, the invitation card and a plain-text body all start on the
+/// same vertical line. The HTML body's own inset is in the shared renderer's stylesheet, where
+/// every client picks it up (`crates/mailcal-app/src/html`).
+///
+/// Not `private`: ReadingView.Attachments.swift and InvitationCardView.swift inset to it too
+/// (Swift's `private` on a top-level declaration is file-scoped).
+let readingInset: CGFloat = 16
+
 /// The reading pane: a header plus the fetched body, or a spinner until the body for this
 /// message arrives (the fetch is async, a network round-trip on the first open). It lives
 /// inline as the third pane beside the message list (sidebar | list | reading); a fresh
@@ -63,17 +64,28 @@ struct ReadingView: View {
     @Environment(\.horizontalSizeClass) private var hSizeClass
     #endif
     /// A compact (iPhone) width never fits the labelled action buttons, so they render icon-only
-    /// with larger tap targets. macOS/iPad decide per-row instead (see `actionToolbar`), keeping
-    /// the labels whenever they fit at the pane's current width.
-    ///
-    /// Not `private`: ReadingView.Overflow.swift sizes the overflow button to match the row.
-    var compactActions: Bool {
+    /// at a touch size. macOS/iPad measure the labels instead (see `actionToolbar`), keeping them
+    /// whenever they fit at the pane's current width.
+    private var compactActions: Bool {
         #if os(iOS)
         hSizeClass == .compact
         #else
         false
         #endif
     }
+
+    /// The square an action button's glyph is drawn in, which is what decides the button's size
+    /// once the style's own padding is added: 32 pt puts a touch row's buttons at about 44, the
+    /// smallest a finger is served by, and the desktops keep the 24 a pointer needs.
+    ///
+    /// It is the **glyph's** box rather than a floor on the button, deliberately. A `frame` whose
+    /// bounds are all `nil` is an unbounded `_FlexFrameLayout`, and `ViewThatFits` measuring one
+    /// hangs the app before its first window (ReadingView.Overflow.swift has the same trap from
+    /// the other side), so nothing here may wrap a button in a frame that is a no-op.
+    ///
+    /// Not `private`: ReadingView.Overflow.swift draws the overflow glyph in the same box, so it
+    /// stays the same control as the buttons beside it (`docs/reading-actions.md`).
+    var iconBox: CGFloat { compactActions ? 32 : 24 }
 
     /// Whether the user chose to load this message's remote images (reset per message, a fresh
     /// view is created for each opened message).
@@ -141,7 +153,7 @@ struct ReadingView: View {
                 Spacer()
                 Text(message.date).font(.caption).foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, readingInset)
             .padding(.top, 12)
             recipientsHeader
             actionToolbar
@@ -184,7 +196,7 @@ struct ReadingView: View {
                 recipientRow(L10n.compose_bcc(), body.bcc)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, readingInset)
             .padding(.top, 4)
         }
     }
@@ -210,16 +222,30 @@ struct ReadingView: View {
     /// simply a longer language (Dutch's "Allen beantwoorden" against English's "Reply all"), can
     /// outgrow the row and leave every button clipped to "Beant…". So the labelled row is offered
     /// first and the icon-only row is the fallback whenever the labels can't be drawn in full.
+    ///
+    /// **The control size is measured too, and on a phone it has to be.** Six icon buttons at
+    /// `.large` are wider than any iPhone, and a row wider than the screen is not clipped on its
+    /// own: it sets the width of the column it sits in, so the header above and the body below
+    /// hang off both edges of the display. The size is set here rather than per button so
+    /// `ViewThatFits` can offer the next one down, which is the same row drawn to fit, and the
+    /// glyphs keep the box `iconBox` gives them, so a smaller control is a smaller *button* and
+    /// not a smaller target. Icons scale with the text size, so the third candidate is what a
+    /// large accessibility size lands on.
     private var actionToolbar: some View {
         VStack(alignment: .leading, spacing: 4) {
             Group {
                 if compactActions {
-                    actionRow(iconsOnly: true)
+                    ViewThatFits(in: .horizontal) {
+                        actionRow(iconsOnly: true).controlSize(.large)
+                        actionRow(iconsOnly: true).controlSize(.regular)
+                        actionRow(iconsOnly: true).controlSize(.small)
+                    }
                 } else {
                     ViewThatFits(in: .horizontal) {
                         actionRow(iconsOnly: false)
                         actionRow(iconsOnly: true)
                     }
+                    .controlSize(.small)
                 }
             }
             if let exportError {
@@ -228,7 +254,7 @@ struct ReadingView: View {
                     .foregroundStyle(.red)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, readingInset)
         .padding(.vertical, 8)
     }
 
@@ -256,7 +282,7 @@ struct ReadingView: View {
     ) -> some View {
         Button(role: role, action: action) {
             if iconsOnly {
-                Image(systemName: icon).frame(minWidth: 24, minHeight: 24)
+                Image(systemName: icon).frame(minWidth: iconBox, minHeight: iconBox)
             } else {
                 // One line at its natural width, so the row's ideal width is what ViewThatFits
                 // measures, never a silently truncated or hyphenated label.
@@ -266,7 +292,6 @@ struct ReadingView: View {
             }
         }
         .buttonStyle(.bordered)
-        .controlSize(compactActions ? .large : .small)
         .accessibilityLabel(title)
     }
 
@@ -330,7 +355,7 @@ struct ReadingView: View {
                         .font(.body)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
+                        .padding(readingInset)
                 }
             } else {
                 placeholder(L10n.reading_no_content())
@@ -398,7 +423,7 @@ private struct RemoteImagesBanner: View {
             Spacer()
             Button(L10n.action_load_images(), action: onLoad)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, readingInset)
         .padding(.vertical, 8)
         .background(.quaternary)
     }

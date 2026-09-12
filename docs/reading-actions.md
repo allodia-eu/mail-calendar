@@ -21,6 +21,13 @@ Labels collapse to icons on a narrow pane ([`../clients/apple/Packages/MailcalKi
 and its Windows twin measure this); the overflow button is an icon at every width and carries the
 same accessible name, `a11y_more_actions`, everywhere.
 
+**The row fits the pane, whatever that costs it.** Labels go first, then the control size itself:
+six touch-sized icon buttons are wider than any phone, and a row that outgrows its pane is not
+clipped on its own, it *sets* the pane's width, so the header above it and the message below it
+hang off both edges of the screen. Measuring is what decides, never a width written down here or
+in a client: a longer language, a larger text size and a narrower phone each move the answer. What
+may not move is the target a finger gets, so a smaller control stays a 44-pt button.
+
 **It is the same control as the buttons beside it**, at both of the row's widths. Each platform
 uses whatever gets it there: Windows and Android hang a native menu off a button, and Apple builds
 an ordinary button that presents a popover, because a SwiftUI `Menu` cannot be made to match a

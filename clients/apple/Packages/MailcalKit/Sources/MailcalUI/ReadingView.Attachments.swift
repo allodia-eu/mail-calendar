@@ -25,7 +25,7 @@ extension ReadingView {
                 }
                 attachmentRows(body.attachments)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, readingInset)
             .padding(.bottom, 8)
         }
     }
