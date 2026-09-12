@@ -685,12 +685,16 @@ PY
   # narrowing reaches the screen, that the two controls docs/search.md requires of a client are on
   # the accessibility bus at all, and that clearing the field puts the unsearched list back.
   #
-  # The query is a thread, which is also the assertion that these are search results: the list is
-  # threaded, so "Project kickoff" is folded into its reply's row everywhere except here, where
-  # results are flat. The remote-image fixture matches nothing in it and must leave.
+  # The query is a thread, which is what shows that the results carry the list's grouping
+  # (`docs/search.md`, rule 9): the two messages that matched arrive as one conversation row
+  # carrying both, not as a row each. The count badge is how a client states that from the
+  # accessibility bus, the row itself being named after the newest match. The remote-image
+  # fixture matches nothing in it and must leave.
   "$PYTHON" "$ATSPI" set-text --name "Search mail" --text "kickoff" --timeout 20
   "$PYTHON" "$ATSPI" wait \
     --name "Project kickoff" --role "list item" --enabled --showing --timeout 30
+  "$PYTHON" "$ATSPI" wait \
+    --name "2 messages" --within "Project kickoff" --showing --timeout 30
   "$PYTHON" "$ATSPI" wait --name "$REMOTE_SUBJECT" --role "list item" --absent --timeout 30
   # Rule 8: how far back it looked; the harness account's depth is the shipping default; and the
   # route to the setting that decides it. A statement the user cannot act on is half the value.

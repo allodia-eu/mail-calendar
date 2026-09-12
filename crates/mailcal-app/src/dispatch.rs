@@ -6,7 +6,7 @@
 
 use engine_api::{AccountId, Provider};
 
-use crate::{App, Intent, SearchScope, Surface, scope::Scope, sync::RefreshProgress};
+use crate::{App, Intent, Surface, scope::Scope, sync::RefreshProgress};
 
 impl<P: Provider> App<P> {
     /// Handles one inbound [`Intent`]. On completion the changed surface is signalled
@@ -65,24 +65,15 @@ impl<P: Provider> App<P> {
             Intent::Search(query) => {
                 // An empty query clears search; otherwise a non-blank query is active.
                 let query = query.filter(|q| !q.trim().is_empty());
-                // Leaving search drops the scope filter with it: the next search opens across
-                // everything, rather than silently inheriting how the last one was narrowed
-                // (a filter the user can no longer see is a filter they will not think of).
-                if query.is_none() {
-                    *self
-                        .search_scope
-                        .lock()
-                        .expect("search-scope mutex poisoned") = SearchScope::default();
-                }
-                *self.search_query.lock().expect("search mutex poisoned") = query;
+                // One write of query, scope and generation together: every rebuild in flight
+                // for an older search is discarded rather than published
+                // (`rebuild_snapshot`), and the rebuild below answers this keystroke.
+                self.set_search(query);
                 self.reset_window();
                 self.rebuild_snapshot().await;
             }
             Intent::SetSearchScope(scope) => {
-                *self
-                    .search_scope
-                    .lock()
-                    .expect("search-scope mutex poisoned") = scope;
+                self.set_search_scope(scope);
                 self.reset_window();
                 self.rebuild_snapshot().await;
             }

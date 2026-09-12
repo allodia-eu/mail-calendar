@@ -30,10 +30,21 @@ fn render_accessor(catalog: &Catalog, brand: &Brand) -> String {
     render_locale_list(&mut out, catalog);
     render_locale_resolver(&mut out, catalog);
     render_language_names(&mut out, catalog);
-    for message in &catalog.messages {
+    render_plural_rule(&mut out, catalog);
+    for message in catalog.accessors() {
         render_message(&mut out, catalog, message);
     }
     out
+}
+
+/// Emits `is_one`, the singular test a plural message's accessor branches on.
+///
+/// Only when the catalog actually holds a singular partner: the Linux crate compiles this output
+/// with warnings denied, so an unused helper would fail its build rather than sit there.
+fn render_plural_rule(out: &mut String, catalog: &Catalog) {
+    if catalog.messages.iter().any(|m| catalog.is_singular(&m.key)) {
+        out.push_str(PLURAL_RULE);
+    }
 }
 
 /// Emits `language_name`, the Rust member of the endonym accessor every client's language picker
@@ -158,23 +169,37 @@ fn render_message(out: &mut String, catalog: &Catalog, message: &Message) {
         render_template_match(out, catalog, message, 4);
     } else {
         out.push_str("    let mut message = ");
-        render_template_match(out, catalog, message, 4);
-        out.push_str("        .to_owned();\n");
-        for placeholder in &message.placeholders {
-            let replacement = match param_type(placeholder) {
-                ParamType::Int => format!("&{placeholder}.to_string()"),
-                ParamType::Str => placeholder.clone(),
-            };
-            writeln!(
-                out,
-                "    message = message.replace({:?}, {replacement});",
-                format!("{{{placeholder}}}")
-            )
-            .expect("writing to String cannot fail");
+        // Two templates, one accessor: a caller passes a count, never a grammatical form.
+        if let Some(singular) = catalog.singular_of(&message.key) {
+            out.push_str("if is_one(count) {\n");
+            render_template_match(out, catalog, singular, 8);
+            out.push_str("    } else {\n");
+            render_template_match(out, catalog, message, 8);
+            out.push_str("    }\n");
+        } else {
+            render_template_match(out, catalog, message, 4);
         }
+        out.push_str("        .to_owned();\n");
+        render_placeholder_substitutions(out, message);
         out.push_str("    message\n");
     }
     out.push_str("}\n\n");
+}
+
+/// Emits the `{name}` -> argument substitutions for one message's body.
+fn render_placeholder_substitutions(out: &mut String, message: &Message) {
+    for placeholder in &message.placeholders {
+        let replacement = match param_type(placeholder) {
+            ParamType::Int => format!("&{placeholder}.to_string()"),
+            ParamType::Str => placeholder.clone(),
+        };
+        writeln!(
+            out,
+            "    message = message.replace({:?}, {replacement});",
+            format!("{{{placeholder}}}")
+        )
+        .expect("writing to String cannot fail");
+    }
 }
 
 fn render_template_match(out: &mut String, catalog: &Catalog, message: &Message, indent: usize) {
@@ -200,6 +225,22 @@ fn render_template_match(out: &mut String, catalog: &Catalog, message: &Message,
     writeln!(out, "{spaces}    _ => {base_value:?},\n{spaces}}}")
         .expect("writing to String cannot fail");
 }
+
+/// The singular test the generated accessors branch on, emitted verbatim.
+const PLURAL_RULE: &str = r#"/// Whether `count` takes the singular in the active locale.
+///
+/// French counts zero as singular ("0 conversation"); every other locale this app ships (en, nl,
+/// de, es, it, pt-PT) takes the singular at one alone. Each is CLDR's rule for that language, and
+/// an empty folder is what makes zero worth getting right: its footer states the count.
+fn is_one(count: i64) -> bool {
+    if active_locale() == "fr" {
+        count <= 1
+    } else {
+        count == 1
+    }
+}
+
+"#;
 
 const fn rust_type(param: ParamType) -> &'static str {
     match param {

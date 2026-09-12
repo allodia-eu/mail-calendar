@@ -137,9 +137,10 @@ pub(crate) fn build_flat(messages: &[&AccountMessage], limit: usize) -> MailboxL
 }
 
 /// A flat list of **search hits**, newest first: the same ordering the mailbox list uses, over
-/// the messages the engine matched. Every hit is shown (a hit is in scope by definition, and
-/// search never groups into conversations); `total` equals the returned rows, so the host asks
-/// for no further page.
+/// the messages the engine matched. Every hit is shown, a hit being in scope by definition.
+/// This is the projection for a search whose list is set to messages; one set to conversations
+/// goes through [`build_threaded`], which reads the same `in_scope` flag as "matched"
+/// (`docs/search.md`, rule 9).
 ///
 /// Ordering on time rather than relevance is the point: a person searching mail is looking for
 /// *a* message and reads the list by when things arrived, so a relevance order, which

@@ -156,12 +156,7 @@ impl<P: Provider> App<P> {
     }
 
     fn rebuild_live_mailbox_snapshot(&self) -> bool {
-        if self
-            .search_query
-            .lock()
-            .expect("search mutex poisoned")
-            .is_some()
-        {
+        if self.search_state().query.is_some() {
             return false;
         }
         // One read of one lock, so the account and the folder on screen are always the same

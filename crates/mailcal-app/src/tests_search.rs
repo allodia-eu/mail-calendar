@@ -19,6 +19,11 @@ use super::{Intent, SearchScope};
 #[path = "tests_fakes.rs"]
 mod fakes;
 
+// The two rules with enough cases to crowd this file out of the 500-line limit; declared here
+// rather than in `lib.rs` so the whole of mail search stays one test module.
+mod staleness;
+mod threaded;
+
 /// A message in `mailbox` delivered on `day` of June 2026: a distinct date per message, so
 /// the newest-first order is observable rather than incidental.
 fn dated(id: &str, mailbox: &str, subject: &str, day: u8) -> Message {

@@ -151,6 +151,19 @@ extension ContentView {
                     .textFieldStyle(.roundedBorder)
                     .frame(minWidth: 140, idealWidth: 180, maxWidth: 220)
                     .onChange(of: searchText) { _, query in model.search(query) }
+                // The way out of search, and the only one this layout has: the phone's field
+                // carries its own and the sidebar's back gesture is not on screen here. Emptying
+                // the field is what leaves search (`onChange` above dispatches the clear), so the
+                // button has one job and the core has one route in.
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(L10n.search_clear())
+                    .help(L10n.search_clear())
+                }
             }
             // Settings is reached from the sidebar (or ⌘,), which is where every other destination
             // in this app lives. A second gear over the message list offered the same screen twice

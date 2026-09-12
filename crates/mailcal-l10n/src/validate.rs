@@ -4,7 +4,7 @@
 //! uses a key that is not a legal identifier. Every problem is collected so one run reports
 //! them all.
 
-use crate::model::{Raw, is_identifier, placeholders};
+use crate::model::{ONE_SUFFIX, Raw, is_identifier, placeholders};
 
 /// Checks the catalog, returning every problem joined into one error string, or `Ok(())`
 /// when the catalog is sound.
@@ -81,6 +81,37 @@ pub(crate) fn check(raw: &Raw) -> Result<(), String> {
                     ));
                 }
             }
+        }
+    }
+
+    // A `<key>_one` that carries `{count}` is a plural form: the emitters give `<key>` an
+    // accessor that chooses between the two, and the singular gets none. That only works if both
+    // halves take the same arguments, or one of the two branches formats with the wrong ones,
+    // which reaches a user as a `{name}` printed literally, in one locale, at one count.
+    //
+    // A `_one` key WITHOUT `{count}` is not a plural form but a separate sentence with the
+    // numeral spelled in ("1 attendee"), chosen between at the call site. Those are left alone,
+    // and are why this checks the placeholders rather than the suffix.
+    for (key, singular) in base_map {
+        let Some(stem) = key.strip_suffix(ONE_SUFFIX) else {
+            continue;
+        };
+        let Some(plural) = base_map.get(stem) else {
+            continue;
+        };
+        let has_count = |value: &str| placeholders(value).iter().any(|p| p == "count");
+        if !has_count(singular) || !has_count(plural) {
+            continue;
+        }
+        let (mut singular_ph, mut plural_ph) = (placeholders(singular), placeholders(plural));
+        singular_ph.sort();
+        plural_ph.sort();
+        if singular_ph != plural_ph {
+            problems.push(format!(
+                "[{}] singular \"{key}\" placeholders {singular_ph:?} differ from its plural \
+                 \"{stem}\" {plural_ph:?}",
+                raw.base
+            ));
         }
     }
 
