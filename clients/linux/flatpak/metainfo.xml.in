@@ -10,20 +10,15 @@
 
   <!-- CC0 on this file, not on the app: it says a software centre may redistribute the listing.
 
-       `project_license` describes the binary that is shipped, which is not the same set of files
-       as the repository. The application is GPL-3.0-only (REUSE.toml, LICENSE), and the shipped
-       build additionally links `allodia_license/`, source-available under LicenseRef-Allodia-1.0.
-       Both halves are named because both are in the artifact; it is also why Flathub carries this
-       app as `extra-data` rather than building it.
-
-       What that costs, so nobody has to rediscover it: AppStream's `as_license_is_free_license()`
-       rejects any expression containing a `LicenseRef-` it does not know, whatever it is ANDed
-       with, so GNOME Software draws its orange "Proprietary / not developed in the open" panel.
-       That sentence is wrong about this project, and the field is still right; the only value that
-       turns the panel green is a bare `GPL-3.0-only`, which would be silent about code that is in
-       the binary. -->
+       The app's own licence is NOT a literal here, for the same reason the name and the id are
+       not: one template describes two artifacts. A build from source links nothing but the GPL
+       application; a build carrying the Allodia registration links the source-available crate the
+       registration exists for, and the two cannot honestly claim the same licence.
+       `flatpak_metadata.project_license()` derives it from the registration, exactly as
+       `core_cargo_features` derives the cargo feature from it, so the field and the binary cannot
+       disagree. -->
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>GPL-3.0-only AND LicenseRef-Allodia-1.0</project_license>
+  <project_license>@PROJECT_LICENSE@</project_license>
 
   <name>@NAME@</name>
 @SUMMARIES@

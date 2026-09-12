@@ -11,6 +11,7 @@ would never turn on; fails here instead of at a `flatpak-builder` run nobody doe
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -166,6 +167,59 @@ class Releases(unittest.TestCase):
             meta._releases_element([("0.4.0", "2026-08-04")], "0.5.0")
 
 
+class ProjectLicence(unittest.TestCase):
+    """One template, two artifacts, and they may not claim the same licence.
+
+    `docs/pledge.md` promise 4 is that the open repository stands alone, so a build from source
+    links nothing but the GPL application. A build carrying the Allodia registration links the
+    source-available crate that registration exists for. A literal in the template would have made
+    every from-source build declare a licence it does not carry.
+    """
+
+    def setUp(self):
+        self._saved = os.environ.pop(meta.REGISTRATION, None)
+
+    def tearDown(self):
+        if self._saved is not None:
+            os.environ[meta.REGISTRATION] = self._saved
+
+    def test_no_registration_anywhere_is_the_gpl_alone(self):
+        with tempfile.TemporaryDirectory() as raw:
+            self.assertEqual(meta.project_license(repo_root=Path(raw)), meta.GPL_ONLY)
+
+    def test_a_blank_registration_counts_as_absent(self):
+        """A CI run without access to the secrets sets the empty string rather than leaving the
+        name unbound, which `core_cargo_features` treats as absent and so must this."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / ".env").write_text(f"{meta.REGISTRATION}=\n", encoding="utf-8")
+            self.assertEqual(meta.project_license(repo_root=root), meta.GPL_ONLY)
+
+    def test_a_registration_in_the_env_file_names_both_licences(self):
+        # The file rather than the environment, because `flatpak-builder` forwards no host
+        # environment: inside the sandbox the file is the only road the registration travels.
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / ".env").write_text(f"{meta.REGISTRATION}=abc123\n", encoding="utf-8")
+            self.assertEqual(meta.project_license(repo_root=root), meta.WITH_LICENSED_CORE)
+
+    def test_the_environment_wins_over_the_file(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            os.environ[meta.REGISTRATION] = "from-the-environment"
+            self.assertEqual(meta.project_license(repo_root=root), meta.WITH_LICENSED_CORE)
+
+    def test_the_override_answers_for_a_build_this_checkout_is_not_making(self):
+        """Flathub's copy points at Allodia's binary by URL, so it describes that artifact whoever
+        assembled it. Deriving from the assembling machine's `.env` would make a committed listing
+        depend on who ran the command."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.assertEqual(meta.project_license(True, repo_root=root), meta.WITH_LICENSED_CORE)
+            (root / ".env").write_text(f"{meta.REGISTRATION}=abc123\n", encoding="utf-8")
+            self.assertEqual(meta.project_license(False, repo_root=root), meta.GPL_ONLY)
+
+
 class ReleaseNotes(unittest.TestCase):
     """The `<description>` under each version, which is what a software centre shows as "what
     changed". Without it every release reads "No details for this release", which is what shipped
@@ -302,6 +356,14 @@ class GeneratedFiles(unittest.TestCase):
         )
         for child in description:
             self.assertIn(child.tag, ("p", "ul", "ol"))
+
+    def test_the_licence_is_one_this_build_could_actually_carry(self):
+        root = ElementTree.fromstring(self.metainfo)
+        self.assertEqual(
+            root.findtext("project_license"),
+            meta.project_license(),
+            "the metainfo names a licence other than the one this checkout would build",
+        )
 
     def test_every_way_the_client_can_be_driven_is_declared(self):
         """A control left out is read as one the app cannot be used with, not as one unstated.

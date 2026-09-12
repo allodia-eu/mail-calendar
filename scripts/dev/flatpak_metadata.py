@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -44,6 +45,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts" / "ci"))
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "dev"))
 
 import brand  # noqa: E402  (path set above so this runs as a script)
+import envfile  # noqa: E402  (the repo's one reader of a credentials file)
 
 from changelog_fragments import (  # noqa: E402  (path set above so this runs as a script)
     LOCALE_NAMES,
@@ -73,6 +75,22 @@ APP_ID = brand.value("MAILCAL_APP_ID")
 # The paragraphs of the shared body this file is allowed to use. See the module docstring: two, and
 # which two is a rule `docs/store-listing.md` already states.
 FRAMING_PARAGRAPHS = 2
+
+# The two licences this template can honestly claim, and the one signal that decides which.
+#
+# `docs/pledge.md` promise 4 is that the open repository stands alone, and `check-license-dir`
+# enforces it: the default build links nothing but the GPL application. A build carrying the
+# Allodia registration links the source-available crate that registration exists for, which is a
+# different artifact under a different expression, and also why Flathub carries this app as
+# `extra-data` rather than building it.
+#
+# So the field is derived from the registration rather than written down, the way
+# `core_cargo_features` in `scripts/dev/lib.sh` derives the cargo feature from it. One signal for
+# both, because a metainfo that named a licence the binary does not carry would be wrong in
+# whichever direction it drifted.
+REGISTRATION = "MAILCAL_ALLODIA_CLIENT_ID"
+GPL_ONLY = "GPL-3.0-only"
+WITH_LICENSED_CORE = "GPL-3.0-only AND LicenseRef-Allodia-1.0"
 
 # The platform whose release notes a software centre shows. A released note groups its copy by the
 # stores a section is pasted into, so one release can carry different bullets per platform; this
@@ -187,6 +205,37 @@ def releases(released_dir: Path) -> list[tuple[str, str]]:
     if not out:
         raise DocumentShapeError("docs/changelog/released/ holds no assembled notes")
     return sorted(out, key=lambda item: tuple(int(n) for n in item[0].split(".")), reverse=True)
+
+
+def links_licensed_core(repo_root: Path = REPO_ROOT) -> bool:
+    """Whether this build carries the Allodia registration, and so the crate it exists for.
+
+    The environment first, then the repository's gitignored `.env`, and a blank value counts as
+    absent: the same three rules `core_cargo_features` follows, because a build front door that
+    resolved this differently would produce a metainfo describing a binary nobody built. That file
+    is the one a Flatpak build can read at all, too: `flatpak-builder` forwards no host
+    environment, so `package.sh` writes the registration into `.env` and the sandbox reads it
+    there, on the same road the OAuth credentials take.
+    """
+    value = os.environ.get(REGISTRATION, "")
+    if not value:
+        env_file = repo_root / ".env"
+        if env_file.is_file():
+            value = envfile.parse_env_file(env_file.read_text(encoding="utf-8")).get(REGISTRATION, "")
+    return bool(value.strip())
+
+
+def project_license(links_licensed: bool | None = None, *, repo_root: Path = REPO_ROOT) -> str:
+    """The SPDX expression for the artifact this run describes.
+
+    `links_licensed` overrides the derivation, and exists for one caller: whoever assembles the
+    listing for a *published* build rather than building one. Flathub's copy points at Allodia's
+    binary by URL, so it describes that artifact no matter whose machine wrote the file, and
+    deriving from that machine's `.env` would make the committed listing depend on who ran it.
+    """
+    if links_licensed is None:
+        links_licensed = links_licensed_core(repo_root)
+    return WITH_LICENSED_CORE if links_licensed else GPL_ONLY
 
 
 def release_notes(released_dir: Path) -> dict[str, dict[str, list[str]]]:
@@ -445,11 +494,12 @@ def _releases_element(
 
 def metainfo(
     template: str, *, name: str, summary_by_locale, paragraphs, history, version, locales,
-    gallery=None, notes=None
+    gallery=None, notes=None, licence=GPL_ONLY
 ) -> str:
     rendered = (
         template.replace("@APP_ID@", APP_ID)
         .replace("@NAME@", escape(name))
+        .replace("@PROJECT_LICENSE@", escape(licence))
         .replace("@SUMMARIES@", _summary_elements(summary_by_locale, locales))
         .replace("@DESCRIPTION@", _description_element(paragraphs, locales))
         .replace("@SCREENSHOTS@", _screenshots_element(gallery))
@@ -462,7 +512,11 @@ def metainfo(
 
 
 def build(
-    out_dir: Path, *, repo_root: Path = REPO_ROOT, screenshots: Path | None = None
+    out_dir: Path,
+    *,
+    repo_root: Path = REPO_ROOT,
+    screenshots: Path | None = None,
+    links_licensed: bool | None = None,
 ) -> list[Path]:
     """Write both files into `out_dir`, and return what was written."""
     listing_file = brand.listing_source()
@@ -524,6 +578,7 @@ def build(
             locales=locales,
             gallery=gallery,
             notes=notes,
+            licence=project_license(links_licensed, repo_root=repo_root),
         ),
         encoding="utf-8",
     )
@@ -538,9 +593,20 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="the gallery manifest, which lives with whoever publishes the listing",
     )
+    parser.add_argument(
+        "--links-licensed-core",
+        action="store_true",
+        default=None,
+        help="describe a build that carries the Allodia registration, whatever this checkout has; "
+             "for assembling the listing of a published build rather than of one being built here",
+    )
     args = parser.parse_args(argv)
     try:
-        written = build(args.out_dir, screenshots=args.screenshots)
+        written = build(
+            args.out_dir,
+            screenshots=args.screenshots,
+            links_licensed=args.links_licensed_core,
+        )
     except (DocumentShapeError, MetadataError) as error:
         print(f"flatpak-metadata: {error}", file=sys.stderr)
         return 1
