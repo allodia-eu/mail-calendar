@@ -131,7 +131,14 @@ pub(crate) fn run(root: &Path) -> Result<bool, String> {
                 }
             }
         }
-        if !calls_hook(root, client)? {
+    }
+
+    // One listing for all four call-site directories rather than one each: a git process costs
+    // more here than reading the files it names.
+    let directories: Vec<&str> = CLIENTS.iter().map(|c| c.call.0).collect();
+    let listed = git::listed(root, &directories)?;
+    for client in CLIENTS {
+        if !calls_hook(root, &listed, client) {
             failures.push(format!(
                 "{}: never calls window.{HOOK}: its toolbar stays English",
                 client.name
@@ -219,25 +226,14 @@ fn keys_in(text: &str, (before, after): (&str, &str)) -> Vec<String> {
 }
 
 /// Whether any source under the client's directory injects the hook.
-///
-/// # Errors
-///
-/// Propagates a git failure.
-fn calls_hook(root: &Path, client: &Client) -> Result<bool, String> {
+fn calls_hook(root: &Path, listed: &[String], client: &Client) -> bool {
     let (directory, call) = client.call;
-    let files = git::listed(root, &[directory])?;
-    if files.is_empty() {
-        return Ok(false);
-    }
-    for name in files {
-        if !SOURCES.contains(&crate::prose::extension(&name)) {
-            continue;
-        }
-        if std::fs::read_to_string(root.join(&name)).is_ok_and(|text| text.contains(call)) {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+    listed
+        .iter()
+        .filter(|name| {
+            name.starts_with(directory) && SOURCES.contains(&crate::prose::extension(name))
+        })
+        .any(|name| std::fs::read_to_string(root.join(name)).is_ok_and(|text| text.contains(call)))
 }
 
 /// The entries of `left` that `right` does not have.

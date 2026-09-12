@@ -128,9 +128,16 @@ fn hits(name: &str, text: &str) -> Vec<Hit> {
 }
 
 /// Every logging call in a file, as `(where the name starts, where its arguments start)`.
+///
+/// The first byte is checked before the names are: every call in [`CALLS`] begins with one of four
+/// letters, and trying fifteen prefixes at every character of every source in the tree is most of
+/// what this check would otherwise spend.
 fn calls(text: &str) -> Vec<(usize, usize)> {
     let mut found = Vec::new();
-    for (at, _) in text.char_indices() {
+    for (at, first) in text.char_indices() {
+        if !matches!(first, 'l' | 'L' | 'N' | 'o') {
+            continue;
+        }
         let rest = &text[at..];
         let Some(call) = CALLS.iter().find(|call| rest.starts_with(**call)) else {
             continue;
