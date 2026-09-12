@@ -46,6 +46,7 @@ mod invitation_actions;
 mod jmap;
 mod jmap_actions;
 mod mail_actions;
+mod mail_toolbar;
 mod mailbox;
 mod mailbox_display;
 mod mailbox_progressive;

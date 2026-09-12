@@ -79,7 +79,7 @@ advertises LIST-STATUS, else one `STATUS` per mailbox.
 | iPadOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: fixed column, per the platform | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane |
 | iOS (iPhone) | `model.accountFolders` → `sidebarList` in a drawer | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: a drawer is not resizable | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane |
 | Android | `accountFolders` → `FolderDrawerScaffold` | chevron `IconButton` → `Intent.SetAccountExpanded` | `NavigationDrawerItem` badge slot | Material Symbols (`FolderDrawer.kt`, `folderIcon`) | n/a: a modal drawer is not resizable | `FolderDrawer.kt`, off the row's own account | `NavigationDrawerItem` click semantics | ⬜ still one flat "All Inboxes" row |
-| Linux | `account_folders` → `folder_pane::render` | chevron `GtkButton` → `Intent::SetAccountExpanded` | accent `GtkLabel` pill, trailing | symbolic icons (`folder_pane.rs`, `role_icon`): Adwaita's, except the bundled inbox and archive it has none of | ✅ 200–560 px: the `GtkPaned`, persisted (`HostPreferences::folder_pane_width`) | `activate_sidebar` → `SidebarTarget::Folder` | row-named `GtkButton`, also the `AdwActionRow` activatable widget | ⬜ still one flat "All Inboxes" row |
+| Linux | `account_folders` → `folder_pane::render` | chevron `GtkButton` → `Intent::SetAccountExpanded` | accent `GtkLabel` pill, trailing | symbolic icons (`folder_pane.rs`, `role_icon`): Adwaita's, except the bundled inbox and archive it has none of | ✅ 200–560 px: the `GtkPaned`, persisted (`HostPreferences::folder_pane_width`) | `activate_sidebar` → `SidebarTarget::Folder` | row-named `GtkButton`, also the `AdwActionRow` activatable widget | ✅ `SidebarTarget::UnifiedGroup` → `Intent::SetUnifiedExpanded` |
 
 The iPhone draws the same pane as the desktop, in a drawer over the whole screen (opened from the
 toolbar or a drag off the leading edge). Calendar and Contacts are **not** on it there: they are
@@ -120,7 +120,7 @@ gesture needs a real mouse.
   clears, so the two never disagree on screen. There is no optimistic local delta.
 - **The selected account and folder are still not persisted.** Every launch opens on the unified
   Inbox, with the trees restored. Only expansion survives a restart; where you *were* does not.
-- **Rules 16 and 17 are on Apple only.** Windows, Android and Linux still draw the unified list as
+- **Rules 16 and 17 are not on Windows or Android.** Both still draw the unified list as
   one flat row named from `sidebar_all_inboxes` ("All Inboxes"), and their list header still names
   it the same way. Nothing in the core is missing for them: `unified_expanded` is in every
   snapshot, `Intent::SetUnifiedExpanded` is in the FFI enum, and `sidebar_all_accounts` is in every

@@ -93,7 +93,7 @@ the field stays the platform's own list search (`.searchable`, a `SearchBar` on 
 | macOS | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ | ✅ | centred in the window toolbar | `clients/apple/…/Mailcal.Toolbar.swift`, `SearchHorizonStrip.swift` |
 | iOS/iPadOS | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ (`.searchable`) | ✅ | `.searchable` over the list | `clients/apple/…/SearchHorizonStrip.swift` |
 | Windows | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ (`AutoSuggestBox`) | ✅ | ⬜ the list's header row | `clients/windows/…/SearchHorizonLine.cs` |
-| Linux | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (`gtk::SearchEntry`) | ✅ | ⬜ under the list header | `clients/linux/src/ui/search/bar.rs` |
+| Linux | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (`gtk::SearchEntry`) | ✅ | centred in the window toolbar | `clients/linux/src/ui/mail_toolbar.rs`, `ui/search/bar.rs` |
 | MCP (`search`, `list_messages`) | ✅ | ✅ | ✅ | n/a | ✅ (`sync_depth_months`) | n/a | n/a | n/a | n/a | `crates/mailcal-mcp/src/tools/read.rs` |
 
 Rule 9 does not apply to MCP, deliberately: that surface answers with **messages**, whatever the
@@ -109,9 +109,8 @@ conversation is not addressable that way. `query_search` passes `ViewMode::Flat`
   search reports every scope as complete unconditionally today
   (`store-sqlite/src/search_ops/mod.rs`, `assemble_results`), so there is nothing to read. The
   progress surface says a sync is running in the meantime (`docs/sync-progress.md`).
-- **The field is in the window's top row on macOS only.** Windows still draws it in the message
-  list's own header row and Linux in a bar under the list header; both have a place for it (the
-  WinUI `TitleBar`'s centre `Content`, an `AdwHeaderBar` title widget), and neither has moved.
+- **The field is not in the window's top row on Windows.** It remains in the message list's own
+  header row. Its `TitleBar` has a centre `Content` slot, so this is client wiring.
 - **The scope filter is on Android and Linux only.** macOS, iOS/iPadOS and Windows get the
   ordering and the Trash default from the core, but offer no way to narrow to the current folder
   yet; their search is always "all mail". Bringing them up is client wiring: the intent already

@@ -7,7 +7,8 @@ use adw::prelude::*;
 use mailcal_bindings::{BulkAction, ViewMode};
 
 use super::{
-    CLEAR_ICON, SELECT_ALL_ICON, SelectionBar, SelectionCountPane, action_icon, mail_surface,
+    CLEAR_ICON, SELECT_ALL_ICON, SYNC_ICON, SelectionBar, SelectionCountPane, action_icon,
+    mail_surface,
 };
 use crate::ui::{AppInput, selection::SelectionSummary};
 
@@ -26,6 +27,7 @@ pub(crate) fn every_action_icon_resolves_to_a_real_glyph() {
         action_icon(BulkAction::PermanentlyDelete),
         SELECT_ALL_ICON,
         CLEAR_ICON,
+        SYNC_ICON,
     ];
     for icon in icons {
         assert!(theme.has_icon(icon), "the bar must be able to draw {icon}");
@@ -39,7 +41,7 @@ pub(crate) fn every_action_icon_resolves_to_a_real_glyph() {
 /// The bar stands with nothing selected, and says so by what can be pressed rather than by
 /// appearing (`docs/list-selection.md`, rule 5). Select all is the exception: it is how a
 /// pointer starts a selection without touching a modifier.
-pub(crate) fn an_empty_selection_leaves_the_bar_standing_and_only_select_all_live() {
+pub(crate) fn an_empty_selection_disables_only_the_actions_that_need_a_selection() {
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let bar = SelectionBar::new(&sender);
 
@@ -69,6 +71,31 @@ pub(crate) fn an_empty_selection_leaves_the_bar_standing_and_only_select_all_liv
             .iter()
             .all(gtk::prelude::WidgetExt::is_sensitive),
         "a selection makes every action live"
+    );
+}
+
+/// Sync acts on the mailbox rather than the selection, so it stays live and is separated from
+/// the controls whose sensitivity follows the selected rows.
+pub(crate) fn sync_is_after_the_selection_actions_and_always_live() {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let bar = SelectionBar::new(&sender);
+
+    bar.render(SelectionSummary {
+        count: 0,
+        any_unread: false,
+        any_unflagged: false,
+    });
+    assert!(bar.sync.is_sensitive());
+    bar.sync.emit_clicked();
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::RefreshRequested)
+    ));
+
+    let previous = bar.sync.prev_sibling().expect("Sync follows a divider");
+    assert!(
+        previous.downcast_ref::<gtk::Separator>().is_some(),
+        "Sync must sit past a divider rather than among the selection actions"
     );
 }
 
@@ -125,37 +152,5 @@ pub(crate) fn the_bar_spans_both_panes_rather_than_riding_the_list() {
         split.parent().as_ref(),
         Some(surface.upcast_ref::<gtk::Widget>()),
         "and the split is the second, taking the height the bar leaves"
-    );
-}
-
-/// The bar is the surface's first row, so it is what stands in the window's top corner and the
-/// window's own controls ride it. The reading pane's header is a row below: a close button there
-/// is a close button short of the corner the pointer is thrown at.
-pub(crate) fn the_top_row_carries_the_window_controls() {
-    let (sender, _receiver) = relm4::channel::<AppInput>();
-    let bar = SelectionBar::new(&sender);
-    let split = gtk::Paned::new(gtk::Orientation::Horizontal);
-    split.set_start_child(Some(&gtk::Label::new(Some("list"))));
-    split.set_end_child(Some(&gtk::Label::new(Some("reading"))));
-    let surface = mail_surface(&bar, &split);
-
-    assert_eq!(
-        surface.first_child().as_ref(),
-        Some(bar.widget().upcast_ref::<gtk::Widget>()),
-        "the controls reach the window's corner only while the bar is the surface's first row"
-    );
-    let row = bar
-        .widget()
-        .child()
-        .expect("the row the window is dragged by wraps the actions");
-    let controls = row
-        .last_child()
-        .expect("the row is not empty")
-        .downcast::<gtk::WindowControls>()
-        .expect("the window's controls are the last thing on the row");
-    assert_eq!(
-        controls.side(),
-        gtk::PackType::End,
-        "minimise, maximise and close belong at the trailing edge"
     );
 }
