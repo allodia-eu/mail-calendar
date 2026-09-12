@@ -93,7 +93,7 @@ that same file.
   `xcrun simctl ui <udid> appearance light|dark`.
 - **On Linux, hand a URI or a file to the desktop through the portal launchers, never through
   `AppInfo`.** `gtk::UriLauncher` for a URI, `gtk::FileLauncher` for a file
-  (`check-desktop-handoff.sh` catches the shapes a grep can decide).
+  (`cargo xtask check-desktop-handoff` catches the shapes a grep can decide).
 
   `g_app_info_launch_default_for_uri` resolves against the **desktop's application database**. A
   Flatpak has none, so GIO falls back through GVFS onto the session bus, and the call is
@@ -131,7 +131,8 @@ that same file.
   the nastiest shape, since it seeds the shared connection and then drops its runtime on the way
   out, so the first notification of the session hangs and the cause is three files away. Everything
   goes through [`host_runtime`](../clients/linux/src/host_runtime.rs), which owns the one runtime
-  and never drops it; `check-portal-runtime.sh` refuses a second one anywhere else in the client.
+  and never drops it; `cargo xtask check-portal-runtime` refuses a second one anywhere else in
+  the client.
 
   **The tell is that it works exactly once.** The first portal call of the process succeeds, so a
   manual check passes and a screenshot proves nothing; only the second one hangs. Bound a portal

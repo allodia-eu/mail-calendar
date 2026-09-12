@@ -428,7 +428,7 @@ Run scripts\\dev on the Windows machine, or use clients/windows/build-and-run.ps
 # fictional engine was actually built; not merely that a flag was set somewhere.
 #
 # The marker is duplicated in three languages (Rust emits it; bash and PowerShell match it), so
-# scripts/ci/check-showcase-flag.sh asserts all three copies still agree.
+# `cargo xtask check-showcase-flag` asserts all three copies still agree.
 SHOWCASE_LOG_MARKER='showcase (screenshot) app starting (in-memory engine, seeded'
 
 # The marker a run in <locale> must log. Rust's `{locale:?}` renders the ShowcaseLocale variant,

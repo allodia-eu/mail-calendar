@@ -46,7 +46,7 @@ the rule that decides every future boundary question, not a preference.
 
 Because the seam has to be visible. A closed component in a private repository is a thing you have
 to take on trust; one in the open tree, excluded from the default build, is one you can check. The
-default build is checked, in CI: `scripts/ci/check-license-dir.sh` fails if anything outside this
+default build is checked, in CI: `cargo xtask check-license-dir` fails if anything outside this
 directory references anything inside it.
 
 That check is what makes the pledge's fourth promise mechanical rather than aspirational: the open
@@ -64,9 +64,9 @@ the build does not notice.
 - **The one line that connects them**: `crates/mailcal-app/Cargo.toml` carries the crate as an
   **optional** dependency behind an `allodia-license` feature, off by default. `cargo build` does
   not compile it and `cargo tree` does not list it; `cargo build --features allodia-license` does
-  both. `check-license-dir.sh` allows exactly that line and the feature that gates it. Drop
-  `optional = true` and the check fails, because that is the moment the open tree stops standing
-  alone.
+  both. `cargo xtask check-license-dir` allows exactly that line and the feature that gates it.
+  Drop `optional = true` and the check fails, because that is the moment the open tree stops
+  standing alone.
 - **Every client**: nothing in `clients/` refers to this directory. Allodia's own builds pass the
   feature; the check above is what proves no one else's does.
 

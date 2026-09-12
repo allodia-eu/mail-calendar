@@ -40,7 +40,7 @@ The four that catch most first contributions:
 ## Before you push
 
 ```sh
-scripts/dev/gate.sh            # --clients also builds every client this host can
+cargo xtask gate      # --clients also builds every client this host can
 ```
 
 That is the same set of checks CI runs, ordered cheapest-first so the step most likely to fail on

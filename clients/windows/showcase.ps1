@@ -36,11 +36,11 @@ param(
   [Parameter(Mandatory)] [ValidateSet('en', 'nl', 'de', 'fr', 'es', 'it', 'pt')] [string] $Locale,
   # The MAILCAL_SHOWCASE_SCREEN spellings, which are a cross-client contract: the same strings
   # reach the Apple, Android and Windows drivers. Kept in step with scripts/dev/showcase.sh's
-  # ALL_SCREENS + EXTRA_SCREENS by scripts/ci/check-showcase-flag.sh.
+  # ALL_SCREENS + EXTRA_SCREENS by cargo xtask check-showcase-flag.
   [Parameter(Mandatory)] [ValidateSet('list', 'reply', 'settings', 'signatures', 'add-account', 'calendar', 'invitation')] [string] $Screen,
   # Which light/dark appearance the capture is pinned to (MAILCAL_APPEARANCE). The same three
   # spellings every client parses, kept in step with scripts/dev/showcase.sh by
-  # scripts/ci/check-showcase-flag.sh.
+  # cargo xtask check-showcase-flag.
   #
   # Defaulted to 'light' rather than left unset, because unset does not mean "light" here, it means
   # "whatever this Windows desktop happens to be set to", and a store set shot on a dark desktop is a
@@ -120,7 +120,7 @@ Rebuild first:  clients/windows/build-and-run.ps1 -NoRun
 # in-memory engine's constructor and the shared Logger FFI port routes it here, so its presence
 # proves the fictional engine was actually built, not merely that a flag was read. Every platform
 # checks the same line (scripts/dev/lib.sh SHOWCASE_LOG_MARKER; the three copies are kept in step
-# by scripts/ci/check-showcase-flag.sh). Rust's `{locale:?}` renders the variant capitalized.
+# by cargo xtask check-showcase-flag). Rust's `{locale:?}` renders the variant capitalized.
 #
 <#
 .SYNOPSIS

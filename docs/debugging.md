@@ -496,7 +496,7 @@ log. Its presence proves the fictional engine was really built, not merely that 
 the current one, and it checks the seeded locale too. A failed assertion stops the client rather than
 leaving a window of real mail in front of a shutter. The marker lives in `scripts/dev/lib.sh`
 (`SHOWCASE_LOG_MARKER`); it is spelled in Rust, bash, and PowerShell, and
-[`scripts/ci/check-showcase-flag.sh`](../scripts/ci/check-showcase-flag.sh) keeps the three in step.
+[`cargo xtask check-showcase-flag`](../xtask/src/showcase_flag.rs) keeps the three in step.
 
 Each platform's log plumbing differs (`~/.local/share` on macOS, the simulator's data container,
 `run-as … files/logs/app.log` on Android), so the abort has been exercised on each, by seeding one
@@ -889,11 +889,11 @@ before believing the paragraph above.
   under the *test* profile, and although the Cargo book describes that profile as inheriting `dev`,
   the top-level `debug` key measurably does not come with it: setting it on `dev` alone rebuilds
   nothing for `cargo test`, and adding `[profile.test]` rebuilds everything. So the fix applied to
-  `cargo build` and never to `gate.sh`, the command that does essentially all of the building
-  anyone waits on. Measured in the engine repo, `cargo test --workspace --all-features --no-run`
-  after touching one crate: **368s before, 149s after, twice.** The `package."*"` override *is*
-  inherited and needs no twin, which is exactly why dependencies were covered and our own crates
-  were not.
+  `cargo build` and never to `cargo xtask gate`, the command that does essentially all of the
+  building anyone waits on. Measured in the engine repo, `cargo test --workspace
+  --all-features --no-run` after touching one crate: **368s before, 149s after, twice.** The
+  `package."*"` override *is* inherited and needs no twin, which is exactly why dependencies were
+  covered and our own crates were not.
 - **`cargo rustc --crate-type`, not a third `[lib] crate-type`.** Crate-type is not per-target, so a
   declared iOS `staticlib` made Windows, Android and Linux each build a 1.9 GB archive only
   [`build-core.sh`](clients/apple/Scripts/build-core.sh) opens. A disk fix, not a time one.
@@ -903,11 +903,11 @@ before believing the paragraph above.
 - **The incremental cache, which no cargo reclaims.** Cargo keeps a session directory per
   compilation context and prunes none of them (every engine re-pin and every local-engine
   `[patch]` toggle mints a fresh set), and its `clean gc` collects `$CARGO_HOME`, not `target/`.
-  Two days of one branch left 20 GiB. A **green** [`gate.sh`](scripts/dev/gate.sh) now drops it past
-  a 5 GiB cap. "Nine seconds on the next rebuild" is the cost of dropping a *small* one: dropping
-  a 3.6 GiB cache by hand cost **70 crates recompiled and 323 s**, so it is a disk trade, not a free
-  one. Do **not** reach for `cargo clean` instead: that takes `deps/` with it, which is the rebuild
-  this section is about.
+  Two days of one branch left 20 GiB. A **green** [`cargo xtask gate`](../xtask/src/prune.rs) now
+  drops it past a 5 GiB cap. "Nine seconds on the next rebuild" is the cost of dropping a *small*
+  one: dropping a 3.6 GiB cache by hand cost **70 crates recompiled and 323 s**, so it is a disk
+  trade, not a free one. Do **not** reach for `cargo clean` instead: that takes `deps/` with it,
+  which is the rebuild this section is about.
 - **Stale test binaries, which no cargo reclaims either.** Every rebuild links a new test executable
   under a new hash and leaves the old one; a day of iterating left **434 of them, 5.7 GB**. They
   cost disk, and on macOS they cost more than that (see below). Deleting executables in
@@ -951,9 +951,9 @@ churn, not accumulation, which is why deleting "old" directories reclaims nothin
 `cache.auto-clean-frequency`. Here that whole global cache is 1.6 GB and its GC reports zero files;
 the 20 GiB is in `target/`, which no version of cargo garbage-collects.
 
-So [`gate.sh`](../scripts/dev/gate.sh) does it: a **green** gate drops the cache once it is past a
-5 GiB cap. A red gate leaves it alone, because that is when you are still iterating and the cache
-is worth its disk. What that costs, measured on an M-series Mac:
+So [`cargo xtask gate`](../xtask/src/prune.rs) does it: a **green** gate drops the cache once it is
+past a 5 GiB cap. A red gate leaves it alone, because that is when you are still iterating and the
+cache is worth its disk. What that costs, measured on an M-series Mac:
 `cargo build -p mailcal-bindings` after a one-line edit in `mailcal-app`:
 
 | | rebuild |

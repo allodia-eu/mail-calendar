@@ -279,7 +279,7 @@ scripts/dev/showcase.sh linux --locale de --screen calendar
 `signatures` is captured on request rather than by `--screen all`. Asking for a screen this
 client cannot reach makes it **exit 2** rather than fall back to the mailbox list, because a clean
 capture of the inbox filed under another screen's name is the one failure nothing downstream can
-detect. `scripts/ci/check-showcase-flag.sh` holds the offered list and the client's accepted list
+detect. `cargo xtask check-showcase-flag` holds the offered list and the client's accepted list
 together.
 
 ## Verify

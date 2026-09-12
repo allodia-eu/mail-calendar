@@ -12,8 +12,8 @@
 # The dataset is `showcase`: About's content is the core's and does not depend on an account, and a
 # suite must never open real mail.
 
-# /VERSION, the release About must name. `check-version-sync.sh` keeps the crate version equal to
-# it, so reading it here states the contract itself, About cannot drift from what a release
+# /VERSION, the release About must name. `cargo xtask check-version-sync` keeps the crate version
+# equal to it, so reading it here states the contract itself, About cannot drift from what a release
 # announces, rather than pinning today's number.
 $VersionPath = Join-Path $PSScriptRoot '..\..\..\VERSION'
 

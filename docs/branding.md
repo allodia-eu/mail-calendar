@@ -138,8 +138,8 @@ does not declare.
 
 ## Rules
 
-1. **A client never writes the name or the id.** Both are injected; `scripts/ci/check-branding.sh`
-   asserts each build config still derives rather than states, and is in `gate.sh` and CI.
+1. **A client never writes the name or the id.** Both are injected; `cargo xtask check-branding`
+   asserts each build config still derives rather than states, and is in `cargo xtask gate` and CI.
 2. **Anything named after the id follows the id.** The OAuth redirect schemes, the keychain service
    and access group, the app group, the credential-target prefix, the MCP pipe name, the
    background-refresh task id, the notification-portal attribution. A literal is a value that stops

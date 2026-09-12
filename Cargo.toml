@@ -3,11 +3,11 @@
 # (domain/ports/services/commands/viewmodel/bindings).
 [workspace]
 resolver = "2"
-members = ["crates/*", "clients/linux", "allodia_license/crates/allodia-license"]
-# Four members are deliberately absent from `default-members` below, which is what keeps them out
+members = ["crates/*", "clients/linux", "allodia_license/crates/allodia-license", "xtask"]
+# Five members are deliberately absent from `default-members` below, which is what keeps them out
 # of a bare `cargo build`/`cargo test`. That list is explicit rather than a subtraction, so a crate
 # added to `members` never joins the default build by accident. `cargo test --workspace` — what
-# scripts/dev/gate.sh runs — covers all four regardless.
+# `cargo xtask gate` runs — covers all five regardless.
 #
 # The two binding generators (crates/mailcal-bindgen-uniffi for Swift and Kotlin,
 # crates/mailcal-bindgen-cs for C#) are members so they share the lockfile and target dir, which is
@@ -15,6 +15,11 @@ members = ["crates/*", "clients/linux", "allodia_license/crates/allodia-license"
 # either, via `cargo run -p ...`. Absence here is the other half: a bin target carries its
 # package's whole dependency tree, so a generator's dependencies stay out of the tree every client
 # compiles only as long as the generator is a package nothing else selects.
+#
+# `xtask` is the repository's task runner: the contract checks and the local gate, as one binary
+# (`cargo xtask --list`). Membership shares this lockfile and these lints, and puts its own tests in
+# `cargo test --workspace`; its absence below keeps it out of a bare `cargo build`. It has no
+# dependencies, so the only thing membership costs is its own compile.
 #
 # `crates/mailcal-buildenv` is a `[build-dependencies]` of the two crates that inject compile-time
 # values, so it is built whenever either of them is and needs no place here. Membership is what puts
@@ -25,7 +30,7 @@ members = ["crates/*", "clients/linux", "allodia_license/crates/allodia-license"
 # lets it share this lockfile, these dependency versions and these lints — it reuses
 # `mailcal-oauth`, and its own workspace meant a second copy of the engine on disk for one small
 # crate. What keeps it out of a shipped build is its absence below **and** the optional,
-# off-by-default dependency in `crates/mailcal-bindings`; scripts/ci/check-license-dir.sh fails
+# off-by-default dependency in `crates/mailcal-bindings`; `cargo xtask check-license-dir` fails
 # if either moves.
 default-members = [
   "crates/mailcal-app",
@@ -42,7 +47,7 @@ default-members = [
 
 # `version` mirrors the top-level `/VERSION` single source of truth (docs/versioning.md). Cargo
 # cannot read an external file, so this is the one committed duplicate — the version-sync check
-# (scripts/ci/check-version-sync.sh) fails if it ever drifts from `/VERSION`. Bump both together
+# (`cargo xtask check-version-sync`) fails if it ever drifts from `/VERSION`. Bump both together
 # with `scripts/dev/bump-version.sh X.Y.Z`.
 [workspace.package]
 version = "0.8.2"
@@ -98,7 +103,7 @@ debug = 0
 # `[profile.test]` has to say it again, and this is the trap. `cargo test` builds its targets
 # under the *test* profile, and while the Cargo book describes that profile as inheriting `dev`,
 # the top-level `debug` key measurably does not come with it: setting it on `dev` alone rebuilds
-# nothing for `cargo test`, and adding it here rebuilds everything. `gate.sh` is where essentially
+# nothing for `cargo test`, and adding it here rebuilds everything. The gate is where essentially
 # all of the building anyone waits on happens, and it is `cargo test`, so a key set on `dev` alone
 # reaches almost none of it. Measured here on the same target, `cargo test -p mailcal-app
 # --no-run` with the crate recompiled: 40.3s at `line-tables-only`, 32.0s at 0.
