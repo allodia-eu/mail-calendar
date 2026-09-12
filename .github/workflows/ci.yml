@@ -645,12 +645,6 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      # Start the simulator now and let it boot behind the Rust build. A cold boot is a minute and a
-      # half that has nothing to do with the tests, and it is dead time if it is spent waiting.
-      # `test-ui.sh` waits for this one to finish booting rather than starting its own.
-      - name: Boot a simulator in the background
-        run: clients/apple/Scripts/test-ui.sh --boot
-
       - name: Build the Rust core -> XCFramework + bindings
         run: ./clients/apple/Scripts/build-core.sh --no-device
 
@@ -663,6 +657,21 @@ jobs:
           (cd clients/apple && xcodegen generate)
           brand_assert_expanded clients/apple/AllodiaMail.xcodeproj/project.pbxproj
           brand_assert_expanded clients/apple/App/Info.plist
+
+      # ⚠️ **Where this sits is worth more than it looks, and all three placements were measured.**
+      # A standard macOS runner has three cores and a booting simulator wants most of them, so the
+      # boot is never free; the only question is what it takes them from.
+      #
+      #   before the Rust build   cross-compile 74s -> 226s, test step 176s   job 11m06s
+      #   not at all              cross-compile 116s,        test step 391s   job 13m02s
+      #   here                    (this is the one being measured)
+      #
+      # Left out entirely, the boot lands in the test step, serial and on the critical path, which
+      # was the worst of the three. Ahead of the Rust build it inflated the cross-compile by more
+      # than it saved. Here it overlaps the Swift build, which spends much of its time in single
+      # module compiles rather than saturating every core.
+      - name: Boot a simulator in the background
+        run: clients/apple/Scripts/test-ui.sh --boot
 
       # This is the iOS compile gate as well as the test build: `build-for-testing` compiles the app
       # exactly as `build` would, plus the test bundle. There is no second iOS build anywhere.
