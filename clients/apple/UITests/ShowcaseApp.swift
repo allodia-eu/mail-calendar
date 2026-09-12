@@ -51,6 +51,39 @@ enum ShowcaseApp {
         )
     }
 
+    /// Opens the first message in the mailbox, from wherever the app started.
+    ///
+    /// ⚠️ By tapping the row, **not** through the `MAILCAL_OPEN_FIRST` launch hook. The hook fires
+    /// once, as the rows arrive, against whatever destination the restored scene put the app on: with
+    /// the calendar restored it opens nothing, and a test built on it passes or fails on which test
+    /// ran before it. That is not theoretical. It is why the first CI run of this suite failed while
+    /// every local run passed, because the two tests CI does not run are the two that happened to
+    /// leave the app on the mailbox.
+    static func openFirstMessage(_ app: XCUIApplication) {
+        showMailbox(app)
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let row = topMessageRow(app) {
+                row.tap()
+                return
+            }
+        }
+        XCTFail("the mailbox drew no message rows to open")
+    }
+
+    /// The topmost message row that is actually on screen, or nil while none is.
+    ///
+    /// The frame filter is not tidiness: the folder drawer's rows are cells too and stay in the tree
+    /// while it is shut, parked off the left edge, so `app.cells.firstMatch` is one of those and a
+    /// tap on it lands nowhere.
+    private static func topMessageRow(_ app: XCUIApplication) -> XCUIElement? {
+        app.cells.allElementsBoundByIndex
+            .map { (cell: $0, frame: $0.frame) }
+            .filter { $0.frame.minX >= 0 }
+            .min { $0.frame.minY < $1.frame.minY }?
+            .cell
+    }
+
     /// Taps an element once it is both on screen and reachable.
     ///
     /// `exists` is not enough on iPhone: the folder drawer's rows stay in the accessibility tree

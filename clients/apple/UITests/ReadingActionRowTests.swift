@@ -14,9 +14,8 @@ final class ReadingActionRowTests: XCTestCase {
     /// Which of archive and delete comes first is each platform's own, so the assertion is on the
     /// three groups and on the overflow being last, exactly as the contract states it.
     func testActionRowOrder() {
-        // `MAILCAL_OPEN_FIRST` opens the first row as soon as it loads, so the reading view is
-        // reached without a tap on a list whose contents this test does not otherwise care about.
-        let app = ShowcaseApp.launch(["MAILCAL_OPEN_FIRST": "1"])
+        let app = ShowcaseApp.launch()
+        ShowcaseApp.openFirstMessage(app)
 
         let reply = app.buttons["Reply"]
         XCTAssertTrue(
