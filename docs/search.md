@@ -92,7 +92,7 @@ the field stays the platform's own list search (`.searchable`, a `SearchBar` on 
 | Android | ✅ | ✅ | ✅ | ✅ (incl. system back) | ✅ | ✅ | ✅ | ✅ | over the list | `clients/android/.../SearchBar.kt` |
 | macOS | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ | ✅ | centred in the window toolbar | `clients/apple/…/Mailcal.Toolbar.swift`, `SearchHorizonStrip.swift` |
 | iOS/iPadOS | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ (`.searchable`) | ✅ | `.searchable` over the list | `clients/apple/…/SearchHorizonStrip.swift` |
-| Windows | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ (`AutoSuggestBox`) | ✅ | ⬜ the list's header row | `clients/windows/…/SearchHorizonLine.cs` |
+| Windows | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ | ✅ (`AutoSuggestBox`) | ✅ | centred over the window's caption | `clients/windows/…/MainWindow.Search.cs`, `SearchHorizonLine.cs` |
 | Linux | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (`gtk::SearchEntry`) | ✅ | centred in the window toolbar | `clients/linux/src/ui/mail_toolbar.rs`, `ui/search/bar.rs` |
 | MCP (`search`, `list_messages`) | ✅ | ✅ | ✅ | n/a | ✅ (`sync_depth_months`) | n/a | n/a | n/a | n/a | `crates/mailcal-mcp/src/tools/read.rs` |
 
@@ -109,8 +109,8 @@ conversation is not addressable that way. `query_search` passes `ViewMode::Flat`
   search reports every scope as complete unconditionally today
   (`store-sqlite/src/search_ops/mod.rs`, `assemble_results`), so there is nothing to read. The
   progress surface says a sync is running in the meantime (`docs/sync-progress.md`).
-- **The field is not in the window's top row on Windows.** It remains in the message list's own
-  header row. Its `TitleBar` has a centre `Content` slot, so this is client wiring.
+- **The field is in the window's top row everywhere but Android**, which is right: on a phone the
+  list *is* the window, so the platform's own list search is the honest placement there.
 - **The scope filter is on Android and Linux only.** macOS, iOS/iPadOS and Windows get the
   ordering and the Trash default from the core, but offer no way to narrow to the current folder
   yet; their search is always "all mail". Bringing them up is client wiring: the intent already

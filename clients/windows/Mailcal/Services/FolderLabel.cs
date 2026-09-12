@@ -43,6 +43,16 @@ internal static class FolderLabel
         _ => serverName,
     };
 
+    /// <summary>
+    /// What the **unified** scope is called: the Inbox under the All Accounts group.
+    /// </summary>
+    /// <remarks>
+    /// Its own member because that scope has no server name to fall back on, and because the pane
+    /// row and the message-list header must not be able to drift apart: the group is named by its
+    /// heading, so the header over the unified list reads "Inbox" (docs/folder-pane.md, rule 13).
+    /// </remarks>
+    public static string Unified() => L10n.FolderInbox();
+
     /// <summary>The same, from the core's own role type.</summary>
     public static string For(uniffi.mailcal_bindings.FolderRole? role, string serverName) =>
         For(MailboxModel.ToSidebarRole(role), serverName);

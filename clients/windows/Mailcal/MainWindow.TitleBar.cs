@@ -22,7 +22,11 @@ public sealed partial class MainWindow
     private void InitTitleBar()
     {
         ExtendsContentIntoTitleBar = true;
-        SetTitleBar(AppTitleBar);
+        // The row, not the TitleBar control alone: the search field is a sibling of it rather than
+        // its content (MainWindow.xaml says why), and only what is inside the element handed over
+        // here is excluded from the drag region. Given the control alone, the field would sit on
+        // bare caption and a click on it would drag the window instead.
+        SetTitleBar(CaptionRow);
 
         // The minimise / maximise / close buttons are drawn by the SYSTEM, on a surface that is not
         // in the XAML tree, so unlike the rest of the caption they do not inherit ActualTheme, and
@@ -52,6 +56,17 @@ public sealed partial class MainWindow
     public bool IsVisible(Visibility visibility) => visibility == Visibility.Visible;
 
     /// <summary>
+    /// Whether the mail surface's own chrome belongs on screen: the shell is up, and mail is what
+    /// it is showing. An <c>x:Bind</c> function rather than a model property so the two answers
+    /// cannot drift apart, and an *instance* method for the reason <see cref="IsVisible"/> is one.
+    /// It is what both the caption's search field and the actions bar under it are bound to.
+    /// </summary>
+    public Visibility MailChromeShown(Visibility shell, Visibility mail) =>
+        shell == Visibility.Visible && mail == Visibility.Visible
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    /// <summary>
     /// A <see cref="Visibility"/> from a flag, for the banner strip, whose bars bind both
     /// <c>IsOpen</c> and <c>Visibility</c> to the same one (MainWindow.xaml says why). A function
     /// rather than the <c>BoolToVisibility</c> converter because an <c>x:Bind</c> converter needs a
@@ -64,5 +79,15 @@ public sealed partial class MainWindow
     // The pane toggle lives in the title bar (the NavigationView's own is hidden), which is the
     // Fluent guidance when a custom title bar exists, so the collapse it used to do itself is
     // forwarded here.
-    private void OnTitleBarPaneToggle(TitleBar sender, object args) => Nav.IsPaneOpen = !Nav.IsPaneOpen;
+    private void OnTitleBarPaneToggle(TitleBar sender, object args)
+    {
+        Nav.IsPaneOpen = !Nav.IsPaneOpen;
+        if (Nav.IsPaneOpen)
+        {
+            // The framework shut every tree on the way down and does not put them back, and the
+            // shell deliberately did not tell the core (OnExpandedChanged says why). So the trees
+            // the user left open are the core's to restore, and this is the moment.
+            SyncNavItems();
+        }
+    }
 }

@@ -1,5 +1,5 @@
-// One node of the sidebar accordion, All Inboxes, an account (with its folders as children), a
-// folder, or Add account. The NavigationView binds to a collection of these rather than being
+// One node of the sidebar accordion: the All Accounts group (over the unified Inbox), an account
+// (over its folders), a folder, or Add account. The NavigationView binds to a collection of these rather than being
 // rebuilt by hand, so the framework realises and recycles containers itself and an unchanged node
 // keeps the one it has.
 //
@@ -62,8 +62,21 @@ public sealed class SidebarItem : INotifyPropertyChanged
     public string? AutomationId { get; set; }
 
     /// <summary>Whether invoking this entry holds the selection. False for Add account, which is
-    /// an action rather than a destination.</summary>
+    /// an action rather than a destination, and for the All Accounts group, whose row opens and
+    /// shuts its own tree and navigates nowhere (docs/folder-pane.md, rule 17).</summary>
     public bool SelectsOnInvoked { get; set; } = true;
+
+    /// <summary>
+    /// Whether this is the All Accounts group: the one row that is a heading rather than a
+    /// destination, and the discriminator its own template is picked by.
+    /// </summary>
+    /// <remarks>
+    /// Its own flag rather than a test on <see cref="Tag"/>, because the template selector lives
+    /// in a different assembly's view layer and would otherwise have to know this file's
+    /// sentinels. It carries children like an account row and no <see cref="AccountId"/>, so
+    /// neither of the other two discriminators separates it.
+    /// </remarks>
+    public bool IsGroup { get; set; }
 
     /// <summary>This account's folders. Empty on every other kind. Populated for **every**
     /// account, not just the selected one, the pane shows every tree at once, and each account's

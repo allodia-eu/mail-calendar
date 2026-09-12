@@ -1,7 +1,9 @@
-// The mailbox detail, the Windows twin of macOS's mailDetail. Renders the Rust-driven
-// row snapshot, with search, a flat/threaded toggle, a per-message context menu
-// (reply/forward/read/flag/delete), and a footer (compose/reset/refresh). Every action is
-// a dispatched intent; state stays in Rust.
+// The mailbox detail, the Windows twin of macOS's mailDetail. Renders the Rust-driven row
+// snapshot, with a per-message context menu (reply/forward/read/flag/delete) and a status-line
+// footer. Every action is a dispatched intent; state stays in Rust.
+//
+// The search field is NOT here: it is the window's own, in the title bar (MainWindow.Search.cs),
+// because its scope is every account and every folder rather than this one column.
 
 using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
@@ -18,13 +20,6 @@ public sealed partial class MailListView : UserControl
 {
     /// <summary>The shared app model (set by the host via <see cref="Init"/>).</summary>
     public MailboxModel? Model { get; private set; }
-
-    // How long the field stays quiet before the core is asked, matching macOS, Android and
-    // Linux so a search costs the same on every platform.
-    private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(250);
-
-    private DispatcherTimer? _searchDebounce;
-    private string _pendingSearch = "";
 
     /// <summary>Initialises the control.</summary>
     public MailListView() => this.InitializeComponent();
@@ -82,49 +77,6 @@ public sealed partial class MailListView : UserControl
         {
             RowsList.SelectedItem = row;
         }
-    }
-
-    private void OnSearchChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
-    {
-        // Act on typed input AND the built-in clear (X) button, which raises a
-        // ProgrammaticChange, otherwise clearing the box leaves search mode stuck on. We
-        // never set the text in code apart from that, and show no suggestions.
-        if (args.Reason == AutoSuggestionBoxTextChangeReason.SuggestionChosen)
-        {
-            return;
-        }
-        var query = sender.Text;
-        // Re-label the header for the search context, like macOS's "Search results". Immediate,
-        // whatever the query costs: the header describes the field, not the results.
-        HeaderText.Text = string.IsNullOrEmpty(query) ? (Model?.CurrentFolderName ?? L10n.FolderFallback()) : L10n.SearchResults();
-        if (string.IsNullOrEmpty(query))
-        {
-            // Leaving search is a navigation, not a query: never made to wait.
-            _searchDebounce?.Stop();
-            Model?.Search(query);
-            return;
-        }
-        ScheduleSearch(query);
-    }
-
-    // Restart the debounce; the tick fires on the UI thread, where a dispatched intent belongs.
-    // A search is a full-text query per account plus a store read per hit (docs/search.md,
-    // "Typing does not mean searching"), so the core is asked once, when the typing stops,
-    // rather than once per keystroke.
-    private void ScheduleSearch(string query)
-    {
-        _pendingSearch = query;
-        if (_searchDebounce is null)
-        {
-            _searchDebounce = new DispatcherTimer { Interval = SearchDebounce };
-            _searchDebounce.Tick += (_, _) =>
-            {
-                _searchDebounce!.Stop();
-                Model?.Search(_pendingSearch);
-            };
-        }
-        _searchDebounce.Stop();
-        _searchDebounce.Start();
     }
 
     // The right-clicked row, captured via the menu item's Tag (robust against flyout
@@ -373,14 +325,8 @@ public sealed partial class MailListView : UserControl
         }
     }
 
-    private async void OnCompose(object sender, RoutedEventArgs e)
-    {
-        if (await MayStartDraftAsync())
-        {
-            App.Shell?.ComposeNew();
-        }
-    }
-
+    // The connection flyout's "Try again": a re-dial of the current scope, which is the same
+    // dispatch the actions bar's Sync makes.
     private void OnRefresh(object sender, RoutedEventArgs e) => Model?.Refresh();
 
     // Re-authenticate the first Microsoft account whose mail write/send is withheld for lack of the

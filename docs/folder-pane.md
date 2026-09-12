@@ -38,8 +38,8 @@ own catalog: `FolderLabel.For` (Windows), `folderLabel(role:name:)` (Apple), `fo
 (Android), `folder_pane::folder_label` (Linux), over `folder_inbox` … `folder_trash`. Because a
 folder is named in more than one screen, each of those is a single function every site calls,
 rather than a `switch` per screen. The header half of rule 13 is the same shape and is tested as
-one: `listTitle` (Apple), `folder_pane::header_title` (Linux), `MailboxModel.CurrentFolderName`
-(Windows).
+one: `listTitle` (Apple), `folder_pane::header_title` (Linux), `FolderLabel.Unified` behind
+`MailboxModel.CurrentFolderName` (Windows).
 
 **A renamed special folder takes the app's word anyway.** Someone whose Archive is called
 "Archief 2024" on the server sees "Archive". That is deliberate and matches Outlook, Apple Mail and
@@ -74,7 +74,7 @@ advertises LIST-STATUS, else one `STATUS` per mailbox.
 
 | Platform | Tree source | Expansion control | Badge | Role icons | Resizable | Opens with its account | Semantic primary action | All Accounts group (16, 17) |
 |---|---|---|---|---|---|---|---|---|
-| Windows | `account_folders` → `SidebarTree.Reconcile` | `NavigationViewItem.IsExpanded`, two-way → `Intent.SetAccountExpanded` | accent `TextBlock`, trailing | Segoe Fluent (`MainWindow.Sidebar.cs`, `RoleGlyph`) | ✅ `SidebarSplitter` → `OpenPaneLength`, persisted (`PaneLayoutStore`) | `MailboxModel.SelectFolder` ← `SidebarItem.OwnerAccountId` | `NavigationViewItem.Invoke` | ⬜ still one flat "All Inboxes" row |
+| Windows | `account_folders` → `SidebarTree.Reconcile` | `NavigationViewItem.IsExpanded`, two-way → `Intent.SetAccountExpanded` | accent `TextBlock`, trailing | Segoe Fluent (`MainWindow.Sidebar.cs`, `RoleGlyph`) | ✅ `SidebarSplitter` → `OpenPaneLength`, persisted (`PaneLayoutStore`) | `MailboxModel.SelectFolder` ← `SidebarItem.OwnerAccountId` | `NavigationViewItem.Invoke` | ✅ `SidebarTree` group row, `SelectsOnInvoked="False"` → `Intent.SetUnifiedExpanded` |
 | macOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols (`Mailcal.Sidebar.swift`, `folderIcon`) | ✅ 220–320 pt: the `HSplitView` pane in `macOSLayout`, autosaved by AppKit (`SplitViewAutosave`) | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ `allAccountsGroup` → `setUnifiedExpanded` |
 | iPadOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: fixed column, per the platform | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane |
 | iOS (iPhone) | `model.accountFolders` → `sidebarList` in a drawer | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: a drawer is not resizable | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane |
@@ -120,11 +120,16 @@ gesture needs a real mouse.
   clears, so the two never disagree on screen. There is no optimistic local delta.
 - **The selected account and folder are still not persisted.** Every launch opens on the unified
   Inbox, with the trees restored. Only expansion survives a restart; where you *were* does not.
-- **Rules 16 and 17 are not on Windows or Android.** Both still draw the unified list as
-  one flat row named from `sidebar_all_inboxes` ("All Inboxes"), and their list header still names
-  it the same way. Nothing in the core is missing for them: `unified_expanded` is in every
-  snapshot, `Intent::SetUnifiedExpanded` is in the FFI enum, and `sidebar_all_accounts` is in every
-  catalog locale, so each is a pane change and a header change in its own toolkit.
+- **Rules 16 and 17 are not on Android.** It still draws the unified list as one flat row named
+  from `sidebar_all_inboxes` ("All Inboxes"), and its list header still names it the same way.
+  Nothing in the core is missing: `unified_expanded` is in every snapshot,
+  `Intent::SetUnifiedExpanded` is in the FFI enum, and `sidebar_all_accounts` is in every catalog
+  locale, so it is a drawer change and a header change in its own toolkit.
+- **The Windows group heading carries no icon**, where every row beside it does. Its whole row is
+  the disclosure control (rule 17) and the framework's trailing chevron is the state, so a glyph in
+  the leading slot would make it read as one more account row. Rule 10 leaves the artwork to each
+  platform, and this is that latitude used; if it ever reads as a missing icon rather than as a
+  heading, the fix is a glyph, not a destination.
 - **The group has one child.** A unified Sent, Drafts and Archive are what rule 16's shape is for,
   and none of them exists: the core's unified scope reaches every account's **Inbox** only
   ([`scope.rs`](../crates/mailcal-app/src/scope.rs)), so a second child would need a scope to

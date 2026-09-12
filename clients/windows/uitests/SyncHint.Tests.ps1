@@ -93,9 +93,9 @@ $Suite = @{
         # full desired width and the status was pushed past the column edge and clipped away
         # entirely, present in the tree, `Empty` on screen. The hint holds the elastic column
         # now, so it is the thing that trims.
-        $compose = Get-RenderedBounds -Element (Find-UiaElement -AutomationId 'ComposeButton') -What 'the compose button'
-        Assert-True ($status.Right -le $compose.Left) `
-          "the connection status (right edge $($status.Right)) must stay clear of the compose button (left edge $($compose.Left)), a hint that took its full width instead of trimming pushes the status out of the footer"
+        $list = Get-RenderedBounds -Element (Find-UiaElement -AutomationId 'RowsList') -What 'the message list'
+        Assert-True ($status.Right -le $list.Right) `
+          "the connection status (right edge $($status.Right)) must stay inside the message list's column (right edge $($list.Right)), a hint that took its full width instead of trimming pushes the status out of the footer"
       }
     },
     @{
