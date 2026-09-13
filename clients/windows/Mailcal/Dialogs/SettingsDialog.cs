@@ -25,6 +25,11 @@ public sealed partial class SettingsDialog : ContentDialog
 {
     private readonly MailboxModel _model;
 
+    // The panels below are built once and never rebuilt, and this dialog is where the
+    // appearance is picked, so their colours are handed out as brushes that follow the
+    // theme rather than read once (ThemePalette.cs).
+    private readonly ThemeBrushes _brushes;
+
     // The category source-list and the detail panel its selection fills. The detail is rebuilt
     // per category (and, within Accounts, after a strategy/folder change) so it always mirrors
     // the core.
@@ -48,6 +53,7 @@ public sealed partial class SettingsDialog : ContentDialog
     public SettingsDialog(MailboxModel model, string category = "general")
     {
         _model = model;
+        _brushes = new ThemeBrushes(this);
         Title = L10n.SettingsTitle();
         CloseButtonText = L10n.ActionDone();
         DefaultButton = ContentDialogButton.Close;

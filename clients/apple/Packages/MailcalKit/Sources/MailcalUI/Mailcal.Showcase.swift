@@ -43,8 +43,14 @@ extension ContentView {
         case .settings:
             didShowcaseDrive = true
             settingsCategory = ShowcaseMode.settingsCategory ?? .general
-        case .addAccount, .setupEmail, .setupDetected, .setupUntrusted, .setupManual:
-            // One arm for all five: opening the sheet is the whole drive. Which step the
+        case .addAccount:
+            // Nothing to drive: this run booted with no account (MailcalModel+Showcase.swift), so
+            // the first-run setup screen is already what is on display, card and all. Opening the
+            // sheet below would be the LATER add, which deliberately makes no offer and would
+            // photograph a bare address field over it.
+            didShowcaseDrive = true
+        case .setupEmail, .setupDetected, .setupUntrusted, .setupManual:
+            // One arm for all four: opening the sheet is the whole drive. Which step the
             // documentation screens land on is decided inside AccountSetupDetectView, from
             // `ShowcaseMode.setupSeed` and the core's scripted detection, so this never has to
             // know, and can never disagree with, what the app would really show.

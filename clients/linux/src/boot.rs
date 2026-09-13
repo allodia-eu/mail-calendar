@@ -118,15 +118,31 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
         // In-memory and offline, so it needs neither a data directory nor a credential store,
         // and must not be handed one, because nothing a screenshot run does should reach the
         // developer's keyring.
+        //
+        // The add-account capture takes the account-less boot instead. That screen is the one
+        // somebody meets before they have a mailbox, and the offer it has to carry is made once and
+        // never again to somebody who already has an account (docs/onboarding.md), so the seeded
+        // two-account dataset cannot reach it: photographing it over those two would come out as a
+        // bare address field, which is a true picture of a different screen.
         #[cfg(any(debug_assertions, feature = "dev-harness"))]
         BootMode::Showcase => Ok(BootedApp {
-            app: MailcalApp::new_showcase(
-                observer,
-                logger,
-                log_level,
-                timezone,
-                crate::showcase::seed_locale(),
-            ),
+            app: if crate::showcase::screen() == Ok(crate::showcase::ShowcaseScreen::AddAccount) {
+                MailcalApp::new_showcase_first_run(
+                    observer,
+                    logger,
+                    log_level,
+                    timezone,
+                    crate::showcase::seed_locale(),
+                )
+            } else {
+                MailcalApp::new_showcase(
+                    observer,
+                    logger,
+                    log_level,
+                    timezone,
+                    crate::showcase::seed_locale(),
+                )
+            },
             secrets: None,
             syncable: false,
         }),

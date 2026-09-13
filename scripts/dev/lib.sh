@@ -435,11 +435,23 @@ SHOWCASE_LOG_MARKER='showcase (screenshot) app starting (in-memory engine, seede
 # so the seeded language appears with its first letter capitalized: En / Nl / De / Fr / Es / It /
 # Pt. Derived from the code rather than listed arm by arm, so a new catalog locale needs no edit
 # here; but still rejected unless it is one the showcase actually seeds.
-showcase_marker_for() { # <locale>
+# The add-account capture boots the account-less showcase instead: the offer that screen has to
+# show is made only to somebody who has no mailbox yet (docs/onboarding.md), so it seeds nothing and
+# the core writes a line of its own shape. Both still name the locale, because proving the language
+# reached the process is half of what this marker is for, and that screen is captured per language
+# like every other.
+SHOWCASE_FIRST_RUN_LOG_MARKER='showcase (screenshot) app starting (in-memory engine, no account,'
+
+showcase_marker_for() { # <locale> [screen]
+  local cap
   case "$1" in
     en | nl | de | fr | es | it | pt)
-      printf '%s %s%s sample content)' \
-        "$SHOWCASE_LOG_MARKER" "$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]')" "${1:1}"
+      cap="$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]')${1:1}"
+      if [[ "${2:-}" == "add-account" ]]; then
+        printf '%s %s language)' "$SHOWCASE_FIRST_RUN_LOG_MARKER" "$cap"
+      else
+        printf '%s %s sample content)' "$SHOWCASE_LOG_MARKER" "$cap"
+      fi
       ;;
     *) return 1 ;;
   esac

@@ -59,6 +59,30 @@ impl MailcalApp {
         boot::build_showcase(observer, logger, log_level, device_timezone, locale)
     }
 
+    /// Builds an in-memory **showcase** app with **no account**, for photographing the screen a
+    /// person sees before they have added a mailbox: the same offline, unpersisted engine
+    /// [`MailcalApp::new_showcase`] opens, seeded with nothing.
+    ///
+    /// It exists because that screen is defined by the absence of accounts. The Allodia offer above
+    /// the address field is put once, and never again to somebody who already has an account, so
+    /// the seeded two-account dataset cannot reach it and a host that drew it anyway would be
+    /// showing a state the product never does.
+    ///
+    /// `locale` seeds nothing on this screen, and is taken anyway so the boot records which
+    /// language the host asked for: that record is what a capture script matches before it takes
+    /// the picture, and this screen is photographed per language like every other. Never used in a
+    /// shipped build, as [`MailcalApp::new_showcase`] is not.
+    #[uniffi::constructor]
+    pub fn new_showcase_first_run(
+        observer: Box<dyn Observer>,
+        logger: Box<dyn Logger>,
+        log_level: LogLevel,
+        device_timezone: String,
+        locale: ShowcaseLocale,
+    ) -> Arc<Self> {
+        boot::build_showcase_first_run(observer, logger, log_level, device_timezone, locale)
+    }
+
     /// Builds a real account-backed app from the host's stored account `configs` (each a
     /// TOML blob of endpoints + credentials, read from the OS secure store; Keychain /
     /// EncryptedSharedPreferences: not a plaintext file): opens one on-disk engine shared

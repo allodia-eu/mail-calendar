@@ -15,6 +15,7 @@
 // (docs/calendar.md §4, nothing is hidden without saying so).
 using System.Globalization;
 using Allodia.Mailcal.Calendar;
+using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -166,7 +167,7 @@ internal sealed class InvitationPreviewGrid : UserControl
     private void RenderRuler(HourSpan span, double hourHeight)
     {
         var stride = InvitationFormat.PreviewStride(hourHeight);
-        var ink = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        var ink = ThemePalette.Brush(ThemePalette.SecondaryText(this.IsDark()));
         for (var hour = span.First; hour < span.Last; hour++)
         {
             if ((hour - span.First) % stride != 0)
@@ -195,7 +196,7 @@ internal sealed class InvitationPreviewGrid : UserControl
 
     private void RenderGridLines(HourSpan span, double hourHeight, double dayWidth)
     {
-        var stroke = (Brush)Application.Current.Resources["DividerStrokeColorDefaultBrush"];
+        var stroke = ThemePalette.Brush(ThemePalette.Divider(this.IsDark()));
         for (var hour = span.First; hour <= span.Last; hour++)
         {
             var line = new Rectangle { Width = dayWidth, Height = 1, Fill = stroke };

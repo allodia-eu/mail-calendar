@@ -13,6 +13,7 @@
 // 500-line limit.
 
 using System.Threading.Tasks;
+using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
@@ -44,7 +45,7 @@ public sealed partial class SettingsDialog
             var error = Description(L10n.SettingsAllodiaFailed(failure));
             error.Opacity = 1;
             error.Foreground =
-                (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                _brushes.Of(ThemePalette.Critical);
             panel.Children.Add(error);
         }
         return panel;

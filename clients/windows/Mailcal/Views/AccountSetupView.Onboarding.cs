@@ -73,8 +73,7 @@ public sealed partial class AccountSetupView
             {
                 Text = L10n.SettingsAllodiaFailed(failure),
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)
-                    Application.Current.Resources["SystemFillColorCriticalBrush"],
+                Foreground = ThemePalette.Brush(ThemePalette.Critical(this.IsDark())),
             });
         }
         AddOnboardingDivider();
@@ -90,14 +89,12 @@ public sealed partial class AccountSetupView
         OnboardingAllodiaPanel.Children.Add(new Border
         {
             Height = 1,
-            Background = (Microsoft.UI.Xaml.Media.Brush)
-                Application.Current.Resources["DividerStrokeColorDefaultBrush"],
+            Background = ThemePalette.Brush(ThemePalette.Divider(this.IsDark())),
         });
         OnboardingAllodiaPanel.Children.Add(new TextBlock
         {
             Text = L10n.SetupAllodiaDivider(),
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)
-                Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Foreground = ThemePalette.Brush(ThemePalette.SecondaryText(this.IsDark())),
         });
     }
 
@@ -163,8 +160,7 @@ public sealed partial class AccountSetupView
             {
                 Text = L10n.SetupAllodiaNoneBody(),
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)
-                    Application.Current.Resources["TextFillColorSecondaryBrush"],
+                Foreground = ThemePalette.Brush(ThemePalette.SecondaryText(this.IsDark())),
             });
             return panel;
         }
@@ -218,8 +214,7 @@ public sealed partial class AccountSetupView
         card.Children.Add(new TextBlock
         {
             Text = L10n.SetupAllodiaRecommended(),
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)
-                Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
+            Foreground = ThemePalette.Brush(ThemePalette.AccentText(this.IsDark())),
         });
         card.Children.Add(new TextBlock
         {
@@ -248,8 +243,7 @@ public sealed partial class AccountSetupView
             Child = card,
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
-            Background = (Microsoft.UI.Xaml.Media.Brush)
-                Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+            Background = ThemePalette.Brush(ThemePalette.CardBackground(this.IsDark())),
         };
         AutomationProperties.SetName(group, L10n.SetupAllodiaTitle());
         AutomationProperties.SetHelpText(group, L10n.SetupAllodiaSubtitle());

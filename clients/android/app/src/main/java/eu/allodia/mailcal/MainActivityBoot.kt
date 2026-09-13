@@ -108,7 +108,15 @@ internal fun MainActivity.prepareBoot(): MainActivityBootPlan {
         // adding a mailbox would otherwise be met at the next launch by an empty inbox and no way
         // back to setup. The core routes that entry out before anything reads it as a mailbox;
         // this asks it the same question.
-        needsSetup = if (showcase) false else configs.all { isAllodiaAccountConfig(it) }
+        // The add-account capture is the one showcase run that DOES want the setup form, and wants
+        // it as the required first one: the offer above the address field is made once and never
+        // again to somebody who already has an account (docs/onboarding.md), and `firstRun` on that
+        // screen is this flag (MainActivitySetupTab.kt). Every other showcase run seeds two
+        // accounts and shows no form at all.
+        needsSetup = when {
+            showcase -> ShowcaseMode.screen(this) == ShowcaseScreen.ADD_ACCOUNT
+            else -> configs.all { isAllodiaAccountConfig(it) }
+        }
         if (showcase) {
             // The periodic worker builds its own headless core over the *stored* accounts, so it
             // would sync the developer's real mail and could raise a real new-mail notification:
@@ -117,11 +125,15 @@ internal fun MainActivity.prepareBoot(): MainActivityBootPlan {
             MailSyncScheduler.cancel(this)
             when (ShowcaseMode.screen(this)) {
                 ShowcaseScreen.SETTINGS -> showingSettings = true
-                // One arm for all five: opening the form is the whole drive. Which step the
+                // Nothing to drive: this run booted with no account, so `needsSetup` above already
+                // puts the required first-run form on screen, card and all. Setting
+                // `addingAccount` would be the LATER add, which deliberately makes no offer.
+                ShowcaseScreen.ADD_ACCOUNT -> {}
+                // One arm for all four: opening the form is the whole drive. Which step the
                 // documentation screens land on is decided inside AccountSetupFlow, from
                 // `ShowcaseMode.setupSeed` and the core's scripted detection, so this never has
                 // to know, and can never disagree with, what the app would really show.
-                ShowcaseScreen.ADD_ACCOUNT, ShowcaseScreen.SETUP_EMAIL,
+                ShowcaseScreen.SETUP_EMAIL,
                 ShowcaseScreen.SETUP_DETECTED, ShowcaseScreen.SETUP_UNTRUSTED,
                 ShowcaseScreen.SETUP_MANUAL,
                 -> addingAccount = true

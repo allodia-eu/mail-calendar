@@ -31,6 +31,10 @@ public sealed class EventEditorDialog : ContentDialog
     private readonly EventEditorState _state;
     private readonly CalendarRow[] _writable;
 
+    // Built before DialogHelper mirrors the window's theme onto this dialog, so the colours are
+    // handed out as brushes that follow it rather than read once (ThemePalette.cs).
+    private readonly ThemeBrushes _brushes;
+
     // Held so the dialog can put the caret in it once it is on screen.
     private TextBox _title = new();
 
@@ -48,6 +52,7 @@ public sealed class EventEditorDialog : ContentDialog
     {
         _model = model;
         _state = state;
+        _brushes = new ThemeBrushes(this);
         // The picker only ever offers calendars a new/edited event could actually land in.
         _writable = model.Calendars().Where(c => c.CanWrite).ToArray();
 
@@ -209,7 +214,7 @@ public sealed class EventEditorDialog : ContentDialog
             {
                 Text = L10n.EventSeriesNote(),
                 Style = Caption(),
-                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                Foreground = _brushes.Of(ThemePalette.SecondaryText),
                 TextWrapping = TextWrapping.Wrap,
             });
         }
@@ -220,12 +225,12 @@ public sealed class EventEditorDialog : ContentDialog
         var attendees = _state.Editing?.Attendees;
         if (attendees is { Count: > 0 })
         {
-            panel.Children.Add(EventDetailDialog.AttendeeBlock(attendees));
+            panel.Children.Add(EventDetailDialog.AttendeeBlock(attendees, _brushes));
             panel.Children.Add(new TextBlock
             {
                 Text = L10n.EventAttendeesReadOnly(),
                 Style = Caption(),
-                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                Foreground = _brushes.Of(ThemePalette.SecondaryText),
                 TextWrapping = TextWrapping.Wrap,
             });
         }
@@ -263,11 +268,11 @@ public sealed class EventEditorDialog : ContentDialog
     // `automationId` names the VALUE, not the row: a label is localised, so a test that finds this
     // row by its caption passes or fails by the language the developer's machine is in.
     /// <summary>Secondary explanatory text, as every note under a field in this dialog draws it.</summary>
-    internal static UIElement CaptionText(string text) => new TextBlock
+    internal UIElement CaptionText(string text) => new TextBlock
     {
         Text = text,
         Style = Caption(),
-        Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+        Foreground = _brushes.Of(ThemePalette.SecondaryText),
         TextWrapping = TextWrapping.Wrap,
     };
 

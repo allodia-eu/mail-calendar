@@ -9,6 +9,7 @@
 // the preview can't drift from what the composer actually renders; the rendering mirrors the shared
 // editor's CSS (clients/composer/dist/editor.html) and the Rust renderer (mailcal-composer).
 
+using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -85,10 +86,10 @@ public sealed partial class SettingsDialog
     // The worked example. Deliberately not an editor, just enough of the shape (the indent and
     // left rule, or the divider and labelled header block) to recognise at a glance which one you
     // want.
-    private static UIElement QuoteStyleExample(QuoteStyleChoice style)
+    private UIElement QuoteStyleExample(QuoteStyleChoice style)
     {
         var example = ComposerQuote.Example();
-        var rule = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"];
+        var rule = _brushes.Of(ThemePalette.ControlStroke);
         var body = new StackPanel { Spacing = 4 };
 
         if (style == QuoteStyleChoice.Indented)
@@ -125,7 +126,7 @@ public sealed partial class SettingsDialog
 
         return new Border
         {
-            Background = (Brush)Application.Current.Resources["LayerFillColorDefaultBrush"],
+            Background = _brushes.Of(ThemePalette.LayerFill),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10),
             Margin = new Thickness(28, 0, 0, 0),

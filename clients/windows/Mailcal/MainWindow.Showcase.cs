@@ -201,9 +201,12 @@ public sealed partial class MainWindow
                 break;
 
             case ShowcaseScreen.AddAccount:
+                // Nothing to drive: this run booted with no account (MailboxModel.Accounts.cs), so
+                // the first-run setup form is already the surface on screen, with the Allodia offer
+                // above the address field. Calling BeginAddAccount here would be the *later* add,
+                // which deliberately makes no offer, and would photograph a bare address field.
                 _showcaseDriven = true;
-                Log.Info("showcase: opening the add-account form");
-                Model.BeginAddAccount();
+                Log.Info("showcase: on the first-run setup screen");
                 break;
 
             case ShowcaseScreen.List:

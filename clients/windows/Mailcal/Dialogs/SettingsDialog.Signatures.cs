@@ -150,7 +150,7 @@ public sealed partial class SettingsDialog
         stack.Children.Add(buttons);
         return new Border
         {
-            Background = (Brush)Application.Current.Resources["LayerFillColorDefaultBrush"],
+            Background = _brushes.Of(ThemePalette.LayerFill),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10),
             Child = stack,

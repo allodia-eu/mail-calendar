@@ -8,9 +8,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use engine_api::{AccountId, EmailAddress, Engine, Provider};
+use engine_api::{AccountId, EmailAddress, Engine, Provider, TimeZoneId};
 use mailcal_app::{Account, App, Intent as AppIntent, Telemetry, TimeZoneInit};
 use mailcal_viewmodel::SignatureSlotKind;
+use tokio::runtime::Runtime;
 
 use crate::{
     LogLevel, Logger, MailcalApp, Observer,
@@ -212,6 +213,16 @@ pub(crate) fn build_showcase(
             (&secondary_identity, &secondary_sender_name),
         ],
     ));
+    finish_showcase(app, runtime, device_tz)
+}
+
+/// Wraps a built showcase [`App`] in the FFI object: the half both showcase boots share,
+/// which is everything that does not depend on whether the dataset seeded any accounts.
+fn finish_showcase(
+    app: Arc<App<Box<dyn Provider>>>,
+    runtime: Runtime,
+    device_tz: TimeZoneId,
+) -> Arc<MailcalApp> {
     let registry = crate::account_registry::AccountRegistry::new();
     let background = Arc::new(BackgroundManager::new(
         Arc::clone(&app),
@@ -253,6 +264,53 @@ pub(crate) fn build_showcase(
         // see `MailcalApp::detect_account_settings`.
         showcase: true,
     })
+}
+
+/// Builds an in-memory **showcase** app holding **no account**: the body of
+/// [`MailcalApp::new_showcase_first_run`]. The same offline, unpersisted engine
+/// [`build_showcase`] opens, seeded with nothing, so a host comes up on the screen somebody sees
+/// before they have added a mailbox.
+///
+/// A separate boot rather than a flag on the seeded one, because the screen it reaches is defined
+/// by the **absence** of accounts: the Allodia offer above the address field is put once, and never
+/// again to somebody who already has an account (`docs/onboarding.md`). A dataset holding two of
+/// them cannot reach that screen, and a client that drew the offer anyway would be photographing a
+/// state the product never shows.
+///
+/// `locale` seeds nothing here, and is taken anyway so that this line of the log records which
+/// language the host asked for. That record is what every capture script matches before it fires
+/// the shutter, to prove both that the process really is on the fictional dataset and that the
+/// language it was asked for reached *this* process; a screenshot set is per language, and this
+/// screen is captured in each of them like any other. Keeping it in the core is what stops four
+/// clients each growing a line of their own for the scripts to keep in step with.
+pub(crate) fn build_showcase_first_run(
+    observer: Box<dyn Observer>,
+    logger: Box<dyn Logger>,
+    log_level: LogLevel,
+    device_timezone: String,
+    locale: ShowcaseLocale,
+) -> Arc<MailcalApp> {
+    logging::install_logger(logger, log_level);
+    log::info!(
+        "showcase (screenshot) app starting (in-memory engine, no account, {locale:?} language)"
+    );
+    let device_tz = device_zone(device_timezone);
+    let engine = Engine::open_in_memory().expect("in-memory engine opens");
+    let app = App::new(
+        engine,
+        Vec::new(),
+        TimeZoneInit {
+            device_zone: device_tz.clone(),
+            prefs_path: None,
+        },
+        // Everything is served from one account-wide snapshot, so no on-demand connector.
+        None,
+        std::sync::Arc::new(DebouncedObserver::new(ObserverBridge { foreign: observer })),
+        // Screenshot mode: no device, no sink, no preferences file; it cannot phone home.
+        Telemetry::off(None),
+    );
+    // Nothing to prime and nothing to seed: both are per account, and this boot has none.
+    finish_showcase(Arc::new(app), runtime(), device_tz)
 }
 
 /// Seeds the showcase signature library: one signature per account, each pointed at by **both**

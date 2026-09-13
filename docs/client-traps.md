@@ -198,6 +198,22 @@ that same file.
   widgets it was written for (the invitation buttons). **GTK exposes no getter for any of it**, so
   a widget test cannot see this at all: the only oracle is an AT-SPI run
   (`scripts/dev/test-linux-ui.sh`), which is where the assertion belongs.
+- **`Application.Current.Resources` answers with the desktop's theme, not the element's.** The
+  appearance setting is applied to the content root (`MainWindow.Theme.cs`), because
+  `Application.RequestedTheme` can only be set once, before any content exists, and pinning it
+  there would put "Use system setting" out of reach without a restart. So the application's theme
+  stays whatever the *desktop* is, and a brush read from `Application.Current.Resources` in code
+  comes back for that theme: on a light-pinned app over a dark desktop, near-white label text on a
+  light card, and the reverse the other way. It renders perfectly, so no screenshot, size floor or
+  automation assertion can tell; a capture run is where it bites hardest, because pinning an
+  appearance is exactly what one does. XAML is unaffected, `{ThemeResource}` resolves against the
+  element, which is why the same text one line away in a `.xaml` file is right and makes the
+  code-built half look like a styling mistake. The framework offers no way out: a
+  `ResourceDictionary` resolves to the live theme whichever of its theme dictionaries is indexed,
+  so `ThemeDictionaries["Light"]` on a dark desktop still answers dark. Read the theme from
+  `FrameworkElement.ActualTheme` and the colour from `ThemePalette`
+  ([`Services/ThemePalette.cs`](../clients/windows/Mailcal/Services/ThemePalette.cs)), and redraw on
+  `ActualThemeChanged`: a code-built surface holds the colours it was built with.
 - **A self-contained Windows App SDK build cannot raise a notification, and says nothing about
   it.** `AppNotificationManager.Register()` fails with `ERROR_MOD_NOT_FOUND` (`0x8007007E`) when
   the app bundles the runtime (`WindowsAppSDKSelfContained`) rather than using the installed one:

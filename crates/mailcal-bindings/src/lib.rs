@@ -468,33 +468,28 @@ fn joined(errors: &Mutex<Vec<String>>) -> Option<String> {
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 #[cfg(test)]
-#[path = "tests_showcase.rs"]
 mod tests_showcase;
 
 #[cfg(test)]
-#[path = "tests_showcase_invitation.rs"]
+mod tests_showcase_first_run;
+
+#[cfg(test)]
 mod tests_showcase_invitation;
 
 #[cfg(test)]
-#[path = "tests_showcase_sender_name.rs"]
 mod tests_showcase_sender_name;
 
 #[cfg(test)]
-#[path = "tests_boot.rs"]
 mod tests_boot;
 
 #[cfg(test)]
-#[path = "tests_credentials.rs"]
 mod tests_credentials;
 
 #[cfg(test)]
-#[path = "tests_credential_ordering.rs"]
 mod tests_credential_ordering;
 
 #[cfg(test)]
-#[path = "tests_calendar.rs"]
 mod tests_calendar;
