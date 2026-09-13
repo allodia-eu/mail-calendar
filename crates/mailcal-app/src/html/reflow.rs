@@ -35,9 +35,9 @@
 /// widths left are the ones a host would honour, and a scan is a fraction of the cost of a second
 /// parse of a message that has already been parsed once.
 ///
-/// What counts is `width` and `min-width`, as an HTML attribute (`width="600"`) or a CSS length
-/// (`width:600px`), wherever it appears: an inline style, a `<style>` block, a presentational
-/// attribute. What does not:
+/// What counts is `width` and `min-width`, as an HTML attribute (`width="600"`) or a CSS
+/// declaration (`width:600px`), in the one place each can be written: a tag's attribute list, or a
+/// `<style>` block's body ([`markup_regions`]). What does not:
 ///
 /// - **`max-width`**, which is a promise to shrink rather than a demand for room. Counting it would
 ///   put the breakpoint at a width the message never needed.
@@ -46,20 +46,66 @@
 /// - **Anything outside [`PLAUSIBLE`]**, so a decorative `<td width="1">` spacer cannot lower the
 ///   breakpoint and a `width="100000"` cannot raise it past every pane there is.
 pub(super) fn natural_width(fragment: &str) -> Option<u32> {
-    let bytes = fragment.as_bytes();
     let mut widest = None;
-    let mut at = 0;
-    while let Some(found) = fragment[at..].find("width") {
-        let start = at + found;
-        at = start + "width".len();
-        if !is_width_property(bytes, start) {
-            continue;
-        }
-        if let Some(width) = pixel_value(&fragment[at..]).filter(|w| PLAUSIBLE.contains(w)) {
-            widest = Some(widest.map_or(width, |seen: u32| seen.max(width)));
+    for region in markup_regions(fragment) {
+        let bytes = region.as_bytes();
+        let mut at = 0;
+        while let Some(found) = region[at..].find("width") {
+            let start = at + found;
+            at = start + "width".len();
+            if !is_width_property(bytes, start) {
+                continue;
+            }
+            if let Some(width) = pixel_value(&region[at..]).filter(|w| PLAUSIBLE.contains(w)) {
+                widest = Some(widest.map_or(width, |seen: u32| seen.max(width)));
+            }
         }
     }
     widest
+}
+
+/// The parts of a fragment a layout width can be written in: a tag's attribute list, and the body
+/// of a `<style>` element.
+///
+/// ⚠️ **The rest of the fragment is the sender's prose**, and a scan that read it would take a
+/// sentence about CSS, or a quoted reply carrying one, as a demand for room. A newsletter naming
+/// `width: 1200px` in its own text would put the breakpoint past every desktop pane, which is the
+/// permanently-on media query [`PLAUSIBLE`]'s ceiling exists to prevent.
+///
+/// ⚠️ **Only an *opening* `<style>` opens a body.** `</style>` names the same element, so a check
+/// that asks only for the name hands the whole of the rest of the message back as stylesheet, and
+/// the prose this function exists to skip is scanned after all: a sentence reading "set width:
+/// 1200px" past the end of a `<style>` block would decide the breakpoint.
+///
+/// Tag names are matched lowercase because the sanitiser emits them that way; an unterminated
+/// `<style>` runs to the end of the fragment, as it does in a parser.
+fn markup_regions(fragment: &str) -> Vec<&str> {
+    let mut regions = Vec::new();
+    let mut rest = fragment;
+    while let Some(open) = rest.find('<') {
+        let after = &rest[open + 1..];
+        let Some(close) = after.find('>') else {
+            break;
+        };
+        let (tag, tail) = (&after[..close], &after[close + 1..]);
+        regions.push(tag);
+        rest = tail;
+        if !tag.starts_with('/') && tag_name(tag) == "style" {
+            let end = tail.find("</style").unwrap_or(tail.len());
+            regions.push(&tail[..end]);
+            rest = &tail[end..];
+        }
+    }
+    regions
+}
+
+/// The element an opening tag's inside names, with no attributes: `style` for `<style>` and for
+/// `<style type="text/css">` alike.
+fn tag_name(tag: &str) -> &str {
+    let end = tag
+        .find(|c: char| c.is_whitespace() || c == '/')
+        .unwrap_or(tag.len());
+    &tag[..end]
 }
 
 /// Widths worth building a breakpoint from. The floor is below any pane we draw into, so a spacer
@@ -68,19 +114,32 @@ pub(super) fn natural_width(fragment: &str) -> Option<u32> {
 /// ever going to rescue and the media query would be permanently on.
 const PLAUSIBLE: std::ops::RangeInclusive<u32> = 200..=2000;
 
-/// Whether the `width` starting at `start` is the property/attribute itself rather than the tail
-/// of another word.
+/// Whether the `width` starting at `start` is the property or attribute itself, in the position
+/// one is written in.
 ///
-/// The one that matters is **`max-width`**, which ends in `width` and means the opposite. `min-`
-/// is kept: a minimum width is a demand for room exactly as `width` is.
+/// Two things end up here. The one that matters for the **word** is `max-width`, which ends in
+/// `width` and means the opposite; `min-` is kept, a minimum width being a demand for room exactly
+/// as `width` is.
+///
+/// ⚠️ The one that matters for the **position** is a URL. `<img src="…?width=1200">` carries the
+/// token, the separator and a plausible number, and reading it puts the breakpoint at a width no
+/// box in the message ever asked for. So what may stand in front is only what stands in front of a
+/// real one: nothing, the whitespace between two attributes, or the punctuation a declaration
+/// opens after.
 fn is_width_property(bytes: &[u8], start: usize) -> bool {
-    let before = |n: usize| start.checked_sub(n).map(|i| &bytes[i..start]);
-    if before(4) == Some(b"min-") {
-        return true;
+    let opens_at = |i: usize| {
+        matches!(
+            bytes.get(i.wrapping_sub(1)),
+            None | Some(b' ' | b'\t' | b'\n' | b'\r' | b';' | b'{' | b'"' | b'\'')
+        )
+    };
+    // `min-width` counts as a declaration and not as a media feature: inside `@media
+    // (min-width:700px)` it is a question about the pane, and a message whose own responsive rules
+    // answer it needs nothing overridden.
+    if start.checked_sub(4).map(|i| &bytes[i..start]) == Some(b"min-") {
+        return opens_at(start - 4);
     }
-    // A letter or a hyphen in front makes this the end of some other word (`max-width`,
-    // `borderwidth`); anything else, including the start of the fragment, makes it the word.
-    !matches!(bytes.get(start.wrapping_sub(1)), Some(c) if c.is_ascii_alphanumeric() || *c == b'-')
+    opens_at(start)
 }
 
 /// The pixel value `rest` opens with, for `rest` taken straight after a `width` token: `="600"`,

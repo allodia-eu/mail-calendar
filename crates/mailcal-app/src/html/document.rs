@@ -38,6 +38,14 @@ pub struct Canvas {
     pub foreground: &'static str,
 }
 
+/// How far the document insets itself from the web view's edges, on every side.
+///
+/// Shared with [`reflow`], whose breakpoint is the width at which a message stops fitting: what it
+/// has to fit inside is the pane **less this, twice**. A second copy of the number would put that
+/// breakpoint 28px out, leaving a band of pane widths where a message is clipped and nothing
+/// reflows it.
+pub(super) const BODY_PADDING: u32 = 14;
+
 /// The base stylesheet for the reading document: a readable default that the message's own
 /// CSS overrides. `color-scheme: light` keeps the canvas white (HTML mail is designed for a
 /// white background) rather than letting the WebView auto-darken it.
@@ -54,14 +62,6 @@ pub struct Canvas {
 ///
 /// Built once rather than per render: it interpolates a constant, so every message would
 /// otherwise pay for the same string.
-/// How far the document insets itself from the web view's edges, on every side.
-///
-/// Shared with [`reflow`], whose breakpoint is the width at which a message stops fitting: what it
-/// has to fit inside is the pane **less this, twice**. A second copy of the number would put that
-/// breakpoint 28px out, leaving a band of pane widths where a message is clipped and nothing
-/// reflows it.
-pub(super) const BODY_PADDING: u32 = 14;
-
 fn base_css() -> &'static str {
     static CSS: OnceLock<String> = OnceLock::new();
     CSS.get_or_init(|| {

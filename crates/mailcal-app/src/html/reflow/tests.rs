@@ -257,3 +257,78 @@ fn the_seeded_newsletters_are_read_the_way_they_are_written() {
              <td width="200">First of three</td></tr></table></td></tr></table>"#;
     assert_eq!(natural_width(banded), Some(600));
 }
+
+#[test]
+fn a_width_in_a_url_is_not_the_message_its_width() {
+    // An image CDN's query parameter carries the token, the separator and a plausible number, and
+    // it is in a great deal of real mail. Read as a layout width it would put the breakpoint past
+    // every desktop pane, so the destructive half would fire on a three-column newsletter that fits
+    // perfectly well.
+    for url in [
+        r#"<img src="https://cdn.example/p.jpg?width=1200">"#,
+        r#"<img src="https://cdn.example/p.jpg?h=200&width=1200">"#,
+        r#"<a href="https://example.com/width=1200/x">x</a>"#,
+    ] {
+        assert_eq!(natural_width(url), None, "{url}");
+    }
+    // And the attribute beside one is still read.
+    assert_eq!(
+        natural_width(r#"<img src="https://cdn.example/p.jpg?width=1200" width="600">"#),
+        Some(600)
+    );
+}
+
+#[test]
+fn a_media_feature_is_a_question_about_the_pane_not_a_demand_for_room() {
+    // `min-width` in a declaration is a demand for room. In a query condition it is the opposite:
+    // the message is saying what it does *when* the pane is that wide, and it already adapts.
+    for query in [
+        "<style>@media (min-width:700px){.c{float:left}}</style>",
+        "<style>@media screen and (min-width:700px){.c{float:left}}</style>",
+    ] {
+        assert_eq!(natural_width(query), None, "{query}");
+    }
+}
+
+#[test]
+fn prose_about_css_is_not_layout() {
+    // The fragment is a stranger's mail, and a newsletter about web design, or a quoted reply
+    // carrying one, writes lengths in its own text. Only a tag's attributes and a `<style>` body
+    // are layout.
+    assert_eq!(
+        natural_width("<p>Set width: 1200px on the container.</p>"),
+        None
+    );
+    // A `<style>` block's body is layout, and still read.
+    assert_eq!(
+        natural_width("<style>.wrap{width:600px}</style><p>width: 1200px in prose</p>"),
+        Some(600)
+    );
+}
+
+#[test]
+fn prose_after_a_style_block_is_still_prose() {
+    // `</style>` names the same element as `<style>`, so a region split that asks only for the
+    // name hands the whole rest of the message back as stylesheet, and the sender's own words
+    // decide the breakpoint after all. Only an opening tag opens a body.
+    assert_eq!(
+        natural_width("<style>.a{color:red}</style><p>Set width: 1200px on the container.</p>"),
+        None
+    );
+    // And the block's own body is still read, before and after that closing tag exists.
+    assert_eq!(
+        natural_width("<style>.a{width:600px}</style><p>Set width: 1200px on it.</p>"),
+        Some(600)
+    );
+}
+
+#[test]
+fn a_tag_broken_by_a_raw_angle_bracket_does_not_lose_the_rest() {
+    // `>` is legal unescaped inside an attribute value, so a split on the first one can cut a tag
+    // in half. What matters is that the scan picks up again at the next `<` rather than giving up
+    // on the message: the widths after the broken tag still decide the breakpoint.
+    assert_eq!(
+        natural_width(r#"<img alt="a > b"><table width="600"><tr><td>x</td></tr></table>"#),
+        Some(600)
+    );
+}
