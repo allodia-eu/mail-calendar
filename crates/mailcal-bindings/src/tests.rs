@@ -382,6 +382,28 @@ fn demo_app_dispatches_through_the_ffi_loop_and_notifies() {
 }
 
 #[test]
+fn the_ffi_document_reflows_a_message_written_for_a_wider_pane() {
+    // The shape half of real mail still has: a container pinned in the markup and again inline,
+    // with cells pinned to a third of it each and no `@media` rule anywhere, so nothing in it
+    // adapts to a pane narrower than 600px (docs/reading-zoom.md, rule 3).
+    //
+    // This is the FFI every client calls, so it is where the rule is worth asserting: the shared
+    // renderer is the whole of the feature and no client adds anything to it.
+    let newsletter = r#"<table width="600" style="width:600px"><tr>
+         <td width="200">a</td><td width="200">b</td><td width="200">c</td></tr></table>"#;
+    let doc = render_message_html(newsletter.to_owned(), false);
+
+    // The breakpoint is what the message asks for plus the document's own inset on both edges.
+    assert!(doc.contains("@media (max-width:628px)"), "{doc}");
+    // Below it, the fixed widths that stop the table narrowing are cleared; a relative one is
+    // left alone, or a full-bleed band would stop spanning the pane.
+    assert!(doc.contains(r#"table[width]:not([width$="%"])"#), "{doc}");
+    // Above it, and on a message with nothing fixed in it, nothing overrides the sender.
+    let note = render_message_html("<p>Just a note.</p>".to_owned(), false);
+    assert!(!note.contains("@media"), "{note}");
+}
+
+#[test]
 fn settings_ffi_exposes_the_grouping_default_and_sync_depth_options() {
     let (tx, _rx) = mpsc::channel();
     let app = MailcalApp::new_demo(
