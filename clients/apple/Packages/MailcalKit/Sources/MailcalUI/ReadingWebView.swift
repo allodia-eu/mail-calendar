@@ -20,16 +20,41 @@ import MailcalBindings
 import SwiftUI
 import WebKit
 
+#if os(iOS)
+/// A message host that says when it has been laid out.
+///
+/// The reading header is a subview of this view's scroll view, sized against its width, and that
+/// width is not knowable from `updateUIView`: SwiftUI gives a representable's view its frame
+/// **after** that call, so the first update sees zero, and a later layout on its own, a rotation or
+/// an iPad column being dragged, produces no update at all. The layout is the signal, so the view
+/// reports it.
+final class ReadingBodyWebView: WKWebView {
+    /// Called after every layout pass, with the view's frame settled.
+    var onLayout: (() -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?()
+    }
+}
+
+/// The reading pane's web view: the host above on iOS and iPadOS, `WKWebView` itself on macOS,
+/// which has no scroll view for a header to live in.
+typealias ReadingBodyView = ReadingBodyWebView
+#else
+typealias ReadingBodyView = WKWebView
+#endif
+
 /// Builds the hardened host for a message body.
 ///
 /// Separate from `SanitizedHTMLView.makeNSView` because a SwiftUI `Context` cannot be constructed,
 /// so the representable's own entry points are unreachable from the suite; the policy it applies is
 /// exactly what a test needs to state, and here it can.
 @MainActor
-func makeReadingWebView() -> WKWebView {
+func makeReadingWebView() -> ReadingBodyView {
     let config = WKWebViewConfiguration()
     config.defaultWebpagePreferences.allowsContentJavaScript = false
-    let webView = WKWebView(frame: .zero, configuration: config)
+    let webView = ReadingBodyView(frame: .zero, configuration: config)
     #if os(macOS)
     // The trackpad pinch (docs/reading-zoom.md). On iOS/iPadOS the pinch is the scroll view's own
     // and needs nothing here: it follows the shared document's viewport, which deliberately names
@@ -39,63 +64,18 @@ func makeReadingWebView() -> WKWebView {
     return webView
 }
 
-#if os(iOS)
-/// Scales a message too wide for the pane down until it fits (docs/reading-zoom.md, rule 3).
-///
-/// WebKit does **not** do this for us. Blink has `loadWithOverviewMode`, which is what makes the
-/// rule hold on Android; WebKit has no equivalent, and `shrink-to-fit` does nothing for a document
-/// whose viewport names a width, so a 600px newsletter lays out at 600pt in a 402pt pane and runs
-/// off the right edge. Measured on an iPhone simulator, not read off the documentation, because the
-/// documentation is what suggested it was already handled.
-///
-/// The scale can only be known from the laid-out document, which is why this is native and
-/// per-platform rather than part of the shared document: no CSS knows the content's width, and
-/// measuring it from inside the message would need script (rendering-security.md, gates 1 and 2).
-/// `contentSize` is the host asking its own view a question, not the message running anything.
-///
-/// ⚠️ **Not called from `didFinish`: there is nothing to measure yet.** Measured on an iPhone
-/// simulator, `scrollView.contentSize.width` is still **0** when that delegate fires, so a fit
-/// computed there divides by nothing and silently leaves the message clipped, which reads as the
-/// rule not working rather than as the measurement being early. The content size arriving is the
-/// signal, so `Coordinator` observes it (`watchContentSize`).
-///
-/// An image arriving later cannot widen the document past the fit: the base stylesheet caps every
-/// image at `max-width:100%` of its container.
-@MainActor
-func fitReadingDocument(_ webView: WKWebView) {
-    let content = webView.scrollView.contentSize.width
-    let pane = webView.bounds.width
-    guard content > 0, pane > 0 else { return }
-    // Only ever shrink. A message narrower than the pane keeps its own size rather than being
-    // blown up to fill it, which would magnify a short plain-text note to nonsense.
-    let fit = min(1, pane / content)
-    guard fit < 1 else { return }
-    // `pageZoom`, not the scroll view's `zoomScale`. WebKit owns that scroll view: it recomputes
-    // `minimumZoomScale`/`maximumZoomScale` from the viewport on its own layout pass and clamps
-    // an assignment back, so the message stays clipped and nothing reports why. `pageZoom` is a
-    // layout zoom WebKit applies itself, which is also the better answer: the message is laid out
-    // again at the smaller scale rather than having its rendered surface resampled.
-    webView.pageZoom = fit
-}
-
-#endif
-
 /// Loads one message's document, at that message's own scale.
 ///
 /// The reset and the load are one step on purpose: a zoom belongs to the message it was made on
 /// (docs/reading-zoom.md), so every path that puts a new document on screen has to drop the last
-/// one's. On macOS `magnification` is the *view's* rather than the page's, so unlike the iOS scroll
-/// view's scale it survives the load and would otherwise carry over to whatever is opened next.
+/// one's. On macOS `magnification` is the *view's* rather than the page's, so unlike the iOS page
+/// scale it survives the load and would otherwise carry over to whatever is opened next. On
+/// iOS/iPadOS there is nothing to reset: the only scale is the page's own, and WebKit drops that
+/// on load.
 @MainActor
 func loadReadingDocument(_ webView: WKWebView, _ document: String) {
     #if os(macOS)
     webView.magnification = 1
-    #else
-    // The fit `fitReadingDocument` applied is the *view's*, exactly as `magnification` is, so it
-    // survives the load: without this, a message opened after a wide one inherits that message's
-    // scale and renders small for no reason the reader can see. Reset before the load, so the
-    // measurement that follows is taken at 1:1 and the ratio it computes means what it says.
-    webView.pageZoom = 1
     #endif
     // baseURL nil → no origin to resolve remote/relative resources against; combined with the
     // document's CSP this guarantees no network access beyond opted-in images.
@@ -109,40 +89,51 @@ func loadReadingDocument(_ webView: WKWebView, _ document: String) {
 struct SanitizedHTMLView: PlatformViewRepresentable {
     let fragment: String
     let loadRemoteImages: Bool
+    #if os(iOS)
+    /// The reading header, which rides this message's own scroll (ReadingView.Scroll.swift). It is
+    /// handed over as a view rather than drawn above this one, so that it can be **hosted inside
+    /// the web view's scroll view**: the one place from which WebKit's own pan gesture reaches it.
+    let header: AnyView
+    #endif
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     #if os(macOS)
-    func makeNSView(context: Context) -> WKWebView { makeWebView(context) }
-    func updateNSView(_ webView: WKWebView, context: Context) { updateWebView(webView, context) }
+    func makeNSView(context: Context) -> ReadingBodyView { makeWebView(context) }
+    func updateNSView(_ webView: ReadingBodyView, context: Context) {
+        updateWebView(webView, context)
+    }
     #else
-    func makeUIView(context: Context) -> WKWebView { makeWebView(context) }
-    func updateUIView(_ webView: WKWebView, context: Context) { updateWebView(webView, context) }
+    func makeUIView(context: Context) -> ReadingBodyView { makeWebView(context) }
+    func updateUIView(_ webView: ReadingBodyView, context: Context) {
+        updateWebView(webView, context)
+    }
     #endif
 
-    private func makeWebView(_ context: Context) -> WKWebView {
+    private func makeWebView(_ context: Context) -> ReadingBodyView {
         let webView = makeReadingWebView()
         webView.navigationDelegate = context.coordinator
         #if os(iOS)
-        context.coordinator.watchContentSize(of: webView)
+        context.coordinator.mountHeader(in: webView)
         #endif
         return webView
     }
 
-    private func updateWebView(_ webView: WKWebView, _ context: Context) {
+    private func updateWebView(_ webView: ReadingBodyView, _ context: Context) {
+        let coordinator = context.coordinator
+        #if os(iOS)
+        // Every update, before the guard below: the header grows as the snapshot fills it in, and
+        // that arrives on updates which change neither of the two inputs the guard is about.
+        coordinator.show(header, in: webView)
+        #endif
         // Skip entirely when the inputs are unchanged, so unrelated SwiftUI updates don't
         // re-run the (FFI) document build or reload the page, only the fragment or the
         // load-images choice changing matters.
-        let coordinator = context.coordinator
         guard coordinator.lastFragment != fragment
             || coordinator.lastLoadRemoteImages != loadRemoteImages
         else { return }
         coordinator.lastFragment = fragment
         coordinator.lastLoadRemoteImages = loadRemoteImages
-        #if os(iOS)
-        // A new message: it gets its own fit once it has a width to measure.
-        coordinator.awaitingFit = true
-        #endif
         let document = renderMessageHtml(html: fragment, loadRemoteImages: loadRemoteImages)
         loadReadingDocument(webView, document)
     }
@@ -152,25 +143,69 @@ struct SanitizedHTMLView: PlatformViewRepresentable {
         var lastLoadRemoteImages: Bool?
 
         #if os(iOS)
-        /// Whether the document now on screen still owes us a fit. Set when one is handed over,
-        /// cleared by the fit, so a content size that keeps changing (the fit itself changes it)
-        /// cannot re-fit a message that has already been scaled.
-        var awaitingFit = false
-        private var contentSize: NSKeyValueObservation?
+        /// The reading header, living in the web view's scroll view above the message.
+        ///
+        /// A subview of that scroll view rather than a SwiftUI view drawn over it, because the
+        /// scroll view's pan gesture only reaches what is inside it. Drawn on top instead, the
+        /// header takes every drag that lands on it, and a message whose header fills the screen,
+        /// an invitation card or twenty attachments, cannot be scrolled at all.
+        ///
+        /// It sits at a negative `y`, which `contentInset.top` then makes the resting position, so
+        /// the message starts below it and both move as the reader scrolls: the table-header
+        /// pattern `UITableView` has always used, and no offset arithmetic of our own.
+        private let host = UIHostingController(rootView: AnyView(EmptyView()))
+        /// The header as the reading view last built it, so a layout pass can put it back without
+        /// SwiftUI having to hand it over again.
+        private var header = AnyView(EmptyView())
 
-        /// Watches for the document acquiring a width, which is the only signal that it can be
-        /// measured; see [`fitReadingDocument`] for why `didFinish` is too early. Installed once
-        /// per web view, and the observation lives as long as this coordinator does.
-        func watchContentSize(of webView: WKWebView) {
-            guard contentSize == nil else { return }
-            contentSize = webView.scrollView.observe(\.contentSize) { [weak self] scrollView, _ in
-                MainActor.assumeIsolated {
-                    guard let self, self.awaitingFit, scrollView.contentSize.width > 0 else {
-                        return
-                    }
-                    self.awaitingFit = false
-                    fitReadingDocument(webView)
-                }
+        func mountHeader(in webView: ReadingBodyWebView) {
+            host.view.backgroundColor = .systemBackground
+            webView.scrollView.addSubview(host.view)
+            // The layout, not `updateUIView`, is when this view's width is knowable; see
+            // [`ReadingBodyWebView`]. Both captures are weak: the web view owns this closure.
+            webView.onLayout = { [weak self, weak webView] in
+                guard let self, let webView else { return }
+                self.layOutHeader(in: webView)
+            }
+        }
+
+        /// Takes the header the reading view has just built, and puts it on screen.
+        func show(_ header: AnyView, in webView: ReadingBodyWebView) {
+            self.header = header
+            layOutHeader(in: webView)
+        }
+
+        /// Puts the header back at the pane's current width, and gives the message the room under
+        /// it. Idempotent, so it is safe on every update and every layout pass.
+        ///
+        /// ⚠️ **The width is the scroll view's, not the header's own idea of one.** Asked to size
+        /// itself against an unbounded width a hosting controller answers with the width its
+        /// content would like, which for a subject line is the whole subject on one line, and the
+        /// header then lays out wider than the pane it is in.
+        private func layOutHeader(in webView: ReadingBodyWebView) {
+            let scrollView = webView.scrollView
+            let width = scrollView.bounds.width
+            guard width > 0 else { return }
+            host.rootView = header
+            let height = host.sizeThatFits(
+                in: CGSize(width: width, height: .greatestFiniteMagnitude)
+            ).height
+            host.view.frame = CGRect(x: 0, y: -height, width: width, height: height)
+            guard scrollView.contentInset.top != height else { return }
+            // What the system adds on its own (the safe area), which the new resting offset has to
+            // keep. ⚠️ Read **before** the assignment and carried across it: `adjustedContentInset`
+            // is recomputed on the next layout pass, so reading it straight afterwards still
+            // answers the old total, and an offset set from that leaves the message resting with
+            // the header already scrolled off the top.
+            let system = scrollView.adjustedContentInset.top - scrollView.contentInset.top
+            let wasAtTop = scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top
+            scrollView.contentInset.top = height
+            scrollView.verticalScrollIndicatorInsets.top = height
+            // A reader who has not scrolled yet is still looking at the top of the header after it
+            // grew; one who has scrolled keeps their place. UIKit moves the offset with the inset
+            // only while the scroll view is settling, not for a change this late.
+            if wasAtTop {
+                scrollView.contentOffset.y = -(height + system)
             }
         }
         #endif

@@ -28,8 +28,10 @@ struct OpenedMessage: Identifiable, Hashable {
 }
 /// How much of the screen the attachment bar may take before it starts scrolling inside itself.
 ///
-/// Roughly four rows. The bar sits above the message in a column that does not scroll, so this is
-/// the line between "this message has attachments" and "this message is now unreadable".
+/// Roughly four rows. On macOS the bar sits above the message in a column that does not scroll, so
+/// this is the line between "this message has attachments" and "this message is now unreadable".
+/// On iOS and iPadOS the bar goes up with the header (ReadingView.Scroll.swift) and the cap is
+/// what keeps the message itself on the first screen rather than below twenty rows of files.
 ///
 /// Not `private`: ReadingView.Attachments.swift's `attachmentRows` reads it too (Swift's
 /// `private` on a top-level declaration is file-scoped).
@@ -89,7 +91,9 @@ struct ReadingView: View {
 
     /// Whether the user chose to load this message's remote images (reset per message, a fresh
     /// view is created for each opened message).
-    @State private var loadRemoteImages = false
+    ///
+    /// Not `private`: ReadingView.Scroll.swift draws the banner that sets it.
+    @State var loadRemoteImages = false
     /// A transient attachment save/open failure message shown in the attachment bar; nil when
     /// the last action succeeded or none has run.
     ///
@@ -142,52 +146,78 @@ struct ReadingView: View {
     }
 
     var body: some View {
+        #if os(iOS)
+        // Everything but the action row belongs to the message and scrolls with it
+        // (ReadingView.Scroll.swift).
         VStack(spacing: 0) {
-            HStack(alignment: .top) {
-                AvatarView(avatar: senderAvatar, diameter: 40)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(message.subject.isEmpty ? L10n.mail_no_subject() : message.subject)
-                        .font(.headline).lineLimit(2)
-                    Text(senderLine).font(.subheadline).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text(message.date).font(.caption).foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, readingInset)
-            .padding(.top, 12)
-            recipientsHeader
             actionToolbar
-            attachmentBar
-            // Empty unless the core's RSVP gate called this message an invitation.
-            InvitationBanner(
-                snapshot: bodySnapshot,
-                zone: model.activeZone,
-                use24Hour: model.use24Hour,
-                account: message.account,
-                messageKey: message.key,
-                writeStatus: model.calendarWriteStatus,
-                respond: { [model] response, comment, notify, replySubject in
-                    model.respondToInvitation(
-                        message.account,
-                        message.key,
-                        response,
-                        comment: comment,
-                        notifyOrganizer: notify,
-                        replySubject: replySubject
-                    )
-                }
-            )
             Divider()
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #else
+        VStack(spacing: 0) {
+            identityHeader
+            recipientsHeader
+            actionToolbar
+            attachmentBar
+            invitationCard
+            Divider()
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #endif
+    }
+
+    /// Who wrote this, what it is called and when it arrived: the one part of the header that is
+    /// filled from the row the reader tapped, so it is complete before the body has been fetched.
+    ///
+    /// Not `private`: ReadingView.Scroll.swift assembles the scrolling header from it.
+    var identityHeader: some View {
+        HStack(alignment: .top) {
+            AvatarView(avatar: senderAvatar, diameter: 40)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(message.subject.isEmpty ? L10n.mail_no_subject() : message.subject)
+                    .font(.headline).lineLimit(2)
+                Text(senderLine).font(.subheadline).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(message.date).font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, readingInset)
+        .padding(.top, 12)
+    }
+
+    /// The meeting-invitation card, empty unless the core's RSVP gate called this message an
+    /// invitation. Not `private`, see [`identityHeader`].
+    var invitationCard: some View {
+        InvitationBanner(
+            snapshot: bodySnapshot,
+            zone: model.activeZone,
+            use24Hour: model.use24Hour,
+            account: message.account,
+            messageKey: message.key,
+            writeStatus: model.calendarWriteStatus,
+            respond: { [model] response, comment, notify, replySubject in
+                model.respondToInvitation(
+                    message.account,
+                    message.key,
+                    response,
+                    comment: comment,
+                    notifyOrganizer: notify,
+                    replySubject: replySubject
+                )
+            }
+        )
     }
 
     /// The recipient headers (To / Cc / Bcc), shown once this message's snapshot arrives.
     /// Each row appears only when non-empty; Bcc is present only on the user's own Sent/Drafts
     /// copies (whose stored message carries a Bcc header), so they can see whom they Bcc'd.
+    ///
+    /// Not `private`, see [`identityHeader`].
     @ViewBuilder
-    private var recipientsHeader: some View {
+    var recipientsHeader: some View {
         if let body = bodySnapshot,
             !(body.to.isEmpty && body.cc.isEmpty && body.bcc.isEmpty) {
             VStack(alignment: .leading, spacing: 1) {
@@ -294,86 +324,6 @@ struct ReadingView: View {
         .buttonStyle(.bordered)
         .accessibilityLabel(title)
     }
-
-    /// Whether the pane offers to load this message's blocked remote images: only over a body
-    /// that has some, and only until the user says yes.
-    private var remoteImagesOffered: Bool {
-        guard let body = bodySnapshot, !body.pending, !body.loadError, !loadRemoteImages,
-            let html = body.html, !html.isEmpty
-        else { return false }
-        return body.hasRemoteImages
-    }
-
-    /// The body area, on the page the core says a message is drawn on.
-    ///
-    /// The page is the same for every state of an open (the gap before the body lands, the
-    /// spinner, a plain-text body, a load error) so a body arriving changes what is written on
-    /// the page and never the page itself. Leaving the gap `Color.clear` punched a hole in it:
-    /// against a dark appearance the body area went white, black, white on every message opened,
-    /// which reads as a flicker rather than as a message opening (docs/sync-progress.md).
-    ///
-    /// The light appearance goes with the page rather than decorating it. The canvas is white in
-    /// both themes because `base_css` pins the document to `color-scheme: light` (mail is authored
-    /// for a white page) so the dark appearance's own label colours over it would be white on
-    /// white. The chrome around it (header, toolbar, the remote-images banner) stays themed.
-    @ViewBuilder
-    private var content: some View {
-        if remoteImagesOffered {
-            RemoteImagesBanner { loadRemoteImages = true }
-        }
-        bodyArea
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(parseHexColor(messageCanvas().background))
-            .environment(\.colorScheme, .light)
-    }
-
-    @ViewBuilder
-    private var bodyArea: some View {
-        if let body = bodySnapshot {
-            if body.pending {
-                // The core publishes this only once an open has run long enough to be worth
-                // announcing, so the indicator appears for a wait and never for a fast open.
-                // It carries no body, so this has to come before the branches that read one:
-                // an empty `pending` snapshot is not a message without content.
-                VStack(spacing: 10) {
-                    ProgressView()
-                    Text(L10n.reading_loading()).font(.caption).foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if body.loadError {
-                VStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle").foregroundStyle(.secondary)
-                    Text(L10n.reading_load_error()).foregroundStyle(.secondary)
-                    Button(L10n.action_retry()) { model.openMessage(message.account, message.key) }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let html = body.html, !html.isEmpty {
-                SanitizedHTMLView(fragment: html, loadRemoteImages: loadRemoteImages)
-            } else if let plain = body.plain, !plain.isEmpty {
-                ScrollView {
-                    Text(plain)
-                        .font(.body)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(readingInset)
-                }
-            } else {
-                placeholder(L10n.reading_no_content())
-            }
-        } else {
-            // Opened, and nothing to say yet. Not a spinner: the body usually arrives within a
-            // few milliseconds, and one drawn on every open flickers rather than reassures. The
-            // header above is already filled from the row that was tapped, and the page is
-            // already drawn, so the pane reads as the message opening rather than as empty.
-            Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private func placeholder(_ text: String) -> some View {
-        Text(text)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
 }
 
 /// The reading pane's empty state: shown in the third pane when no message is selected, so the
@@ -409,23 +359,3 @@ struct SelectionCountPane: View {
         .background(.background)
     }
 }
-
-/// The bar shown above a message that has remote images, which are blocked by default to
-/// avoid tracking. Tapping "Load images" opts in for this message.
-private struct RemoteImagesBanner: View {
-    let onLoad: () -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "photo").foregroundStyle(.secondary)
-            Text(L10n.reading_remote_blocked())
-                .font(.caption)
-            Spacer()
-            Button(L10n.action_load_images(), action: onLoad)
-        }
-        .padding(.horizontal, readingInset)
-        .padding(.vertical, 8)
-        .background(.quaternary)
-    }
-}
-

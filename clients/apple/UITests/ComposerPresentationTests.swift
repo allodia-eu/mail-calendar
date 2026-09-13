@@ -17,7 +17,7 @@ final class ComposerPresentationTests: XCTestCase {
         let app = ShowcaseApp.launch()
         ShowcaseApp.showMailbox(app)
 
-        ShowcaseApp.tap(app.buttons["Compose"])
+        ShowcaseApp.tap(app.buttons["New Mail"])
         XCTAssertTrue(
             app.navigationBars["New Message"].waitForExistence(timeout: ShowcaseApp.timeout),
             "Compose did not open the composer"
@@ -26,13 +26,13 @@ final class ComposerPresentationTests: XCTestCase {
 
         ShowcaseApp.tap(app.buttons["Cancel"])
         XCTAssertTrue(
-            app.buttons["Compose"].waitForExistence(timeout: ShowcaseApp.timeout),
+            app.buttons["New Mail"].waitForExistence(timeout: ShowcaseApp.timeout),
             "Cancel did not return to the mailbox"
         )
 
         // The second time is the assertion. A binding that is cleared on dismissal and one that is
         // not look identical until the control is used twice.
-        ShowcaseApp.tap(app.buttons["Compose"])
+        ShowcaseApp.tap(app.buttons["New Mail"])
         XCTAssertTrue(
             app.navigationBars["New Message"].waitForExistence(timeout: ShowcaseApp.timeout),
             "Compose opened once and then stopped opening"
