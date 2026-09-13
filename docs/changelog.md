@@ -254,6 +254,7 @@ proves that `/VERSION` does, and that no note claims a version above it.
 
 | Version | Date | What shipped |
 |---|---|---|
+| [0.9.0](changelog/released/0.9.0.md) | 2026-09-13 | Clear a search from the field on macOS · New Mail, Sync and search where you reach for them · Newsletters reflow to the reading pane · …23 more |
 | [0.8.2](changelog/released/0.8.2.md) | 2026-09-09 | The Linux app is packaged again |
 | [0.8.1](changelog/released/0.8.1.md) | 2026-09-08 | Signing out reaches the right account service |
 | [0.8.0](changelog/released/0.8.0.md) | 2026-09-08 | Offer to become your default mail app · Drag files onto a message you are writing · Rename a thread when you reply or forward · …15 more |
