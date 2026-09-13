@@ -46,7 +46,7 @@ enum ShowcaseApp {
     static func showMailbox(_ app: XCUIApplication) {
         tap(app.buttons["Mail"])
         XCTAssertTrue(
-            app.buttons["Compose"].waitForExistence(timeout: timeout),
+            app.buttons["New Mail"].waitForExistence(timeout: timeout),
             "the mailbox did not come up"
         )
     }
@@ -69,6 +69,29 @@ enum ShowcaseApp {
             }
         }
         XCTFail("the mailbox drew no message rows to open")
+    }
+
+    /// Opens the message whose row mentions `text`, from wherever the app started.
+    ///
+    /// The row rather than a launch hook, for the reason `openFirstMessage` gives; and `containing`
+    /// rather than `matching`, because a list row's own label is not the subject: the subject, the
+    /// sender and the preview are each a static text **inside** the cell.
+    ///
+    /// The frame filter is `topMessageRow`'s, for the same reason: the folder drawer's rows are
+    /// cells too and sit at negative coordinates while it is shut.
+    static func openMessage(containing text: String, in app: XCUIApplication) {
+        showMailbox(app)
+        let mentions = NSPredicate(format: "label CONTAINS[c] %@", text)
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let row = app.cells.containing(mentions).allElementsBoundByIndex
+                .first { $0.frame.minX >= 0 }
+            if let row {
+                row.tap()
+                return
+            }
+        }
+        XCTFail("the mailbox drew no message row mentioning '\(text)'")
     }
 
     /// The topmost message row that is actually on screen, or nil while none is.

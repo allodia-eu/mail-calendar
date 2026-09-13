@@ -19,7 +19,7 @@ final class NavigationBarTests: XCTestCase {
         let app = ShowcaseApp.launch()
         ShowcaseApp.showMailbox(app)
 
-        for name in ["Folders", "Select", "More", "Compose"] {
+        for name in ["Folders", "Select", "More", "New Mail"] {
             XCTAssertTrue(
                 ShowcaseApp.reachable(name, in: app),
                 "the mailbox bar has no reachable \(name)"

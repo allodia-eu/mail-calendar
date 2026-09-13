@@ -33,10 +33,10 @@ extension ReadingView {
     /// The attachment rows, hugging their content until they would crowd the message out, and
     /// scrolling from there.
     ///
-    /// A message really can carry twenty files, and the bar sits **above** the body in a column
-    /// that does not scroll, so left to grow it pushes the message itself off the bottom of the
-    /// screen, with no way to reach either. The cap is what keeps the mail readable; the scroll is
-    /// what keeps every attachment reachable.
+    /// A message really can carry twenty files, and the bar sits **above** the body, so left to
+    /// grow it pushes the message itself off the bottom of the screen: on macOS out of reach
+    /// entirely, the column there not scrolling, and on iOS and iPadOS a long scroll away. The cap
+    /// is what keeps the mail readable; the scroll is what keeps every attachment reachable.
     @ViewBuilder
     private func attachmentRows(_ attachments: [AttachmentRow]) -> some View {
         ScrollView {
