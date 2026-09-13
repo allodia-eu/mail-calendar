@@ -5,7 +5,7 @@
 //! Layer 2 of `docs/rendering-security.md` plus the sizing rules of `docs/reading-zoom.md`. What
 //! the sanitiser does to the fragment before any of this is next door, in `super::tests`.
 
-use super::render_document;
+use super::{MESSAGE_CANVAS, render_document};
 
 #[test]
 fn render_document_embeds_the_body_and_a_strict_csp() {
@@ -102,19 +102,16 @@ fn the_canvas_is_the_page_a_message_is_drawn_on() {
     // stops a future restyle from moving only one of them.
     let doc = render_document("<p>hi</p>", false);
     assert!(
-        doc.contains(&format!("background:{}", super::MESSAGE_CANVAS.background)),
+        doc.contains(&format!("background:{}", MESSAGE_CANVAS.background)),
         "{doc}"
     );
     assert!(
-        doc.contains(&format!("color:{}", super::MESSAGE_CANVAS.foreground)),
+        doc.contains(&format!("color:{}", MESSAGE_CANVAS.foreground)),
         "{doc}"
     );
     // `#rrggbb`, the one form every client's hex parser already reads. `#fff` would render
     // identically here and reach three of the four clients as nothing at all.
-    for channel in [
-        super::MESSAGE_CANVAS.background,
-        super::MESSAGE_CANVAS.foreground,
-    ] {
+    for channel in [MESSAGE_CANVAS.background, MESSAGE_CANVAS.foreground] {
         assert_eq!(channel.len(), 7, "{channel}");
         assert!(
             channel.starts_with('#') && channel[1..].chars().all(|c| c.is_ascii_hexdigit()),
@@ -133,4 +130,37 @@ fn render_document_gates_remote_images_on_the_flag() {
     let allowed = render_document("<img src=\"https://x/a.png\">", true);
     assert!(allowed.contains("https:"));
     assert!(allowed.contains("http:"));
+}
+
+#[test]
+fn the_document_carries_the_message_its_own_breakpoint() {
+    // The whole point of building the sheet per message: the breakpoint is the width *this*
+    // message was written for, so the engine reflows it in a narrower pane and leaves it alone in
+    // a wider one, and re-decides that on every resize with nothing re-rendered.
+    // 628 rather than 600: the width the message needs is what it asks for plus the room the
+    // document takes from both edges, or there is a band of pane widths where it is clipped and
+    // nothing reflows it (`reflow::breakpoint`).
+    let wide = render_document(r#"<table width="600"><tr><td>x</td></tr></table>"#, false);
+    assert!(wide.contains("@media (max-width:628px)"), "{wide}");
+
+    // A message with nothing fixed in it has nothing to reflow, and gets no query.
+    let plain = render_document("<p>a note</p>", false);
+    assert!(!plain.contains("@media"), "{plain}");
+    // It still gets the half that can only shrink, which is what caps an over-wide image.
+    assert!(plain.contains("max-width:100%"), "{plain}");
+}
+
+#[test]
+fn the_reflow_sheet_comes_after_the_base_one() {
+    // Both set `max-width` on an image, at the same specificity, so the later rule is the one
+    // that applies. Reversed, the base sheet's `max-width:100%` would still win by accident
+    // today and stop winning the day the reflow sheet says anything about an image.
+    let doc = render_document(r#"<table width="600">x</table>"#, false);
+    let styles = doc
+        .split_once("<style>")
+        .expect("the document carries a stylesheet")
+        .1;
+    let base = styles.find("color-scheme:light").expect("the base sheet");
+    let reflow = styles.find("@media").expect("the reflow sheet");
+    assert!(base < reflow, "{styles}");
 }

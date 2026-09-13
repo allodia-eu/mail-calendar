@@ -1,0 +1,78 @@
+From: Banded Sender <bands@example.com>
+To: Alice Tester <alice@test.local>
+Subject: Newsletter with full-bleed bands
+Date: Mon, 05 Jan 2026 11:20:00 +0000
+Message-ID: <bands-0012@test.local>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt-0012"
+
+--alt-0012
+Content-Type: text/plain; charset=utf-8
+
+The plain-text alternative of the banded fixture.
+
+The HTML part is the other half of real newsletter markup: full-width coloured
+bands, each wrapping a 600px column. The bands must keep spanning the pane at
+every width, including the widths at which the column inside them reflows.
+
+--alt-0012
+Content-Type: text/html; charset=utf-8
+
+<html>
+  <head>
+    <title>Banded newsletter</title>
+  </head>
+  <body style="margin:0;padding:0;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#16598d;">
+      <tr>
+        <td align="center" style="padding:18px;">
+          <table width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;">
+            <tr>
+              <td style="font-family:Helvetica,Arial,sans-serif;color:#ffffff;font-size:20px;">
+                A band that must span the pane
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;">
+      <tr>
+        <td align="center" style="padding:18px;">
+          <table width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;">
+            <tr>
+              <td style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;">
+                <p style="margin:0 0 12px;">
+                  Each coloured strip here is a <code>&lt;table width="100%"&gt;</code> with a
+                  background, wrapping a 600px column. It is the other half of how real newsletters
+                  are built, and the half a reflow can quietly break: clear a table's own width and
+                  the strip shrinks to its contents, so the colour stops reaching the edges while
+                  the text inside it still looks right.
+                </p>
+                <p style="margin:0;">
+                  So the bands are the assertion. At every pane width, narrow enough to reflow the
+                  column or wide enough to leave it alone, all three strips run edge to edge.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0a500;">
+      <tr>
+        <td align="center" style="padding:18px;">
+          <table width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;">
+            <tr>
+              <td width="200" style="font-family:Helvetica,Arial,sans-serif;font-size:14px;">First of three</td>
+              <td width="200" style="font-family:Helvetica,Arial,sans-serif;font-size:14px;">Second of three</td>
+              <td width="200" style="font-family:Helvetica,Arial,sans-serif;font-size:14px;">Third of three</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+
+--alt-0012--
