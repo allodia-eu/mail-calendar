@@ -164,7 +164,7 @@ floor, the pixel-size assertion and the showcase-launch proof, and it looks righ
 now says which device and which build it is about to shoot, before the first shutter:
 
 ```
-==> shooting iphone on iPhone 17 Pro Max (85F2F484-…)
+==> shooting iphone on iPhone 18 Pro Max (85F2F484-…)
 ==> app built 2026-08-20 19:04:16
 ```
 
