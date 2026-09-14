@@ -8,6 +8,7 @@
 // Its own partial, like every other category here, so SettingsDialog.cs stays clear of the
 // 500-line limit.
 
+using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
@@ -131,7 +132,7 @@ public sealed partial class SettingsDialog
                 var line = Description(L10n.SettingsAllodiaSyncUnavailable());
                 line.Opacity = 1;
                 line.Foreground = (Microsoft.UI.Xaml.Media.Brush)
-                    Application.Current.Resources["SystemFillColorCriticalBrush"];
+                    _brushes.Of(ThemePalette.Critical);
                 return line;
             }
         }

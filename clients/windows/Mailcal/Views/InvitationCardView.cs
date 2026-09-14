@@ -23,7 +23,7 @@
 // and everything in it is conditional on what the account can actually do.
 using System.Globalization;
 using Allodia.Mailcal.Calendar;
-using Microsoft.UI;
+using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
@@ -53,6 +53,13 @@ internal sealed partial class InvitationCardView : UserControl
 
     private CultureInfo _culture = CultureInfo.CurrentCulture;
 
+    // The theme this card was last drawn for, and the arguments it was drawn from. The colours are
+    // resolved once per Apply rather than per element, and a live appearance change has to redraw
+    // with the same card: nothing else would repaint it until the message is opened again.
+    private bool _dark;
+
+    private (InvitationCard Card, string Zone, bool Use24Hour, CultureInfo Culture, CalendarWriteStatus Status)? _drawn;
+
     /// <summary>
     /// Answer the invitation: the response, a note for the organiser (<c>null</c> where the transport
     /// carries none), and whether to tell them.
@@ -68,6 +75,13 @@ internal sealed partial class InvitationCardView : UserControl
     {
         _frame.Child = _stack;
         Content = _frame;
+        ActualThemeChanged += (_, _) =>
+        {
+            if (_drawn is { } last)
+            {
+                Apply(last.Card, last.Zone, last.Use24Hour, last.Culture, last.Status);
+            }
+        };
     }
 
     /// <summary>Draws <paramref name="card"/>, the whole card, rebuilt.</summary>
@@ -84,9 +98,11 @@ internal sealed partial class InvitationCardView : UserControl
         CalendarWriteStatus status)
     {
         _culture = culture;
+        _dark = this.IsDark();
+        _drawn = (card, zone, use24Hour, culture, status);
         _stack.Children.Clear();
         ResetRespondRow();
-        var tint = TintOf(card.Kind);
+        var tint = TintOf(card.Kind, _dark);
         _frame.Background = new SolidColorBrush(tint) { Opacity = 0.08 };
         _frame.BorderBrush = new SolidColorBrush(tint) { Opacity = 0.3 };
 
@@ -122,13 +138,13 @@ internal sealed partial class InvitationCardView : UserControl
 
     // A cancellation is the one kind that has to be unmissable, a stale hold otherwise sits in the
     // calendar looking like a commitment.
-    private static Color TintOf(InvitationKind kind) => kind switch
+    private static Color TintOf(InvitationKind kind, bool dark) => kind switch
     {
-        InvitationKind.Cancelled => BrushColor("SystemFillColorCriticalBrush"),
-        InvitationKind.Informational => BrushColor("TextFillColorSecondaryBrush"),
+        InvitationKind.Cancelled => ThemePalette.Critical(dark),
+        InvitationKind.Informational => ThemePalette.SecondaryText(dark),
         // Caution, not critical: nothing was lost, there is simply a newer copy to open.
-        InvitationKind.Superseded => BrushColor("SystemFillColorCautionBrush"),
-        _ => BrushColor("AccentTextFillColorPrimaryBrush"),
+        InvitationKind.Superseded => ThemePalette.Caution(dark),
+        _ => ThemePalette.AccentText(dark),
     };
 
     private static UIElement Header(InvitationKind kind, Color tint)
@@ -165,7 +181,7 @@ internal sealed partial class InvitationCardView : UserControl
         return row;
     }
 
-    private static UIElement Detail(string label, string value)
+    private UIElement Detail(string label, string value)
     {
         var row = new Grid { ColumnSpacing = 6 };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LabelWidth) });
@@ -200,7 +216,7 @@ internal sealed partial class InvitationCardView : UserControl
         {
             Text = card.Description,
             Style = Res("CaptionTextBlockStyle"),
-            Foreground = ThemeBrush("TextFillColorSecondaryBrush"),
+            Foreground = ThemePalette.Brush(ThemePalette.SecondaryText(_dark)),
             TextWrapping = TextWrapping.Wrap,
             MaxLines = 4,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -227,7 +243,7 @@ internal sealed partial class InvitationCardView : UserControl
         {
             Height = 1,
             Margin = new Thickness(0, 4, 0, 4),
-            Background = ThemeBrush("DividerStrokeColorDefaultBrush"),
+            Background = ThemePalette.Brush(ThemePalette.Divider(_dark)),
         });
         _stack.Children.Add(new TextBlock
         {
@@ -262,7 +278,8 @@ internal sealed partial class InvitationCardView : UserControl
             Style = Res("CaptionTextBlockStyle"),
             Margin = new Thickness(0, 4, 0, 0),
             TextWrapping = TextWrapping.Wrap,
-            Foreground = ThemeBrush(clashes ? "TextFillColorPrimaryBrush" : "TextFillColorSecondaryBrush"),
+            Foreground = ThemePalette.Brush(
+                clashes ? ThemePalette.PrimaryText(_dark) : ThemePalette.SecondaryText(_dark)),
         });
         if (!card.ConflictsKnown)
         {
@@ -302,22 +319,14 @@ internal sealed partial class InvitationCardView : UserControl
         });
     }
 
-    private static TextBlock Caption(string text) => new()
+    private TextBlock Caption(string text) => new()
     {
         Text = text,
         Style = Res("CaptionTextBlockStyle"),
-        Foreground = ThemeBrush("TextFillColorSecondaryBrush"),
+        Foreground = ThemePalette.Brush(ThemePalette.SecondaryText(_dark)),
         TextWrapping = TextWrapping.Wrap,
     };
 
     private static Style Res(string key) => (Style)Application.Current.Resources[key];
 
-    private static Brush ThemeBrush(string key) => (Brush)Application.Current.Resources[key];
-
-    // The colour behind a theme brush. Every key used here ships with WinUI, but a missing one must
-    // tint the card grey rather than take the reading pane down with it.
-    private static Color BrushColor(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var value) && value is SolidColorBrush brush
-            ? brush.Color
-            : Colors.Gray;
 }

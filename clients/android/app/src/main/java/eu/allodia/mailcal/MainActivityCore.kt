@@ -233,15 +233,37 @@ internal fun MainActivity.connect(
 internal fun MainActivity.connectShowcase(locale: ShowcaseLocale) {
     val activity = this
     val deviceZone = deviceTimeZone()
-    logUiInfo("MAILCAL_SHOWCASE set, bringing up the in-memory $locale showcase dataset")
+    // The add-account capture takes the account-less boot: that screen is the one somebody meets
+    // before they have a mailbox, and the seeded two-account dataset cannot reach it, because the
+    // offer it carries is made only on a first run (docs/onboarding.md). The four `setup*`
+    // documentation screens are NOT this: they photograph the detection flow, which is a later add,
+    // and keep the seeded boot.
+    val firstRun = ShowcaseMode.screen(activity) == ShowcaseScreen.ADD_ACCOUNT
+    logUiInfo(
+        if (firstRun) {
+            "MAILCAL_SHOWCASE set, bringing up the account-less $locale showcase (the first-run screen)"
+        } else {
+            "MAILCAL_SHOWCASE set, bringing up the in-memory $locale showcase dataset"
+        },
+    )
     thread(name = "mailcal-showcase") {
-        val connected = MailcalApp.newShowcase(
-            activity.observer,
-            CoreLogger,
-            DiagnosticsPrefs.bootLogLevel(activity),
-            deviceZone,
-            locale,
-        )
+        val connected = if (firstRun) {
+            MailcalApp.newShowcaseFirstRun(
+                activity.observer,
+                CoreLogger,
+                DiagnosticsPrefs.bootLogLevel(activity),
+                deviceZone,
+                locale,
+            )
+        } else {
+            MailcalApp.newShowcase(
+                activity.observer,
+                CoreLogger,
+                DiagnosticsPrefs.bootLogLevel(activity),
+                deviceZone,
+                locale,
+            )
+        }
         activity.mainHandler.post {
             activity.app = connected
             activity.connectError = null
@@ -254,7 +276,10 @@ internal fun MainActivity.connectShowcase(locale: ShowcaseLocale) {
             activity.displaySettings = connected.displaySettings()
             activity.signatures = connected.signatures()
             activity.reload()
-            connected.dispatch(Intent.RefreshMail)
+            // No account, so nothing to sync: the first-run screen draws none of it.
+            if (!firstRun) {
+                connected.dispatch(Intent.RefreshMail)
+            }
             // The calendar screenshot drives to the grid (showingCalendar set pre-setContent); kick
             // its sync here now the core exists, mirroring the real Calendar tap (onShowCalendar) and
             // the Apple/Windows showcase drivers, so the agenda list fills and the grid re-keys.

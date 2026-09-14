@@ -201,3 +201,11 @@ Fill it at boot, from `allodia_sign_in_available()`, and let whichever window op
 - **No client asserts the way out against a real hop.** Reaching that state opens a browser at the
   account service and no client has a hook that fakes it, so what the suites assert is that the
   control is drawn when the state says so; that the state is ever reached is verified by hand.
+- **This screen's store capture is wired on all five and run on four.** The capture named
+  `add-account` is the screen a person meets before they have a mailbox, so reaching it needs a
+  showcase boot holding **no** account (`MailcalApp::new_showcase_first_run`) rather than the seeded
+  two, where the offer is deliberately not made and the capture would be a bare address field.
+  Every client asks for that boot on that screen; it has been run on Windows, macOS, iOS and
+  Android. Linux is written against the same seam and has not been: that client builds only on a
+  Linux host. The four `setup-*` documentation captures are untouched by it, being a later add by
+  design.

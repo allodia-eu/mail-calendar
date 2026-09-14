@@ -27,11 +27,16 @@ public sealed class EventDetailDialog : ContentDialog
     private readonly EventDetail _detail;
     private readonly CalendarRow[] _calendars;
 
+    // Built before DialogHelper mirrors the window's theme onto this dialog, so the colours are
+    // handed out as brushes that follow it rather than read once (ThemePalette.cs).
+    private readonly ThemeBrushes _brushes;
+
     /// <summary>Builds the detail over the core's <paramref name="detail"/> read.</summary>
     internal EventDetailDialog(EventDetail detail, MailboxModel model)
     {
         _detail = detail;
         _calendars = model.Calendars();
+        _brushes = new ThemeBrushes(this);
 
         Title = detail.Title.Length == 0 ? L10n.EventNoTitle() : detail.Title;
         CloseButtonText = L10n.ActionClose();
@@ -110,7 +115,7 @@ public sealed class EventDetailDialog : ContentDialog
         // meeting".
         if (_detail.Attendees.Length > 0)
         {
-            panel.Children.Add(AttendeeBlock(_detail.Attendees));
+            panel.Children.Add(AttendeeBlock(_detail.Attendees, _brushes));
         }
 
         return panel;
@@ -126,7 +131,7 @@ public sealed class EventDetailDialog : ContentDialog
     /// also the thing the product rule is about, since an event nobody was invited to must show
     /// <b>no heading at all</b>, and an absence is only assertable when the thing has a handle.
     /// </remarks>
-    internal static StackPanel AttendeeBlock(IReadOnlyList<EventAttendee> attendees)
+    internal static StackPanel AttendeeBlock(IReadOnlyList<EventAttendee> attendees, ThemeBrushes brushes)
     {
         var block = new StackPanel { Spacing = 2, Margin = new Thickness(0, 10, 0, 0) };
         var heading = new TextBlock
@@ -138,7 +143,7 @@ public sealed class EventDetailDialog : ContentDialog
         block.Children.Add(heading);
         foreach (var attendee in attendees)
         {
-            block.Children.Add(AttendeeRow(attendee));
+            block.Children.Add(AttendeeRow(attendee, brushes));
         }
         return block;
     }
@@ -146,7 +151,7 @@ public sealed class EventDetailDialog : ContentDialog
     // One attendee: name (or address), the address + "Organiser" beneath it, and how they answered.
     // Every string is attacker-controlled, the core has already stripped control characters and
     // bidi overrides, and a TextBlock renders text, so there is nothing further to escape.
-    private static Grid AttendeeRow(EventAttendee attendee)
+    private static Grid AttendeeRow(EventAttendee attendee, ThemeBrushes brushes)
     {
         var row = new Grid { Margin = new Thickness(0, 6, 0, 0), ColumnSpacing = 12 };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -161,11 +166,11 @@ public sealed class EventDetailDialog : ContentDialog
         var subtitle = AttendeeSummary.Subtitle(attendee, L10n.EventAttendeeOrganizer());
         if (subtitle.Length > 0)
         {
-            who.Children.Add(Secondary(subtitle));
+            who.Children.Add(SecondaryOf(subtitle, brushes));
         }
         row.Children.Add(who);
 
-        var answer = Secondary(CalendarEventText.AttendeeResponse(attendee.Response));
+        var answer = SecondaryOf(CalendarEventText.AttendeeResponse(attendee.Response), brushes);
         answer.VerticalAlignment = VerticalAlignment.Top;
         Grid.SetColumn(answer, 1);
         row.Children.Add(answer);
@@ -193,11 +198,15 @@ public sealed class EventDetailDialog : ContentDialog
         };
     }
 
-    private static TextBlock Secondary(string text) => new()
+    private TextBlock Secondary(string text) => SecondaryOf(text, _brushes);
+
+    // Static twin, for the rows the editor dialog hosts too: they draw in the theme of whichever
+    // dialog is showing them, so the brushes come from the caller rather than from a field here.
+    private static TextBlock SecondaryOf(string text, ThemeBrushes brushes) => new()
     {
         Text = text,
         Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
-        Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+        Foreground = brushes.Of(ThemePalette.SecondaryText),
     };
 
     /// <summary>

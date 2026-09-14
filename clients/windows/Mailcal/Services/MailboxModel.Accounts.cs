@@ -345,51 +345,6 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
-    /// Brings up the in-memory showcase (screenshot) dataset instead of connecting real accounts:
-    /// two fictional accounts with a full mailbox, a threaded conversation, an attachment, and a
-    /// calendar, all from bundled sample content. No network and no credential store, so nothing
-    /// personal can appear in a screenshot. Enabled by <c>MAILCAL_SHOWCASE</c>; never in a shipped build.
-    /// The sample content is seeded in the language the chrome renders in (<see cref="ShowcaseMode"/>),
-    /// so each store listing gets a screenshot set that reads in one language throughout.
-    /// </summary>
-    private async Task ConnectShowcaseAsync()
-    {
-        _connecting = true;
-        var deviceTz = MailcalBindingsMethods.DeviceTimeZone();
-        var level = ResolveLogLevel();
-        var locale = ShowcaseMode.SeedLocale;
-        Log.Info($"MAILCAL_SHOWCASE set, bringing up the in-memory {locale} showcase dataset (no real account)");
-        try
-        {
-            var app = await Task.Run(() => MailcalApp.NewShowcase(_observer!, _logger!, level, deviceTz, locale));
-            _ui.TryEnqueue(() =>
-            {
-                _connecting = false;
-                _app = app;
-                NeedsSetup = false;
-                SetupError = null;
-                Reload();
-                UpdateConnectivity(_app.Connectivity());
-                ObserveSystemTimeZone();
-                // Populate both the inbox and the agenda up front, so the mail list and the
-                // calendar tab are each ready to screenshot without a real sync.
-                _app.Dispatch(new Intent.RefreshMail());
-                _app.Dispatch(new Intent.RefreshCalendar());
-            });
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"showcase bring-up failed: {CoreError.Describe(ex)}");
-            _ui.TryEnqueue(() =>
-            {
-                _connecting = false;
-                SetupError = L10n.StatusConnectFailed(CoreError.Describe(ex));
-                NeedsSetup = true;
-            });
-        }
-    }
-
-    /// <summary>
     /// Connects the config as a new account over the running engine and, on success, stores it.
     /// AddAccount blocks on the IMAP login, so it runs off the UI thread. The core writes the
     /// config to the Credential Manager itself, only once it connects, so a bad config is never

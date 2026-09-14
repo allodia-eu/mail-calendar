@@ -165,7 +165,17 @@ function Assert-ShowcaseRunning([datetime] $since, [int] $TimeoutSec = 30) {
   # every unknown locale to 'En', so a `-Locale de` run would have compared against the *English*
   # marker.
   $seeded = $Locale.Substring(0, 1).ToUpperInvariant() + $Locale.Substring(1)
-  $marker = "showcase (screenshot) app starting (in-memory engine, seeded $seeded sample content)"
+  # The add-account capture boots the account-less showcase instead: the offer that screen has to
+  # show is made only to somebody who has no mailbox yet (docs/onboarding.md), so it seeds nothing
+  # and the core writes a line of its own shape. Both still name the locale, because proving the
+  # language reached THIS process is half of what this assert is for, and that screen is captured
+  # per language like every other. The twin of lib.sh's showcase_marker_for, as above.
+  $marker = if ($Screen -eq 'add-account') {
+    "showcase (screenshot) app starting (in-memory engine, no account, $seeded language)"
+  }
+  else {
+    "showcase (screenshot) app starting (in-memory engine, seeded $seeded sample content)"
+  }
 
   # POLLED, never slept. The marker is written during startup, so this can be answered the moment
   # it lands, and a fixed wait is wrong in both directions: too long is dead time on every launch

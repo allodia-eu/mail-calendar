@@ -70,7 +70,7 @@ public sealed partial class SettingsDialog
         var view = new WebView2();
         panel.Children.Add(new Border
         {
-            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+            BorderBrush = _brushes.Of(ThemePalette.ControlStroke),
             BorderThickness = new Thickness(1),
             Height = 230,
             Child = view,
@@ -80,7 +80,7 @@ public sealed partial class SettingsDialog
         {
             Visibility = Visibility.Collapsed,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"],
+            Foreground = _brushes.Of(ThemePalette.Critical),
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
         };
 

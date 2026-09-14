@@ -314,7 +314,7 @@ SHOWCASE_LAUNCH_GRACE=45
 
 require_showcase_launch() { # <locale> <log-offset-before-launch> <screen>
   local marker fresh waited=0
-  marker="$(showcase_marker_for "$1")" || die "no showcase marker for locale '$1'"
+  marker="$(showcase_marker_for "$1" "$3")" || die "no showcase marker for locale '$1'"
   # WAIT for the marker; don't assert it once. `settle_for` is a fixed sleep, and a cold launch,
   # the first after a build, or any launch while the machine is busy (a few simulators running
   # apps is enough); can take many seconds longer to put its window up. Nothing in the app runs

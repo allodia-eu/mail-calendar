@@ -47,7 +47,7 @@ pub(crate) struct HostDevice {
 pub(crate) use connect::{connect_google_calendars, connect_jmap_calendars};
 pub(crate) use contacts::{connect_caldav_contacts, connect_jmap_contacts};
 // The in-memory demo/showcase builders (no real account, no network) live in their own module.
-pub(crate) use inmemory::{build_demo, build_showcase};
+pub(crate) use inmemory::{build_demo, build_showcase, build_showcase_first_run};
 pub(crate) use stored::{PreparedAccount, connect_graph_calendars, prepare_stored_account};
 
 /// Builds a real account-backed app from the host's stored account `configs`: the body of

@@ -20,6 +20,7 @@
 // On both harness accounts, and on any CalDAV or JMAP account, this is three buttons and nothing
 // else. That is the truth of the transport, not a missing feature.
 using Allodia.Mailcal.Calendar;
+using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -178,9 +179,9 @@ internal sealed partial class InvitationCardView
         var line = InvitationText.Write(status);
         _writeLine.Text = line ?? string.Empty;
         _writeLine.Visibility = line is null ? Visibility.Collapsed : Visibility.Visible;
-        _writeLine.Foreground = ThemeBrush(
+        _writeLine.Foreground = ThemePalette.Brush(
             InvitationFormat.Write(status) == WriteLine.Failed
-                ? "SystemFillColorCriticalBrush"
-                : "TextFillColorSecondaryBrush");
+                ? ThemePalette.Critical(_dark)
+                : ThemePalette.SecondaryText(_dark));
     }
 }

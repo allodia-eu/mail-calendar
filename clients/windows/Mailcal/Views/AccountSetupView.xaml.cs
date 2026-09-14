@@ -39,6 +39,9 @@ public sealed partial class AccountSetupView : UserControl
         var routes = MailcalBindingsMethods.OauthRoutes();
         MicrosoftChoice.Visibility = routes.Microsoft ? Visibility.Visible : Visibility.Collapsed;
         GoogleChoice.Visibility = routes.Google ? Visibility.Visible : Visibility.Collapsed;
+        // The panel below is built in code, so its colours are resolved once rather than tracked by
+        // the framework; an appearance change has to rebuild it (ThemePalette).
+        ActualThemeChanged += (_, _) => RenderOnboarding();
     }
 
     /// <summary>Binds the form to the shared model and resets it to the email-first step when reused.</summary>
