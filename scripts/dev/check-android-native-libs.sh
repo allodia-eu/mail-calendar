@@ -12,7 +12,7 @@
 # per ABI and only the arm64 one was aligned, so the upload was rejected over ABIs we did not even
 # build for. (JNA 5.19.1 aligns all of them; hence the version floor in app/build.gradle.kts.)
 #
-# So this checks three things:
+# So this checks four things:
 #
 #   1. Only the expected ABIs are packaged (app/build.gradle.kts pins `abiFilters`; an AAR can
 #      otherwise reintroduce an ABI silently, and a filter that stops filtering looks exactly
@@ -21,6 +21,8 @@
 #      for which cargo-ndk built nothing; the APK then installs on such a device and dies at the
 #      first `System.loadLibrary`, which no build-time error and no store check would have caught.
 #   3. Every LOAD segment of every packaged `.so` aligns to >= 16 KB.
+#   4. On an app bundle, that our cdylib's symbol file is in it. Play symbolicates a native crash
+#      or ANR from those, warns on every upload that has none, and 0.9.0 shipped without them.
 #
 # Not checked: PT_GNU_RELRO padding. Android Studio's APK Analyzer warns when a RELRO segment is
 # not a suffix of its LOAD segment (JNA's arm64 build is not, and no JNA release fixes it), but
@@ -155,8 +157,31 @@ while IFS= read -r lib; do
   fi
 done < <(find "$WORK" -name "$CORE_LIB" | sort)
 
+# The symbols Play reads, which only an app bundle carries: an APK has no BUNDLE-METADATA, and the
+# symbol file is not packaged into one at all. AGP writes these itself and silently wrote none for
+# our library for every release through 0.9.0, because its extractor skips a library whose stripped
+# copy is the same length, which `keepDebugSymbols` guarantees ours is. app/build.gradle.kts
+# supplies the file instead; this is what says it arrived. Without it a Rust frame in a Play crash
+# report is an address, and the only notice is a console warning on an upload already spent.
+if [[ "$ARTIFACT" == *.aab ]]; then
+  entries="$(unzip -Z1 "$ARTIFACT" 2>/dev/null || true)"
+  for abi in "${ALLOWED_ABIS[@]}"; do
+    sym="BUNDLE-METADATA/com.android.tools.build.debugsymbols/$abi/$CORE_LIB.sym"
+    if grep -qxF "$sym" <<<"$entries"; then
+      printf '  ok   %-52s\n' "$sym"
+    else
+      printf '  FAIL %-52s missing: Play would symbolicate %s crashes to bare addresses\n' \
+        "$sym" "$abi"
+      failures=$((failures + 1))
+    fi
+  done
+fi
+
 if ((failures > 0)); then
   die "$failures problem$([[ $failures -eq 1 ]] || echo s) found: do not upload this build"
 fi
 info "All native libraries are 16 KB aligned, across exactly: ${ALLOWED_ABIS[*]}"
 info "$CORE_LIB keeps its symbol table and carries no DWARF, on every ABI"
+if [[ "$ARTIFACT" == *.aab ]]; then
+  info "$CORE_LIB's symbol file is in the bundle, on every ABI"
+fi
