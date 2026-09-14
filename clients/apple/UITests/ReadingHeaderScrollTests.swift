@@ -36,7 +36,22 @@ final class ReadingHeaderScrollTests: XCTestCase {
 
         let rowBefore = reply.frame
         let headerBefore = recipients.frame
-        app.swipeUp()
+        // Dragged from the recipients line, NOT `app.swipeUp()`, which swipes the centre of the
+        // screen. On this message the centre lands inside the invitation card, on the "Around this
+        // meeting" strip, and that view answers a vertical drag itself: the gesture is consumed,
+        // nothing scrolls, and the test then reports a header that stayed put as if the header were
+        // the thing at fault. Measured on an iPhone Air simulator, a centre swipe scrolled nothing
+        // in five runs of fourteen, and a hosted runner failed on it twice in a row; a drag from
+        // this line has not missed.
+        //
+        // The line rather than a fraction of the screen, because a fraction is a guess about where
+        // this fixture's card ends on a device nobody has run yet. This is static text inside the
+        // content that scrolls, so it consumes nothing and it is where the reader's thumb would be.
+        recipients.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(
+                forDuration: 0.05,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05))
+            )
 
         XCTAssertEqual(
             reply.frame, rowBefore,
