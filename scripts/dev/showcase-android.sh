@@ -349,7 +349,7 @@ android_capture() { # <locale> <screen> <out>
     ${appearance[@]+"${appearance[@]}"} >/dev/null
   sleep "$(settle_for "$2")"
   android_require_awake
-  require_showcase_launch "$1" "$offset"
+  require_showcase_launch "$1" "$offset" "$2"
   # Normalise the status bar a second time, now that everything that perturbs it has happened.
   # Pinning only *before* the launch leaves two ways for a live icon to reach the frame, and this
   # run hit both: the app posts its new-mail notification during the settle above (an envelope next
