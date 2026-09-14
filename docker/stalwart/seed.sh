@@ -192,11 +192,17 @@ log "appending the many-attachment fixture to INBOX (reading-view overflow; sequ
 imap_append "$MAIL_DIR/10-many-attachments.eml" INBOX
 
 # Sequence-safe for the same reason, and the counterpart to 08-html.eml on the fitting rule
-# (docs/reading-zoom.md): 600px in the markup and again inline, with no media query anywhere, so a
-# pane narrower than that has nothing to reflow. It is the case a responsive newsletter cannot
-# stand in for, because a responsive one fits by adapting and this one can only fit by scaling.
-log "appending the fixed-width newsletter to INBOX (reading-view fit-to-width; sequence-safe)"
+# (docs/reading-zoom.md): 600px in the markup and again inline, with no media query anywhere, and
+# cells pinned to a third of that each, which is what stops the table narrowing on its own. It is
+# the case a responsive newsletter cannot stand in for, because a responsive one fits by adapting.
+log "appending the fixed-width newsletter to INBOX (reading-view reflow; sequence-safe)"
 imap_append "$MAIL_DIR/11-fixed-width-newsletter.eml" INBOX
+
+# The other half of real newsletter markup, and the one a reflow can quietly break: full-width
+# coloured bands, each wrapping a 600px column. The bands have to keep spanning the pane at every
+# width, which is what stops the reflow clearing a table's own width (docs/reading-zoom.md).
+log "appending the banded newsletter to INBOX (reading-view reflow, full-bleed bands)"
+imap_append "$MAIL_DIR/12-banded-newsletter.eml" INBOX
 
 log "putting calendar fixtures into the default calendar"
 put_calendar "$CAL_DIR/one-off.ics" oneoff-2001

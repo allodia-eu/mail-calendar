@@ -344,16 +344,26 @@ the log" feature this contract exists to enable. The surface is the same everywh
   library deliberately: widened to `**/*.so` it would exempt JNA and androidx too, and then
   `ndkVersion` would buy nothing.
 
-  **Why not upload symbols to Play instead and ship none.** `ndk { debugSymbolLevel }` does work
-  (verified: a `SYMBOL_TABLE` build put a 37 MB `.sym` in the bundle's metadata while the packaged
-  library stayed stripped), and it would give the smallest download. It answers a different
-  question. Play symbolicates **tombstones**; this log symbolicates **in-process**, against the
-  loaded library's own symbol table. And the shape a Rust core fails in most does not produce a
-  tombstone at all: the release profile sets no `panic = "abort"`, so a panic unwinds and the FFI
-  boundary catches it, leaving this log as the only record. Shipping no symbols is possible, but
-  only by changing what the log records: module plus offset per frame, resolved offline against a
-  retained build. That trades away the thing this document exists for (a file a user hands over
-  that a human can read) to save 1.3 MiB, so it is not the deal we took.
+  **Play gets a symbol file too, and it answers a different question.** Play symbolicates
+  **tombstones**, from the `.sym` files a bundle carries under `BUNDLE-METADATA`; this log
+  symbolicates **in-process**, against the loaded library's own symbol table. Neither stands in for
+  the other, and the shape a Rust core fails in most produces no tombstone at all: the release
+  profile sets no `panic = "abort"`, so a panic unwinds and the FFI boundary catches it, leaving
+  this log as the only record. So the shipped library keeps its `.symtab` *and* its symbol file
+  goes up with the bundle. The second is free to the user: bundle metadata is Play's copy, and no
+  device downloads it. Dropping the first instead would save 1.3 MiB and change what this log
+  records to module plus offset per frame, resolved offline against a retained build, which trades
+  away the thing this document exists for (a file a user hands over that a human can read).
+
+  Every release through 0.9.0 uploaded none, and `ndk { debugSymbolLevel }` was never the missing
+  setting: AGP defaults a non-debuggable variant to `SYMBOL_TABLE`, and the extraction ran.
+  `ExtractNativeDebugMetadataTask` skips a library whose stripped copy is the same length as its
+  merged one, reading that as "already stripped, nothing to extract", and `keepDebugSymbols`
+  guarantees ours is exactly that; JNA, which AGP does strip, was the only library in the 0.9.0
+  bundle to get a `.sym`. `app/build.gradle.kts` supplies ours instead, by appending to the
+  `NATIVE_SYMBOL_TABLES` artifact AGP documents for that. At `SYMBOL_TABLE` level AGP's own
+  extraction is `objcopy --strip-debug`, and this library carries no DWARF, so the file it would
+  write is a copy of the library and that is what is copied.
 
   ⚠️ **The outcome is asserted on the artifact, because none of the above can fail loudly.**
   `StripDebugSymbolsTask` copies its input straight through when the strip tool is missing, when
@@ -361,8 +371,10 @@ the log" feature this contract exists to enable. The surface is the same everywh
   `verbose`. There is no setting that turns a silent pass-through into a build failure. That is how
   this went unnoticed for so long: nothing was stripping, for two independent reasons at once (no
   `ndkVersion`, and a `keepDebugSymbols` glob covering everything), and every build reported
-  success. `scripts/dev/check-android-native-libs.sh` now reads the packaged `.so` and fails if our
-  cdylib has lost its `.symtab` or kept a `.debug_*` section.
+  success. The `.sym` had the same shape: the skip above logs at `info` and the build is green.
+  `scripts/dev/check-android-native-libs.sh` now reads the packaged `.so` and fails if our cdylib
+  has lost its `.symtab` or kept a `.debug_*` section, and on a bundle it fails if the cdylib's
+  `.sym` is not in it.
 - **A shipped Apple stack names functions but not lines, on the same deal as Android.**
   `STRIP_STYLE: debugging` in `clients/apple/project.yml` keeps the symbol table in the binary.
   Xcode's default for an application is `all`, which was what shipped: it leaves 2,282 symbols of

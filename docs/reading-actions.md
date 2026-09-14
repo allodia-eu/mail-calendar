@@ -28,6 +28,15 @@ hang off both edges of the screen. Measuring is what decides, never a width writ
 in a client: a longer language, a larger text size and a narrower phone each move the answer. What
 may not move is the target a finger gets, so a smaller control stays a 44-pt button.
 
+**The row stays put; the rest of the header does not.** Who sent the message, who else got it,
+what it carries and any banner over it belong to the *message*, so wherever a client can do it they
+scroll away with the body and the action row alone stays on screen. A reader who has scrolled to
+the end of a newsletter is exactly the reader who wants to archive or reply to it, and having to
+scroll back up first is a cost paid on every message to save one line of chrome.
+
+Where a client cannot do it the header stands still above the body, which is the fallback, not a
+second design; each such client says so in the matrix below.
+
 **It is the same control as the buttons beside it**, at both of the row's widths. Each platform
 uses whatever gets it there: Windows and Android hang a native menu off a button, and Apple builds
 an ordinary button that presents a popover, because a SwiftUI `Menu` cannot be made to match a
@@ -88,6 +97,7 @@ since a size cap dropped its source will fetch it.
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Overflow menu at the end of the action row | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Header scrolls, row stays put | ✗ | ✅ | ✗ | ✗ | ✗ |
 | Save as `.eml` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Destination | save panel | share sheet | save picker | share sheet | save dialog |
 | Result reported | inline error | inline error | inline error | toast | banner |
@@ -99,3 +109,9 @@ since a size cap dropped its source will fetch it.
   of a row button, or that cannot be undone, is refused whichever of them arrives first.
 - **No multi-message export.** Selecting several messages and exporting them is not offered
   anywhere; the export acts on the open message only.
+- **The header scrolls with the message on iPhone and iPad only.** Everywhere else it stands still
+  above the body. On macOS the obstacle is the platform's: the scroll the header would have to ride
+  is the web view's own, and `WKWebView` exposes no scroll view there to read it from, which is the
+  same limit [`reading-zoom.md`](reading-zoom.md) records for measuring a message's width. Windows,
+  Android and Linux are simply not done yet, and none of them has that obstacle: WebView2, Android's
+  `WebView` and `WebKitGTK` all report a scroll position.

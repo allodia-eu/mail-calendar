@@ -563,6 +563,19 @@ sim_prepare() {
     KeyboardDidShowProductivityTutorial DidShowGestureKeyboardIntroduction; do
     xcrun simctl spawn "$SIM_UDID" defaults write com.apple.Preferences "$seen" -bool true
   done
+  # One keyboard language, because those four keys do not gate every interstitial. A simulator
+  # inherits the host Mac's language list when it is created, so one made on a bilingual Mac gets a
+  # *multilingual* keyboard, and iOS advertises that with a "Type English and Dutch" sheet over the
+  # bottom half of the screen the first time any keyboard appears. None of the keys above suppress
+  # it: all four read true while it is up, dismissing it writes to no keyboard domain, and raising
+  # a keyboard once to consume it does not stop it coming back on the next launch.
+  #
+  # A single language removes the thing being advertised, so the sheet has no occasion to appear.
+  # It also takes the host Mac out of the result: which languages a `reply` screenshot's keyboard
+  # and predictions are in should not depend on which machine shot the set. Applies on the next
+  # launch, with no reboot.
+  xcrun simctl spawn "$SIM_UDID" defaults write .GlobalPreferences AppleKeyboards \
+    -array "en_US@sw=QWERTY;hw=Automatic" "emoji@sw=Emoji"
 }
 
 sim_capture() { # <locale> <screen> <out>

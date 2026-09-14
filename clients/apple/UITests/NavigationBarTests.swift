@@ -15,11 +15,16 @@ final class NavigationBarTests: XCTestCase {
     ///
     /// A pixel tap would pass over a bar whose buttons had lost their labels, which is the failure
     /// a screen-reader user meets first.
+    ///
+    /// There is no overflow menu here, and its absence is the design rather than a gap: syncing
+    /// was the only thing behind it, and on a phone that is the pull the list already answers.
+    /// The reading view's own row is where an overflow belongs (`docs/reading-actions.md`), and
+    /// `ReadingActionRowTests` is what holds it there.
     func testMailboxBarItemsAreReachableByName() {
         let app = ShowcaseApp.launch()
         ShowcaseApp.showMailbox(app)
 
-        for name in ["Folders", "Select", "More", "Compose"] {
+        for name in ["Folders", "Select", "New Mail"] {
             XCTAssertTrue(
                 ShowcaseApp.reachable(name, in: app),
                 "the mailbox bar has no reachable \(name)"

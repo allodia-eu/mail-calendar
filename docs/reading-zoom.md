@@ -22,36 +22,68 @@ disagree about it show the reader two different newsletters from the same bytes.
    `useWideViewPort` is **false** by default and that ignores the tag outright.
 
 2. **The declaration names a width and no scale.** No `initial-scale`, no `user-scalable`, no
-   `maximum-scale`. An explicit `initial-scale` pins the page at 1:1, and that is the condition
-   under which both touch engines decline to shrink an over-wide message (rule 3); the other two
-   would take the reader's pinch away (rule 4).
+   `maximum-scale`, and no `minimum-scale`. An explicit `initial-scale` pins the page at 1:1, and
+   that is the condition under which Blink declines to shrink an over-wide message (rule 3); the
+   next two would take the reader's pinch away (rule 4); and the last WebKit ignores while the
+   layout width is the pane's, so it would read as a promise the tag does not keep.
 
-3. **A message wider than the pane is scaled down to fit, not clipped**, wherever the engine can do
-   it. This is the half of real mail that has no `@media` rules at all: a table pinned to 600px in
-   the markup and again inline. Rule 1 cannot help it, because there is nothing in it to reflow.
+3. **A message written for a wider pane is reflowed to fit, not clipped.** This is the half of
+   real mail that has no `@media` rules at all: a table pinned to 600px in the markup and again
+   inline, its cells pinned to a third of that each. Rule 1 cannot help it, because nothing in it
+   adapts.
 
-   The two engines answer differently and neither is free. **Blink has a setting**
-   (`loadWithOverviewMode`), which needs rule 2 in force and then scales the rendered page: the
-   layout is untouched and everything simply gets smaller. **WebKit has no equivalent**, measured
-   rather than assumed: a 600px newsletter lays out at 600pt in a 402pt pane and runs off the edge,
-   `shrink-to-fit` does nothing for a document whose viewport names a width, and removing
-   `initial-scale` changes none of it. So on iOS/iPadOS the host measures the laid-out document and
-   applies `pageZoom`, which **re-lays-out** at the smaller scale rather than resampling. Both fit;
-   they are not the same mechanism, and the difference has a consequence worth knowing (see gaps).
+   **The reflow is in the shared document**, `reflow_css` beside `render_document`
+   (`crates/mailcal-app/src/html/reflow.rs`), so it is one implementation and every client has it.
+   A client adds nothing to it and cannot opt out of it.
 
-   ⚠️ The measurement is the host asking **its own view** a question (`scrollView.contentSize`),
-   never the message a question. Measuring from inside the document would need script in it, which
-   `rendering-security.md` gates 1 and 2 forbid, and no rendering convenience is worth reopening
-   them.
+   **The approach is the mail clients' own**, the "munger" that came from AOSP Email through K-9
+   Mail and Thunderbird for Android and that Infomaniak's iOS client still runs: make the content
+   *reflow* before scaling anything, because a reflowed message is readable at the reader's own
+   text size while a scaled one is a small picture of a message.
 
-   **On the desktop hosts there is no route at all**: macOS's `WKWebView` exposes no scroll view to
-   measure, and neither does WebView2 or WebKitGTK. A desktop pane narrower than the message
-   scrolls horizontally and the reader zooms out under rule 4 if they would rather see it whole.
-   That is also what Thunderbird does on a desktop.
+   **Where ours differs is that it is CSS, so it needs no script and no measurement.** Those clients
+   run the munger as JavaScript inside the message, which `rendering-security.md` gates 1 and 2
+   forbid here, and hand it the pane's width, which the core does not have. Both go away:
+
+   - `max-width:100%` is the whole of "shrink this if the pane is narrower", at every width, with
+     no number in it. It is unconditional, because it can only ever shrink something.
+   - Clearing the **fixed widths on a table's cells** cannot be unconditional. A table is as wide as
+     its columns whatever its `max-width` says, so the widths have to go; but clearing them in a
+     pane that can hold the message would flatten a three-column newsletter on a desktop. They go
+     behind a media query whose breakpoint is the widest fixed width the message itself asks for,
+     **plus the document's own inset on both edges**.
+
+   So the engine decides, at every layout, whether this message fits this pane, and re-decides it on
+   a resize or a rotation with nothing re-rendered and no host involved.
+
+   ⚠️ **The breakpoint is the message's width plus the page's own padding**, and the second half is
+   not a detail: a 600px message in a 612pt pane has 584pt to lay out in and is clipped, so a
+   breakpoint at 600 leaves a 28px band of pane widths where nothing fits and nothing fires. A
+   13-inch iPad's reading pane lands in that band, and no narrower device shows it.
+
+   ⚠️ **The selector asks for a width that cannot adapt on its own**, an attribute that is not a
+   percentage, and that is load-bearing rather than fussy. `width:auto` on a table shrinks it to its
+   contents, and the full-bleed band, `<table width="100%" bgcolor>` wrapping a column, is in half
+   the newsletters ever sent: clear that one and the colour stops reaching the edges while the text
+   inside it still looks right. Both shapes are seeded, `11-fixed-width-newsletter.eml` and
+   `12-banded-newsletter.eml`, because each is the other's regression test.
+
+   **What is left for an engine is the remainder**: a message the reflow cannot narrow far enough,
+   because a cell holding a 300px word is 300px wide. Blink scales that down
+   (`loadWithOverviewMode`, which needs rule 2 in force). WebKit has no route to it, and neither do
+   WebView2 or WebKitGTK, so that pane scrolls sideways; the three WebKit routes that look like one
+   are under "Known gaps", because each fails in a way worth not rediscovering.
 
 4. **The reader can zoom, with the gesture the platform already taught them**: pinch on a
    touchscreen, pinch on a trackpad, and the host's own zoom keys where it binds them. The range is
    a browser's, 0.25× to 5×.
+
+   ⚠️ **On iOS and iPadOS it starts at 1, not at 0.25**, and no client decides that: rule 1's
+   `width=device-width` makes the layout viewport the pane, and WebKit will not scale a page below
+   the size at which its layout viewport fits, so `minimumZoomScale` is 1 whatever the tag says.
+   The reader can pinch **in** to 5× and cannot pinch **out**. It is the constraint that closes
+   rule 3 there, seen from the reader's side, and it is why a wide message on a phone is scrolled
+   rather than zoomed out of.
 
    A zoom control is never a page element and never an injected script: it is the host's, outside
    the document, or the contract in `rendering-security.md` is weakened to make a message easier to
@@ -75,10 +107,10 @@ disagree about it show the reader two different newsletters from the same bytes.
    release. The message steps rather than glides, and what steps is the layout rather than a picture
    of it.
 
-5. **A zoom belongs to the message it was made on.** Opening another message starts again at that
-   message's own fit. Rule 3 gives each message the scale that fits *it*, so a carried-over zoom
-   would mean the next message opens at a scale chosen for the last one, and a reader who zoomed in
-   would still get a wide message clipped.
+5. **A zoom belongs to the message it was made on.** Opening another message starts again at 1:1,
+   or, where rule 3 reaches, at that message's own fit. A carried-over zoom would mean the next
+   message opens at a scale chosen for the last one, and a reader who zoomed in on a short note
+   would meet the one after it magnified past its own margins.
 
    Where the scale is the *page's* it resets on load and the client does nothing. Where it is the
    *view's* it survives the load and the client MUST reset it: macOS's `magnification`, WebView2's
@@ -94,20 +126,59 @@ disagree about it show the reader two different newsletters from the same bytes.
 | Rule | Apple · `WKWebView` | Android · `WebView` | Windows · `WebView2` | Linux · `WebKitGTK` |
 |---|---|---|---|---|
 | 1 · lays out at the pane's width | honours the tag by default | `settings.useWideViewPort = true` (**false by default: the tag is ignored without it**) | honours the tag by default | honours the tag by default |
-| 3 · over-wide is scaled to fit | iOS/iPadOS: `pageZoom`, from the host's own measure of the laid-out document (`fitReadingDocument`). macOS: n/a (see rule 3) | `settings.loadWithOverviewMode = true` | n/a (see rule 3) | n/a (see rule 3) |
-| 4 · reader zoom | macOS `allowsMagnification = true` (trackpad pinch); iOS/iPadOS the scroll view's own pinch, from the viewport | `builtInZoomControls = true` + `displayZoomControls = false` (pinch, without the legacy floating buttons) | `IsPinchZoomEnabled` + `IsZoomControlEnabled` (touch pinch, Ctrl+scroll, Ctrl +/−) | `GtkGestureZoom` + Ctrl+scroll → `zoom-level`, both controllers in the **`Capture`** phase, the pinch **claiming** its sequence (see rule 4) |
-| 5 · resets per message | `loadReadingDocument` resets both: macOS `magnification = 1`, iOS/iPadOS `pageZoom = 1`. Each is the **view's**, not the page's, so each survives a load | page scale resets on load | **not reachable** (see gaps) | `set_zoom_level(1.0)` in `SecureWebView::load` / `clear` |
+| 3 · over-wide is reflowed to fit | the shared document's `reflow_css`, on all three | the same, plus `settings.loadWithOverviewMode = true` for the remainder | the shared document's `reflow_css` | the shared document's `reflow_css` |
+| 4 · reader zoom | macOS `allowsMagnification = true` (trackpad pinch); iOS/iPadOS the scroll view's own pinch, from the viewport, **1× to 5×** (see rule 4) | `builtInZoomControls = true` + `displayZoomControls = false` (pinch, without the legacy floating buttons) | `IsPinchZoomEnabled` + `IsZoomControlEnabled` (touch pinch, Ctrl+scroll, Ctrl +/−) | `GtkGestureZoom` + Ctrl+scroll → `zoom-level`, both controllers in the **`Capture`** phase, the pinch **claiming** its sequence (see rule 4) |
+| 5 · resets per message | macOS: `loadReadingDocument` sets `magnification = 1`, the **view's** scale, which survives a load. iOS/iPadOS: nothing to reset, the only scale there is the page's and WebKit drops it | page scale resets on load | **not reachable** (see gaps) | `set_zoom_level(1.0)` in `SecureWebView::load` / `clear` |
 
 Source of truth per client: the same four files
 [`rendering-security.md`](rendering-security.md) names.
 
 ## Known gaps
 
-- **No automatic fit on the desktop hosts.** Rule 3 holds on Android, iOS and iPadOS only. The
-  reason is in the rule and it is a real constraint, not an omission of effort, but the outcome is
-  still that a 600px message in a 400px-wide macOS, Windows or Linux pane scrolls sideways until
-  the reader zooms out. If it ever becomes worth closing, the honest route is a host-side measure of
-  the laid-out document, which none of the three engines currently exposes without script.
+- **What the reflow cannot narrow, only Blink scales.** Rule 3's reflow is every client's, but a
+  message it cannot narrow far enough still overflows: a cell holding a 300px word, or a fixed width
+  written only in an inline style (below). Android scales that remainder down; everywhere else the
+  pane scrolls sideways, and on iPhone and iPad with no zooming out to be had either (rule 4).
+
+  **WebKit has no route to the scaling, and the three that look like one each fail differently**,
+  measured on an iPhone rather than read off the documentation, because the documentation is what
+  suggested it was already handled:
+
+  - `WKWebView.pageZoom` does not shrink the page. It widens the layout viewport to `pane ÷ zoom`
+    and leaves every box the size it was, and a document laid out wider than the window is exactly
+    what WebKit **inflates text** in, to keep it legible. The boost scales `font-size` and not a
+    `line-height` given in `px`, which is how mail sets line heights, so a fitted newsletter
+    rendered with its lines piled on top of each other, at a size the fit had made *larger* rather
+    than smaller. `-webkit-text-size-adjust` does not turn that boost off, neither `none` nor a
+    percentage, on the document or on the element.
+  - `scrollView.zoomScale` is clamped back. WebKit recomputes `minimumZoomScale` from the viewport
+    on its own next layout pass, and the assignment is gone a frame later with nothing reported.
+  - `minimum-scale` in the viewport does not unlock that clamp: with `width=device-width` the layout
+    viewport already **is** the pane, so WebKit's own minimum is the scale at which it fits, which
+    is 1, and a smaller `minimum-scale` in the tag is ignored.
+
+  What is left is scaling the host view with a transform, which resamples the rendered surface
+  instead of laying the page out again, and is the trade this page already declines for Windows.
+
+  ⚠️ **A measurement of a document is worth only as much as the layout it came from.** WebKit lays
+  one out more than once on the way in, and the **first** `contentSize` it reports is from a pass
+  against its 980px fallback viewport rather than against the pane, so a ratio taken there is the
+  pane over a width nothing was ever drawn in. That is how the `pageZoom` above came to be fed 0.45
+  where the message needed 0.73. Measuring at all is the host asking **its own view** a question,
+  never the message one: measuring from inside the document would need script in it, which
+  `rendering-security.md` gates 1 and 2 forbid.
+- **A fixed width written only in an inline style is left to `max-width` alone.** The selector that
+  clears widths asks for the attribute first (`table[width]`), because that is what tells a relative
+  width from a fixed one without guessing at CSS text. A `<table style="width:600px">` with no
+  `width` attribute therefore keeps its width and can still overflow. In practice a table width in
+  mail is written as the attribute, with or without a style beside it, because Outlook has never
+  honoured anything else.
+- **Rule 3 is verified by eye, per engine.** What a real message does with a media query is a
+  question about an engine, so the Rust suites hold what the sheet *says* and the rendering is
+  checked on each client against the two seeded newsletters, on both sides of the breakpoint. The
+  pane widths that matter are a phone (≈390), an 11-inch iPad (≈495), a 13-inch iPad (≈610, the one
+  that found the document's own inset missing from the breakpoint) and a desktop window dragged from
+  wide to narrow.
 - **A zoom outlives its message on Windows.** Rule 5 is unreachable there: the zoom factor lives on
   `CoreWebView2Controller.ZoomFactor`, and `Microsoft.UI.Xaml.Controls.WebView2` (Windows App SDK
   2.4) surfaces neither that property nor the controller that owns it. `CoreWebView2` and
@@ -117,15 +188,6 @@ Source of truth per client: the same four files
   next one at that scale. The honest fix is an SDK that exposes the controller; the alternative,
   scaling the element with a `ScaleTransform`, would resample the rendered surface rather than
   re-lay-out the page and is worse than the gap.
-- **The fit reflows on iOS and does not on Android.** `loadWithOverviewMode` scales the rendered
-  page, so the layout is exactly what it was and everything is smaller. `pageZoom` re-lays-out at a
-  wider CSS viewport (402pt at 0.615 is 654 CSS px), so text reflows and stays crisp. Both satisfy
-  the rule, and the reflow is arguably the nicer result, but they are not interchangeable and one
-  case tells them apart: a message carrying `@media (max-width: 480px)` rules that **still**
-  overflows would stop matching them on iOS once the viewport widens, while on Android it keeps the
-  layout it had. Nothing in the seeded fixtures is shaped like that, because a message whose media
-  queries fire never reaches the fit path at all; it is written down because the first person to
-  meet it will otherwise think one of the two platforms is broken.
 - **The Linux claim is not in any suite.** Rule 4's ⚠️ is the one thing on this page that no
   assertion reaches: whether the two gestures still both act is a question about event delivery, and
   the widget suite delivers no touch while the AT-SPI run drives semantic actions. What a widget

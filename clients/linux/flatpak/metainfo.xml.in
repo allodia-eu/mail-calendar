@@ -8,9 +8,17 @@
 <component type="desktop-application">
   <id>@APP_ID@</id>
 
-  <!-- The app is proprietary; this file is not, so a software centre may redistribute it. -->
+  <!-- CC0 on this file, not on the app: it says a software centre may redistribute the listing.
+
+       The app's own licence is NOT a literal here, for the same reason the name and the id are
+       not: one template describes two artifacts. A build from source links nothing but the GPL
+       application; a build carrying the Allodia registration links the source-available crate the
+       registration exists for, and the two cannot honestly claim the same licence.
+       `flatpak_metadata.project_license()` derives it from the registration, exactly as
+       `core_cargo_features` derives the cargo feature from it, so the field and the binary cannot
+       disagree. -->
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>LicenseRef-proprietary</project_license>
+  <project_license>@PROJECT_LICENSE@</project_license>
 
   <name>@NAME@</name>
 @SUMMARIES@
@@ -60,13 +68,27 @@
        rating itself for what someone might be sent. -->
   <content_rating type="oars-1.1"/>
 
-  <!-- Three panes need room. Stated as a recommendation, not a requirement: the window still opens
-       narrower, and refusing to install on a small screen would be a worse answer than a cramped
-       one. -->
-  <recommends>
-    <display_length compare="ge">960</display_length>
+  <!-- Every way the client can be driven, and it needs none of them in particular: a keyboard, a
+       mouse or trackpad, and touch, which GTK delivers to the same widgets. `supports` rather than
+       `recommends`, which is not a shade of the same claim: a software centre reads a recommended
+       input device as one the app is not right without, and files a tablet as incompatible for
+       recommending a keyboard. A control left out is read as one the app cannot be used with, so
+       `touch` missing here is what put "Touchscreen Not Supported" on the listing. -->
+  <supports>
     <control>keyboard</control>
     <control>pointing</control>
+    <control>touch</control>
+  </supports>
+
+  <!-- Three panes need room. Stated as a recommendation, not a requirement: the window still opens
+       narrower, and refusing to install on a small screen would be a worse answer than a cramped
+       one.
+
+       `side="longest"` is load-bearing. The attribute defaults to `shortest`, so the same number
+       without it claims 960 px of *height*, which files every 1366x768 and 1600x900 laptop as a
+       machine this app is not recommended on. It is width the three panes need. -->
+  <recommends>
+    <display_length side="longest" compare="ge">960</display_length>
   </recommends>
 
 @RELEASES@
