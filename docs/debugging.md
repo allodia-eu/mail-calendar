@@ -674,7 +674,7 @@ clients/apple/Scripts/test-ui.sh --only CalendarPinchTests # one class, or one t
 Every test drives the in-memory showcase dataset, so none of it wants the harness, an account or a
 network, and that is what lets the device leg run the *same* suite rather than a subset: the harness
 is loopback-only and a device cannot reach it (§6). Verified on an iPhone 13 Pro (iOS 18.7) and on
-the iPhone 17 Pro simulator (iOS 26.5); a device wants Developer Mode, like every device build.
+the iPhone 18 Pro simulator (iOS 27.0); a device wants Developer Mode, like every device build.
 **Settings → Developer → Enable UI Automation** was on for those runs and is the first switch to
 check if a device run installs and then cannot attach, but nothing here has established that it is
 required.
