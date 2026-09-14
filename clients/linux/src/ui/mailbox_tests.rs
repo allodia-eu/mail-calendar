@@ -278,6 +278,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         the_create_drag_owns_the_primary_pointer_before_event_buttons();
     crate::ui::calendar::widget_tests::recentring_releases_the_scene_before_value_notification();
     crate::ui::calendar::widget_tests::a_click_on_an_event_does_not_park_focus_on_the_grid();
+    crate::ui::calendar::widget_tests::a_grid_shown_for_the_first_time_scrolls_and_frames_itself();
+    crate::ui::calendar::widget_tests::a_resized_window_keeps_the_hour_the_reader_was_looking_at();
     crate::ui::calendar::dialog_tests::neither_series_question_states_its_title_twice();
     crate::ui::calendar::dialog_tests::the_editor_never_pre_empts_the_scope_question();
     crate::ui::reading::attachment_tests::the_reading_header_formats_its_timestamp();

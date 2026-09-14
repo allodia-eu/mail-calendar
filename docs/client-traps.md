@@ -239,6 +239,29 @@ that same file.
   `AdwPreferencesGroup` supplies the list. `every_row_belongs_to_a_list`
   ([`mailbox_tests.rs`](../clients/linux/src/ui/mailbox_tests.rs)) asserts a whole window at once:
   call it from any widget test that presents one.
+- **A size request or a scroll offset set from a `GtkAdjustment` notification never reaches the
+  screen.** GTK emits `notify::page-size` and `notify::upper` from inside the viewport's own size
+  allocation, which has already measured and placed the child for this frame. A height asked for
+  there leaves the child allocated at the height it already had and nothing measures it a second
+  time, so a scrolled child sized from its own viewport (the calendar grid, where an hour is as
+  tall as the viewport says) never gives the scrolled window an `upper` above its page size, and
+  has no scroll range at all. An offset set there is worse: the adjustment stores it, so it reads
+  correct while the grid is still drawn where it was, and every later render preserves a position
+  the view never went to. Both belong in a `glib::idle_add_local_once`, after the frame.
+  ⚠️ It reads as intermittent because it is not: any unrelated render that changes the height for
+  its own reasons resizes the child for real, so the calendar starts working the moment the user
+  changes week, and the report that comes back describes the first view rather than every view.
+  The oracle is where the grid is **drawn** (`compute_point` against the scrolled window), never
+  the adjustment, which is right in both broken states
+  ([`grid_widget_tests.rs`](../clients/linux/src/ui/calendar/grid_widget_tests.rs)).
+
+  Deferring has its own price, and it is the reason a scrolled offset here is kept in **minutes**
+  rather than pixels. For the pass before the height lands, the viewport measures the *old* day
+  against the *new* size, so the offset it clamps is not the reader's: grow a window past twice its
+  height and the range collapses to nothing and the clamp is `0`. Anything that records the offset
+  by watching the adjustment therefore has to ignore a move made while the page size is not the one
+  it last measured against, or it stores the accident and the position is gone before the real
+  height arrives.
 - **A GLib critical is diagnosed with a backtrace, never by reading widget code.** The message is
   raised by a check deep inside the toolkit that knows nothing about what you did, so reasoning
   from its wording to a cause produces a plausible theory and the wrong file.

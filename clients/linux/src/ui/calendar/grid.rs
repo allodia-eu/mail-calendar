@@ -8,7 +8,7 @@ use std::{
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 
-use super::{super::AppInput, date::now_in, model::CalendarModel};
+use super::{super::AppInput, model::CalendarModel};
 use crate::l10n;
 
 mod create;
@@ -19,6 +19,7 @@ mod scene;
 mod scroll;
 
 use scene::{GUTTER, GridScene, HEADING_HEIGHT};
+use scroll::Framing;
 
 /// The GTK shell around one Cairo surface and semantic nodes from the same geometry.
 pub(super) struct GridSurface {
@@ -26,7 +27,7 @@ pub(super) struct GridSurface {
     drawing: gtk::DrawingArea,
     hits: gtk::Fixed,
     scene: Rc<RefCell<GridScene>>,
-    recentre_pending: Rc<Cell<bool>>,
+    framing: Rc<Framing>,
     /// Retained so enabling a screen reader while the app is open rebuilds the semantic overlay.
     _accessibility_settings: gtk::gio::Settings,
     #[cfg(feature = "dev-harness")]
@@ -51,7 +52,7 @@ impl GridSurface {
         root.update_property(&[AccessibleProperty::Label(l10n::nav_calendar())]);
 
         let scene = Rc::new(RefCell::new(GridScene::empty()));
-        let recentre_pending = Rc::new(Cell::new(false));
+        let framing = Rc::new(Framing::default());
         let draw_scene = Rc::clone(&scene);
         drawing.set_draw_func(move |_, context, width, _| {
             draw::draw(&draw_scene.borrow(), context, f64::from(width));
@@ -69,7 +70,7 @@ impl GridSurface {
         let viewport_hits = hits.clone();
         let viewport_scene = Rc::clone(&scene);
         let viewport_sender = sender.clone();
-        let viewport_recentre = Rc::clone(&recentre_pending);
+        let viewport_framing = Rc::clone(&framing);
         root.vadjustment()
             .connect_page_size_notify(move |adjustment| {
                 fit_viewport(
@@ -79,18 +80,20 @@ impl GridSurface {
                     adjustment.page_size(),
                     &viewport_sender,
                 );
-                apply_recentre(adjustment, &viewport_scene, &viewport_recentre);
+                settle_framing(adjustment, &viewport_scene, &viewport_framing);
             });
         let scroll_scene = Rc::clone(&scene);
+        let scroll_framing = Rc::clone(&framing);
         root.vadjustment().connect_value_notify(move |adjustment| {
             scroll_scene
                 .borrow_mut()
                 .set_viewport_top(adjustment.value());
+            scroll_framing.follow(adjustment, &scroll_scene);
         });
         let upper_scene = Rc::clone(&scene);
-        let upper_recentre = Rc::clone(&recentre_pending);
+        let upper_framing = Rc::clone(&framing);
         root.vadjustment().connect_upper_notify(move |adjustment| {
-            apply_recentre(adjustment, &upper_scene, &upper_recentre);
+            settle_framing(adjustment, &upper_scene, &upper_framing);
         });
         let tick_drawing = drawing.clone();
         gtk::glib::timeout_add_seconds_local(60, move || {
@@ -116,7 +119,7 @@ impl GridSurface {
             drawing,
             hits,
             scene,
-            recentre_pending,
+            framing,
             _accessibility_settings: accessibility_settings,
             #[cfg(feature = "dev-harness")]
             perf_started: Rc::new(Cell::new(false)),
@@ -137,11 +140,7 @@ impl GridSurface {
             self.root.vadjustment().page_size(),
             &self.sender,
         );
-        apply_recentre(
-            &self.root.vadjustment(),
-            &self.scene,
-            &self.recentre_pending,
-        );
+        settle_framing(&self.root.vadjustment(), &self.scene, &self.framing);
         #[cfg(feature = "dev-harness")]
         perf::start_if_requested(
             &self.drawing,
@@ -153,50 +152,32 @@ impl GridSurface {
     }
 
     pub(super) fn opened(&self) {
-        self.recentre_pending.set(true);
-        apply_recentre(
-            &self.root.vadjustment(),
-            &self.scene,
-            &self.recentre_pending,
-        );
+        self.framing.open();
+        settle_framing(&self.root.vadjustment(), &self.scene, &self.framing);
     }
 }
 
-fn apply_recentre(adjustment: &gtk::Adjustment, scene: &RefCell<GridScene>, pending: &Cell<bool>) {
-    if !pending.get() {
-        return;
-    }
-    let minutes = {
-        let scene = scene.borrow();
-        let Some((_, minutes)) = now_in(&scene.timezone) else {
-            return;
-        };
-        minutes
-    };
-    apply_recentre_at(adjustment, scene, pending, minutes);
-}
-
-fn apply_recentre_at(
+/// Settles the grid's vertical position, once GTK is out of the layout pass that moved it.
+///
+/// Two of the callers reach this from the scrolled window's own adjustment, and GTK emits those
+/// notifications from inside the viewport's size allocation, where an offset set on the adjustment
+/// moves nothing: the viewport has already placed the grid for this frame, so it asks to be
+/// allocated again, and that request goes the way `request_height`'s does. What is left is an
+/// adjustment holding an offset the grid is not drawn at, which is worse than never framing it at
+/// all: every later render preserves that offset, so the day reads as scrolled somewhere it never
+/// went.
+fn settle_framing(
     adjustment: &gtk::Adjustment,
-    scene: &RefCell<GridScene>,
-    pending: &Cell<bool>,
-    minutes: u32,
+    scene: &Rc<RefCell<GridScene>>,
+    framing: &Rc<Framing>,
 ) {
-    let value = {
-        let scene = scene.borrow();
-        scroll::centred_scroll_value(
-            scene.content_top(),
-            scene.hour_height,
-            minutes,
-            adjustment.page_size(),
-            adjustment.upper(),
-        )
-    };
-    let Some(value) = value else {
+    if !framing.owes(adjustment) {
         return;
-    };
-    pending.set(false);
-    adjustment.set_value(value);
+    }
+    let adjustment = adjustment.clone();
+    let scene = Rc::clone(scene);
+    let framing = Rc::clone(framing);
+    gtk::glib::idle_add_local_once(move || framing.settle(&adjustment, &scene));
 }
 
 fn install_create_gesture(
@@ -323,14 +304,30 @@ fn fit_viewport(
         }
         pixel_size(scene.height().ceil())
     };
-    drawing.set_content_height(height);
-    hits.set_size_request(-1, height);
+    request_height(drawing, hits, height);
     let width = f64::from(drawing.width());
     if width > 0.0 {
         let scene = scene.borrow().clone();
         rebuild_hits(hits, &scene, width, sender);
     }
     drawing.queue_draw();
+}
+
+/// Asks for the day's own height, once GTK is out of the layout pass that decided it.
+///
+/// An hour is as tall as the viewport says, so the height follows a page size GTK announces from
+/// inside the viewport's size allocation, and a height requested there is measured too late: the
+/// grid is allocated again at the height it already had, nothing measures it a second time, and
+/// the scrolled window's `upper` never leaves the page size. The day then has no scroll range at
+/// all and no centre to frame itself on, and stays that way until an unrelated render changes the
+/// height for its own reasons. An idle lands after the frame, where a queued resize is honoured.
+fn request_height(drawing: &gtk::DrawingArea, hits: &gtk::Fixed, height: i32) {
+    let drawing = drawing.clone();
+    let hits = hits.clone();
+    gtk::glib::idle_add_local_once(move || {
+        drawing.set_content_height(height);
+        hits.set_size_request(-1, height);
+    });
 }
 
 fn rebuild_hits(
