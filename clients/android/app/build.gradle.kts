@@ -1,3 +1,4 @@
+import com.android.build.api.artifact.MultipleArtifact
 import com.android.build.api.variant.HostTestBuilder
 import java.util.Properties
 
@@ -345,6 +346,70 @@ tasks.named("preBuild") {
     dependsOn(generateUniffiBindings, generateL10n)
 }
 
+// ---- The core's symbols, in the bundle Play reads them from -------------------------------------
+//
+// Play symbolicates a native crash or ANR from the `.sym` files an app bundle carries under
+// `BUNDLE-METADATA/com.android.tools.build.debugsymbols/`. Every release through 0.9.0 carried none
+// for `libmailcal_bindings.so`, the one library whose crashes are ours to read, so Play warned on
+// each upload and every Rust frame it holds arrived as a bare address.
+//
+// AGP writes those files itself, and skipped ours for a reason neither half chose:
+// `ExtractNativeDebugMetadataTask` compares each merged library with its stripped copy and reads
+// equal lengths as "already stripped, nothing to extract", which `keepDebugSymbols` above
+// guarantees ours are. JNA, which AGP does strip, was the only library in the 0.9.0 bundle to get
+// a `.sym`.
+//
+// `ndk.debugSymbolLevel` is not the missing setting, though the symptom points straight at it: AGP
+// defaults a non-debuggable variant to `SYMBOL_TABLE`, and the extraction does run. The skip is
+// what stops the file being written, so setting the level changes nothing.
+//
+// The file is supplied here instead, through the artifact AGP documents for that: what is appended
+// to `NATIVE_SYMBOL_TABLES` is "combined with extracted debug symbol tables and packaged together".
+// At `SYMBOL_TABLE` level AGP's own extraction is `objcopy --strip-debug`, and build-release.sh
+// builds this library with no DWARF at all, so that command would copy it byte for byte. This
+// copies it, which also leaves no NDK tool to locate (the lookup build-release.sh records getting
+// wrong on Windows). The shipped library is untouched either way, so it keeps the symbol table
+// that makes a Rust backtrace in the user's own diagnostic log readable (docs/logging.md).
+//
+// Matching no library is not an error: a `bundleRelease` in a checkout that never cross-compiled
+// one has no native code for Play to want symbols for. A *release* that loses them must not pass,
+// and every way that can happen (this task matching nothing, the skip moving, an AGP change)
+// reports success, so it is asserted on the packaged bundle by
+// scripts/dev/check-android-native-libs.sh.
+abstract class CoreNativeSymbolsTask : DefaultTask() {
+    /** The cross-compiled cdylibs, one per ABI directory, as build-release.sh left them. */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val libraries: ConfigurableFileCollection
+
+    /** `<abi>/<library>.sym`, the layout the bundle format expects. */
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copySymbols() {
+        val out = outputDir.get().asFile
+        // Cleaned and recreated: an ABI that stops being built must not leave last run's file
+        // behind, and the directory itself is the artifact, so it has to exist even when empty.
+        out.deleteRecursively()
+        out.mkdirs()
+        for (library in libraries.files) {
+            val target = out.resolve("${library.parentFile.name}/${library.name}.sym")
+            target.parentFile.mkdirs()
+            library.copyTo(target, overwrite = true)
+        }
+    }
+}
+
+val coreNativeSymbols = tasks.register<CoreNativeSymbolsTask>("coreNativeSymbols") {
+    description = "Supplies the core cdylib's symbol file to the app bundle, for Play to symbolicate with."
+    libraries.from(
+        layout.projectDirectory.dir("src/main/jniLibs").asFileTree.matching {
+            include("*/libmailcal_bindings.so")
+        },
+    )
+}
+
 // The unit tests run against the debug variant only. Compose's test rule hosts its content in the
 // empty ComponentActivity that `ui-test-manifest` contributes, and that artifact is a
 // `debugImplementation`, adding it to release would merge a test activity into the shipped
@@ -353,6 +418,13 @@ tasks.named("preBuild") {
 androidComponents {
     beforeVariants(selector().withBuildType("release")) { variant ->
         variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+    }
+
+    // Release only: a debuggable variant extracts no symbol tables at all, and packages no bundle.
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.artifacts.use(coreNativeSymbols)
+            .wiredWith(CoreNativeSymbolsTask::outputDir)
+            .toAppendTo(MultipleArtifact.NATIVE_SYMBOL_TABLES)
     }
 }
 
