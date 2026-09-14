@@ -15,13 +15,18 @@ use crate::{
     gate_exec::Runner,
 };
 
-/// The two checkers that stay Python, and why each does.
+/// The three checkers that stay Python, and why each does.
 ///
 /// `check_store_copy_length.py` imports the changelog-fragment parser and the brand reader that
 /// `release.py`, `flatpak_metadata.py`, `announcement.py`, `store_payload.py` and
 /// `msix_manifest.py` share. Porting it would fork them, which is the one thing that file was
 /// written to avoid: a fragment and a listing field must never be read by two subtly different
 /// parsers. It costs a fifth of a second.
+///
+/// `check_platform_mentions.py` reads the same notes through the same parser, for the same reason,
+/// and the store pushes import its rule across two checkouts the way they already import the
+/// limits. Its gate is remote and expensive: Apple has historically rejected an update whose copy
+/// names a competing platform, so finding out in CI rather than here costs a round-trip.
 ///
 /// `check_user_docs.py` checks the help pages, and they are not in this tree (AGENTS.md: they
 /// belong to whoever publishes the app). It skips on the first line here, so porting it would be
@@ -30,6 +35,10 @@ const PYTHON_CHECKS: &[(&str, &str)] = &[
     (
         "store copy (field limits)",
         "scripts/ci/check_store_copy_length.py",
+    ),
+    (
+        "store copy (platform names)",
+        "scripts/ci/check_platform_mentions.py",
     ),
     ("user docs (contract)", "scripts/ci/check_user_docs.py"),
 ];

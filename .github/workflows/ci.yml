@@ -248,6 +248,15 @@ jobs:
         if: ${{ !cancelled() }}
         run: python3 scripts/ci/check_store_copy_length.py
 
+      # The gate this replaces is REMOTE as well, and worse: Apple has historically rejected an
+      # update whose copy names a competing platform, and 0.9.0's macOS note said search had moved
+      # "on Mac, Windows and Linux" in all seven languages. It was caught by hand on the way into
+      # App Store Connect. The iOS section of the same release named nobody, which is what makes
+      # this a copy problem rather than a generator one: nothing about it was systematic.
+      - name: No release note names a platform across the Apple boundary
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/check_platform_mentions.py
+
       # Locale parity, nav reachability, screenshot ids that resolve for every platform a page
       # claims, and an `updated_for` that cannot out-run /VERSION (docs/user-docs.md).
       - name: The user documentation can be published as it stands

@@ -237,11 +237,22 @@ genuinely does not work.
    describes only capabilities the capability matrix marks ✅ for the platform of the store it
    is pasted into. `Platforms:` is how you say that: tag the change with where it landed, and a
    platform that did not get it never sees the bullet. Where one body covers several platforms and
-   one of them lacks a detail, scope that sentence in the text ("On Mac and Windows the calendar now
-   scrolls…") or leave it out, never soft-promise it (see [`store-listing.md`](store-listing.md) →
-   "Deliberately left out"). The brand voice is the listing's: clear, plain, anti-hype,
-   non-technical.
-5. **Consistent with the privacy policy.** Any privacy claim in a note must be true per
+   one of them lacks a detail, **split the fragment** so each side gets its own body, or leave the
+   detail out; never soft-promise it (see [`store-listing.md`](store-listing.md) → "Deliberately
+   left out"). The brand voice is the listing's: clear, plain, anti-hype, non-technical.
+5. **A note names no platform from the other side of the Apple boundary.** A note reaching macOS or
+   iOS may not name Windows, Linux or Android; a note reaching Windows, Android or Linux may not
+   name a Mac, an iPhone, an iPad or their operating systems. Apple has historically rejected an
+   update whose copy names a competing platform, and 0.9.0's macOS note went in saying search had
+   moved "on Mac, Windows and Linux" in all seven languages; it was fixed by hand minutes before
+   submission.
+
+   Naming your own side is fine, and is often the right thing to write ("On Windows, the message
+   list now works with a screen reader"). What has no safe wording is **one body reaching both
+   sides at once**: it is the same text going into App Store Connect and the Microsoft Store, so it
+   may name no platform at all. That is what makes splitting the fragment, rather than scoping the
+   sentence, rule 4's answer. This is enforced.
+6. **Consistent with the privacy policy.** Any privacy claim in a note must be true per
    [`privacy-policy.md`](privacy-policy.md), the same as the listing copy.
 
 ---
@@ -318,8 +329,11 @@ This contract is binding via [`../AGENTS.md`](../AGENTS.md). When you ship a use
    [`privacy-policy.md`](privacy-policy.md), the same two couplings as
    [`store-listing.md`](store-listing.md).
 
-The machine half is the store-copy step of the `checks` job
-([`check_store_copy_length.py`](../scripts/ci/check_store_copy_length.py)): unknown platform tag,
-bad `Bump:`, missing locale, over-cap note. The version-sync step
+The machine half is two steps of the `checks` job. The store-copy step
+([`check_store_copy_length.py`](../scripts/ci/check_store_copy_length.py)) catches an unknown
+platform tag, a bad `Bump:`, a missing locale and an over-cap note; the platform step
+([`check_platform_mentions.py`](../scripts/ci/check_platform_mentions.py)) catches rule 5, in
+pending fragments and in every assembled note. The version-sync step
 ([`cargo xtask check-version-sync`](../xtask/src/version_sync.rs)) proves `/VERSION` names a release
-that has a note. Neither can check whether the note is *true*: that is rule 4, and it is yours.
+that has a note. None of them can check whether the note is *true*: that is rule 4, and it is
+yours.
