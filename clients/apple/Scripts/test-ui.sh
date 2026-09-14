@@ -104,10 +104,17 @@ elif [[ ! -d "$PROJECT" ]]; then
   die "$PROJECT is missing and xcodegen is not installed"
 fi
 
+# `-collect-test-diagnostics never`, because on Xcode 27 the default (`on-failure`) does not
+# work and is not cheap about it: a failing test is followed by "Failure collecting diagnostics
+# from simulator: Timed out after 600.0 seconds", so every red run costs ten extra minutes and then
+# produces nothing. On the runner that is the difference between a job that reports a failed test
+# and one the 20-minute bound cancels, which says nothing about what broke. Nothing here reads a
+# sysdiagnose anyway: no result bundle is kept and no artefact is uploaded.
 ARGS=(
   -project "$PROJECT" -scheme AllodiaMail
   -destination "id=$UDID" -configuration Debug
   -derivedDataPath "$DERIVED_DATA" COMPILER_INDEX_STORE_ENABLE=NO
+  -collect-test-diagnostics never
 )
 if [[ "${#ONLY[@]}" -gt 0 ]]; then
   for test in "${ONLY[@]}"; do ARGS+=(-only-testing:"$TARGET/$test"); done
