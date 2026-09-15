@@ -571,10 +571,17 @@ signing_team() {
   printf '%s\n' "$ou"
 }
 
-# The device's Developer Mode status (enabled|disabled|unknown).
+# One field of a connected device's `devicectl` details: developer-mode, model or os. Empty when
+# this devicectl does not report it. Which JSON paths that means, and why this reads the JSON rather
+# than the listing devicectl prints for a person, are in scripts/dev/ios_devices.py.
+device_detail() { # <udid> <developer-mode|model|os>
+  xcrun devicectl device info details --device "$1" --json-output - 2>/dev/null |
+    python3 "$(dirname "${BASH_SOURCE[0]}")/ios_devices.py" "$2"
+}
+
+# The device's Developer Mode status (enabled|disabled), empty if it could not be read.
 device_dev_mode() { # <udid>
-  xcrun devicectl device info details --device "$1" 2>&1 |
-    sed -nE 's/.*developerModeStatus: *([a-z]+).*/\1/p' | head -1
+  device_detail "$1" developer-mode
 }
 
 # Fail with on-device guidance unless Developer Mode is enabled (required to install a dev build).
