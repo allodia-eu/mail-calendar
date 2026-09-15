@@ -544,7 +544,7 @@ macos_capture() { # <locale> <screen> <out>
 
 # Store-valid screenshot sizes: iPhone 6.9" is 1320x2868, iPad 13" is 2064x2752.
 default_simulator() { # <iphone|ipad>
-  if [[ "$1" == "iphone" ]]; then printf 'iPhone 17 Pro Max\n'; else printf 'iPad Pro 13-inch (M5)\n'; fi
+  if [[ "$1" == "iphone" ]]; then printf 'iPhone 18 Pro Max\n'; else printf 'iPad Pro 13-inch (M5)\n'; fi
 }
 
 SIM_UDID=""
@@ -760,7 +760,7 @@ build_once() {
 #
 # **The device**, because `boot.sh <platform>` and this script resolve DIFFERENT defaults. boot.sh
 # takes whichever simulator is booted; this one takes the store-sized `default_simulator` (an iPhone
-# 17 Pro Max, not the iPhone 17 you may have just been driving). Run one, then the other with
+# 18 Pro Max, not the iPhone 17 you may have just been driving). Run one, then the other with
 # `--no-build`, and you photograph a device you never looked at; measured here, and it cost an
 # afternoon chasing a fix that was already working.
 #

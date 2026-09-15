@@ -44,8 +44,8 @@ TEAM="$(signing_team)" || die "no signing team: set DEVELOPMENT_TEAM=<id> (or ad
 
 cmd_doctor() {
   local model os dm
-  model="$(xcrun devicectl device info details --device "$DEVICE" 2>&1 | sed -nE 's/.*marketingName: *(.+)/\1/p' | head -1)"
-  os="$(xcrun devicectl device info details --device "$DEVICE" 2>&1 | sed -nE 's/.*osVersionNumber: *([0-9.]+).*/\1/p' | head -1)"
+  model="$(device_detail "$DEVICE" model)"
+  os="$(device_detail "$DEVICE" os)"
   dm="$(device_dev_mode "$DEVICE")"
   info "device:          $DEVICE"
   info "model / os:      ${model:-?} / ${os:-?}"

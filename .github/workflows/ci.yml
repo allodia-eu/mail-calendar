@@ -411,7 +411,7 @@ jobs:
   apple:
     # Cross-compile the Rust core to an XCFramework, generate the Xcode project, build the macOS +
     # iOS app targets, and build + run the headless FFI verifier (demo mode — deterministic, no
-    # credentials). Runner: macos-26 — arm64, macOS 26 + Xcode 26.4 (our minimum).
+    # credentials). Runner: xcode-27, arm64, macOS 27 + Xcode 27 (our minimum).
     #
     # ONE job for both platforms, not one each. A macOS leg and an iOS leg would each compile a
     # single Rust slice and a single platform's Swift, which is genuinely half the work, but a
@@ -423,7 +423,7 @@ jobs:
     name: Apple clients (macOS + iOS)
     needs: changes
     if: needs.changes.outputs.apple == 'true'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 20
     permissions:
       contents: read
@@ -476,11 +476,15 @@ jobs:
           # leaves another ~600 MB behind and we are back to fighting the 10 GB budget.
           delete-used-deriveddata-cache: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Select the newest Xcode 26 (26.4+ for Swift 6.3)
+      # `xcode-27` is GitHub's preview label rather than a `macos-NN` one, and it carries exactly
+      # one Xcode, already the default, so there is nothing to select. What is worth doing is
+      # saying so out loud: an image that moves to another Xcode major should turn this job red
+      # rather than quietly build the Apple clients with a compiler this tree does not target.
+      - name: Check the image's Xcode (27 is the first with Swift 6.4)
         run: |
-          APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
-          if [ -n "$APP" ]; then sudo xcode-select -s "$APP"; fi
           xcodebuild -version
+          xcodebuild -version | grep -qE '^Xcode 27([.]|$)' ||
+            { echo "::error::this job needs Xcode 27, and the image has the version above"; exit 1; }
 
       - name: Set up Rust (Apple targets)
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master

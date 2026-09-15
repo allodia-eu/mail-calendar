@@ -1,4 +1,4 @@
-// swift-tools-version:6.3
+// swift-tools-version:6.4
 import PackageDescription
 
 // The shared Apple layer. The Rust core ships as a prebuilt XCFramework (binary target); the
