@@ -1,10 +1,11 @@
-//! Mail-action projections for the Linux message list and reading pane.
+//! What a mail action is, what it dispatches, and the confirmation the irreversible one needs.
+//!
+//! The menus a row offers them through are [`super::mail_actions_menu`].
 
 use adw::prelude::*;
-use gtk::accessible::Property as AccessibleProperty;
-use mailcal_bindings::{BulkAction, FlatRow, FolderRole, Intent, MailboxListSnapshot, SnapshotRow};
+use mailcal_bindings::{BulkAction, FolderRole, Intent, MailboxListSnapshot, SnapshotRow};
 
-use super::{AppInput, AppModel, mailbox, mailbox::ThreadKey, model};
+use super::{AppInput, AppModel, mailbox, mailbox::ThreadKey, model, reader::ReadingSource};
 use crate::l10n;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -112,123 +113,6 @@ pub(super) fn in_junk_folder(snapshot: &MailboxListSnapshot) -> bool {
         .iter()
         .find(|folder| folder.key == selected)
         .is_some_and(|folder| matches!(folder.role, Some(FolderRole::Junk)))
-}
-
-pub(super) fn message_menu_button(
-    row: &FlatRow,
-    in_junk_folder: bool,
-    sender: &relm4::Sender<AppInput>,
-) -> gtk::Box {
-    let target = MessageTarget {
-        account: row.account.clone(),
-        key: row.key.clone(),
-    };
-    action_menu(
-        actions_for(row.unread, row.flagged, in_junk_folder)
-            .into_iter()
-            .map(|action| (action_label(action), target.clone(), action)),
-        sender,
-    )
-}
-
-pub(super) fn thread_menu_button(
-    account: &str,
-    thread_id: &str,
-    sender: &relm4::Sender<AppInput>,
-) -> gtk::Box {
-    let menu = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    menu.set_margin_top(6);
-    menu.set_margin_bottom(6);
-    menu.set_margin_start(6);
-    menu.set_margin_end(6);
-    let archive = gtk::Button::with_label(l10n::thread_archive());
-    archive.add_css_class("flat");
-    let input = sender.clone();
-    let account = account.to_owned();
-    let thread_id = thread_id.to_owned();
-    archive.connect_clicked(move |button| {
-        close_menu(button);
-        input.emit(AppInput::ArchiveThread {
-            account: account.clone(),
-            thread_id: thread_id.clone(),
-        });
-    });
-    menu.append(&archive);
-    menu_button(&menu)
-}
-
-fn action_menu(
-    actions: impl IntoIterator<Item = (&'static str, MessageTarget, ActionKind)>,
-    sender: &relm4::Sender<AppInput>,
-) -> gtk::Box {
-    let menu = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    menu.set_margin_top(6);
-    menu.set_margin_bottom(6);
-    menu.set_margin_start(6);
-    menu.set_margin_end(6);
-    for (label, target, action) in actions {
-        let item = gtk::Button::with_label(label);
-        item.add_css_class("flat");
-        if action == ActionKind::PermanentlyDelete {
-            item.add_css_class("destructive-action");
-        }
-        let input = sender.clone();
-        item.connect_clicked(move |button| {
-            close_menu(button);
-            if action == ActionKind::PermanentlyDelete {
-                input.emit(AppInput::RequestPermanentDelete(target.clone()));
-            } else {
-                input.emit(AppInput::PerformMailAction(Box::new(
-                    MailActionRequest::new(target.clone(), action),
-                )));
-            }
-        });
-        menu.append(&item);
-    }
-    menu_button(&menu)
-}
-
-fn menu_button(menu: &gtk::Box) -> gtk::Box {
-    let popover = gtk::Popover::new();
-    popover.set_child(Some(menu));
-    let button = gtk::Button::from_icon_name("view-more-symbolic");
-    button.set_tooltip_text(Some(l10n::a11y_more_actions()));
-    button.update_property(&[AccessibleProperty::Label(l10n::a11y_more_actions())]);
-    button.add_css_class("flat");
-    button.set_valign(gtk::Align::Center);
-    popover.set_parent(&button);
-    let menu = popover.clone();
-    button.connect_clicked(move |_| menu.popup());
-    button.connect_destroy(move |_| {
-        popover.popdown();
-        popover.unparent();
-    });
-    let container = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    container.append(&button);
-    container
-}
-
-fn close_menu(button: &gtk::Button) {
-    if let Some(popover) = button
-        .ancestor(gtk::Popover::static_type())
-        .and_downcast::<gtk::Popover>()
-    {
-        popover.popdown();
-    }
-}
-
-fn action_label(action: ActionKind) -> &'static str {
-    match action {
-        ActionKind::MarkRead(true) => l10n::action_mark_read(),
-        ActionKind::MarkRead(false) => l10n::action_mark_unread(),
-        ActionKind::SetFlagged(true) => l10n::action_flag(),
-        ActionKind::SetFlagged(false) => l10n::action_unflag(),
-        ActionKind::Archive => l10n::action_archive(),
-        ActionKind::MoveToTrash => l10n::action_move_to_trash(),
-        ActionKind::MarkAsSpam => l10n::action_mark_as_spam(),
-        ActionKind::MarkAsNotSpam => l10n::action_mark_as_not_spam(),
-        ActionKind::PermanentlyDelete => l10n::action_delete_permanently(),
-    }
 }
 
 #[derive(Default)]
@@ -413,11 +297,21 @@ impl AppModel {
             })
     }
 
-    pub(super) fn perform_opened_mail_action(&mut self, action: ActionKind) {
+    /// Archive or Trash from a reading view's own action row.
+    ///
+    /// What is left behind differs by reader, and deliberately so (`docs/reading-window.md`): the
+    /// pane is a place in a list, so it advances to the next message down; a window is one
+    /// message, so once that message has left the folder there is nothing for the window to be
+    /// about and it closes.
+    pub(super) fn perform_opened_mail_action(
+        &mut self,
+        source: &ReadingSource,
+        action: ActionKind,
+    ) {
         if !matches!(action, ActionKind::Archive | ActionKind::MoveToTrash) {
             return;
         }
-        let Some(opened) = self.reading.opened.clone() else {
+        let Some(opened) = self.reader_message(source).cloned() else {
             return;
         };
         let stops = model::readable_stops(&self.snapshot, &self.expanded_threads);
@@ -429,10 +323,15 @@ impl AppModel {
             },
             action,
         ));
-        if let Some(next) = next {
-            self.open_message(next);
-        } else {
-            self.reading.close();
+        match source {
+            ReadingSource::Pane => {
+                if let Some(next) = next {
+                    self.open_message(next);
+                } else {
+                    self.reading.close();
+                }
+            }
+            ReadingSource::Window(window) => self.close_reading_window(&window.clone()),
         }
     }
 
@@ -450,13 +349,23 @@ impl AppModel {
         }
     }
 
-    pub(super) fn retry_open(&self) {
-        if let Some(opened) = &self.reading.opened {
-            self.dispatch(Intent::OpenMessage {
-                account: opened.account.clone(),
-                key: opened.key.clone(),
-            });
-        }
+    /// Asks for the body again, into the slot the reader that asked already owns: a window's
+    /// retry is the pane's retry aimed elsewhere, never a fetch of its own
+    /// (`docs/reading-window.md`).
+    pub(super) fn retry_open(&self, source: &ReadingSource) {
+        let Some(opened) = self.reader_message(source) else {
+            return;
+        };
+        let account = opened.account.clone();
+        let key = opened.key.clone();
+        self.dispatch(match source.window() {
+            None => Intent::OpenMessage { account, key },
+            Some(window) => Intent::OpenMessageInWindow {
+                window: window.to_owned(),
+                account,
+                key,
+            },
+        });
     }
 
     pub(super) fn archive_thread(&mut self, account: &str, thread_id: &str) {

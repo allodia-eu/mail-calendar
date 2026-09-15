@@ -1,25 +1,28 @@
-//! The Linux reading pane: headers, hardened HTML, remote-content choice, and attachments.
+//! The Linux reading view: headers, hardened HTML, remote-content choice, and attachments.
+//!
+//! **One view, two hosts.** It is the third pane beside the message list, and it is the whole of a
+//! detached reading window (`docs/reading-window.md`). What differs is where the body comes from
+//! and which reader the action row names, both carried by [`ReadingSource`]; nothing else here
+//! knows which host it is in, which is what keeps a window from drifting away from the pane it was
+//! opened out of.
 
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{cell::Cell, sync::Arc};
 
 use adw::prelude::*;
-use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::{
     AttachmentRow, CalendarWriteStatus, MailcalApp, ReadingSnapshot, render_message_html,
 };
 
 pub(crate) mod attachments;
 pub(crate) mod canvas;
+mod header;
 mod overflow;
 
 use self::{
     attachments::attachment_row,
     canvas as reading_canvas,
-    overflow::{ExportName, export_name_for, overflow_menu},
+    header::ActionRow,
+    overflow::{ExportName, export_name_for},
 };
 use super::{
     AppInput,
@@ -27,6 +30,7 @@ use super::{
     invitation::InvitationCardView,
     mail_actions::ActionKind,
     model::{OpenedMessage, ReadingState},
+    reader::ReadingSource,
     timestamps,
     webview::{DocumentKind, SecureWebView},
 };
@@ -74,51 +78,28 @@ pub(crate) struct ReadingPane {
     empty: gtk::Label,
     attachments: gtk::Box,
     web: SecureWebView,
-    window: adw::ApplicationWindow,
+    /// Which reader this is, so the action row, the attachment buttons and the invitation card
+    /// name the message *this* view has open rather than whichever the pane last showed.
+    source: ReadingSource,
+    /// The window the file choosers open over: the mailbox window for the pane, the detached
+    /// window for a window, so a save dialog never appears over a different screen.
+    window: gtk::Window,
 }
 
 impl ReadingPane {
-    pub(crate) fn new(window: &adw::ApplicationWindow, sender: relm4::Sender<AppInput>) -> Self {
+    pub(crate) fn new(
+        window: &impl IsA<gtk::Window>,
+        sender: relm4::Sender<AppInput>,
+        source: ReadingSource,
+    ) -> Self {
+        let window: gtk::Window = window.as_ref().clone();
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let toolbar = adw::ToolbarView::new();
-        let header = adw::HeaderBar::new();
-        header.set_show_start_title_buttons(false);
-        // The selection bar above this pane is the mail surface's top row and carries the window's
-        // controls; a second set here would sit a row short of the window's own corner.
-        header.set_show_end_title_buttons(false);
-        // An empty title, or the header falls back to the window's, standing the application's own
-        // name over the message being read.
-        header.set_title_widget(Some(&gtk::Label::new(None)));
-        let reply = action_button("mail-reply-sender-symbolic", l10n::action_reply());
-        let reply_all = action_button("mail-reply-all-symbolic", l10n::action_reply_all());
-        let forward = action_button("mail-forward-symbolic", l10n::action_forward());
-        let archive = action_button("mailcal-archive-symbolic", l10n::action_archive());
-        let trash = action_button("user-trash-symbolic", l10n::action_move_to_trash());
-        let input_sender = sender.clone();
-        reply.connect_clicked(move |_| input_sender.emit(AppInput::BeginReply(false)));
-        header.pack_start(&reply);
-        let input_sender = sender.clone();
-        reply_all.connect_clicked(move |_| input_sender.emit(AppInput::BeginReply(true)));
-        header.pack_start(&reply_all);
-        let input_sender = sender.clone();
-        forward.connect_clicked(move |_| input_sender.emit(AppInput::BeginForward));
-        header.pack_start(&forward);
-        // Packed before archive and trash: `pack_end` fills from the end inward, so the first
-        // widget packed is the rightmost, and the overflow belongs last of all
-        // (`../../../docs/reading-actions.md`).
-        let export_name: ExportName = Rc::new(RefCell::new(String::new()));
-        let (overflow, overflow_button) = overflow_menu(window, &export_name, &sender);
-        header.pack_end(&overflow);
-        let input_sender = sender.clone();
-        archive.connect_clicked(move |_| {
-            input_sender.emit(AppInput::PerformOpenedMailAction(ActionKind::Archive));
-        });
-        header.pack_end(&archive);
-        let input_sender = sender.clone();
-        trash.connect_clicked(move |_| {
-            input_sender.emit(AppInput::PerformOpenedMailAction(ActionKind::MoveToTrash));
-        });
-        header.pack_end(&trash);
+        let ActionRow {
+            header,
+            actions,
+            export_name,
+        } = header::action_row(&window, &source, &sender);
         toolbar.add_top_bar(&header);
 
         let content = gtk::Box::new(gtk::Orientation::Vertical, 10);
@@ -145,8 +126,10 @@ impl ReadingPane {
         let remote_banner = adw::Banner::new(l10n::reading_remote_blocked());
         remote_banner.set_button_label(Some(l10n::action_load_images()));
         let input_sender = sender.clone();
-        remote_banner
-            .connect_button_clicked(move |_| input_sender.emit(AppInput::LoadRemoteImages));
+        let reader = source.clone();
+        remote_banner.connect_button_clicked(move |_| {
+            input_sender.emit(AppInput::LoadRemoteImages(reader.clone()));
+        });
         content.append(&remote_banner);
 
         let invitation = InvitationCardView::new();
@@ -185,7 +168,8 @@ impl ReadingPane {
         error.append(&gtk::Label::new(Some(l10n::reading_load_error())));
         let retry = gtk::Button::with_label(l10n::action_retry());
         let input_sender = sender;
-        retry.connect_clicked(move |_| input_sender.emit(AppInput::RetryOpen));
+        let reader = source.clone();
+        retry.connect_clicked(move |_| input_sender.emit(AppInput::RetryOpen(reader.clone())));
         error.append(&retry);
         body_stack.add_named(&error, Some("error"));
         content.append(&body_stack);
@@ -204,7 +188,7 @@ impl ReadingPane {
             from,
             recipients,
             date,
-            actions: [reply, reply_all, forward, archive, trash, overflow_button],
+            actions,
             export_name,
             remote_banner,
             invitation,
@@ -215,7 +199,8 @@ impl ReadingPane {
             empty,
             attachments,
             web,
-            window: window.clone(),
+            source,
+            window,
         }
     }
 
@@ -278,6 +263,7 @@ impl ReadingPane {
                     clock.zone,
                     clock.use_24_hour,
                     clock.write_status,
+                    &self.source,
                     sender,
                 );
             }
@@ -373,17 +359,14 @@ impl ReadingPane {
         title.add_css_class("heading");
         self.attachments.append(&title);
         for attachment in rows {
-            self.attachments
-                .append(&attachment_row(attachment, &self.window, sender));
+            self.attachments.append(&attachment_row(
+                attachment,
+                &self.window,
+                &self.source,
+                sender,
+            ));
         }
     }
-}
-
-fn action_button(icon: &str, tooltip: &str) -> gtk::Button {
-    let button = gtk::Button::from_icon_name(icon);
-    button.set_tooltip_text(Some(tooltip));
-    button.update_property(&[AccessibleProperty::Label(tooltip)]);
-    button
 }
 
 fn heading_label() -> gtk::Label {

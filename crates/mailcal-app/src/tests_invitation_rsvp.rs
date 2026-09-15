@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use engine_provider::RsvpResponse;
 use fakes::{ALIAS, InvitationFake, MESSAGE_KEY, invitation_app};
 
-use super::{CalendarWriteStatus, Intent, InvitationResponse, MessageRef};
+use super::{CalendarWriteStatus, Intent, InvitationResponse, MessageRef, ReaderId};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -223,8 +223,11 @@ async fn the_card_reports_the_calendars_answer_not_the_frozen_emails() {
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::OpenMessage { message: invite() })
-        .await;
+    app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
+        message: invite(),
+    })
+    .await;
     let card = app
         .reading_view()
         .invitation
@@ -254,8 +257,11 @@ async fn an_invitation_the_calendar_has_moved_past_is_marked_superseded() {
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::OpenMessage { message: invite() })
-        .await;
+    app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
+        message: invite(),
+    })
+    .await;
     let card = app
         .reading_view()
         .invitation
@@ -286,4 +292,44 @@ async fn answering_a_superseded_invitation_is_refused_rather_than_landing_on_the
         "no answer may reach the provider for a superseded invitation"
     );
     assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+}
+
+#[tokio::test]
+async fn an_answer_republishes_to_the_window_showing_it_and_to_no_other_reader() {
+    // Answering republishes the message's card so that it stops offering an answer, and a
+    // detached reading window (`docs/reading-window.md`) draws that card out of its own slot. So
+    // the republish is addressed by *message*: every reader on the invitation, and none of the
+    // readers on something else. Getting the second half wrong would drop the invitation's body
+    // into a window the user had open on an unrelated message.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = invitation_app(InvitationFake::new(), &surfaces);
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(Intent::RefreshCalendar).await;
+
+    let showing = ReaderId::Window("w-invite".to_owned());
+    let elsewhere = ReaderId::Window("w-other".to_owned());
+    app.dispatch(Intent::OpenMessage {
+        reader: showing.clone(),
+        message: invite(),
+    })
+    .await;
+
+    app.dispatch(Intent::RespondToInvitation {
+        message: invite(),
+        response: InvitationResponse::Accept,
+        comment: None,
+        notify_organizer: true,
+        reply_subject: None,
+    })
+    .await;
+
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Saved);
+    assert!(
+        app.reading_view_in(&showing).invitation.is_some(),
+        "the window on the answered invitation still holds a card"
+    );
+    assert!(
+        app.reading_view_in(&elsewhere).key.is_empty(),
+        "a reader that was not showing this message is left empty, not filled with it"
+    );
 }

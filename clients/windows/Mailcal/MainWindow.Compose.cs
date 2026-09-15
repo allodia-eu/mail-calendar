@@ -48,29 +48,21 @@ public sealed partial class MainWindow
             QuoteStylePerMessage: quoting.PerMessage));
     }
 
-    /// <summary>Opens the reply (or reply-all) composer for a message, with the To/Cc the core
-    /// suggests pre-filled and editable.</summary>
-    internal void ComposeReply(string account, string key, bool replyAll, string subject)
-    {
-        var prefill = Model.ReplyRecipients(account, key, replyAll);
-        var quoting = Model.QuoteSettings;
-        BeginCompose(new ComposeRequest(
-            replyAll ? RichComposeKind.ReplyAll : RichComposeKind.Reply,
-            account,
-            key,
-            // A reply opens on the account that received the mail; the user may still send it out
-            // from another, and the core resolves the original in its own account either way.
-            InitialFrom: Model.SendAccount(account)?.Id,
-            InitialTo: prefill?.To ?? string.Empty,
-            InitialCc: prefill?.Cc ?? string.Empty,
-            Quote: QuoteSeedFor(account, key, isForward: false),
-            // Derived by the CORE, not here: the field is editable, so what it opens with is what
-            // gets sent unless the user changes it, and a client-side "Re: " + subject differs
-            // from the core's on a reply to a reply.
-            InitialSubject: MailcalBindingsMethods.ReplySubject(subject),
-            QuoteStyle: quoting.Style,
-            QuoteStylePerMessage: quoting.PerMessage));
-    }
+    /// <summary>Opens the reply (or reply-all) composer for a message in the reading pane's column,
+    /// with the To/Cc the core suggests pre-filled and editable.</summary>
+    internal void ComposeReply(string account, string key, bool replyAll, string subject) =>
+        BeginCompose(ReplyRequest(
+            account, key, replyAll, subject, Model.OpenedMessage, Model.Reading));
+
+    /// <summary>Opens the reply (or reply-all) composer for a message read in a detached window, in
+    /// a composer window of its own (docs/reading-window.md).</summary>
+    /// <remarks>
+    /// The quoted original is that window's body, not the pane's: the two are routinely on
+    /// different messages, which is the whole point of the window.
+    /// </remarks>
+    internal void ComposeReplyInWindow(OpenedMessage opened, ReadingBody? body, bool replyAll) =>
+        OpenComposerWindow(ReplyRequest(
+            opened.Account, opened.Key, replyAll, opened.RawSubject, opened, body));
 
     /// <summary>
     /// Opens an assistant's draft in the composer, <b>unsent</b> (docs/mcp.md), and brings the
@@ -115,60 +107,17 @@ public sealed partial class MainWindow
         BringToForeground();
     }
 
-    /// <summary>Opens the forward composer for a message (recipients entered fresh), holding the
-    /// files the original carries.</summary>
-    /// <remarks>The composer opens <em>after</em> staging, not before: on screen holding nothing
-    /// it can be sent in the window before the files arrive, which is the forward without its
-    /// attachments this staging exists to prevent. Staging reads from the raw source the reading
-    /// pane has already cached, so in the ordinary case there is nothing to wait for.</remarks>
-    internal async void ComposeForward(string account, string key, string subject)
-    {
-        var quoting = Model.QuoteSettings;
-        var quote = QuoteSeedFor(account, key, isForward: true);
-        var directory = Path.Combine(
-            Path.GetTempPath(),
-            "forward-attachments",
-            Guid.NewGuid().ToString("N"));
-        var staged = await Task.Run(
-            () => Model.StageForwardedAttachments(account, key, directory));
-        BeginCompose(new ComposeRequest(
-            RichComposeKind.Forward,
-            account,
-            key,
-            InitialFrom: Model.SendAccount(account)?.Id,
-            InitialTo: string.Empty,
-            InitialCc: string.Empty,
-            Quote: quote,
-            QuoteStyle: quoting.Style,
-            QuoteStylePerMessage: quoting.PerMessage,
-            InitialSubject: MailcalBindingsMethods.ForwardSubject(subject),
-            Attachments: staged,
-            AttachmentsFailed: staged is null));
-    }
+    /// <summary>Opens the forward composer for a message in the reading pane's column, holding the
+    /// files the original carries (recipients entered fresh).</summary>
+    internal async void ComposeForward(string account, string key, string subject) =>
+        BeginCompose(await ForwardRequestAsync(
+            account, key, subject, Model.OpenedMessage, Model.Reading));
 
-    // The quoted original for a reply/forward of (account, key). There is something to quote only
-    // when that message is the one open in the reading pane, its sanitised body is what the quote
-    // seeds from. Replying from the list's context menu to a row that has never been opened
-    // therefore quotes nothing, which is what the dialog did too.
-    private string? QuoteSeedFor(string account, string key, bool isForward)
-    {
-        if (Model.OpenedMessage is not { } opened || opened.Account != account || opened.Key != key)
-        {
-            return null;
-        }
-        // Lengths only, never content (docs/logging.md). Worth a line: a quoted original that
-        // arrives with no HTML half is the case that used to render as an empty quote, and the
-        // difference is invisible on screen once it works.
-        Log.Info($"quote: seeding from html={Model.Reading?.Html?.Length ?? -1} plain={Model.Reading?.Plain?.Length ?? -1} chars");
-        // In showcase mode the designated message also seeds sample reply text, so the store
-        // screenshot shows a written reply rather than an empty composer.
-        return ComposerQuote.SeedJson(
-            Model.QuoteSettings.Style,
-            opened,
-            Model.Reading,
-            isForward,
-            isForward ? null : ShowcaseMode.ReplyText(opened.Account, opened.Key));
-    }
+    /// <summary>Opens the forward composer for a message read in a detached window, in a composer
+    /// window of its own (docs/reading-window.md).</summary>
+    internal async void ComposeForwardInWindow(OpenedMessage opened, ReadingBody? body) =>
+        OpenComposerWindow(await ForwardRequestAsync(
+            opened.Account, opened.Key, opened.RawSubject, opened, body));
 
     // Swap the detail column over to a freshly-built composer. Any composer already up is torn down
     // first, the caller has already asked the user about an unsent draft (ConfirmDiscardDraftAsync),

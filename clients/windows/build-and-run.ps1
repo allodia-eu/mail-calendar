@@ -212,6 +212,15 @@ Write-Host "==> Running the screenshot frame tests" -ForegroundColor Cyan
 & (Join-Path $here 'screenshot-frame.tests.ps1')
 if ($LASTEXITCODE -ne 0) { throw "screenshot frame tests failed" }
 
+# 5c. Reading the app's own log across a rotation, which the UI suite and showcase.ps1 both do to
+#     decide when a launch has reached a state. It runs here for the same reason as 5b: the code
+#     under test is PowerShell, it needs no app and no display, and the state it is about (a
+#     rotation that carries a running session's banner into app.log.1) cannot be staged by
+#     launching anything.
+Write-Host "==> Running the app-log reader tests" -ForegroundColor Cyan
+& (Join-Path $here 'applog.tests.ps1')
+if ($LASTEXITCODE -ne 0) { throw "app-log reader tests failed" }
+
 # The shared composer editor is Content-included from clients/composer/dist by Mailcal.csproj, and
 # that bundle is a committed build output rather than one generated per build, so rebuild it from
 # its TypeScript sources before MSBuild copies it. Without bun it says so and carries on: the

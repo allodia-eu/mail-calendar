@@ -4,12 +4,13 @@ use adw::prelude::*;
 use gtk::{accessible::Property as AccessibleProperty, glib};
 use mailcal_bindings::AttachmentRow;
 
-use super::AppInput;
+use super::{AppInput, ReadingSource};
 use crate::l10n;
 
 pub(super) fn attachment_row(
     attachment: &AttachmentRow,
-    window: &adw::ApplicationWindow,
+    window: &gtk::Window,
+    source: &ReadingSource,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ActionRow {
     // Setters, not the property builder: `g_object_new` applies properties in its own order, so
@@ -27,8 +28,10 @@ pub(super) fn attachment_row(
     let input_sender = sender.clone();
     let id = attachment.id;
     let file_name = attachment.file_name.clone();
+    let reader = source.clone();
     open.connect_clicked(move |_| {
         input_sender.emit(AppInput::OpenAttachment {
+            source: reader.clone(),
             id,
             file_name: file_name.clone(),
         });
@@ -40,15 +43,18 @@ pub(super) fn attachment_row(
     let id = attachment.id;
     let file_name = attachment.file_name.clone();
     let parent = window.clone();
+    let reader = source.clone();
     save.connect_clicked(move |_| {
         let dialog = gtk::FileDialog::builder().initial_name(&file_name).build();
         let input_sender = input_sender.clone();
         let parent = parent.clone();
+        let source = reader.clone();
         glib::MainContext::default().spawn_local(async move {
             if let Ok(file) = dialog.save_future(Some(&parent)).await
                 && let Some(path) = file.path()
             {
                 input_sender.emit(AppInput::SaveAttachment {
+                    source,
                     id,
                     destination: path,
                 });

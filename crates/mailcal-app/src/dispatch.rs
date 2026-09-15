@@ -6,9 +6,29 @@
 
 use engine_api::{AccountId, Provider};
 
-use crate::{App, Intent, Surface, scope::Scope, sync::RefreshProgress};
+use crate::{App, ContactsIntent, Intent, Surface, scope::Scope, sync::RefreshProgress};
 
 impl<P: Provider> App<P> {
+    /// The contacts half of [`Self::dispatch`] ([`ContactsIntent`]), in a method of its own so the
+    /// main match stays one arm per family.
+    async fn dispatch_contacts(&self, intent: ContactsIntent) {
+        match intent {
+            ContactsIntent::RefreshContacts => self.refresh_contacts().await,
+            ContactsIntent::SearchContacts { query } => self.search_contacts(query).await,
+            ContactsIntent::CreateContact {
+                account,
+                address_book,
+                edit,
+            } => self.create_contact(account, address_book, edit).await,
+            ContactsIntent::UpdateContact {
+                person,
+                account,
+                card,
+                edit,
+            } => self.update_contact(person, account, card, edit).await,
+        }
+    }
+
     /// Handles one inbound [`Intent`]. On completion the changed surface is signalled
     /// and the host pulls the new snapshot.
     pub async fn dispatch(&self, intent: Intent) {
@@ -85,7 +105,7 @@ impl<P: Provider> App<P> {
                 self.grow_window();
                 self.rebuild_snapshot().await;
             }
-            Intent::OpenMessage { message } => self.open_message(message).await,
+            Intent::OpenMessage { reader, message } => self.open_message_in(reader, message).await,
             Intent::SubmitMail { to, subject, body } => self.submit_mail(to, subject, body).await,
             Intent::SubmitRichMail {
                 from,
@@ -100,19 +120,7 @@ impl<P: Provider> App<P> {
                     .await;
             }
             Intent::RefreshCalendar => self.refresh_calendar().await,
-            Intent::RefreshContacts => self.refresh_contacts().await,
-            Intent::SearchContacts { query } => self.search_contacts(query).await,
-            Intent::CreateContact {
-                account,
-                address_book,
-                edit,
-            } => self.create_contact(account, address_book, edit).await,
-            Intent::UpdateContact {
-                person,
-                account,
-                card,
-                edit,
-            } => self.update_contact(person, account, card, edit).await,
+            Intent::Contacts(contacts) => self.dispatch_contacts(contacts).await,
             // The mail-mutation handlers report whether the edit applied, for the agent adapter
             // (`mail_ops::result`). An intent stays fire-and-forget: the interactive surface
             // learns the outcome from the optimistic hide being undone and the re-sync, not from

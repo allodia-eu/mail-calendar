@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex, atomic::Ordering};
 
 use fakes::{FakeProvider, account, app, flat_previews, message, msg};
 
-use super::Intent;
+use super::{Intent, ReaderId};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -32,6 +32,7 @@ async fn a_refresh_warms_every_body_so_opens_work_offline_with_no_prior_open() {
 
     for key in ["m1", "m2"] {
         app.dispatch(Intent::OpenMessage {
+            reader: ReaderId::Pane,
             message: msg("acct-1", key),
         })
         .await;
@@ -141,6 +142,7 @@ async fn the_warm_leaves_an_oversized_message_for_the_open_that_asks_for_it() {
 
     // The small one warmed, so it reads with the provider down.
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "small"),
     })
     .await;
@@ -148,6 +150,7 @@ async fn the_warm_leaves_an_oversized_message_for_the_open_that_asks_for_it() {
 
     // The oversized one was left alone; offline it cannot be read, which is the trade.
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "huge"),
     })
     .await;
@@ -176,6 +179,7 @@ async fn raising_the_cap_warms_what_the_default_would_have_skipped() {
     app.dispatch(Intent::RefreshMail).await;
     offline.store(true, Ordering::SeqCst);
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "huge"),
     })
     .await;
@@ -200,6 +204,7 @@ async fn the_warm_covers_a_message_whose_size_the_adapter_never_reported() {
     offline.store(true, Ordering::SeqCst);
 
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "unknown"),
     })
     .await;
@@ -227,6 +232,7 @@ async fn the_warm_pass_covers_the_whole_window_not_a_newest_cap() {
 
     // Message #599 is deep past any 500-message cap; it must still read from the cache.
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m599"),
     })
     .await;
@@ -252,6 +258,7 @@ async fn a_fresh_app_starts_on_the_cap_its_form_factor_chose() {
     app.dispatch(Intent::RefreshMail).await;
     offline.store(true, Ordering::SeqCst);
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "huge"),
     })
     .await;

@@ -30,12 +30,14 @@ mod composer_header;
 mod composer_model;
 mod composer_notice;
 mod composer_open;
+mod composer_quote;
 mod composer_share;
 mod composer_signature;
 mod connectivity;
 mod contacts;
 mod contacts_actions;
 pub(crate) mod destinations;
+mod detached;
 mod dns;
 mod folder_pane;
 mod google;
@@ -46,6 +48,7 @@ mod invitation_actions;
 mod jmap;
 mod jmap_actions;
 mod mail_actions;
+mod mail_actions_menu;
 mod mail_toolbar;
 mod mailbox;
 mod mailbox_display;
@@ -59,7 +62,9 @@ mod notifications;
 mod oauth_actions;
 mod oauth_loopback;
 mod operations;
+mod reader;
 mod reading;
+mod reading_windows;
 mod recipients;
 mod row_action;
 mod runtime_timers;
@@ -93,6 +98,7 @@ mod time_zone;
 mod timestamps;
 mod unfiled_copy;
 mod update;
+mod update_pull;
 mod update_reauth;
 mod web_security;
 mod webview;
@@ -114,6 +120,7 @@ use mailbox::ThreadKey;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 use model::OpenedMessage;
 use model::ReadingState;
+use reading_windows::DetachedDraft;
 use search::SearchState;
 use selection::Selection;
 use setup::SetupState;
@@ -147,6 +154,15 @@ pub(crate) struct AppModel {
     /// any other list, so this client keeps no second copy of them.
     search: SearchState,
     reading: ReadingState,
+    /// The messages open in windows of their own, by the id the core holds each body under
+    /// (`docs/reading-window.md`). The header each was opened on travels with it, so a window
+    /// draws a subject and a sender from its first frame exactly as the pane does.
+    reading_windows: HashMap<String, ReadingState>,
+    /// The window an open asked to be brought forward, and the counter that says the ask is a new
+    /// one. A render sees every model change, and presenting on each would keep pulling a window
+    /// in front of whatever the person moved to since.
+    reading_window_focus: Option<String>,
+    reading_window_seq: u64,
     /// Which reading snapshot the pane has drawn. Bumped on every `Surface::Reading` pull, so the
     /// invitation card is rebuilt when the core publishes a new one and left alone on every other
     /// render; a rebuild mid-render would take a half-typed note to the organiser away.
@@ -154,6 +170,10 @@ pub(crate) struct AppModel {
     pending_mail_delete: Option<DeleteTarget>,
     composer: Option<ComposeRequest>,
     composer_generation: u64,
+    /// The drafts being written in windows of their own, and the counter each is named by. Host
+    /// state: a message exists to the core only once it is sent.
+    composer_windows: Vec<DetachedDraft>,
+    composer_window_seq: u64,
     /// What the composer's error line is showing, or `None` when it shows nothing.
     composer_error: Option<ComposerNotice>,
     /// The message or external draft waiting for the open composer to answer whether it is dirty.
@@ -339,10 +359,15 @@ impl SimpleComponent for AppModel {
             contacts: ContactsModel::default(),
             search: SearchState::default(),
             reading: ReadingState::new(model::empty_reading()),
+            reading_windows: HashMap::new(),
+            reading_window_focus: None,
+            reading_window_seq: 0,
             reading_generation: 0,
             pending_mail_delete: None,
             composer: None,
             composer_generation: 0,
+            composer_windows: Vec::new(),
+            composer_window_seq: 0,
             composer_error: None,
             pending_navigation: None,
             pending_mailto: None,

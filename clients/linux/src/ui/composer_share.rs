@@ -23,6 +23,7 @@ use mailcal_bindings::SharePrefill;
 use super::{
     AppModel, PendingNavigation,
     composer_model::{ComposeKind, ComposeRequest, PickedFile},
+    reader::ComposerHost,
 };
 
 impl ComposeRequest {
@@ -34,6 +35,7 @@ impl ComposeRequest {
     pub(crate) fn from_share(prefill: SharePrefill, initial_from: Option<String>) -> Self {
         Self {
             kind: ComposeKind::New,
+            host: ComposerHost::Pane,
             account: None,
             key: None,
             initial_to: prefill.to,

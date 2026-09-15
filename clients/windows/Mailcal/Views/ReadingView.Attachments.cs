@@ -28,7 +28,7 @@ public sealed partial class ReadingView
 
     private async void OnSaveAttachment(object sender, RoutedEventArgs e)
     {
-        if (_model?.OpenedMessage is not { } opened
+        if (Opened is not { } opened
             || (sender as FrameworkElement)?.DataContext is not MessageAttachment attachment
             || !TryBeginBusy(sender as Button, out var endBusy))
         {
@@ -110,7 +110,7 @@ public sealed partial class ReadingView
 
     private async void OnOpenAttachment(object sender, RoutedEventArgs e)
     {
-        if (_model?.OpenedMessage is not { } opened
+        if (Opened is not { } opened
             || (sender as FrameworkElement)?.DataContext is not MessageAttachment attachment
             || !TryBeginBusy(sender as Button, out var endBusy))
         {

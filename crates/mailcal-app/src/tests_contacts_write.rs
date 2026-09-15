@@ -10,7 +10,7 @@ use engine_core::contact::{ContactField, FieldPatch};
 use mailcal_account::ContactEdit;
 
 use super::*;
-use crate::{ContactWriteStatus, Intent};
+use crate::{ContactWriteStatus, ContactsIntent, Intent};
 
 fn edit(given: &str, surname: &str, email: &str) -> ContactEdit {
     ContactEdit {
@@ -50,7 +50,8 @@ async fn only_writable_books_are_offered_as_destinations() {
         ],
         &surfaces,
     );
-    app.dispatch(Intent::RefreshContacts).await;
+    app.dispatch(Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let targets = app.contact_targets().await;
     assert_eq!(targets.len(), 1, "{targets:?}");
@@ -71,14 +72,15 @@ async fn a_created_contact_reaches_the_list() {
         )],
         &surfaces,
     );
-    app.dispatch(Intent::RefreshContacts).await;
+    app.dispatch(Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
     assert!(app.contacts().rows.is_empty());
 
-    app.dispatch(Intent::CreateContact {
+    app.dispatch(Intent::Contacts(ContactsIntent::CreateContact {
         account: None,
         address_book: None,
         edit: edit("Grace", "Hopper", "grace@example.test"),
-    })
+    }))
     .await;
 
     assert_eq!(app.contact_write_status(), ContactWriteStatus::Saved);
@@ -137,7 +139,8 @@ async fn an_edit_writes_to_the_card_it_names_and_no_other() {
         ],
         &surfaces,
     );
-    app.dispatch(Intent::RefreshContacts).await;
+    app.dispatch(Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let row = app.contacts().rows.remove(0);
     assert_eq!(row.account_count, 2, "the two cards did not merge");
@@ -154,7 +157,7 @@ async fn an_edit_writes_to_the_card_it_names_and_no_other() {
         .find(|card| card.account == "work")
         .expect("the work card");
 
-    app.dispatch(Intent::UpdateContact {
+    app.dispatch(Intent::Contacts(ContactsIntent::UpdateContact {
         person: row.id.clone(),
         account: target.account.clone(),
         card: target.card.clone(),
@@ -164,7 +167,7 @@ async fn an_edit_writes_to_the_card_it_names_and_no_other() {
             emails: vec!["ada@example.test".into()],
             ..ContactEdit::default()
         },
-    })
+    }))
     .await;
 
     assert_eq!(app.contact_write_status(), ContactWriteStatus::Saved);
@@ -210,7 +213,8 @@ async fn a_read_only_card_offers_no_edit() {
         )],
         &surfaces,
     );
-    app.dispatch(Intent::RefreshContacts).await;
+    app.dispatch(Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
     let row = app.contacts().rows.remove(0);
     let detail = app.contact_detail(&row.id).await.expect("the detail");
     assert!(detail.editable_cards.is_empty());
@@ -254,7 +258,8 @@ async fn an_editor_is_seeded_from_the_card_not_from_the_merged_person() {
         ],
         &surfaces,
     );
-    app.dispatch(Intent::RefreshContacts).await;
+    app.dispatch(Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
     let row = app.contacts().rows.remove(0);
 
     let personal = app
@@ -304,19 +309,20 @@ async fn saving_an_unchanged_form_sends_no_write() {
         )],
         &surfaces,
     );
-    app.dispatch(Intent::RefreshContacts).await;
+    app.dispatch(Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
     let row_id = app.contacts().rows.remove(0).id;
     let unchanged = app
         .contact_card(&row_id, "personal", "c-personal")
         .await
         .expect("the card");
 
-    app.dispatch(Intent::UpdateContact {
+    app.dispatch(Intent::Contacts(ContactsIntent::UpdateContact {
         person: row_id.clone(),
         account: "personal".into(),
         card: "c-personal".into(),
         edit: unchanged,
-    })
+    }))
     .await;
 
     assert!(writes.entries().is_empty(), "{:?}", writes.entries());
@@ -331,12 +337,12 @@ async fn saving_an_unchanged_form_sends_no_write() {
         .contact_card(&row_id, "personal", "c-personal")
         .await
         .expect("the card");
-    app.dispatch(Intent::UpdateContact {
+    app.dispatch(Intent::Contacts(ContactsIntent::UpdateContact {
         person: row_id,
         account: "personal".into(),
         card: "c-personal".into(),
         edit: unchanged,
-    })
+    }))
     .await;
     assert_eq!(app.contact_write_status(), ContactWriteStatus::Saved);
     assert!(
@@ -362,22 +368,23 @@ async fn an_unfilable_contact_is_refused_before_anything_is_sent() {
         )],
         &surfaces,
     );
-    app.dispatch(Intent::RefreshContacts).await;
+    app.dispatch(Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
-    app.dispatch(Intent::CreateContact {
+    app.dispatch(Intent::Contacts(ContactsIntent::CreateContact {
         account: None,
         address_book: None,
         edit: ContactEdit::default(),
-    })
+    }))
     .await;
     assert_eq!(app.contact_write_status(), ContactWriteStatus::Invalid);
     assert!(writes.entries().is_empty());
 
-    app.dispatch(Intent::CreateContact {
+    app.dispatch(Intent::Contacts(ContactsIntent::CreateContact {
         account: None,
         address_book: None,
         edit: edit("Grace", "Hopper", "not-an-address"),
-    })
+    }))
     .await;
     assert_eq!(app.contact_write_status(), ContactWriteStatus::Invalid);
     assert!(writes.entries().is_empty());
@@ -401,13 +408,14 @@ async fn a_named_destination_that_is_gone_files_nowhere() {
         )],
         &surfaces,
     );
-    app.dispatch(Intent::RefreshContacts).await;
+    app.dispatch(Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
-    app.dispatch(Intent::CreateContact {
+    app.dispatch(Intent::Contacts(ContactsIntent::CreateContact {
         account: Some("gone".to_owned()),
         address_book: None,
         edit: edit("Grace", "Hopper", "grace@example.test"),
-    })
+    }))
     .await;
     assert!(writes.entries().is_empty(), "{:?}", writes.entries());
     assert!(app.contacts().rows.is_empty());
@@ -415,11 +423,11 @@ async fn a_named_destination_that_is_gone_files_nowhere() {
 
     // Naming neither half still means "wherever contacts go", which is the whole picker for a
     // user with one account.
-    app.dispatch(Intent::CreateContact {
+    app.dispatch(Intent::Contacts(ContactsIntent::CreateContact {
         account: None,
         address_book: None,
         edit: edit("Grace", "Hopper", "grace@example.test"),
-    })
+    }))
     .await;
     assert_eq!(app.contacts().rows.len(), 1);
 }

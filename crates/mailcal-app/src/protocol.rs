@@ -9,9 +9,11 @@ use mailcal_composer::DraftBlobHandle;
 // and the intent enum itself. Their own files so this one stays under the 500-line limit;
 // `lib.rs` re-exports every half, so the split is invisible to a host.
 mod intent;
+mod intent_contacts;
 mod status;
 
 pub use intent::Intent;
+pub use intent_contacts::ContactsIntent;
 pub use status::{CalendarWriteStatus, ContactWriteStatus, SendStatus};
 
 /// A surface a host observes and pulls an immutable snapshot for.

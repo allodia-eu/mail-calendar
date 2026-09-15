@@ -18,7 +18,8 @@
 # It reads the shared log root deliberately: AppPaths.Root keeps app.log out of the per-dev-mode
 # isolated store, "so one file diagnoses whatever ran last on this machine".
 
-$LogPath = Join-Path $env:LOCALAPPDATA 'Allodia\MailCalendar\logs\app.log'
+# $AppLogPath and the readers come from applog.ps1, which the runner dot-sources.
+$LogPath = $AppLogPath
 
 # `2026-08-01 08:14:25.602 +02:00 [info] --- session start (0.2.2, Arm64, Microsoft Windows ...) ---`
 # The version group is matched loosely here and asserted on shape below, so a failure can print
@@ -32,19 +33,20 @@ $VersionPattern = '^\d+\.\d+\.\d+( package \d+\.\d+\.\d+\.\d+)?, .+$'
 
 <#
 .SYNOPSIS
-The newest `--- session start ---` line in app.log, as @{ When = [DateTimeOffset]; Body = string }.
+The newest `--- session start ---` line in the log, as @{ When = [DateTimeOffset]; Body = string }.
 .DESCRIPTION
-Only app.log is read, never the .1-.3 backups: rotation runs BEFORE each write, so the marker of a
-live session is always in the current file.
+Read through applog.ps1 rather than off app.log alone. Rotation runs before EVERY write, not once
+per session, so a live session that logs past the cap has its own marker carried into app.log.1
+while it is still running, and this case would fail a healthy app for having no marker at all.
 #>
 function Get-NewestSessionMarker {
   if (-not (Test-Path -LiteralPath $LogPath)) {
     throw "no log at $LogPath, the app never called Log.Init, or it wrote somewhere else"
   }
-  $line = Get-Content -LiteralPath $LogPath |
+  $line = (Get-AppLogNewestSession) -split "`n" |
     Where-Object { $_ -match ' --- session start \(' } |
     Select-Object -Last 1
-  if (-not $line) { throw "app.log holds no session-start line at all ($LogPath)" }
+  if (-not $line) { throw "the log holds no session-start line at all ($LogPath)" }
   if ($line -notmatch $MarkerPattern) {
     throw "the session-start line does not parse, its shape changed: $line"
   }

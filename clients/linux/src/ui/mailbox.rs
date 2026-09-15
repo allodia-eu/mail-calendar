@@ -11,7 +11,7 @@ pub(super) use super::mailbox_display::MailboxRendering;
 #[cfg(test)]
 pub(super) use super::mailbox_display::display_row;
 use super::{
-    AppInput, avatar, mail_actions,
+    AppInput, avatar, mail_actions_menu,
     mailbox_display::{flat_display, message_display, thread_display},
     model::OpenedMessage,
     row_action, timestamps,
@@ -203,11 +203,6 @@ fn flat_row(
         widget.add_suffix(&attachment_icon());
     }
     widget.add_suffix(&meta_label(&timestamps::relative_date(&display.date, zone)));
-    widget.add_suffix(&mail_actions::message_menu_button(
-        row,
-        in_junk_folder,
-        sender,
-    ));
     let opened = OpenedMessage {
         account: row.account.clone(),
         key: row.key.clone(),
@@ -216,11 +211,47 @@ fn flat_row(
         date: row.date.clone(),
         avatar: display.avatar,
     };
+    widget.add_suffix(&mail_actions_menu::message_menu_button(
+        row,
+        &opened,
+        in_junk_folder,
+        sender,
+    ));
+    opens_in_window(&widget, &opened, sender);
     let input = sender.clone();
     row_action::action_row(&widget, move || {
         input.emit(AppInput::OpenThreadMessage(Box::new(opened.clone())));
     });
     widget
+}
+
+/// A double-click on a message row opens it in a window of its own
+/// (`docs/reading-window.md`).
+///
+/// Bound to the row rather than to the list, which is what keeps it off a conversation's header:
+/// a position in the list resolves to the expander that holds a sub-row, not to the sub-row, and a
+/// header's double-click belongs to its own disclosure.
+///
+/// The gesture only listens. Claiming the sequence would take the click away from `GtkListBox`,
+/// whose single click is what selects a row and opens it in the pane. The pane is left alone all
+/// the same: the list does not activate a row whose press is followed by a second one inside the
+/// double-click interval, so the two clicks that open a window never open one in the pane
+/// (`docs/reading-window.md`).
+fn opens_in_window(
+    row: &impl IsA<gtk::Widget>,
+    opened: &OpenedMessage,
+    sender: &relm4::Sender<AppInput>,
+) {
+    let click = gtk::GestureClick::new();
+    click.set_button(gtk::gdk::BUTTON_PRIMARY);
+    let input = sender.clone();
+    let opened = opened.clone();
+    click.connect_pressed(move |_, presses, _, _| {
+        if presses == 2 {
+            input.emit(AppInput::OpenMessageInWindow(Box::new(opened.clone())));
+        }
+    });
+    row.as_ref().add_controller(click);
 }
 
 /// A conversation: the summary the folder lists it by, expanding into every message on the thread
@@ -255,7 +286,7 @@ fn thread_row(
         widget.add_suffix(&attachment_icon());
     }
     widget.add_suffix(&meta_label(&timestamps::relative_date(&display.date, zone)));
-    widget.add_suffix(&mail_actions::thread_menu_button(
+    widget.add_suffix(&mail_actions_menu::thread_menu_button(
         &row.account,
         &row.thread_id,
         sender,
@@ -319,6 +350,10 @@ fn thread_message_row(
         date: message.date.clone(),
         avatar: display.avatar,
     };
+    widget.add_suffix(&mail_actions_menu::message_window_menu_button(
+        &opened, sender,
+    ));
+    opens_in_window(&widget, &opened, sender);
     let input = sender.clone();
     row_action::action_row(&widget, move || {
         input.emit(AppInput::OpenThreadMessage(Box::new(opened.clone())));
@@ -384,8 +419,16 @@ fn weight_class(unread: bool) -> &'static str {
 pub(super) mod tests;
 
 #[cfg(test)]
+#[path = "mailbox_test_tree.rs"]
+pub(crate) mod test_tree;
+
+#[cfg(test)]
 #[path = "mailbox_thread_tests.rs"]
 mod thread_tests;
+
+#[cfg(test)]
+#[path = "mailbox_window_tests.rs"]
+pub(crate) mod window_tests;
 
 /// The tree-walking helper the widget tests read a rendered page with, shared with the
 /// Settings tests: what a label *shows* is the only honest assertion, wherever the widget came

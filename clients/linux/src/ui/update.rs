@@ -1,69 +1,20 @@
-//! Relm4 input dispatcher, split from the model construction and projection helpers.
+//! Relm4 input dispatcher, split from the model construction and projection helpers. What each
+//! surface signal makes the host read back is [`super::update_pull`].
 
 use adw::prelude::*;
-use mailcal_bindings::{Intent, SendStatus, Surface};
+use mailcal_bindings::{Intent, Surface};
 use relm4::ComponentSender;
 
 use super::{
-    AppInput, AppModel, PrimaryView, composer_model::ComposeKind, connectivity::ConnectivityState,
-    mail_actions::DeleteTarget, model, setup_model, unfiled_copy::UnfiledCopyNotice,
+    AppInput, AppModel, PrimaryView,
+    composer_model::ComposeKind,
+    mail_actions::DeleteTarget,
+    reader::{ComposerHost, ReadingSource},
+    setup_model,
 };
 use crate::l10n;
 
 impl AppModel {
-    fn pull(&mut self, surface: &Surface) {
-        let Some(app) = self.app.clone() else {
-            return;
-        };
-        match surface {
-            Surface::MailboxList => self.pull_mailbox(&app),
-            Surface::Reading => {
-                self.reading.snapshot = app.reading_view();
-                self.reading_generation = self.reading_generation.wrapping_add(1);
-                #[cfg(any(debug_assertions, feature = "dev-harness"))]
-                self.continue_showcase();
-            }
-            Surface::Sending => {
-                self.notice = match app.send_status() {
-                    SendStatus::Sending => Some(l10n::send_status_sending().to_owned()),
-                    SendStatus::Sent => Some(l10n::send_status_sent().to_owned()),
-                    SendStatus::Failed => Some(l10n::send_status_failed().to_owned()),
-                    // Nothing to show, for two different reasons: nothing is in flight, and for
-                    // `SentNotFiled` the standing UnfiledCopy question already says it: with a
-                    // button, which a transient hint has nowhere to put.
-                    SendStatus::Idle | SendStatus::SentNotFiled => None,
-                };
-            }
-            // The question raised when a calendar server stored the answer and then reported it
-            // could not pass it on. The core holds it and clears it; this only mirrors.
-            Surface::InvitationReply => {
-                self.reply_prompt = app.reply_prompt();
-                self.reply_prompt_generation = self.reply_prompt_generation.wrapping_add(1);
-            }
-            Surface::UnfiledCopy => {
-                self.unfiled_copy = app.unfiled_copy().map(|copy| UnfiledCopyNotice {
-                    body: l10n::unfiled_copy_body(&copy.subject),
-                    retrying: copy.retrying,
-                });
-            }
-            // Both progress surfaces share one snapshot and one strip. The foreground bar wins
-            // while active; the hint is the quiet caption for a pass nobody started.
-            Surface::SyncProgress => {
-                let progress = app.sync_progress();
-                self.sync_bar = model::sync_bar(&progress);
-                self.sync_hint = model::sync_hint(&progress, &self.snapshot.accounts);
-            }
-            Surface::Calendar => self.calendar.refresh(&app),
-            Surface::Contacts => self.contacts.refresh(&app),
-            Surface::ContactsStatus => self.contacts.refresh_write_status(&app),
-            Surface::CalendarStatus => self.calendar.refresh_write_status(&app),
-            Surface::Settings => self.calendar.refresh_settings(&app),
-            Surface::Connectivity => {
-                self.connectivity = ConnectivityState::pull(&app, &self.snapshot.accounts);
-            }
-        }
-    }
-
     pub(super) fn update_message(&mut self, message: AppInput, sender: &ComponentSender<Self>) {
         match message {
             AppInput::RefreshRequested => self.dispatch(Intent::RefreshMail),
@@ -200,7 +151,12 @@ impl AppModel {
             AppInput::SetThreadExpanded { thread, expanded } => {
                 self.set_thread_expanded(&thread, expanded);
             }
-            AppInput::RespondToInvitation(answer) => self.respond_to_invitation(*answer),
+            AppInput::OpenMessageInWindow(message) => self.open_reading_window(*message),
+            AppInput::CloseReadingWindow(window) => self.close_reading_window(&window),
+            AppInput::CloseComposerWindow(id) => self.close_composer_window(id),
+            AppInput::RespondToInvitation(source, answer) => {
+                self.respond_to_invitation(&source, *answer);
+            }
             AppInput::AnswerReplyPrompt {
                 send,
                 remember,
@@ -223,7 +179,9 @@ impl AppModel {
             AppInput::ActOnSelection(action) => self.act_on_selection(action),
             AppInput::PerformSelectionAction(action) => self.perform_selection(action),
             AppInput::PerformMailAction(request) => self.perform_mail_action(*request),
-            AppInput::PerformOpenedMailAction(action) => self.perform_opened_mail_action(action),
+            AppInput::PerformOpenedMailAction { source, action } => {
+                self.perform_opened_mail_action(&source, action);
+            }
             AppInput::RequestPermanentDelete(target) => {
                 // A menu opened on a selected row is about the whole selection, so the
                 // confirmation counts it (`docs/list-selection.md`, rule 12).
@@ -243,8 +201,12 @@ impl AppModel {
             AppInput::SetAccountExpanded { account, expanded } => {
                 self.dispatch(Intent::SetAccountExpanded { account, expanded });
             }
-            AppInput::LoadRemoteImages => self.reading.load_remote_images = true,
-            AppInput::RetryOpen => self.retry_open(),
+            AppInput::LoadRemoteImages(source) => {
+                if let Some(reading) = self.reader_mut(&source) {
+                    reading.load_remote_images = true;
+                }
+            }
+            AppInput::RetryOpen(source) => self.retry_open(&source),
             AppInput::OpenMailto(prefill) => self.open_mailto(*prefill),
             AppInput::OpenShare(prefill) => self.open_share(*prefill),
             AppInput::OpenAgentDraft(draft) => {
@@ -253,24 +215,42 @@ impl AppModel {
                     window.present();
                 }
             }
-            AppInput::BeginNew => self.begin_compose(ComposeKind::New),
-            AppInput::BeginReply(reply_all) => self.begin_compose(if reply_all {
-                ComposeKind::ReplyAll
-            } else {
-                ComposeKind::Reply
-            }),
-            AppInput::BeginForward => self.stage_forward(sender.input_sender().clone()),
-            AppInput::ForwardStaged(staged) => self.begin_forward(staged),
-            AppInput::CancelComposer => self.composer = None,
+            AppInput::BeginNew => self.begin_compose(&ReadingSource::Pane, ComposeKind::New),
+            AppInput::BeginReply { source, all } => self.begin_compose(
+                &source,
+                if all {
+                    ComposeKind::ReplyAll
+                } else {
+                    ComposeKind::Reply
+                },
+            ),
+            AppInput::BeginForward(source) => {
+                self.stage_forward(source, sender.input_sender().clone());
+            }
+            AppInput::ForwardStaged(source, staged) => self.begin_forward(&source, staged),
+            // Cancel and a closed window are the same act, and both discard without asking
+            // (`docs/reading-window.md`).
+            AppInput::CancelComposer(host) => match host {
+                ComposerHost::Pane => self.composer = None,
+                ComposerHost::Window(id) => self.close_composer_window(id),
+            },
             AppInput::ComposerDraftChecked(edited) => self.draft_checked(edited),
             AppInput::DiscardDraft => self.take_pending_navigation(),
             AppInput::KeepEditing => self.keep_editing(),
             AppInput::SubmitComposer(submission) => self.submit_composer(&submission),
-            AppInput::SaveAttachment { id, destination } => {
-                self.save_attachment(id, destination, sender.input_sender().clone());
+            AppInput::SaveAttachment {
+                source,
+                id,
+                destination,
+            } => {
+                self.save_attachment(&source, id, destination, sender.input_sender().clone());
             }
-            AppInput::OpenAttachment { id, file_name } => {
-                self.open_attachment(id, &file_name, sender.input_sender().clone());
+            AppInput::OpenAttachment {
+                source,
+                id,
+                file_name,
+            } => {
+                self.open_attachment(&source, id, &file_name, sender.input_sender().clone());
             }
             AppInput::AttachmentSaved(saved) => {
                 self.notice = Some(
@@ -282,8 +262,11 @@ impl AppModel {
                     .to_owned(),
                 );
             }
-            AppInput::ExportMessage { destination } => {
-                self.export_message(destination, sender.input_sender().clone());
+            AppInput::ExportMessage {
+                source,
+                destination,
+            } => {
+                self.export_message(&source, destination, sender.input_sender().clone());
             }
             AppInput::MessageExported(saved) => {
                 self.notice = Some(

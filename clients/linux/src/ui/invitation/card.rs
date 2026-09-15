@@ -28,7 +28,10 @@ use super::{
     attendees, conflicts, notice, preview::PreviewGrid, reply_subject, response, title, when,
     write_line,
 };
-use crate::{l10n, ui::AppInput};
+use crate::{
+    l10n,
+    ui::{AppInput, reader::ReadingSource},
+};
 
 /// What a press on one of the three answers carries back to the model.
 ///
@@ -105,6 +108,7 @@ impl InvitationCardView {
         zone: &str,
         use_24_hour: bool,
         status: CalendarWriteStatus,
+        source: &ReadingSource,
         sender: &relm4::Sender<AppInput>,
     ) {
         self.clear();
@@ -142,7 +146,7 @@ impl InvitationCardView {
             self.body.append(&caption(l10n::invitation_repeats()));
         }
         self.append_description(card);
-        self.append_answer(card, &summary, sender);
+        self.append_answer(card, &summary, source, sender);
         self.append_conflicts(card, zone, use_24_hour);
         // A direct child of the card's box, so `clear` unparents it through `GtkBox::remove` like
         // every other row; a status line nested in the respond row would still be parented to a
@@ -177,6 +181,7 @@ impl InvitationCardView {
         &self,
         card: &InvitationCard,
         summary: &str,
+        source: &ReadingSource,
         sender: &relm4::Sender<AppInput>,
     ) {
         self.body
@@ -190,7 +195,7 @@ impl InvitationCardView {
             self.body.append(&caption(&tally));
         }
         if matches!(card.kind, InvitationKind::Rsvp) {
-            self.append_respond_row(card, summary, sender);
+            self.append_respond_row(card, summary, source, sender);
         }
     }
 

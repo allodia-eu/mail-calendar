@@ -130,7 +130,7 @@ public sealed partial class MailboxModel
         // can be kept off the list (MailboxModel.SwipeSettings.cs).
         .Where(built => !IsRowHidden(built.Id))
         .ToList();
-        Reconcile(Rows, rows, row => row.Id, SameRow);
+        Reconcile(Rows, rows, row => row.Id, SameRow, (row, wanted) => row.CopyFrom(wanted));
         // Record the full count and release the "show more" guard: this snapshot is the answer
         // to any in-flight request, so the view may ask for the next page once it scrolls again.
         _total = snapshot.Total;
@@ -184,10 +184,12 @@ public sealed partial class MailboxModel
 
         // The reading body (a potentially large HTML string) only changes on a Reading
         // signal, pull it just then, not on every mailbox/calendar/settings refresh (mirrors
-        // macOS's `if case .reading = surface`).
+        // macOS's `if case .reading = surface`). The signal names no reader, so every open
+        // detached window re-reads its own slot alongside the pane (docs/reading-window.md).
         if (changed == Surface.Reading)
         {
             PullReading();
+            ReloadReadingWindows();
         }
 
         // A mailbox signal is the live runtime saying it committed mail, so it is also the only
@@ -400,43 +402,31 @@ public sealed partial class MailboxModel
         && a.HasAttachment == b.HasAttachment
         && a.MessageCount == b.MessageCount
         && a.Avatar == b.Avatar
-        && SameFaces(a.Messages, b.Messages);
+        && MailRow.SameFaces(a.Messages, b.Messages);
 
-    // The sub-rows' faces, for the same reason, and it is not covered by the line above: a
-    // thread's own avatar is its LATEST sender's, so an earlier sender's photo arriving in that
-    // second snapshot moves nothing on the header row while the expanded conversation under it
-    // still shows initials.
-    private static bool SameFaces(
-        IReadOnlyList<ThreadMessageItem> a, IReadOnlyList<ThreadMessageItem> b)
-    {
-        if (a.Count != b.Count)
-        {
-            return false;
-        }
-        for (var index = 0; index < a.Count; index++)
-        {
-            if (a[index].Avatar != b[index].Avatar)
-            {
-                return false;
-            }
-        }
-        return true;
-    }
 
     private static bool SameEvent(EventItem a, EventItem b) =>
         a.Title == b.Title && a.StartText == b.StartText && a.OffersDelete == b.OffersDelete;
 
     /// <summary>
     /// Reconciles <paramref name="target"/> toward <paramref name="next"/> in place: items
-    /// matched by <paramref name="key"/> are kept (and replaced only when
-    /// <paramref name="equal"/> reports a content change), gone items removed, new items
-    /// inserted, and survivors moved into order, so unchanged rows keep their container.
+    /// matched by <paramref name="key"/> are kept, gone items removed, new items inserted, and
+    /// survivors moved into order, so unchanged rows keep their container. An item whose content
+    /// changed is handed to <paramref name="update"/> where one is given, and replaced otherwise.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="update"/> is what keeps a CHANGED row's container too. Replacing the item
+    /// makes the ListView build a new container, and WinUI 3 reassigns focus when the element
+    /// holding it goes, which activates that element's window: see MailRow.cs for the reading
+    /// window that fell behind the mailbox because the message it opened had been marked read.
+    /// A type with no change notifications has nothing to update with and still replaces.
+    /// </remarks>
     private static void Reconcile<T>(
         ObservableCollection<T> target,
         IReadOnlyList<T> next,
         Func<T, string> key,
-        Func<T, T, bool> equal)
+        Func<T, T, bool> equal,
+        Action<T, T>? update = null)
     {
         var keep = new HashSet<string>(next.Select(key));
         for (var i = target.Count - 1; i >= 0; i--)
@@ -452,10 +442,7 @@ public sealed partial class MailboxModel
             var wanted = key(next[i]);
             if (i < target.Count && key(target[i]) == wanted)
             {
-                if (!equal(target[i], next[i]))
-                {
-                    target[i] = next[i];
-                }
+                Refresh(target, i, next[i], equal, update);
                 continue;
             }
             var found = -1;
@@ -470,10 +457,7 @@ public sealed partial class MailboxModel
             if (found >= 0)
             {
                 target.Move(found, i);
-                if (!equal(target[i], next[i]))
-                {
-                    target[i] = next[i];
-                }
+                Refresh(target, i, next[i], equal, update);
             }
             else
             {
@@ -484,5 +468,26 @@ public sealed partial class MailboxModel
         {
             target.RemoveAt(target.Count - 1);
         }
+    }
+
+    // Brings the item at `index` up to date with `wanted`, in place where the type can be told to
+    // update itself and by replacement where it cannot.
+    private static void Refresh<T>(
+        ObservableCollection<T> target,
+        int index,
+        T wanted,
+        Func<T, T, bool> equal,
+        Action<T, T>? update)
+    {
+        if (equal(target[index], wanted))
+        {
+            return;
+        }
+        if (update is null)
+        {
+            target[index] = wanted;
+            return;
+        }
+        update(target[index], wanted);
     }
 }

@@ -8,6 +8,7 @@
 use std::sync::{Arc, Mutex};
 
 use super::test_app::{FakeContacts, PNG, app, card_with_photo, image_path, snapshot_from};
+use crate::ContactsIntent;
 
 /// Most people in an address book never send the user mail, so a refresh that re-queued only
 /// the mail list left every contacts-only row a monogram for the session.
@@ -28,7 +29,8 @@ async fn a_contact_who_never_sent_mail_still_gets_their_photo() {
     // A list of somebody else entirely, so the mail surface can never queue this person.
     app.mailbox_list
         .publish(snapshot_from("someone-else@example.test"));
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let contacts = app.contacts();
     let row = contacts
@@ -57,7 +59,8 @@ async fn one_fetch_serves_both_the_mail_list_and_the_contacts_list() {
         &surfaces,
     );
     app.mailbox_list.publish(snapshot_from("ada@example.test"));
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     // The mail row has its face…
     assert!(image_path(&app.mailbox_list.get()).is_some());
@@ -91,7 +94,8 @@ async fn opening_a_contact_draws_the_same_face_the_row_did() {
         },
         &surfaces,
     );
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let row = app
         .contacts()

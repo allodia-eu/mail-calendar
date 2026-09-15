@@ -17,6 +17,7 @@ use crate::{
     ui::{
         AppInput,
         mailbox::tests::{glib_records, labels, rendered_labels},
+        reader::ReadingSource,
     },
 };
 
@@ -62,7 +63,14 @@ fn shown_for(card: &InvitationCard) -> (Vec<String>, Vec<String>) {
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let view = InvitationCardView::new();
     let ((), records) = glib_records(|| {
-        view.apply(card, ZONE, true, CalendarWriteStatus::Idle, &sender);
+        view.apply(
+            card,
+            ZONE,
+            true,
+            CalendarWriteStatus::Idle,
+            &ReadingSource::Pane,
+            &sender,
+        );
     });
     let shown = rendered_labels(view.widget().clone().upcast_ref::<gtk::Widget>());
     (shown, records)
@@ -136,7 +144,14 @@ pub(crate) fn the_note_and_the_tick_appear_only_where_the_transport_carries_them
     // The note is a placeholder rather than a label, so it is asserted on the entry itself.
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let view = InvitationCardView::new();
-    view.apply(&generous, ZONE, true, CalendarWriteStatus::Idle, &sender);
+    view.apply(
+        &generous,
+        ZONE,
+        true,
+        CalendarWriteStatus::Idle,
+        &ReadingSource::Pane,
+        &sender,
+    );
     assert!(
         entries(view.widget().clone().upcast_ref::<gtk::Widget>())
             .iter()
@@ -220,7 +235,14 @@ pub(crate) fn a_settling_write_is_reported_and_a_settled_one_is_not() {
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let view = InvitationCardView::new();
     let card = card();
-    view.apply(&card, ZONE, true, CalendarWriteStatus::Idle, &sender);
+    view.apply(
+        &card,
+        ZONE,
+        true,
+        CalendarWriteStatus::Idle,
+        &ReadingSource::Pane,
+        &sender,
+    );
     let root = view.widget().clone().upcast_ref::<gtk::Widget>().clone();
 
     view.set_write_status(CalendarWriteStatus::Failed);

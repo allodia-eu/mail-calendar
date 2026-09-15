@@ -97,7 +97,7 @@ public sealed partial class ReadingView
 
     private void FallBackToText()
     {
-        var plain = _model?.Reading?.Plain;
+        var plain = BodySnapshot?.Plain;
         RemoteImagesBanner.Visibility = Visibility.Collapsed;
         if (!string.IsNullOrEmpty(plain))
         {

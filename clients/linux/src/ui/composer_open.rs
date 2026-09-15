@@ -13,8 +13,10 @@ use std::{
 
 use super::{
     AppInput, AppModel,
-    composer_model::{ComposeKind, ComposeRequest, PickedFile, initial_sender, quote_seed},
+    composer_model::{ComposeKind, ComposeRequest, PickedFile, initial_sender},
     composer_notice::ComposerNotice,
+    composer_quote::quote_seed,
+    reader::{ComposerHost, ReadingSource},
 };
 
 impl AppModel {
@@ -24,8 +26,8 @@ impl AppModel {
     /// Off the GTK thread: the core decodes and writes every file, and a large one would freeze
     /// the window. It reads from the raw source the reading view has already cached, so in the
     /// ordinary case there is nothing to wait for.
-    pub(super) fn stage_forward(&self, sender: relm4::Sender<AppInput>) {
-        let (Some(app), Some(opened)) = (&self.app, self.reading.opened.as_ref()) else {
+    pub(super) fn stage_forward(&self, source: ReadingSource, sender: relm4::Sender<AppInput>) {
+        let (Some(app), Some(opened)) = (&self.app, self.reader_message(&source)) else {
             return;
         };
         let app = Arc::clone(app);
@@ -52,32 +54,54 @@ impl AppModel {
                         .collect()
                 })
                 .map_err(|_| ());
-            sender.emit(AppInput::ForwardStaged(staged));
+            sender.emit(AppInput::ForwardStaged(source, staged));
         });
     }
 
     /// Opens the forward composer on what staging answered: the files it wrote, or the line that
     /// says they could not be read. An empty list here means the message had nothing attached.
-    pub(super) fn begin_forward(&mut self, staged: Result<Vec<PickedFile>, ()>) {
+    pub(super) fn begin_forward(
+        &mut self,
+        source: &ReadingSource,
+        staged: Result<Vec<PickedFile>, ()>,
+    ) {
         let failed = staged.is_err();
-        self.begin_compose_with(ComposeKind::Forward, staged.unwrap_or_default());
-        if failed {
-            self.composer_error = Some(ComposerNotice::ForwardAttachments);
+        let host =
+            self.begin_compose_with(source, ComposeKind::Forward, staged.unwrap_or_default());
+        if let (true, Some(host)) = (failed, host) {
+            self.show_composer_error(host, ComposerNotice::ForwardAttachments);
         }
     }
 
-    pub(super) fn begin_compose(&mut self, kind: ComposeKind) {
-        self.begin_compose_with(kind, Vec::new());
+    pub(super) fn begin_compose(&mut self, source: &ReadingSource, kind: ComposeKind) {
+        self.begin_compose_with(source, kind, Vec::new());
     }
 
-    fn begin_compose_with(&mut self, kind: ComposeKind, files: Vec<PickedFile>) {
+    /// Opens a composer on what `source` has open, and answers where it went.
+    ///
+    /// A draft raised in the mailbox window replaces the reading pane, which is the shipped
+    /// behaviour (`docs/capabilities.md`, "Composing keeps the mailbox live"); one raised inside a
+    /// reading window opens in a window of its own, because the pane's composer would put the
+    /// draft behind whatever the user is looking at (`docs/reading-window.md`). A new message
+    /// always opens in the pane: only an answer to a window gets a window.
+    fn begin_compose_with(
+        &mut self,
+        source: &ReadingSource,
+        kind: ComposeKind,
+        files: Vec<PickedFile>,
+    ) -> Option<ComposerHost> {
         let Some(app) = &self.app else {
-            return;
+            return None;
         };
-        let opened = self.reading.opened.as_ref();
+        let reading = self.reader(source)?;
+        let opened = reading.opened.as_ref();
         if kind != ComposeKind::New && opened.is_none() {
-            return;
+            return None;
         }
+        let host = match source {
+            ReadingSource::Pane => ComposerHost::Pane,
+            ReadingSource::Window(_) => ComposerHost::Window(self.next_composer_window()),
+        };
         let (initial_to, initial_cc) = match (kind, opened) {
             (ComposeKind::Reply | ComposeKind::ReplyAll, Some(message)) => {
                 let recipients = app.reply_recipients(
@@ -101,7 +125,7 @@ impl AppModel {
             let initial_text: Option<String> = None;
             quote_seed(
                 message,
-                &self.reading.snapshot,
+                &reading.snapshot,
                 &settings.style,
                 kind == ComposeKind::Forward,
                 initial_text.as_deref(),
@@ -120,10 +144,9 @@ impl AppModel {
             }
             _ => String::new(),
         };
-        self.composer_generation = self.composer_generation.wrapping_add(1);
-        self.composer_error = None;
-        self.composer = Some(ComposeRequest {
+        let request = ComposeRequest {
             kind,
+            host,
             account: opened.map(|message| message.account.clone()),
             key: opened.map(|message| message.key.clone()),
             initial_to,
@@ -140,7 +163,16 @@ impl AppModel {
             seeds_signature: true,
             // Empty for every route but a share and a forward, which open holding files.
             files,
-        });
+        };
+        match host {
+            ComposerHost::Pane => {
+                self.composer_generation = self.composer_generation.wrapping_add(1);
+                self.composer_error = None;
+                self.composer = Some(request);
+            }
+            ComposerHost::Window(id) => self.open_composer_window(id, request),
+        }
+        Some(host)
     }
 }
 

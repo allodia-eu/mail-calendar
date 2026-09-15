@@ -21,6 +21,7 @@ use super::{
     mailbox::ThreadKey,
     microsoft::MicrosoftOutcome,
     model::OpenedMessage,
+    reader::{ComposerHost, ReadingSource},
     selection::SelectMode,
     setup_model::{AccountSubmission, ManualForm},
 };
@@ -87,6 +88,16 @@ pub(crate) enum AppInput {
     /// The horizon line's route to the setting that decides how far back a search can reach.
     OpenSyncDepthSettings,
     OpenThreadMessage(Box<OpenedMessage>),
+    /// Open one message in a window of its own: a double-click on its row, or the named item on
+    /// the row's menu (`docs/reading-window.md`). Opening a row whose window is already up brings
+    /// that window forward rather than raising a second one on the same mail.
+    OpenMessageInWindow(Box<OpenedMessage>),
+    /// A reading window has gone, by the id the core holds its body under. The host forgets the
+    /// header and the core drops the body; a closed window may not keep either.
+    CloseReadingWindow(String),
+    /// A composer window has gone: sent, cancelled, or closed, which are the same act because
+    /// closing one discards the draft exactly as Cancel does.
+    CloseComposerWindow(u64),
     SetThreadExpanded {
         thread: ThreadKey,
         expanded: bool,
@@ -110,7 +121,10 @@ pub(crate) enum AppInput {
     /// confirmation, so a pending dialog can never be mistaken for consent.
     PerformSelectionAction(BulkAction),
     PerformMailAction(Box<MailActionRequest>),
-    PerformOpenedMailAction(ActionKind),
+    PerformOpenedMailAction {
+        source: ReadingSource,
+        action: ActionKind,
+    },
     RequestPermanentDelete(MessageTarget),
     DismissPermanentDelete,
     ArchiveThread {
@@ -122,10 +136,10 @@ pub(crate) enum AppInput {
         account: String,
         expanded: bool,
     },
-    /// Answer the invitation the open message carries. The **message** is named where this is
-    /// dispatched, never the event: the answer goes out as the address the invitation matched,
-    /// and only the core knows the address set (`docs/invitations.md` §4).
-    RespondToInvitation(Box<InvitationAnswer>),
+    /// Answer the invitation the named reader's message carries. The **message** is named where
+    /// this is dispatched, never the event: the answer goes out as the address the invitation
+    /// matched, and only the core knows the address set (`docs/invitations.md` §4).
+    RespondToInvitation(ReadingSource, Box<InvitationAnswer>),
     /// Answer the standing "the organiser wasn't told" question. Carries no handle on the meeting,
     /// the core holds the question and clears it as this arrives, so pressing twice cannot email
     /// the organiser twice.
@@ -134,19 +148,25 @@ pub(crate) enum AppInput {
         remember: bool,
         reply_subject: String,
     },
-    LoadRemoteImages,
-    RetryOpen,
+    LoadRemoteImages(ReadingSource),
+    RetryOpen(ReadingSource),
     OpenMailto(Box<MailtoPrefill>),
     OpenShare(Box<SharePrefill>),
     OpenAgentDraft(Box<AgentDraft>),
     BeginNew,
-    BeginReply(bool),
-    BeginForward,
+    /// Reply to what the named reader has open, `all` for reply-all. The reader decides where the
+    /// draft goes: the pane's reply replaces the pane, a window's opens a composer window
+    /// (`docs/reading-window.md`).
+    BeginReply {
+        source: ReadingSource,
+        all: bool,
+    },
+    BeginForward(ReadingSource),
     /// The files the forwarded message carries, staged off the GTK thread, or `Err` when they
     /// could not be read. The composer opens on this rather than on `BeginForward`: on screen
     /// holding nothing it can be sent in the window before they arrive.
-    ForwardStaged(Result<Vec<PickedFile>, ()>),
-    CancelComposer,
+    ForwardStaged(ReadingSource, Result<Vec<PickedFile>, ()>),
+    CancelComposer(ComposerHost),
     /// The open draft's answer to "would anything be lost?": see [`super::composer_draft`].
     ComposerDraftChecked(bool),
     /// Throw the draft away and take the navigation that was waiting on it.
@@ -155,16 +175,19 @@ pub(crate) enum AppInput {
     KeepEditing,
     SubmitComposer(Box<ComposerSubmission>),
     SaveAttachment {
+        source: ReadingSource,
         id: u32,
         destination: PathBuf,
     },
     OpenAttachment {
+        source: ReadingSource,
         id: u32,
         file_name: String,
     },
     AttachmentSaved(bool),
-    /// Write the open message out as the file the user just named.
+    /// Write the named reader's message out as the file the user just named.
     ExportMessage {
+        source: ReadingSource,
         destination: PathBuf,
     },
     MessageExported(bool),
@@ -315,6 +338,9 @@ impl fmt::Debug for AppInput {
             Self::SetSearchScope(_) => "SetSearchScope",
             Self::OpenSyncDepthSettings => "OpenSyncDepthSettings",
             Self::OpenThreadMessage(_) => "OpenThreadMessage",
+            Self::OpenMessageInWindow(_) => "OpenMessageInWindow",
+            Self::CloseReadingWindow(_) => "CloseReadingWindow",
+            Self::CloseComposerWindow(_) => "CloseComposerWindow",
             Self::SetThreadExpanded { .. } => "SetThreadExpanded",
             Self::SelectRow { .. } => "SelectRow",
             Self::SelectAllRows => "SelectAllRows",
@@ -322,24 +348,24 @@ impl fmt::Debug for AppInput {
             Self::ActOnSelection(_) => "ActOnSelection",
             Self::PerformSelectionAction(_) => "PerformSelectionAction",
             Self::PerformMailAction(_) => "PerformMailAction",
-            Self::PerformOpenedMailAction(_) => "PerformOpenedMailAction",
+            Self::PerformOpenedMailAction { .. } => "PerformOpenedMailAction",
             Self::RequestPermanentDelete(_) => "RequestPermanentDelete",
             Self::DismissPermanentDelete => "DismissPermanentDelete",
             Self::ArchiveThread { .. } => "ArchiveThread",
             Self::ActivateSidebar(_) => "ActivateSidebar",
             Self::SetAccountExpanded { .. } => "SetAccountExpanded",
-            Self::RespondToInvitation(_) => "RespondToInvitation",
+            Self::RespondToInvitation(..) => "RespondToInvitation",
             Self::AnswerReplyPrompt { .. } => "AnswerReplyPrompt",
-            Self::LoadRemoteImages => "LoadRemoteImages",
-            Self::RetryOpen => "RetryOpen",
+            Self::LoadRemoteImages(_) => "LoadRemoteImages",
+            Self::RetryOpen(_) => "RetryOpen",
             Self::OpenMailto(_) => "OpenMailto",
             Self::OpenShare(_) => "OpenShare",
             Self::OpenAgentDraft(_) => "OpenAgentDraft",
             Self::BeginNew => "BeginNew",
-            Self::BeginReply(_) => "BeginReply",
-            Self::BeginForward => "BeginForward",
-            Self::ForwardStaged(_) => "ForwardStaged",
-            Self::CancelComposer => "CancelComposer",
+            Self::BeginReply { .. } => "BeginReply",
+            Self::BeginForward(_) => "BeginForward",
+            Self::ForwardStaged(..) => "ForwardStaged",
+            Self::CancelComposer(_) => "CancelComposer",
             Self::ComposerDraftChecked(_) => "ComposerDraftChecked",
             Self::DiscardDraft => "DiscardDraft",
             Self::KeepEditing => "KeepEditing",
