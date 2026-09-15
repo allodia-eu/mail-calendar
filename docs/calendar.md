@@ -74,7 +74,11 @@ failed to load rather than as a scroll position. It is also self-healing on any 
 makes it look intermittent: the user "clicks around a bit" and it comes back.
 
 Android does this in `clampScroll(metrics)`, Windows by deferring its recentre until the viewport is
-real, Apple in `CalendarScreenView.Grid`'s `onChange(of: maxHour)`. A new platform owes its own, and
+real, Apple in `CalendarScreenView.Grid`'s `onChange(of: maxHour)`, Linux by holding the offset as
+the **minute** at the middle of the viewport and putting the grid back on it once the new geometry
+has landed ([`client-traps.md`](client-traps.md)); an hour is as tall as the viewport says, so a
+resize leaves a pixel offset addressing a different time, and on GTK it is clamped against a day
+that has not caught up yet. A new platform owes its own, and
 owes the test, which needs no viewport: recentre against one geometry, change it, and assert the
 offset is still inside the content.
 
