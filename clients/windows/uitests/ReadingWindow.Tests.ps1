@@ -222,6 +222,27 @@ function Show-RowContextMenu {
 
 <#
 .SYNOPSIS
+The item in -Subject's row menu whose label is the catalog's -Key, in whatever locale the app came
+up in, or $null when the menu does not offer it.
+.DESCRIPTION
+Leaves the menu open, so a caller that finds nothing closes it itself.
+#>
+function Find-RowMenuItem {
+  param([Parameter(Mandatory)] [string] $Subject, [Parameter(Mandatory)] [string] $Key)
+  Show-RowContextMenu -Subject $Subject
+  $labels = Get-CatalogValues $Key
+  $item = $null
+  $timer = [Diagnostics.Stopwatch]::StartNew()
+  while (-not $item -and $timer.Elapsed.TotalSeconds -lt 10) {
+    $item = Find-UiaElements -Type 'MenuItem' |
+      Where-Object { $labels -contains $_.Current.Name } | Select-Object -First 1
+    if (-not $item) { Start-Sleep -Milliseconds 200 }
+  }
+  $item
+}
+
+<#
+.SYNOPSIS
 Whether -Handle's window carries an icon of its own.
 .DESCRIPTION
 WM_GETICON, because that is what the title bar, the taskbar and Alt-Tab read. WinUI 3 does not put
@@ -323,6 +344,40 @@ $Suite = @{
       }
     },
     @{
+      Name = 'an unread message opens in a window, though being marked read rewrites its row'
+      Body = {
+        # THE CASE ABOVE PASSES ON A MESSAGE THAT IS ALREADY READ, which is the whole of why the
+        # bug survived it. Opening an unread one marks it read, which rewrites its row, and the
+        # reconcile used to REPLACE the row's item, so the ListView threw away the container the
+        # gesture was working on. Two things follow from that one destruction, and a live mailbox
+        # rewrites rows constantly, so a user met both:
+        #
+        #   * the double-click does not open a window at all, which is what this case catches
+        #     first and what the assertion below reports;
+        #   * a window that did open loses the foreground, because WinUI 3 reassigns focus when
+        #     the element holding it is removed and that activates the mailbox
+        #     (microsoft-ui-xaml#8520). That is what the case above is named for, and it is why
+        #     the foreground is checked here too, well past the mark-read.
+        Close-ExtraWindows
+        $unread = Find-RowMenuItem -Subject $RowSubject -Key 'action_mark_unread'
+        if ($unread) { Invoke-UiaElement $unread }
+        else { [System.Windows.Forms.SendKeys]::SendWait('{ESC}') }
+        # Let the mark-UNREAD rewrite land before the gesture, so the only row rewrite left is the
+        # mark-READ the double-click itself causes. Without this the row moves under the pointer
+        # mid-gesture and the case fails one step earlier, on a window that never opens, which is
+        # the same defect wearing a symptom that hides the one this case is named for.
+        Start-Sleep -Seconds 3
+        Invoke-RowClicks -Subject $RowSubject -Times 2
+        $null = Wait-AppWindow -Title $RowSubject
+        Assert-Equal $RowSubject (Get-ForegroundTitle) 'the window is in front when it opens'
+        Start-Sleep -Seconds 4
+        Assert-Equal $RowSubject (Get-ForegroundTitle) `
+          'and is still in front once the message has been marked read'
+        Assert-True ($null -ne (Get-Process Mailcal -ErrorAction SilentlyContinue)) `
+          'and the app is still running'
+      }
+    },
+    @{
       Name = 'the window carries the whole action row, overflow last'
       Body = {
         Close-ExtraWindows
@@ -358,15 +413,7 @@ $Suite = @{
       Name = 'the context menu opens one too, which is the route without a pointer'
       Body = {
         Close-ExtraWindows
-        Show-RowContextMenu -Subject $RowSubject
-        $labels = Get-CatalogValues 'action_open_in_window'
-        $item = $null
-        $timer = [Diagnostics.Stopwatch]::StartNew()
-        while (-not $item -and $timer.Elapsed.TotalSeconds -lt 10) {
-          $item = Find-UiaElements -Type 'MenuItem' |
-            Where-Object { $labels -contains $_.Current.Name } | Select-Object -First 1
-          if (-not $item) { Start-Sleep -Milliseconds 200 }
-        }
+        $item = Find-RowMenuItem -Subject $RowSubject -Key 'action_open_in_window'
         Assert-True ($null -ne $item) 'the row menu offers "open in new window"'
         Invoke-UiaElement $item
         $null = Wait-AppWindow -Title $RowSubject

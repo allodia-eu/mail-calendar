@@ -48,8 +48,8 @@
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReplyAll()}" Tag="{x:Bind}" Click="OnReplyAll" />
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionForward()}" Tag="{x:Bind}" Click="OnForward" />
                         <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="{x:Bind MarkReadText}" Tag="{x:Bind}" Click="OnToggleRead" />
-                        <MenuFlyoutItem Text="{x:Bind FlagToggleText}" Tag="{x:Bind}" Click="OnToggleFlag" />
+                        <MenuFlyoutItem Text="{x:Bind MarkReadText, Mode=OneWay}" Tag="{x:Bind}" Click="OnToggleRead" />
+                        <MenuFlyoutItem Text="{x:Bind FlagToggleText, Mode=OneWay}" Tag="{x:Bind}" Click="OnToggleFlag" />
                         <MenuFlyoutSeparator />
                         <!-- Archive was missing entirely (it existed only on the *thread* menu), so a
                              mouse-only user could not reach a swipe action bound to it. -->
@@ -68,15 +68,15 @@
                     <Grid Width="7">
                         <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                                  Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                                 Visibility="{x:Bind UnreadVisibility}" />
+                                 Visibility="{x:Bind UnreadVisibility, Mode=OneWay}" />
                     </Grid>
-                    <controls:AvatarView Avatar="{x:Bind Avatar}" />
+                    <controls:AvatarView Avatar="{x:Bind Avatar, Mode=OneWay}" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                    <TextBlock Text="{x:Bind Title}" FontWeight="{x:Bind TitleWeight}"
+                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontWeight="{x:Bind TitleWeight, Mode=OneWay}"
                                TextTrimming="CharacterEllipsis" MaxLines="1" />
-                    <TextBlock Text="{x:Bind Subtitle}" FontWeight="{x:Bind SubtitleWeight}"
+                    <TextBlock Text="{x:Bind Subtitle, Mode=OneWay}" FontWeight="{x:Bind SubtitleWeight, Mode=OneWay}"
                                Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextTrimming="CharacterEllipsis" MaxLines="1" />
@@ -86,12 +86,12 @@
                 <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <FontIcon Glyph="&#xE7C1;" FontSize="14"
                               Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                              Visibility="{x:Bind FlagVisibility}" />
+                              Visibility="{x:Bind FlagVisibility, Mode=OneWay}" />
                     <FontIcon Glyph="&#xE723;" FontSize="14"
                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              Visibility="{x:Bind AttachmentVisibility}" />
+                              Visibility="{x:Bind AttachmentVisibility, Mode=OneWay}" />
                 </StackPanel>
-                <TextBlock Grid.Column="4" Text="{x:Bind DateText}" VerticalAlignment="Center"
+                <TextBlock Grid.Column="4" Text="{x:Bind DateText, Mode=OneWay}" VerticalAlignment="Center"
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
@@ -130,21 +130,21 @@
                         <Grid Width="7">
                             <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                                      Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                                     Visibility="{x:Bind UnreadVisibility}" />
+                                     Visibility="{x:Bind UnreadVisibility, Mode=OneWay}" />
                         </Grid>
-                        <controls:AvatarView Avatar="{x:Bind Avatar}" />
+                        <controls:AvatarView Avatar="{x:Bind Avatar, Mode=OneWay}" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="{x:Bind Title}" FontWeight="{x:Bind TitleWeight}"
+                            <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontWeight="{x:Bind TitleWeight, Mode=OneWay}"
                                        TextTrimming="CharacterEllipsis" MaxLines="1" />
-                            <Border Visibility="{x:Bind CountVisibility}" VerticalAlignment="Center"
+                            <Border Visibility="{x:Bind CountVisibility, Mode=OneWay}" VerticalAlignment="Center"
                                     Background="{ThemeResource ControlFillColorSecondaryBrush}"
                                     CornerRadius="8" Padding="6,0">
-                                <TextBlock Text="{x:Bind CountText}" Style="{StaticResource CaptionTextBlockStyle}" />
+                                <TextBlock Text="{x:Bind CountText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" />
                             </Border>
                         </StackPanel>
-                        <TextBlock Text="{x:Bind Subtitle}" FontWeight="{x:Bind SubtitleWeight}"
+                        <TextBlock Text="{x:Bind Subtitle, Mode=OneWay}" FontWeight="{x:Bind SubtitleWeight, Mode=OneWay}"
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    TextTrimming="CharacterEllipsis" MaxLines="1" />
@@ -152,15 +152,15 @@
                     <!-- Threads carry no flag, so just the paperclip when any message has an attachment. -->
                     <FontIcon Grid.Column="3" Glyph="&#xE723;" FontSize="14" VerticalAlignment="Center"
                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              Visibility="{x:Bind AttachmentVisibility}" />
-                    <TextBlock Grid.Column="4" Text="{x:Bind DateText}" VerticalAlignment="Center"
+                              Visibility="{x:Bind AttachmentVisibility, Mode=OneWay}" />
+                    <TextBlock Grid.Column="4" Text="{x:Bind DateText, Mode=OneWay}" VerticalAlignment="Center"
                                Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </Grid>
 
                 <!-- The expanded conversation: one sub-row per message. Each is a Button so its tap
                      opens that message and does NOT bubble to the list's ItemClick (the toggle). -->
-                <ItemsControl ItemsSource="{x:Bind Messages}" Visibility="{x:Bind SubRowsVisibility, Mode=OneWay}">
+                <ItemsControl ItemsSource="{x:Bind Messages, Mode=OneWay}" Visibility="{x:Bind SubRowsVisibility, Mode=OneWay}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ThreadMessageItem">
                             <Button Tag="{x:Bind}" Click="OnThreadMessageOpen"
