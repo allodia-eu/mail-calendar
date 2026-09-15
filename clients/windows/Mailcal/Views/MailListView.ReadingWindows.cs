@@ -83,9 +83,12 @@ public sealed partial class MailListView
         {
             return;
         }
-        OpenInWindow(opened);
-        // The pane was opened by the first press of this same double-click; put it back.
+        // The pane is put back BEFORE the window is opened, not after. Restoring it moves the
+        // list's selection back too, and that assignment pulls focus to the mailbox: done
+        // afterwards it takes the foreground off the window that was just opened, which is the
+        // window appearing for a moment and then dropping behind the mailbox.
         Model?.RestoreReadingPane(_paneBeforeClick);
+        OpenInWindow(opened);
     }
 
     // The same thing as a named item on the row's context menu. A double-click cannot be reached

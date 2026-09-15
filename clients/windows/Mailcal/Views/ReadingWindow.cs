@@ -11,7 +11,6 @@
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using Windows.Graphics;
 using uniffi.mailcal_bindings;
 
@@ -40,15 +39,14 @@ internal sealed class ReadingWindow : Window
         _model = model;
         _reader = reader;
 
-        var root = new Grid();
-        root.Children.Add(_view);
-        Content = root;
-
-        // Window.Title is what the taskbar, Alt-Tab and UI Automation read. Named after the
-        // message, so two open windows are distinguishable in the window list the OS draws.
-        Title = reader.Opened is { Subject.Length: > 0 } opened ? opened.Subject : L10n.MailNoSubject();
-        SetDefaultSize();
-        WindowChrome.SetAppIcon(AppWindow);
+        // Named after the message, so two open windows are distinguishable in the window list the
+        // OS draws. The icon and the opening size come with the title rather than beside it, so a
+        // window cannot be given one and not the others.
+        WindowChrome.Dress(
+            this,
+            _view,
+            reader.Opened is { Subject.Length: > 0 } opened ? opened.Subject : L10n.MailNoSubject(),
+            new SizeInt32(DefaultWidth, DefaultHeight));
         AppearanceApplied(model.CurrentAppearance);
 
         _view.Init(model, reader, WindowActions());
@@ -97,7 +95,4 @@ internal sealed class ReadingWindow : Window
         _model.CloseReadingWindow(_reader.Id);
         _view.Teardown();
     }
-
-    private void SetDefaultSize() =>
-        AppWindow.Resize(WindowChrome.ToDpi(this, new SizeInt32(DefaultWidth, DefaultHeight)));
 }

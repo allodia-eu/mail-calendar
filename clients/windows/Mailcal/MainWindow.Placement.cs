@@ -3,7 +3,6 @@
 // and the foreground grab an out-of-process OAuth redirect needs. Split out of MainWindow.xaml.cs
 // to keep that file under the 500-line limit.
 
-using System.Runtime.InteropServices;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -117,41 +116,9 @@ public sealed partial class MainWindow
 
     // Force the window to the foreground after an out-of-process activation (the Microsoft OAuth
     // redirect arrives through the browser, so this process doesn't hold foreground rights and a
-    // bare Activate() is ignored, the more so as we're the redirected-to primary instance, not
-    // the one the shell launched). Restore if minimised, then take foreground: when another app
-    // owns it, briefly attach to its input-thread queue, the standard way to bypass the OS's
-    // foreground-stealing lock. Called on the UI thread from Program's activation handler.
-    public void BringToForeground()
-    {
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-        if (IsIconic(hwnd))
-        {
-            ShowWindow(hwnd, SW_RESTORE);
-        }
-        var foreground = GetForegroundWindow();
-        if (foreground != hwnd)
-        {
-            var foreThread = GetWindowThreadProcessId(foreground, out _);
-            var thisThread = GetCurrentThreadId();
-            var attached = foreThread != thisThread && AttachThreadInput(thisThread, foreThread, true);
-            SetForegroundWindow(hwnd);
-            BringWindowToTop(hwnd);
-            if (attached)
-            {
-                AttachThreadInput(thisThread, foreThread, false);
-            }
-        }
-        Activate();
-    }
-
-    private const int SW_RESTORE = 9;
-
-    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hwnd);
-    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hwnd, int cmdShow);
-    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hwnd);
-    [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hwnd);
-    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
-    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
-    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    // bare Activate() is ignored, the more so as we're the redirected-to primary instance, not the
+    // one the shell launched). Shared with the reading and composer windows, which need the same
+    // thing for a different reason (Services/WindowChrome.cs). Called on the UI thread from
+    // Program's activation handler.
+    public void BringToForeground() => WindowChrome.BringToForeground(this);
 }

@@ -11,7 +11,6 @@
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using Windows.Graphics;
 using uniffi.mailcal_bindings;
 
@@ -29,15 +28,14 @@ internal sealed class ComposerWindow : Window
     /// <summary>Opens a window on <paramref name="request"/>.</summary>
     internal ComposerWindow(MailboxModel model, ComposeRequest request)
     {
-        var root = new Grid();
-        root.Children.Add(_view);
-        Content = root;
-
         // Named after the DRAFT, so two open drafts are distinguishable in the window list the OS
         // draws. The subject the composer opens with, falling back to what it is doing when there
         // is none: a forward of an unsubjected message would otherwise be a window called nothing.
-        Title = string.IsNullOrWhiteSpace(request.InitialSubject) ? request.Title : request.InitialSubject;
-        AppWindow.Resize(WindowChrome.ToDpi(this, new SizeInt32(DefaultWidth, DefaultHeight)));
+        WindowChrome.Dress(
+            this,
+            _view,
+            string.IsNullOrWhiteSpace(request.InitialSubject) ? request.Title : request.InitialSubject,
+            new SizeInt32(DefaultWidth, DefaultHeight));
         AppearanceApplied(model.CurrentAppearance);
 
         // Send and Cancel both finish the draft, and both close the window: the composer has no

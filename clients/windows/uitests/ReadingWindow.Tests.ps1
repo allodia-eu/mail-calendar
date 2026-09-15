@@ -61,6 +61,7 @@ Add-Type -Namespace ReadWin -Name Input -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
 [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr h, System.Text.StringBuilder s, int n);
 [DllImport("user32.dll")] public static extern IntPtr SendMessageW(IntPtr h, uint m, IntPtr w, IntPtr l);
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 public delegate bool EnumProc(IntPtr h, IntPtr p);
 '@
 
@@ -221,6 +222,32 @@ function Show-RowContextMenu {
 
 <#
 .SYNOPSIS
+Whether -Handle's window carries an icon of its own.
+.DESCRIPTION
+WM_GETICON, because that is what the title bar, the taskbar and Alt-Tab read. WinUI 3 does not put
+the exe's embedded icon on a window by itself, so every window this app opens has to ask for it,
+and a window added later that forgets is invisible to every other assertion here: it draws, it
+responds, and it simply wears the system default beside its siblings.
+#>
+function Test-WindowIcon {
+  param([Parameter(Mandatory)] $Handle)
+  $small = [ReadWin.Input]::SendMessageW($Handle, 0x7F, [IntPtr] 0, [IntPtr] 0)   # WM_GETICON, SMALL
+  $big = [ReadWin.Input]::SendMessageW($Handle, 0x7F, [IntPtr] 1, [IntPtr] 0)     # WM_GETICON, BIG
+  $small -ne [IntPtr]::Zero -and $big -ne [IntPtr]::Zero
+}
+
+<#
+.SYNOPSIS
+The title of whichever window currently holds the foreground.
+#>
+function Get-ForegroundTitle {
+  $text = New-Object System.Text.StringBuilder 512
+  [void][ReadWin.Input]::GetWindowTextW([ReadWin.Input]::GetForegroundWindow(), $text, 512)
+  $text.ToString()
+}
+
+<#
+.SYNOPSIS
 The subject the reading PANE is showing, or '' when it is on its placeholder.
 #>
 function Get-PaneSubject {
@@ -265,6 +292,34 @@ $Suite = @{
         $null = Wait-AppWindow -Title $RowSubject
         Assert-Equal $OtherSubject (Get-PaneSubject) `
           'the pane keeps the message it had; a window is a second reader, not a replacement'
+      }
+    },
+    @{
+      Name = 'and the window stays in front rather than sinking behind the mailbox'
+      Body = {
+        # THE REGRESSION THIS CASE IS NAMED AFTER. The window appeared, and about fifty
+        # milliseconds later disappeared behind the mailbox. Two separate causes, and the second
+        # one is why a plain foreground check is not enough on its own: Activate() left the
+        # FOREGROUND on the mailbox, and even once the window took it, the mailbox's message list
+        # still held keyboard focus, so the next snapshot reconciled the rows under it, restored
+        # focus there and re-activated the mailbox with it.
+        #
+        # So it is checked twice: once as soon as the window is up, and again after the snapshots
+        # the double-click set off have landed. Only the second one fails on the bug.
+        Close-ExtraWindows
+        Invoke-RowClicks -Subject $OtherSubject
+        Invoke-RowClicks -Subject $RowSubject -Times 2
+        $null = Wait-AppWindow -Title $RowSubject
+        Assert-Equal $RowSubject (Get-ForegroundTitle) `
+          'the window is the one in front once the double-click has settled'
+        Start-Sleep -Seconds 2
+        Assert-Equal $RowSubject (Get-ForegroundTitle) `
+          'and still is a further two seconds later, with the mailbox done reconciling behind it'
+        # The crash that the first attempt at this fix caused: asking the focus manager to search a
+        # window whose visual tree has not loaded throws, out of a double-click handler, taking the
+        # process with it. Every assertion above would have read green on the way down.
+        Assert-True ($null -ne (Get-Process Mailcal -ErrorAction SilentlyContinue)) `
+          'and the app is still running'
       }
     },
     @{
@@ -341,6 +396,15 @@ $Suite = @{
         $draft = [System.Windows.Automation.AutomationElement]::FromHandle($draftWindow.Handle)
         Assert-True ($null -ne (Find-UiaElement -AutomationId 'ToField' -Root $draft)) `
           'and it is the full composer, not a stub'
+        Assert-Equal $draftWindow.Title (Get-ForegroundTitle) `
+          'the draft is the window in front: it is what the user just asked for'
+        # Every window this app opens wears the brand, including the third one. The composer window
+        # shipped without it once, because the icon was a line to remember beside the title rather
+        # than something the window could not be built without.
+        foreach ($window in Get-ExtraWindows) {
+          Assert-True (Test-WindowIcon $window.Handle) `
+            "the '$($window.Title)' window carries the app icon"
+        }
       }
     },
     @{

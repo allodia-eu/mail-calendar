@@ -26,18 +26,25 @@ public sealed partial class MainWindow
     /// One window per message (docs/reading-window.md). The model answers the same reader for a
     /// second open of one message and dispatches nothing, so the branch below is which window to
     /// raise, never whether to fetch again.
+    /// <para>
+    /// Presented rather than merely activated, either way. <c>Activate()</c> puts a new window at
+    /// the top of the z-order and leaves the FOREGROUND on the mailbox, which is still mid-input
+    /// because the double-click that asked for this window is still being delivered to it; Windows
+    /// then restores its foreground window to the top and the new one drops behind it about fifty
+    /// milliseconds after appearing (Services/WindowChrome.cs).
+    /// </para>
     /// </remarks>
     internal void OpenReadingWindow(OpenedMessage opened)
     {
         var reader = Model.OpenReadingWindow(opened);
         if (_readingWindows.Find(w => w.ReaderId == reader.Id) is { } existing)
         {
-            existing.Activate();
+            WindowChrome.Present(existing);
             return;
         }
         var window = new ReadingWindow(Model, reader);
         _readingWindows.Add(window);
-        window.Activate();
+        WindowChrome.Present(window);
         Log.Info("reading window: opened");
     }
 
@@ -47,7 +54,7 @@ public sealed partial class MainWindow
     {
         var window = new ComposerWindow(Model, request);
         _composerWindows.Add(window);
-        window.Activate();
+        WindowChrome.Present(window);
         Log.Info("composer window: opened");
     }
 
