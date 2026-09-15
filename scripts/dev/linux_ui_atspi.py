@@ -228,30 +228,47 @@ def node_showing(node: Any) -> bool:
         return False
 
 
+def preferred_action(node: Any) -> int | None:
+    """The index of the action an activation maps to, or `None` when the node offers none.
+
+    Which actions those are is `PREFERRED_ACTIONS`, and the distinction is not decoration: a
+    node can carry actions that no activation means. Every GTK label answers the text interface,
+    so it publishes `clipboard.copy`, `selection.select-all` and six more; asking whether a node
+    "has an action" therefore answers yes for the one node in a row that cannot be pressed.
+    """
+    available = [name.casefold() for name in action_names(node)]
+    return next(
+        (available.index(preferred) for preferred in PREFERRED_ACTIONS if preferred in available),
+        None,
+    )
+
+
 def actionable_match(matches: list[Any], fallback: Any) -> Any:
     """Pick the match that can actually be acted on.
 
-    libadwaita publishes `AdwSwitchRow` and the `GtkSwitch` inside it under the **same name and
-    the same role**, and only the inner one carries the `toggle` action. Walk order reaches the
-    row first, so taking the first match finds the one node that cannot be pressed and then
-    reports the control as having no action.
+    One control reaches the bus as several nodes sharing a name, and walk order reaches the one
+    that cannot be pressed first. libadwaita publishes `AdwSwitchRow` and the `GtkSwitch` inside
+    it under the same name **and the same role**, and only the inner one carries `toggle`; an
+    agenda row puts its title label before the button that opens the event. Taking the first
+    match finds the node with no action and reports the control as having none.
+
+    A label is not skipped by counting actions, which is why this asks `preferred_action`: see
+    there for what a label publishes.
     """
-    return next((node for node in matches if action_names(node)), fallback)
+    return next((node for node in matches if preferred_action(node) is not None), fallback)
 
 
 def activate_node(node: Any) -> bool:
     """Invoke an enabled semantic action exposed by the accessible node."""
     if not node_enabled(node):
         return False
+    action = preferred_action(node)
+    if action is None:
+        return False
     try:
-        interface = node.queryAction()
-        available = [str(interface.getName(index)).casefold() for index in range(interface.nActions)]
-        for preferred in PREFERRED_ACTIONS:
-            if preferred in available:
-                return bool(interface.doAction(available.index(preferred)))
+        return bool(node.queryAction().doAction(action))
     except Exception:
-        pass
-    return False
+        return False
 
 
 def set_node_text(node: Any, value: str) -> bool:
