@@ -106,7 +106,7 @@ for abi in "${ABIS[@]}"; do NDK_ABI_ARGS+=(-t "$abi"); done
 #
 # `CARGO_PROFILE_RELEASE_STRIP=debuginfo` is the equivalent one-liner if a build ever needs the
 # stripping to happen after codegen instead; measured, the two agree to within 2.4 KiB deflated.
-(cd "$ROOT" && CARGO_PROFILE_RELEASE_DEBUG=0 cargo ndk "${NDK_ABI_ARGS[@]}" -o "$HERE/app/src/main/jniLibs" build -p mailcal-bindings --release ${CORE_FEATURES[@]+"${CORE_FEATURES[@]}"})
+(cd "$ROOT" && CARGO_PROFILE_RELEASE_DEBUG=0 cargo ndk "${NDK_ABI_ARGS[@]}" -o "$HERE/app/src/main/jniLibs" build -p mailcal-bindings --release "${CORE_FEATURES[@]}")
 
 for abi in "${ABIS[@]}"; do
   so="$HERE/app/src/main/jniLibs/$abi/libmailcal_bindings.so"

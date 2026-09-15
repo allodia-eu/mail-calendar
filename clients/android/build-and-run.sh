@@ -108,7 +108,7 @@ if [[ -n "${MAILCAL_APPEARANCE:-}" ]]; then
   echo "==> Launching with MAILCAL_APPEARANCE=$MAILCAL_APPEARANCE"
   START_EXTRAS+=(-e MAILCAL_APPEARANCE "$MAILCAL_APPEARANCE")
 fi
-"$ADB" shell am start -n "$PKG/.MainActivity" ${START_EXTRAS[@]+"${START_EXTRAS[@]}"} >/dev/null
+"$ADB" shell am start -n "$PKG/.MainActivity" "${START_EXTRAS[@]}" >/dev/null
 sleep 4
 
 echo "==> Capturing screenshot + the round-trip log line"

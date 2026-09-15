@@ -4,6 +4,15 @@
 # other scripts; not run directly. Keep this the single place that knows a bundle id, a package
 # name, or a log path, so the boot / logs / screenshot / control scripts stay in agreement.
 
+# Every script in this tree is bash 5 (AGENTS.md, "Building & verifying"). Guarded here because
+# this file is the prelude nearly all of them source; the few that do not carry the same block
+# themselves. macOS's own /bin/bash is 3.2, so the message names the fix.
+if [[ ${BASH_VERSION%%.*} -lt 5 ]]; then
+  echo "error: ${0##*/} needs bash 5 or newer, and got ${BASH_VERSION:-no bash at all}" >&2
+  echo "       macOS ships bash 3.2 as /bin/bash: \`brew install bash\` puts 5 ahead of it" >&2
+  exit 1
+fi
+
 # Resolve the repo root from this file's location (scripts/dev/lib.sh -> repo root), so the
 # scripts work regardless of the caller's working directory.
 DEV_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -446,7 +455,7 @@ showcase_marker_for() { # <locale> [screen]
   local cap
   case "$1" in
     en | nl | de | fr | es | it | pt)
-      cap="$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]')${1:1}"
+      cap="${1^}"
       if [[ "${2:-}" == "add-account" ]]; then
         printf '%s %s language)' "$SHOWCASE_FIRST_RUN_LOG_MARKER" "$cap"
       else

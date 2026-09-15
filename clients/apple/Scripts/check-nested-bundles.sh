@@ -20,6 +20,14 @@
 # Kept out of package.sh so it can be exercised against fixture trees with no Xcode, no signing and
 # no archive: scripts/dev/tests/test_check_nested_bundles.py. A release gate nobody can run is a
 # release gate that rots.
+
+# Bash 5 or newer, like every script in this tree (AGENTS.md, "Building & verifying").
+if [[ ${BASH_VERSION%%.*} -lt 5 ]]; then
+  echo "error: ${0##*/} needs bash 5 or newer, and got ${BASH_VERSION:-no bash at all}" >&2
+  echo "       macOS ships bash 3.2 as /bin/bash: \`brew install bash\` puts 5 ahead of it" >&2
+  exit 1
+fi
+
 set -euo pipefail
 
 fail() { echo "error: $*" >&2; exit 1; }
@@ -83,7 +91,7 @@ done < <(find "$APP" \( -name '*.app' -o -name '*.appex' -o -name '*.xpc' \) -ty
        usually a build phase that declared an output inside the product on a platform where it
        copies nothing, see clients/apple/project.yml → MCP_RELAY_OUTPUT."
 
-for name in ${FORBID[@]+"${FORBID[@]}"}; do
+for name in "${FORBID[@]}"; do
   found="$(find "$APP" -name "*${name}*" | head -5)"
   if [[ -n "$found" ]]; then
     echo "$found" | sed 's|^|    |' >&2

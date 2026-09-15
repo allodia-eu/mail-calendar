@@ -433,6 +433,23 @@ jobs:
       - name: Check out the product core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # This tree's scripts are bash 5, and a macOS image ships 3.2 as `/bin/bash` and nothing else,
+      # so every Apple step below would stop on its first line without this. Linux and Windows
+      # runners need nothing: ubuntu is on 5.x and `shell: bash` on a windows runner is Git Bash,
+      # also 5.x. `HOMEBREW_NO_AUTO_UPDATE` because refreshing the whole formula index costs far
+      # more than the one bottle being installed, and this job pins nothing to a formula version.
+      - name: Install bash 5
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+        run: |
+          brew install bash
+          # Asserted rather than assumed: installing it is not the same as PATH preferring it, and
+          # a 3.2 that keeps winning would fail the next step instead of this one.
+          bash --version | head -1
+          [ "$(bash -c 'printf %s "${BASH_VERSION%%.*}"')" -ge 5 ] ||
+            { echo "::error::bash on PATH is still $(bash --version | head -1)"; exit 1; }
+
       # Xcode's build cache. A git checkout stamps every source file with a fresh mtime, which
       # would invalidate DerivedData, so this action restores the recorded mtimes alongside it.
       # (SourcePackages caching does nothing here: MailcalKit has no external SwiftPM

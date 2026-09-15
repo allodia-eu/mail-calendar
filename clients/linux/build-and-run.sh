@@ -113,11 +113,11 @@ if [[ "$TARGET" == sdk ]]; then
     [[ -n "${!name:-}" ]] && exec_env+=("--env=$name=${!name}")
   done
   if [[ "$DETACH" == 1 ]]; then
-    launch_detached sdk_exec ${exec_env[@]+"${exec_env[@]}"} "$(sdk_target_dir)/debug/mailcal-linux"
+    launch_detached sdk_exec "${exec_env[@]}" "$(sdk_target_dir)/debug/mailcal-linux"
     exit 0
   fi
   # A shell function, so no `exec`: the launcher waits on flatpak instead of replacing itself.
-  sdk_exec ${exec_env[@]+"${exec_env[@]}"} "$(sdk_target_dir)/debug/mailcal-linux"
+  sdk_exec "${exec_env[@]}" "$(sdk_target_dir)/debug/mailcal-linux"
   exit $?
 fi
 

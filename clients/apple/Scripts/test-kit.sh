@@ -11,6 +11,14 @@
 # MailcalUI and Xcode's overwrite each other in Build/Products/Debug, and from then on neither the
 # suite nor the macOS app is ever up to date: measured at 26-32s apiece on every run, against
 # 1-3s when they are kept apart.
+
+# Bash 5 or newer, like every script in this tree (AGENTS.md, "Building & verifying").
+if [[ ${BASH_VERSION%%.*} -lt 5 ]]; then
+  echo "error: ${0##*/} needs bash 5 or newer, and got ${BASH_VERSION:-no bash at all}" >&2
+  echo "       macOS ships bash 3.2 as /bin/bash: \`brew install bash\` puts 5 ahead of it" >&2
+  exit 1
+fi
+
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)" # clients/apple

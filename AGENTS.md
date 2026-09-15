@@ -280,6 +280,17 @@ would fork them, which is the one thing that file exists to prevent. `check_user
 help pages this tree does not carry, so it skips on its first line here. Together they cost a third
 of a second.
 
+**Every shell script here is bash 5, and each one checks `$BASH_VERSION` before it does anything
+else.** So `mapfile`, `${x^^}` and a plain `"${a[@]}"` over an empty array under `set -u` are all
+available, and each is what this tree writes; a script that avoids one is working around a shell it
+will never meet. macOS is the host the floor is aimed at: its own `/bin/bash` is 3.2, and
+`#!/usr/bin/env bash` takes whatever `PATH` offers first, so `brew install bash` is a one-time
+setup step there. The guard is what turns an older shell into one legible line rather than an
+"unbound variable" from the middle of a build. Linux distributions and Git Bash already ship 5, so
+only the macOS CI job installs anything ([`ci.yml`](.github/workflows/ci.yml)), and
+[`bashtools.py`](scripts/dev/bashtools.py) holds the same floor for the interpreter the Python
+suites spawn.
+
 **On Windows the shell is Git Bash, a prerequisite rather than a preference.** The gate itself does
 not need it, which is most of why the checks live in a binary; what is still bash is the harness,
 the capture drivers, each client's own build script, and the scripts the Python suites drive.

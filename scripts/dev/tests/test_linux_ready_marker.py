@@ -71,13 +71,9 @@ class WaitForLogMarker(unittest.TestCase):
     def run_wait(self, script: str) -> subprocess.CompletedProcess[str]:
         """Runs `script` with `lib.sh` in scope and returns what the shell said.
 
-        ⚠️ A stand-in client that `script` starts in the background MUST send its own output to
-        `/dev/null`. The capture here is a pipe, a background job inherits it, and `kill`ing that
-        job does not reach the `sleep` it is blocked in: bash 3.2, which is what `/bin/bash` is on
-        macOS, does not exec the last command of a subshell over itself, so the `sleep` survives as
-        an orphan holding the pipe open. Nothing then reaches end-of-file until it exits on its own,
-        and the test spends the full 120 seconds before reporting a timeout that says nothing about
-        the barrier under test. bash 5 does exec it, so the same test passes on the Linux runner.
+        A stand-in client that `script` starts in the background sends its own output to
+        `/dev/null`: the capture here is a pipe a background job would otherwise inherit and hold
+        open past the `kill`, and nothing reaches end-of-file until it lets go.
         """
         body = textwrap.dedent(
             f"""

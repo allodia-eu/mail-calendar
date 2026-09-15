@@ -101,7 +101,7 @@ sdk_cargo() {
     --env=CARGO_BUILD_BUILD_DIR="$(sdk_build_dir)" \
     --env=RUSTC_WRAPPER= \
     --env=CARGO_HOME="$HOME/.cargo" \
-    ${SDK_CARGO_EXTRA[@]+"${SDK_CARGO_EXTRA[@]}"} \
+    "${SDK_CARGO_EXTRA[@]}" \
     --command=sh "org.gnome.Sdk//$version" -c \
     'export PATH=/usr/lib/sdk/rust-stable/bin:$PATH; cd "$1"; shift; exec cargo "$@"' \
     -- "$REPO_ROOT" "$@"
@@ -145,7 +145,7 @@ sdk_exec() {
     --unset-env=__EGL_VENDOR_LIBRARY_FILENAMES \
     --unset-env=__GLX_VENDOR_LIBRARY_NAME \
     --unset-env=GALLIUM_DRIVER \
-    ${extra[@]+"${extra[@]}"} \
+    "${extra[@]}" \
     --command="$binary" "org.gnome.Sdk//$version" "$@"
 }
 
@@ -165,7 +165,7 @@ sdk_test() {
     require_cmd xvfb-run
     require_cmd dbus-run-session
     SDK_TEST_SESSION=1 exec xvfb-run --auto-servernum dbus-run-session -- \
-      "$SDK_SH" test ${@+"$@"}
+      "$SDK_SH" test "$@"
   fi
   SDK_CARGO_EXTRA=(
     --share=ipc
@@ -175,7 +175,7 @@ sdk_test() {
     --env=GSK_RENDERER=cairo
     --env=LIBGL_ALWAYS_SOFTWARE=1
   )
-  sdk_cargo test ${@+"$@"}
+  sdk_cargo test "$@"
 }
 
 # Prints the toolkit versions the runtime carries, so a run says what it was verified against.
@@ -200,7 +200,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     versions) sdk_versions; echo ;;
     available) sdk_available && echo yes || { echo no; exit 1; } ;;
     cargo) shift; sdk_cargo "$@" ;;
-    test) shift; sdk_test ${@+"$@"} ;;
+    test) shift; sdk_test "$@" ;;
     exec) shift; sdk_exec "$@" ;;
     *) sed -n '2,16p' "${BASH_SOURCE[0]}"; exit 1 ;;
   esac

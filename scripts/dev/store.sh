@@ -22,6 +22,7 @@
 # to, so don't paste its output into an issue or a PR without reading it first. Prefer
 # `--store dev` (the harness mailbox) when the bug reproduces there.
 set -euo pipefail
+shopt -s extglob   # assert_read_only trims a run of leading characters with one expansion
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 DB_NAME="mailcal.sqlite"
@@ -36,7 +37,7 @@ while [[ $# -gt 0 ]]; do
     *) ARGS+=("$1"); shift ;;
   esac
 done
-set -- ${ARGS[@]+"${ARGS[@]}"}
+set -- "${ARGS[@]}"
 cmd="${1:-path}"
 
 case "$STORE" in real|dev|dev-imap) ;; *) die "unknown --store '$STORE' (real|dev|dev-imap)" ;; esac
@@ -139,7 +140,9 @@ run_sql() {
 }
 
 assert_read_only() {
-  local head; head="$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | sed 's/^[[:space:](]*//')"
+  # Judged on the first keyword, so `  ( select …` has to lose its leading space and parens first.
+  local head="${1^^}"
+  head="${head##+([[:space:](])}"
   case "$head" in
     SELECT*|WITH*|PRAGMA*|EXPLAIN*) ;;
     *) die "refusing: only SELECT / WITH / PRAGMA / EXPLAIN are allowed (got: ${1:0:40}…)" ;;

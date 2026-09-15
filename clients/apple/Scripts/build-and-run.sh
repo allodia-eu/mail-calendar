@@ -445,7 +445,7 @@ Accounts ▸ Manage Certificates), or set DEVELOPMENT_TEAM=<id>"
     while IFS='=' read -r name _; do
       [[ "$name" == MAILCAL_* ]] && dev_env+=("$name=${!name}")
     done < <(env)
-    device_launch "$DEVICE" ${dev_env[@]+"${dev_env[@]}"}
+    device_launch "$DEVICE" "${dev_env[@]}"
     echo "==> Logs: scripts/dev/device.sh logs   (the log stays in the app's container on the device)"
   fi
 else

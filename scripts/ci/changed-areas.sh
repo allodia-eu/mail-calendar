@@ -18,6 +18,14 @@
 #   FORCE_AREAS   "all", or a comma-separated subset of rust,apple,windows,android,linux. Skips
 #                 detection entirely; the manual-dispatch escape hatch for a trigger that missed
 #                 a build.
+
+# Bash 5 or newer, like every script in this tree (AGENTS.md, "Building & verifying").
+if [[ ${BASH_VERSION%%.*} -lt 5 ]]; then
+  echo "error: ${0##*/} needs bash 5 or newer, and got ${BASH_VERSION:-no bash at all}" >&2
+  echo "       macOS ships bash 3.2 as /bin/bash: \`brew install bash\` puts 5 ahead of it" >&2
+  exit 1
+fi
+
 set -euo pipefail
 
 rust=false

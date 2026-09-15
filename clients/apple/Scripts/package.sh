@@ -28,6 +28,14 @@
 #
 # Signing config is read from the git-ignored clients/apple/signing.local.sh (copy the .example and
 # fill it in), nothing secret is committed. One-time cert/notary setup: clients/apple/README.md.
+
+# Bash 5 or newer, like every script in this tree (AGENTS.md, "Building & verifying").
+if [[ ${BASH_VERSION%%.*} -lt 5 ]]; then
+  echo "error: ${0##*/} needs bash 5 or newer, and got ${BASH_VERSION:-no bash at all}" >&2
+  echo "       macOS ships bash 3.2 as /bin/bash: \`brew install bash\` puts 5 ahead of it" >&2
+  exit 1
+fi
+
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"       # clients/apple
@@ -614,7 +622,7 @@ xcodebuild \
   ARCHS=arm64 \
   "${SIGN_ARGS[@]}" \
   "${VERSION_ARGS[@]}" \
-  ${EXPORT_EXTRA[@]+"${EXPORT_EXTRA[@]}"} \
+  "${EXPORT_EXTRA[@]}" \
   archive
 
 # ---- Flow D: iOS/iPadOS device export (.ipa you can install) -----------------------------------
@@ -632,7 +640,7 @@ if [[ "$FLOW" == ios-device ]]; then
     -exportOptionsPlist "$EXPORT_PLIST" \
     -exportPath "$EXPORT" \
     -allowProvisioningUpdates \
-    ${ASC_AUTH_ARGS[@]+"${ASC_AUTH_ARGS[@]}"}
+    "${ASC_AUTH_ARGS[@]}"
 
   IPA="$(/usr/bin/find "$EXPORT" -maxdepth 1 -name '*.ipa' | head -1)"
   [[ -n "$IPA" && -f "$IPA" ]] || fail "export produced no .ipa, check the log above."
@@ -755,7 +763,7 @@ $(echo "$IOS_DIST_CANDIDATES" | sed 's/^/         /')
     -exportOptionsPlist "$EXPORT_PLIST" \
     -exportPath "$EXPORT" \
     -allowProvisioningUpdates \
-    ${ASC_AUTH_ARGS[@]+"${ASC_AUTH_ARGS[@]}"}
+    "${ASC_AUTH_ARGS[@]}"
 
   IPA="$(/usr/bin/find "$EXPORT" -maxdepth 1 -name '*.ipa' | head -1)"
   [[ -n "$IPA" && -f "$IPA" ]] || fail "export produced no .ipa, check the log above."
@@ -997,7 +1005,7 @@ xcodebuild -exportArchive \
   -archivePath "$ARCHIVE" \
   -exportOptionsPlist "$EXPORT_PLIST" \
   -exportPath "$EXPORT" \
-  ${EXPORT_EXTRA[@]+"${EXPORT_EXTRA[@]}"}
+  "${EXPORT_EXTRA[@]}"
 
 # ---- Flow A: notarize (optional) + .dmg --------------------------------------------------------
 APP="$EXPORT/$APP_NAME"
@@ -1044,7 +1052,7 @@ while IFS= read -r item; do
 done < <(nested_code_items "$APP")
 if [[ "$NESTED_SIGNED" -eq 1 ]]; then
   codesign --force --options runtime --timestamp \
-    ${ENTS_ARGS[@]+"${ENTS_ARGS[@]}"} \
+    "${ENTS_ARGS[@]}" \
     --sign "$DEVELOPER_ID_IDENTITY" "$APP"
 fi
 
