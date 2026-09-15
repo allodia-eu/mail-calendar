@@ -138,6 +138,7 @@
     <!-- The writable-paths resolution, in particular the dev-isolation mapping every preference
          store rides (AppPathsTests), which must agree with the engine-store subdir. WinUI-free. -->
     <Compile Include="..\Mailcal\Services\AppPaths.cs" Link="Services\AppPaths.cs" />
+    <Compile Include="..\Mailcal\Services\Updates.cs" Link="Services\Updates.cs" />
     <!-- Which appearance a launch paints in: the DEBUG-only override, else the core's stored
          choice. The override is the lever the showcase and UI suites pull to photograph both
          themes without touching the developer's desktop, and a spelling it silently ignores would
