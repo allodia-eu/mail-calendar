@@ -35,8 +35,13 @@ its own disclosure).
 forward rather than opening a second one on the same message.
 
 **It leaves the pane alone.** The pane keeps the message it had and the list keeps its selection:
-opening a second reader must not disturb the first, which is the whole point of the window. It
-also means a double-click can never raise the unsent-draft prompt, because it takes nothing away.
+opening a second reader must not disturb the first, which is the whole point of the window.
+
+Where the toolkit delivers a double-click as its own event, nothing else happens first and the
+gesture can never raise the unsent-draft prompt either, because it takes nothing away. Where the
+list raises an ordinary click on the first press, the pane is put back instead, and that weaker
+form is a **known gap** rather than a different rule: the end state is the same and the prompt is
+the part that is lost.
 
 **The window is a full reading view**, and `reading-actions.md` binds it entire: the same header,
 recipients, invitation card, attachment bar and body, and the same action row in the same order,
@@ -93,7 +98,9 @@ mailbox, and leaving them behind leaves the app running as a scatter of message 
 way back to the list.
 
 **Reopening the app brings the mailbox back on the same core**, without a relaunch: the process
-never ended, so no account reconnects and no sync starts again.
+never ended, so no account reconnects and no sync starts again. Only where the platform keeps an
+app alive with no windows; where closing the last window ends the process, there is nothing to
+reopen and the rule that binds is the one above, that a second launch is not a second app.
 
 **Windows are not restored across launches.** A window is a view onto a message this session
 opened; at the next launch its header and its body are both gone, so it would open blank. Where a
@@ -117,26 +124,37 @@ capability matrix claims.
 
 | | macOS | Windows | Linux | iOS/iPadOS | Android |
 |---|:---:|:---:|:---:|:---:|:---:|
-| One core per process (no second main window) | ✅ | ⬜ | ✅ | — | — |
-| Double-click a row → reading window | ✅ | ⬜ | ✅ | — | — |
-| "Open in new window" on the row's context menu | ✅ | ⬜ | ✅ | — | — |
-| Full action row in the window | ✅ | ⬜ | ✅ | — | — |
-| Reply / forward → composer window | ✅ | ⬜ | ✅ | — | — |
-| Main window closing sweeps both | ✅ | ⬜ | ✅ | — | — |
+| One core per process (no second main window) | ✅ | ✅ | ✅ | — | — |
+| Double-click a row → reading window | ✅ | ✅ | ✅ | — | — |
+| "Open in new window" on the row's context menu | ✅ | ✅ | ✅ | — | — |
+| Full action row in the window | ✅ | ✅ | ✅ | — | — |
+| Reply / forward → composer window | ✅ | ✅ | ✅ | — | — |
+| Main window closing sweeps both | ✅ | ✅ | ✅ | — | — |
+
+**How each desktop satisfies the first row**, the question this contract opened and each client
+has now answered of its own toolkit. macOS had a real second core behind SwiftUI's ⌘N and that
+command is removed. WinUI offers no such command, the shell creates exactly one `MainWindow`, and
+a second launch redirects to the running process (`AppInstance.FindOrRegisterForKey`). GTK offers
+none either, and `GApplication` hands a second launch to the process already running.
 
 ## Known gaps
 
-- **Windows has none of it yet.** The core half is done and is platform-neutral: the reader-keyed
-  slot, `Intent::OpenMessage`'s `window` form, `reading_window_view` and `close_reading_window`
-  are all on the FFI surface that client already consumes. What is missing is its windows.
-- **Whether ⌘N's equivalent builds a second core on Windows has not been checked.** It was true on
-  macOS and is fixed there; on Linux `GApplication` hands a second launch to the process already
-  running and the toolkit offers no "New Window" to remove. Windows needs the same question asked
-  of its own toolkit before it claims the first row above.
-- **On Linux the mailbox closing ends the app**, so "reopening on the same core" does not arise
-  there: GTK quits with its last application window, which is that desktop's own convention. The
-  sweep still matters, because it is what stops the message windows outliving the list they were
-  opened from.
+- **On Windows the first press of a double-click still opens the row in the pane, and is undone.**
+  The list raises its own click on that press, before anything can know a window was wanted, so the
+  pane is put back once the double-tap arrives and the trailing click is refused. The end state is
+  the contract's, and the pane usually never repaints, because it goes on drawing what it had while
+  the correction runs. What this does not give is macOS's stronger property: a double-click *can*
+  raise the unsent-draft prompt there, because the first press is an ordinary click. Anyone who
+  finds a way to defer that press without adding latency to every single click should take it.
+- **Closing the mailbox ends the app on Windows and Linux**, so "reopening on the same core" does
+  not arise on either: GTK quits with its last application window and Windows has no state where an
+  app outlives its windows, and both are their desktop's own convention. The sweep still matters,
+  because it is what stops the message windows outliving the list they were opened from, and a
+  second launch is still not a second app.
+- **Archive and delete closing the window is hand-verified on Windows, not gated.** Proving it
+  automatically spends a seeded message on the shared harness and nothing puts one back, so the UI
+  suite covers every other rule and leaves that one to a person
+  (`clients/windows/uitests/ReadingWindow.Tests.ps1` says so in place).
 - **A reading window does not follow the message.** Moving or deleting the message from somewhere
   else leaves the window showing what it had; only an invitation's own card is republished. The
   window is closed by the archive and delete on *its* action row, not by the same action taken

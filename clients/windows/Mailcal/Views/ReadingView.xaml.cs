@@ -20,8 +20,18 @@ using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Views;
 
-/// <summary>The reading pane: a header plus the open message's fetched body, or a placeholder
-/// when no message is selected.</summary>
+/// <summary>
+/// A reading view: a header plus the open message's fetched body, or a placeholder when nothing
+/// is being read.
+/// </summary>
+/// <remarks>
+/// <b>One view, two hosts.</b> It is the third pane beside the message list (sidebar | list |
+/// reading) and it is the whole of a detached reading window (docs/reading-window.md). What
+/// differs between them is which of the core's reading slots it reads (<see cref="ReadingReader"/>)
+/// and what the action row does (<see cref="ReadingActions"/>), both handed in; nothing below
+/// knows which host it is in, which is what keeps a window from drifting away from the pane it was
+/// opened out of.
+/// </remarks>
 public sealed partial class ReadingView : UserControl
 {
     private MailboxModel? _model;
@@ -31,6 +41,21 @@ public sealed partial class ReadingView : UserControl
     /// renders: the count shown while several rows are selected.
     /// </summary>
     public MailboxModel? Model => _model;
+
+    /// <summary>Which of the core's reading slots this view draws.</summary>
+    private ReadingReader? _reader;
+
+    /// <summary>What the action row does, which is the one thing a window changes about it.</summary>
+    private ReadingActions? _actions;
+
+    /// <summary>The message being read, from whichever slot this view was given.</summary>
+    private OpenedMessage? Opened => _reader?.Opened;
+
+    /// <summary>
+    /// That message's fetched body, or <c>null</c> until it lands. Not <c>Body</c>: that is the
+    /// WebView2 the HTML half renders into.
+    /// </summary>
+    private ReadingBody? BodySnapshot => _reader?.Body;
 
     /// <summary>Whether the user opted to load this message's remote images (reset per message).</summary>
     private bool _loadRemoteImages;
@@ -54,31 +79,48 @@ public sealed partial class ReadingView : UserControl
             CalendarColors.Parse(MailcalBindingsMethods.MessageCanvas().Background));
     }
 
-    /// <summary>Binds the view to the shared model and re-renders on reading-state changes.</summary>
-    public void Init(MailboxModel model)
+    /// <summary>Binds the view to the shared model as the <b>reading pane</b>: it reads the pane's
+    /// slot, and its action row does what the pane's has always done.</summary>
+    public void Init(MailboxModel model) =>
+        Init(model, new PaneReader(model), ReadingActions.ForPane(model));
+
+    /// <summary>Binds the view to one reading slot and one set of actions, and re-renders on
+    /// reading-state changes.</summary>
+    internal void Init(MailboxModel model, ReadingReader reader, ReadingActions actions)
     {
         _model = model;
+        _reader = reader;
+        _actions = actions;
         this.Bindings.Update();
-        model.PropertyChanged += (_, e) =>
+        reader.Changed += (_, what) =>
         {
-            if (e.PropertyName == nameof(MailboxModel.OpenedMessage))
+            if (what == ReadingChange.Opened)
             {
                 OnOpenedChanged();
             }
-            else if (e.PropertyName == nameof(MailboxModel.Reading))
+            else
             {
                 Render();
             }
-            else if (e.PropertyName == nameof(MailboxModel.CalendarWrite))
+        };
+        model.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MailboxModel.CalendarWrite))
             {
                 // An invitation answer settles on the calendar's own write surface. Only the card's
                 // respond row moves, see OnCalendarWriteChanged for why this is not a Render().
                 OnCalendarWriteChanged();
             }
         };
-        // Set the initial resting state (no message selected yet → the placeholder).
+        // Set the initial resting state (the pane's placeholder; a window opens on its own row).
         Render();
     }
+
+    /// <summary>
+    /// Releases the body's browser process. For a host that goes away, which on the desktop is a
+    /// reading window closing; the pane lives as long as the shell and never calls it.
+    /// </summary>
+    internal void Teardown() => Body.Close();
 
     private void OnRetry(object sender, RoutedEventArgs e) => _model?.RetryOpen();
 
@@ -147,58 +189,35 @@ public sealed partial class ReadingView : UserControl
         DeleteLabel.Visibility = visibility;
     }
 
-    // Reply / reply-all / forward hand off to the shell, which opens the composer in this pane's
-    // slot (MainWindow.Compose.cs), the To/Cc pre-fill, the From account, and the quoted original
-    // are all derived there, so the list's context menu and this toolbar open the same composer by
-    // the same route. Nothing needs guarding here: any draft that was open is this pane's own, and
-    // replying to the message you are reading while already writing about it isn't reachable, the
-    // toolbar is gone the moment the composer takes the column.
-    private void OnReply(object sender, RoutedEventArgs e) => BeginCompose(replyAll: false);
+    // The action row acts on the message this view is reading, through the actions its host handed
+    // in: the pane replies into its own column and advances to the next message down, a window
+    // replies into a composer window of its own and closes on archive or delete
+    // (docs/reading-window.md). Which of the two is in force is decided once, at Init, so every
+    // button below is the same button in both hosts.
+    private void OnReply(object sender, RoutedEventArgs e) => Act(a => a.Reply, replyAll: false);
 
-    private void OnReplyAll(object sender, RoutedEventArgs e) => BeginCompose(replyAll: true);
+    private void OnReplyAll(object sender, RoutedEventArgs e) => Act(a => a.Reply, replyAll: true);
 
-    private void BeginCompose(bool replyAll)
+    private void Act(Func<ReadingActions, Action<OpenedMessage, bool>> pick, bool replyAll)
     {
-        if (_model?.OpenedMessage is not { } opened)
+        if (_actions is { } actions && Opened is { } opened)
         {
-            return;
+            pick(actions)(opened, replyAll);
         }
-        App.Shell?.ComposeReply(opened.Account, opened.Key, replyAll, opened.RawSubject);
     }
 
-    private void OnForward(object sender, RoutedEventArgs e)
-    {
-        if (_model?.OpenedMessage is not { } opened)
-        {
-            return;
-        }
-        App.Shell?.ComposeForward(opened.Account, opened.Key, opened.RawSubject);
-    }
+    private void OnForward(object sender, RoutedEventArgs e) => Act(a => a.Forward);
 
-    // Archive/delete move the open message out of the folder, so the pane cannot keep showing it,
-    // it advances to the next message down (or, at the end of the list, the one above) so a mailbox
-    // can be worked through without going back to the list for each message. The destination is
-    // chosen BEFORE the dispatch, while the row it is relative to is still on screen.
-    private void OnArchive(object sender, RoutedEventArgs e)
-    {
-        if (_model is null || _model.OpenedMessage is not { } opened)
-        {
-            return;
-        }
-        var next = _model.StopAfterRemoving(opened);
-        _model.Archive(opened.Account, opened.Key);
-        _model.SettleReadingPane(next);
-    }
+    private void OnArchive(object sender, RoutedEventArgs e) => Act(a => a.Archive);
 
-    private void OnDelete(object sender, RoutedEventArgs e)
+    private void OnDelete(object sender, RoutedEventArgs e) => Act(a => a.Delete);
+
+    private void Act(Func<ReadingActions, Action<OpenedMessage>> pick)
     {
-        if (_model is null || _model.OpenedMessage is not { } opened)
+        if (_actions is { } actions && Opened is { } opened)
         {
-            return;
+            pick(actions)(opened);
         }
-        var next = _model.StopAfterRemoving(opened);
-        _model.Delete(opened.Account, opened.Key);
-        _model.SettleReadingPane(next);
     }
 
     private void OnLoadRemoteImages(object sender, RoutedEventArgs e)
@@ -228,17 +247,17 @@ public sealed partial class ReadingView : UserControl
         // message rather than cleared on every pass: Render runs on each reading snapshot, so a
         // background sync committing behind an open message would otherwise take the error off
         // the screen seconds after the person was told about it.
-        if (_model?.OpenedMessage?.Key != _exportErrorKey)
+        if (Opened?.Key != _exportErrorKey)
         {
             ClearExportError();
         }
-        if (_model?.OpenedMessage is not { } opened)
+        if (Opened is not { } opened)
         {
             ShowNoSelection(); // no message selected, the pane rests on its placeholder.
             return;
         }
 
-        var body = _model.Reading;
+        var body = BodySnapshot;
         // Ignore a stale body for a previously-opened message, wait for this one. While waiting,
         // the message already on screen stands in for a moment (ReadingHandover) instead of the
         // pane being torn down to a spinner and rebuilt: everything that moves, the header, the

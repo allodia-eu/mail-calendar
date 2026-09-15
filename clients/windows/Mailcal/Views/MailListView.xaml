@@ -37,6 +37,12 @@
                 <Grid.ContextFlyout>
                     <MenuFlyout>
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpen()}" Tag="{x:Bind}" Click="OnOpen" />
+                        <!-- The same thing a double-click does (docs/reading-window.md). It is here
+                             because the gesture is not an affordance for everyone: it cannot be
+                             reached from the keyboard or invoked by a screen reader, so this named
+                             item, not the double-click, is what the capability matrix claims. -->
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpenInWindow()}" Tag="{x:Bind}"
+                                        Click="OnOpenInWindow" />
                         <MenuFlyoutSeparator />
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReply()}" Tag="{x:Bind}" Click="OnReply" />
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReplyAll()}" Tag="{x:Bind}" Click="OnReplyAll" />
@@ -160,6 +166,15 @@
                             <Button Tag="{x:Bind}" Click="OnThreadMessageOpen"
                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                     Background="Transparent" BorderThickness="0" Padding="30,4,4,4">
+                                <!-- One message inside a conversation is a message, so it opens in a
+                                     window of its own like any other row (docs/reading-window.md).
+                                     The conversation HEADER is not, and has no such item. -->
+                                <Button.ContextFlyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpenInWindow()}"
+                                                        Tag="{x:Bind}" Click="OnThreadMessageOpenInWindow" />
+                                    </MenuFlyout>
+                                </Button.ContextFlyout>
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />

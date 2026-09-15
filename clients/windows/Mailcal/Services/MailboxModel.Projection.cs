@@ -184,10 +184,12 @@ public sealed partial class MailboxModel
 
         // The reading body (a potentially large HTML string) only changes on a Reading
         // signal, pull it just then, not on every mailbox/calendar/settings refresh (mirrors
-        // macOS's `if case .reading = surface`).
+        // macOS's `if case .reading = surface`). The signal names no reader, so every open
+        // detached window re-reads its own slot alongside the pane (docs/reading-window.md).
         if (changed == Surface.Reading)
         {
             PullReading();
+            ReloadReadingWindows();
         }
 
         // A mailbox signal is the live runtime saying it committed mail, so it is also the only

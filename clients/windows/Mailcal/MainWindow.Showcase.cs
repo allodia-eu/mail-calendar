@@ -126,12 +126,7 @@ public sealed partial class MainWindow
     // scale on a mixed-DPI desktop.
     private SizeInt32 ShowcaseFrameInset()
     {
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-        var dpi = GetDpiForWindow(hwnd);
-        if (dpi == 0)
-        {
-            dpi = 96;
-        }
+        var dpi = WindowChrome.DpiOf(this);
         var padded = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
         return new SizeInt32(
             GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) + padded,

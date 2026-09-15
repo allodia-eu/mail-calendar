@@ -30,6 +30,7 @@ public sealed partial class MailListView : UserControl
         Model = model;
         this.Bindings.Update();
         InitSwipe();
+        InitReadingWindows();
         // The highlight follows the READING PANE, not the last click: archive/delete advances the
         // pane to the next message on its own (ReadingAdvance), and nothing clicked that row. The
         // row set is re-run too, because a snapshot reconcile replaces changed rows outright, the
@@ -169,7 +170,16 @@ public sealed partial class MailListView : UserControl
         // A Ctrl- or Shift-click is aimed at the selection, and the ListView has already applied
         // it. Opening as well would fetch and display a body for every row added to a
         // twenty-row selection (docs/list-selection.md).
-        if (SelectionModifierDown || e.ClickedItem is not MailRow row || !await MayOpenMessageAsync())
+        if (SelectionModifierDown || e.ClickedItem is not MailRow row)
+        {
+            return;
+        }
+        // The second click of a double-click on a MESSAGE opens nothing here: it means a window
+        // (MailListView.ReadingWindows.cs), and the pane is meant to be left alone. This also
+        // records what the pane is showing, so that window can put it back. A conversation header
+        // is not a message and gets no window, so its second click still toggles the thread, which
+        // is what a double-click has always done there.
+        if ((!row.IsThread && !ClickOpensInPane(row.Id)) || !await MayOpenMessageAsync())
         {
             return;
         }
@@ -195,10 +205,13 @@ public sealed partial class MailListView : UserControl
         Model?.OpenMessage(row);
     }
 
-    // A tap on a conversation sub-row opens that specific message in the reading pane.
+    // A tap on a conversation sub-row opens that specific message in the reading pane. On the same
+    // terms as a flat row: the second click of a double-click opens a window instead, so it opens
+    // nothing here.
     private async void OnThreadMessageOpen(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not ThreadMessageItem message
+            || !ClickOpensInPane($"{message.Account}/{message.Key}")
             || !await MayOpenMessageAsync())
         {
             return;

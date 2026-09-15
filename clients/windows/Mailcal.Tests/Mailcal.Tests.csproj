@@ -158,6 +158,13 @@
          WinUI-facing half and stays in MailboxModel.Reading.cs. The end-of-list fallback is the case
          a hand test skips, since it only shows up on the last message of a folder. -->
     <Compile Include="..\Mailcal\Services\ReadingAdvance.cs" Link="Services\ReadingAdvance.cs" />
+    <!-- Which window a message belongs in, and whether the click that just arrived was the second
+         of a double-click (docs/reading-window.md). WinUI-free on purpose: the list raises its own
+         click on the FIRST press of a double-click, so the pane opens the row before anything knows
+         a window was wanted, and the correction depends entirely on the trailing click being
+         recognised. Both failures are silent, a second window stacked on the first holding a second
+         copy of one body, and a pane that quietly moves when the contract says it must not. -->
+    <Compile Include="..\Mailcal\Services\ReadingWindows.cs" Link="Services\ReadingWindows.cs" />
     <!-- What the message list's multi-selection means (docs/list-selection.md): which of the
          paired actions its bar offers, and what a conversation row becomes when the batch goes to
          the core. WinUI-free on purpose; both rules fail silently in the running app, a button

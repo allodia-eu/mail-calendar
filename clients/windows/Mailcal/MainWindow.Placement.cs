@@ -23,20 +23,9 @@ public sealed partial class MainWindow
     private RectInt32 _restoredBounds;
     private bool _maximized;
 
-    // Puts the brand icon in the title bar (and this window's taskbar button). WinUI 3 does NOT
-    // surface the exe's embedded <ApplicationIcon> in the title bar on its own, so we point the
-    // AppWindow at the same app.ico, laid down next to the exe / under Images\ in the MSIX by the
-    // csproj Content item. Best-effort: a missing file just leaves the system default (the icon is
-    // cosmetic, never worth failing window creation over). AppContext.BaseDirectory resolves to the
-    // exe dir when unpackaged and the package install root when packaged, so the one path fits both.
-    private void SetWindowIcon()
-    {
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "Images", "app.ico");
-        if (File.Exists(iconPath))
-        {
-            AppWindow.SetIcon(iconPath);
-        }
-    }
+    // The brand icon, shared with the reading and composer windows, which carry the same one
+    // (Services/WindowChrome.cs).
+    private void SetWindowIcon() => WindowChrome.SetAppIcon(AppWindow);
 
     // Reopens the window where the user last left it, same position, size, and maximised state,
     // falling back to a DPI-scaled default on first run or when the saved spot is off-screen (e.g.
@@ -106,6 +95,11 @@ public sealed partial class MainWindow
     private void OnClosed(object sender, WindowEventArgs args)
     {
         Log.Info("window closed");
+        // The reading and composer windows were opened out of this mailbox, and leaving them
+        // behind leaves the app running as a scatter of message windows with no way back to the
+        // list (docs/reading-window.md). Before the showcase return below: a capture run is still
+        // a run, and windows left open would outlive the shell there too.
+        CloseChildWindows();
         // A capture pass relaunches the app once per screen per language, each time at the pinned
         // showcase frame. Persisting that would quietly replace the developer's own window placement
         // This is the same trap the Android capture path avoids by restoring the per-app locale it sets.
@@ -117,19 +111,9 @@ public sealed partial class MainWindow
             _restoredBounds.X, _restoredBounds.Y, _restoredBounds.Width, _restoredBounds.Height, _maximized));
     }
 
-    // Multiplies a logical size by the window's monitor scale (DPI / 96) so the first-run default
-    // is the intended size on any display, a raw physical-pixel default opened as a sliver on the
-    // HiDPI screens this app's dev box uses.
-    private SizeInt32 ScaleToDpi(SizeInt32 logical)
-    {
-        var dpi = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));
-        if (dpi == 0)
-        {
-            return logical; // GetDpiForWindow shouldn't fail, but never scale by zero.
-        }
-        var scale = dpi / 96.0;
-        return new SizeInt32((int)(logical.Width * scale), (int)(logical.Height * scale));
-    }
+    // Multiplies a logical size by the window's monitor scale, shared with the reading and composer
+    // windows, which open at a default of their own (Services/WindowChrome.cs).
+    private SizeInt32 ScaleToDpi(SizeInt32 logical) => WindowChrome.ToDpi(this, logical);
 
     // Force the window to the foreground after an out-of-process activation (the Microsoft OAuth
     // redirect arrives through the browser, so this process doesn't hold foreground rights and a
@@ -162,7 +146,6 @@ public sealed partial class MainWindow
 
     private const int SW_RESTORE = 9;
 
-    [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hwnd, int cmdShow);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();

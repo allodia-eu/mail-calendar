@@ -42,7 +42,7 @@ public sealed partial class ReadingView
                 // the message alone (docs/invitations.md §4).
                 Respond = (response, comment, notify, replySubject) =>
                 {
-                    if (_model?.OpenedMessage is { } opened)
+                    if (Opened is { } opened)
                     {
                         _model.RespondToInvitation(
                             opened.Account, opened.Key, response, comment, notify, replySubject);
