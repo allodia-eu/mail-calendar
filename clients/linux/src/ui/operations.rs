@@ -14,30 +14,40 @@ use super::{
     AppInput, AppModel,
     composer_model::{ComposeKind, ComposerSubmission, PickedFile},
     composer_notice::ComposerNotice,
+    reader::{ComposerHost, ReadingSource},
     web_security::safe_extension,
 };
 use crate::l10n;
 
 impl AppModel {
+    /// Sends the draft, and clears the composer that was writing it: the pane's, or the window's,
+    /// which goes with the draft it was for (`docs/reading-window.md`).
     pub(super) fn submit_composer(&mut self, submission: &ComposerSubmission) {
         let Some(app) = &self.app else {
             return;
         };
-        if submit(app, submission).is_ok() {
-            self.composer = None;
-            self.composer_error = None;
-        } else {
-            self.composer_error = Some(ComposerNotice::Prepare);
+        let host = submission.request.host;
+        if submit(app, submission).is_err() {
+            self.show_composer_error(host, ComposerNotice::Prepare);
+            return;
+        }
+        match host {
+            ComposerHost::Pane => {
+                self.composer = None;
+                self.composer_error = None;
+            }
+            ComposerHost::Window(id) => self.close_composer_window(id),
         }
     }
 
     pub(super) fn save_attachment(
         &self,
+        source: &ReadingSource,
         id: u32,
         destination: PathBuf,
         sender: relm4::Sender<AppInput>,
     ) {
-        let (Some(app), Some(opened)) = (&self.app, &self.reading.opened) else {
+        let (Some(app), Some(opened)) = (&self.app, self.reader_message(source)) else {
             return;
         };
         let app = Arc::clone(app);
@@ -60,8 +70,13 @@ impl AppModel {
     ///
     /// Off the UI thread like every other export here: the source may not be cached, and
     /// fetching it would otherwise freeze the window.
-    pub(super) fn export_message(&self, destination: PathBuf, sender: relm4::Sender<AppInput>) {
-        let (Some(app), Some(opened)) = (&self.app, &self.reading.opened) else {
+    pub(super) fn export_message(
+        &self,
+        source: &ReadingSource,
+        destination: PathBuf,
+        sender: relm4::Sender<AppInput>,
+    ) {
+        let (Some(app), Some(opened)) = (&self.app, self.reader_message(source)) else {
             return;
         };
         let app = Arc::clone(app);
@@ -83,11 +98,12 @@ impl AppModel {
 
     pub(super) fn open_attachment(
         &self,
+        source: &ReadingSource,
         id: u32,
         file_name: &str,
         sender: relm4::Sender<AppInput>,
     ) {
-        let (Some(app), Some(opened)) = (&self.app, &self.reading.opened) else {
+        let (Some(app), Some(opened)) = (&self.app, self.reader_message(source)) else {
             return;
         };
         let app = Arc::clone(app);
@@ -310,6 +326,7 @@ mod tests {
         let submission = ComposerSubmission {
             request: ComposeRequest {
                 kind: ComposeKind::Reply,
+                host: crate::ui::reader::ComposerHost::Pane,
                 account: Some(account.clone()),
                 key: Some(key),
                 initial_to: recipients.to.clone(),

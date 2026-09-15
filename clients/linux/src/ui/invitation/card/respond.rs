@@ -26,13 +26,17 @@ use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::{InvitationCard, InvitationResponse};
 
 use super::{InvitationAnswer, InvitationCardView, caption, reply_subject};
-use crate::{l10n, ui::AppInput};
+use crate::{
+    l10n,
+    ui::{AppInput, reader::ReadingSource},
+};
 
 impl InvitationCardView {
     pub(super) fn append_respond_row(
         &self,
         card: &InvitationCard,
         summary: &str,
+        source: &ReadingSource,
         sender: &relm4::Sender<AppInput>,
     ) {
         let row = gtk::Box::new(gtk::Orientation::Vertical, 6);
@@ -102,16 +106,22 @@ impl InvitationCardView {
             let comment = comment.clone();
             let notify = notify.clone();
             let subject = reply_subject(response, summary);
+            // The reader, so a window's card answers for the message that window has open rather
+            // than for whatever the pane behind it last showed.
+            let source = source.clone();
             button.connect_clicked(move |_| {
-                input.emit(AppInput::RespondToInvitation(Box::new(InvitationAnswer {
-                    response,
-                    // `comment` exists only where the transport carries one, so this is `None`
-                    // exactly when `can_comment` is false: sending a note a transport cannot carry
-                    // fails the whole answer rather than quietly losing the text.
-                    comment: comment.as_ref().map(|entry| entry.text().to_string()),
-                    notify_organizer: notify.as_ref().is_none_or(CheckButtonExt::is_active),
-                    reply_subject: subject.clone(),
-                })));
+                input.emit(AppInput::RespondToInvitation(
+                    source.clone(),
+                    Box::new(InvitationAnswer {
+                        response,
+                        // `comment` exists only where the transport carries one, so this is `None`
+                        // exactly when `can_comment` is false: sending a note a transport cannot
+                        // carry fails the whole answer rather than quietly losing the text.
+                        comment: comment.as_ref().map(|entry| entry.text().to_string()),
+                        notify_organizer: notify.as_ref().is_none_or(CheckButtonExt::is_active),
+                        reply_subject: subject.clone(),
+                    }),
+                ));
             });
             self.answers.borrow_mut().push(button.clone().upcast());
             buttons.append(&button);

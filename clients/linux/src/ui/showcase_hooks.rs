@@ -88,7 +88,7 @@ impl AppModel {
             return;
         }
         self.showcase_pending = None;
-        self.begin_compose(ComposeKind::Reply);
+        self.begin_compose(&crate::ui::reader::ReadingSource::Pane, ComposeKind::Reply);
     }
 
     pub(super) fn apply_debug_open_hook(&mut self) {

@@ -28,7 +28,8 @@ Two consequences, and neither is optional:
 
 **A double-click on a message row opens that message in a window of its own.** The row is a
 message: a flat row, or one message inside an expanded conversation. A **conversation header** is
-not, and keeps whatever a double-click already did there (on macOS, expand and collapse).
+not, and keeps whatever a double-click already did there (on macOS, expand and collapse; on Linux,
+its own disclosure).
 
 **One window per message.** Double-clicking a row whose window is already open brings that window
 forward rather than opening a second one on the same message.
@@ -116,22 +117,26 @@ capability matrix claims.
 
 | | macOS | Windows | Linux | iOS/iPadOS | Android |
 |---|:---:|:---:|:---:|:---:|:---:|
-| One core per process (no second main window) | ✅ | ⬜ | ⬜ | — | — |
-| Double-click a row → reading window | ✅ | ⬜ | ⬜ | — | — |
-| "Open in new window" on the row's context menu | ✅ | ⬜ | ⬜ | — | — |
-| Full action row in the window | ✅ | ⬜ | ⬜ | — | — |
-| Reply / forward → composer window | ✅ | ⬜ | ⬜ | — | — |
-| Main window closing sweeps both | ✅ | ⬜ | ⬜ | — | — |
+| One core per process (no second main window) | ✅ | ⬜ | ✅ | — | — |
+| Double-click a row → reading window | ✅ | ⬜ | ✅ | — | — |
+| "Open in new window" on the row's context menu | ✅ | ⬜ | ✅ | — | — |
+| Full action row in the window | ✅ | ⬜ | ✅ | — | — |
+| Reply / forward → composer window | ✅ | ⬜ | ✅ | — | — |
+| Main window closing sweeps both | ✅ | ⬜ | ✅ | — | — |
 
 ## Known gaps
 
-- **Windows and Linux have none of it yet.** The core half is done and is platform-neutral: the
-  reader-keyed slot, `Intent::OpenMessage`'s `window` form, `reading_window_view` and
-  `close_reading_window` are all on the FFI surface both clients already consume. What is missing
-  is each client's windows.
-- **Whether ⌘N (or its equivalent) built a second core on Windows and Linux has not been
-  checked.** It was true on macOS and is fixed there; the two other desktops each need the same
-  question asked of their own toolkit before they claim the first row above.
+- **Windows has none of it yet.** The core half is done and is platform-neutral: the reader-keyed
+  slot, `Intent::OpenMessage`'s `window` form, `reading_window_view` and `close_reading_window`
+  are all on the FFI surface that client already consumes. What is missing is its windows.
+- **Whether ⌘N's equivalent builds a second core on Windows has not been checked.** It was true on
+  macOS and is fixed there; on Linux `GApplication` hands a second launch to the process already
+  running and the toolkit offers no "New Window" to remove. Windows needs the same question asked
+  of its own toolkit before it claims the first row above.
+- **On Linux the mailbox closing ends the app**, so "reopening on the same core" does not arise
+  there: GTK quits with its last application window, which is that desktop's own convention. The
+  sweep still matters, because it is what stops the message windows outliving the list they were
+  opened from.
 - **A reading window does not follow the message.** Moving or deleting the message from somewhere
   else leaves the window showing what it had; only an invitation's own card is republished. The
   window is closed by the archive and delete on *its* action row, not by the same action taken

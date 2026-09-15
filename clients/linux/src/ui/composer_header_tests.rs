@@ -113,6 +113,7 @@ pub(crate) fn a_mail_link_opens_with_its_bcc_on_screen() {
 fn request(initial_cc: &str) -> ComposeRequest {
     ComposeRequest {
         kind: ComposeKind::New,
+        host: crate::ui::reader::ComposerHost::Pane,
         account: None,
         key: None,
         initial_to: String::new(),

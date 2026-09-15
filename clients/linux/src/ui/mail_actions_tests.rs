@@ -5,11 +5,15 @@ use mailcal_bindings::{FolderRole, FolderRow, Intent};
 
 use super::{
     ActionKind, DeleteTarget, MailActionRequest, MessageTarget, PermanentDeleteDialog, actions_for,
-    in_junk_folder, message_menu_button, thread_menu_button,
+    in_junk_folder,
 };
 use crate::{
     l10n,
-    ui::{AppInput, model},
+    ui::{
+        AppInput,
+        mail_actions_menu::{message_menu_button, thread_menu_button},
+        model,
+    },
 };
 
 fn target() -> MessageTarget {
@@ -126,7 +130,10 @@ pub(crate) fn the_action_menus_dispatch_the_message_and_thread_the_user_chose() 
         has_attachment: false,
         preview: String::new(),
     };
-    let menu = message_menu_button(&row, false, &sender);
+    let opened = crate::ui::model::OpenedMessage::from_row(&mailcal_bindings::SnapshotRow::Flat {
+        row: row.clone(),
+    });
+    let menu = message_menu_button(&row, &opened, false, &sender);
     let menu_root = popover_child(&menu);
     assert!(button(&menu_root, l10n::action_mark_read()).is_some());
     assert!(button(&menu_root, l10n::action_flag()).is_some());
@@ -157,7 +164,7 @@ pub(crate) fn the_action_menus_dispatch_the_message_and_thread_the_user_chose() 
     };
     assert_eq!(request, target());
 
-    let junk_menu = message_menu_button(&row, true, &sender);
+    let junk_menu = message_menu_button(&row, &opened, true, &sender);
     let junk_root = popover_child(&junk_menu);
     assert!(button(&junk_root, l10n::action_mark_as_not_spam()).is_some());
     assert!(button(&junk_root, l10n::action_mark_as_spam()).is_none());

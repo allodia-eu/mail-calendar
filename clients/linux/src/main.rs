@@ -27,6 +27,15 @@ mod ui;
 
 static APP_BROKER: relm4::MessageBroker<ui::AppInput> = relm4::MessageBroker::new();
 
+/// The flags the one application is built with.
+///
+/// `NON_UNIQUE` is deliberately absent: a second launch is handed to the process already running
+/// (`connect_command_line` below, which then activates it), and a second process would be a second
+/// core over the same SQLite store (`docs/reading-window.md`). The mailbox, the reading windows and
+/// the composer windows are views of one app; nothing here may make a second one.
+const APPLICATION_FLAGS: gtk::gio::ApplicationFlags =
+    gtk::gio::ApplicationFlags::HANDLES_COMMAND_LINE;
+
 fn main() {
     // A showcase run pins the language for the session only, above the stored choice and without
     // touching it; a capture must never rewrite the developer's own preference. Compiled out of a
@@ -63,7 +72,7 @@ fn main() {
 
     let application = adw::Application::builder()
         .application_id(l10n::APP_ID)
-        .flags(gtk::gio::ApplicationFlags::HANDLES_COMMAND_LINE)
+        .flags(APPLICATION_FLAGS)
         .build();
     application.connect_command_line(|application, command_line| {
         let arguments = command_line.arguments();
@@ -85,4 +94,25 @@ fn main() {
     });
     let app = relm4::RelmApp::<ui::AppInput>::from_app(application).with_broker(&APP_BROKER);
     app.run::<ui::AppModel>(());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::APPLICATION_FLAGS;
+
+    /// A second launch reaches the running app rather than starting a second core.
+    ///
+    /// The flags rather than a built `GApplication`: registering one would claim this
+    /// application's bus name, and the assertion is about what we ask for.
+    #[test]
+    fn a_second_launch_is_not_a_second_app() {
+        assert!(
+            !APPLICATION_FLAGS.contains(gtk::gio::ApplicationFlags::NON_UNIQUE),
+            "a second process is a second connection to the same store"
+        );
+        assert!(
+            APPLICATION_FLAGS.contains(gtk::gio::ApplicationFlags::HANDLES_COMMAND_LINE),
+            "a mail link handed to the running app arrives on its command line"
+        );
+    }
 }
