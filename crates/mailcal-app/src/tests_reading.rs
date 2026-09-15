@@ -280,6 +280,7 @@ async fn archiving_inside_the_mark_read_round_trip_still_removes_the_row() {
         let app = Arc::clone(&app);
         async move {
             app.dispatch(Intent::OpenMessage {
+                reader: ReaderId::Pane,
                 message: msg("acct-1", "m1"),
             })
             .await;

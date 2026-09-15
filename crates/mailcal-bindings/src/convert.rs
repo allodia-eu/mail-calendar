@@ -14,10 +14,10 @@ use engine_provider::{
 use mailcal_account::{EventDrag, EventEdge as AppEventEdge, EventEdit};
 use mailcal_app::{
     BulkAction as AppBulkAction, CalendarWriteStatus as AppCalendarWriteStatus,
-    ContactWriteStatus as AppContactWriteStatus, EventRef, FolderRef, Intent as AppIntent,
-    InvitationResponse as AppInvitationResponse, MessageRef, ReaderId as AppReaderId,
-    RecipientSuggestion as AppRecipientSuggestion, RowRef, SearchScope as AppSearchScope,
-    SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
+    ContactWriteStatus as AppContactWriteStatus, ContactsIntent as AppContactsIntent, EventRef,
+    FolderRef, Intent as AppIntent, InvitationResponse as AppInvitationResponse, MessageRef,
+    ReaderId as AppReaderId, RecipientSuggestion as AppRecipientSuggestion, RowRef,
+    SearchScope as AppSearchScope, SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
 };
 use mailcal_viewmodel::{
     AccountSyncProgress as AppAccountSyncProgress, CalendarSnapshot as AppCalendarSnapshot,
@@ -179,28 +179,30 @@ impl TryFrom<Intent> for AppIntent {
             },
             Intent::SubmitMail { to, subject, body } => Self::SubmitMail { to, subject, body },
             Intent::RefreshCalendar => Self::RefreshCalendar,
-            Intent::RefreshContacts => Self::RefreshContacts,
-            Intent::SearchContacts { query } => Self::SearchContacts { query },
+            Intent::RefreshContacts => Self::Contacts(AppContactsIntent::RefreshContacts),
+            Intent::SearchContacts { query } => {
+                Self::Contacts(AppContactsIntent::SearchContacts { query })
+            }
             Intent::CreateContact {
                 account,
                 address_book,
                 edit,
-            } => Self::CreateContact {
+            } => Self::Contacts(AppContactsIntent::CreateContact {
                 account,
                 address_book,
                 edit: edit.into(),
-            },
+            }),
             Intent::UpdateContact {
                 person,
                 account,
                 card,
                 edit,
-            } => Self::UpdateContact {
+            } => Self::Contacts(AppContactsIntent::UpdateContact {
                 person,
                 account,
                 card,
                 edit: edit.into(),
-            },
+            }),
             Intent::MarkRead { account, key, read } => Self::MarkRead {
                 message: message(account, key)?,
                 read,
