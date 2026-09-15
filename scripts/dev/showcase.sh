@@ -619,6 +619,11 @@ windows_capture() { # <locale> <screen> <out> <appearance>
 
 LINUX_BIN="$REPO_ROOT/target/debug/mailcal-linux"
 
+# Every dialog this client opens is a `GtkWindow` of its own rather than a pane, so its Wayland
+# `app_id` is the process name and not the branded application id the main window carries. That is
+# what a sway criterion can match on, and it is taken from the binary's own path so the two cannot
+# drift apart.
+LINUX_MODAL_APP_ID="$(basename "$LINUX_BIN")"
 
 # The Wayland sockets that exist now, each as `name:inode`. The compositor names its own socket
 # (`wl_display_add_socket_auto`), so a run identifies it by taking the one that was not there
@@ -686,6 +691,15 @@ linux_cleanup() {
 # `--unsupported-gpu` is required: sway refuses to start under the proprietary Nvidia driver, over a
 # GPU the headless backend never touches.
 #
+# ⚠️ **The config has to float this client's dialogs, because sway tiles them.** Settings, the
+# signature editor and the first-account screen are each a window of their own, and a tiling
+# compositor gives a second window half the output and shrinks the app into the other half: what a
+# capture then shows is two half-width windows side by side, which is not what the desktop these
+# screenshots stand for puts on screen. Stating the policy here is the same kind of statement as the
+# borders and the gaps above it. It is load-bearing rather than cosmetic on the first-account
+# screen, whose other half is an empty mailbox: nearly white, it drops the PNG under
+# `min_capture_bytes` and the run dies several screens into a set.
+#
 # ⚠️ SIGKILL the compositor. wlroots aborts inside `wl_display_terminate`, and each abort files an
 # apport crash report: 49 of them across a full set. Taking its client away first reaches the same
 # call. SIGKILL has no core-dump action, and grim has already read the pixels.
@@ -704,6 +718,7 @@ default_border none
 default_floating_border none
 gaps inner 0
 gaps outer 0
+for_window [app_id="$LINUX_MODAL_APP_ID"] floating enable, move position center
 exec $LINUX_BIN
 CONFIG
   before="$(linux_wayland_sockets)"
@@ -745,9 +760,19 @@ build_once() {
     # -NoRun: each capture launches the exe itself with its own flags. Debug (the default) is
     # required, not merely conventional; ShowcaseMode.IsOn is `#if DEBUG`-gated.
     windows) "$WINDOWS_PS" -NoProfile -File "$(to_win_path "$REPO_ROOT/clients/windows/build-and-run.ps1")" -NoRun >/dev/null ;;
-    # Default features on purpose: `dev-harness` is the harness trust path, which a screenshot run
-    # of an offline in-memory dataset has no use for.
-    linux) (cd "$REPO_ROOT" && cargo build -p mailcal-linux >/dev/null) ;;
+    # No `dev-harness`: that is the harness trust path, which a screenshot run of an offline
+    # in-memory dataset has no use for. The Allodia sign-in is not optional in the same way. It is
+    # what the first-account screen has to offer above the address field (docs/onboarding.md) and
+    # what puts the account category at the top of Settings, the bundle that ships carries it
+    # (clients/linux/package.sh), and a set built without it photographs a screen the shipped app
+    # never shows. Every other platform gets it from its own build script; this is the one arm that
+    # calls cargo directly, so it derives the feature the same way they do.
+    linux)
+      local feature features=()
+      feature="$(core_cargo_features)"
+      if [[ -n "$feature" ]]; then features=(--features "$feature"); fi
+      (cd "$REPO_ROOT" && cargo build -p mailcal-linux "${features[@]}" >/dev/null)
+      ;;
   esac
 }
 
