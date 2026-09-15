@@ -190,6 +190,29 @@ $Suite = @{
       }
     },
     @{
+      Name = 'a regular message stays in front after its body has been in the pane'
+      Body = {
+        # THE REPORTED RECIPE, and the one no case here performed: single-click a REGULAR message
+        # so the pane renders its body, then double-click THE SAME row. Every other case in this
+        # file double-clicks the invitation, because its card guarantees the window has content to
+        # draw, and the invitation is exactly the message type the fault spares: its card is native
+        # XAML, where a regular body is a document in a WebView2. A fixture chosen to make one
+        # assertion easy had been hiding the defect from all the others.
+        Close-ExtraWindows
+        Invoke-RowClicks -Subject $OtherSubject
+        Assert-Equal $OtherSubject (Get-PaneSubject) 'the pane is showing the message first'
+        Start-Sleep -Seconds 2
+        Invoke-RowClicks -Subject $OtherSubject -Times 2
+        $null = Wait-AppWindow -Title $OtherSubject
+        Assert-Equal $OtherSubject (Get-ForegroundTitle) 'the window is in front when it opens'
+        Start-Sleep -Seconds 5
+        Assert-Equal $OtherSubject (Get-ForegroundTitle) `
+          'and is still in front five seconds later'
+        Assert-True ($null -ne (Get-Process Mailcal -ErrorAction SilentlyContinue)) `
+          'and the app is still running'
+      }
+    },
+    @{
       Name = 'the window carries the whole action row, overflow last'
       Body = {
         Close-ExtraWindows

@@ -11,23 +11,25 @@
 // pair a mailbox activation with the state Windows reports for it and with the list's last
 // reconcile, which is what tells a removed row from a user's click:
 //
-//   window order: mailbox activated (code), list changed 14ms ago (+3/-0 rows)
-//   window order: mailbox activated (pointer), list changed 9s ago (+0/-0 rows)
+//   window order: mailbox activated (code), focus on WebView2, rows 9s ago, sidebar 11ms ago
+//   window order: mailbox activated (pointer), focus on ListViewItem, rows 9s ago, sidebar 9s ago
 //
 // A `pointer` line is the reader clicking the mailbox, which is allowed to bring it forward. A
-// `code` line close behind a list change is the fault, and the counts name the operation to fix.
+// `code` line is the fault, and the two halves after it say why: what holds the focus the mailbox
+// just took, and which of its collections moved most recently. A collection that changed
+// milliseconds before the activation is the one whose elements were torn down.
 
 using System;
+using System.Collections.Specialized;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Input;
 
 namespace Allodia.Mailcal;
 
 public sealed partial class MainWindow
 {
-    private DateTimeOffset _listChangedAt = DateTimeOffset.MinValue;
-    private int _rowsAdded;
-    private int _rowsRemoved;
+    private readonly System.Collections.Generic.Dictionary<string, DateTimeOffset> _changedAt = new();
     private bool _watchingOrder;
 
     /// <summary>
@@ -44,12 +46,10 @@ public sealed partial class MainWindow
             return;
         }
         _watchingOrder = true;
-        Model.Rows.CollectionChanged += (_, e) =>
-        {
-            _listChangedAt = DateTimeOffset.Now;
-            _rowsAdded += e.NewItems?.Count ?? 0;
-            _rowsRemoved += e.OldItems?.Count ?? 0;
-        };
+        Track("rows", Model.Rows);
+        Track("accounts", Model.Accounts);
+        Track("folders", Model.Folders);
+        Track("sidebar", SidebarItems);
         Activated += (_, e) =>
         {
             if (e.WindowActivationState == WindowActivationState.Deactivated)
@@ -59,14 +59,46 @@ public sealed partial class MainWindow
             var state = e.WindowActivationState == WindowActivationState.PointerActivated
                 ? "pointer"
                 : "code";
-            var since = _listChangedAt == DateTimeOffset.MinValue
-                ? "never"
-                : $"{(DateTimeOffset.Now - _listChangedAt).TotalMilliseconds:F0}ms ago";
-            Log.Debug(
-                $"window order: mailbox activated ({state}), list changed {since} "
-                + $"(+{_rowsAdded}/-{_rowsRemoved} rows)");
-            _rowsAdded = 0;
-            _rowsRemoved = 0;
+            Log.Debug($"window order: mailbox activated ({state}), focus on {FocusHere()}, {Ages()}");
         };
+    }
+
+    private void Track(string name, INotifyCollectionChanged collection)
+    {
+        _changedAt[name] = DateTimeOffset.MinValue;
+        collection.CollectionChanged += (_, _) => _changedAt[name] = DateTimeOffset.Now;
+    }
+
+    // Every tracked collection and how long ago it last moved, so one line says which of them
+    // changed just before the activation and which have been still for minutes.
+    private string Ages() =>
+        string.Join(
+            ", ",
+            System.Linq.Enumerable.Select(
+                _changedAt,
+                pair => pair.Value == DateTimeOffset.MinValue
+                    ? $"{pair.Key} never"
+                    : $"{pair.Key} {(DateTimeOffset.Now - pair.Value).TotalMilliseconds:F0}ms"));
+
+    // What holds the keyboard focus inside the mailbox at this moment. The type is the useful
+    // half: a control that was rebuilt announces itself by being the thing focus landed on.
+    private string FocusHere()
+    {
+        try
+        {
+            var focused = FocusManager.GetFocusedElement(Content.XamlRoot);
+            if (focused is null)
+            {
+                return "nothing";
+            }
+            var name = focused is FrameworkElement element && !string.IsNullOrEmpty(element.Name)
+                ? $" '{element.Name}'"
+                : string.Empty;
+            return focused.GetType().Name + name;
+        }
+        catch (Exception ex)
+        {
+            return $"unreadable ({ex.GetType().Name})";
+        }
     }
 }
