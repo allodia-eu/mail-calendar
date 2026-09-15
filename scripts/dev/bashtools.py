@@ -26,6 +26,10 @@ falls back to PATH only after that; but the part that actually fixes the bug is 
 hands back an **absolute path**, so `CreateProcess` never gets to choose. It also verifies the
 interpreter it picks actually runs, because presence is not enough: the broken launcher exists.
 
+**It must be bash 5.** Every script in this tree requires it and says so on its first lines, so a
+3.2 picked up here would fail every suite with the same message rather than testing anything. macOS
+is where that bites: `/bin/bash` is 3.2 and `brew install bash` is the fix.
+
 `MAILCAL_BASH` overrides the choice, for a host that keeps bash somewhere unusual.
 """
 
@@ -41,6 +45,7 @@ from pathlib import Path
 __all__ = ["find_bash", "bash_problem", "bash_argv", "bash_path"]
 
 _PROBE_TIMEOUT_SECONDS = 30
+_MINIMUM_MAJOR = 5
 
 
 def _git_bash_candidates() -> list[str]:
@@ -69,7 +74,12 @@ def _candidates() -> list[str]:
 
     if sys.platform != "win32":
         on_path = shutil.which("bash")
-        return [on_path] if on_path else ["/bin/bash"]
+        ordered = [on_path] if on_path else []
+        # Homebrew's, after PATH. A Mac whose PATH still puts `/bin` first answers 3.2 to `which`
+        # while carrying a 5 the scripts would be happy with, and "no bash 5" would be wrong about
+        # this host rather than merely unhelpful.
+        ordered += ["/opt/homebrew/bin/bash", "/usr/local/bin/bash"]
+        return ordered
 
     # Git Bash first. `shutil.which` last, because on Windows that is the WSL trap above.
     ordered = _git_bash_candidates()
@@ -80,24 +90,29 @@ def _candidates() -> list[str]:
 
 
 def _runs(candidate: str) -> bool:
-    """Whether this interpreter can actually execute something. Presence is not enough."""
+    """Whether this interpreter runs AND is bash 5. Presence is not enough, and neither is running.
+
+    Asking the interpreter its own major version is the same rule the scripts apply to every other
+    tool they depend on: identify it by what it says, not by where it was found.
+    """
     if not Path(candidate).exists() and not shutil.which(candidate):
         return False
     try:
         probe = subprocess.run(
-            [candidate, "-c", "printf ok"],
+            [candidate, "-c", 'printf %s "${BASH_VERSION%%.*}"'],
             capture_output=True,
             text=True,
             timeout=_PROBE_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.SubprocessError):
         return False
-    return probe.stdout.strip() == "ok"
+    major = probe.stdout.strip()
+    return major.isdigit() and int(major) >= _MINIMUM_MAJOR
 
 
 @functools.lru_cache(maxsize=1)
 def find_bash() -> str | None:
-    """The first bash on this host that exists and works, or `None`."""
+    """The first bash 5 on this host that exists and works, or `None`."""
     for candidate in _candidates():
         if candidate and _runs(candidate):
             return candidate
@@ -116,10 +131,13 @@ def bash_problem() -> str:
     tried = ", ".join(c for c in _candidates() if c) or "nothing"
     if sys.platform == "win32":
         return (
-            "no working bash: install Git for Windows (Git Bash), or point MAILCAL_BASH at one. "
+            "no working bash 5: install Git for Windows (Git Bash), or point MAILCAL_BASH at one. "
             f"Tried: {tried}. Note that the `bash.exe` in System32 is WSL's, not a shell."
         )
-    return f"no working bash on this host. Tried: {tried}"
+    return (
+        f"no working bash 5 on this host. Tried: {tried}. "
+        "On macOS `/bin/bash` is 3.2: `brew install bash`."
+    )
 
 
 def bash_argv(*args: str) -> list[str]:

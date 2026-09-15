@@ -106,13 +106,13 @@ case "$ACCOUNT" in
 esac
 
 case "$platform" in
-  macos)  exec "$REPO_ROOT/clients/apple/Scripts/build-and-run.sh" --macos ${PASSTHRU[@]+"${PASSTHRU[@]}"} ;;
+  macos)  exec "$REPO_ROOT/clients/apple/Scripts/build-and-run.sh" --macos "${PASSTHRU[@]}" ;;
   # `--simulator` pins these to a simulator even when an iPhone is plugged in (build-and-run.sh
   # would prefer the device): the harness this script boots against is loopback-only, so nothing on
   # a physical device can reach it; that path is scripts/dev/device.sh's. It comes BEFORE the
   # passthrough, so `boot.sh iphone -- --device` still overrides it.
-  iphone) exec "$REPO_ROOT/clients/apple/Scripts/build-and-run.sh" --iphone --simulator ${PASSTHRU[@]+"${PASSTHRU[@]}"} ;;
-  ipad)   exec "$REPO_ROOT/clients/apple/Scripts/build-and-run.sh" --ipad --simulator ${PASSTHRU[@]+"${PASSTHRU[@]}"} ;;
+  iphone) exec "$REPO_ROOT/clients/apple/Scripts/build-and-run.sh" --iphone --simulator "${PASSTHRU[@]}" ;;
+  ipad)   exec "$REPO_ROOT/clients/apple/Scripts/build-and-run.sh" --ipad --simulator "${PASSTHRU[@]}" ;;
   android)
     [[ ${#PASSTHRU[@]} -eq 0 ]] || warn "ignoring extra args for android (build-and-run.sh takes none): ${PASSTHRU[*]}"
     if [[ "$ACCOUNT" == "demo" ]]; then
@@ -124,7 +124,7 @@ case "$platform" in
     # terminal until someone quits the app, and a caller that was told boot.sh returns once the
     # window is up waits instead for the session to end. It returns when the client says its
     # window is on screen, and reports a launch that died on the way up as that.
-    exec "$REPO_ROOT/clients/linux/build-and-run.sh" --detach ${PASSTHRU[@]+"${PASSTHRU[@]}"}
+    exec "$REPO_ROOT/clients/linux/build-and-run.sh" --detach "${PASSTHRU[@]}"
     ;;
   windows)
     # The WinUI client is a PowerShell build; drive it through pwsh on the Windows host (this case
@@ -133,5 +133,5 @@ case "$platform" in
     # `--` pass through to build-and-run.ps1 (e.g. -Arch x64, -Configuration Release, -NoRun).
     ps="$(pwsh_bin)"; [[ -n "$ps" ]] || die "no PowerShell (pwsh/powershell) found to build the Windows client"
     script="$(to_win_path "$REPO_ROOT/clients/windows/build-and-run.ps1")"
-    exec "$ps" -NoProfile -ExecutionPolicy Bypass -File "$script" ${PASSTHRU[@]+"${PASSTHRU[@]}"} ;;
+    exec "$ps" -NoProfile -ExecutionPolicy Bypass -File "$script" "${PASSTHRU[@]}" ;;
 esac

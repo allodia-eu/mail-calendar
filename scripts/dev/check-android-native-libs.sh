@@ -76,9 +76,7 @@ trap 'rm -rf "$WORK"' EXIT
 # `lib/<abi>/` infix, so one glob covers the two shapes.
 unzip -q -o "$ARTIFACT" '*/lib/*/*.so' 'lib/*/*.so' -d "$WORK" 2>/dev/null || true
 
-# Collected the long way round because macOS ships bash 3.2, which has no `mapfile`.
-LIBS=()
-while IFS= read -r found; do LIBS+=("$found"); done < <(find "$WORK" -name '*.so' | sort)
+mapfile -t LIBS < <(find "$WORK" -name '*.so' | sort)
 [[ ${#LIBS[@]} -gt 0 ]] || die "no native libraries found in $(basename "$ARTIFACT"): is this an Android artifact?"
 
 info "Checking ${#LIBS[@]} native librar$([[ ${#LIBS[@]} -eq 1 ]] && echo y || echo ies) in $(basename "$ARTIFACT")"

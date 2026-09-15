@@ -346,7 +346,7 @@ android_capture() { # <locale> <screen> <out>
   [[ -n "${MAILCAL_APPEARANCE:-}" ]] && appearance=(-e MAILCAL_APPEARANCE "$MAILCAL_APPEARANCE")
   "${ADB[@]}" shell am start -n "$ANDROID_ACTIVITY" \
     -e MAILCAL_SHOWCASE "$1" -e MAILCAL_SHOWCASE_SCREEN "$2" \
-    ${appearance[@]+"${appearance[@]}"} >/dev/null
+    "${appearance[@]}" >/dev/null
   sleep "$(settle_for "$2")"
   android_require_awake
   require_showcase_launch "$1" "$offset" "$2"

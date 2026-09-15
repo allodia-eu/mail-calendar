@@ -590,7 +590,7 @@ sim_capture() { # <locale> <screen> <out>
   [[ -n "${MAILCAL_APPEARANCE:-}" ]] &&
     appearance=("SIMCTL_CHILD_MAILCAL_APPEARANCE=$MAILCAL_APPEARANCE")
   env "SIMCTL_CHILD_MAILCAL_SHOWCASE=$1" "SIMCTL_CHILD_MAILCAL_SHOWCASE_SCREEN=$2" \
-    ${appearance[@]+"${appearance[@]}"} \
+    "${appearance[@]}" \
     xcrun simctl launch "$SIM_UDID" "$APPLE_BUNDLE_ID" -AppleLanguages "($1)" >/dev/null
   sleep "$(settle_for "$2")"
   require_showcase_launch "$1" "$offset" "$2"
@@ -845,7 +845,7 @@ newer_source_than() { # <binary> <root...>
 # Name the device and the build before the first shutter, and; under `--no-build`; refuse a build
 # older than the sources it is supposed to be showing.
 report_capture_target() {
-  local binary newer path
+  local binary newer
   local -a sources
   binary="$(installed_app_binary "$platform")"
   info "shooting $TARGET on $(capture_device_for "$platform")"
@@ -865,12 +865,7 @@ report_capture_target() {
   info "app built $(file_mtime "$binary")"
   [[ "$BUILD" != "1" ]] || return 0
 
-  # A `while read` rather than `mapfile`: macOS ships bash 3.2, which has no `mapfile` at all, and
-  # `#!/usr/bin/env bash` finds it long before any newer one.
-  sources=()
-  while IFS= read -r path; do
-    sources+=("$path")
-  done < <(client_sources_for "$platform")
+  mapfile -t sources < <(client_sources_for "$platform")
   [[ ${#sources[@]} -gt 0 ]] || return 0
 
   newer="$(newer_source_than "$binary" "${sources[@]}")"

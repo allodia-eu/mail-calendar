@@ -90,10 +90,7 @@ else
   CORE_ARGS=(--no-device)
 fi
 
-# `${a[@]+"${a[@]}"}`, because macOS ships bash 3.2, where an EMPTY array under `set -u` is an
-# unbound variable rather than nothing at all. The device leg passes no core flags, so that is
-# the leg it breaks, and only on the machine a device is plugged into.
-[[ "$BUILD_CORE" -eq 1 ]] && "$HERE/Scripts/build-core.sh" ${CORE_ARGS[@]+"${CORE_ARGS[@]}"}
+[[ "$BUILD_CORE" -eq 1 ]] && "$HERE/Scripts/build-core.sh" "${CORE_ARGS[@]}"
 
 # The brand has to be in the environment before the project is generated, or every id in it is the
 # literal `${MAILCAL_APP_ID}` (docs/branding.md); lib.sh has already loaded it.

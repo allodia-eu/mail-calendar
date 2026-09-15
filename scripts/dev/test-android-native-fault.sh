@@ -30,12 +30,7 @@ ADB="$(adb_bin)"
 # A device is a prerequisite, not an option: this script exists precisely because nothing else
 # runs this code, so a silent skip would restore the gap it closes.
 if [[ -z "$SERIAL" ]]; then
-  # Collected the long way round because macOS ships bash 3.2, which has no `mapfile`; and macOS
-  # is where a developer with a phone plugged in most often runs this.
-  attached=()
-  while IFS= read -r serial; do
-    [[ -n "$serial" ]] && attached+=("$serial")
-  done < <("$ADB" devices | tr -d '\r' | awk '$2 == "device" { print $1 }')
+  mapfile -t attached < <("$ADB" devices | tr -d '\r' | awk '$2 == "device" { print $1 }')
   case "${#attached[@]}" in
     0) die "no Android device or emulator attached: start one (scripts/dev/lib.sh knows the AVDs) and re-run" ;;
     1) SERIAL="${attached[0]}" ;;

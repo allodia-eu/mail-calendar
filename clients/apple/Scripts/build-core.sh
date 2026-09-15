@@ -79,14 +79,14 @@ for t in "${TARGETS[@]}"; do
       (
         unset MACOSX_DEPLOYMENT_TARGET
         export IPHONEOS_DEPLOYMENT_TARGET="$IOS_DEPLOYMENT_TARGET"
-        cargo rustc --manifest-path "$ROOT/Cargo.toml" -p mailcal-bindings "${BINDINGS_CRATE_TYPES[@]}" --target "$t" ${CARGO_PROFILE_ARGS[@]+"${CARGO_PROFILE_ARGS[@]}"} ${CORE_FEATURES[@]+"${CORE_FEATURES[@]}"}
+        cargo rustc --manifest-path "$ROOT/Cargo.toml" -p mailcal-bindings "${BINDINGS_CRATE_TYPES[@]}" --target "$t" "${CARGO_PROFILE_ARGS[@]}" "${CORE_FEATURES[@]}"
       )
       ;;
     aarch64-apple-darwin)
       (
         unset IPHONEOS_DEPLOYMENT_TARGET
         export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
-        cargo rustc --manifest-path "$ROOT/Cargo.toml" -p mailcal-bindings "${BINDINGS_CRATE_TYPES[@]}" --target "$t" ${CARGO_PROFILE_ARGS[@]+"${CARGO_PROFILE_ARGS[@]}"} ${CORE_FEATURES[@]+"${CORE_FEATURES[@]}"}
+        cargo rustc --manifest-path "$ROOT/Cargo.toml" -p mailcal-bindings "${BINDINGS_CRATE_TYPES[@]}" --target "$t" "${CARGO_PROFILE_ARGS[@]}" "${CORE_FEATURES[@]}"
       )
       ;;
   esac
@@ -240,6 +240,6 @@ echo "==> [4/4] Building the allodia-mcp relay (macOS)"
   unset IPHONEOS_DEPLOYMENT_TARGET
   export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
   cargo build --manifest-path "$ROOT/Cargo.toml" -p mailcal-mcp-shim --bin allodia-mcp \
-    --target aarch64-apple-darwin ${CARGO_PROFILE_ARGS[@]+"${CARGO_PROFILE_ARGS[@]}"}
+    --target aarch64-apple-darwin "${CARGO_PROFILE_ARGS[@]}"
 )
 cp "$ROOT/target/aarch64-apple-darwin/$PROFILE/allodia-mcp" "$ARTIFACTS/allodia-mcp"
