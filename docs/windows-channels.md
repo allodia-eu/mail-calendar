@@ -92,6 +92,10 @@ for days, so launches can be a fortnight apart and, with `OnLaunch` alone, so wo
 package's own floor is the same `10.0.19041`: a machine that cannot read the file cannot install
 what it points at, so naming that schema gives up nothing.
 
+None of that is visible while it works, which is why Settings → About names the mechanism and can be
+asked on the spot. [`updates.md`](updates.md) is that contract, and it covers the Store channel
+too, where the answer is the Store's own updates page rather than a check this app could make.
+
 ## Known gaps
 
 - **The `ms-appinstaller:` protocol is disabled on consumer machines** (Microsoft, December 2023),

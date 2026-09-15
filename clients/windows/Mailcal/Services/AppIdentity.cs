@@ -91,4 +91,59 @@ internal static class AppIdentity
     /// the page still opens.
     /// </remarks>
     public static string? Aumid => ModelId.Value;
+
+    // The `.appinstaller` this copy was installed from, which is also the thing that updates it.
+    // Null for a Store build and for a package sideloaded from a bare .msixbundle, and that
+    // distinction is the whole of `Updates.ChannelFor`.
+    private static readonly Lazy<Uri?> Installer = new(() =>
+    {
+        try
+        {
+            return Windows.ApplicationModel.Package.Current.GetAppInstallerInfo()?.Uri;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    });
+
+    /// <summary>
+    /// The URL this copy updates from, or <c>null</c> when nothing here does (a Store build, or
+    /// the unpackaged dev loop).
+    /// </summary>
+    public static Uri? UpdateSource => Installer.Value;
+
+    /// <summary>Ask Windows whether a newer version is waiting at <see cref="UpdateSource"/>.</summary>
+    /// <remarks>
+    /// This asks; it does not download. App Installer fetches on its own schedule and applies the
+    /// result at the next launch, which is what the About page's copy says happens.
+    ///
+    /// <c>Required</c> is folded into <c>Available</c> rather than given a state of its own: the
+    /// `.appinstaller` this app publishes never forces a downgrade, so the two differ in nothing a
+    /// reader could act on. <c>Unknown</c> joins <c>Error</c>, because a check that could not reach
+    /// a conclusion has not established that this copy is current, and saying it had would be the
+    /// one wrong answer here.
+    /// </remarks>
+    public static async System.Threading.Tasks.Task<UpdateOutcome> CheckForUpdateAsync()
+    {
+        try
+        {
+            var result = await Windows.ApplicationModel.Package.Current.CheckUpdateAvailabilityAsync();
+            return result.Availability switch
+            {
+                Windows.ApplicationModel.PackageUpdateAvailability.NoUpdates => UpdateOutcome.UpToDate,
+                Windows.ApplicationModel.PackageUpdateAvailability.Available
+                    or Windows.ApplicationModel.PackageUpdateAvailability.Required
+                    => UpdateOutcome.Available,
+                _ => UpdateOutcome.Failed,
+            };
+        }
+        catch (Exception problem)
+        {
+            // A check is a network call, and every reason it fails is one the user can act on only
+            // by trying again. It may never take Settings down with it.
+            Log.Warn($"update check failed: {problem.GetType().Name}");
+            return UpdateOutcome.Failed;
+        }
+    }
 }

@@ -24,6 +24,13 @@ public sealed partial class SettingsDialog
             L10n.AboutVersion(about.Version),
             new StackPanel()));
 
+        // Directly under the version, because it is the question the version prompts. Absent on the
+        // unpackaged dev loop, which has no package to replace (SettingsDialog.Updates.cs).
+        if (BuildUpdates() is { } updates)
+        {
+            panel.Children.Add(updates);
+        }
+
         var support = new StackPanel { Spacing = 8 };
         support.Children.Add(new TextBlock { Text = about.SupportUrl, IsTextSelectionEnabled = true });
         var open = new Button { Content = L10n.AboutSupportAction() };
