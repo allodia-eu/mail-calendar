@@ -39,7 +39,7 @@ services:
   stalwart:
     # stalwartlabs/stalwart v0.16.8, pinned by multi-arch digest (linux/amd64 +
     # linux/arm64). Bump deliberately: re-resolve the digest and update CI too.
-    image: stalwartlabs/stalwart:v0.16.8@sha256:154dc1f2895ba8d319817fb37c3c26bac3f3e36e2eb338edcf789a79717a5d49
+    image: stalwartlabs/stalwart:v0.16.21@sha256:93c574e52249c1ebf90061da2c4c0756a7b72abfcc1fec34506a03c2e38b5977
     # Self-bootstrapping wrapper: bootstrap via API, restart to full server,
     # create accounts, seed, then run the server in the foreground.
     entrypoint: ["/bin/sh", "/harness/entrypoint.sh"]
