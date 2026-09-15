@@ -25,6 +25,10 @@ const APP_NAME_PLACEHOLDER: &str = "{app_name}";
 const APP_NAME_KEY: &str = "MAILCAL_APP_NAME";
 const APP_ID_KEY: &str = "MAILCAL_APP_ID";
 
+/// The brand files, in the order they answer: Allodia's when the checkout has it, then the
+/// neutral default every checkout has.
+const BRAND_FILES: [&str; 2] = ["allodia.env", "default.env"];
+
 /// The identity this build carries.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Brand {
@@ -65,19 +69,16 @@ pub(crate) fn replace_app_name(raw: &mut Raw, name: &str) {
 }
 
 fn value(root: &Path, key: &str, from_environment: Option<&str>) -> Result<String, String> {
+    // Everything that could answer, named before anything does. Harmless outside a build script:
+    // the lines go to stdout, which only Cargo reads.
+    for line in tracking(root, key) {
+        println!("{line}");
+    }
     if let Some(found) = from_environment.map(str::trim).filter(|v| !v.is_empty()) {
         return Ok(found.to_string());
     }
     let branding = root.join("branding");
-    // The directory, and not only the files in it. Cargo drops a `rerun-if-changed` naming a path
-    // that does not exist, so a brand file *appearing* rebuilds nothing: the tree keeps its
-    // unbranded catalog and the app keeps the neutral name. Creating a file moves the directory's
-    // mtime, which Cargo does act on.
-    println!("cargo:rerun-if-changed={}", branding.display());
-    for file in ["allodia.env", "default.env"] {
-        // Before the read, so the file is tracked on the path that does not use it too. Harmless
-        // outside a build script: the line goes to stdout, which only Cargo reads.
-        println!("cargo:rerun-if-changed={}", branding.join(file).display());
+    for file in BRAND_FILES {
         let Ok(text) = std::fs::read_to_string(branding.join(file)) else {
             continue;
         };
@@ -90,6 +91,31 @@ fn value(root: &Path, key: &str, from_environment: Option<&str>) -> Result<Strin
          branding/default.env and is not optional there",
         branding.display()
     ))
+}
+
+/// Everything an identity can come from, named for Cargo so that a build does not keep the one it
+/// was first given.
+///
+/// **The variable, because it answers first and the dev scripts export it**: `lib.sh` calls
+/// `brand_load`, so a scripted build reads its identity from the environment and touches no brand
+/// file at all. A build keyed on the files alone is therefore never invalidated by the identity
+/// changing, and the catalog goes on carrying the name it was generated with.
+///
+/// **The directory, and not only the files in it**, because Cargo drops a `rerun-if-changed`
+/// naming a path that does not exist, so a brand file *appearing* would rebuild nothing. Creating
+/// it moves the directory's mtime, which Cargo does act on.
+fn tracking(root: &Path, key: &str) -> Vec<String> {
+    let branding = root.join("branding");
+    let mut lines = vec![
+        format!("cargo:rerun-if-env-changed={key}"),
+        format!("cargo:rerun-if-changed={}", branding.display()),
+    ];
+    lines.extend(
+        BRAND_FILES
+            .iter()
+            .map(|file| format!("cargo:rerun-if-changed={}", branding.join(file).display())),
+    );
+    lines
 }
 
 /// `KEY=value` lines, tolerating comments, blanks, `export ` and one pair of quotes. Deliberately
@@ -127,7 +153,9 @@ mod tests {
         path::{Path, PathBuf},
     };
 
-    use super::{APP_ID_KEY, APP_NAME_KEY, APP_NAME_PLACEHOLDER, parse, replace_app_name, value};
+    use super::{
+        APP_ID_KEY, APP_NAME_KEY, APP_NAME_PLACEHOLDER, parse, replace_app_name, tracking, value,
+    };
     use crate::model::Raw;
 
     fn scratch(name: &str) -> PathBuf {
@@ -232,6 +260,27 @@ mod tests {
             value(&dir, APP_ID_KEY, None).expect("the default still answers for the id"),
             "org.neutral.client"
         );
+    }
+
+    #[test]
+    fn the_variable_that_answers_first_is_the_one_a_rebuild_watches() {
+        // The variable is the one that has to be watched: `scripts/dev/lib.sh` exports the
+        // identity before it builds anything, so on a scripted build the environment answers and
+        // no brand file is read. A checkout that gains `branding/allodia.env` would otherwise go
+        // on generating the neutral catalog, which `scripts/dev/test-linux-ui.sh` sees as the
+        // branded window never appearing.
+        let lines = tracking(Path::new("/checkout"), APP_NAME_KEY);
+
+        assert!(
+            lines.contains(&format!("cargo:rerun-if-env-changed={APP_NAME_KEY}")),
+            "{lines:?}"
+        );
+        for file in ["branding", "branding/allodia.env", "branding/default.env"] {
+            assert!(
+                lines.contains(&format!("cargo:rerun-if-changed=/checkout/{file}")),
+                "{file} is not watched: {lines:?}"
+            );
+        }
     }
 
     #[test]

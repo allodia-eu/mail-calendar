@@ -338,6 +338,21 @@ class ToolkitDriftTests(unittest.TestCase):
         row = FakeNode("Share usage statistics", "switch")
         self.assertIs(subject.actionable_match([row], row), row)
 
+    def test_a_label_does_not_count_as_the_actionable_match(self) -> None:
+        # Every GTK label answers the text interface, so it carries eight clipboard and selection
+        # actions and passes any "does this node have an action" test. An agenda row puts its
+        # title label before the button that opens the event, so counting actions resolves
+        # `activate "Standup"` to the one node in that row that cannot be pressed.
+        label = FakeNode(
+            "Standup",
+            "label",
+            actions=["clipboard.copy", "selection.select-all", "menu.popup"],
+        )
+        button = FakeNode("Standup", "push button", actions=["click"])
+
+        self.assertIs(subject.actionable_match([label, button], label), button)
+        self.assertIsNone(subject.preferred_action(label))
+
 
 if __name__ == "__main__":
     unittest.main()
