@@ -5,9 +5,10 @@ Bump: minor
 
 > Windows ships through two mechanisms and only the OS knows which one installed a given copy,
 > so the channel is read from `Package.Current.GetAppInstallerInfo()` rather than from the
-> brand: a Store install is sent to the Store's own updates page, and a copy installed from an
-> `.appinstaller` is checked in place. The dev loop shows nothing, having no package to
-> replace. A check that could not reach a conclusion reports that rather than reporting
+> brand: a Store install asks the Store's licensing service and a copy installed from an
+> `.appinstaller` asks App Installer, because neither can answer for the other's packages. Both
+> check in place, and the Store channel can install what it finds. The dev loop shows nothing,
+> having no package to replace. A check that could not reach a conclusion reports that rather than reporting
 > success, which is the one mistake that would turn a dead update channel into silence.
 > `UpdatesTests` pins the resolution, which `Package.Current` makes untestable at its call
 > site. The same release gives the hosted channel a background check every eight hours, so a
@@ -52,5 +53,5 @@ Impostazioni → Informazioni ora indica che cosa mantiene aggiornata la tua ver
 **Português**
 
 ```
-Definições → Acerca indica agora o que mantém a sua versão atualizada e procura uma versão nova quando lho pedir.
+Definições → Acerca de indica agora o que mantém a sua versão atualizada e procura uma versão nova quando lho pedir.
 ```

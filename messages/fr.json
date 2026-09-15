@@ -685,7 +685,6 @@
 	"about_updates_description_hosted": "{app_name} cherche une nouvelle version toutes les quelques heures et au démarrage. Une mise à jour s'installe au prochain lancement de l'application.",
 	"about_updates_description_store": "Le Microsoft Store maintient {app_name} à jour.",
 	"about_updates_action": "Vérifier maintenant",
-	"about_updates_action_store": "Ouvrir les mises à jour du Store",
 	"about_updates_checking": "Vérification…",
 	"about_updates_current": "Il s'agit de la dernière version.",
 	"about_updates_available": "Une mise à jour est prête. Elle s'installera au prochain lancement de {app_name}.",

@@ -39,7 +39,7 @@ question only that OS can. The core supplies the running version through `AboutI
 
 | | What updates it | Where a person asks | Ships |
 |---|---|---|:---:|
-| **Windows**, Microsoft Store | the Store | Settings → About → Updates, opening the Store's own updates page | ✅ |
+| **Windows**, Microsoft Store | the Store | Settings → About → Updates, in place | ✅ |
 | **Windows**, our own download | App Installer, from the `.appinstaller` ([`windows-channels.md`](windows-channels.md)) | Settings → About → Updates, in place | ✅ |
 | **macOS**, Mac App Store | the App Store | ⬜ | ⬜ |
 | **iOS / iPadOS** | the App Store | ⬜ | ⬜ |
@@ -62,8 +62,18 @@ hand-sideloaded build, which is exactly the build a support question comes from.
   copy therefore says an update installs at the next start, because that is what happens. A link to
   the `.appinstaller` is offered alongside for anyone who wants it sooner, since the
   `ms-appinstaller:` protocol that used to make that one click is disabled on consumer machines.
-- **Store**: `ms-windows-store://downloadsandupdates`. An in-app check here would query App
-  Installer about a package the Store owns, and be told nothing is waiting, forever.
+- **Store**: `StoreContext.GetAppAndOptionalStorePackageUpdatesAsync()`, and an empty list is the
+  "up to date" answer. `RequestDownloadAndInstallStorePackageUpdatesAsync` then does the work, with
+  the Store's own progress and consent, so this is the one channel where the app can finish the job
+  rather than point at it. Two constraints come with it: the call must be awaited on the UI thread
+  with an owner window set on the `StoreContext`, or it fails as `ERROR_INVALID_WINDOW_HANDLE`; and
+  it performs at most **one real check every 30 minutes**, and ten a day, returning the last known
+  status past either. So the copy says what is true of a check rather than claiming a fresh one.
+
+  ⚠️ **It is not interchangeable with the hosted check.** `Package.CheckUpdateAvailabilityAsync`
+  asks App Installer about a URL the Store never gave us, and `StoreContext` asks the Store's
+  licensing service about a product it has no record of for a hosted copy. Either one pointed at
+  the other's channel answers "nothing is waiting", forever and without erring.
 - **Unpackaged** (the dev loop): the group is absent. There is no package to replace, and a button
   that could only ever fail is worse than its absence.
 

@@ -685,7 +685,6 @@
 	"about_updates_description_hosted": "{app_name} kijkt elke paar uur en bij het starten of er een nieuwe versie is. Een update wordt geïnstalleerd zodra je de app opnieuw start.",
 	"about_updates_description_store": "De Microsoft Store houdt {app_name} up-to-date.",
 	"about_updates_action": "Nu controleren",
-	"about_updates_action_store": "Store-updates openen",
 	"about_updates_checking": "Bezig met controleren…",
 	"about_updates_current": "Dit is de nieuwste versie.",
 	"about_updates_available": "Er staat een update klaar. Die wordt geïnstalleerd zodra je {app_name} opnieuw start.",
