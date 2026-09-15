@@ -396,7 +396,7 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   the JMAP found card showing `JMAP · api.fastmail.com`, **trusted, no warning**
   (`autodetect: jmap via JmapSrv (trusted)` in the log). Detection's job (route + prefill the right
   server) ends there; the subsequent JMAP-connect authentication is a separate concern.
-- **Linux** additionally has a **GTK widget suite** driven under Xvfb, in the crate's single GTK
+- **Linux** additionally has a **GTK widget suite** driven on a private headless compositor, in the crate's single GTK
   test (GTK initialises once, on one thread, so what it covers lives in files beside it): which
   surface each route renders and (the half a screenshot cannot check) what it must *not* put on
   screen. An OAuth route exposes **zero** entry fields; a detected JMAP card mid-pre-flight shows

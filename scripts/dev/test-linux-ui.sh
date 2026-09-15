@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run the Linux reading/composer + search + calendar + invitations + contacts (incl. the editor's
 # refusal) + mail actions +
-# signatures + MCP + cross-account merge acceptance path on a private X11 + D-Bus session. Controls
+# signatures + MCP + cross-account merge acceptance path on a private Wayland + D-Bus session. Controls
 # are selected through GTK's AT-SPI tree, never by screen coordinates. The only mailbox is the local
 # Stalwart fixture, and every screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
 #
@@ -17,6 +17,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sdk.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/linux_session.sh"
 
 SELF="$REPO_ROOT/scripts/dev/test-linux-ui.sh"
 START_HARNESS=0
@@ -73,10 +74,11 @@ MAIL_ACTION_SUBJECT="${MAIL_ACTION_SUBJECT:-}"
 # The person the harness files in *both* address books, so a two-account boot merges them.
 MERGED_CONTACT="Iris Jansen"
 
+# The compositor's output, which is this client tiled full-bleed on it, so the capture is the
+# window. It is also the whole of what is on screen, so unlike a window capture it holds the
+# popovers: a menu, an autosuggest list and a tooltip are each their own surface.
 capture() {
-  local name="$1"
-  MAILCAL_LINUX_HEADLESS=1 "$REPO_ROOT/scripts/dev/screenshot.sh" linux \
-    "$ARTIFACT_DIR/$name.png" >/dev/null
+  linux_session_capture "$ARTIFACT_DIR/$1.png"
 }
 
 # Start the client on the private session, opening <subject> in the reading pane, and log to
@@ -92,12 +94,13 @@ launch_app() { # <open-subject> <log-prefix> [arguments...]
   local open_subject="$1"
   local log_prefix="$2"
   shift 2
+  # No --env=WAYLAND_DISPLAY: `sdk_exec` passes --socket=wayland, and flatpak binds whatever
+  # $WAYLAND_DISPLAY names on the host to `wayland-0` *inside* the sandbox. Naming the host's
+  # socket here would name one that does not exist in there, and the client would find no display.
   sdk_exec \
     --no-a11y-bus \
-    --env=DISPLAY="$DISPLAY" \
     --env=AT_SPI_BUS_ADDRESS="$AT_SPI_BUS_ADDRESS" \
     --env=GTK_A11Y=atspi \
-    --env=GSK_RENDERER=cairo \
     --env=LIBGL_ALWAYS_SOFTWARE=1 \
     --env=WEBKIT_DISABLE_DMABUF_RENDERER=1 \
     --env=WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 \
@@ -213,11 +216,18 @@ open_calendar_event() { # <title>
   # A saved event replaces its agenda row once the core snapshot arrives. AT-SPI can resolve the
   # outgoing button just before that replacement, so retry against the settled row until its
   # details popover is observable.
-  for _ in {1..3}; do
-    "$PYTHON" "$ATSPI" activate --name "$1" --role "push button" --timeout 20
-    if "$PYTHON" "$ATSPI" wait --name "Edit" --enabled --showing --timeout 5; then
+  #
+  # ⚠️ **The activate is inside the retry, not above it.** The row can be replaced between being
+  # found and being pressed, and AT-SPI then reports a defunct object: the activate itself fails,
+  # so with it above the loop `set -e` ends the run on the first attempt and the retry never gets
+  # to do the one thing it exists for. It reads as an event that cannot be opened, over a node
+  # whose name and role both print empty because there is no longer anything to ask.
+  for _ in {1..5}; do
+    if "$PYTHON" "$ATSPI" activate --name "$1" --role "push button" --timeout 20 &&
+      "$PYTHON" "$ATSPI" wait --name "Edit" --enabled --showing --timeout 5; then
       return
     fi
+    sleep 1
   done
   die "calendar event details did not open"
 }
@@ -239,7 +249,6 @@ forward_mailto() { # <uri>
   before="$(grep -c 'mail link received' "$log" 2>/dev/null || true)"
   sdk_exec \
     --no-a11y-bus \
-    --env=DISPLAY="$DISPLAY" \
     --env=AT_SPI_BUS_ADDRESS="$AT_SPI_BUS_ADDRESS" \
     --env=GTK_A11Y=atspi \
     --env=LANG=C.UTF-8 \
@@ -1134,10 +1143,8 @@ require_cmd curl
 require_cmd dbus-daemon
 require_cmd dbus-run-session
 require_cmd gdbus
-require_cmd xvfb-run
-require_cmd xdotool
-require_cmd xwd
-require_cmd convert
+require_cmd sway
+require_cmd grim
 [[ -x "$PYTHON" ]] || die "the distro /usr/bin/python3 is required"
 [[ -x /usr/libexec/at-spi2-registryd ]] || die "at-spi2-registryd is required"
 "$PYTHON" -c 'import pyatspi' 2>/dev/null ||
@@ -1184,21 +1191,38 @@ cleanup_runtime() {
   done
   warn "could not remove private runtime directory $SESSION_RUNTIME (a portal mount may still be exiting)"
 }
-trap cleanup_runtime EXIT
+trap cleanup_runtime EXIT INT TERM
 
-info "running semantic Linux UI acceptance in a private Xvfb session"
-__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json \
-  __GLX_VENDOR_LIBRARY_NAME=mesa \
-  GALLIUM_DRIVER=llvmpipe \
-  LIBGL_ALWAYS_SOFTWARE=1 \
-  xvfb-run --auto-servernum \
-  --server-args="-screen 0 1440x900x24 -nolisten tcp -extension GLX" \
-  env \
+# A compositor of our own, not the developer's desktop. It gives the run three things GNOME will
+# not: the client's own pixels (GNOME offers a script no per-window capture at all), a screen
+# nobody is using, so a flow cannot be broken by the developer clicking elsewhere, and a fixed
+# size, so a capture means the same thing on every machine. scripts/dev/linux_session.sh has the
+# rest, including why grim sees popovers that a window capture would miss.
+#
+# It is started out here rather than inside the D-Bus session, so the trap below takes it away on
+# every exit including an interrupt; sway itself wants no session bus.
+#
+# ⚠️ **The compositor's socket has to live in the run's own `XDG_RUNTIME_DIR`, so it is exported
+# before sway starts rather than handed to the run below.** A Wayland socket is found as
+# `$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY`, and this run replaces `XDG_RUNTIME_DIR` with a private
+# directory on purpose (see the `sun_path` note above). A compositor left in the real one would
+# then be invisible to everything inside: grim would find no display, and flatpak, which resolves
+# the same pair to decide what to bind into the sandbox, would give the client none either.
+info "running semantic Linux UI acceptance on a private headless compositor"
+export LINUX_SESSION_LOG="$ARTIFACT_DIR/compositor.log"
+export XDG_RUNTIME_DIR="$SESSION_RUNTIME"
+linux_session_start 1440x900 1 mailcal-linux
+trap 'linux_session_stop; cleanup_runtime' EXIT INT TERM
+
+LIBGL_ALWAYS_SOFTWARE=1 \
+  env -u DISPLAY \
     ARTIFACT_DIR="$ARTIFACT_DIR" \
-    GDK_BACKEND=x11 \
+    WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" \
+    LINUX_SESSION_DISPLAY="$LINUX_SESSION_DISPLAY" \
+    LINUX_SESSION_SWAYSOCK="$LINUX_SESSION_SWAYSOCK" \
+    LINUX_SESSION_PID="$LINUX_SESSION_PID" \
     GDK_DPI_SCALE=1 \
     GDK_SCALE=1 \
-    GSK_RENDERER=cairo \
     GTK_A11Y=atspi \
     LANG=C.UTF-8 \
     LIBGL_ALWAYS_SOFTWARE=1 \
@@ -1218,7 +1242,8 @@ __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json \
     XDG_RUNTIME_DIR="$SESSION_RUNTIME" \
     dbus-run-session -- "$SELF" --inside-session --artifacts "$ARTIFACT_DIR"
 
-trap - EXIT
+trap - EXIT INT TERM
+linux_session_stop
 cleanup_runtime
 info "Linux UI acceptance passed"
 info "artifacts: $ARTIFACT_DIR"

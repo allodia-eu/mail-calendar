@@ -982,7 +982,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes \
             pkg-config libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev \
-            at-spi2-core python3-pyatspi dbus-x11 xvfb xauth
+            at-spi2-core python3-pyatspi sway grim
 
       - name: Install the pinned Rust + clippy
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
@@ -1002,7 +1002,12 @@ jobs:
         run: cargo clippy -p mailcal-linux --all-targets --all-features -- -D warnings
 
       - name: Unit tests
-        run: xvfb-run --auto-servernum cargo test -p mailcal-linux --all-features
+        # A private headless compositor rather than a private X server: the tests then run on the
+        # backend and the renderer that ship. `WLR_RENDERER=pixman` because a runner has no GPU,
+        # and sway would otherwise fail to pick a renderer rather than fall back to one.
+        env:
+          WLR_RENDERER: pixman
+        run: scripts/dev/with-headless-session.sh cargo test -p mailcal-linux --all-features
 
       - name: AT-SPI adapter tests
         run: /usr/bin/python3 -m unittest scripts/dev/tests/test_linux_ui_atspi.py

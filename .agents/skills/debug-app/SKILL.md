@@ -105,14 +105,26 @@ logs can predate the privacy-safe path or carry account identifiers from prior d
 scripts/dev/screenshot.sh <platform> [out.png]   # prints the saved path
 ```
 
-macOS captures the screen; simulators use `simctl io`; Android uses `screencap`; Linux captures the
-live GTK window through GNOME on a desktop or raw X pixels only in the private Xvfb test session.
+macOS captures the screen; simulators use `simctl io`; Android uses `screencap`.
 
-⚠️ **On Linux a window capture cannot see a popover**: an autosuggest list, a menu, a dropdown and
-a tooltip each live in their own surface, so the picture shows the state *before* the thing you are
-debugging and a working feature reads as a broken one. Use `control.sh linux ui-dump` (which sees
-it, and is the assertion oracle) or a full-screen `gnome-screenshot` with no `--window`.
-`docs/debugging.md` §4 has the details.
+**On Linux, launch the client headless when you mean to photograph or drive it:**
+
+```
+MAILCAL_DEV_ACCOUNT=demo clients/linux/build-and-run.sh --headless
+scripts/dev/screenshot.sh linux            # the window, popovers and all
+```
+
+That puts it on a private compositor, where the output *is* the window, and `screenshot.sh` and
+`control.sh` find that session by themselves. Without it you get the **whole screen**, and the
+script says so: GNOME gives a script no per-window capture and will not say where a window is
+either, which is a settled fact rather than a version to wait out. It also keeps a long flow off
+the user's screen, so nothing fights them for focus.
+
+⚠️ **A capture on the desktop cannot see a popover; one on the headless compositor can.** An
+autosuggest list, a menu, a dropdown and a tooltip each live in their own surface, so a *window*
+capture shows the state *before* the thing you are debugging and a working feature reads as broken.
+On the headless route a missing popover is a real finding. `control.sh linux ui-dump` sees it
+either way, and is the assertion oracle. `clients/linux/README.md` has the full table.
 
 For the **store screenshot set** (the message list, a reply in progress, Settings, Add account, in
 English and Dutch), use `scripts/dev/showcase.sh <platform>` instead. It boots the seeded in-memory
@@ -137,6 +149,7 @@ scripts/dev/control.sh android tap <x> <y> | text "<s>" | key back|enter | swipe
 scripts/dev/control.sh iphone ui-dump | find "<label>" | press "<label>" | probe <x> <y> | tap <x> <y> | text "<s>"
 scripts/dev/control.sh macos  tap <x> <y> | text "<s>" | key return|escape|... | find "<label>" | ui-dump
 scripts/dev/control.sh linux  activate "<accessible name>" | find "<accessible name>" | set-text "<accessible name>" "<value>" | ui-dump
+scripts/dev/control.sh linux  key Escape | text "<s>"      # a real keystroke; needs --headless
 ```
 
 `ui-dump` prints the accessibility tree so you can locate semantic nodes (and coordinates where a
@@ -153,8 +166,16 @@ MAILCAL_OPEN_SUBJECT="HTML message with a remote image" scripts/dev/boot.sh linu
 scripts/dev/control.sh linux activate "Load images"
 ```
 
+`key` and `text` are the half AT-SPI cannot do: a shortcut, a Tab, a dismissal. Prefer `activate`
+for anything that acts, because it invokes the element itself while a keystroke lands wherever
+focus happens to be. **There is no pointer on Linux**, so a drag or a swipe cannot be driven at
+all. The virtual pointer protocol creates a device and turns the capability on but delivers
+nothing, which is an open upstream bug; `clients/linux/README.md` has the measurements, so do not
+re-derive them.
+
+
 For the complete Linux proof, prefer `scripts/dev/test-linux-ui.sh --start-harness`. It owns a
-private Xvfb + D-Bus + AT-SPI session and asserts, against the seeded harness: blocked-image →
+private compositor + D-Bus + AT-SPI session and asserts, against the seeded harness: blocked-image →
 opt-in → Reply → Send, a forward and the files it carries into the composer, search (narrowing, how
 far back, the scope filter, clearing it), the calendar agenda plus create → detail → edit → delete,
 three meeting-invitation fixtures, contacts, recipient autosuggest, signatures, and mail actions

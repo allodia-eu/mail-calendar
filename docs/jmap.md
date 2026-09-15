@@ -303,7 +303,7 @@ metadata.
 The Linux host tests additionally pin the detected-card transition (provider action alone → manual
 fields restored on failure), stale pre-flight rejection, one stable loopback redirect across
 retries, late-callback `state` filtering, cancellation, and the close-page response. They exercise
-real GTK widgets under Xvfb, not only a projection of the setup state.
+real GTK widgets on a private headless compositor, not only a projection of the setup state.
 
 A real Stalwart JMAP server (`docker/stalwart/`, lifted from the engine) backs both local
 testing and CI (`.github/workflows/ci.yml`). The gated integration test

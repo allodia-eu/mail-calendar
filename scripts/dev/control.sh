@@ -33,10 +33,14 @@
 #                                                     #   carry: an entry's accessible name is its
 #                                                     #   label, so a dump cannot say what is in it
 #   scripts/dev/control.sh linux ui-dump               # the live GTK accessibility tree
+#   scripts/dev/control.sh linux key Escape            # a REAL keystroke, for what AT-SPI cannot
+#   scripts/dev/control.sh linux text "Team planning"  #   reach: a shortcut, Tab, a dismissal.
+#                                                      #   Needs build-and-run.sh --headless
 #   scripts/dev/control.sh windows open-first|calendar|home   # relaunch into a known state (launch hooks)
 #   scripts/dev/control.sh windows ui-dump            # the live window's UI Automation tree
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/linux_session.sh"
 
 [[ $# -ge 2 ]] || die "usage: control.sh <platform> <action> [args...]"
 platform="$(normalize_platform "$1")"; shift
@@ -150,6 +154,27 @@ EOF
     esac
     ;;
   linux)
+    # Two halves, and they answer to different things. AT-SPI is semantic and works wherever the
+    # client runs, on the developer's desktop as much as in a headless session, because it is
+    # D-Bus rather than a compositor. `key` and `text` are the other half: a real keystroke, which
+    # only a compositor can deliver, and the developer's GNOME session will deliver none. So they
+    # need `build-and-run.sh --headless`, and say so rather than failing quietly.
+    #
+    # Prefer AT-SPI. `activate` invokes the element itself; a keystroke lands wherever focus
+    # happens to be. What AT-SPI cannot do is a shortcut or a dismissal (Escape, Tab, Ctrl+Return),
+    # which is the whole of what `key` is for.
+    case "$action" in
+      key)
+        [[ $# -ge 1 ]] || die "key <xkb keysym name, e.g. Escape|Return|Tab>"
+        linux_session_attach ||
+          die "a keystroke needs the headless session: clients/linux/build-and-run.sh --headless"
+        linux_session_type -k "$1"; exit $? ;;
+      text)
+        [[ $# -ge 1 ]] || die "text <string>"
+        linux_session_attach ||
+          die "typing needs the headless session: clients/linux/build-and-run.sh --headless"
+        linux_session_type "$1"; exit $? ;;
+    esac
     python=/usr/bin/python3
     [[ -x "$python" ]] || die "Linux UI control requires the distro /usr/bin/python3"
     "$python" -c 'import pyatspi' 2>/dev/null ||
@@ -169,7 +194,7 @@ EOF
       read-text)
         [[ $# -ge 1 ]] || die "read-text <accessible name>"
         exec "$python" "$script" read-text --name "$1" ;;
-      *) die "unknown linux action '$action' (activate|find|read-text|set-text|ui-dump)" ;;
+      *) die "unknown linux action '$action' (activate|find|key|read-text|set-text|text|ui-dump)" ;;
     esac
     ;;
   windows)

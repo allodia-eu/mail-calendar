@@ -55,6 +55,9 @@ source "$SHOWCASE_DIR/lib.sh"
 # Android's device wrangling; booting the target's AVD, the status bar, rotation, cleanup; is far
 # bulkier than any other platform's and lives in its own file, as the Windows half does.
 source "$SHOWCASE_DIR/showcase-android.sh"
+# The private headless compositor the Linux captures are taken on, shared with screenshot.sh,
+# control.sh and test-linux-ui.sh so there is one place that knows how to start and read one.
+source "$SHOWCASE_DIR/linux_session.sh"
 
 # Which emulators THIS machine uses. Git-ignored, because an AVD name is per-machine; see
 # devices.local.sh.example. Absent is fine until an Android target actually needs a name, which is
@@ -625,38 +628,6 @@ LINUX_BIN="$REPO_ROOT/target/debug/mailcal-linux"
 # drift apart.
 LINUX_MODAL_APP_ID="$(basename "$LINUX_BIN")"
 
-# The Wayland sockets that exist now, each as `name:inode`. The compositor names its own socket
-# (`wl_display_add_socket_auto`), so a run identifies it by taking the one that was not there
-# before: the developer's session already owns wayland-0, and a stale compositor from an
-# interrupted run can own more.
-#
-# The inode is what makes that work across a sweep. The compositor releases its number when it
-# exits and the
-# next capture is handed the *same name* back; comparing names alone then finds nothing new and the
-# second screenshot of every run fails. A reused name is still a newly created file, so it has a new
-# inode.
-linux_wayland_sockets() {
-  local runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" sock
-  for sock in "$runtime"/wayland-*; do
-    [[ -S "$sock" ]] || continue
-    printf '%s:%s ' "$(basename "$sock")" "$(stat -c '%i' "$sock" 2>/dev/null)"
-  done
-}
-
-linux_compositor_socket() { # <linux_wayland_sockets output from before the compositor started>
-  local waited=0 entry
-  while [[ "$waited" -lt 20 ]]; do
-    for entry in $(linux_wayland_sockets); do
-      case " $1 " in *" $entry "*) continue ;; esac
-      printf '%s\n' "${entry%:*}"
-      return 0
-    done
-    sleep 1
-    waited=$((waited + 1))
-  done
-  return 1
-}
-
 # GTK registers the application id on the session bus and hands a second launch off to the first,
 # which then exits without ever reading its own environment; so a flag only takes effect in a fresh
 # process, and the previous one must be gone before the next starts. An *installed* build owns the
@@ -665,82 +636,34 @@ linux_compositor_socket() { # <linux_wayland_sockets output from before the comp
 #
 # Debug, not release: the whole of clients/linux/src/showcase.rs is `#![cfg(debug_assertions)]`.
 #
-# The capture in flight, for `linux_cleanup`. Between starting the compositor and killing it every
+# The compositor in flight, for the interrupt handler. Between starting it and stopping it every
 # way out is a `die` or an interrupt, and without this each one leaves a headless sway and its
 # client running until the machine is rebooted. `INT`/`TERM` as well as `EXIT`, because Ctrl-C is
 # how a long set actually gets abandoned.
-LINUX_COMPOSITOR_PID=""
-LINUX_COMPOSITOR_CONFIG=""
-
 linux_cleanup() {
-  [[ -n "$LINUX_COMPOSITOR_PID" ]] && kill -KILL "$LINUX_COMPOSITOR_PID" 2>/dev/null
-  [[ -n "$LINUX_COMPOSITOR_CONFIG" ]] && rm -f "$LINUX_COMPOSITOR_CONFIG"
+  linux_session_stop
   return 0
 }
 
 # Captured on a headless compositor, never on the developer's session: sway tiles one client
-# full-bleed with no border, so the output *is* the window, and grim reads it over wlr-screencopy
-# with no portal permission and no focus. The app runs on the Wayland backend with the GL renderer,
-# which is what ships; Xvfb would run it on X11 through GSK's cairo fallback and redraw every
-# shadow and rounded corner in the set.
-#
-# sway rather than cage because the size has to be chosen, and cage offers no way: WLR_HEADLESS_OUTPUTS
-# sets a count, not a size, and it implements no wlr-output-management. Weston can be sized and
-# implements no wlr-screencopy, so grim cannot read it.
-#
-# `--unsupported-gpu` is required: sway refuses to start under the proprietary Nvidia driver, over a
-# GPU the headless backend never touches.
-#
-# ⚠️ **The config has to float this client's dialogs, because sway tiles them.** Settings, the
-# signature editor and the first-account screen are each a window of their own, and a tiling
-# compositor gives a second window half the output and shrinks the app into the other half: what a
-# capture then shows is two half-width windows side by side, which is not what the desktop these
-# screenshots stand for puts on screen. Stating the policy here is the same kind of statement as the
-# borders and the gaps above it. It is load-bearing rather than cosmetic on the first-account
-# screen, whose other half is an empty mailbox: nearly white, it drops the PNG under
-# `min_capture_bytes` and the run dies several screens into a set.
-#
-# ⚠️ SIGKILL the compositor. wlroots aborts inside `wl_display_terminate`, and each abort files an
-# apport crash report: 49 of them across a full set. Taking its client away first reaches the same
-# call. SIGKILL has no core-dump action, and grim has already read the pixels.
+# full-bleed with no border, so the output *is* the window, and grim reads it with no portal
+# permission and no focus. The app runs on the Wayland backend with the GL renderer, which is what
+# ships. scripts/dev/linux_session.sh owns the mechanics and the reasons.
 linux_capture() { # <locale> <screen> <out>
-  local offset before sock compositor_pid config
+  local offset
   offset="$(client_log_size)"
   stop_client
   sleep 1
-  # `exec` in the config rather than an argument: sway takes no client on its command line, and a
-  # child it starts itself inherits the showcase environment set on sway.
-  config="$(mktemp)"
-  LINUX_COMPOSITOR_CONFIG="$config"
-  cat >"$config" <<CONFIG
-output HEADLESS-1 resolution ${LINUX_OUTPUT% *} scale ${LINUX_OUTPUT##* }
-default_border none
-default_floating_border none
-gaps inner 0
-gaps outer 0
-for_window [app_id="$LINUX_MODAL_APP_ID"] floating enable, move position center
-exec $LINUX_BIN
-CONFIG
-  before="$(linux_wayland_sockets)"
+  linux_session_start ${LINUX_OUTPUT} "$LINUX_MODAL_APP_ID"
   MAILCAL_SHOWCASE="$1" MAILCAL_SHOWCASE_SCREEN="$2" \
-    env -u DISPLAY -u WAYLAND_DISPLAY \
-    WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 \
-    sway --unsupported-gpu -c "$config" >/dev/null 2>&1 &
-  compositor_pid=$!
-  LINUX_COMPOSITOR_PID="$compositor_pid"
-  # Detach it, so the next iteration's pkill doesn't print a "Terminated" job notice over the log.
+    WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" \
+    env -u DISPLAY "$LINUX_BIN" >/dev/null 2>&1 &
   disown
-  sock="$(linux_compositor_socket "$before")" ||
-    die "sway opened no Wayland socket: it did not start, or $LINUX_BIN exited immediately"
   sleep "$(settle_for "$2")"
   require_showcase_launch "$1" "$offset" "$2"
-  WAYLAND_DISPLAY="$sock" grim "$3" ||
-    die "grim could not capture the compositor's output on $sock"
-  kill -KILL "$compositor_pid" 2>/dev/null || true
-  rm -f "$config"
-  LINUX_COMPOSITOR_PID=""
-  LINUX_COMPOSITOR_CONFIG=""
+  linux_session_capture "$3"
   stop_client
+  linux_session_stop
 }
 
 # ---- build + run -------------------------------------------------------------------------------

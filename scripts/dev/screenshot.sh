@@ -10,17 +10,7 @@
 # Default output: ${TMPDIR:-/tmp}/mailcal-<platform>.png (overwritten each run).
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
-
-# The client's X window, newest first. Only ever an answer on X11 or under Xvfb: a Wayland client
-# has none, which is what the Wayland branch below exists for.
-linux_x_window() {
-  local windows=()
-  mapfile -t windows < <(xdotool search --onlyvisible --class mailcal-linux 2>/dev/null || true)
-  [[ ${#windows[@]} -gt 0 ]] ||
-    mapfile -t windows < <(xdotool search --onlyvisible --name "Allodia Mail" 2>/dev/null || true)
-  [[ ${#windows[@]} -gt 0 ]] || return 1
-  printf '%s\n' "${windows[${#windows[@]}-1]}"
-}
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/linux_session.sh"
 
 [[ $# -ge 1 ]] || die "usage: screenshot.sh <macos|iphone|ipad|android|windows|linux> [out.png]"
 platform="$(normalize_platform "$1")"; shift
@@ -42,36 +32,21 @@ case "$platform" in
     ;;
   linux)
     mkdir -p "$(dirname "$OUT")"
-    # Which capture route exists is decided by the session, not by preference. A Wayland client has
-    # no X window at all, so every X tool below finds nothing and then reports the DISPLAY it was
-    # handed, which is set and reachable because XWayland is running.
-    if [[ "${MAILCAL_LINUX_HEADLESS:-0}" == "1" ]]; then
-      # Xvfb has no compositor, so the X backing pixels are the pixels under test, and they are this
-      # window's own whatever is stacked over it. Avoid gnome-screenshot here: it expects a
-      # desktop-shell screenshot service that a private headless session intentionally does not run.
-      # This is the only route that captures the *window* rather than the screen.
-      require_cmd xdotool
-      require_cmd xwd
-      magick="$(imagemagick_bin)" || die "ImageMagick is required (install 'imagemagick')"
-      window="$(linux_x_window)" || die "no Allodia Mail & Calendar window on DISPLAY=${DISPLAY:-unset}"
-      scratch="$(mktemp --suffix=.xwd)"
-      trap 'rm -f "$scratch"' EXIT
-      xwd -silent -id "$window" -out "$scratch"
-      "$magick" "$scratch" "$OUT"
-    elif [[ "${XDG_SESSION_TYPE:-}" == "wayland" ]]; then
-      # The whole screen, deliberately: no per-window capture is available to a script here, and
-      # neither the client's position nor which window is on top can be read. The reasoning, and
-      # what to reach for when the window itself is needed, is in linux_wayland_capture.py.
-      warn "Wayland session: capturing the whole screen (no per-window capture is available);
-       for the window alone, use the Xvfb path: MAILCAL_LINUX_HEADLESS=1"
+    # Two routes, and which one runs is decided by where the client is, never by preference.
+    #
+    # A client in a headless session (`build-and-run.sh --headless`) gets the good one: sway tiles
+    # it full-bleed, so the compositor's output *is* the window, popovers included. On the
+    # developer's own GNOME desktop no such capture exists at all, so the fallback is the portal's
+    # whole screen. This never starts a session of its own: that would photograph a fresh app
+    # rather than the one being debugged.
+    if linux_session_attach; then
+      linux_session_capture "$OUT"
+    else
+      warn "no headless session, so this is the WHOLE SCREEN: GNOME offers a script no
+       per-window capture, and will not say where the window is either. For the window alone:
+       clients/linux/build-and-run.sh --headless, then run this again"
       "${MAILCAL_PYTHON:-/usr/bin/python3}" "$DEV_LIB_DIR/linux_wayland_capture.py" \
         --out "$OUT" >/dev/null
-    else
-      require_cmd xdotool
-      require_cmd gnome-screenshot
-      window="$(linux_x_window)" || die "no visible Allodia Mail & Calendar Linux window on DISPLAY=${DISPLAY:-unset}"
-      xdotool windowactivate --sync "$window"
-      gnome-screenshot --window --file "$OUT"
     fi
     ;;
   windows)

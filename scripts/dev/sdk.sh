@@ -162,17 +162,17 @@ sdk_exec() {
 # compilation; so this is the deliberate check, not the inner loop.
 sdk_test() {
   if [[ -z "${SDK_TEST_SESSION:-}" ]]; then
-    require_cmd xvfb-run
     require_cmd dbus-run-session
-    SDK_TEST_SESSION=1 exec xvfb-run --auto-servernum dbus-run-session -- \
-      "$SDK_SH" test "$@"
+    SDK_TEST_SESSION=1 exec "$REPO_ROOT/scripts/dev/with-headless-session.sh" \
+      dbus-run-session -- "$SDK_SH" test "$@"
   fi
+  # No --env=WAYLAND_DISPLAY: --socket=wayland already binds whatever the host's $WAYLAND_DISPLAY
+  # names to `wayland-0` inside the sandbox, and naming the host's socket in there would name one
+  # that does not exist.
   SDK_CARGO_EXTRA=(
     --share=ipc
-    --socket=x11
+    --socket=wayland
     --socket=session-bus
-    --env=DISPLAY="$DISPLAY"
-    --env=GSK_RENDERER=cairo
     --env=LIBGL_ALWAYS_SOFTWARE=1
   )
   sdk_cargo test "$@"

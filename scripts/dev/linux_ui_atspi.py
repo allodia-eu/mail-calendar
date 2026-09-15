@@ -37,9 +37,26 @@ def node_description(node: Any) -> str:
 
 
 def node_role(node: Any) -> str:
-    """Return the normalized AT-SPI role name for a node."""
+    """Return the normalized AT-SPI role name for a node.
+
+    Resolved from the role **enum** through AT-SPI's own table, not from `getRoleName()`. That
+    string is whatever the toolkit chose to send, and it moves: GTK 4.22 reports `button` for
+    every node whose AT-SPI role is `ROLE_PUSH_BUTTON`, where earlier versions reported
+    `push button`. Reading the enum pins the name to the accessibility contract rather than to a
+    GTK version, so `--role "push button"` keeps meaning a button. `getRoleName()` is still the
+    fallback, for a role this pyatspi has no name for.
+    """
     try:
-        role = str(node.getRoleName() or "")
+        # Imported here rather than at the top, as every other pyatspi use in this file is, so the
+        # module stays importable (and unit-testable) on a machine without it.
+        role = ""
+        try:
+            import pyatspi
+
+            role = str(pyatspi.ROLE_NAMES.get(node.getRole()) or "")
+        except Exception:
+            role = ""
+        role = role or str(node.getRoleName() or "")
         # AT-SPI2 has no role value for GTK's `switch`, so current libadwaita publishes the
         # actionable child of `AdwSwitchRow` as ROLE_LAST_DEFINED. Its semantic toggle action is
         # unambiguous and is what assistive technology invokes.
@@ -72,10 +89,15 @@ def walk(node: Any) -> Iterator[Any]:
         yield from walk(child)
 
 
-# How many same-named nodes a text command scans before giving up. A labelled field is two or
+# How many same-named nodes a command scans before giving up. A labelled field is two or
 # three (libadwaita's entry row draws its title twice); more than this and the name is too
 # ambiguous to drive by anyway.
-TEXT_SCAN = 8
+#
+# A switch needs it as much as a field does: libadwaita publishes `AdwSwitchRow` and the
+# `GtkSwitch` inside it under the **same name and the same role**, and only the inner one carries
+# the `toggle` action. Walk order reaches the row first, so taking the first match alone finds the
+# one node that cannot be pressed and then reports the control as having no action.
+NODE_SCAN = 8
 
 
 def _matches(value: str, expected: str | None) -> bool:
@@ -204,6 +226,17 @@ def node_showing(node: Any) -> bool:
         )
     except Exception:
         return False
+
+
+def actionable_match(matches: list[Any], fallback: Any) -> Any:
+    """Pick the match that can actually be acted on.
+
+    libadwaita publishes `AdwSwitchRow` and the `GtkSwitch` inside it under the **same name and
+    the same role**, and only the inner one carries the `toggle` action. Walk order reaches the
+    row first, so taking the first match finds the one node that cannot be pressed and then
+    reports the control as having no action.
+    """
+    return next((node for node in matches if action_names(node)), fallback)
 
 
 def activate_node(node: Any) -> bool:
@@ -477,7 +510,9 @@ def main(argv: list[str] | None = None) -> int:
         # take the first that actually has the interface. A *non-zero* --index still names the
         # nth match exactly, for the caller who has already looked at the tree; `--index 0` is
         # the default, so it cannot be told apart from asking for no index at all.
-        scanning = args.command in ("set-text", "read-text") and args.index == 0
+        # Only with the default index: an explicit `--index` is the caller naming one node, and
+        # scanning past it would quietly drive a different one.
+        scanning = args.command in ("set-text", "read-text", "activate", "measure") and args.index == 0
         matches = wait_for_nodes(
             lambda: wait_for_application(args.timeout),
             name=args.name,
@@ -490,7 +525,7 @@ def main(argv: list[str] | None = None) -> int:
             enabled_only=args.command in ("activate", "measure") or args.enabled,
             showing_only=args.command in ("activate", "measure") or args.showing,
             timeout=args.timeout,
-            result_limit=TEXT_SCAN if scanning else args.index + 1,
+            result_limit=NODE_SCAN if scanning else args.index + 1,
         )
         if args.index < 0 or args.index >= len(matches):
             raise IndexError(f"target index {args.index} is outside {len(matches)} matches")
@@ -513,6 +548,8 @@ def main(argv: list[str] | None = None) -> int:
                     print(f'{node_role(candidate)} name="{node_name(candidate)}"')
                     return 0
             raise RuntimeError("target has no enabled editable-text interface")
+        if args.command in ("activate", "measure") and scanning:
+            target = actionable_match(matches, target)
         print(
             f'{node_role(target)} name="{node_name(target)}"'
             f'{f" description={node_description(target)!r}" if node_description(target) else ""}'
