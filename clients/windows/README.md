@@ -159,8 +159,14 @@ The dev loop above is **unpackaged**, loose files, no MSIX, no signing, which is
 
 ```pwsh
 ./package.ps1                    # dual-arch (x64 + arm64) Store .msixupload, Release
+./package.ps1 -Channel Direct    # the same build as a .msixbundle we host ourselves
 ./package.ps1 -Version 1.2.0.0   # stamp the package version
 ```
+
+Windows is shipped **twice**, and the second channel is the subject of
+[`docs/windows-channels.md`](../../docs/windows-channels.md): same build of the app, a different
+package, because a package outside the Store must carry the subject of the certificate that signed
+it. Read that before touching either path. The rest of this section is the Store's.
 
 `package.ps1` builds both Rust cdylibs, regenerates the bindings, then drives **MSBuild**'s MSIX
 packaging targets to emit an **unsigned `.msixupload`**. You **upload that to Partner Center
@@ -295,7 +301,9 @@ remove the old package first (MSIX blocks reinstalling the same `1.0.0.0` with c
   `set-desktop-resolution.ps1` and `install-windows-app-runtime.ps1` are the two things a CI runner
   needs that a developer machine already has.
 - `build-and-run.ps1`, cdylib → bindings → gate → WinUI app → launch (the dev loop).
-- `package.ps1`, cdylib (both arches) → bindings → MSIX bundle → `.msixupload` (the Store path);
+- `package.ps1`, cdylib (both arches) → bindings → MSIX bundle → `.msixupload` (the Store path),
+  or `-Channel Direct` → an unsigned `.msixbundle` plus the staged Windows App Runtime, for the
+  download we host ([`docs/windows-channels.md`](../../docs/windows-channels.md));
   `-Sign` instead builds a self-signed, installable sideload set for on-device testing.
 - `rust-crt.ps1`, dot-sourced by both scripts: links the cdylib's C runtime statically and asserts
   the shipped DLL imports none. See "The Rust cdylib links the C runtime statically" above.
