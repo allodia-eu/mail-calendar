@@ -343,8 +343,9 @@ in [`docs/store-listing.md`](../../docs/store-listing.md) and apply to iOS uncha
 - `Packages/MailcalKit/`, the shared Swift package (`MailcalUI` + the generated `MailcalBindings`).
 - `Scripts/`
   - `build-and-run.sh`, the debug dev loop.
-  - `build-core.sh [--release] [--no-device]`, cross-compiles the Rust core and assembles
-    `Mailcal.xcframework` + the generated Swift bindings.
+  - `build-core.sh [--release] [--no-device] [--slices device,sim,macos]`, cross-compiles the Rust
+    core and assembles `Mailcal.xcframework` + the generated Swift bindings. `--slices` narrows it
+    to the platforms a build actually links; CI has a job per platform and passes one name.
   - `package.sh`, the three production flows above (Developer-ID `.dmg`, macOS Store `.pkg`, iOS
     Store `.ipa`).
   - `generate-appicon.sh`, regenerates `App/Assets.xcassets/AppIcon.appiconset` (macOS + the iOS

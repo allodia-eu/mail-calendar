@@ -409,18 +409,22 @@ jobs:
         run: docker compose down -v
 
   apple:
-    # Cross-compile the Rust core to an XCFramework, generate the Xcode project, build the macOS +
-    # iOS app targets, and build + run the headless FFI verifier (demo mode — deterministic, no
-    # credentials). Runner: xcode-27, arm64, macOS 27 + Xcode 27 (our minimum).
+    # Cross-compile the Rust core to an XCFramework, generate the Xcode project, and build what the
+    # matrix leg owns. Runner: xcode-27, arm64, macOS 27 + Xcode 27 (our minimum).
     #
-    # ONE job for both platforms, not one each. A macOS leg and an iOS leg would each compile a
-    # single Rust slice and a single platform's Swift, which is genuinely half the work, but a
-    # standard macOS runner has 3 cores, so the two legs also each pay the ~70s of setup this one
-    # pays once (VM boot, checkout, Xcode select, rustup, xcodegen, two cache restores) and each
-    # wants its own Rust and DerivedData entries out of the repo's 10 GB cache budget. Against a
-    # warm run of about two minutes, splitting buys under a minute of wall clock for roughly 40%
-    # more runner time. Revisit it if the warm number climbs.
-    name: Apple clients (macOS + iOS)
+    # TWO legs, one per platform, and the split is what the run costs rather than a preference. As
+    # one job the work was strictly serial and took 12.4 minutes against Windows' 6.9: the core was
+    # cross-compiled for both slices, MailcalKit was tested, both apps were built, and only then did
+    # the UI suite boot a simulator. The price of splitting it is one more set of the ~70s this job
+    # used to spend once on setup (VM boot, checkout, Xcode select, rustup, xcodegen, two cache
+    # restores) and a second set of entries out of the repo's 10 GB cache budget. What it buys is
+    # the macOS and iOS halves running at the same time, each compiling one cargo target triple
+    # rather than two. The repository is public, so runner minutes are not the constraint the cache
+    # budget still is.
+    #
+    # `fail-fast: false`, because a red macOS leg and a red iOS leg are different information and a
+    # run that cancels one to report the other makes you push again to learn the rest.
+    name: Apple ${{ matrix.label }} client
     needs: changes
     if: needs.changes.outputs.apple == 'true'
     runs-on: xcode-27
@@ -429,6 +433,28 @@ jobs:
       contents: read
       # `delete-used-deriveddata-cache` below calls the cache-delete API. Only main reaches it.
       actions: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `slice` is what build-core.sh compiles for this leg and `rust-target` is the same
+          # thing said to rustup. The physical-device slice (aarch64-apple-ios) is in neither, so
+          # it is never built here: nothing below links `platform=iOS` and compiling it would only
+          # add minutes to the workflow's slowest job. The trade is real: an error that breaks only
+          # the device slice now surfaces when someone builds for a device (scripts/dev/device.sh)
+          # or at release.
+          #
+          # The macOS leg carries the simulator slice it does not link, and that is deliberate: a
+          # cold `--slices macos` races cargo against its own proc macros (build-core.sh says how).
+          # It costs one cross-compile on the leg that is not the critical path.
+          - platform: macos
+            label: macOS
+            slice: sim,macos
+            rust-target: aarch64-apple-darwin,aarch64-apple-ios-sim
+          - platform: ios
+            label: iOS
+            slice: sim
+            rust-target: aarch64-apple-ios-sim
     steps:
       - name: Check out the product core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -450,14 +476,28 @@ jobs:
           [ "$(bash -c 'printf %s "${BASH_VERSION%%.*}"')" -ge 5 ] ||
             { echo "::error::bash on PATH is still $(bash --version | head -1)"; exit 1; }
 
+      # `xcode-27` is GitHub's preview label rather than a `macos-NN` one, and it carries exactly
+      # one Xcode, already the default, so there is nothing to select. What is worth doing is
+      # saying so out loud: an image that moves to another Xcode major should turn this job red
+      # rather than quietly build the Apple clients with a compiler this tree does not target.
+      - name: Check the image's Xcode (27 is the first with Swift 6.4)
+        run: |
+          xcodebuild -version
+          xcodebuild -version | grep -qE '^Xcode 27([.]|$)' ||
+            { echo "::error::this job needs Xcode 27, and the image has the version above"; exit 1; }
+
       # Xcode's build cache. A git checkout stamps every source file with a fresh mtime, which
       # would invalidate DerivedData, so this action restores the recorded mtimes alongside it.
       # (SourcePackages caching does nothing here: MailcalKit has no external SwiftPM
       # dependencies.) Runs before build-core.sh so the restored mtimes precede any regeneration.
+      # Keyed per leg, because the two hold different products and would otherwise overwrite each
+      # other's entry every time main ran.
       #
       # `clients/apple/build` holds three things now, and all three are the same trade: keep what
       # the last run produced so this one need not rebuild it.
-      #   - `Build/`, Xcode's own products for the app targets and the verifier.
+      #   - `DerivedData/`, Xcode's own products for the app targets, the UI suite and the verifier.
+      #     The dev loop, the showcase captures and `test-ui.sh` all use that path already, so CI
+      #     using it too is what lets one leg's app build serve the step after it.
       #   - `KitSPM/`, where the MailcalKit suite builds (clients/apple/Scripts/test-kit.sh). Its
       #     default `.build` is inside the package and nothing cached it, so the suite was a
       #     from-scratch compile of MailcalUI on every run, warm cache or not.
@@ -477,14 +517,14 @@ jobs:
       # without the mirror, and the suite costs 41.0s, the macOS app 20.3s and the iOS app 46.7s.
       #
       # `KitSPM/` is 785 MB of it, most of that the static archive SwiftPM copies in and the test
-      # binary and dSYM it links, so the entry grows from ~537 MB to roughly 850 MB packed. That is
-      # ~14s more to restore against the 100-190s the suite used to spend recompiling, and one
-      # entry at a time, since main still deletes the one it just used.
+      # binary and dSYM it links, so the macOS entry is much the larger of the two. That is ~14s
+      # more to restore against the 100-190s the suite used to spend recompiling, and one entry at a
+      # time, since main still deletes the one it just used.
       - name: Cache Xcode DerivedData
         uses: irgaly/xcode-cache@4141f139f00e335c6e1031fb93e667181f86146f # v1.9.2
         with:
-          key: xcode-deriveddata-${{ runner.os }}-${{ github.sha }}
-          restore-keys: xcode-deriveddata-${{ runner.os }}-
+          key: xcode-deriveddata-${{ matrix.platform }}-${{ github.sha }}
+          restore-keys: xcode-deriveddata-${{ matrix.platform }}-
           deriveddata-directory: ${{ github.workspace }}/clients/apple/build
           # Same rule as the Rust cache: only main writes. Read-only short-circuits the action's
           # whole save-and-delete branch, so a PR can never evict or delete main's entry.
@@ -493,28 +533,18 @@ jobs:
           # leaves another ~600 MB behind and we are back to fighting the 10 GB budget.
           delete-used-deriveddata-cache: ${{ github.ref == 'refs/heads/main' }}
 
-      # `xcode-27` is GitHub's preview label rather than a `macos-NN` one, and it carries exactly
-      # one Xcode, already the default, so there is nothing to select. What is worth doing is
-      # saying so out loud: an image that moves to another Xcode major should turn this job red
-      # rather than quietly build the Apple clients with a compiler this tree does not target.
-      - name: Check the image's Xcode (27 is the first with Swift 6.4)
-        run: |
-          xcodebuild -version
-          xcodebuild -version | grep -qE '^Xcode 27([.]|$)' ||
-            { echo "::error::this job needs Xcode 27, and the image has the version above"; exit 1; }
-
-      - name: Set up Rust (Apple targets)
+      - name: Set up Rust (${{ matrix.rust-target }})
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
         with:
           toolchain: ${{ needs.changes.outputs.toolchain }}
-          # No aarch64-apple-ios: this job passes --no-device below, so the physical-device slice
-          # is never compiled here. Add it back if you ever drop that flag.
-          targets: aarch64-apple-darwin,aarch64-apple-ios-sim
+          targets: ${{ matrix.rust-target }}
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          shared-key: apple
+          # Per leg, because each holds one target triple's dependencies and a shared key would
+          # hand whichever leg saved second a cache with none of its own.
+          shared-key: apple-${{ matrix.platform }}
           # Only main saves. A cache written on a PR ref is readable by nothing but that PR, so
           # every PR would upload ~1 GB that serves no later run and only evicts main's entries
           # from the repo's 10 GB budget. PRs restore main's entry and rebuild what they touched.
@@ -523,18 +553,24 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      # --no-device: the steps below link only `platform=macOS` and `generic/platform=iOS
-      # Simulator`, so cross-compiling the physical-device slice here buys nothing but minutes on
-      # the workflow's slowest job. The trade is real: an error that only breaks the device slice now
-      # surfaces when someone builds for a device (or at release) instead of here.
+      # ⚠️ **Do not pre-boot the simulator here to overlap the wait below.** `simctl boot` returns
+      # with the device's services still coming up and `xcodebuild test` blocks until they are, so
+      # starting it early looks like 136 free seconds. It is not: a booting simulator takes this
+      # three-core runner for itself, and whatever it was meant to overlap pays more than that.
+      # Measured, against the macOS leg as the control, which boots nothing: started before these
+      # steps, the DerivedData restore and the rustup install went from 1s and 10s to 105-152s and
+      # 129-136s; started after them, this core build went from 63s for two slices to 242s for one.
       - name: Build the Rust core -> XCFramework + bindings
-        run: ./clients/apple/Scripts/build-core.sh --no-device
+        run: ./clients/apple/Scripts/build-core.sh --slices ${{ matrix.slice }}
 
       # The client's own tests: plain logic, no UI, no simulator — the page<->date mapping, the zoom
       # clamps, the all-day overflow rule, the localised copy. They run before the app builds, because
       # a broken rule should fail in seconds rather than after two xcodebuild invocations. The script
-      # owns where SwiftPM builds, and why it must not be where Xcode does.
+      # owns where SwiftPM builds, and why it must not be where Xcode does. On the macOS leg only:
+      # `swift test` builds for the host, so running it on the iOS leg as well would test the same
+      # macOS binary twice and add a minute to the slower of the two.
       - name: Test MailcalKit
+        if: matrix.platform == 'macos'
         run: clients/apple/Scripts/test-kit.sh
 
       # The brand has to be in the environment BEFORE xcodegen runs. XcodeGen substitutes `${VAR}`
@@ -551,30 +587,37 @@ jobs:
           brand_assert_expanded clients/apple/AllodiaMail.xcodeproj/project.pbxproj
           brand_assert_expanded clients/apple/App/Info.plist
 
-      # The three xcodebuild invocations share one derived-data path, so the app builds and the
-      # verifier reuse each other's MailcalKit build products instead of compiling it three times.
-      # The index store only feeds the Xcode UI, so generating it here is pure cost.
+      # The two xcodebuild invocations share one derived-data path, so the app build and the
+      # verifier reuse each other's MailcalKit build products instead of compiling it twice. The
+      # index store only feeds the Xcode UI, so generating it here is pure cost.
       - name: Build the macOS app
+        if: matrix.platform == 'macos'
         working-directory: clients/apple
         run: |
           xcodebuild -project AllodiaMail.xcodeproj -scheme AllodiaMail \
             -destination 'platform=macOS' -configuration Debug \
-            -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
+            -derivedDataPath build/DerivedData -quiet COMPILER_INDEX_STORE_ENABLE=NO build
 
-      - name: Build the iOS app
+      - name: Build + run the headless FFI verifier (demo mode)
+        if: matrix.platform == 'macos'
         working-directory: clients/apple
         run: |
-          xcodebuild -project AllodiaMail.xcodeproj -scheme AllodiaMail \
-            -destination 'generic/platform=iOS Simulator' -configuration Debug \
-            -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
+          xcodebuild -project AllodiaMail.xcodeproj -scheme MailcalVerify \
+            -destination 'platform=macOS' -configuration Debug \
+            -derivedDataPath build/DerivedData -quiet COMPILER_INDEX_STORE_ENABLE=NO build
+          MAILCAL_DEMO=1 ./build/DerivedData/Build/Products/Debug/MailcalVerify
 
-      # The UI suite (clients/apple/UITests), on a booted iPhone simulator. Every test drives the
-      # in-memory showcase dataset, so this needs no Docker harness, no account and no network,
-      # which is the same trade the Windows UI job makes with `-Dataset showcase,first-run`.
+      # The UI suite (clients/apple/UITests), on the simulator booted at the top of this leg. Every
+      # test drives the in-memory showcase dataset, so this needs no Docker harness, no account and
+      # no network, which is the same trade the Windows UI job makes with `-Dataset showcase,first-run`.
+      #
+      # This is also what builds the iOS app, in one xcodebuild rather than two. A separate build
+      # step would resolve the package graph and plan the build a second time for products this one
+      # already has, and a `generic/platform=iOS Simulator` destination has no active arch, so it
+      # can compile x86_64 beside the arm64 the tests actually run.
       #
       # **Three classes of five, and that is a budget rather than a judgement about the other two.**
-      # A UI test costs what no other gate here costs: a simulator to boot (~37s before a single
-      # assertion runs, measured on an 8-core M2 from a shut-down simulator) and then the app's own
+      # A UI test costs what no other gate here costs: a simulator to boot and then the app's own
       # launch per test. The three that run are the three that hold something written down: the
       # action row's order and the header that scrolls out from under it
       # (docs/reading-actions.md), and the calendar pinch (docs/calendar.md), which is also the
@@ -582,19 +625,12 @@ jobs:
       # `NavigationBarTests` and `ComposerPresentationTests`, run from
       # `clients/apple/Scripts/test-ui.sh` on a developer's machine, and the second of them is the
       # slowest test in the bundle by some way. Add a `--only` below to move one back.
-      - name: Test the iOS UI (showcase dataset)
+      - name: Build + test the iOS app (showcase dataset)
+        if: matrix.platform == 'ios'
         run: |
           clients/apple/Scripts/test-ui.sh --no-core \
             --only ReadingActionRowTests --only ReadingHeaderScrollTests \
             --only CalendarPinchTests
-
-      - name: Build + run the headless FFI verifier (demo mode)
-        working-directory: clients/apple
-        run: |
-          xcodebuild -project AllodiaMail.xcodeproj -scheme MailcalVerify \
-            -destination 'platform=macOS' -configuration Debug \
-            -derivedDataPath build -quiet COMPILER_INDEX_STORE_ENABLE=NO build
-          MAILCAL_DEMO=1 ./build/Build/Products/Debug/MailcalVerify
 
   windows:
     # Fast per-commit gate: x64 Debug only — Rust cdylib -> C# bindings (vendored binshim) ->

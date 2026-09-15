@@ -7,11 +7,21 @@
 # Run this once after cloning, and again whenever the Rust FFI changes. The xcframework and
 # the generated bindings are git-ignored (rebuilt from the Rust source of truth).
 #
-# Usage: build-core.sh [--no-device] [--release]
-#   --no-device   Skip the aarch64-apple-ios (physical device) slice. CI passes this: it only
-#                 ever links `platform=macOS` and `generic/platform=iOS Simulator`, so the device
-#                 slice is compiled purely to be packaged. Never pass it when building something
-#                 that will run on a real iPhone/iPad (see .agents/skills/ios-device-bgsync).
+# Usage: build-core.sh [--slices <list>] [--no-device] [--release]
+#   --slices      Which slices to build and package, comma-separated from `device` (a physical
+#                 iPhone/iPad), `sim` (the iOS simulator) and `macos`. Default: all three. A slice
+#                 the xcframework does not carry is one the matching destination cannot link, so
+#                 narrow this only for a build that links one platform: CI's iOS job passes `sim`
+#                 alone, which is a whole cargo target triple's compile saved.
+#                 ⚠️ `--slices macos` on its own, against a cold cargo cache, races: cargo hands a
+#                 target crate an `--extern` for a proc macro it has not finished writing and the
+#                 build stops at `E0463: can't find crate` on whichever crate reached one first
+#                 (`time`, `zerofrom`). It happens only when the sole slice is the host's own
+#                 triple; a cross-compiled slice builds every host proc macro before any target
+#                 crate wants one, which is why CI's macOS job asks for `sim,macos` and gets the
+#                 Mac slice for the cost of one extra cross-compile.
+#   --no-device   Short for `--slices sim,macos`. Never pass it when building something that will
+#                 run on a real iPhone/iPad (see .agents/skills/ios-device-bgsync).
 #   --release     Build the optimised `release` profile instead of `debug`. The packaging path
 #                 (Scripts/package.sh) uses this so the shipped app carries an optimised core;
 #                 the dev loop (build-and-run.sh) stays on debug. `dev-harness` is off by default
@@ -27,6 +37,14 @@ IOS_DEPLOYMENT_TARGET=18.0
 MACOS_DEPLOYMENT_TARGET=15.0
 
 # Apple silicon only; add x86_64-apple-darwin if the Mac support policy ever widens.
+slice_triple() { # <device|sim|macos>
+  case "$1" in
+    device) printf 'aarch64-apple-ios\n' ;;
+    sim) printf 'aarch64-apple-ios-sim\n' ;;
+    macos) printf 'aarch64-apple-darwin\n' ;;
+    *) echo "build-core: unknown slice '$1' (want: device, sim, macos)" >&2; exit 2 ;;
+  esac
+}
 TARGETS=(aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin)
 
 # Cargo profile: `debug` (dev loop, the default) or `release` (packaging). The profile name is
@@ -34,17 +52,26 @@ TARGETS=(aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin)
 PROFILE=debug
 CARGO_PROFILE_ARGS=()
 
-for arg in "$@"; do
-  case "$arg" in
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --slices)
+      IFS=',' read -r -a wanted <<<"${2:?--slices needs a comma-separated list of device, sim, macos}"
+      TARGETS=()
+      for slice in "${wanted[@]}"; do TARGETS+=("$(slice_triple "$slice")"); done
+      shift
+      ;;
     --no-device) TARGETS=(aarch64-apple-ios-sim aarch64-apple-darwin) ;;
     --release) PROFILE=release; CARGO_PROFILE_ARGS=(--release) ;;
-    -h|--help) sed -n '9,17p' "$0"; exit 0 ;;
-    *) echo "build-core: unknown option '$arg' (want: --no-device, --release)" >&2; exit 2 ;;
+    -h|--help) sed -n '10,21p' "$0"; exit 0 ;;
+    *) echo "build-core: unknown option '$1' (want: --slices, --no-device, --release)" >&2; exit 2 ;;
   esac
+  shift
 done
+[[ "${#TARGETS[@]}" -gt 0 ]] || { echo "build-core: --slices named no slice" >&2; exit 2; }
 
-# The slice step [2/3] reads UniFFI's metadata out of. Every slice carries the same metadata, so
-# the last one this build produced will do, and the slice list stays free to narrow.
+# The slice step [2/3] reads UniFFI's metadata out of. Every slice carries the same metadata and
+# the generator reads it out of the Mach-O rather than loading it, so any slice this build produced
+# will do and the slice list stays free to narrow.
 BINDGEN_SLICE="${TARGETS[${#TARGETS[@]} - 1]}"
 
 # `cargo rustc --crate-type`, not `cargo build`, and this script is the only caller that does it.
@@ -234,12 +261,17 @@ echo "==> Done. Slices: $(ls "$XCF" | grep -v Info.plist | grep -v _CodeSignatur
 # The MCP stdio relay an assistant spawns to reach the running app (docs/mcp.md). A separate
 # BINARY, not a library slice: an MCP client executes it as a child process, so it ships beside
 # the app's own executable in Contents/MacOS and the Xcode copy phase puts it there. macOS only:
-# iOS hosts no server, so there is nothing for a relay to reach.
-echo "==> [4/4] Building the allodia-mcp relay (macOS)"
-(
-  unset IPHONEOS_DEPLOYMENT_TARGET
-  export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
-  cargo build --manifest-path "$ROOT/Cargo.toml" -p mailcal-mcp-shim --bin allodia-mcp \
-    --target aarch64-apple-darwin "${CARGO_PROFILE_ARGS[@]}"
-)
-cp "$ROOT/target/aarch64-apple-darwin/$PROFILE/allodia-mcp" "$ARTIFACTS/allodia-mcp"
+# iOS hosts no server, so there is nothing for a relay to reach, and a build without the macOS
+# slice has no Mac to put it on either. The Xcode copy phase warns in Debug and fails in Release
+# when it is missing, so an iOS-only build skipping it costs nothing and a packaging run, which
+# always carries every slice, still gets it.
+if [[ " ${TARGETS[*]} " == *" aarch64-apple-darwin "* ]]; then
+  echo "==> [4/4] Building the allodia-mcp relay (macOS)"
+  (
+    unset IPHONEOS_DEPLOYMENT_TARGET
+    export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
+    cargo build --manifest-path "$ROOT/Cargo.toml" -p mailcal-mcp-shim --bin allodia-mcp \
+      --target aarch64-apple-darwin "${CARGO_PROFILE_ARGS[@]}"
+  )
+  cp "$ROOT/target/aarch64-apple-darwin/$PROFILE/allodia-mcp" "$ARTIFACTS/allodia-mcp"
+fi
