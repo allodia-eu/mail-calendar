@@ -68,6 +68,14 @@ AGENTS.local.md
 # store: committing one would hand every checkout the production credential namespace.
 branding/allodia*
 
+# The Flathub gallery: image URLs on the publisher's own host, of a branded build. Committed, it
+# would outlive the deletion above and point a fork's listing at our screenshots
+# (scripts/dev/flatpak_metadata.py). Ignored rather than absent because the packaged build reads
+# the first path out of the tree flatpak-builder copies (clients/linux/flatpak/*.yml) and the
+# generator defaults to the second, so both have to be writable in a checkout that publishes.
+branding/screenshots.json
+clients/linux/flatpak/screenshots.json
+
 # What the Windows UI suite photographs when a case fails (uitests/run-ui-tests.ps1). Emptied at
 # the start of every run, and uploaded by CI as an artifact; never a repo asset.
 clients/windows/uitests/failures/
