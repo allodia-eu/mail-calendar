@@ -1,31 +1,29 @@
 #!/usr/bin/env python3
-"""Capture the screen on a Wayland session, for the Linux client's debug tooling.
+"""Capture the whole screen through the desktop portal, for a client on the developer's desktop.
 
-A Wayland client has no X window, so the X tools the X11 path uses find nothing: `xdotool search`
-returns empty and the capture dies reporting the DISPLAY it was given, which is set and
-reachable, because XWayland is running. Nothing in that message names the actual cause.
+The fallback, not the good route. It exists for a client already running on the GNOME session,
+where nothing smaller than the screen can be had:
 
-**This captures the whole screen, not the client's window, and that is deliberate.** Three things
-a window capture needs are unavailable on a session we did not start, and each one fails silently
-rather than loudly:
+- **No capture protocol.** `wayland-info` on a GNOME session lists neither
+  `zwlr_screencopy_manager_v1` nor `ext_image_copy_capture_v1`, so grim and every tool like it
+  reports "compositor doesn't support wlr-screencopy" and stops. That is a decision rather than a
+  version: GNOME exposes capture over D-Bus instead, so no newer grim reaches it.
+- **The D-Bus doors are shut.** `org.gnome.Shell.Screenshot.Screenshot` and `.ScreenshotWindow`
+  both answer `AccessDenied`, and so does `org.gnome.Shell.Introspect.GetWindows`, which is the
+  only thing that would say where a window is or which one is on top. `gnome-screenshot` is a
+  caller of the first, and falls back to an X11 path GNOME 50 no longer has.
+- **The ScreenCast portal is no way round it.** It can cast a single window, but only after a
+  picker the user clicks, and its restore token is single-use and dies with the window it names.
+  This client is relaunched on every launch hook, so every capture would raise the picker again.
 
-- Per-window pixels. The portal offers the screen; `org.gnome.Shell.Screenshot.ScreenshotWindow`
-  would offer the focused window but answers `AccessDenied` to everything except the shell's own
-  UI. `gnome-screenshot --window` is not a way around that: it is a caller of the same denied
-  API, and it stopped working in GNOME 49.
-- The window's position. Wayland does not tell a client where it is on screen, so AT-SPI cannot
-  either: measured here, a maximised terminal and a maximised browser both report `x=0 y=0`.
-- Which window is on top. `STATE_ACTIVE` does not decide it: the same two windows both report
-  active at once.
+So a crop to a guessed rectangle would produce a clean, correctly-sized PNG of whatever happened
+to be stacked above the client. A full screen that obviously contains the wrong thing is the
+honest failure mode.
 
-So a crop to AT-SPI's rectangle would produce a clean, correctly-sized PNG of whatever happened to
-be stacked above the client. A full screen that obviously contains the wrong thing is the honest
-failure mode; use `MAILCAL_LINUX_HEADLESS=1` under Xvfb when the capture has to be the window
-itself, where `xwd -id` reads that window's own backing pixels whatever is in front of it.
-
-A compositor we start ourselves is a different case: `showcase.sh linux` sizes a headless sway to
-one full-bleed client, so its output *is* the window. It launches its own seeded instance, so it
-photographs that and never the client you are debugging.
+**To capture the window itself, run the client on a compositor we start**:
+`clients/linux/build-and-run.sh --headless`, after which `screenshot.sh linux` finds that session
+and grim reads its output. That route also catches popovers, which no window capture can.
+scripts/dev/linux_session.sh has the rest.
 """
 
 from __future__ import annotations
@@ -91,8 +89,8 @@ def portal_screenshot(bus: Any, timeout: float) -> Path:
         die(
             f"the desktop portal refused the screenshot (response {outcome.get('code')}): the "
             "first capture on a machine raises a permission dialog that has to be approved once "
-            "by hand; run it with a human present, or use MAILCAL_LINUX_HEADLESS=1 under Xvfb, "
-            "which needs no portal at all"
+            "by hand; run it with a human present, or take the window instead of the screen with "
+            "clients/linux/build-and-run.sh --headless, which needs no portal at all"
         )
     uri = (outcome.get("results") or {}).get("uri")
     if not uri:

@@ -29,11 +29,11 @@ test_binary() {
     grep -oE "[^ ()]+/deps/mailcal_linux-[a-z0-9]+" | head -1
 }
 
-# A display, because `gtk::init` needs one. The session bus stays the session's own: a private bus
-# hides a squatter, which is one of the things this script exists to find.
+# A display, because `gtk::init` needs one, and a private one so a run under gdb does not put
+# windows on the developer's screen. The session bus stays the session's own: a private bus hides a
+# squatter, which is one of the things this script exists to find.
 in_session() {
-  require_cmd xvfb-run
-  xvfb-run --auto-servernum "$@"
+  "$REPO_ROOT/scripts/dev/with-headless-session.sh" "$@"
 }
 
 mode_test() {

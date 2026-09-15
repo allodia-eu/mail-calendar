@@ -49,9 +49,8 @@ sudo apt update
 sudo apt install --yes \
   git curl ca-certificates build-essential pkg-config \
   libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev \
-  gnome-screenshot imagemagick ffmpeg \
-  wmctrl xdotool x11-utils x11-apps \
-  at-spi2-core accerciser python3-pyatspi dbus-x11 xvfb xauth
+  sway grim wtype wayland-utils imagemagick \
+  at-spi2-core accerciser python3-pyatspi
 ```
 
 Then install the GNOME runtime the Flatpak ships on, once; a ~2 GB download, deliberately not
@@ -83,11 +82,14 @@ put `AdwSidebar` and friends within reach.
 | `build-essential`, `pkg-config` | Native linker/build tools and GTK library discovery |
 | `libgtk-4-dev`, `libadwaita-1-dev` | GTK 4.14+/libadwaita 1.5+ client build |
 | `libwebkitgtk-6.0-dev` | Locked reading/composer content islands and native network content filters |
-| `gnome-screenshot`, `imagemagick`, `ffmpeg` | Compositor-aware still capture, image inspection/conversion, and recordings/frame extraction |
-| `wmctrl`, `xdotool` | Find, focus, size, and drive X11/XWayland windows deterministically |
-| `x11-utils`, `x11-apps` | `xprop`, `xwininfo`, and `xwd` for low-level X11 diagnosis |
-| `at-spi2-core`, `accerciser`, `python3-pyatspi`, `dbus-x11` | Inspect and script GTK's accessibility tree on a private D-Bus session |
-| `xvfb`, `xauth` | Headless X server and authorisation helper for UI acceptance tests |
+| `sway`, `grim` | The private headless compositor every capture and the UI acceptance suite run on, and the tool that photographs it |
+| `wtype` | A real keystroke on that compositor, for what AT-SPI cannot reach (Escape, Tab, a shortcut) |
+| `wayland-utils` | `wayland-info`, which answers whether a compositor offers a capture protocol at all |
+| `imagemagick` | Image inspection, and the brand icon generation the packaging scripts do |
+| `at-spi2-core`, `accerciser`, `python3-pyatspi` | Inspect and script GTK's accessibility tree |
+
+`dbus-run-session` comes from `dbus-daemon`, which is already installed on any desktop; the
+acceptance suite needs no `dbus-x11`.
 
 Install Docker Engine or Docker Desktop separately for the Stalwart harness, and install Rust with
 `rustup`; the repository's `rust-toolchain.toml` then selects the exact compiler. The Linux build
@@ -133,18 +135,50 @@ copyable path, and persisted DEBUG opt-in.
 
 ## Capture and control the window
 
-The shared adapters find the live GTK window and its AT-SPI tree:
+**Run the client headless whenever you mean to photograph or drive it.** That puts it on a private
+compositor of our own rather than on the desktop, which is the only way to capture the window
+rather than the whole screen:
 
 ```sh
-scripts/dev/screenshot.sh linux /tmp/mailcal-linux.png
+MAILCAL_DEV_ACCOUNT=demo clients/linux/build-and-run.sh --headless
+scripts/dev/screenshot.sh linux /tmp/mailcal-linux.png   # the window, popovers and all
 scripts/dev/control.sh linux ui-dump
 scripts/dev/control.sh linux find "Reply"
 scripts/dev/control.sh linux activate "Reply"
 scripts/dev/control.sh linux set-text "Title" "Team planning"
+scripts/dev/control.sh linux key Escape                  # a real keystroke
+pkill -f mailcal-linux                                   # the compositor exits with its client
 ```
 
-Controls use exact accessible names and GTK's semantic `click` action, never stored coordinates.
-List rows do not expose such an action consistently, so use a debug launch hook such as
+`screenshot.sh` and `control.sh` find that session by themselves; nothing has to be passed between
+them. [`scripts/dev/linux_session.sh`](../../scripts/dev/linux_session.sh) owns the mechanics.
+
+**Why not simply photograph the desktop.** GNOME offers a Wayland client no way to read pixels and
+no way to locate a window, and both are settled facts rather than versions to wait out:
+
+| What you might reach for | On a GNOME 50 session |
+|---|---|
+| `grim`, and every `wlr-screencopy` tool | Refused. `wayland-info` lists no capture protocol at all, neither `zwlr_screencopy_manager_v1` nor `ext_image_copy_capture_v1`. GNOME exposes capture over D-Bus instead, so no newer grim reaches it. |
+| `org.gnome.Shell.Screenshot`, `.ScreenshotWindow` | `AccessDenied`. `gnome-screenshot` is a caller of the first, and its fallback is an X11 session GNOME 50 no longer has. |
+| `org.gnome.Shell.Introspect.GetWindows` | `AccessDenied`, so nothing can say where a window is or which one is on top. |
+| The `Screenshot` portal | Works, silently after a one-time grant, and hands back **the whole screen**. This is what `screenshot.sh linux` falls back to when no headless session is running, and it says so when it does. |
+| The `ScreenCast` portal | Can cast one window, but only behind a picker the user clicks, and its restore token is single-use and dies with the window it names. The client is relaunched on every launch hook, so every capture would raise the picker again. |
+
+Confirm any of this on a given machine with `wayland-info | grep -i capture`.
+
+**On the headless compositor all of it works**, because sway implements what GNOME declines to:
+one client is tiled full-bleed with no border, so the output *is* the window; `grim` reads it in
+about 60 ms with no portal permission and no focus; and `swaymsg -t get_tree` states the geometry
+GNOME refuses.
+
+⚠️ **A capture taken there shows popovers, and one taken on the desktop does not.** An autosuggest
+list, a menu, a dropdown and a tooltip are each their own surface, so a *window* capture misses
+them; an output capture does not. This used to cost an afternoon per encounter, because the
+screenshot showed the state before the thing being debugged and a working feature read as a broken
+one. On the headless route a missing popover is now a real finding about the app.
+
+**Controls use exact accessible names and GTK's semantic actions, never stored coordinates.** List
+rows do not expose such an action consistently, so use a debug launch hook such as
 `MAILCAL_OPEN_SUBJECT="HTML message with a remote image" scripts/dev/boot.sh linux` to establish
 that state rather than claiming a synthetic row click worked. A **conversation** row exposes none
 at all: `AdwExpanderRow` publishes `expandable` + `focusable` and leaves opening it to Enter, so
@@ -152,11 +186,36 @@ at all: `AdwExpanderRow` publishes `expandable` + `focusable` and leaves opening
 for desktop coordinates and refusing `grabFocus`. The count badge does speak: it carries "N
 messages" as its accessible label, so what a screen reader hears is not the bare digit on screen.
 
-Check the session with `printf '%s\n' "$XDG_SESSION_TYPE"`. The control path is AT-SPI and works on
-X11 or Wayland. The screenshot adapter uses X11/XWayland window discovery; on a regular GNOME
-session it delegates the final capture to `gnome-screenshot`. A raw `xwd` of a composited GTK
-window can contain backing pixels rather than what the user sees, so it is used only inside the
-private, compositor-free Xvfb test session. Use only the demo or Stalwart harness for captures.
+`key` and `text` are the other half, and the one AT-SPI cannot do: a real keystroke, for a
+shortcut, a Tab or a dismissal. Prefer `activate` for anything that acts, because it invokes the
+element itself while a keystroke lands wherever focus happens to be.
+
+⚠️ **`wtype`'s first keystroke is dropped without a settle, and the tooling already pays it.** It
+creates its virtual keyboard, uploads a keymap and sends the key in one run, and the compositor has
+not routed focus to the new device by the time the key arrives: measured here, a bare
+`wtype -k Escape` left a popover open where `wtype -s 300 -k Escape` closed it. `control.sh linux
+key` sleeps first; a hand-rolled `wtype` call needs to as well.
+
+**Known gap: there is no pointer, and it is upstream's.** A gesture cannot be driven on the
+headless compositor, so a drag, a swipe and a wheel scroll stay unexercised on Linux. Use AT-SPI
+actions and the launch hooks for everything else.
+
+The seat starts with no input devices, so `wl_seat` reports `capabilities(0)` and
+`swaymsg seat - cursor` reports success while delivering nothing. The protocol route looks like the
+answer and is not: sway advertises `zwlr_virtual_pointer_manager_v1`, `wlrctl` (packaged) speaks
+it, and running `wlrctl pointer` does create the device (`swaymsg -t get_inputs` shows
+`0:0:wlr_virtual_pointer_v1`) and does raise the seat to `capabilities(1)`. **The events still
+reach no client.** Measured here: a click on a known control, with a virtual pointer continuously
+present, changed nothing at all.
+
+That is [cage#305](https://github.com/cage-kiosk/cage/issues/305), open, reproduced on sway as
+well, and believed to be a wlroots bug rather than a caller's mistake. So do not reach for
+`wlrctl`, and do not install it expecting a pointer; the device appearing and the capability
+turning on are exactly what makes this look like a working setup that is somehow being driven
+wrongly. Closing it needs the upstream fix, after which a held-open virtual pointer would also give
+absolute positioning, which `wlrctl pointer move` (relative only) does not.
+
+Use only the demo or Stalwart harness for captures, never a personal account.
 
 ## Package as a Flatpak
 
@@ -286,7 +345,7 @@ together.
 
 ```sh
 cargo clippy -p mailcal-linux --all-targets --all-features -- -D warnings
-xvfb-run --auto-servernum cargo test -p mailcal-linux --all-features
+scripts/dev/with-headless-session.sh cargo test -p mailcal-linux --all-features
 cargo doc -p mailcal-linux --no-deps
 cargo build --release -p mailcal-linux
 /usr/bin/python3 -m unittest scripts/dev/tests/test_linux_ui_atspi.py
@@ -295,8 +354,9 @@ scripts/dev/test-linux-calendar-perf.sh
 clients/linux/package.sh
 ```
 
-The headless wrapper builds with `dev-harness`, creates private Xvfb, D-Bus, AT-SPI, portal, and XDG
-fixtures, and opens the seeded HTML message through an exact debug-only subject hook. It drives the
+The headless wrapper builds with `dev-harness`, creates a private compositor plus D-Bus, AT-SPI,
+portal and XDG fixtures, and opens the seeded HTML message through an exact debug-only subject
+hook. It drives the
 first-run analytics preview, consent and withdrawal; the time-zone prompt; foreground progress;
 Settings navigation; Diagnostics view/export; periodic calendar refresh; and notifications off then
 on, proving the portal sees only the enabled message. It goes on through reading, reply/send, search,
@@ -307,6 +367,10 @@ against the Stalwart harness through semantic AT-SPI actions; no stored coordina
 events are involved. Screenshots, the final tree, and
 privacy-safe stdout/stderr land under `target/ui-test-artifacts/linux/<timestamp>`; a failure captures
 the tree and window before teardown. `--no-build` reuses the current debug binary.
+
+The unit tests need a display too, which is what `with-headless-session.sh` is for: run on the
+desktop they drive the live compositor, and a test that pumps the main loop then dispatches Wayland
+events for surfaces an earlier test destroyed, which segfaults inside libwayland-client.
 
 When the wrapper itself runs inside Codex's bubblewrap, WebKit cannot create a second unprivileged
 user namespace. The wrapper detects that case and disables only WebKit's nested process sandbox;

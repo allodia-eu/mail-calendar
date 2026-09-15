@@ -84,23 +84,6 @@ impl<'a> Runner<'a> {
         self.finish(label, Command::new(program).args(args).current_dir(dir))
     }
 
-    /// Runs one external command with extra environment.
-    pub(crate) fn external_env(
-        &self,
-        label: &str,
-        program: &str,
-        args: &[&str],
-        env: &[(&str, &str)],
-    ) -> Step {
-        self.heading(label);
-        let mut command = Command::new(program);
-        command.args(args).current_dir(self.root);
-        for (key, value) in env {
-            command.env(key, value);
-        }
-        self.finish(label, &mut command)
-    }
-
     /// Runs a prepared command and records the verdict.
     fn finish(&self, label: &str, command: &mut Command) -> Step {
         let ok = match command.status() {

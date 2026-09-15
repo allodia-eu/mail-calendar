@@ -255,7 +255,7 @@ pub(crate) fn glib_records<T>(build: impl FnOnce() -> T) -> (T, Vec<String>) {
 /// The crate's one GTK test: see [`super::thread_tests`] for why there is exactly one.
 #[test]
 fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
-    gtk::init().expect("GTK test requires a display (CI runs it under Xvfb)");
+    gtk::init().expect("GTK test requires a display: run it through with-headless-session.sh");
     let (row_sender, _row_receiver) = relm4::channel::<AppInput>();
     super::thread_tests::conversation_rows_expand_and_unread_mail_is_bold();
     super::thread_tests::every_mail_row_formats_its_timestamp();

@@ -4,12 +4,20 @@
 #   clients/linux/build-and-run.sh            # against the GNOME runtime the Flatpak ships on
 #   clients/linux/build-and-run.sh --host     # against this distribution's GTK (faster loop)
 #   clients/linux/build-and-run.sh --detach   # return once the window is up, app left running
+#   clients/linux/build-and-run.sh --headless # the same, on a private compositor of our own
 #
 # The client runs in the foreground: the script holds the terminal until the app quits, and Ctrl+C
 # stops it. `--detach` is for a caller that wants to drive the app rather than watch it. It waits
 # for the client to say its window is on screen, prints READY, and returns with the app still
 # running; stop it afterwards with `pkill -f mailcal-linux`. The wait is a real barrier, so a
 # launch that dies on the way up is reported as that rather than as a client that is up.
+#
+# `--headless` implies `--detach` and is **what to reach for when you mean to photograph or drive
+# the client**. It puts the app on a private headless compositor instead of the desktop, which is
+# the only way to capture the window rather than the whole screen: GNOME offers a script no
+# per-window capture at all. `screenshot.sh linux` and `control.sh linux` find that session by
+# themselves afterwards. It also keeps the run off the developer's screen, so a long flow does not
+# fight them for focus. scripts/dev/linux_session.sh carries the reasoning.
 #
 # The default is the runtime, because that is what a user gets. The development baseline tracks the
 # same GNOME generation, so the two are close; but they are separate builds on separate schedules
@@ -27,16 +35,19 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 source "$ROOT/scripts/dev/lib.sh"
 source "$ROOT/scripts/dev/sdk.sh"
+source "$ROOT/scripts/dev/linux_session.sh"
 
 TARGET=sdk
 DETACH=0
+HEADLESS=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --host) TARGET=host; shift ;;
     --sdk) TARGET=sdk; shift ;;
     --detach) DETACH=1; shift ;;
-    -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
-    *) die "unknown argument '$1' (--host|--sdk|--detach)" ;;
+    --headless) HEADLESS=1; DETACH=1; shift ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    *) die "unknown argument '$1' (--host|--sdk|--detach|--headless)" ;;
   esac
 done
 
@@ -73,12 +84,36 @@ launch_detached() { # <command...>
   pid=$!
   wait_for_log_marker "$log" "$offset" "$LINUX_READY_LOG_MARKER" "$READY_TIMEOUT" "$pid" || outcome=$?
   case "$outcome" in
-    0) info "READY: the window is on screen. Stop the client with: pkill -f mailcal-linux" ;;
+    0)
+      if [[ "$HEADLESS" == 1 ]]; then
+        info "READY on the private compositor. Photograph it: scripts/dev/screenshot.sh linux
+     Drive it:        scripts/dev/control.sh linux ui-dump
+     Stop both:       pkill -f mailcal-linux && kill -KILL $LINUX_SESSION_PID"
+      else
+        info "READY: the window is on screen. Stop the client with: pkill -f mailcal-linux"
+      fi
+      ;;
     2) die "the client exited before its window appeared. What it printed: $launch_log" ;;
     *) die "no window after ${READY_TIMEOUT}s. The client is still running as pid $pid.
      What it printed: $launch_log
      What it logged:  $log" ;;
   esac
+}
+
+# Put the run on a private compositor, when asked. Called before the environment the client is
+# launched with is assembled, because that is read from this shell: the session's socket has to be
+# in `WAYLAND_DISPLAY` by then, and `DISPLAY` has to be gone, or GDK finds the developer's desktop
+# through XWayland and the app opens there instead.
+#
+# The size is a desktop-shaped one rather than a store-shaped one; the showcase set states its own.
+start_headless_session() {
+  [[ "$HEADLESS" == 1 ]] || return 0
+  export LINUX_SESSION_LOG="$(dirname "$launch_log")/mailcal-compositor.log"
+  mkdir -p "$(dirname "$LINUX_SESSION_LOG")"
+  linux_session_start "${MAILCAL_HEADLESS_SIZE:-1440x900}" "${MAILCAL_HEADLESS_SCALE:-1}" mailcal-linux
+  export WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY"
+  unset DISPLAY
+  info "headless compositor up on $LINUX_SESSION_DISPLAY (pid $LINUX_SESSION_PID)"
 }
 
 # The Allodia sign-in, when this build was given the registration that turns it on -- derived from
@@ -106,6 +141,7 @@ if [[ "$TARGET" == sdk ]]; then
   info "Logs: $log (rotates .1-.3, ~4 MB cap): read them: scripts/dev/logs.sh linux --dump"
   # The binary links the runtime's libraries, including a newer libc than the host's, so it starts
   # only inside the sandbox.
+  start_headless_session
   exec_env=()
   for name in MAILCAL_DEV_ACCOUNT MAILCAL_EXTRA_CA MAILCAL_CALENDAR MAILCAL_CALENDAR_VIEW \
     MAILCAL_OPEN_SUBJECT MAILCAL_OPEN_FIRST MAILCAL_SHOWCASE MAILCAL_SHOWCASE_SCREEN \
@@ -139,6 +175,7 @@ info "Building the Linux client"
 (cd "$ROOT" && cargo build -p mailcal-linux -p mailcal-mcp-shim --features "$FEATURES")
 info "Launching Allodia Mail & Calendar (distribution GTK)"
 info "Logs: $log (rotates .1-.3, ~4 MB cap): read them: scripts/dev/logs.sh linux --dump"
+start_headless_session
 if [[ "$DETACH" == 1 ]]; then
   launch_detached "$ROOT/target/debug/mailcal-linux"
   exit 0

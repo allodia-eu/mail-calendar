@@ -45,8 +45,8 @@ have it yet; there, the discipline is manual.
 - **Linux**: install the complete Ubuntu build/capture/control bundle from
   [`clients/linux/README.md`](../clients/linux/README.md#prerequisites), then use
   `clients/linux/build-and-run.sh` or the shared `boot.sh` command below. That bundle includes GTK,
-  libadwaita, WebKitGTK, `gnome-screenshot`, ImageMagick, FFmpeg, `wmctrl`, `xdotool`, X11
-  inspection tools, AT-SPI inspection, and Xvfb with their exact `apt` package names. Install the
+  libadwaita, WebKitGTK, `sway` and `grim` (the private compositor every capture runs on), `wtype`,
+  `wayland-utils`, ImageMagick and AT-SPI inspection, with their exact `apt` package names. Install the
   **GNOME SDK runtime** from that same page too: `build-and-run.sh` and `test-linux-ui.sh` build and
   run the client *inside* it ([`scripts/dev/sdk.sh`](../scripts/dev/sdk.sh)), so the toolkit under
   test is the one the Flatpak links rather than whichever GTK the distribution carries. It is a
@@ -351,24 +351,35 @@ scripts/dev/screenshot.sh macos [out.png]     # prints the saved path
 scripts/dev/screenshot.sh iphone
 scripts/dev/screenshot.sh android
 scripts/dev/screenshot.sh windows             # captures the WinUI window itself (PrintWindow)
-scripts/dev/screenshot.sh linux                # captures the live GTK window
+scripts/dev/screenshot.sh linux                # the window, when the client runs headless
 ```
 
 These grab whatever is on screen right now (macOS captures the **whole screen**, and the app window may
 not be frontmost). For the store screenshot set, use `showcase.sh` below instead: it captures the app
 window alone, at store-valid sizes.
 
-⚠️ **A window capture cannot see a popover, and on Linux that is most of the transient UI.** A
-`GtkPopover` (the recipient autosuggest list, a menu, a dropdown, a tooltip) lives in its **own**
-surface, so `gnome-screenshot --window` and `xwd -id <window>` both return the toplevel without it.
-So does `xwd -root` under a compositor. The screenshot therefore shows the state *before* the thing
-you are debugging, which reads exactly like a feature that does not work. It costs an afternoon
-once. Three ways to see what is really there, cheapest first:
+**On Linux, launch the client headless when you mean to photograph it.**
+
+```sh
+MAILCAL_DEV_ACCOUNT=demo clients/linux/build-and-run.sh --headless
+scripts/dev/screenshot.sh linux /tmp/mailcal-linux.png    # the window, popovers and all
+```
+
+That puts the client on a private compositor, where the output *is* the window. Without it,
+`screenshot.sh linux` can only hand back the **whole screen**, and says so: GNOME gives a script no
+per-window capture and will not say where a window is either. Why that is settled rather than a
+version to wait out, and what each alternative answers, is in
+[`clients/linux/README.md`](../clients/linux/README.md#capture-and-control-the-window).
+
+⚠️ **Which route you took decides whether a popover is in the picture.** A `GtkPopover` (the
+recipient autosuggest list, a menu, a dropdown, a tooltip) lives in its **own** surface, so any
+*window* capture returns the toplevel without it and the picture shows the state *before* the thing
+you are debugging, which reads exactly like a feature that does not work. The headless route is an
+*output* capture, so the popover is there. Two cross-checks when one is missing:
 
 ```sh
 scripts/dev/control.sh linux ui-dump | grep -i "<the popover's list>"   # AT-SPI sees it
-xwininfo -root -children | grep mailcal-linux                           # its own X window, sized and placed
-gnome-screenshot --file /tmp/screen.png                                 # no --window: the whole screen
+scripts/dev/control.sh linux key Escape                                 # and it can be dismissed
 ```
 
 The AT-SPI dump is the one to reach for: it is also the assertion oracle, so a popover you can grep
@@ -376,9 +387,8 @@ for is a popover you can write a `test-linux-ui.sh` leg against.
 
 ### Linux semantic acceptance
 
-The Linux screenshot adapter uses `gnome-screenshot` for the compositor-visible window on a regular
-desktop. The acceptance wrapper instead owns a private, compositor-free Xvfb display, so it can use
-the X backing pixels safely:
+The acceptance wrapper owns a private headless compositor of its own, so the run is never on the
+developer's screen and every capture is the client's own pixels:
 
 ```sh
 scripts/dev/screenshot.sh linux /tmp/mailcal-linux.png
@@ -395,8 +405,8 @@ empty day; **contacts**: the sections, two namesakes staying two rows, and searc
 autosuggest** in the composer; and **signatures**: the empty state, both slot pickers, and a
 signature created through the core. It saves each state, the AT-SPI tree, and logs under
 `target/ui-test-artifacts/linux/<timestamp>`. It never uses a personal account, screen coordinates,
-or synthetic key events. The exact Ubuntu packages and the Wayland/X11 boundary are documented in
-[`clients/linux/README.md`](../clients/linux/README.md#capture-and-control-the-window).
+or synthetic key events. The exact Ubuntu packages, and what each capture route can and cannot do,
+are in [`clients/linux/README.md`](../clients/linux/README.md#capture-and-control-the-window).
 
 ## 4b. Showcase mode: the store screenshot set
 
@@ -1077,6 +1087,14 @@ on different revisions overwrite each other's binaries and whichever built last 
   `tap`/`text`/`swipe`, because synthetic input doesn't drive WinUI dependably. `ui-dump` (UI
   Automation) is read-only, for discovery. Note `home`'s re-sync is a **JMAP** workaround: over
   `stalwart-imap` new mail arrives by IDLE without relaunching anything.
+- **Linux has no pointer, so a gesture cannot be driven, and the cause is upstream.** The virtual
+  pointer protocol looks like the answer and is not: the device is created and the seat does turn
+  on its pointer capability, but the events reach no client
+  ([cage#305](https://github.com/cage-kiosk/cage/issues/305), open, reproduced on sway). AT-SPI
+  actions, `control.sh linux key`/`text` and the launch hooks reach everything else; a drag, a
+  swipe and a wheel scroll stay unexercised.
+  [`clients/linux/README.md`](../clients/linux/README.md#capture-and-control-the-window) has the
+  measurements and why `wlrctl` is not worth installing for it.
 - **Send/SMTP** is not exercised against the harness (its SMTP is plaintext; the core submits over
   implicit TLS). Test compose/send against a personal account for now.
 - **Apple and Android dev runs share the real preferences.** Their persisted choices live in

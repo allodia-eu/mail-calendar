@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import sys
+import types
 import unittest
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -299,6 +301,42 @@ class TreeSelectionTests(unittest.TestCase):
             subject.find_nodes(root, role="push button", name_substring="Awaiting"), [spoken]
         )
         self.assertEqual(subject.find_nodes(root, role="label", name_substring="Awaiting"), [])
+
+
+class ToolkitDriftTests(unittest.TestCase):
+    """What the toolkit renamed under us, and what a caller must go on seeing."""
+
+    def test_a_role_is_read_from_the_atspi_enum_and_not_from_the_toolkit_string(self) -> None:
+        # GTK 4.22 reports `button` for every node whose AT-SPI role is ROLE_PUSH_BUTTON, where
+        # earlier versions reported `push button`. Every `--role "push button"` in
+        # test-linux-ui.sh matched nothing the day that landed, and the suite reported the
+        # controls as never becoming enabled rather than as renamed.
+        class DriftingNode(FakeNode):
+            def getRole(self):  # noqa: N802 - mirrors pyatspi
+                return 43  # whatever ROLE_PUSH_BUTTON happens to be
+
+        node = DriftingNode("Keep Europe/Amsterdam", "button", actions=["click"])
+        stub = types.SimpleNamespace(ROLE_NAMES={43: "push button"})
+        with unittest.mock.patch.dict(sys.modules, {"pyatspi": stub}):
+            self.assertEqual(subject.node_role(node), "push button")
+
+    def test_a_role_falls_back_to_the_toolkit_string_when_the_enum_is_unknown(self) -> None:
+        node = FakeNode("Reply", "push button", actions=["click"])
+        stub = types.SimpleNamespace(ROLE_NAMES={})
+        with unittest.mock.patch.dict(sys.modules, {"pyatspi": stub}):
+            self.assertEqual(subject.node_role(node), "push button")
+
+    def test_activate_takes_the_match_that_carries_an_action(self) -> None:
+        # libadwaita publishes AdwSwitchRow and the GtkSwitch inside it under the same name and
+        # role, and only the inner one can be toggled. Walk order reaches the row first.
+        row = FakeNode("Share usage statistics", "switch")
+        inner = FakeNode("Share usage statistics", "switch", actions=["toggle"])
+        self.assertIs(subject.actionable_match([row, inner], row), inner)
+
+    def test_activate_keeps_the_only_match_when_none_carries_an_action(self) -> None:
+        # So the failure stays "this control has no action", not "no such control".
+        row = FakeNode("Share usage statistics", "switch")
+        self.assertIs(subject.actionable_match([row], row), row)
 
 
 if __name__ == "__main__":

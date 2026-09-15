@@ -173,12 +173,11 @@ fn cdylib_path() -> String {
 
 /// Linux's GTK client, which is excluded from the workspace gate on every other host.
 ///
-/// `GDK_BACKEND=x11` is what makes `xvfb-run` mean anything. GDK prefers Wayland whenever
-/// `WAYLAND_DISPLAY` is set, and xvfb-run does not clear it, so on a Wayland desktop the suite
-/// ignores the X server it just started and drives the developer's live compositor instead: windows
-/// flash on screen, and a test that pumps the main loop dispatches Wayland events for surfaces an
-/// earlier test already destroyed, which segfaults inside libwayland-client. The pipeline has no
-/// session at all, so this only ever bites the person running the gate by hand.
+/// The tests run on a private headless compositor, never the developer's desktop. Left on the
+/// desktop they drive the live one: windows flash on screen, and a test that pumps the main loop
+/// dispatches Wayland events for surfaces an earlier test already destroyed, which segfaults
+/// inside libwayland-client. The pipeline has no session at all and needs one made for it either
+/// way. `scripts/dev/with-headless-session.sh` owns that.
 fn linux(run: &Runner<'_>) -> Vec<Step> {
     if std::env::consts::OS != "linux" {
         return vec![run.skip(
@@ -201,18 +200,17 @@ fn linux(run: &Runner<'_>) -> Vec<Step> {
                 "warnings",
             ],
         ),
-        run.external_env(
+        run.external(
             "linux (tests)",
-            "xvfb-run",
+            "bash",
             &[
-                "--auto-servernum",
+                "scripts/dev/with-headless-session.sh",
                 "cargo",
                 "test",
                 "-p",
                 "mailcal-linux",
                 "--all-features",
             ],
-            &[("GDK_BACKEND", "x11")],
         ),
         run.external(
             "linux (docs)",

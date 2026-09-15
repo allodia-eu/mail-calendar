@@ -21,6 +21,10 @@
 #
 # Anything after `--` passes through to the client build-and-run script (e.g. --simulator "iPhone
 # 16", --no-core). The Android script takes no flags.
+#
+# On Linux, pass `-- --headless` when you mean to photograph or drive the client: it runs on a
+# private compositor, which is the only way `screenshot.sh linux` can hand back the window rather
+# than the whole screen (clients/linux/README.md, "Capture and control the window").
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 

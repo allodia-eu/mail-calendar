@@ -6,8 +6,11 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sdk.sh"
 
-[[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] ||
-  die "Linux calendar performance needs a real desktop display (not Xvfb)"
+# A real desktop and a real GPU, deliberately: this measures compositor delivery, and a headless
+# compositor on a software renderer would report a number about llvmpipe rather than about the
+# client. So this is the one Linux script that runs on the developer's own session.
+[[ -n "${WAYLAND_DISPLAY:-}" ]] ||
+  die "Linux calendar performance needs the real desktop session, not a headless compositor"
 command -v jq >/dev/null || die "Linux calendar performance needs jq"
 require_cmd dbus-run-session
 
