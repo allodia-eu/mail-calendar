@@ -33,7 +33,8 @@ $Thread = [pscustomobject]@{
 # A query nothing in either seeded account answers, which is what takes the count to zero.
 $NoMatch = 'zzzznothingmatchesthis'
 
-$LogPath = Join-Path $env:LOCALAPPDATA 'Allodia\MailCalendar\logs\app.log'
+# $AppLogPath comes from applog.ps1, which the runner dot-sources.
+$LogPath = $AppLogPath
 
 # `2026-09-12 12:40:39.735 +02:00 [info] [mailcal_app::snapshot] rebuild_snapshot: 1 row(s) of 1 in 5ms`
 $RebuildPattern =
@@ -76,17 +77,32 @@ function Set-Search {
 
 <#
 .SYNOPSIS
-The lines app.log has grown by since byte -Offset.
+The lines the log has grown by since byte -Offset.
 .DESCRIPTION
+An offset is the right handle here and a session banner is not: the whole measurement happens
+inside one launch, and what is being timed is the gap between two lines that launch wrote.
+
+But an offset does not survive a rotation. app.log becomes app.log.1 once it passes 1 MB, so a
+rotation between taking the offset and reading leaves it addressing bytes the current file no
+longer holds: the seek lands past the end and the read comes back empty, which reads as "the core
+rebuilt nothing after the last key" against a core that rebuilt. A file shorter than the offset it
+was given IS that rotation, and the missing bytes are next door.
+
 Opened sharing ReadWrite because the app is writing to it as this reads: Get-Content is refused.
 #>
 function Get-LogLinesSince {
   param([Parameter(Mandatory)] [string] $Path, [Parameter(Mandatory)] [long] $Offset)
+  $rotated = ''
+  if ((Get-Item -LiteralPath $Path).Length -lt $Offset) {
+    $carried = Read-AppLogFile "$Path.1"
+    $rotated = $carried.Substring([Math]::Min($Offset, $carried.Length))
+    $Offset = 0
+  }
   $stream = [System.IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite')
   try {
     $null = $stream.Seek($Offset, 'Begin')
     $reader = New-Object System.IO.StreamReader($stream)
-    try { $reader.ReadToEnd() -split "`n" } finally { $reader.Dispose() }
+    try { ($rotated + $reader.ReadToEnd()) -split "`n" } finally { $reader.Dispose() }
   } finally { $stream.Dispose() }
 }
 

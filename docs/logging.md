@@ -157,6 +157,13 @@ Each client implements `Logger` over a **native rotating file sink**. Every sink
   build number. A log with no such identifier is a support artefact nobody can act on. A version is
   not content, so the never-log-content rule below is untouched.
 
+  ⚠️ **A running session's marker is not necessarily in the current file.** Rotation is checked
+  before every write rather than once per session, so a session that logs past the cap has its own
+  marker carried into the first backup while it is still running, leaving the current file holding
+  that session's later lines and no marker at all. Anything that reads the log to decide what a
+  launch has done (a test, a capture driver) reads the current file **and its first backup**, or it
+  reports a healthy app as one that never started.
+
 ## A log line describes the user's mail, never our source tree
 
 The log is a file the user can open, read, and attach to a support request. That makes every line

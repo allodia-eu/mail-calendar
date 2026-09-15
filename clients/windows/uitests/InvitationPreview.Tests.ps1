@@ -29,9 +29,6 @@ $ConflictedInvite = 'Quarterly planning' # Monday, inside the review/triage over
 # control.ps1 relative to this file, captured at load: $PSScriptRoot inside a scriptblock binds to
 # whoever invokes it, which is the runner.
 $ControlScript = Join-Path $PSScriptRoot '../control.ps1'
-# The shared log root, not the per-dev-mode store, app.log deliberately diagnoses whatever ran
-# last on this machine (docs/logging.md), which is what SessionLog.Tests reads too.
-$AppLog = Join-Path $env:LOCALAPPDATA 'Allodia\MailCalendar\logs\app.log'
 
 <#
 .SYNOPSIS
@@ -45,21 +42,17 @@ Only lines after the newest session marker count. app.log is shared across runs,
 an earlier launch would otherwise be read as this one's and the relaunch would race the sync, the
 failure being a preview that is correctly withheld, i.e. exactly the symptom this suite exists to
 tell apart from a broken card.
+
+Which is why the reading goes through applog.ps1 rather than Get-Content: the log rotates
+mid-session, and a scan of app.log alone that finds no banner falls back to the top of the file
+and matches an EARLIER session's rebuild, returning at once. That is this wait not happening, and
+it announces itself as the withheld preview above.
 #>
 function Wait-CalendarRead {
   param([int] $TimeoutSec = 90)
   $watch = [Diagnostics.Stopwatch]::StartNew()
   while ($watch.Elapsed.TotalSeconds -lt $TimeoutSec) {
-    if (Test-Path -LiteralPath $AppLog) {
-      $lines = @(Get-Content -LiteralPath $AppLog)
-      $start = 0
-      for ($i = $lines.Count - 1; $i -ge 0; $i--) {
-        if ($lines[$i] -match ' --- session start \(') { $start = $i; break }
-      }
-      for ($i = $start; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match 'rebuild_calendar_cache: (\d+) occurrence') { return }
-      }
-    }
+    if ((Get-AppLogNewestSession) -match 'rebuild_calendar_cache: (\d+) occurrence') { return }
     Start-Sleep -Milliseconds 500
   }
   throw "the calendar was never read into the store (no rebuild_calendar_cache in this session's app.log within ${TimeoutSec}s), is the harness up, and does its account have a calendar?"
