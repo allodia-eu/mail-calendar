@@ -30,6 +30,8 @@ NEUTRAL = {
     "MAILCAL_MSIX_IDENTITY_NAME": "org.mailcal.client",
     "MAILCAL_MSIX_PUBLISHER": "CN=MailCal",
     "MAILCAL_MSIX_PUBLISHER_DISPLAY_NAME": "MailCal",
+    "MAILCAL_MSIX_DIRECT_IDENTITY_NAME": "org.mailcal.client",
+    "MAILCAL_MSIX_DIRECT_PUBLISHER": "CN=MailCal",
 }
 BRANDED = {
     "MAILCAL_APP_ID": "eu.example.mail",
@@ -37,6 +39,8 @@ BRANDED = {
     "MAILCAL_MSIX_IDENTITY_NAME": "ExampleEU.ExampleMailCalendar",
     "MAILCAL_MSIX_PUBLISHER": "CN=00000000-1111-2222-3333-444444444444",
     "MAILCAL_MSIX_PUBLISHER_DISPLAY_NAME": "Example EU",
+    "MAILCAL_MSIX_DIRECT_IDENTITY_NAME": "eu.example.mail",
+    "MAILCAL_MSIX_DIRECT_PUBLISHER": "CN=Example EU, O=Example EU, L=Amsterdam, C=NL",
 }
 
 
@@ -118,6 +122,62 @@ class MsixIdentityRewrite(unittest.TestCase):
         defaults = brand.defaults()
         for key, expected in NEUTRAL.items():
             self.assertEqual(defaults[key], expected, key)
+
+
+class DirectChannelIdentity(unittest.TestCase):
+    """The package we host ourselves, which cannot be the Store's (docs/windows-channels.md)."""
+
+    def setUp(self) -> None:
+        self.committed = MANIFEST.read_text(encoding="utf-8")
+
+    def test_the_direct_package_carries_the_signing_certificate_subject(self) -> None:
+        """Windows compares this against the certificate that signed the package, character for
+        character, and refuses the install when they differ."""
+        rewritten = rebrand(self.committed, NEUTRAL, BRANDED, "direct")
+        self.assertIn('Publisher="CN=Example EU, O=Example EU, L=Amsterdam, C=NL"', rewritten)
+        self.assertIn('Name="eu.example.mail"', rewritten)
+
+    def test_the_two_channels_are_two_packages(self) -> None:
+        """A package family name is the identity name and a hash of the publisher, so this is the
+        line that decides a machine can hold both at once."""
+        store = rebrand(self.committed, NEUTRAL, BRANDED, "store")
+        direct = rebrand(self.committed, NEUTRAL, BRANDED, "direct")
+        self.assertNotIn(BRANDED["MAILCAL_MSIX_PUBLISHER"], direct)
+        self.assertNotIn(BRANDED["MAILCAL_MSIX_DIRECT_PUBLISHER"], store)
+
+    def test_everything_a_person_reads_is_the_same_in_both(self) -> None:
+        """One product, two ways of getting it: the name, the protocol and the publisher display
+        name do not move with the channel."""
+        store = rebrand(self.committed, NEUTRAL, BRANDED, "store")
+        direct = rebrand(self.committed, NEUTRAL, BRANDED, "direct")
+        for shared in (
+            "<DisplayName>Example Mail &amp; Calendar</DisplayName>",
+            "<PublisherDisplayName>Example EU</PublisherDisplayName>",
+            '<uap:Protocol Name="eu.example.mail">',
+        ):
+            self.assertIn(shared, store, shared)
+            self.assertIn(shared, direct, shared)
+
+    def test_a_brand_naming_no_direct_publisher_is_refused(self) -> None:
+        """The value comes from a certificate profile that has to exist first, so the case worth
+        naming is the one where nobody has filled it in yet."""
+        incomplete = dict(BRANDED, MAILCAL_MSIX_DIRECT_PUBLISHER="")
+        with self.assertRaises(ManifestError) as raised:
+            rebrand(self.committed, NEUTRAL, incomplete, "direct")
+        self.assertIn("MAILCAL_MSIX_DIRECT_PUBLISHER", str(raised.exception))
+
+    def test_a_publisher_that_is_not_a_distinguished_name_is_refused(self) -> None:
+        """The state the brand file ships in until somebody copies the certificate subject over.
+        It is a perfectly good string, so nothing downstream would notice until a signing service
+        refused the package, by which time the build is an hour old."""
+        placeholder = dict(BRANDED, MAILCAL_MSIX_DIRECT_PUBLISHER="REPLACE-WITH-THE-SUBJECT")
+        with self.assertRaises(ManifestError) as raised:
+            rebrand(self.committed, NEUTRAL, placeholder, "direct")
+        self.assertIn("CN=", str(raised.exception))
+
+    def test_an_unknown_channel_is_refused(self) -> None:
+        with self.assertRaises(ManifestError):
+            rebrand(self.committed, NEUTRAL, BRANDED, "beta")
 
 
 if __name__ == "__main__":

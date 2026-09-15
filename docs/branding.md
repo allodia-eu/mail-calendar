@@ -45,7 +45,7 @@ per-locale copy of a constant could only drift.
 |---|---|---|---|
 | **Android** | `android:label` from a manifest placeholder; catalog elsewhere | `applicationId` from `brandValue`; code reads `BuildConfig.APPLICATION_ID` | n/a |
 | **Apple** | `CFBundleDisplayName` / `CFBundleName` from `${MAILCAL_APP_NAME}` in `project.yml` | `PRODUCT_BUNDLE_IDENTIFIER` from `${MAILCAL_APP_ID}`; entitlements derive the keychain group and app group from it; code reads the generated `Brand.appID` | n/a |
-| **Windows** | `Package.appxmanifest`, rewritten by `package.ps1` | code reads the generated `Brand.AppId` | `MAILCAL_MSIX_IDENTITY_NAME` / `_PUBLISHER` / `_PUBLISHER_DISPLAY_NAME`: a Partner Center reservation, which does **not** follow the app id |
+| **Windows** | `Package.appxmanifest`, rewritten by `package.ps1` | code reads the generated `Brand.AppId` | `MAILCAL_MSIX_IDENTITY_NAME` / `_PUBLISHER` / `_PUBLISHER_DISPLAY_NAME`: a Partner Center reservation, which does **not** follow the app id. The download we host ourselves is a second package with its own `MAILCAL_MSIX_DIRECT_IDENTITY_NAME` / `_DIRECT_PUBLISHER` ([`windows-channels.md`](windows-channels.md)) |
 | **Linux** | catalog only | the generated `l10n::APP_ID`: the GTK application id, the libsecret schema, `~/.var/app/<id>` | Flatpak manifest, rewritten by `package.sh` |
 
 Three notes on the asymmetry, each deliberate:
@@ -150,7 +150,9 @@ does not declare.
 4. **⚠️ Its values are reservations held by third parties.** `MAILCAL_APP_ID` is the App ID Apple
    has on file, the redirect URIs registered with Azure and Google, and the directory every
    existing installation keeps its mail in; the MSIX trio is what Partner Center matches an upload
-   against. Nothing there is edited without the corresponding console change.
+   against, and `MAILCAL_MSIX_DIRECT_PUBLISHER` is the subject of the certificate that signs a
+   package we host, which Windows compares character for character before it will install one.
+   Nothing there is edited without the corresponding console change.
 5. **Source identifiers do not follow the brand.** The Kotlin package `eu.allodia.mailcal`, the C#
    namespace `Allodia.Mailcal`, the Apple target and executable `AllodiaMail`: no OS and no user
    ever sees them, and moving them would rewrite every client for a string nothing reads.

@@ -6,8 +6,17 @@
 # MSIX packaging targets instead of a bare `dotnet build` + launch.
 #
 #   ./package.ps1                      # Release .msixupload (unsigned), x64 + arm64, for the Store
+#   ./package.ps1 -Channel Direct      # Release .msixbundle (unsigned) for our own downloads
 #   ./package.ps1 -Version 1.2.0.0     # stamp the package version (pins either path)
 #   ./package.ps1 -Sign                # self-signed, installable sideload set, on-device testing
+#
+# -Channel Direct is the download we host ourselves (docs/windows-channels.md). It is a DIFFERENT
+# package: Windows matches a sideloaded package's Publisher against the subject of the certificate
+# that signed it, and the Store's publisher is a GUID for a certificate only Microsoft holds, so the
+# two channels cannot share an identity. The bundle it writes is unsigned, because a publisher's
+# certificate is theirs and is not in this tree; whoever publishes the download signs it after this.
+# The Windows App Runtime the package depends on is staged beside the bundle, since a machine that
+# has never had the Store cannot fetch it.
 #
 # The finished Store artifact is copied to clients/windows/build/release-<VERSION>/ before this
 # exits. Every run wipes Mailcal/AppPackages first, so without that the next build destroys the
@@ -27,10 +36,17 @@
 [CmdletBinding()]
 param(
   [string] $Version,
+  [ValidateSet('Store', 'Direct')] [string] $Channel = 'Store',
   [ValidateSet('StoreUpload', 'SideloadOnly', 'CI')] [string] $PackageMode = 'StoreUpload',
   [switch] $Sign
 )
 $ErrorActionPreference = 'Stop'
+
+# The direct channel produces an installable bundle rather than a Store upload, so it picks the
+# build mode for you. Stated here, before anything reads $PackageMode, so the two cannot disagree.
+if ($Channel -eq 'Direct' -and -not $PSBoundParameters.ContainsKey('PackageMode')) {
+  $PackageMode = 'SideloadOnly'
+}
 
 $here = $PSScriptRoot
 $root = (Resolve-Path "$here/../..").Path                 # the repository root
@@ -188,7 +204,8 @@ $python = @('python3', 'python') |
   ForEach-Object { Get-Command $_ -ErrorAction SilentlyContinue } | Select-Object -First 1
 if (-not $python) { throw "Python 3 is required (it puts the brand into Package.appxmanifest)." }
 try {
-  & $python.Source (Join-Path $root 'scripts/dev/msix_manifest.py') --manifest $manifest
+  & $python.Source (Join-Path $root 'scripts/dev/msix_manifest.py') `
+    --manifest $manifest --channel $Channel.ToLowerInvariant()
   if ($LASTEXITCODE -ne 0) { throw "putting the brand into Package.appxmanifest failed" }
 }
 catch {
@@ -196,7 +213,10 @@ catch {
   throw
 }
 $brandedName = ([xml](Get-Content $manifest)).Package.Properties.DisplayName
-Write-Host "==> Packaging as '$brandedName' ($((([xml](Get-Content $manifest)).Package.Identity.Name)))" -ForegroundColor Cyan
+$brandedIdentity = ([xml](Get-Content $manifest)).Package.Identity.Name
+# The channel is named here because the identity alone does not say which one this is, and the
+# release workflow reads this line back to prove the brand reached the build.
+Write-Host "==> Packaging as '$brandedName' ($brandedIdentity) for the $Channel channel" -ForegroundColor Cyan
 
 # 4b. Signing. The Store upload is unsigned (Microsoft signs on ingestion) and can't be installed
 #     locally. -Sign self-signs with a throwaway dev cert whose subject matches the manifest
@@ -291,6 +311,49 @@ foreach ($ext in '*.msixupload', '*.msixbundle', '*.msix') {
 if (-not $shipped) { throw "the build produced no .msixupload/.msixbundle/.msix to verify" }
 Assert-StaticCrtInPackage $shipped.FullName
 
+# 6c. Stage the Windows App Runtime the package depends on, for the direct channel only.
+#
+#     The Store resolves a framework dependency itself; nothing else does. A machine that has never
+#     had the Store is exactly the machine this channel exists for, so the runtime has to be hosted
+#     beside the bundle and named in the .appinstaller. The FRAMEWORK package alone: the Main,
+#     Singleton and DDLM packages beside it in the redistributable are for push notifications and
+#     for unpackaged apps, neither of which this package declares, and the Store build is given
+#     none of them either.
+#
+#     The version is read out of the restored NuGet graph rather than written down, so a
+#     Microsoft.WindowsAppSDK bump cannot leave this staging an older runtime than the one the
+#     package asks for. `appinstaller.py` re-checks the whole set against the built package at
+#     publish time, which is the check that has to hold; this is what gives it something to find.
+$stagedRuntime = @()
+if ($Channel -eq 'Direct') {
+  $assets = Join-Path $projDir 'obj/project.assets.json'
+  # `${}` around the variable because a bare `$assets:` is a scope qualifier to the parser, and the
+  # file does not compile at all rather than failing here.
+  if (-not (Test-Path $assets)) { throw "the restore did not run, so the runtime cannot be resolved: ${assets} is missing." }
+  $graph = Get-Content $assets -Raw | ConvertFrom-Json
+  $entry = $graph.libraries.PSObject.Properties.Name |
+  Where-Object { $_ -like 'Microsoft.WindowsAppSDK.Runtime/*' } | Select-Object -First 1
+  if (-not $entry) { throw "project.assets.json names no Microsoft.WindowsAppSDK.Runtime package." }
+  $runtimeVersion = $entry.Split('/')[1]
+  $folders = $graph.packageFolders.PSObject.Properties.Name
+  $runtimeRoot = $folders |
+  ForEach-Object { Join-Path $_ "microsoft.windowsappsdk.runtime/$runtimeVersion" } |
+  Where-Object { Test-Path $_ } | Select-Object -First 1
+  if (-not $runtimeRoot) { throw "Microsoft.WindowsAppSDK.Runtime $runtimeVersion is not in any package folder." }
+
+  $stageDir = Join-Path $here "build/runtime-$runtimeVersion"
+  New-Item -ItemType Directory -Force $stageDir | Out-Null
+  foreach ($pair in @(@('x64', 'win10-x64'), @('arm64', 'win10-arm64'))) {
+    $source = Get-ChildItem (Join-Path $runtimeRoot "tools/MSIX/$($pair[1])") -Filter 'Microsoft.WindowsAppRuntime.*.msix' -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notmatch '\.(DDLM|Main|Singleton)\.' } | Select-Object -First 1
+    if (-not $source) { throw "no Windows App Runtime framework package for $($pair[0]) under $runtimeRoot." }
+    $staged = Join-Path $stageDir ("{0}-{1}.msix" -f $source.BaseName, $pair[0])
+    Copy-Item $source.FullName -Destination $staged -Force
+    $stagedRuntime += $staged
+  }
+  Write-Host "==> Staged the Windows App Runtime $runtimeVersion for both arches: $stageDir" -ForegroundColor DarkGray
+}
+
 # 7. Report the artifact + next step.
 $appPackages = Join-Path $here 'Mailcal/AppPackages'
 if ($Sign) {
@@ -331,20 +394,33 @@ else {
   $artifact = Get-ChildItem -Path (Join-Path $here 'Mailcal') -Recurse -Filter $pattern -ErrorAction SilentlyContinue |
   Sort-Object LastWriteTime -Descending | Select-Object -First 1
   if ($artifact) {
-    # Copied OUT of Mailcal/AppPackages, which the next run wipes before it builds. A Store bundle
-    # outlives its build: it is what a re-upload needs, and what says which bytes were submitted.
-    # Named by version so successive releases sit beside each other rather than overwriting.
+    # Copied OUT of Mailcal/AppPackages, which the next run wipes before it builds. A shipped
+    # bundle outlives its build: it is what a re-upload needs, and what says which bytes were
+    # submitted or published. Named by version so successive releases sit beside each other rather
+    # than overwriting.
     $kept = $artifact
-    if ($PackageMode -eq 'StoreUpload') {
+    $keeping = $PackageMode -eq 'StoreUpload' -or $Channel -eq 'Direct'
+    if ($keeping) {
       $keepDir = Join-Path $here "build/release-$Version"
       New-Item -ItemType Directory -Force $keepDir | Out-Null
       Copy-Item $artifact.FullName -Destination $keepDir -Force
       $kept = Get-Item (Join-Path $keepDir $artifact.Name)
     }
     Write-Host "==> Package ready: $($kept.FullName)" -ForegroundColor Green
+    if ($keeping) {
+      Write-Host "    Kept here so the next build cannot wipe it." -ForegroundColor DarkGray
+    }
     if ($PackageMode -eq 'StoreUpload') {
-      Write-Host "    Kept here so the next build cannot wipe it; upload this copy." -ForegroundColor DarkGray
       Write-Host "    Upload it in Partner Center (Allodia); Microsoft signs it on ingestion." -ForegroundColor Green
+    }
+    elseif ($Channel -eq 'Direct') {
+      # Said plainly because an unsigned bundle is installable by nobody, and the way that is
+      # discovered is a user reporting that nothing happens when they open the file.
+      Write-Host "    UNSIGNED. Sign it before publishing; the .appinstaller generator refuses an" -ForegroundColor Yellow
+      Write-Host "    unsigned bundle, and Windows refuses to install one." -ForegroundColor Yellow
+      foreach ($runtime in $stagedRuntime) {
+        Write-Host "    Runtime to publish beside it: $runtime" -ForegroundColor DarkGray
+      }
     }
   }
   else {

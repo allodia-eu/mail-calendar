@@ -145,7 +145,7 @@ Every shipping path sets it, and nothing else does:
 | Path | Where |
 |---|---|
 | macOS / iOS packaging | `clients/apple/Scripts/package.sh` |
-| Windows MSIX | `clients/windows/package.ps1` |
+| Windows MSIX | `clients/windows/package.ps1`, and `-Channel Direct` for the download we host ([`docs/windows-channels.md`](docs/windows-channels.md)) |
 | Android release | `clients/android/build-release.sh` |
 | Linux Flatpak | the tag-only CI steps, forwarded into the sandbox by `clients/linux/package.sh` |
 | CI release builds | the three tag-gated steps in [`ci.yml`](.github/workflows/ci.yml) |
