@@ -41,6 +41,13 @@ impl FakeProvider {
     }
 
     /// A provider whose inbox holds `messages` (all in the role-Inbox mailbox `a`).
+    /// Holds every [`Provider::edit_mail`] open until the returned gate releases it, so a
+    /// test can issue a second write to one message inside the first's round trip.
+    pub(crate) fn gating_edits(mut self, gate: &super::EditGate) -> Self {
+        self.edit_gate = Some(gate.share());
+        self
+    }
+
     pub(crate) fn with(messages: Vec<Message>) -> Self {
         let mut inbox = Mailbox::new(MailboxId::try_from("a").unwrap(), "Inbox");
         inbox.role = Some(MailboxRole::Inbox);
@@ -70,6 +77,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            edit_gate: None,
         }
     }
 
@@ -126,6 +134,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            edit_gate: None,
         }
     }
 
@@ -161,6 +170,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            edit_gate: None,
         }
     }
 
@@ -200,6 +210,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            edit_gate: None,
         }
     }
 
@@ -239,6 +250,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            edit_gate: None,
         }
     }
 
@@ -278,6 +290,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            edit_gate: None,
         }
     }
 
@@ -311,6 +324,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            edit_gate: None,
         }
     }
 

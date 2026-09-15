@@ -76,6 +76,10 @@ pub(crate) struct FakeProvider {
     /// mark. Shared ([`source_fetches`](Self::source_fetches)) so a test can prove a pass went
     /// back to the network for bytes rather than reading them from the cache.
     source_fetches: Arc<AtomicUsize>,
+    /// Optional test gate that holds every [`Provider::edit_mail`] open until released, so a
+    /// test can put a *second* write to one message inside the first's round trip: the shape a
+    /// host produces by marking a message read when it opens and archiving it a moment later.
+    edit_gate: Option<EditGate>,
     /// Message keys whose [`Provider::fetch_message_source`] fails with a **conflict**;
     /// models stale keys (an IMAP `UIDVALIDITY` renumbering), so a test can prove a
     /// body-warm pass looks past them and triggers the folder re-sync recovery.
@@ -88,6 +92,41 @@ struct InFlightGuard(Arc<Mutex<(usize, usize)>>);
 impl Drop for InFlightGuard {
     fn drop(&mut self) {
         self.0.lock().unwrap().0 -= 1;
+    }
+}
+
+/// Holds each [`Provider::edit_mail`] until a test releases it, announcing its arrival first.
+pub(crate) struct EditGate {
+    /// Signalled as each edit enters, so a test waits for the write to be genuinely in
+    /// flight rather than sleeping and hoping.
+    entered: Arc<Notify>,
+    /// Awaited by each edit; a test releases them by notifying.
+    release: Arc<Notify>,
+}
+
+impl EditGate {
+    pub(crate) fn new() -> Self {
+        Self {
+            entered: Arc::new(Notify::new()),
+            release: Arc::new(Notify::new()),
+        }
+    }
+
+    /// Waits until an edit has entered the provider.
+    pub(crate) async fn await_entry(&self) {
+        self.entered.notified().await;
+    }
+
+    /// Lets one waiting edit through.
+    pub(crate) fn release_one(&self) {
+        self.release.notify_one();
+    }
+
+    fn share(&self) -> Self {
+        Self {
+            entered: Arc::clone(&self.entered),
+            release: Arc::clone(&self.release),
+        }
     }
 }
 
@@ -222,6 +261,10 @@ impl Provider for FakeProvider {
         // `MailActionError::Rejected` instead of a silent success.
         if self.fail.load(Ordering::SeqCst) {
             return Err(ProviderError::retryable("account unreachable"));
+        }
+        if let Some(gate) = &self.edit_gate {
+            gate.entered.notify_one();
+            gate.release.notified().await;
         }
         self.edits.lock().unwrap().push(edit.clone());
         Ok(MailEditReceipt::new(edit.target().clone()))
