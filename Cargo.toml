@@ -232,6 +232,12 @@ missing_panics_doc = "allow"
 # analytics relay). A `[build-dependencies]` of `mailcal-oauth` and `mailcal-bindings` only — it
 # ships in no binary. See BUILDING.md.
 mailcal-buildenv = { path = "crates/mailcal-buildenv" }
+
+# Wayland client plumbing for `mailcal-vpointer`, the pointer-input tool the Linux UI tests drive
+# their headless compositor with. A dependency of that crate alone, which is outside
+# `default-members`, so nothing that ships links either of them.
+wayland-client = "0.31"
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 mailcal-app = { path = "crates/mailcal-app" }
 # Rich-message compose document validation and HTML/plain-text rendering, shared by clients.
 mailcal-composer = { path = "crates/mailcal-composer" }

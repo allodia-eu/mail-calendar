@@ -1,0 +1,25 @@
+[package]
+name = "mailcal-vpointer"
+description = "Pointer input for the Linux client's headless test compositor, over wlr-virtual-pointer."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+# A crate of its own, and outside `default-members`, for the reason the bindgen crates are: it is
+# development tooling, so it must not join the default build, and being a member is what lets it
+# share the lockfile and the target directory.
+#
+# Why this exists at all rather than a packaged tool: `wlrctl` speaks the same protocol and cannot
+# do the job. See src/main.rs.
+[dependencies]
+wayland-client = { workspace = true }
+wayland-protocols-wlr = { workspace = true }
+
+[[bin]]
+name = "mailcal-vpointer"
+path = "src/main.rs"
+
+[lints]
+workspace = true
