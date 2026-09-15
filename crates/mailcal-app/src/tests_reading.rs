@@ -13,7 +13,7 @@ use std::{
 
 use engine_api::{AccountId, EmailAddress};
 use engine_provider::MailEdit;
-use fakes::{FakeProvider, account, app, message, msg};
+use fakes::{FakeProvider, account, app, flat_subjects, message, msg};
 
 use super::{Intent, Surface};
 use crate::Account;
@@ -252,4 +252,78 @@ async fn an_open_that_outlasts_the_threshold_announces_the_wait_first() {
     let loaded = app.reading_view();
     assert!(!loaded.pending, "the wait is over");
     assert!(loaded.html.is_some() || loaded.plain.is_some());
+}
+
+#[tokio::test]
+async fn archiving_inside_the_mark_read_round_trip_still_removes_the_row() {
+    // Opening a message marks it read; archiving it moves it. Both are writes to the same
+    // message, so the outbox serializes them; and a user who opens a message and archives
+    // it a moment later puts the second write inside the first's round trip. The archive
+    // must wait for the mark-read and then apply: refusing it there is what puts the row
+    // back on the list a beat after it left.
+    let gate = fakes::EditGate::new();
+    let provider = FakeProvider::with_archive(vec![message("m1", "a", "Quarterly report")])
+        .gating_edits(&gate);
+    let edits = provider.edits();
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = Arc::new(app(vec![account("acct-1", provider)], &surfaces));
+    app.dispatch(Intent::RefreshMail).await;
+    assert_eq!(flat_subjects(&app.mailbox_list()), vec!["Quarterly report"]);
+
+    let opening = tokio::spawn({
+        let app = Arc::clone(&app);
+        async move {
+            app.dispatch(Intent::OpenMessage {
+                message: msg("acct-1", "m1"),
+            })
+            .await;
+        }
+    });
+    // The mark-read is genuinely in flight, holding this message's outbox resource.
+    gate.await_entry().await;
+
+    let archiving = tokio::spawn({
+        let app = Arc::clone(&app);
+        async move {
+            app.dispatch(Intent::Archive {
+                message: msg("acct-1", "m1"),
+            })
+            .await;
+        }
+    });
+
+    // Let the archive reach its outbox claim while the mark-read still holds the lease.
+    // A build that refuses a busy resource finishes the task right here, having failed and
+    // put the row back; one that waits leaves it pending.
+    for _ in 0..5_000 {
+        if archiving.is_finished() {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+
+    // Release the mark-read, then let the archive through behind it. A build that refuses
+    // the archive instead of waiting finishes the task without ever entering the provider,
+    // so this loop ends either way rather than hanging.
+    gate.release_one();
+    while !archiving.is_finished() {
+        gate.release_one();
+        tokio::task::yield_now().await;
+    }
+    opening.await.unwrap();
+    archiving.await.unwrap();
+
+    let applied = edits.lock().unwrap();
+    assert_eq!(applied.len(), 2, "both writes applied: {applied:?}");
+    assert!(
+        applied
+            .iter()
+            .any(|e| matches!(e, MailEdit::MoveTo { target, .. } if target.as_str() == "m1")),
+        "the archive reached the provider: {applied:?}"
+    );
+    drop(applied);
+    assert!(
+        flat_subjects(&app.mailbox_list()).is_empty(),
+        "the archived row stays off the list, it does not come back"
+    );
 }

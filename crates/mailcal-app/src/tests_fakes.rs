@@ -66,7 +66,7 @@ pub(super) use invitation::{
     ALIAS, EVENT_KEY, InvitationFake, MEETING_UID, MESSAGE_KEY, RecordedPuts,
     RecordedRsvps as InvitationRsvps, RecordedSends, invitation_app, invitation_app_with_prefs,
 };
-pub(super) use provider::FakeProvider;
+pub(super) use provider::{EditGate, FakeProvider};
 
 /// Records the surfaces the app signals, so the test can assert the loop fired.
 struct RecordingObserver {
