@@ -56,8 +56,12 @@ function Clear-Log {
   Remove-Item -Recurse -Force -LiteralPath $LogDir -ErrorAction SilentlyContinue
 }
 
+# `Log.cs` stamps DateTimeOffset.Now, so a banner carries the offset of the machine that wrote it,
+# and every case gating on -Since weighs it against a LOCAL launch time. A fixed offset here passes
+# in that one timezone and fails in every other; case 6 states the rule.
 function Banner([string] $at) {
-  "$at +02:00 [info] --- session start (0.8.2, Arm64, Microsoft Windows 10.0.26200) ---"
+  $local = [datetimeoffset]::new([datetime]::Parse($at, [cultureinfo]::InvariantCulture))
+  "$at $($local.ToString('zzz')) [info] --- session start (0.8.2, Arm64, Microsoft Windows 10.0.26200) ---"
 }
 
 try {
@@ -108,7 +112,26 @@ try {
   Assert-True ((Get-AppLogSession -Since ([datetime]::Parse('2026-09-15T15:02:49.500'))).Contains('this one')) `
     'a banner a fraction older than the launch time still counts'
 
-  # 6. Get-AppLogNewestSession has no launch time to gate on, so it answers with whatever is
+  # 6. The gate is on the INSTANT the banner names, never on the clock it is written in. Both
+  #    directions, because each is its own way to be wrong, and a fixture carrying one fixed offset
+  #    can state neither: it agrees with the host it was written on and disagrees with every other.
+  $since = ([datetimeoffset]::Parse('2026-09-15T16:00:00+00:00')).LocalDateTime
+  Clear-Log
+  Set-Log 'app.log' @(
+    '2026-09-15 14:02:48.828 -03:00 [info] --- session start (0.8.2, x64, Microsoft Windows) ---'
+    'refresh_calendar: this one'
+  )
+  Assert-True ((Get-AppLogSession -Since $since).Contains('this one')) `
+    'a banner reading earlier than the launch but naming a later instant counts'
+  Clear-Log
+  Set-Log 'app.log' @(
+    '2026-09-15 18:02:48.828 +05:00 [info] --- session start (0.8.2, x64, Microsoft Windows) ---'
+    'refresh_calendar: not this one'
+  )
+  Assert-Equal '' (Get-AppLogSession -Since $since) `
+    'and one reading later but naming an earlier instant does not'
+
+  # 7. Get-AppLogNewestSession has no launch time to gate on, so it answers with whatever is
   #    running, and must find the banner across the cut too.
   Clear-Log
   Set-Log 'app.log.1' @((Banner '2026-09-15 15:02:48.828'), 'rebuild_calendar_cache: 191 occurrence(s)')
@@ -118,7 +141,7 @@ try {
     'the newest session is found across the cut'
   Assert-True ($newest.Contains('rebuild_calendar_cache')) 'with the lines that preceded the cut'
 
-  # 7. A rebuild belonging to an EARLIER session must never answer for this one. The reader this
+  # 8. A rebuild belonging to an EARLIER session must never answer for this one. The reader this
   #    replaced fell back to the top of the file when it found no banner, which returned an
   #    earlier session's line at once: the wait it was asked to perform did not happen.
   Clear-Log
@@ -130,7 +153,7 @@ try {
   Assert-True (-not (Get-AppLogNewestSession).Contains('rebuild_calendar_cache')) `
     'a rebuild from the session before the cut does not answer for the one after it'
 
-  # 8. The log is read while the app holds it open for writing, which is what Get-Content cannot
+  # 9. The log is read while the app holds it open for writing, which is what Get-Content cannot
   #    do. Assert it rather than trusting the share flags.
   Clear-Log
   Set-Log 'app.log' @((Banner '2026-09-15 15:02:48.828'), 'refresh_calendar: this one')
