@@ -168,10 +168,18 @@ scripts/dev/control.sh linux activate "Load images"
 
 `key` and `text` are the half AT-SPI cannot do: a shortcut, a Tab, a dismissal. Prefer `activate`
 for anything that acts, because it invokes the element itself while a keystroke lands wherever
-focus happens to be. **There is no pointer on Linux**, so a drag or a swipe cannot be driven at
-all. The virtual pointer protocol creates a device and turns the capability on but delivers
-nothing, which is an open upstream bug; `clients/linux/README.md` has the measurements, so do not
-re-derive them.
+focus happens to be. **Linux also has a real pointer**, for what neither reaches: a gesture, the
+wheel, and a list row, which exposes no AT-SPI action. Compose it with `locate` rather than storing
+a coordinate:
+
+```
+scripts/dev/control.sh linux click $(scripts/dev/control.sh linux locate "Lunch on Friday?")
+scripts/dev/control.sh linux drag <x1> <y1> <x2> <y2> | scroll <x> <y> <dy>
+```
+
+⚠️ Do not reach for `wlrctl` here, whatever a search suggests: it cannot hold a pointer open long
+enough to deliver anything, while still creating the device and turning the capability on, so it
+looks like it is working. `clients/linux/README.md` has the measurements.
 
 
 For the complete Linux proof, prefer `scripts/dev/test-linux-ui.sh --start-harness`. It owns a

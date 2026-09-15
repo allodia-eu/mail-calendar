@@ -1171,14 +1171,6 @@ rebuild when you do.
   `tap`/`text`/`swipe`, because synthetic input doesn't drive WinUI dependably. `ui-dump` (UI
   Automation) is read-only, for discovery. Note `home`'s re-sync is a **JMAP** workaround: over
   `stalwart-imap` new mail arrives by IDLE without relaunching anything.
-- **Linux has no pointer, so a gesture cannot be driven, and the cause is upstream.** The virtual
-  pointer protocol looks like the answer and is not: the device is created and the seat does turn
-  on its pointer capability, but the events reach no client
-  ([cage#305](https://github.com/cage-kiosk/cage/issues/305), open, reproduced on sway). AT-SPI
-  actions, `control.sh linux key`/`text` and the launch hooks reach everything else; a drag, a
-  swipe and a wheel scroll stay unexercised.
-  [`clients/linux/README.md`](../clients/linux/README.md#capture-and-control-the-window) has the
-  measurements and why `wlrctl` is not worth installing for it.
 - **Send/SMTP** is not exercised against the harness (its SMTP is plaintext; the core submits over
   implicit TLS). Test compose/send against a personal account for now.
 - **Apple and Android dev runs share the real preferences.** Their persisted choices live in

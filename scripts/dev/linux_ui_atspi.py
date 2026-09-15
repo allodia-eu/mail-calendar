@@ -258,6 +258,26 @@ def actionable_match(matches: list[Any], fallback: Any) -> Any:
     return next((node for node in matches if preferred_action(node) is not None), fallback)
 
 
+def node_centre(node: Any) -> tuple[int, int] | None:
+    """The centre of a node, in the window's own coordinates.
+
+    **Window coordinates, never desktop ones.** Wayland does not tell a client where it is on
+    screen, so AT-SPI cannot either: every node here reports `0,0` in `DESKTOP_COORDS`, which
+    reads as a valid point and is not one. `WINDOW_COORDS` is measured and correct, and on the
+    headless test compositor the client is tiled full-bleed at the origin, so the window's
+    coordinates *are* the output's, which is what the pointer takes.
+    """
+    try:
+        import pyatspi
+
+        extents = node.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+    except Exception:
+        return None
+    if extents.width <= 0 or extents.height <= 0:
+        return None
+    return (extents.x + extents.width // 2, extents.y + extents.height // 2)
+
+
 def activate_node(node: Any) -> bool:
     """Invoke an enabled semantic action exposed by the accessible node."""
     if not node_enabled(node):
@@ -459,7 +479,7 @@ def parser() -> argparse.ArgumentParser:
     dump.add_argument("--timeout", type=float, default=20.0)
     gone = commands.add_parser("gone", help="wait until no client is on the accessibility bus")
     gone.add_argument("--timeout", type=float, default=20.0)
-    for command in ("wait", "activate", "measure", "set-text", "read-text"):
+    for command in ("wait", "activate", "locate", "measure", "set-text", "read-text"):
         target = commands.add_parser(command, help=f"{command} an exact accessible target")
         target.add_argument("--name")
         target.add_argument("--role")
@@ -529,7 +549,10 @@ def main(argv: list[str] | None = None) -> int:
         # the default, so it cannot be told apart from asking for no index at all.
         # Only with the default index: an explicit `--index` is the caller naming one node, and
         # scanning past it would quietly drive a different one.
-        scanning = args.command in ("set-text", "read-text", "activate", "measure") and args.index == 0
+        scanning = (
+            args.command in ("set-text", "read-text", "activate", "locate", "measure")
+            and args.index == 0
+        )
         matches = wait_for_nodes(
             lambda: wait_for_application(args.timeout),
             name=args.name,
@@ -540,13 +563,25 @@ def main(argv: list[str] | None = None) -> int:
             name_substring=args.name_substring,
             description=args.description,
             enabled_only=args.command in ("activate", "measure") or args.enabled,
-            showing_only=args.command in ("activate", "measure") or args.showing,
+            showing_only=args.command in ("activate", "locate", "measure") or args.showing,
             timeout=args.timeout,
             result_limit=NODE_SCAN if scanning else args.index + 1,
         )
         if args.index < 0 or args.index >= len(matches):
             raise IndexError(f"target index {args.index} is outside {len(matches)} matches")
         target = matches[args.index]
+        if args.command == "locate":
+            # "<x> <y>", so it pipes straight into a pointer command, the way `find` does into
+            # `tap` on macOS. A control a screenshot shows but the tree measures as zero-sized is
+            # reported as such rather than clicked at the origin.
+            centre = next(
+                (point for point in (node_centre(node) for node in matches) if point is not None),
+                None,
+            )
+            if centre is None:
+                raise RuntimeError("target reports no size, so there is no point to click")
+            print(f"{centre[0]} {centre[1]}")
+            return 0
         if args.command == "read-text":
             candidates = [target]
             if scanning:
