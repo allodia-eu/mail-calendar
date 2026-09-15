@@ -27,11 +27,15 @@ user rather than by us:
   carries.** A missing one installs fine wherever the runtime happens to be present already, which
   is every developer's machine and not the machine of somebody who has never had the Store.
 
-The 2017/2 schema is deliberate. Its features are the ones this file uses, it is understood from
-Windows 10 1803 onwards, and the package's own floor (10.0.19041) is well above that, so nothing is
-bought by naming a newer schema. The cost is `AutomaticBackgroundTask`, which belongs to the 2021
-schema: an installation therefore looks for an update when the app is launched, and not while it
-sits open. See docs/windows-channels.md.
+The 2021 schema is what makes updates arrive at all for a mail client. `AutomaticBackgroundTask`
+belongs to it, and without it an installation looks for a newer version only when the app is
+launched: a machine that leaves this app open for a fortnight would then go a fortnight without one.
+Naming that schema costs nothing, because it wants Windows 10 2004 and the package's own floor is
+the same 10.0.19041. A machine that cannot read the file cannot install what it points at.
+
+`OnLaunch` stays beside it, because the two answer different cases: the background task is a check
+every eight hours whether or not anyone is using the app, and `OnLaunch` is the check that catches a
+machine which was asleep. See docs/windows-channels.md.
 """
 
 from __future__ import annotations
@@ -44,7 +48,7 @@ from pathlib import Path
 from typing import List, NamedTuple, Tuple
 from xml.etree import ElementTree
 
-NAMESPACE = "http://schemas.microsoft.com/appx/appinstaller/2017/2"
+NAMESPACE = "http://schemas.microsoft.com/appx/appinstaller/2021"
 BUNDLE_MANIFEST = "AppxMetadata/AppxBundleManifest.xml"
 PACKAGE_MANIFEST = "AppxManifest.xml"
 SIGNATURE = "AppxSignature.p7x"
@@ -228,10 +232,12 @@ def compose(main: Tuple[Identity, str], dependencies: List[Tuple[Identity, str]]
             if one.architecture:
                 attributes["ProcessorArchitecture"] = one.architecture
             ElementTree.SubElement(block, "Package", attributes)
+    # Order is the schema's, not a preference: OnLaunch, then AutomaticBackgroundTask.
     settings = ElementTree.SubElement(root, "UpdateSettings")
     ElementTree.SubElement(
         settings, "OnLaunch", {"HoursBetweenUpdateChecks": str(HOURS_BETWEEN_UPDATE_CHECKS)}
     )
+    ElementTree.SubElement(settings, "AutomaticBackgroundTask")
     ElementTree.indent(root, space="  ")
     body = ElementTree.tostring(root, encoding="unicode")
     return '<?xml version="1.0" encoding="utf-8"?>\n%s\n' % body

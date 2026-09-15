@@ -84,12 +84,16 @@ the URL an installation came from and looks there again. So that URL is permanen
 it is rewritten by every release while the bundles beside it are never touched once published.
 `Version` on the file is the package version, and an installation only updates when it moves.
 
+It is asked twice, and the pair is deliberate. `OnLaunch` catches a machine that was asleep, and
+`AutomaticBackgroundTask` checks every eight hours whether or not anybody opened the app. A mail
+client is the case that makes the second one necessary rather than nice: this one is left running
+for days, so launches can be a fortnight apart and, with `OnLaunch` alone, so would the updates be.
+`AutomaticBackgroundTask` belongs to the **2021** schema, which wants Windows 10 2004, and the
+package's own floor is the same `10.0.19041`: a machine that cannot read the file cannot install
+what it points at, so naming that schema gives up nothing.
+
 ## Known gaps
 
-- **No background update check.** `AutomaticBackgroundTask` belongs to the 2021 `.appinstaller`
-  schema; this file uses 2017/2, whose features are the ones it needs and which every machine that
-  can install the package understands. So an installation looks for an update when the app is
-  launched, and not while it sits open, which for a mail client left running is a real difference.
 - **The `ms-appinstaller:` protocol is disabled on consumer machines** (Microsoft, December 2023),
   so the one-click install from a web page does not work and must not be offered. A download page
   links the `.appinstaller` file directly; the browser saves it and opening it runs App Installer.

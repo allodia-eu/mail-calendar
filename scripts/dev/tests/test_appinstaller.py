@@ -32,7 +32,7 @@ from appinstaller import (  # noqa: E402
     read_bundle,
 )
 
-NAMESPACE = "{http://schemas.microsoft.com/appx/appinstaller/2017/2}"
+NAMESPACE = "{http://schemas.microsoft.com/appx/appinstaller/2021}"
 RUNTIME = "Microsoft.WindowsAppRuntime.2"
 MICROSOFT = "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
 PUBLISHER = "CN=Example EU, O=Example EU, L=Amsterdam, C=NL"
@@ -253,6 +253,18 @@ class Document(unittest.TestCase):
         launch = self.document().find(NAMESPACE + "UpdateSettings/" + NAMESPACE + "OnLaunch")
         self.assertIsNotNone(launch)
         self.assertTrue(int(launch.get("HoursBetweenUpdateChecks")) > 0)
+
+    def test_it_also_looks_while_the_app_is_open(self) -> None:
+        """OnLaunch alone is a check a mail client rarely reaches: this one is left running for
+        days, so a launch can be a fortnight apart and the updates with it."""
+        settings = NAMESPACE + "UpdateSettings/" + NAMESPACE
+        self.assertIsNotNone(self.document().find(settings + "AutomaticBackgroundTask"))
+
+    def test_the_schema_is_the_one_that_has_a_background_task(self) -> None:
+        """AutomaticBackgroundTask is unprefixed only under the 2021 namespace, and under an older
+        one it is an element App Installer does not know. The package floor is the same 10.0.19041
+        the schema wants, so nothing is given up by naming it."""
+        self.assertIn("appinstaller/2021", NAMESPACE)
 
 
 class Arguments(unittest.TestCase):
