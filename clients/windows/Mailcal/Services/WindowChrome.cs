@@ -110,50 +110,19 @@ internal static class WindowChrome
     }
 
     /// <summary>
-    /// Makes <paramref name="window"/> an owned window of <paramref name="owner"/>, which is what
-    /// keeps it in front of the mailbox.
+    /// Brings <paramref name="window"/> to the front, and again once its content has loaded.
     /// </summary>
     /// <remarks>
-    /// Taking the foreground is not a guarantee and could not be made into one. Two fixes aimed at
-    /// what was pulling the mailbox forward each held on the seeded harness and neither held on an
-    /// account that is syncing, and the diagnostic that was meant to name the cause cannot see it:
-    /// a window falls behind through a Z-ORDER change, which raises no activation event to log.
+    /// Twice, because the mailbox's own work lands inside the few tens of milliseconds this window
+    /// spends loading and whichever of the two arrives second wins; asking again once this window
+    /// is real closes that gap.
     /// <para>
-    /// Ownership does not win that race, it removes it. Windows keeps an owned window above its
-    /// owner as a rule of the system, so nothing the mailbox does can get in front. Three
-    /// documented consequences come with it, and all three are the price of the guarantee: the
-    /// mailbox can no longer be raised over a message window; an owned window is hidden while its
-    /// owner is minimised (and destroyed with it, which docs/reading-window.md already asks for);
-    /// and the window becomes a child of the mailbox in the UI Automation tree, so a screen reader
-    /// reaches it through the mailbox rather than as a sibling.
+    /// ⚠️ Nothing here may touch <c>FocusManager</c>'s static moves. They act on the element that
+    /// holds focus NOW, which is in the mailbox, so a call meant to put focus in this window
+    /// focused the mailbox instead and activated it: measured at 64 opens out of 64, a mailbox
+    /// activation 7 to 22 ms after the window appeared, which is what put the window behind it.
+    /// A window that needs focus somewhere specific asks that element, never the focus manager.
     /// </para>
-    /// <para>
-    /// Through Win32 because there is no other door: AppWindow.OwnerWindowId is read-only and an
-    /// owner can only be passed to AppWindow.Create, which a XAML Window does not use.
-    /// </para>
-    /// </remarks>
-    internal static void Own(Window window, Window owner)
-    {
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
-        SetWindowLongPtr(
-            hwnd, GwlpHwndParent, WinRT.Interop.WindowNative.GetWindowHandle(owner));
-        // Ownership costs the taskbar button, and that is not a cost worth paying: an owned window
-        // gets one only if it asks, and a message window the reader cannot reach from the taskbar
-        // or Alt-Tab is a window they can lose. WS_EX_APPWINDOW asks. Before the window is shown,
-        // because the shell reads this when the button is created.
-        SetWindowLongPtr(
-            hwnd, GwlExStyle, GetWindowLongPtr(hwnd, GwlExStyle) | (nint)WsExAppWindow);
-    }
-
-    /// <summary>
-    /// Brings <paramref name="window"/> to the front and moves keyboard focus into it.
-    /// </summary>
-    /// <remarks>
-    /// For a window this app opens out of another one. Taking the foreground is not enough on its
-    /// own: the mailbox's message list still holds keyboard focus, and the next snapshot reconciles
-    /// the rows under it, which restores focus to the list and activates the mailbox with it. That
-    /// is what dropped a reading window behind the mailbox about fifty milliseconds after it
-    /// appeared, and it is why the focus moves as well as the foreground.
     /// </remarks>
     internal static void Present(Window window)
     {
@@ -164,37 +133,39 @@ internal static class WindowChrome
         }
         if (root.IsLoaded)
         {
-            MoveFocusInto(root);
+            Log.Debug("window: already loaded, focusing");
+            FocusInto(root);
+            Log.Debug("window: focused");
             return;
         }
-        // A window presented the moment it is built has no loaded visual tree yet, and asking the
-        // focus manager to search one throws. Waiting for Loaded is not a nicety: the throw came
-        // out of a double-click handler and took the process with it.
-        //
-        // The foreground is taken AGAIN there, not only the focus. The mailbox's snapshot lands
-        // inside the few tens of milliseconds this window spends loading, and whichever of the two
-        // arrives second wins; asking once more once this window is real closes that gap.
         void OnLoaded(object sender, RoutedEventArgs e)
         {
             root.Loaded -= OnLoaded;
+            Log.Debug("window: loaded, taking the front");
             BringToForeground(window);
-            MoveFocusInto(root);
+            Log.Debug("window: front taken");
+            FocusInto(root);
+            Log.Debug("window: focused");
         }
         root.Loaded += OnLoaded;
     }
 
-    private static void MoveFocusInto(FrameworkElement root)
+    // Focus THIS window's first focusable element, named explicitly. The element-scoped calls only:
+    // see Present's remarks for what the static move does instead.
+    private static void FocusInto(FrameworkElement root)
     {
         try
         {
-            FocusManager.TryMoveFocus(
-                FocusNavigationDirection.Next, new FindNextElementOptions { SearchRoot = root });
+            if (FocusManager.FindFirstFocusableElement(root) is { } first)
+            {
+                _ = FocusManager.TryFocusAsync(first, FocusState.Programmatic);
+            }
         }
         catch (Exception ex)
         {
-            // Best-effort: the window is already in front, and the only cost of failing here is
-            // the mailbox winning the focus back. Never worth taking the app down for.
-            Log.Warn($"window: could not move focus into it ({ex.GetType().Name})");
+            // Best-effort: the window is already in front, and the cost of failing here is the
+            // reader pressing Tab once. Never worth taking the app down for.
+            Log.Warn($"window: could not focus into it ({ex.GetType().Name})");
         }
     }
 
@@ -224,9 +195,6 @@ internal static class WindowChrome
     }
 
     private const int SwRestore = 9;
-    private const int GwlpHwndParent = -8;
-    private const int GwlExStyle = -20;
-    private const uint WsExAppWindow = 0x0004_0000;
 
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hwnd);
@@ -237,8 +205,4 @@ internal static class WindowChrome
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
     [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
-    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
-    private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr value);
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
-    private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
 }

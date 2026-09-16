@@ -81,6 +81,7 @@ public sealed partial class ReadingView
         {
             await EnsureCoreAsync();
             _expectingLoad = true;
+            Log.Debug("reading: loading the body into the web view");
             Body.CoreWebView2!.NavigateToString(document);
         }
         catch (Exception ex)
@@ -115,7 +116,9 @@ public sealed partial class ReadingView
 
     private async Task InitCoreAsync()
     {
+        Log.Debug("reading: creating the web view");
         await Body.EnsureCoreWebView2Async();
+        Log.Debug("reading: web view created");
         var core = Body.CoreWebView2;
         var settings = core.Settings;
         // Defence in depth atop the core's sanitisation: no scripting, no host bridge.

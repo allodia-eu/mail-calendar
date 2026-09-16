@@ -57,14 +57,13 @@ public sealed partial class MainWindow
         Track("sidebar", SidebarItems);
         Activated += (_, e) =>
         {
-            if (e.WindowActivationState == WindowActivationState.Deactivated)
+            var state = e.WindowActivationState switch
             {
-                return;
-            }
-            var state = e.WindowActivationState == WindowActivationState.PointerActivated
-                ? "pointer"
-                : "code";
-            Log.Debug($"window order: mailbox activated ({state}), focus on {FocusHere()}, {Ages()}");
+                WindowActivationState.Deactivated => "lost the front",
+                WindowActivationState.PointerActivated => "pointer",
+                _ => "code",
+            };
+            Log.Debug($"window order: mailbox {state}, focus on {FocusHere()}, {Ages()}");
         };
     }
 

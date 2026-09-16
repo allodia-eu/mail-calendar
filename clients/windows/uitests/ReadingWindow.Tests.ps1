@@ -38,6 +38,7 @@ $RowButtons = @(
 
 # The window and pointer helpers, shared so a second suite can assert on windows too.
 . (Join-Path $PSScriptRoot 'appwindows.ps1')
+. (Join-Path $PSScriptRoot '../applog.ps1')
 
 <#
 .SYNOPSIS
@@ -109,6 +110,10 @@ function Get-PaneSubject {
 
 $Suite = @{
   Dataset = 'harness'
+  # DEBUG, because one case below reads the app's own log: the rule it checks (opening a window
+  # must not activate the mailbox) is invisible from the outside, and the log is where the app
+  # says it. Costs this suite a launch of its own, which is what an Env does.
+  Env     = @{ ALLODIA_LOG_LEVEL = 'debug' }
   # Every case starts from "no extra windows and a known message in the pane", because these open
   # windows for a living and a leftover one from the case before would answer for this one.
   Prepare = {
@@ -229,32 +234,44 @@ $Suite = @{
       }
     },
     @{
-      Name = 'the window is OWNED by the mailbox, which is what keeps it in front'
+      Name = 'the mailbox does not climb over a window while it opens'
       Body = {
-        # THE ONLY PART OF THE Z-ORDER THAT IS A GUARANTEE, and the reason the cases above are not
-        # enough on their own: each of them watches a window that should stay in front, and a watch
-        # catches only the triggers it happens to meet. All of them passed on this machine while a
-        # mailbox syncing a real account still put its windows behind itself.
+        # THE RULE THE WHOLE Z-ORDER RESTS ON, checked from the app's own log because nothing
+        # outside can see it. Windows leaves a new top-level window in front on its own; this app
+        # loses that only because the MAILBOX activates itself while the window is opening, twice,
+        # measured at roughly 20ms and 1.5s after it appears.
         #
-        # Ownership is the rule underneath: "an owned window is always above its owner in the
-        # z-order" (Win32 window features). So this asserts the OWNER rather than the outcome. It
-        # cannot flake, it does not depend on what the mailbox happens to be doing, and it fails the
-        # moment a window is opened without one.
+        # So this asserts the CAUSE and its correction: every activation the mailbox takes while a
+        # window is settling must be followed by it losing the front again. A foreground check
+        # cannot stand in for this. The steals are milliseconds long and the app usually has the
+        # front back before a screen read lands, which is exactly how this survived a suite full of
+        # foreground checks: every one of them passed while the window still sank on a real account.
         Close-ExtraWindows
+        $since = Get-Date
         Invoke-RowClicks -Subject $RowSubject -Times 2
         $null = Wait-AppWindow -Title $RowSubject
-        # The raw window, not Wait-AppWindow's AutomationElement: an owner is a Win32 fact.
-        $window = Get-AppWindows | Where-Object { $_.Title -eq $RowSubject } | Select-Object -First 1
-        Assert-True ($null -ne $window) 'the reading window is open'
-        Assert-Equal (Get-MainWindow).Handle ([ReadWin.Input]::GetWindow($window.Handle, 4)) `
-          'the reading window names the mailbox as its owner (GW_OWNER)'
-        # Ownership takes the taskbar button away unless the window asks for one, and a message
-        # window the reader cannot reach from the taskbar or Alt-Tab is a window they can lose.
-        # Measured rather than assumed: WinUI leaves the style at WS_EX_WINDOWEDGE alone.
-        $ex = [ReadWin.Input]::GetWindowLongW($window.Handle, -20)   # GWL_EXSTYLE
-        Assert-True (($ex -band 0x00040000) -ne 0) `
-          'and still asks for a taskbar button of its own (WS_EX_APPWINDOW)'
-        Close-ExtraWindows
+        Start-Sleep -Seconds 4
+        $lines = (Get-AppLogNewestSession) -split "`n"
+        $openedAt = $null
+        $opened = 0
+        $pending = 0      # activations the mailbox has taken and not yet given back
+        $unanswered = @()
+        foreach ($line in $lines) {
+          if ($line -notmatch '^(?<at>\S+ \S+ \S+) ') { continue }
+          $at = [datetimeoffset]::MinValue
+          if (-not [datetimeoffset]::TryParse($Matches.at, [ref] $at)) { continue }
+          if ($at -lt ([datetimeoffset] $since)) { continue }
+          if ($line -match 'reading window: opened') { $openedAt = $at; $opened++ }
+          if (-not $openedAt -or $at -lt $openedAt) { continue }
+          # Invoke-RowClicks brings the mailbox forward before it clicks, which is an activation
+          # the harness asked for; only what happens AFTER the window opened is the app's doing.
+          if ($line -match 'window order: mailbox (code|pointer)') { $pending++; $unanswered += $line }
+          if ($line -match 'window order: mailbox lost the front') { $pending = 0; $unanswered = @() }
+        }
+        Assert-True ($opened -gt 0) 'the app logged the window it opened'
+        Assert-Equal 0 $pending `
+          "the mailbox gave the front back every time it took it: $($unanswered -join ' / ')"
+        Assert-Equal $RowSubject (Get-ForegroundTitle) 'and the window is the one in front at the end'
       }
     },
     @{

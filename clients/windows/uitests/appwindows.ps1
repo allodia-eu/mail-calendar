@@ -16,6 +16,8 @@ Add-Type -Namespace ReadWin -Name Input -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
 [DllImport("user32.dll")] public static extern int GetWindowLongW(IntPtr h, int index);
+[DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+public struct RECT { public int Left, Top, Right, Bottom; }
 [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr p);
 [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
 [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
@@ -50,6 +52,31 @@ function Get-AppWindows {
   }
   [void][ReadWin.Input]::EnumWindows($callback, [IntPtr]::Zero)
   $found
+}
+
+<#
+.SYNOPSIS
+Raises the mailbox the way a person does, by pressing its title bar.
+.DESCRIPTION
+SetForegroundWindow alone is not enough any more, and should not be: a window this app has just
+opened stays in front until the reader asks for the mailbox, and a press is what the app accepts as
+asking. The title bar because it is the part of the mailbox a message window never covers, and
+because a press there reaches no control.
+#>
+function Show-Mailbox {
+  $main = Get-MainWindow
+  if (-not $main) { throw 'the mailbox window is not open' }
+  [void][ReadWin.Input]::SetForegroundWindow($main.Handle)
+  $rect = New-Object ReadWin.Input+RECT
+  [void][ReadWin.Input]::GetWindowRect($main.Handle, [ref] $rect)
+  # The app's NAME in the title bar, well left of the search box that sits in the middle of it:
+  # pressing that opens search and takes the message list off screen, which reads as the mailbox
+  # having no list at all. Physical pixels, so this stays left of the search box at any scale.
+  [void][ReadWin.Input]::SetCursorPos($rect.Left + 150, $rect.Top + 20)
+  Start-Sleep -Milliseconds 120
+  [ReadWin.Input]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+  [ReadWin.Input]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 300
 }
 
 function Get-MainWindow {
@@ -117,11 +144,7 @@ whichever window the previous case left in front.
 #>
 function Invoke-RowClicks {
   param([Parameter(Mandatory)] [string] $Subject, [int] $Times = 1)
-  $main = Get-MainWindow
-  if (-not $main) { throw 'the mailbox window is not open' }
-  [void][ReadWin.Input]::SetForegroundWindow($main.Handle)
-  Start-Sleep -Milliseconds 300
-
+  Show-Mailbox
   $row = Get-MailRowByTitle $Subject
   $bounds = $row.Current.BoundingRectangle
   $x = [int] ($bounds.X + $bounds.Width / 2)
@@ -169,10 +192,7 @@ item under test.
 #>
 function Show-RowContextMenu {
   param([Parameter(Mandatory)] [string] $Subject)
-  $main = Get-MainWindow
-  if (-not $main) { throw 'the mailbox window is not open' }
-  [void][ReadWin.Input]::SetForegroundWindow($main.Handle)
-  Start-Sleep -Milliseconds 300
+  Show-Mailbox
   $row = Get-MailRowByTitle $Subject
   $bounds = $row.Current.BoundingRectangle
   [void][ReadWin.Input]::SetCursorPos(
