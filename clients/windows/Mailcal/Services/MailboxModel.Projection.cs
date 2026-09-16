@@ -402,7 +402,7 @@ public sealed partial class MailboxModel
         && a.HasAttachment == b.HasAttachment
         && a.MessageCount == b.MessageCount
         && a.Avatar == b.Avatar
-        && MailRow.SameFaces(a.Messages, b.Messages);
+        && MailRow.SameSubRows(a.Messages, b.Messages);
 
 
     private static bool SameEvent(EventItem a, EventItem b) =>

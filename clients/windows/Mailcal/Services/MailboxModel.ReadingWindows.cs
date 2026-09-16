@@ -50,6 +50,25 @@ public sealed partial class MailboxModel
         _readingWindows.ContainsKey(ReadingWindows.IdFor(account, key));
 
     /// <summary>
+    /// Re-runs the open behind a window's load-error panel, into that window's own slot.
+    /// </summary>
+    /// <remarks>
+    /// Never <see cref="RetryOpen"/>, which is the pane's: a window retrying through that would
+    /// leave its own slot on the error it is showing and re-fetch whatever the pane happened to
+    /// hold, blanking the pane on the way. The window's body is dropped first so the view falls
+    /// back to its loading state rather than sitting on the error until the fetch lands.
+    /// </remarks>
+    public void RetryReadingWindow(string id)
+    {
+        if (!_readingWindows.TryGetValue(id, out var reader) || reader.Opened is not { } opened)
+        {
+            return;
+        }
+        reader.TakeBody(null);
+        _app?.Dispatch(new Intent.OpenMessageInWindow(id, opened.Account, opened.Key));
+    }
+
+    /// <summary>
     /// The window has gone: forget it and tell the core to drop the body it was holding.
     /// </summary>
     /// <remarks>

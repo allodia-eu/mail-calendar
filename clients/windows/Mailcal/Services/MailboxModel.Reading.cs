@@ -171,6 +171,16 @@ public sealed partial class MailboxModel
     /// </remarks>
     public void RestoreReadingPane(OpenedMessage? previous)
     {
+        // Already there: a double-click on the message the pane was reading, or on a row reached
+        // by a modifier click, which opens nothing. Re-opening would drop the body and fetch it
+        // again for no change on screen.
+        if (previous is { } same
+            && OpenedMessage is { } current
+            && same.Account == current.Account
+            && same.Key == current.Key)
+        {
+            return;
+        }
         if (previous is null)
         {
             CloseReading();

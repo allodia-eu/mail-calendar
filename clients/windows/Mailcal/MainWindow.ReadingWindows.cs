@@ -38,17 +38,19 @@ public sealed partial class MainWindow
     internal void OpenReadingWindow(OpenedMessage opened)
     {
         var reader = Model.OpenReadingWindow(opened);
-        if (_readingWindows.Find(w => w.ReaderId == reader.Id) is { } existing)
+        // The correction is armed for a window already up as well as for a new one: the
+        // double-click that asked for it puts the pane back either way, and it is that restore
+        // the mailbox takes the front on (Views/MailListView.ReadingWindows.cs).
+        var window = _readingWindows.Find(w => w.ReaderId == reader.Id);
+        if (window is null)
         {
-            WindowChrome.Present(existing);
-            return;
+            window = new ReadingWindow(Model, reader);
+            _readingWindows.Add(window);
+            Log.Info("reading window: opened");
         }
-        var window = new ReadingWindow(Model, reader);
-        _readingWindows.Add(window);
         WindowChrome.Present(window);
         KeepInFrontWhileItSettles(window);
         WatchWindowOrder();
-        Log.Info("reading window: opened");
     }
 
 

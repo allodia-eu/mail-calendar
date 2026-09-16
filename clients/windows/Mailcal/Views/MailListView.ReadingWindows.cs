@@ -64,9 +64,16 @@ public sealed partial class MailListView
         {
             return false;
         }
-        _paneBeforeClick = Model?.OpenedMessage;
+        RecordPane();
         return true;
     }
+
+    /// <summary>
+    /// Stamps what the pane holds right now, which is what a double-click on this row restores.
+    /// Every click path records it, including the ones that open nothing: a record older than the
+    /// click being handled restores a message the reader has since left.
+    /// </summary>
+    private void RecordPane() => _paneBeforeClick = Model?.OpenedMessage;
 
     // A double-click on a MESSAGE row opens it in a window of its own. A conversation HEADER is not
     // a message and keeps what a second click already did there, which on Windows is collapsing the

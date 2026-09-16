@@ -159,15 +159,21 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
     public IReadOnlyList<ThreadMessageItem> Messages { get => _messages; init => _messages = value; }
 
     /// <summary>
-    /// Whether two rows carry the same sub-row faces.
+    /// Whether two rows carry the same sub-rows: everything an expanded conversation's rows draw.
     /// </summary>
     /// <remarks>
-    /// A thread's own avatar is its LATEST sender's, so an earlier sender's photo arriving in a
-    /// second snapshot moves nothing on the header row while the expanded conversation under it
-    /// still shows initials. The one rule, here rather than beside the projection, because
+    /// The header row is not enough to decide this. A thread's own avatar is its LATEST sender's,
+    /// so an earlier sender's photo arriving in a second snapshot moves nothing on the header
+    /// while the expanded conversation under it still shows initials; and a thread whose header
+    /// stays unread because another message is unread hides a sub-row that has just been read.
+    /// <para>
+    /// <see cref="ThreadMessageItem"/> is immutable and its template binds <c>OneTime</c>, so a
+    /// sub-row only changes when the list is replaced: anything this comparison misses is drawn
+    /// stale until something else moves. Here rather than beside the projection, because
     /// <see cref="CopyFrom"/> has to make the same judgement the diff did.
+    /// </para>
     /// </remarks>
-    public static bool SameFaces(
+    public static bool SameSubRows(
         IReadOnlyList<ThreadMessageItem> a, IReadOnlyList<ThreadMessageItem> b)
     {
         if (a.Count != b.Count)
@@ -176,13 +182,26 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
         }
         for (var index = 0; index < a.Count; index++)
         {
-            if (a[index].Avatar != b[index].Avatar)
+            if (!SameMessage(a[index], b[index]))
             {
                 return false;
             }
         }
         return true;
     }
+
+    private static bool SameMessage(ThreadMessageItem a, ThreadMessageItem b) =>
+        a.Key == b.Key
+        && a.Account == b.Account
+        && a.Avatar == b.Avatar
+        && a.FromText == b.FromText
+        && a.Subject == b.Subject
+        && a.DateText == b.DateText
+        && a.FullDateText == b.FullDateText
+        && a.PreviewText == b.PreviewText
+        && a.Unread == b.Unread
+        && a.Outgoing == b.Outgoing
+        && a.HasAttachment == b.HasAttachment;
 
     /// <summary>
     /// Takes every projected field from <paramref name="next"/>, announcing the ones that moved.
@@ -243,7 +262,7 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
             _messageCount = next.MessageCount;
             Changed(nameof(MessageCount), nameof(CountVisibility), nameof(CountText));
         }
-        if (!SameFaces(_messages, next.Messages))
+        if (!SameSubRows(_messages, next.Messages))
         {
             _messages = next.Messages;
             Changed(nameof(Messages));

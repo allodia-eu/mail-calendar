@@ -83,7 +83,10 @@ internal sealed class ReadingWindow : Window
         {
             _model.Delete(opened.Account, opened.Key);
             Close();
-        });
+        },
+        // Into this window's own slot. The pane's retry re-opens the pane's message, which from
+        // here would leave this window on its error and blank the mailbox behind it.
+        () => _model.RetryReadingWindow(_reader.Id));
 
     // Both halves of the close: the shell forgets the window, the model forgets the reader and
     // tells the core to drop the body it was holding, and the view releases its browser process.

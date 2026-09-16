@@ -1,7 +1,7 @@
 // The model's half of the detached reading window (`docs/reading-window.md`): which windows are
 // open, the header each was opened on, and the body the core is holding for it.
 //
-// The window itself is a macOS scene (ReadingWindowScene.swift). This file has no `#if`, because
+// The window itself is a macOS scene (ReadingWindow.swift). This file has no `#if`, because
 // nothing here is platform-specific: it is the same dispatch → snapshot loop the pane uses, aimed
 // at a different slot, and a client that never opens a window simply never fills the map.
 

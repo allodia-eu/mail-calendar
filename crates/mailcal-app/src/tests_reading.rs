@@ -1,4 +1,4 @@
-//! Reading-open behaviour tests for [`super::App::open_message`] beyond body content: the
+//! Reading-open behaviour tests for [`super::App::open_message_in`] beyond body content: the
 //! mark-as-read-on-open side effect and the cold-open resilience that waits for an account's
 //! mail provider to finish dialing (the notification-tap race). Body sanitise/inline-image/
 //! attachment/recipient coverage lives in `tests_actions.rs`. Shared fixtures: `tests_fakes.rs`.

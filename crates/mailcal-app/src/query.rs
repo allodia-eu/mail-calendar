@@ -132,7 +132,7 @@ impl<P: Provider> App<P> {
 
     /// One message in full, **without marking it read**.
     ///
-    /// One line different from `App::open_message`: it calls `fetch_reading` (the pure fetch)
+    /// One line different from `App::open_message_in`: it calls `fetch_reading` (the pure fetch)
     /// rather than the wrapper that stores the snapshot, signals `Surface::Reading`, and writes
     /// `$seen` to the server. That single difference is why this has a regression test rather
     /// than a comment: the two call sites are three characters apart and the wrong one is

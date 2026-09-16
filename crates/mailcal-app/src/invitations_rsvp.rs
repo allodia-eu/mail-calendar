@@ -299,7 +299,7 @@ impl<P: Provider> App<P> {
     /// Re-reads the open message and republishes its snapshot, so the card shows the answer
     /// that just landed.
     ///
-    /// Deliberately **not** `open_message`: that marks the message read on the server, which
+    /// Deliberately **not** `open_message_in`: that marks the message read on the server, which
     /// answering an invitation is no reason to do: the user may well have answered from the
     /// list without opening it.
     async fn republish_reading(&self, message: MessageRef) {

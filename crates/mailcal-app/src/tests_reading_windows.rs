@@ -160,6 +160,63 @@ async fn opening_in_a_window_marks_the_message_read_as_the_pane_does() {
     }
 }
 
+#[tokio::test(start_paused = true)]
+async fn a_window_closed_while_its_open_is_in_flight_keeps_no_body() {
+    // A close is not an intent, so it overtakes an open that is still waiting on the account to
+    // dial. The body then arrives for a reader that has gone, and re-filling its slot would hold
+    // the largest thing the core keeps per viewer for the rest of the session with nobody left
+    // to pull it.
+    use std::time::Duration;
+
+    use engine_api::{AccountId, EmailAddress};
+
+    use crate::Account;
+
+    let window = ReaderId::Window("w1".to_owned());
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = Arc::new(app(vec![account("acct-1", two_messages())], &surfaces));
+    app.dispatch(Intent::RefreshMail).await;
+    // A provider-less placeholder: the open cannot resolve until one dials, so it is genuinely
+    // still running when the window goes.
+    app.add_account(Account {
+        id: AccountId::try_from("acct-1").unwrap(),
+        providers: Vec::new(),
+        calendar_providers: Vec::new(),
+        contact_providers: Vec::new(),
+        identity: EmailAddress::new("me@acct-1.local"),
+    })
+    .await;
+
+    let opening = tokio::spawn({
+        let app = Arc::clone(&app);
+        let window = window.clone();
+        async move {
+            app.dispatch(Intent::OpenMessage {
+                reader: window,
+                message: msg("acct-1", "m1"),
+            })
+            .await;
+        }
+    });
+    tokio::time::sleep(Duration::from_millis(700)).await;
+    assert!(
+        app.reading_view_in(&window).pending,
+        "the open is still running, so the window's slot is held"
+    );
+
+    app.close_reader(&window);
+    app.add_account(account("acct-1", two_messages())).await;
+    tokio::time::timeout(Duration::from_secs(3), opening)
+        .await
+        .expect("the open finishes once the provider connects")
+        .unwrap();
+
+    assert!(
+        app.reading_view_in(&window).key.is_empty(),
+        "the body arrived for a reader that had gone, so it landed nowhere"
+    );
+}
+
 #[tokio::test]
 async fn re_opening_the_same_window_replaces_what_it_held() {
     // A window is one slot for as long as it lives, not one per message: a client that reuses a

@@ -10,6 +10,7 @@
 //   ReadingView.Attachments.cs  the attachment strip (save / open via the OS handler)
 //   ReadingView.Invitation.cs   the meeting-invitation card and its Accept / Maybe / Decline
 
+using System.ComponentModel;
 using Allodia.Mailcal.Calendar;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
@@ -92,37 +93,59 @@ public sealed partial class ReadingView : UserControl
         _reader = reader;
         _actions = actions;
         this.Bindings.Update();
-        reader.Changed += (_, what) =>
-        {
-            if (what == ReadingChange.Opened)
-            {
-                OnOpenedChanged();
-            }
-            else
-            {
-                Render();
-            }
-        };
-        model.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(MailboxModel.CalendarWrite))
-            {
-                // An invitation answer settles on the calendar's own write surface. Only the card's
-                // respond row moves, see OnCalendarWriteChanged for why this is not a Render().
-                OnCalendarWriteChanged();
-            }
-        };
+        reader.Changed += OnReaderChanged;
+        model.PropertyChanged += OnModelChanged;
         // Set the initial resting state (the pane's placeholder; a window opens on its own row).
         Render();
     }
 
-    /// <summary>
-    /// Releases the body's browser process. For a host that goes away, which on the desktop is a
-    /// reading window closing; the pane lives as long as the shell and never calls it.
-    /// </summary>
-    internal void Teardown() => Body.Close();
+    private void OnReaderChanged(object? sender, ReadingChange what)
+    {
+        if (what == ReadingChange.Opened)
+        {
+            OnOpenedChanged();
+        }
+        else
+        {
+            Render();
+        }
+    }
 
-    private void OnRetry(object sender, RoutedEventArgs e) => _model?.RetryOpen();
+    private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MailboxModel.CalendarWrite))
+        {
+            // An invitation answer settles on the calendar's own write surface. Only the card's
+            // respond row moves, see OnCalendarWriteChanged for why this is not a Render().
+            OnCalendarWriteChanged();
+        }
+    }
+
+    /// <summary>
+    /// Releases what this view holds and what holds it. For a host that goes away, which on the
+    /// desktop is a reading window closing; the pane lives as long as the shell and never calls it.
+    /// </summary>
+    /// <remarks>
+    /// The model is the app's, not the window's, so a view left subscribed to it is a view the
+    /// model keeps alive, and with it the reader and the sanitised body every inline image was
+    /// resolved into. That is the memory the core-side close exists to free, so leaving the
+    /// handler on defeats it.
+    /// </remarks>
+    internal void Teardown()
+    {
+        if (_reader is { } reader)
+        {
+            reader.Changed -= OnReaderChanged;
+        }
+        if (_model is { } model)
+        {
+            model.PropertyChanged -= OnModelChanged;
+        }
+        _handoverTimer?.Stop();
+        Body.Close();
+    }
+
+    private void OnRetry(object sender, RoutedEventArgs e) => _actions?.Retry();
 
     /// <summary>The toolbar's natural width with the labels shown, static L10n strings, so it
     /// never changes for the session; measured once (see below).</summary>

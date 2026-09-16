@@ -169,9 +169,17 @@ public sealed partial class MailListView : UserControl
     {
         // A Ctrl- or Shift-click is aimed at the selection, and the ListView has already applied
         // it. Opening as well would fetch and display a body for every row added to a
-        // twenty-row selection (docs/list-selection.md).
-        if (SelectionModifierDown || e.ClickedItem is not MailRow row)
+        // twenty-row selection (docs/list-selection.md). The pane is still recorded: a
+        // double-click on a row that was reached that way restores from the same record, and a
+        // record left over from an earlier click would put the pane back to a message the reader
+        // has since moved on from (MailListView.ReadingWindows.cs).
+        if (e.ClickedItem is not MailRow row)
         {
+            return;
+        }
+        if (SelectionModifierDown)
+        {
+            RecordPane();
             return;
         }
         // The second click of a double-click on a MESSAGE opens nothing here: it means a window

@@ -16,16 +16,19 @@ using Allodia.Mailcal.Services;
 
 namespace Allodia.Mailcal.ViewModels;
 
-/// <summary>The four actions the reading view's row performs, as its host performs them.</summary>
+/// <summary>What the reading view's row and its load-error panel perform, as its host performs
+/// them.</summary>
 /// <param name="Reply">Reply, or reply-all when the flag is set.</param>
 /// <param name="Forward">Forward the message.</param>
 /// <param name="Archive">Archive it, and settle whatever was showing it.</param>
 /// <param name="Delete">Move it to Trash, and settle whatever was showing it.</param>
+/// <param name="Retry">Re-run the open behind the load-error panel, into this host's own slot.</param>
 internal sealed record ReadingActions(
     Action<OpenedMessage, bool> Reply,
     Action<OpenedMessage> Forward,
     Action<OpenedMessage> Archive,
-    Action<OpenedMessage> Delete)
+    Action<OpenedMessage> Delete,
+    Action Retry)
 {
     /// <summary>
     /// The reading pane's own actions: the composer opens in this pane's slot, and archive/delete
@@ -44,7 +47,8 @@ internal sealed record ReadingActions(
         (opened, all) => App.Shell?.ComposeReply(opened.Account, opened.Key, all, opened.RawSubject),
         opened => App.Shell?.ComposeForward(opened.Account, opened.Key, opened.RawSubject),
         opened => Settle(model, opened, archive: true),
-        opened => Settle(model, opened, archive: false));
+        opened => Settle(model, opened, archive: false),
+        model.RetryOpen);
 
     private static void Settle(MailboxModel model, OpenedMessage opened, bool archive)
     {

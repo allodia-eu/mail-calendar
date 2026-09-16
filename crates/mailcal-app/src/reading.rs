@@ -80,6 +80,9 @@ impl<P: Provider> App<P> {
         // One trace across the retries: a reading-open that never comes back is the same open to
         // the user however many attempts it took, and separate ids would hide that.
         let mut trace = OpenTrace::new();
+        // Claim the slot before the first `await`: a publish only lands in an open one, so this is
+        // what lets a close taken mid-open drop the body that arrives after it.
+        self.reading.open(reader.clone());
         let snapshot = {
             // The body, and (only if it takes long enough to be worth saying so) a snapshot
             // that announces the wait first. Pinned and re-awaited rather than raced against a
@@ -94,7 +97,7 @@ impl<P: Provider> App<P> {
                 snapshot
             } else {
                 self.reading.publish(
-                    reader.clone(),
+                    &reader,
                     ReadingSnapshot {
                         key: message.key.as_str().to_owned(),
                         pending: true,
@@ -109,7 +112,7 @@ impl<P: Provider> App<P> {
         // or when it is already marked Seen. Publish the snapshot first so the reading view
         // opens immediately; the mark-read settles in the background.
         let load_failed = snapshot.load_error;
-        self.reading.publish(reader, snapshot);
+        self.reading.publish(&reader, snapshot);
         // The wait ends here, and only here; everything above it is what the user waits on.
         trace.total(if load_failed {
             "published a load error"
@@ -152,10 +155,10 @@ impl<P: Provider> App<P> {
     /// (which also covers a provider that can't fetch sources, e.g. one without
     /// `message_source` support): as distinct from a body-less message.
     ///
-    /// **This is the non-mutating read path.** [`App::open_message`] is only the wrapper that
+    /// **This is the non-mutating read path.** [`App::open_message_in`] is only the wrapper that
     /// stores the snapshot, signals the surface, and marks the message read on the server; the
     /// agent adapter's `query_message` calls *this* instead, so an assistant reading a message
-    /// does not silently mark it read in the user's mailbox. Do not copy `open_message`'s body.
+    /// does not silently mark it read in the user's mailbox. Do not copy `open_message_in`'s body.
     /// The reading header's avatar, for the same sender the header names.
     ///
     /// The photo comes from the map the list already filled, so opening a message shows the
@@ -176,7 +179,7 @@ impl<P: Provider> App<P> {
     }
 
     /// [`fetch_reading`](Self::fetch_reading), timing each `await` into `trace`. Separate so
-    /// [`open_message`](Self::open_message) can keep one trace across its retries.
+    /// [`open_message_in`](Self::open_message_in) can keep one trace across its retries.
     async fn fetch_reading_traced(
         &self,
         message: MessageRef,
@@ -252,7 +255,7 @@ impl<P: Provider> App<P> {
         ReadingSnapshot {
             key,
             // This snapshot IS the answer, so it never announces a wait; `pending` is only ever
-            // set by the separate one `open_message` publishes while still working.
+            // set by the separate one `open_message_in` publishes while still working.
             pending: false,
             // The sender line, shown in the reading header as the full `Name <email>` (the list
             // row shows just the name). `from` is a list, but a message has one author, take the

@@ -1,7 +1,7 @@
 //! The two **guarantee tests** for the query API, plus its paging and scope behaviour.
 //!
 //! The guarantees are the highest-value tests in the agent surface, and neither is obvious from
-//! reading the code: `query_message` and `App::open_message` differ by one call, and a query
+//! reading the code: `query_message` and `App::open_message_in` differ by one call, and a query
 //! looks so much like the intent it replaces that "simplify this into a dispatch" is a natural
 //! and completely wrong refactor. These fail loudly when someone tries it.
 

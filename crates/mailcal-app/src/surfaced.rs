@@ -116,12 +116,29 @@ impl<K: Eq + Hash, V: Clone + Default> SurfacedMap<K, V> {
         }
     }
 
-    /// Stores `value` for `key` and then announces it.
-    pub(crate) fn publish(&self, key: K, value: V) {
+    /// Opens `key`'s slot, so what is published for it has somewhere to land. A slot already open
+    /// keeps what it holds, so re-opening a reader never blanks it mid-read.
+    pub(crate) fn open(&self, key: K) {
         self.values
             .lock()
             .expect("surfaced-map mutex poisoned")
-            .insert(key, value);
+            .entry(key)
+            .or_default();
+    }
+
+    /// Stores `value` in `key`'s **open** slot and then announces it.
+    ///
+    /// A reader whose slot is not open takes nothing and announces nothing, which is what closing
+    /// one mid-open has to mean: a window can go while its fetch is still out, and the body that
+    /// arrives afterwards belongs to nobody. Without that, the store outlives every reader of it.
+    pub(crate) fn publish(&self, key: &K, value: V) {
+        {
+            let mut values = self.values.lock().expect("surfaced-map mutex poisoned");
+            let Some(slot) = values.get_mut(key) else {
+                return;
+            };
+            *slot = value;
+        }
         self.observer.surface_changed(self.surface);
     }
 
@@ -316,11 +333,17 @@ mod tests {
         )
     }
 
+    /// Opens `key`'s slot and publishes into it, which is the order every reader arrives in.
+    fn open_with(cell: &SurfacedMap<&'static str, String>, key: &'static str, value: &str) {
+        cell.open(key);
+        cell.publish(&key, value.to_owned());
+    }
+
     #[test]
     fn each_key_holds_its_own_value_and_an_unwritten_one_is_the_default() {
         let (cell, _) = keyed();
-        cell.publish("pane", "first".to_owned());
-        cell.publish("w1", "second".to_owned());
+        open_with(&cell, "pane", "first");
+        open_with(&cell, "w1", "second");
         assert_eq!(cell.get(&"pane"), "first");
         assert_eq!(cell.get(&"w1"), "second");
         assert_eq!(
@@ -333,8 +356,8 @@ mod tests {
     #[test]
     fn closing_a_key_frees_it_and_leaves_the_others() {
         let (cell, observer) = keyed();
-        cell.publish("pane", "first".to_owned());
-        cell.publish("w1", "second".to_owned());
+        open_with(&cell, "pane", "first");
+        open_with(&cell, "w1", "second");
         let signals = *observer.0.lock().unwrap();
 
         cell.close(&"w1");
@@ -353,9 +376,9 @@ mod tests {
         // The invitation case: an answer rewrites the card for every reader that was showing
         // that message, and must leave a reader on a different one exactly as it was.
         let (cell, observer) = keyed();
-        cell.publish("pane", "invitation".to_owned());
-        cell.publish("w1", "invitation".to_owned());
-        cell.publish("w2", "something else".to_owned());
+        open_with(&cell, "pane", "invitation");
+        open_with(&cell, "w1", "invitation");
+        open_with(&cell, "w2", "something else");
         let signals = *observer.0.lock().unwrap();
 
         cell.republish_where(
@@ -374,6 +397,26 @@ mod tests {
             *observer.0.lock().unwrap(),
             signals + 1,
             "one signal for the lot, however many readers it touched"
+        );
+    }
+
+    #[test]
+    fn a_publish_into_a_closed_slot_lands_nowhere() {
+        // A window closed while its fetch is still out: the body arrives for a reader that has
+        // gone, and re-filling the slot would hold it for the rest of the session with nobody
+        // left to pull it.
+        let (cell, observer) = keyed();
+        cell.open("w1");
+        cell.close(&"w1");
+        let signals = *observer.0.lock().unwrap();
+
+        cell.publish(&"w1", "the body that arrived too late".to_owned());
+
+        assert_eq!(cell.get(&"w1"), "");
+        assert_eq!(
+            *observer.0.lock().unwrap(),
+            signals,
+            "nothing was stored, so there is nothing to announce"
         );
     }
 }
