@@ -21,7 +21,11 @@
 $CatalogDir = Join-Path $PSScriptRoot '../../../messages'
 $RowSubject = 'Quarterly planning'      # seeded, has an invitation card, so the window has content
 $OtherSubject = 'HTML message with a remote image'
-$ThreadSubject = 'Project kickoff'      # the seeded two-message conversation, by its thread subject
+# The seeded two-message conversation. A WILDCARD because the row's title is whichever message is
+# newest: a freshly seeded harness shows the reply, 'Re: Project kickoff', and one that has been
+# read and re-synced shows the original. Pinning either spelling makes this case depend on how long
+# ago the harness was reset, which is not what it is testing.
+$ThreadSubject = '*Project kickoff'
 # The action row in the order docs/reading-actions.md fixes, overflow last of all.
 $RowButtons = @(
   'ReadingReply'
@@ -87,8 +91,20 @@ function Get-PaneSubject {
   $main = Get-MainWindow
   if (-not $main) { throw 'the mailbox window is not open' }
   $root = [System.Windows.Automation.AutomationElement]::FromHandle($main.Handle)
-  $subject = Find-UiaElement -AutomationId 'SubjectText' -Root $root
-  if ($subject) { $subject.Current.Name } else { '' }
+  # A reading window is OWNED by the mailbox, so UI Automation hangs it under the mailbox's own
+  # element and a plain descendant search for the shared 'SubjectText' can answer with the WINDOW's
+  # subject. That reads as the pane having moved when it has not: a test reporting a product bug
+  # that does not exist. So take every subject under the mailbox and subtract the ones belonging to
+  # a window; what is left is the pane's. Runtime ids, because that is UI Automation's own identity
+  # for an element and geometry is not.
+  $all = @(Find-UiaElements -AutomationId 'SubjectText' -Root $root)
+  foreach ($extra in Get-ExtraWindows) {
+    $window = [System.Windows.Automation.AutomationElement]::FromHandle($extra.Handle)
+    foreach ($theirs in @(Find-UiaElements -AutomationId 'SubjectText' -Root $window)) {
+      $all = @($all | Where-Object { -not [System.Windows.Automation.Automation]::Compare($_, $theirs) })
+    }
+  }
+  if ($all.Count -gt 0) { $all[0].Current.Name } else { '' }
 }
 
 $Suite = @{
@@ -210,6 +226,35 @@ $Suite = @{
           'and is still in front five seconds later'
         Assert-True ($null -ne (Get-Process Mailcal -ErrorAction SilentlyContinue)) `
           'and the app is still running'
+      }
+    },
+    @{
+      Name = 'the window is OWNED by the mailbox, which is what keeps it in front'
+      Body = {
+        # THE ONLY PART OF THE Z-ORDER THAT IS A GUARANTEE, and the reason the cases above are not
+        # enough on their own: each of them watches a window that should stay in front, and a watch
+        # catches only the triggers it happens to meet. All of them passed on this machine while a
+        # mailbox syncing a real account still put its windows behind itself.
+        #
+        # Ownership is the rule underneath: "an owned window is always above its owner in the
+        # z-order" (Win32 window features). So this asserts the OWNER rather than the outcome. It
+        # cannot flake, it does not depend on what the mailbox happens to be doing, and it fails the
+        # moment a window is opened without one.
+        Close-ExtraWindows
+        Invoke-RowClicks -Subject $RowSubject -Times 2
+        $null = Wait-AppWindow -Title $RowSubject
+        # The raw window, not Wait-AppWindow's AutomationElement: an owner is a Win32 fact.
+        $window = Get-AppWindows | Where-Object { $_.Title -eq $RowSubject } | Select-Object -First 1
+        Assert-True ($null -ne $window) 'the reading window is open'
+        Assert-Equal (Get-MainWindow).Handle ([ReadWin.Input]::GetWindow($window.Handle, 4)) `
+          'the reading window names the mailbox as its owner (GW_OWNER)'
+        # Ownership takes the taskbar button away unless the window asks for one, and a message
+        # window the reader cannot reach from the taskbar or Alt-Tab is a window they can lose.
+        # Measured rather than assumed: WinUI leaves the style at WS_EX_WINDOWEDGE alone.
+        $ex = [ReadWin.Input]::GetWindowLongW($window.Handle, -20)   # GWL_EXSTYLE
+        Assert-True (($ex -band 0x00040000) -ne 0) `
+          'and still asks for a taskbar button of its own (WS_EX_APPWINDOW)'
+        Close-ExtraWindows
       }
     },
     @{

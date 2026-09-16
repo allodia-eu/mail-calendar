@@ -5,6 +5,11 @@
 // on the seeded harness. A mailbox that is quiet reconciles its list a handful of times; one
 // syncing a real account reconciles it continuously, and only the second loses the window.
 //
+// The z-order itself no longer depends on the answer: WindowChrome.Own settles that by a rule of
+// the system. What is still open is WHY the mailbox takes the foreground unasked, which is worth
+// knowing because it is what ownership is paying for, and because the day WinUI stops doing it the
+// windows can go back to being peers (docs/reading-window.md, "Known gaps").
+//
 // WHAT IT IS FOR. WinUI 3 reassigns focus when the element holding it is removed, and that
 // reassignment activates the window the element was in. So the question is never "did the mailbox
 // come forward", it is "what did the mailbox do immediately before it came forward". These lines

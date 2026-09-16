@@ -15,6 +15,7 @@ Add-Type -Namespace ReadWin -Name Input -MemberDefinition @'
 [DllImport("user32.dll")] public static extern void mouse_event(uint f, int dx, int dy, int data, UIntPtr extra);
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
+[DllImport("user32.dll")] public static extern int GetWindowLongW(IntPtr h, int index);
 [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr p);
 [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
 [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
@@ -57,7 +58,10 @@ function Get-MainWindow {
 
 function Get-ExtraWindows {
   $main = Get-BrandAppTitle
-  @(Get-AppWindows | Where-Object { $_.Title -ne $main })
+  # PopupHost is the top-level window XAML puts a flyout in, so an open context menu counts as one
+  # of the app's windows unless it is named out. It lingers for a moment after the menu is invoked,
+  # which is long enough to be counted and to fail an assertion about how many windows opened.
+  @(Get-AppWindows | Where-Object { $_.Title -ne $main -and $_.Title -ne 'PopupHost' })
 }
 
 <#

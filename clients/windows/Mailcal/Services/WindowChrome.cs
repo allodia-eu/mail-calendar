@@ -110,6 +110,42 @@ internal static class WindowChrome
     }
 
     /// <summary>
+    /// Makes <paramref name="window"/> an owned window of <paramref name="owner"/>, which is what
+    /// keeps it in front of the mailbox.
+    /// </summary>
+    /// <remarks>
+    /// Taking the foreground is not a guarantee and could not be made into one. Two fixes aimed at
+    /// what was pulling the mailbox forward each held on the seeded harness and neither held on an
+    /// account that is syncing, and the diagnostic that was meant to name the cause cannot see it:
+    /// a window falls behind through a Z-ORDER change, which raises no activation event to log.
+    /// <para>
+    /// Ownership does not win that race, it removes it. Windows keeps an owned window above its
+    /// owner as a rule of the system, so nothing the mailbox does can get in front. Three
+    /// documented consequences come with it, and all three are the price of the guarantee: the
+    /// mailbox can no longer be raised over a message window; an owned window is hidden while its
+    /// owner is minimised (and destroyed with it, which docs/reading-window.md already asks for);
+    /// and the window becomes a child of the mailbox in the UI Automation tree, so a screen reader
+    /// reaches it through the mailbox rather than as a sibling.
+    /// </para>
+    /// <para>
+    /// Through Win32 because there is no other door: AppWindow.OwnerWindowId is read-only and an
+    /// owner can only be passed to AppWindow.Create, which a XAML Window does not use.
+    /// </para>
+    /// </remarks>
+    internal static void Own(Window window, Window owner)
+    {
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
+        SetWindowLongPtr(
+            hwnd, GwlpHwndParent, WinRT.Interop.WindowNative.GetWindowHandle(owner));
+        // Ownership costs the taskbar button, and that is not a cost worth paying: an owned window
+        // gets one only if it asks, and a message window the reader cannot reach from the taskbar
+        // or Alt-Tab is a window they can lose. WS_EX_APPWINDOW asks. Before the window is shown,
+        // because the shell reads this when the button is created.
+        SetWindowLongPtr(
+            hwnd, GwlExStyle, GetWindowLongPtr(hwnd, GwlExStyle) | (nint)WsExAppWindow);
+    }
+
+    /// <summary>
     /// Brings <paramref name="window"/> to the front and moves keyboard focus into it.
     /// </summary>
     /// <remarks>
@@ -188,6 +224,9 @@ internal static class WindowChrome
     }
 
     private const int SwRestore = 9;
+    private const int GwlpHwndParent = -8;
+    private const int GwlExStyle = -20;
+    private const uint WsExAppWindow = 0x0004_0000;
 
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hwnd);
@@ -198,4 +237,8 @@ internal static class WindowChrome
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
     [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr value);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
 }

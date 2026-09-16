@@ -106,6 +106,25 @@ reopen and the rule that binds is the one above, that a second launch is not a s
 opened; at the next launch its header and its body are both gone, so it would open blank. Where a
 platform restores windows by default, that is turned off for these two.
 
+## Staying in front
+
+**A window opens in front of the mailbox and stays there.** It was asked for; a reader who
+double-clicks a message and watches the window slide behind the list has been given nothing.
+
+How a client holds that line is its own, and on **Windows** activation is not enough to hold it.
+WinUI 3 reassigns focus whenever the element holding it is removed, and that reassignment activates
+the window the element was in, so a mailbox that is syncing takes the foreground back on its own
+([microsoft-ui-xaml#8520](https://github.com/microsoft/microsoft-ui-xaml/issues/8520)). Two fixes
+aimed at what removes those elements each held on a quiet mailbox and neither held on a live
+account. So the Windows client makes each window an **owned window** of the mailbox, which is a
+rule of the system rather than a race: an owned window is always above its owner in the z-order.
+
+Three consequences follow, and they are the price of the guarantee. The mailbox can no longer be
+raised over a message window; an owned window is hidden while its owner is minimised; and the
+window is a child of the mailbox in the UI Automation tree, so assistive technology reaches it
+through the mailbox rather than beside it. macOS and Linux keep peer windows, where the toolkit
+does not hand the main window the foreground unasked.
+
 ## An action reaching more than one window
 
 **A body that changes underneath its readers reaches every reader showing that message.**
@@ -130,6 +149,9 @@ capability matrix claims.
 | Full action row in the window | ✅ | ✅ | ✅ | — | — |
 | Reply / forward → composer window | ✅ | ✅ | ✅ | — | — |
 | Main window closing sweeps both | ✅ | ✅ | ✅ | — | — |
+| A window stays in front of the mailbox | ✅ | ✅¹ | ✅ | — | — |
+
+¹ Windows holds it by **ownership**, with the three consequences named above; the other two desktops keep peer windows.
 
 **How each desktop satisfies the first row**, the question this contract opened and each client
 has now answered of its own toolkit. macOS had a real second core behind SwiftUI's ⌘N and that
@@ -139,6 +161,11 @@ none either, and `GApplication` hands a second launch to the process already run
 
 ## Known gaps
 
+- **On Windows the mailbox cannot be raised over a message window.** That is ownership working,
+  not a defect in it: the same rule that stops the mailbox stealing the front stops the reader
+  putting it there deliberately. A reader who wants the list back moves or closes the window. If
+  WinUI ever stops activating a window when it reassigns focus, ownership can go and these windows
+  can be peers, which is what macOS and Linux already are.
 - **On Windows the first press of a double-click still opens the row in the pane, and is undone.**
   The list raises its own click on that press, before anything can know a window was wanted, so the
   pane is put back once the double-tap arrives and the trailing click is refused. The end state is

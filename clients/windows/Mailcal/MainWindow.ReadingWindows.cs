@@ -43,6 +43,7 @@ public sealed partial class MainWindow
         }
         var window = new ReadingWindow(Model, reader);
         _readingWindows.Add(window);
+        WindowChrome.Own(window, this);
         WindowChrome.Present(window);
         WatchWindowOrder();
         Log.Info("reading window: opened");
@@ -54,6 +55,7 @@ public sealed partial class MainWindow
     {
         var window = new ComposerWindow(Model, request);
         _composerWindows.Add(window);
+        WindowChrome.Own(window, this);
         WindowChrome.Present(window);
         WatchWindowOrder();
         Log.Info("composer window: opened");
