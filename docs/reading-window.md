@@ -114,10 +114,11 @@ has been given nothing. And **the mailbox can always be raised over it**, the mo
 clicks it: these are peer windows, as a message window is in every other mail client on the desktop.
 
 Every toolkit here leaves a new top-level window in front on its own. What breaks the rule is an app
-that activates its **main** window afterwards, and on Windows this one did, twice per open: once
-about twenty milliseconds after the window appeared and again about a second and a half later,
-measured. One of those is the reading pane's WebView2 finishing a navigation, which is why a message
-whose body is a document loses the window and an invitation, whose card is native, does not.
+that activates its **main** window afterwards, and on Windows this one did: a mailbox activation
+measured at 7 to 22 ms after the window appeared, on 64 opens out of 64. The cause was a focus move
+made through the focus manager rather than through an element, which the ⚠️ below states as a rule.
+A second activation, tens of milliseconds later, has no identified cause and is what the correction
+below exists for.
 
 So the Windows client puts the window back in front if the mailbox takes it while the window is
 still opening, and stops as soon as the reader presses anything in the mailbox, or after three
@@ -164,11 +165,12 @@ none either, and `GApplication` hands a second launch to the process already run
 
 ## Known gaps
 
-- **On Windows the correction above is bounded by a timer, not by the last steal.** Three seconds
-  covers both activations that were measured, and a press in the mailbox ends it sooner. What it
-  does not do is prove the mailbox has stopped: an activation arriving later than that would put a
-  window behind again. The activations themselves are the thing worth removing, and the reading
-  pane's WebView2 is the first place to look.
+- **On Windows one activation after a window opens is still unexplained, and the correction is a
+  timer rather than a cure.** Three seconds covers what was measured and a press in the mailbox ends
+  it sooner, but neither proves the mailbox has stopped: an activation arriving later would put a
+  window behind again. The reading pane's WebView2 was the obvious suspect and is not it, measured:
+  its navigation completes more than a second before the activation arrives. Whatever it is,
+  removing it is better than correcting it, and `MainWindow.WindowOrder.cs` is the instrument.
 - **On Windows the first press of a double-click still opens the row in the pane, and is undone.**
   The list raises its own click on that press, before anything can know a window was wanted, so the
   pane is put back once the double-tap arrives and the trailing click is refused. The end state is

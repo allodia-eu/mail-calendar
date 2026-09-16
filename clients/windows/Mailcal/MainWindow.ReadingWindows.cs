@@ -64,10 +64,10 @@ public sealed partial class MainWindow
     /// <remarks>
     /// Windows leaves a new top-level window in front on its own, which is why Outlook's and
     /// Thunderbird's message windows stay where they are put. This app loses that because the
-    /// MAILBOX activates itself twice while a window opens, measured on the seeded harness at
-    /// roughly 20ms and 1.5s after the window appears, with nothing in between that the app logs.
-    /// One of them is its WebView2 finishing a navigation, which is why a message whose body is a
-    /// document reproduces and an invitation, whose card is native, does not.
+    /// MAILBOX activates itself while a window opens, measured on the seeded harness tens of
+    /// milliseconds after the window appears, with nothing in between that the app logs. The
+    /// reading pane's WebView2 was the obvious suspect and is not it: its navigation completes more
+    /// than a second before the activation arrives.
     /// <para>
     /// The honest name for this is a bounded correction, not a cure: it lasts <c>Settling</c> and
     /// then stops, so the mailbox can be raised over the window a moment later exactly as it can
