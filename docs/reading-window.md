@@ -125,6 +125,10 @@ still opening, and stops as soon as the reader presses anything in the mailbox, 
 seconds, whichever comes first. The boundedness is the point: it corrects the app's own interference
 and never the reader's intent.
 
+**Linux does not satisfy the second half of this rule yet**, and the entry under Known gaps says so:
+its windows are `transient_for` the mailbox, which is GTK's way of saying a child is stacked above
+its parent, so the mailbox cannot be raised over a message window there.
+
 ⚠️ **Nothing here may reach for a focus manager's "move focus" call.** Those act on whichever
 element holds focus *now*, which is in the window being moved away from, so a call meant to put
 focus in a new window focuses the old one and activates it. That was this contract's own bug on
@@ -155,7 +159,7 @@ capability matrix claims.
 | Reply / forward → composer window | ✅ | ✅ | ✅ | — | — |
 | Main window closing sweeps both | ✅ | ✅ | ✅ | — | — |
 | A window stays in front of the mailbox | ✅ | ✅ | ✅ | — | — |
-| The mailbox can be raised back over it | ✅ | ✅ | ✅ | — | — |
+| The mailbox can be raised back over it | ✅ | ✅ | ❌ | — | — |
 
 **How each desktop satisfies the first row**, the question this contract opened and each client
 has now answered of its own toolkit. macOS had a real second core behind SwiftUI's ⌘N and that
@@ -165,6 +169,13 @@ none either, and `GApplication` hands a second launch to the process already run
 
 ## Known gaps
 
+- **On Linux the mailbox cannot be raised over a message window.** Both windows are built
+  `transient_for` the mailbox (`ui/detached.rs`), which stacks a child above its parent under
+  Mutter and maps to `xdg_toplevel.set_parent` on Wayland. That is the behaviour this contract
+  rejects, and it reads as satisfying the rule above only because a pinned window never falls
+  behind. The sweep does not depend on it: `close_all()` already runs from the mailbox's own close
+  handler. Dropping the parent link is a one-line change and a behaviour change, so it wants a host
+  that can run the client.
 - **On Windows one activation after a window opens is still unexplained, and the correction is a
   timer rather than a cure.** Three seconds covers what was measured and a press in the mailbox ends
   it sooner, but neither proves the mailbox has stopped: an activation arriving later would put a
