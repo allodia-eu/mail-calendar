@@ -93,6 +93,7 @@ impl<P: Provider> App<P> {
             reading: SurfacedMap::new(Surface::Reading, Arc::clone(&observer)),
             reply_prompt: Mutex::new(None),
             unfiled_copy: Mutex::new(None),
+            compose_request: Mutex::new(None),
             view_mode: Mutex::new(view_mode),
             prefs_path: prefs_path.clone(),
             visible_limit: Mutex::new(PAGE),

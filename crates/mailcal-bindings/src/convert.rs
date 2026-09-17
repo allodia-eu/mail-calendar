@@ -16,8 +16,9 @@ use mailcal_app::{
     BulkAction as AppBulkAction, CalendarWriteStatus as AppCalendarWriteStatus,
     ContactWriteStatus as AppContactWriteStatus, ContactsIntent as AppContactsIntent, EventRef,
     FolderRef, Intent as AppIntent, InvitationResponse as AppInvitationResponse, MessageRef,
-    ReaderId as AppReaderId, RecipientSuggestion as AppRecipientSuggestion, RowRef,
-    SearchScope as AppSearchScope, SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
+    OutboxIntent as AppOutboxIntent, QueuedRef, ReaderId as AppReaderId,
+    RecipientSuggestion as AppRecipientSuggestion, RowRef, SearchScope as AppSearchScope,
+    SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
 };
 use mailcal_viewmodel::{
     AccountSyncProgress as AppAccountSyncProgress, CalendarSnapshot as AppCalendarSnapshot,
@@ -28,8 +29,8 @@ use mailcal_viewmodel::{
 use crate::{
     AccountSyncProgress, BulkAction, CalendarSnapshot, CalendarWriteStatus, ConnectionInfo,
     ConnectivitySnapshot, ContactWriteStatus, EventEdge, EventRow, HttpVersion, Intent,
-    InvitationResponse, RecipientSuggestion, SearchScope, SelectedRow, SendStatus, Surface,
-    SyncProgressSnapshot, TlsVersion,
+    InvitationResponse, OutboxIntent, RecipientSuggestion, SearchScope, SelectedRow, SendStatus,
+    Surface, SyncProgressSnapshot, TlsVersion,
 };
 
 impl From<AppSurface> for Surface {
@@ -43,6 +44,7 @@ impl From<AppSurface> for Surface {
             AppSurface::SyncProgress => Self::SyncProgress,
             AppSurface::Connectivity => Self::Connectivity,
             AppSurface::CalendarStatus => Self::CalendarStatus,
+            AppSurface::ComposeRequest => Self::ComposeRequest,
             AppSurface::Contacts => Self::Contacts,
             AppSurface::ContactsStatus => Self::ContactsStatus,
             AppSurface::InvitationReply => Self::InvitationReply,
@@ -81,6 +83,7 @@ impl From<AppSendStatus> for SendStatus {
             AppSendStatus::Sending => Self::Sending,
             AppSendStatus::Sent => Self::Sent,
             AppSendStatus::SentNotFiled => Self::SentNotFiled,
+            AppSendStatus::Queued => Self::Queued,
             AppSendStatus::Failed => Self::Failed,
         }
     }
@@ -179,6 +182,8 @@ impl TryFrom<Intent> for AppIntent {
             },
             Intent::SubmitMail { to, subject, body } => Self::SubmitMail { to, subject, body },
             Intent::RefreshCalendar => Self::RefreshCalendar,
+            Intent::Outbox { intent } => Self::Outbox(outbox_intent(intent)?),
+            Intent::DismissComposeRequest => Self::DismissComposeRequest,
             Intent::RefreshContacts => Self::Contacts(AppContactsIntent::RefreshContacts),
             Intent::SearchContacts { query } => {
                 Self::Contacts(AppContactsIntent::SearchContacts { query })
@@ -465,4 +470,20 @@ impl From<AppConnectionInfo> for ConnectionInfo {
             http_version: info.http_version.map(HttpVersion::from),
         }
     }
+}
+
+/// Binds each Outbox action's account id and op id into one [`QueuedRef`] at the boundary,
+/// so no action can carry an op id without (or mismatched against) the account whose queue
+/// holds it.
+fn outbox_intent(intent: OutboxIntent) -> Result<AppOutboxIntent, String> {
+    let queued = |account: &str, op: u64| {
+        QueuedRef::from_parts(account, op)
+            .ok_or_else(|| format!("invalid queued-send reference for account {account:?}"))
+    };
+    Ok(match intent {
+        OutboxIntent::Show => AppOutboxIntent::Show,
+        OutboxIntent::Cancel { account, op } => AppOutboxIntent::Cancel(queued(&account, op)?),
+        OutboxIntent::SendNow { account, op } => AppOutboxIntent::SendNow(queued(&account, op)?),
+        OutboxIntent::Edit { account, op } => AppOutboxIntent::Edit(queued(&account, op)?),
+    })
 }

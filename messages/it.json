@@ -18,6 +18,7 @@
 	"folder_archive": "Archivio",
 	"folder_junk": "Indesiderata",
 	"folder_trash": "Cestino",
+	"folder_outbox": "Posta in uscita",
 	"mailbox_new_mail": "Nuova posta",
 
 	"search_results": "Risultati della ricerca",
@@ -178,6 +179,14 @@
 	"send_status_sending": "Invio in corso…",
 	"send_status_sent": "Messaggio inviato",
 	"send_status_failed": "Impossibile inviare il tuo messaggio.",
+	"send_status_queued": "In attesa di invio.",
+
+	"outbox_waiting": "In attesa di invio",
+	"outbox_sending": "Invio in corso…",
+	"outbox_unconfirmed": "Consegna non confermata",
+	"action_send_now": "Invia ora",
+	"action_cancel_send": "Annulla invio",
+	"action_edit_queued": "Modifica",
 	"unfiled_copy_title": "Il tuo messaggio è stato inviato",
 	"unfiled_copy_body": "«{subject}» è arrivato ai destinatari, ma non è stato possibile salvare una copia nella cartella Inviati.",
 	"unfiled_copy_retry": "Salva in Inviati",

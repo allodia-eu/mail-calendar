@@ -16,6 +16,7 @@ use engine_api::{MailListRow, Mailbox};
 use crate::{
     avatar::Avatar,
     folders::{AccountFolderRow, FolderRow, sorted_folder_rows},
+    outbox::QueuedRow,
     view_rows::{build_flat, build_search, build_threaded},
 };
 
@@ -141,6 +142,25 @@ pub struct MailboxListSnapshot {
     /// **Stamped at publish time**, never left at `bool::default()`: `false` is *shut*, and
     /// the group holds the only row that opens the unified list.
     pub unified_expanded: bool,
+    /// Whether the list is showing the **Outbox** rather than mail.
+    ///
+    /// A client switches its list on this: the rows it draws come from
+    /// [`outbox`](Self::outbox), and [`rows`](Self::rows) is empty. Not derivable from
+    /// [`selected_account`](Self::selected_account) and [`selected`](Self::selected), which
+    /// are both `None` here *and* on the unified inbox; a client that could not tell the two
+    /// apart would answer a click on the Outbox with everyone's inbox.
+    pub showing_outbox: bool,
+    /// Every account's queued sends, oldest first: what the pane's **Outbox** row counts
+    /// and what the Outbox list shows.
+    ///
+    /// Populated in every view mode, for the reason
+    /// [`account_folders`](Self::account_folders) is: the row it badges is on screen
+    /// whatever else is. **Empty takes the row off screen entirely**: an Outbox nobody has
+    /// anything in is furniture that only ever says zero (`docs/folder-pane.md`, rule 6).
+    ///
+    /// Queued *edits* are not here. An archive that has not reached the server is a write on
+    /// a message the user will look for in its folder, not in a list of unsent mail.
+    pub outbox: Vec<QueuedRow>,
     /// The selected folder's key, or `None` for the account's unified all-mail view.
     pub selected: Option<String>,
     /// The mode the rows are grouped in.

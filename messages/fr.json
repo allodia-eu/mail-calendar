@@ -18,6 +18,7 @@
 	"folder_archive": "Archives",
 	"folder_junk": "Indésirables",
 	"folder_trash": "Corbeille",
+	"folder_outbox": "Boîte d'envoi",
 	"mailbox_new_mail": "Nouveau message",
 
 	"search_results": "Résultats de recherche",
@@ -178,6 +179,14 @@
 	"send_status_sending": "Envoi en cours…",
 	"send_status_sent": "Message envoyé",
 	"send_status_failed": "Impossible d’envoyer votre message.",
+	"send_status_queued": "En attente d'envoi.",
+
+	"outbox_waiting": "En attente d'envoi",
+	"outbox_sending": "Envoi en cours…",
+	"outbox_unconfirmed": "Remise non confirmée",
+	"action_send_now": "Envoyer maintenant",
+	"action_cancel_send": "Annuler l'envoi",
+	"action_edit_queued": "Modifier",
 	"unfiled_copy_title": "Votre message a été envoyé",
 	"unfiled_copy_body": "« {subject} » est arrivé à ses destinataires, mais aucune copie n’a pu être enregistrée dans votre dossier Envoyés.",
 	"unfiled_copy_retry": "Enregistrer dans Envoyés",

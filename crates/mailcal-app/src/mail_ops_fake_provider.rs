@@ -27,6 +27,9 @@ pub(super) struct SubmitProvider {
     /// When set, `file_sent_copy` parks until it is notified: the seam a test needs to hold a
     /// repair open and do something else while it is in flight.
     repair_gate: Option<Arc<Notify>>,
+    /// Sends left to refuse as **retryable** before this provider starts accepting them: no
+    /// network, then a network. The one shape that queues rather than failing outright.
+    offline_sends: Arc<Mutex<u32>>,
 }
 
 impl SubmitProvider {
@@ -39,7 +42,22 @@ impl SubmitProvider {
             refiles: Arc::new(Mutex::new(0)),
             refile_fails: false,
             repair_gate: None,
+            offline_sends: Arc::new(Mutex::new(0)),
         }
+    }
+
+    /// A provider with no network at all: every send fails retryably, so every message
+    /// queues and nothing is ever delivered.
+    pub(super) fn offline() -> Self {
+        Self::offline_for(u32::MAX)
+    }
+
+    /// A provider whose next `sends` fail retryably and which then works: the outage a
+    /// queued message is supposed to ride out.
+    pub(super) fn offline_for(sends: u32) -> Self {
+        let provider = Self::new();
+        *provider.offline_sends.lock().unwrap() = sends;
+        provider
     }
 
     /// A submitting provider whose every send fails with a permanent error carrying `detail`.
@@ -99,6 +117,13 @@ impl Provider for SubmitProvider {
         self.submissions.lock().unwrap().push(draft.clone());
         if let Some(detail) = &self.fail_detail {
             return Err(ProviderError::permanent(detail.clone()));
+        }
+        {
+            let mut offline = self.offline_sends.lock().unwrap();
+            if *offline > 0 {
+                *offline = offline.saturating_sub(1);
+                return Err(ProviderError::retryable("no route to host"));
+            }
         }
         let key = ProviderKey::new("sent-1").unwrap();
         let id = draft.message_id.clone();

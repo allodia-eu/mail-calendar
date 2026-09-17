@@ -18,6 +18,7 @@
 	"folder_archive": "Archive",
 	"folder_junk": "Junk",
 	"folder_trash": "Trash",
+	"folder_outbox": "Outbox",
 	"mailbox_new_mail": "New mail",
 
 	"search_results": "Search results",
@@ -178,6 +179,14 @@
 	"send_status_sending": "Sending…",
 	"send_status_sent": "Message sent",
 	"send_status_failed": "Couldn't send your message.",
+	"send_status_queued": "Waiting to send.",
+
+	"outbox_waiting": "Waiting to send",
+	"outbox_sending": "Sending…",
+	"outbox_unconfirmed": "Delivery not confirmed",
+	"action_send_now": "Send Now",
+	"action_cancel_send": "Cancel Send",
+	"action_edit_queued": "Edit",
 	"unfiled_copy_title": "Your message was sent",
 	"unfiled_copy_body": "“{subject}” reached its recipients, but a copy couldn't be saved in your Sent folder.",
 	"unfiled_copy_retry": "Save to Sent",

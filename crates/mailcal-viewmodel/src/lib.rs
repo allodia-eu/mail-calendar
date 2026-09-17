@@ -15,6 +15,7 @@ pub mod connectivity;
 pub mod contacts;
 mod folders;
 pub mod invitation;
+mod outbox;
 pub mod reading;
 pub mod sender;
 pub mod settings;
@@ -32,8 +33,9 @@ pub use folders::{
     AccountFolderRow, FolderRole, FolderRow, folder_role, inbox_unread, sorted_folder_rows,
 };
 pub use invitation::{AttendeeTally, InvitationCard, InvitationKind, ResponseStatus};
+pub use outbox::{QueuedRow, QueuedState, queued_rows};
 pub use reading::{AttachmentRow, ReadingSnapshot};
-pub use sender::sender_label;
+pub use sender::{address_label, sender_label};
 pub use settings::{
     AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
     McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureRow, SignatureSlotKind,

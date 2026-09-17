@@ -18,6 +18,7 @@
 	"folder_archive": "Archief",
 	"folder_junk": "Ongewenst",
 	"folder_trash": "Prullenbak",
+	"folder_outbox": "Postvak UIT",
 	"mailbox_new_mail": "Nieuwe e-mail",
 
 	"search_results": "Zoekresultaten",
@@ -178,6 +179,14 @@
 	"send_status_sending": "Bezig met verzenden…",
 	"send_status_sent": "Bericht verzonden",
 	"send_status_failed": "Kan je bericht niet verzenden.",
+	"send_status_queued": "Wacht op verzenden.",
+
+	"outbox_waiting": "Wacht op verzenden",
+	"outbox_sending": "Bezig met verzenden…",
+	"outbox_unconfirmed": "Bezorging niet bevestigd",
+	"action_send_now": "Nu verzenden",
+	"action_cancel_send": "Verzenden annuleren",
+	"action_edit_queued": "Bewerken",
 	"unfiled_copy_title": "Je bericht is verzonden",
 	"unfiled_copy_body": "‘{subject}’ is bij de ontvangers aangekomen, maar er kon geen kopie worden opgeslagen in je map Verzonden.",
 	"unfiled_copy_retry": "Opslaan in Verzonden",

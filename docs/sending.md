@@ -26,13 +26,59 @@ On IMAP/SMTP these really are two round trips (SMTP dials fresh per send, the `A
 the standing IMAP session), which is why only that transport can reach the failure at all. JMAP
 files the copy with the submission's `onSuccessUpdateEmail`; Graph and Gmail file it server-side.
 
-## The two surfaces
+## A send that cannot go out is kept, not lost
 
-| | `Surface::Sending` → `SendStatus` | `Surface::UnfiledCopy` → `UnfiledCopy` |
+**A message the app accepted is the user's, and it does not evaporate because a server was
+not answering.** A send whose failure is worth retrying stays in the **Outbox**, a durable
+queue the engine owns, and goes out by itself when it can.
+
+- **`SendStatus::Queued` is not `Failed`.** Failed means nothing will retry it. Telling
+  someone a queued send failed invites them to write the message a second time, and the
+  first one then arrives too.
+- **Which failures queue is the engine's decision, not a client's** and not this layer's: a
+  retryable class parks the op and everything else settles it (`store-and-sync.md`). The core
+  asks the queue whether the message is still there rather than re-reading the error, so
+  there is one rule, in the one place that owns it.
+- **The queue drains on three signals and no timer**: the device coming back online, the end
+  of every sync pass, and the user pressing Send now. A timer would wake a dead network on a
+  battery, and the reachability signal alone is not enough: a *server* outage with no device
+  outage produces no transition at all, which is why a sync pass drains too.
+- **Coming back online clears each message's backoff.** The backoff is the engine's guess at
+  how long to wait for a server that was not answering, and reconnecting is the one fact that
+  makes the guess obsolete. Without this a person watches their mail sit for up to half an
+  hour after their network returns. Attempt counts are **not** reset: one more attempt now is
+  not a fresh retry bound.
+- **Only sends appear in the Outbox.** A queued archive or flag change is a write on a
+  message that already lives in a folder, and the folder is where its owner will look for it.
+  Those drain in the background and are never shown as unsent mail.
+
+### What a queued message offers
+
+| Action | What it does | When it is refused |
 |---|---|---|
-| Lifetime | Transient; the core auto-clears it after 2.5s | **Standing**, until the user answers |
-| Shape | An inline hint | A modal, or the loudest thing the client has |
-| Answers | nothing: it is a status | "Save to Sent" / "Not now" |
+| **Send now** | Clears the backoff and drains immediately | While the send is in flight, or awaiting confirmation |
+| **Cancel** | Withdraws it so it is never delivered | Same |
+| **Edit** | **Withdraws it, then** hands it back to the composer | Same |
+
+**Edit withdraws before it opens.** The other order leaves a window in which a drain delivers
+the message being edited, and no part of this app can take that back. The withdrawn message
+then exists *only* in `Surface::ComposeRequest`, which is why that request stands until the
+host says its composer holds it rather than auto-clearing.
+
+**A message awaiting confirmation offers no retry.** It may already be in front of its
+recipients, so the one thing a client must not do is offer to send it again.
+
+## The three surfaces
+
+| | `Surface::Sending` → `SendStatus` | `Surface::UnfiledCopy` → `UnfiledCopy` | `Surface::ComposeRequest` → `ComposeRequest` |
+|---|---|---|---|
+| Lifetime | Transient; the core auto-clears it after 2.5s | **Standing**, until the user answers | **Standing**, until the host's composer holds it |
+| Shape | An inline hint | A modal, or the loudest thing the client has | The client's own composer, opened |
+| Answers | nothing: it is a status | "Save to Sent" / "Not now" | nothing: dismissing it acknowledges receipt |
+
+The Outbox itself is a fourth thing and not a surface at all: it rides the mailbox-list
+snapshot (`outbox`, `showing_outbox`), because the pane row that counts it is on screen in
+every view.
 
 **`SendStatus::SentNotFiled` shows no hint of its own.** The standing question is already on
 screen and says the same thing with a button; two notices for one event is noise. What the
@@ -135,6 +181,18 @@ someone their own file back is noise that repeats on every turn of a long thread
 
 ## Per-platform
 
+| Platform | Outbox row | Queued list | Send now | Cancel | Edit |
+|---|---|---|---|---|---|
+| macOS / iOS / iPadOS | ✅ pane row, hidden at zero | ✅ | ✅ | ✅ | ✅ |
+| Android | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Windows | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Linux | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+
+A ⬜ client still **queues** and still **drains**: that half is the core's and every platform
+has it the moment it takes this build. What it does not yet have is the row, the list and the
+three actions, so a user there sees `SendStatus::Queued` and no way to look at what is
+waiting. See "Known gaps".
+
 | Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup | Name in Settings | `Name <address>` in From |
 |---|---|---|---|---|---|---|---|
 | macOS / iOS / iPadOS | ✅ banner | ✅ sheet, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
@@ -151,6 +209,11 @@ someone their own file back is noise that repeats on every turn of a long thread
 
 ## Known gaps
 
+- **The Outbox ships on Apple only.** Android, Windows and Linux queue and drain correctly,
+  because that is core behaviour, but draw no Outbox row and offer none of the three actions.
+  Until they do, a queued message on those platforms is visible only as
+  `SendStatus::Queued` while the hint lasts, and is recoverable only by waiting for it to go.
+  The snapshot already carries everything each of them needs (`outbox`, `showing_outbox`).
 - **A staged file outlives its composer.** The files are written into the client's own cache and
   nothing deletes them when a forward is sent or abandoned, exactly as for an attachment opened
   from the reading view. The OS reclaims that directory; until it does, a decoded copy of the

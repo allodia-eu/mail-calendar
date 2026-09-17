@@ -18,6 +18,7 @@
 	"folder_archive": "Archiv",
 	"folder_junk": "Spam",
 	"folder_trash": "Papierkorb",
+	"folder_outbox": "Postausgang",
 	"mailbox_new_mail": "Neue E-Mail",
 
 	"search_results": "Suchergebnisse",
@@ -178,6 +179,14 @@
 	"send_status_sending": "Wird gesendet…",
 	"send_status_sent": "Nachricht gesendet",
 	"send_status_failed": "Ihre Nachricht kann nicht gesendet werden.",
+	"send_status_queued": "Wartet auf Versand.",
+
+	"outbox_waiting": "Wartet auf Versand",
+	"outbox_sending": "Wird gesendet…",
+	"outbox_unconfirmed": "Zustellung nicht bestätigt",
+	"action_send_now": "Jetzt senden",
+	"action_cancel_send": "Senden abbrechen",
+	"action_edit_queued": "Bearbeiten",
 	"unfiled_copy_title": "Ihre Nachricht wurde gesendet",
 	"unfiled_copy_body": "„{subject}“ hat die Empfänger erreicht, aber im Ordner „Gesendet“ konnte keine Kopie gespeichert werden.",
 	"unfiled_copy_retry": "In „Gesendet“ speichern",

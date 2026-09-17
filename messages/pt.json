@@ -18,6 +18,7 @@
 	"folder_archive": "Arquivo",
 	"folder_junk": "Spam",
 	"folder_trash": "Reciclagem",
+	"folder_outbox": "Caixa de saída",
 	"mailbox_new_mail": "Correio novo",
 
 	"search_results": "Resultados da pesquisa",
@@ -178,6 +179,14 @@
 	"send_status_sending": "A enviar…",
 	"send_status_sent": "Mensagem enviada",
 	"send_status_failed": "Não foi possível enviar a sua mensagem.",
+	"send_status_queued": "A aguardar envio.",
+
+	"outbox_waiting": "A aguardar envio",
+	"outbox_sending": "A enviar…",
+	"outbox_unconfirmed": "Entrega não confirmada",
+	"action_send_now": "Enviar agora",
+	"action_cancel_send": "Cancelar envio",
+	"action_edit_queued": "Editar",
 	"unfiled_copy_title": "A sua mensagem foi enviada",
 	"unfiled_copy_body": "«{subject}» chegou aos destinatários, mas não foi possível guardar uma cópia na sua pasta Enviados.",
 	"unfiled_copy_retry": "Guardar em Enviados",

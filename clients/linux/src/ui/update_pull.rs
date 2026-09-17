@@ -29,6 +29,10 @@ impl AppModel {
                 self.notice = match app.send_status() {
                     SendStatus::Sending => Some(l10n::send_status_sending().to_owned()),
                     SendStatus::Sent => Some(l10n::send_status_sent().to_owned()),
+                    // Not a failure: the message waits in the Outbox and goes out by
+                    // itself. This client draws no Outbox yet (`docs/sending.md` → Known
+                    // gaps), so the hint is the only thing that says so.
+                    SendStatus::Queued => Some(l10n::send_status_queued().to_owned()),
                     SendStatus::Failed => Some(l10n::send_status_failed().to_owned()),
                     // Nothing to show, for two different reasons: nothing is in flight, and for
                     // `SentNotFiled` the standing UnfiledCopy question already says it: with a
@@ -42,6 +46,9 @@ impl AppModel {
                 self.reply_prompt = app.reply_prompt();
                 self.reply_prompt_generation = self.reply_prompt_generation.wrapping_add(1);
             }
+            // A queued message offered back for the composer. Nothing to do yet: this
+            // client raises no edit, because it draws no Outbox to raise one from.
+            Surface::ComposeRequest => {}
             Surface::UnfiledCopy => {
                 self.unfiled_copy = app.unfiled_copy().map(|copy| UnfiledCopyNotice {
                     body: l10n::unfiled_copy_body(&copy.subject),

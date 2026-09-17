@@ -84,6 +84,13 @@ pub enum SendStatus {
     /// sent twice). The standing, actionable form of this is [`Surface::UnfiledCopy`], only
     /// IMAP/SMTP accounts reach it, since every other transport files the copy within the send.
     SentNotFiled,
-    /// The most recent submission failed: the message did **not** go out.
+    /// The most recent submission has **not gone yet**, and is waiting in the Outbox.
+    ///
+    /// Not [`Self::Failed`]: the message is not lost, and telling someone a send failed when
+    /// it is queued invites them to write it again. The standing form of this is the pane's
+    /// Outbox row, which stays until the message goes; this hint auto-clears like the others.
+    Queued,
+    /// The most recent submission failed: the message did **not** go out, and nothing will
+    /// retry it.
     Failed,
 }

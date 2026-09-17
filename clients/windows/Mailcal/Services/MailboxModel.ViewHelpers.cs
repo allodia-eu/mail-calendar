@@ -27,6 +27,11 @@ public sealed partial class MailboxModel
         SendStatus.Sending => L10n.SendStatusSending(),
         SendStatus.Sent => L10n.SendStatusSent(),
         SendStatus.Failed => L10n.SendStatusFailed(),
+        // Not a failure: the message waits in the Outbox and goes out by itself. Without
+        // this arm the bar still shows (SendStatusVisible is true for it) carrying no text
+        // at all, because C# takes the discard rather than refusing to compile. This client
+        // draws no Outbox yet (docs/sending.md, Known gaps), so the hint is all it can say.
+        SendStatus.Queued => L10n.SendStatusQueued(),
         _ => string.Empty,
     };
     /// <summary>The info-bar severity for the current status.</summary>

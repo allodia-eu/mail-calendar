@@ -113,6 +113,11 @@ impl<P: Provider> App<P> {
             self.apply_signin_expired(&account.id, outcome.signin_expired);
             self.invalidate_list_cache();
         }
+        // Anything queued whose backoff has elapsed goes out on the same pass. The
+        // reachability signal cannot be relied on for this: a server that was refusing
+        // while the device stayed online never produces one, so without this a queued
+        // message would wait for a transition that may not come until the next launch.
+        self.drain_outboxes().await;
         let sync_ms = sync_start.elapsed().as_millis();
         let rebuild_start = Instant::now();
         self.rebuild_snapshot().await;

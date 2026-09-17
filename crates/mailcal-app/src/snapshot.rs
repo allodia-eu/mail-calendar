@@ -16,11 +16,9 @@ use std::{
 };
 
 use engine_api::{AccountId, MailListRow, MailboxRole, Provider};
-use mailcal_viewmodel::{
-    AccountFolderRow, AccountMessage, AccountRow, MailboxListSnapshot, ViewMode, view,
-};
+use mailcal_viewmodel::{AccountMessage, AccountRow, MailboxListSnapshot, ViewMode, view};
 
-use crate::{App, CachedRows};
+use crate::{App, CachedRows, Scope};
 
 /// Which of the rows in view actually belong to the list being shown.
 ///
@@ -93,7 +91,13 @@ impl<P: Provider> App<P> {
         let limit = self.visible_limit();
         let window = self.load_window();
 
-        let mut snapshot = if let Some(query) = query {
+        let mut snapshot = if matches!(scope, Scope::Outbox) {
+            // The Outbox is not a place on a server, so there is no mail query to run: the
+            // pane fields and the queued list are the whole snapshot. Running one anyway
+            // would answer a click on the Outbox with the unified inbox, since that scope
+            // names no account and no folder either.
+            self.outbox_snapshot(&account_rows).await
+        } else if let Some(query) = query {
             self.search_snapshot(scope.account(), scope.folder(), query, mode, &account_rows)
                 .await
         } else {
@@ -157,7 +161,7 @@ impl<P: Provider> App<P> {
             None => Vec::new(),
         };
         let account_folders = self.all_account_folders(account_rows).await;
-        view::build(
+        let mut snapshot = view::build(
             &items,
             &folders,
             account_rows,
@@ -166,7 +170,24 @@ impl<P: Provider> App<P> {
             folder,
             mode,
             limit,
-        )
+        );
+        // Set after the build rather than threaded through it: the Outbox belongs to the
+        // pane, not to the list `view::build` shapes, and that call already carries eight
+        // arguments of list.
+        snapshot.outbox = self.all_queued_sends(account_rows).await;
+        snapshot
+    }
+
+    /// The Outbox view: the pane, and the queued sends. No mail is read.
+    async fn outbox_snapshot(&self, account_rows: &[AccountRow]) -> MailboxListSnapshot {
+        let account_folders = self.all_account_folders(account_rows).await;
+        MailboxListSnapshot {
+            accounts: account_rows.to_vec(),
+            account_folders,
+            showing_outbox: true,
+            outbox: self.all_queued_sends(account_rows).await,
+            ..Default::default()
+        }
     }
 
     /// The accounts the shown list draws from, and which of their rows are in view.
@@ -254,44 +275,6 @@ impl<P: Provider> App<P> {
             items.push(account_message(in_view, account_rows, &Arc::new(member)));
         }
         items
-    }
-
-    /// Re-reads each account's folder-tree expansion **at publish time**, overwriting whatever
-    /// the projection captured when it began.
-    ///
-    /// A rebuild spans several `await`s (store reads per account), so one that started before the
-    /// user's chevron finishes after it and would publish the expansion as it was *then*;
-    /// springing the tree back open a beat after they shut it. During a sync, when rebuilds are
-    /// frequent, that is most of the time. The same shape as the contacts-search generation
-    /// counter: the pass that started earlier must not win by finishing later.
-    ///
-    /// Cheap enough to do unconditionally; it is an in-memory set lookup per account, and the
-    /// alternative (a generation counter over the whole snapshot) would pay for a race this state
-    /// is the only writer of.
-    fn restamp_expansion(&self, snapshot: &mut MailboxListSnapshot) {
-        for row in &mut snapshot.accounts {
-            row.expanded = self.account_expanded(&row.id);
-        }
-        // The All Accounts group is one more tree in the same pane, and the projection never
-        // sets it, so this is also where it is filled in at all.
-        snapshot.unified_expanded = self.unified_expanded();
-    }
-
-    /// Fetches every account's sorted folder list in `account_rows` order: for the
-    /// navigation drawer, which shows all accounts simultaneously.
-    async fn all_account_folders(&self, account_rows: &[AccountRow]) -> Vec<AccountFolderRow> {
-        let mut out = Vec::with_capacity(account_rows.len());
-        for row in account_rows {
-            let Ok(id) = AccountId::try_from(row.id.as_str()) else {
-                continue;
-            };
-            let mailboxes = self.engine.mailboxes(&id).await.unwrap_or_default();
-            out.push(AccountFolderRow {
-                account_id: row.id.clone(),
-                folders: mailcal_viewmodel::sorted_folder_rows(&mailboxes),
-            });
-        }
-        out
     }
 
     /// Every optimistically-removed `(account, key)`; just archived or deleted, the move not yet
