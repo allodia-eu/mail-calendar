@@ -319,7 +319,29 @@ fn render_image_html(
         out.push_str(&width.to_string());
         out.push('"');
     }
-    out.push('>');
+    // The size is stated twice, and neither statement is redundant.
+    //
+    // The `width` **attribute** is a presentational hint, which the cascade places below every
+    // author stylesheet rule: a recipient whose client carries so much as an `img { width: … }`
+    // rule silently overrides it, and the reader sees a size the sender never chose. The inline
+    // **style** is an author declaration and loses only to `!important`, so it is the one that
+    // actually holds. The attribute stays for the older Word-based Outlook, which reads it and
+    // not the style, which is also why this renderer inlines every other style it emits.
+    //
+    // `max-width` is here whether or not a width is, and the picture nobody resized is the case
+    // it matters for: with no width to state it renders at its intrinsic size, and a photograph
+    // off a phone is thousands of pixels wide. Our own reading view caps every image, so a
+    // message that overflowed a narrower client would look correct to us.
+    //
+    // No `height`: the document carries a width alone, so the height is left to follow the
+    // picture's own ratio rather than being guessed at from bytes this crate never decodes.
+    out.push_str(" style=\"");
+    if let Some(width) = image.width_px {
+        out.push_str("width: ");
+        out.push_str(&width.to_string());
+        out.push_str("px; ");
+    }
+    out.push_str("max-width: 100%\">");
 }
 
 fn render_block_text(block: &Block, out: &mut String) {

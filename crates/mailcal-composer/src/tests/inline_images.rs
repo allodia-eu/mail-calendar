@@ -18,10 +18,16 @@ fn renders_inline_images_as_cid_parts_and_keeps_regular_attachments_separate() {
 
     let output = render(&document).expect("valid document");
 
+    // The width is stated TWICE, and neither is redundant. The `width` attribute is a
+    // presentational hint, which the cascade places below every author stylesheet rule, so a
+    // recipient with an `img` rule of its own overrides it; the inline style loses only to
+    // `!important`. The attribute stays for the older Word-based Outlook, which reads it and not
+    // the style. `max-width` is what keeps a picture inside a narrow reading pane.
     assert_eq!(
         output.html,
         html_doc(
-            "<p>See <img src=\"cid:chart-1@example.test\" alt=\"quarterly chart\" width=\"320\"></p>"
+            "<p>See <img src=\"cid:chart-1@example.test\" alt=\"quarterly chart\" \
+             width=\"320\" style=\"width: 320px; max-width: 100%\"></p>"
         )
     );
     assert_eq!(output.plain_text, "See [quarterly chart]");
@@ -275,4 +281,31 @@ fn shared_blob_handle_is_listed_once_in_the_manifest() {
 
     assert_eq!(output.attachments.len(), 1);
     assert_eq!(output.attachments[0].id, aid("file-1"));
+}
+
+#[test]
+fn a_picture_nobody_resized_is_still_held_inside_the_reading_pane() {
+    // The case that bites hardest: with no width to state, the picture renders at its intrinsic
+    // size, and a photograph off a phone is thousands of pixels wide. Our own reader caps every
+    // image, which is exactly why this was invisible to us; a recipient's need not.
+    let document = ComposerDocument {
+        blocks: vec![Block::Paragraph(Paragraph {
+            content: vec![InlineContent::Image(InlineImage {
+                attachment_id: aid("img-1"),
+                alt_text: String::new(),
+                width_px: None,
+            })],
+        })],
+        attachments: vec![inline_attachment("img-1")],
+    };
+
+    let output = render(&document).expect("valid document");
+
+    assert_eq!(
+        output.html,
+        html_doc(
+            "<p><img src=\"cid:chart-1@example.test\" alt=\"\" \
+             style=\"max-width: 100%\"></p>"
+        )
+    );
 }

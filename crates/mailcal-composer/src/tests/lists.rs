@@ -128,7 +128,8 @@ fn validates_inline_image_carried_inside_a_nested_list_item() {
         Some(&cid("chart-1@example.test"))
     );
     assert!(output.html.contains(
-        "<ol><li>see<ul><li><img src=\"cid:chart-1@example.test\" alt=\"chart\"></li></ul></li></ol>"
+        "<ol><li>see<ul><li><img src=\"cid:chart-1@example.test\" alt=\"chart\" \
+         style=\"max-width: 100%\"></li></ul></li></ol>"
     ));
 }
 
