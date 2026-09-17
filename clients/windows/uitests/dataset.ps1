@@ -11,9 +11,8 @@
 #                          cannot appear there.
 #   Wait-CalendarSynced    mail rows land before the calendar does, so a suite that opened a meeting
 #                          the moment rows appeared read the CACHED calendar and reported a missing
-#                          organiser as a projection bug.
-#   Get-AppSessionLog      the log rotates at a size cap, so a byte offset taken before the launch
-#                          can outlive the bytes it points at.
+#                          organiser as a projection bug. It reads the core's own log through
+#                          applog.ps1, which is what keeps it honest across a rotation.
 #   Reset-AppSurface       what makes one launch safely serve several suites, and, when it cannot,
 #                          says so and lets the caller relaunch instead of guessing.
 #
@@ -23,6 +22,11 @@
 # clients/windows, where showcase.ps1 and control.ps1 live. Resolved from THIS file rather than
 # inherited from whoever dot-sourced it, so the dependency is visible and the file stands alone.
 $ClientDir = Join-Path $PSScriptRoot '..'
+
+# Reading the app's own log, which is not Get-Content: see its header. run-ui-tests.ps1 loads it
+# too, for the suites; dot-sourcing it here as well is what keeps this file standing alone, and
+# loading it twice only redefines the same functions.
+. (Join-Path $ClientDir 'applog.ps1')
 
 # ---------------------------------------------------------------------------------------------
 # Datasets. Start-Dataset returns only once the app is up, the message list has rows, and, on the
@@ -195,9 +199,6 @@ function Reset-AppSurface {
   (Get-SurfaceFingerprint) -eq $Clean
 }
 
-# Mirrors MailboxModel.DataDir + Log.Init, the same path showcase.ps1 reads.
-$AppLogPath = Join-Path $env:LOCALAPPDATA 'Allodia\MailCalendar\logs\app.log'
-
 <#
 .SYNOPSIS
 Block until THIS launch has finished its first calendar refresh from the server.
@@ -217,35 +218,10 @@ function Wait-CalendarSynced {
   $marker = 'refresh_calendar:'
   $timer = [Diagnostics.Stopwatch]::StartNew()
   while ($timer.Elapsed.TotalSeconds -lt $TimeoutSec) {
-    if ((Get-AppSessionLog $Since).IndexOf($marker, [StringComparison]::Ordinal) -ge 0) { return }
+    if ((Get-AppLogSession -Since $Since).IndexOf($marker, [StringComparison]::Ordinal) -ge 0) { return }
     Start-Sleep -Milliseconds 200
   }
   throw "the calendar never finished its first refresh within ${TimeoutSec}s (no '$marker' in this launch's session in $AppLogPath). The harness may be up but not serving calendars, scripts/dev/harness.sh up."
-}
-
-<#
-.SYNOPSIS
-The log lines belonging to the session that started at or after $Since, or '' if none has yet.
-.DESCRIPTION
-Anchored on the last `--- session start` banner and its TIMESTAMP rather than a byte offset taken
-before the launch, for the two reasons showcase.ps1's Get-SessionLog spells out: the log rotates at
-a size cap, so an offset can outlive the bytes it addresses; and without the timestamp, an app that
-never started leaves the previous session's banner answering for a launch that never happened.
-#>
-function Get-AppSessionLog {
-  param([Parameter(Mandatory)] [datetime] $Since)
-  if (-not (Test-Path $AppLogPath)) { return '' }
-  $stream = [IO.File]::Open($AppLogPath, 'Open', 'Read', 'ReadWrite')
-  try { $text = (New-Object IO.StreamReader($stream, [Text.Encoding]::UTF8)).ReadToEnd() }
-  finally { $stream.Dispose() }
-
-  $banners = [regex]::Matches($text, '(?m)^(?<at>\S+ \S+ \S+) \[info\] --- session start')
-  if ($banners.Count -eq 0) { return '' }
-  $last = $banners[$banners.Count - 1]
-  $at = [datetimeoffset]::MinValue
-  if (-not [datetimeoffset]::TryParse($last.Groups['at'].Value, [ref] $at)) { return '' }
-  if ($at -lt ([datetimeoffset] $Since).AddSeconds(-1)) { return '' }
-  $text.Substring($last.Index)
 }
 
 function Start-Dataset {

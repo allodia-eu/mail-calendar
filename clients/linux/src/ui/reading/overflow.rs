@@ -7,7 +7,7 @@ use adw::prelude::*;
 use gtk::{accessible::Property as AccessibleProperty, glib};
 use mailcal_bindings::save::message_export_file_name;
 
-use super::AppInput;
+use super::{AppInput, ReadingSource};
 use crate::l10n;
 
 /// The file name the export offers, kept in step with the message on screen.
@@ -23,7 +23,8 @@ pub(super) type ExportName = Rc<RefCell<String>>;
 /// The container is a `gtk::Box` because the popover is parented to the button and has to be
 /// unparented before the button is disposed of, so the two have to travel together.
 pub(super) fn overflow_menu(
-    window: &adw::ApplicationWindow,
+    window: &gtk::Window,
+    source: &ReadingSource,
     export_name: &ExportName,
     sender: &relm4::Sender<AppInput>,
 ) -> (gtk::Box, gtk::Button) {
@@ -32,7 +33,7 @@ pub(super) fn overflow_menu(
     menu.set_margin_bottom(6);
     menu.set_margin_start(6);
     menu.set_margin_end(6);
-    menu.append(&export_item(window, export_name, sender));
+    menu.append(&export_item(window, source, export_name, sender));
 
     let popover = gtk::Popover::new();
     popover.set_child(Some(&menu));
@@ -56,7 +57,8 @@ pub(super) fn overflow_menu(
 /// The "Save as .eml" item: closes the menu, asks where, then hands the destination to the
 /// export.
 fn export_item(
-    window: &adw::ApplicationWindow,
+    window: &gtk::Window,
+    source: &ReadingSource,
     export_name: &ExportName,
     sender: &relm4::Sender<AppInput>,
 ) -> gtk::Button {
@@ -64,6 +66,7 @@ fn export_item(
     item.add_css_class("flat");
     let input_sender = sender.clone();
     let parent = window.clone();
+    let source = source.clone();
     let export_name = Rc::clone(export_name);
     item.connect_clicked(move |button| {
         if let Some(popover) = button
@@ -77,11 +80,15 @@ fn export_item(
             .build();
         let input_sender = input_sender.clone();
         let parent = parent.clone();
+        let source = source.clone();
         glib::MainContext::default().spawn_local(async move {
             if let Ok(file) = dialog.save_future(Some(&parent)).await
                 && let Some(path) = file.path()
             {
-                input_sender.emit(AppInput::ExportMessage { destination: path });
+                input_sender.emit(AppInput::ExportMessage {
+                    source,
+                    destination: path,
+                });
             }
         });
     });

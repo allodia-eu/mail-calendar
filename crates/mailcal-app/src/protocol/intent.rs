@@ -4,15 +4,16 @@
 //! to keep each file under the 500-line limit, nothing about the enum changed in the move.
 
 use engine_api::{AccountId, LocalDateTime};
-use mailcal_account::{ContactEdit, EventDrag, EventEdit};
+use mailcal_account::{EventDrag, EventEdit};
 use mailcal_composer::ComposerDocument;
 use mailcal_viewmodel::{QuoteStyleKind, SwipeActionKind, SwipeDirection, ViewMode};
 
 // Named only by intra-doc links below, which rustdoc resolves against this module's scope.
 #[allow(unused_imports, reason = "named by intra-doc links on the variants")]
 use super::Surface;
-use super::{BulkAction, ComposerBlob, SearchScope};
+use super::{BulkAction, ComposerBlob, ContactsIntent, SearchScope};
 use crate::{
+    ReaderId,
     invitations_rsvp::InvitationResponse,
     reference::{EventRef, FolderRef, MessageRef, RowRef, ThreadRef},
 };
@@ -67,11 +68,15 @@ pub enum Intent {
     /// the FFI. Any navigation that changes the list (select account/folder, search, switch
     /// view mode) resets the window to the first page.
     ShowMore,
-    /// Open a message (by key) for reading: fetch + cache its raw source, extract and
-    /// sanitise the body, and publish the [`Surface::Reading`] snapshot.
+    /// Open a message for reading: fetch + cache its raw source, extract and sanitise the body,
+    /// and publish it to `reader`'s slot as the [`Surface::Reading`] snapshot. A desktop has more
+    /// than one reader, each on its own message (`docs/reading-window.md`); nothing else about the
+    /// open differs between them.
     OpenMessage {
-        /// The message to open; its account and provider key bound together, so a key
-        /// two accounts share resolves within the right one.
+        /// Which viewer the body is for: the pane, or one detached reading window.
+        reader: ReaderId,
+        /// The message to open; account and provider key bound together, so a key two
+        /// accounts share resolves within the right one.
         message: MessageRef,
     },
     /// Send a plain-text message through the durable outbox, then refresh.
@@ -106,59 +111,14 @@ pub enum Intent {
     },
     /// Sync the account's calendar(s) and refresh the agenda snapshot.
     RefreshCalendar,
-    /// Sync every account's address books and refresh the contacts snapshot.
-    RefreshContacts,
-    /// Narrow the contacts list to people matching `query`, or show all for an empty one.
+    /// Everything the contacts surface asks for: refresh, search, create and edit
+    /// ([`ContactsIntent`]).
     ///
-    /// The matching happens in the engine (name, email, phone, organisation, title), so a
-    /// person outside the snapshot's row cap is still findable, which is why this is an
-    /// intent that rebuilds rather than a filter the host applies to the rows it holds.
-    SearchContacts {
-        /// The search text; empty clears the filter.
-        query: String,
-    },
-    /// Save a new contact into one address book, then refresh the list.
-    ///
-    /// `account`/`address_book` are the client's picker choice, from
-    /// [`App::contact_targets`](crate::App::contact_targets); both `None` files it in the
-    /// first writable book on offer, which is the whole picker for a user with one account.
-    /// A user with no writable book anywhere is offered no create at all, so this failing for
-    /// want of a destination means the client offered something it should not have.
-    ///
-    /// Awaited inline like the calendar writes, its outcome surfaced through
-    /// [`ContactWriteStatus`](crate::ContactWriteStatus). Not durable offline: a failed save
-    /// stays failed rather than queueing.
-    CreateContact {
-        /// The chosen book's owning account, or `None` for the first on offer.
-        account: Option<String>,
-        /// The chosen book's provider id, or `None` for the first on offer.
-        address_book: Option<String>,
-        /// The values the form holds.
-        edit: ContactEdit,
-    },
-    /// Edit one **source card** of a person, then refresh the list.
-    ///
-    /// Named by a card and not by a person, which is the load-bearing half: a person is
-    /// several accounts' cards joined on a shared address (`docs/contacts.md` §1), and saving
-    /// the merged values would file one account's details in another's address book. A client
-    /// takes the pair from
-    /// [`ContactDetail::editable_cards`](mailcal_viewmodel::ContactDetail::editable_cards),
-    /// asking the user which card when there is more than one.
-    ///
-    /// The write is a **patch**: only the fields the form actually changed are sent, so an
-    /// address's label, an organisation's departments, a postal address and a photo all
-    /// survive an edit that did not touch them. An edit that changed nothing sends nothing.
-    UpdateContact {
-        /// The person whose card this is, as the row carried it. The card is looked up among
-        /// that person's sources, so a retired id still opens the card it always meant.
-        person: String,
-        /// The account holding the card.
-        account: String,
-        /// The card's provider id.
-        card: String,
-        /// The values the form holds.
-        edit: ContactEdit,
-    },
+    /// One variant rather than four, because contacts are the one family here with a surface,
+    /// a write path and a privacy rule of their own, and because this enum is at the 500-line
+    /// limit: the next intent added to it has to displace something, and a family that reads
+    /// as a unit is what should go.
+    Contacts(ContactsIntent),
     /// Mark a message read (`read = true`) or unread (`read = false`), by key.
     MarkRead {
         /// The message to mark; its account and provider key bound together.

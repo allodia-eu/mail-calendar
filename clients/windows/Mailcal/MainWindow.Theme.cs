@@ -24,6 +24,10 @@ public sealed partial class MainWindow
         {
             root.RequestedTheme = Theme(appearance);
         }
+        // A reading or composer window is a view of this app, so it repaints with it rather than
+        // staying in the appearance it opened under (docs/reading-window.md). Each window is its
+        // own XAML tree, so the setting does not reach them on its own.
+        ApplyAppearanceToChildWindows(appearance);
     }
 
     /// <summary>

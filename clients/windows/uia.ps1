@@ -138,10 +138,31 @@ Set-Variable -Name UiaAny -Value ([System.Windows.Automation.Condition]::TrueCon
 The running client's main window as an AutomationElement, or $null when it isn't up.
 #>
 function Get-MailcalWindow {
-  $proc = Get-Process Mailcal -ErrorAction SilentlyContinue |
-    Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  $proc = Get-Process Mailcal -ErrorAction SilentlyContinue | Select-Object -First 1
   if (-not $proc) { return $null }
-  $script:UiaElement::FromHandle($proc.MainWindowHandle)
+  # THE MAILBOX, BY TITLE, and not Process.MainWindowHandle. That property is whichever top-level
+  # window Windows hands back, and this app opens message and composer windows beside the mailbox
+  # now, so it can be one of those: a suite then searched a reading window for the mailbox's own
+  # controls and reported that the message list was not on screen. The mailbox is the window whose
+  # title is the app's name; a message window carries its subject.
+  # Filtered here rather than with an AndCondition, which New-Object cannot bind to its params
+  # constructor and which silently finds nothing.
+  # ⚠️ Compared with the ampersand taken out of BOTH sides. UI Automation reports this window's
+  # Name as "Allodia Mail  Calendar": the & is an accelerator marker to the framework and it is
+  # dropped from the automation name, while GetWindowTextW keeps it. Comparing the two directly
+  # never matches, and the fallback below then answers with whichever window Windows feels like.
+  $title = (Get-BrandAppTitle) -replace '&', ''
+  $tops = $script:UiaElement::RootElement.FindAll($script:UiaChildren, $script:UiaAny)
+  for ($i = 0; $i -lt $tops.Count; $i++) {
+    $top = $tops[$i]
+    if ($top.Current.ProcessId -eq $proc.Id -and ($top.Current.Name -replace '&', '') -eq $title) {
+      return $top
+    }
+  }
+  # Before the mailbox has a title, at the very start of a launch.
+  $started = Get-Process Mailcal -ErrorAction SilentlyContinue |
+    Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  if ($started) { $script:UiaElement::FromHandle($started.MainWindowHandle) }
 }
 
 <#
@@ -301,7 +322,11 @@ the account-setup form and hides the whole shell, which reads as "the surface un
 #>
 function Get-MailRows {
   $list = Find-UiaElement -AutomationId 'RowsList'
-  if (-not $list) { throw 'the message list (#RowsList) is not on screen' }
+  if (-not $list) {
+    $searched = Get-MailcalWindow
+    $where = if ($searched) { $searched.Current.Name } else { '(no window)' }
+    throw "the message list (#RowsList) is not on screen; searched [$where]"
+  }
   Find-UiaElements -Type 'ListItem' -Root $list
 }
 

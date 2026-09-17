@@ -25,7 +25,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/linux_session.sh"
 [[ $# -ge 1 ]] || die "usage: with-headless-session.sh <command> [args...]"
 is_linux || die "a headless Wayland session needs a Linux host"
 
-linux_session_start "${MAILCAL_HEADLESS_SIZE:-1440x900}" "${MAILCAL_HEADLESS_SCALE:-1}" mailcal-linux
+linux_session_start "${MAILCAL_HEADLESS_SIZE:-1440x900}" "${MAILCAL_HEADLESS_SCALE:-1}"
 trap linux_session_stop EXIT INT TERM
 
 status=0

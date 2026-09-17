@@ -27,7 +27,31 @@ mod ui;
 
 static APP_BROKER: relm4::MessageBroker<ui::AppInput> = relm4::MessageBroker::new();
 
+/// The flags the one application is built with.
+///
+/// `NON_UNIQUE` is deliberately absent: a second launch is handed to the process already running
+/// (`connect_command_line` below, which then activates it), and a second process would be a second
+/// core over the same SQLite store (`docs/reading-window.md`). The mailbox, the reading windows and
+/// the composer windows are views of one app; nothing here may make a second one.
+const APPLICATION_FLAGS: gtk::gio::ApplicationFlags =
+    gtk::gio::ApplicationFlags::HANDLES_COMMAND_LINE;
+
+/// Claim the application id as the program name, so every window this process opens reaches the
+/// desktop as this app's.
+///
+/// GTK takes a window's Wayland `app_id` from the `GtkApplication` the window belongs to, and from
+/// the program name for every window that belongs to none. The reading, composer and settings
+/// windows are deliberately not application windows (`docs/reading-window.md`), so without this
+/// they arrive as `mailcal-linux`, which matches no desktop entry: the shell files them under a
+/// second application, with neither the app's name nor its icon, and its window switcher will not
+/// move between them and the mailbox.
+fn claim_desktop_identity() {
+    gtk::glib::set_program_name(Some(l10n::APP_ID));
+}
+
 fn main() {
+    claim_desktop_identity();
+
     // A showcase run pins the language for the session only, above the stored choice and without
     // touching it; a capture must never rewrite the developer's own preference. Compiled out of a
     // release build with the rest of `showcase`.
@@ -63,7 +87,7 @@ fn main() {
 
     let application = adw::Application::builder()
         .application_id(l10n::APP_ID)
-        .flags(gtk::gio::ApplicationFlags::HANDLES_COMMAND_LINE)
+        .flags(APPLICATION_FLAGS)
         .build();
     application.connect_command_line(|application, command_line| {
         let arguments = command_line.arguments();
@@ -85,4 +109,36 @@ fn main() {
     });
     let app = relm4::RelmApp::<ui::AppInput>::from_app(application).with_broker(&APP_BROKER);
     app.run::<ui::AppModel>(());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{APPLICATION_FLAGS, claim_desktop_identity};
+
+    /// Every window, including the ones that belong to no `GtkApplication`, reaches the desktop as
+    /// this app rather than as the binary that happens to draw it.
+    #[test]
+    fn every_window_this_process_opens_is_filed_under_the_app() {
+        claim_desktop_identity();
+        assert_eq!(
+            gtk::glib::program_name().as_deref(),
+            Some(crate::l10n::APP_ID)
+        );
+    }
+
+    /// A second launch reaches the running app rather than starting a second core.
+    ///
+    /// The flags rather than a built `GApplication`: registering one would claim this
+    /// application's bus name, and the assertion is about what we ask for.
+    #[test]
+    fn a_second_launch_is_not_a_second_app() {
+        assert!(
+            !APPLICATION_FLAGS.contains(gtk::gio::ApplicationFlags::NON_UNIQUE),
+            "a second process is a second connection to the same store"
+        );
+        assert!(
+            APPLICATION_FLAGS.contains(gtk::gio::ApplicationFlags::HANDLES_COMMAND_LINE),
+            "a mail link handed to the running app arrives on its command line"
+        );
+    }
 }

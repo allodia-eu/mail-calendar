@@ -21,7 +21,7 @@ public sealed partial class ReadingView
 
     private async void OnExportEml(object sender, RoutedEventArgs e)
     {
-        if (_model?.OpenedMessage is not { } opened)
+        if (Opened is not { } opened)
         {
             return;
         }

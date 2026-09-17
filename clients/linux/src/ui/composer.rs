@@ -22,6 +22,7 @@ use super::{
         ComposeKind, ComposeRequest, ComposerSubmission, PickedFile, plain_text_seed_script,
     },
     composer_signature::SignatureControl,
+    reader::ComposerHost,
     recipients::{self, RecipientField},
     webview::{DocumentKind, SecureWebView},
 };
@@ -66,13 +67,18 @@ impl ComposerPane {
         &self.root
     }
 
+    /// Builds the chrome and the editor for one draft.
+    ///
+    /// `window` is whichever window hosts it, because the file chooser and the drop target open
+    /// over their own window: the mailbox for the pane's composer, the composer window for a draft
+    /// raised inside a reading window (`docs/reading-window.md`).
     pub(crate) fn show(
         &self,
         generation: u64,
         request: &ComposeRequest,
         accounts: &[(String, String)],
         app: Option<&Arc<MailcalApp>>,
-        window: &adw::ApplicationWindow,
+        window: &impl IsA<gtk::Window>,
         sender: relm4::Sender<AppInput>,
     ) {
         if self.active_generation.get() == Some(generation) {
@@ -83,14 +89,19 @@ impl ComposerPane {
 
         let toolbar = adw::ToolbarView::new();
         let header = adw::HeaderBar::new();
-        header.set_show_start_title_buttons(false);
+        // In a window of its own this bar *is* the titlebar, so it keeps the desktop's controls
+        // wherever that desktop puts them; in the pane, the surface above it carries the mailbox
+        // window's own. The bar still says what the draft is; the window is named after its
+        // subject, which is what the OS window list reads (`docs/reading-window.md`).
+        header.set_show_start_title_buttons(matches!(request.host, ComposerHost::Window(_)));
         header.set_title_widget(Some(&adw::WindowTitle::new(
             compose_title(request.kind),
             "",
         )));
         let cancel = gtk::Button::with_label(l10n::action_cancel());
         let input_sender = sender.clone();
-        cancel.connect_clicked(move |_| input_sender.emit(AppInput::CancelComposer));
+        let host = request.host;
+        cancel.connect_clicked(move |_| input_sender.emit(AppInput::CancelComposer(host)));
         header.pack_start(&cancel);
         let send_button = gtk::Button::with_label(l10n::action_send());
         send_button.add_css_class("suggested-action");

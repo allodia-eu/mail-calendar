@@ -69,7 +69,7 @@ linux_session_requirements() {
 
 # Start an empty compositor. The caller launches the client against it afterwards:
 #
-#   linux_session_start <width>x<height> <scale> <dialog-app-id>
+#   linux_session_start <width>x<height> <scale>
 #   WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" <the client>
 #
 # Sets LINUX_SESSION_DISPLAY, LINUX_SESSION_SWAYSOCK and LINUX_SESSION_PID in the caller, and
@@ -85,15 +85,15 @@ linux_session_requirements() {
 # a GPU the headless backend never touches. `WLR_RENDERER=pixman` drops it to software rendering
 # for a runner with no GPU at all; the capture is the same size and the same pixels.
 #
-# ⚠️ **The config floats this client's dialogs, because sway tiles them.** Settings, the signature
-# editor and the first-account screen are each a window of their own, and a tiling compositor gives
-# a second window half the output and shrinks the app into the other half: a capture then shows two
-# half-width windows side by side, which is not what a desktop puts on screen. Those dialogs carry
-# the **process name** as their Wayland `app_id`, not the branded application id the main window
-# has, which is why the criterion is passed in from the binary's own path rather than read from the
-# brand files.
-linux_session_start() { # <resolution> <scale> <dialog-app-id>
-  local resolution="$1" scale="$2" dialog_app_id="$3"
+# ⚠️ **A tiling compositor puts a second window beside the first, not over it**, and this one
+# tiles everything it is not told to float: two half-width windows side by side, which is not what
+# a desktop puts on screen. sway floats and centres a window that has a **transient parent** on its
+# own, with no rule, so Settings, the signature editor and the first-account screen all land over
+# the app. A reading or composer window has no parent by design (`docs/reading-window.md`), so on
+# this compositor it tiles beside the mailbox; a caller that opens one and means to photograph it
+# has to float it itself.
+linux_session_start() { # <resolution> <scale>
+  local resolution="$1" scale="$2"
   linux_session_requirements
 
   local config before
@@ -104,7 +104,6 @@ default_border none
 default_floating_border none
 gaps inner 0
 gaps outer 0
-for_window [app_id="$dialog_app_id"] floating enable, move position center
 CONFIG
   before="$(linux_session_sockets)"
   env -u DISPLAY -u WAYLAND_DISPLAY \

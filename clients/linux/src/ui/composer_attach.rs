@@ -51,11 +51,11 @@ pub(super) fn connect_file_picker(
     button: &gtk::Button,
     list: &gtk::ListBox,
     files: &Rc<RefCell<Vec<PickedFile>>>,
-    window: &adw::ApplicationWindow,
+    window: &impl IsA<gtk::Window>,
 ) {
     let list = list.clone();
     let files = Rc::clone(files);
-    let parent = window.clone();
+    let parent: gtk::Window = window.as_ref().clone();
     button.connect_clicked(move |_| {
         let dialog = gtk::FileDialog::new();
         let list = list.clone();
@@ -127,7 +127,7 @@ pub(super) fn install_drop_target(
     show: ShowPicture,
     list: &gtk::ListBox,
     files: &Rc<RefCell<Vec<PickedFile>>>,
-    window: &adw::ApplicationWindow,
+    window: &impl IsA<gtk::Window>,
     error: &gtk::Label,
 ) {
     let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
@@ -137,7 +137,7 @@ pub(super) fn install_drop_target(
     drop.set_propagation_phase(gtk::PropagationPhase::Capture);
     let list = list.clone();
     let files = Rc::clone(files);
-    let parent = window.clone();
+    let parent: gtk::Window = window.as_ref().clone();
     let error = error.clone();
     drop.connect_drop(move |_, value, _, _| {
         let Ok(dropped) = value.get::<gdk::FileList>() else {
@@ -181,7 +181,7 @@ fn ask_and_place(
     show: ShowPicture,
     list: gtk::ListBox,
     files: Rc<RefCell<Vec<PickedFile>>>,
-    parent: adw::ApplicationWindow,
+    parent: gtk::Window,
     error: gtk::Label,
 ) {
     let dialog = adw::AlertDialog::new(

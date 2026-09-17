@@ -1,9 +1,11 @@
-//! Answering a meeting invitation from the reading pane.
+//! Answering a meeting invitation from a reading view.
 //!
 //! The intent names the **message**, never the event: the answer must go out as the address the
 //! invitation matched, which on an aliased account is not the account's primary identity, and only
-//! the core knows the address set (`docs/invitations.md` §4). So the message the pane has open is
-//! the whole of what this host contributes, beside the localised reply subject.
+//! the core knows the address set (`docs/invitations.md` §4). So the message the **named reader**
+//! has open is the whole of what this host contributes, beside the localised reply subject: a card
+//! drawn in a window answers for that window's message, never for whatever the pane behind it
+//! shows (`docs/reading-window.md`).
 //!
 //! Nothing is applied optimistically. The write is awaited behind the existing
 //! `CalendarWriteStatus` spinner and both surfaces are rebuilt from what the server holds: hiding
@@ -12,11 +14,11 @@
 
 use mailcal_bindings::Intent;
 
-use super::{AppModel, invitation::InvitationAnswer};
+use super::{AppModel, invitation::InvitationAnswer, reader::ReadingSource};
 
 impl AppModel {
-    pub(super) fn respond_to_invitation(&self, answer: InvitationAnswer) {
-        let Some(opened) = self.reading.opened.as_ref() else {
+    pub(super) fn respond_to_invitation(&self, source: &ReadingSource, answer: InvitationAnswer) {
+        let Some(opened) = self.reader_message(source) else {
             return;
         };
         // The closed-enum answer and two flags only; never the note, the subject, the meeting or

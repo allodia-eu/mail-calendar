@@ -5,6 +5,11 @@ use std::collections::HashSet;
 use adw::prelude::*;
 use mailcal_bindings::{FlatRow, SnapshotRow, ThreadMessage, ThreadRow};
 
+// The oracle every assertion below reads the screen through, and the one the Settings,
+// calendar, contacts and reading tests share ([`super::test_tree`]).
+pub(crate) use super::test_tree::{
+    every_row_belongs_to_a_list, glib_records, labels, rendered_labels,
+};
 use super::{MailboxRendering, ThreadKey, display_row, flat_row};
 use crate::ui::{
     AppInput,
@@ -176,82 +181,6 @@ fn reading_stops_expand_a_conversation_in_place_and_collapse_to_its_representati
     assert_eq!(open[1].subject, "Conversation");
 }
 
-/// Every `GtkLabel` under `root`, in tree order: the widgets that actually carry the row's text.
-pub(crate) fn labels(root: &gtk::Widget) -> Vec<gtk::Label> {
-    let mut found = Vec::new();
-    if let Some(label) = root.downcast_ref::<gtk::Label>() {
-        found.push(label.clone());
-    }
-    let mut child = root.first_child();
-    while let Some(node) = child {
-        found.extend(labels(&node));
-        child = node.next_sibling();
-    }
-    found
-}
-
-/// What the row actually *shows*.
-///
-/// `ActionRow::title()` returns the string we handed it whatever happens to the label, so it
-/// answers "did we ask for this text", not "is this text on screen". A markup-parsed row with
-/// a bare ampersand renders **empty** while `title()` still reads back in full, so asserting
-/// on the property is a green light for a blank row.
-pub(crate) fn rendered_labels(root: &gtk::Widget) -> Vec<String> {
-    labels(root)
-        .iter()
-        .map(|label| label.text().to_string())
-        .collect()
-}
-
-/// Asserts every `GtkListBoxRow` under `root` is in a `GtkListBox`.
-///
-/// A row parented to a plain box renders, so no rendering assertion sees it; but GTK's focus
-/// walk reaches it and `gtk_list_box_row_grab_focus` fails its own precondition, so the row and
-/// the control it carries are skipped. `AdwPreferencesGroup` supplies the list; an `AdwActionRow`
-/// or `AdwSwitchRow` appended to a `GtkBox` does not.
-pub(crate) fn every_row_belongs_to_a_list(root: &gtk::Widget) {
-    if let Some(row) = root.downcast_ref::<gtk::ListBoxRow>() {
-        assert!(
-            row.parent()
-                .is_some_and(|parent| parent.is::<gtk::ListBox>()),
-            "a row must sit in a list box, not a plain container: {:?} in {:?}",
-            root.type_(),
-            row.parent().map(|parent| parent.type_())
-        );
-    }
-    let mut child = root.first_child();
-    while let Some(widget) = child {
-        every_row_belongs_to_a_list(&widget);
-        child = widget.next_sibling();
-    }
-}
-
-/// Runs `build`, returning every GLib log record it emitted.
-///
-/// The rendering assertions below cannot see the defect this guards: a row built as
-/// `.subtitle(…).use_markup(false)` still *reads* correctly, because libadwaita re-applies
-/// the labels when the flag flips. What it leaves behind is a `Failed to set text … from
-/// markup` warning per row, on every sender or subject with an ampersand: noise in the
-/// diagnostic log a user attaches to a support request. The warning is the only observable,
-/// so the test has to read it.
-///
-/// **This does not nest, and it cannot be made to.** GLib offers no way to read the handler
-/// currently installed, so the `log_unset_default_handler` below restores *GLib's* default rather
-/// than whatever was there before; any handler installed earlier stops firing, silently, and a
-/// test relying on one goes green while the thing it watches for is still happening. Diagnose a
-/// GLib record with `scripts/dev/gtk-trace.sh` instead of a handler installed beside this one.
-pub(crate) fn glib_records<T>(build: impl FnOnce() -> T) -> (T, Vec<String>) {
-    let records = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-    let sink = std::sync::Arc::clone(&records);
-    gtk::glib::log_set_default_handler(move |_domain, _level, message| {
-        sink.lock().expect("log sink").push(message.to_owned());
-    });
-    let value = build();
-    gtk::glib::log_unset_default_handler();
-    let captured = records.lock().expect("log sink").clone();
-    (value, captured)
-}
-
 /// The crate's one GTK test: see [`super::thread_tests`] for why there is exactly one.
 #[test]
 fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
@@ -290,6 +219,16 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         the_reading_header_leaves_the_window_its_corner_and_its_name();
     crate::ui::reading::attachment_tests::
         the_overflow_offers_the_export_named_after_the_subject_on_screen();
+    crate::ui::reading::attachment_tests::
+        a_detached_window_keeps_the_controls_and_the_name_the_pane_gives_away();
+    crate::ui::reading::attachment_tests::every_reading_action_names_the_reader_it_was_pressed_in();
+    crate::ui::mailbox::window_tests::
+        a_second_click_asks_for_a_window_and_a_first_click_asks_for_nothing();
+    crate::ui::mailbox::window_tests::
+        a_conversations_messages_open_in_windows_and_its_header_does_not();
+    crate::ui::mailbox::window_tests::every_message_row_offers_the_window_by_name();
+    crate::ui::detached::widget_tests::a_reading_window_is_the_mailbox_peer_and_not_a_second_app();
+    crate::ui::detached::widget_tests::closing_a_composer_window_discards_without_a_question();
     crate::ui::reading::canvas::tests::the_drawn_canvas_paints_the_page_the_core_names();
     crate::ui::reading::canvas::tests::the_web_view_base_is_the_same_page();
     crate::ui::webview::tests::the_readers_zoom_gestures_listen_ahead_of_the_web_view();
@@ -468,6 +407,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     let pane = ComposerPane::new();
     let request = ComposeRequest {
         kind: ComposeKind::Reply,
+        host: crate::ui::reader::ComposerHost::Pane,
         account: Some("fixture".to_owned()),
         key: Some("message".to_owned()),
         initial_to: "recipient@example.test".to_owned(),

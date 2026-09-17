@@ -6,7 +6,7 @@
 use std::sync::{Arc, Mutex};
 
 use super::test_app::{FakeContacts, PNG, app, card_with_photo, image_path, snapshot_from};
-use crate::Surface;
+use crate::{ContactsIntent, Surface};
 
 /// The whole path, and the property that regresses silently: **one** further snapshot.
 ///
@@ -32,7 +32,8 @@ async fn a_photo_fills_in_and_publishes_exactly_one_snapshot() {
     );
 
     surfaces.lock().unwrap().clear();
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     assert_eq!(
         surfaces
@@ -71,7 +72,8 @@ async fn a_sender_with_no_contact_is_asked_about_once() {
         },
         &surfaces,
     );
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let mut snapshot = snapshot_from("stranger@example.test");
     let wanted = app.attach_photos(&mut snapshot);
@@ -97,7 +99,8 @@ async fn a_card_whose_photo_is_absent_settles_on_the_monogram() {
         },
         &surfaces,
     );
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let mut snapshot = snapshot_from("ada@example.test");
     let wanted = app.attach_photos(&mut snapshot);
@@ -119,7 +122,8 @@ async fn one_lookup_serves_every_spelling_of_the_same_address() {
         },
         &surfaces,
     );
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let mut snapshot = snapshot_from("ada@EXAMPLE.test");
     let wanted = app.attach_photos(&mut snapshot);
@@ -164,7 +168,8 @@ async fn contacts_arriving_after_the_first_pass_still_get_their_photos() {
 
     // Contacts arrive. Nothing else will rebuild the mail list, so this is the only moment
     // that can put the face on the row: the whole path, not just the forgetting.
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     assert!(
         image_path(&app.mailbox_list.get()).is_some(),
@@ -188,7 +193,8 @@ async fn the_reading_header_draws_the_same_face_the_row_did() {
         &surfaces,
     );
     app.mailbox_list.publish(snapshot_from("ada@example.test"));
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let row_photo = image_path(&app.mailbox_list.get()).expect("the row has a photo");
     // The header's own avatar, built the way opening a message builds it. Asserting the

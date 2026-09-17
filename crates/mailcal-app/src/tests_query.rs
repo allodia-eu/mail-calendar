@@ -1,7 +1,7 @@
 //! The two **guarantee tests** for the query API, plus its paging and scope behaviour.
 //!
 //! The guarantees are the highest-value tests in the agent surface, and neither is obvious from
-//! reading the code: `query_message` and `App::open_message` differ by one call, and a query
+//! reading the code: `query_message` and `App::open_message_in` differ by one call, and a query
 //! looks so much like the intent it replaces that "simplify this into a dispatch" is a natural
 //! and completely wrong refactor. These fail loudly when someone tries it.
 
@@ -12,7 +12,7 @@ use engine_core::mail::{Keyword, SystemKeyword};
 use engine_provider::MailEdit;
 use fakes::{FakeProvider, account, app, message, msg, open_folder};
 
-use crate::{Intent, SearchScope};
+use crate::{Intent, ReaderId, SearchScope};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -72,6 +72,7 @@ async fn the_intent_path_by_contrast_does_mark_it_read() {
     app.dispatch(Intent::RefreshMail).await;
 
     app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
         message: msg("acct-1", "m1"),
     })
     .await;

@@ -278,6 +278,16 @@ that same file.
   by watching the adjustment therefore has to ignore a move made while the page size is not the one
   it last measured against, or it stores the accident and the position is gone before the real
   height arrives.
+- **A GTK window that is in no `GtkApplication` reaches the desktop under the process name.** GTK
+  takes a top-level's Wayland `app_id` from the `GtkApplication` the window is in, and from the
+  program name for every window that is in none. The reading, composer and settings windows are in
+  none on purpose ([`reading-window.md`](reading-window.md)), so they arrived as `mailcal-linux`,
+  which matches no desktop entry: the shell files them under a second application, with neither the
+  app's name nor its icon, and the switcher for "windows of this application" does not move between
+  them and the mailbox. `glib::set_program_name(APP_ID)` before the application runs fixes every
+  such window at once, X11's `WM_CLASS` included. Nothing on screen says which application a window
+  is filed under, so the tell is the compositor rather than a screenshot or the accessibility tree:
+  `swaymsg -t get_tree` on the headless session prints each window's `app_id`.
 - **A GLib critical is diagnosed with a backtrace, never by reading widget code.** The message is
   raised by a check deep inside the toolkit that knows nothing about what you did, so reasoning
   from its wording to a cause produces a plausible theory and the wrong file.
@@ -313,6 +323,28 @@ that same file.
   rule itself is `DefaultMailApp.WhenToAsk`
   ([`DefaultMailApp.cs`](../clients/windows/Mailcal/Services/DefaultMailApp.cs)), WinUI-free so
   `Mailcal.Tests` can state it; nothing that links WinUI can be unit-tested here at all.
+
+- **WinUI's `FocusManager` static *moves* act on whichever element holds focus now, which may be in
+  a different window.** `TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = other })`
+  reads as "move focus into `other`" and is not: the search root only bounds where the *next*
+  element is looked for, while the move still starts from the focused element. Call it to put focus
+  in a window the app has just opened and it focuses the window the reader was in, and focusing a
+  window **activates** it. That is how a reading window ended up behind the mailbox it was opened
+  from, measured at 64 opens out of 64, a mailbox activation 7 to 22 ms after the new window
+  appeared. Nothing about it looks wrong in review, and no unit test can see it, because the defect
+  is which window the framework considered "current". Name the element instead:
+  `FindFirstFocusableElement(root)` then `TryFocusAsync(element, …)`, neither of which can reach
+  outside the tree it is given.
+- **`Process.MainWindowHandle` is not "the app's main window", it is whichever top-level window
+  Windows hands back.** Fine while an app has one window; wrong the moment it opens a second. A
+  helper that resolved the app through it started returning a *reading* window, so every UI
+  Automation search ran against the wrong tree and reported that the mailbox's message list was not
+  on screen. Enumerate the process's top-level windows and pick the one you mean.
+- **UI Automation drops `&` from a window's name, and `GetWindowTextW` keeps it.** The ampersand is
+  an accelerator marker to the framework, so a window titled `Allodia Mail & Calendar` has the UIA
+  name `Allodia Mail  Calendar`, with the two spaces left behind. Comparing a UIA `Name` against the
+  real title therefore never matches, silently: the lookup falls through to whatever it does when it
+  finds nothing. Normalise both sides before comparing, or match on the window handle.
 
 ## Interaction quality is not testable from a chair
 

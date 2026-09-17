@@ -81,6 +81,7 @@ public sealed partial class ReadingView
         {
             await EnsureCoreAsync();
             _expectingLoad = true;
+            Log.Debug("reading: loading the body into the web view");
             Body.CoreWebView2!.NavigateToString(document);
         }
         catch (Exception ex)
@@ -97,7 +98,7 @@ public sealed partial class ReadingView
 
     private void FallBackToText()
     {
-        var plain = _model?.Reading?.Plain;
+        var plain = BodySnapshot?.Plain;
         RemoteImagesBanner.Visibility = Visibility.Collapsed;
         if (!string.IsNullOrEmpty(plain))
         {
@@ -115,7 +116,9 @@ public sealed partial class ReadingView
 
     private async Task InitCoreAsync()
     {
+        Log.Debug("reading: creating the web view");
         await Body.EnsureCoreWebView2Async();
+        Log.Debug("reading: web view created");
         var core = Body.CoreWebView2;
         var settings = core.Settings;
         // Defence in depth atop the core's sanitisation: no scripting, no host bridge.
@@ -134,6 +137,10 @@ public sealed partial class ReadingView
         // Block in-view navigations; allow only our NavigateToString. A clicked link opens
         // in the default browser instead (OnNavigationStarting).
         core.NavigationStarting += OnNavigationStarting;
+        // Paired with the "loading" line above, this is how long a body takes to appear, and it
+        // is what ruled the web view out of the window-order fault: the navigation completes more
+        // than a second before the mailbox takes the foreground (MainWindow.WindowOrder.cs).
+        core.NavigationCompleted += (_, _) => Log.Debug("reading: the body finished loading");
         // Never open popups / new windows in-app; a target=_blank link the user clicked is
         // surfaced here rather than as a navigation, so open it in the default browser too.
         core.NewWindowRequested += (_, args) =>

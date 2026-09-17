@@ -622,12 +622,6 @@ windows_capture() { # <locale> <screen> <out> <appearance>
 
 LINUX_BIN="$REPO_ROOT/target/debug/mailcal-linux"
 
-# Every dialog this client opens is a `GtkWindow` of its own rather than a pane, so its Wayland
-# `app_id` is the process name and not the branded application id the main window carries. That is
-# what a sway criterion can match on, and it is taken from the binary's own path so the two cannot
-# drift apart.
-LINUX_MODAL_APP_ID="$(basename "$LINUX_BIN")"
-
 # GTK registers the application id on the session bus and hands a second launch off to the first,
 # which then exits without ever reading its own environment; so a flag only takes effect in a fresh
 # process, and the previous one must be gone before the next starts. An *installed* build owns the
@@ -654,7 +648,7 @@ linux_capture() { # <locale> <screen> <out>
   offset="$(client_log_size)"
   stop_client
   sleep 1
-  linux_session_start ${LINUX_OUTPUT} "$LINUX_MODAL_APP_ID"
+  linux_session_start ${LINUX_OUTPUT}
   MAILCAL_SHOWCASE="$1" MAILCAL_SHOWCASE_SCREEN="$2" \
     WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" \
     env -u DISPLAY "$LINUX_BIN" >/dev/null 2>&1 &

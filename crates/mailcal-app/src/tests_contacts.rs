@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 // `use super::*`.
 pub(crate) use fake::{ContactWriteRecord, FakeContacts, WriteLog, account, app, card};
 
-use crate::Surface;
+use crate::{ContactsIntent, Surface};
 
 #[tokio::test]
 async fn one_person_in_two_accounts_becomes_one_contact_row() {
@@ -53,7 +53,8 @@ async fn one_person_in_two_accounts_becomes_one_contact_row() {
         &surfaces,
     );
 
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let rows = app.contacts().rows;
     assert_eq!(rows.len(), 1, "two cards, one address → one person");
@@ -83,7 +84,8 @@ async fn two_people_sharing_a_name_but_not_an_address_stay_separate() {
         &surfaces,
     );
 
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let rows = app.contacts().rows;
     assert_eq!(rows.len(), 2, "same name, different addresses → two people");
@@ -115,7 +117,8 @@ async fn a_failing_source_does_not_cost_the_user_the_sources_that_worked() {
         &surfaces,
     );
 
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let rows = app.contacts().rows;
     assert_eq!(rows.len(), 1);
@@ -138,12 +141,13 @@ async fn searching_narrows_the_list_and_clearing_restores_it() {
         )],
         &surfaces,
     );
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
     assert_eq!(app.contacts().rows.len(), 2);
 
-    app.dispatch(crate::Intent::SearchContacts {
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::SearchContacts {
         query: "grace".to_owned(),
-    })
+    }))
     .await;
     let narrowed = app.contacts().rows;
     assert_eq!(narrowed.len(), 1);
@@ -151,9 +155,9 @@ async fn searching_narrows_the_list_and_clearing_restores_it() {
 
     // Clearing resets the filter in the core, so the next visit is not silently still
     // narrowed by a query the user can no longer see (the rule mail search follows).
-    app.dispatch(crate::Intent::SearchContacts {
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::SearchContacts {
         query: String::new(),
-    })
+    }))
     .await;
     assert_eq!(app.contacts().rows.len(), 2);
 }
@@ -171,7 +175,8 @@ async fn a_contact_row_opens_its_detail_by_id() {
         )],
         &surfaces,
     );
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let row = app.contacts().rows.remove(0);
     let detail = app.contact_detail(&row.id).await.expect("detail resolves");
@@ -198,7 +203,8 @@ async fn a_blank_autosuggest_query_returns_nothing() {
         )],
         &surfaces,
     );
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     assert!(app.recipient_suggestions("").await.is_empty());
     assert!(app.recipient_suggestions("   ").await.is_empty());
@@ -217,7 +223,8 @@ async fn autosuggest_matches_a_synced_contact() {
         )],
         &surfaces,
     );
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     let matches = app.recipient_suggestions("ada").await;
     assert_eq!(matches.len(), 1);

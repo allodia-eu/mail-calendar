@@ -40,14 +40,14 @@ impl FakeProvider {
         provider
     }
 
-    /// A provider whose inbox holds `messages` (all in the role-Inbox mailbox `a`).
-    /// Holds every [`Provider::edit_mail`] open until the returned gate releases it, so a
-    /// test can issue a second write to one message inside the first's round trip.
+    /// Holds every [`Provider::edit_mail`] open until `gate` releases it, so a test can issue a
+    /// second write to one message inside the first's round trip.
     pub(crate) fn gating_edits(mut self, gate: &super::EditGate) -> Self {
         self.edit_gate = Some(gate.share());
         self
     }
 
+    /// A provider whose inbox holds `messages` (all in the role-Inbox mailbox `a`).
     pub(crate) fn with(messages: Vec<Message>) -> Self {
         let mut inbox = Mailbox::new(MailboxId::try_from("a").unwrap(), "Inbox");
         inbox.role = Some(MailboxRole::Inbox);

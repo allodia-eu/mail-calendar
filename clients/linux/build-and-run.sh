@@ -110,7 +110,7 @@ start_headless_session() {
   [[ "$HEADLESS" == 1 ]] || return 0
   export LINUX_SESSION_LOG="$(dirname "$launch_log")/mailcal-compositor.log"
   mkdir -p "$(dirname "$LINUX_SESSION_LOG")"
-  linux_session_start "${MAILCAL_HEADLESS_SIZE:-1440x900}" "${MAILCAL_HEADLESS_SCALE:-1}" mailcal-linux
+  linux_session_start "${MAILCAL_HEADLESS_SIZE:-1440x900}" "${MAILCAL_HEADLESS_SCALE:-1}"
   export WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY"
   unset DISPLAY
   info "headless compositor up on $LINUX_SESSION_DISPLAY (pid $LINUX_SESSION_PID)"

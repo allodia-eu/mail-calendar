@@ -10,7 +10,8 @@ use super::{InvitationClock, ReadingPane};
 use crate::{
     l10n,
     ui::{
-        mail_actions,
+        AppInput, mail_actions,
+        reader::ReadingSource,
         reading::attachments::{attachment_button, attachment_row},
     },
 };
@@ -19,7 +20,7 @@ use crate::{
 pub(crate) fn the_reading_header_formats_its_timestamp() {
     let window = adw::ApplicationWindow::builder().build();
     let (sender, _receiver) = relm4::channel::<super::super::AppInput>();
-    let pane = ReadingPane::new(&window, sender.clone());
+    let pane = ReadingPane::new(&window, sender.clone(), ReadingSource::Pane);
     let raw = "2026-07-20T09:05:00Z";
     let mut snapshot = crate::ui::model::empty_reading();
     snapshot.key = "message".to_owned();
@@ -63,8 +64,14 @@ pub(crate) fn an_attachment_name_is_never_parsed_as_markup() {
     };
     let window = adw::ApplicationWindow::builder().build();
     let (sender, _receiver) = relm4::channel::<super::super::AppInput>();
-    let (row, records) =
-        crate::ui::mailbox::tests::glib_records(|| attachment_row(&attachment, &window, &sender));
+    let (row, records) = crate::ui::mailbox::tests::glib_records(|| {
+        attachment_row(
+            &attachment,
+            window.upcast_ref(),
+            &ReadingSource::Pane,
+            &sender,
+        )
+    });
     assert!(
         !records.iter().any(|line| line.contains("from markup")),
         "an attachment row must not parse the file name as markup: {records:?}"
@@ -100,7 +107,7 @@ pub(crate) fn an_attachment_button_still_reads_as_its_verb() {
 pub(crate) fn the_page_survives_the_gap_before_the_next_body_lands() {
     let window = adw::ApplicationWindow::builder().build();
     let (sender, _receiver) = relm4::channel::<super::super::AppInput>();
-    let pane = ReadingPane::new(&window, sender.clone());
+    let pane = ReadingPane::new(&window, sender.clone(), ReadingSource::Pane);
     let clock = InvitationClock {
         zone: "Europe/Amsterdam",
         use_24_hour: true,
@@ -194,7 +201,7 @@ fn labels(root: &gtk::Widget) -> Vec<String> {
 pub(crate) fn the_reading_header_leaves_the_window_its_corner_and_its_name() {
     let window = adw::ApplicationWindow::builder().build();
     let (sender, _receiver) = relm4::channel::<super::super::AppInput>();
-    let pane = ReadingPane::new(&window, sender);
+    let pane = ReadingPane::new(&window, sender, ReadingSource::Pane);
     let header = header_bar(pane.widget().clone().upcast_ref::<gtk::Widget>())
         .expect("the pane is headed by its actions");
 
@@ -211,6 +218,71 @@ pub(crate) fn the_reading_header_leaves_the_window_its_corner_and_its_name() {
             .all(String::is_empty),
         "the header names nothing: the list beside it says which folder this message came from"
     );
+}
+
+/// A detached window has no chrome of its own: this bar *is* its titlebar, so it keeps the
+/// desktop's controls and shows the window's own name, both of which the pane gives away to the
+/// row above it (`../../../docs/reading-window.md`).
+pub(crate) fn a_detached_window_keeps_the_controls_and_the_name_the_pane_gives_away() {
+    let window = adw::ApplicationWindow::builder().build();
+    let (sender, _receiver) = relm4::channel::<super::super::AppInput>();
+    let pane = ReadingPane::new(
+        &window,
+        sender,
+        ReadingSource::Window("account/message-a".to_owned()),
+    );
+    let header = header_bar(pane.widget().clone().upcast_ref::<gtk::Widget>())
+        .expect("the window is headed by its actions");
+
+    assert!(
+        header.shows_end_title_buttons(),
+        "nothing else in a detached window can close it"
+    );
+    assert!(
+        header.title_widget().is_none(),
+        "a header with no title widget shows the window's own, which is the message's subject"
+    );
+}
+
+/// Every button on the row names the reader it was pressed in, so a window replies to, forwards
+/// and archives its own message rather than whatever the pane behind it is showing.
+pub(crate) fn every_reading_action_names_the_reader_it_was_pressed_in() {
+    for source in [
+        ReadingSource::Pane,
+        ReadingSource::Window("account/message-a".to_owned()),
+    ] {
+        let window = adw::ApplicationWindow::builder().build();
+        let (sender, receiver) = relm4::channel::<super::super::AppInput>();
+        let pane = ReadingPane::new(&window, sender, source.clone());
+        let pressed = |index: usize| {
+            pane.actions[index].emit_clicked();
+            receiver.recv_sync().expect("the action reports")
+        };
+
+        assert!(matches!(
+            pressed(0),
+            AppInput::BeginReply { source: named, all: false } if named == source
+        ));
+        assert!(matches!(
+            pressed(1),
+            AppInput::BeginReply { source: named, all: true } if named == source
+        ));
+        assert!(matches!(pressed(2), AppInput::BeginForward(named) if named == source));
+        assert!(matches!(
+            pressed(3),
+            AppInput::PerformOpenedMailAction {
+                source: named,
+                action: mail_actions::ActionKind::Archive,
+            } if named == source
+        ));
+        assert!(matches!(
+            pressed(4),
+            AppInput::PerformOpenedMailAction {
+                source: named,
+                action: mail_actions::ActionKind::MoveToTrash,
+            } if named == source
+        ));
+    }
 }
 
 /// The first `AdwHeaderBar` under `root`, in tree order.
@@ -237,7 +309,7 @@ fn header_bar(root: &gtk::Widget) -> Option<adw::HeaderBar> {
 pub(crate) fn the_overflow_offers_the_export_named_after_the_subject_on_screen() {
     let window = adw::ApplicationWindow::builder().build();
     let (sender, _receiver) = relm4::channel::<super::super::AppInput>();
-    let pane = ReadingPane::new(&window, sender.clone());
+    let pane = ReadingPane::new(&window, sender.clone(), ReadingSource::Pane);
     let clock = InvitationClock {
         zone: "Europe/Amsterdam",
         use_24_hour: true,

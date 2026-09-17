@@ -161,6 +161,10 @@ if (-not $IsWindows) {
 }
 
 . (Join-Path $windows 'uia.ps1')
+# Reading the core's own log, which several suites and the dataset launcher do, and which is not
+# `Get-Content app.log`: see its header for the rotation that carries a running session's banner
+# out of the current file.
+. (Join-Path $windows 'applog.ps1')
 
 # ---------------------------------------------------------------------------------------------
 # Assertions. Each one throws a message that names the EXPECTED and the ACTUAL and says why the

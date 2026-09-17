@@ -13,12 +13,14 @@ use super::{
     connectivity::ConnectivityBanners,
     contacts::ContactsPane,
     destinations::DestinationBar,
+    detached::DetachedWindows,
     folder_pane::{self, FolderPaneRendering, FolderPaneSelection},
     invitation::ReplyPromptDialog,
     mail_actions::{self, PermanentDeleteDialog},
     mail_toolbar::MailToolbar,
     mailbox::MailboxRendering,
     mailbox_progressive::ProgressiveRenderer,
+    reader::ReadingSource,
     reading::{InvitationClock, ReadingPane},
     search::SearchBar,
     selection_bar::{self, SelectionBar, SelectionCountPane},
@@ -48,6 +50,9 @@ pub(crate) struct AppWidgets {
     contacts: ContactsPane,
     reading: ReadingPane,
     composer: ComposerPane,
+    /// The windows beside the mailbox, and the whole of what closing the mailbox has to sweep
+    /// (`docs/reading-window.md`).
+    detached: DetachedWindows,
     connectivity: ConnectivityBanners,
     notice: adw::Banner,
     sync_strip: gtk::Box,
@@ -171,7 +176,7 @@ impl AppWidgets {
             gtk::glib::ControlFlow::Continue
         });
 
-        let reading = ReadingPane::new(&root, sender.clone());
+        let reading = ReadingPane::new(&root, sender.clone(), ReadingSource::Pane);
         let composer = ComposerPane::new();
         let detail = gtk::Stack::new();
         detail.set_hexpand(true);
@@ -216,6 +221,16 @@ impl AppWidgets {
         restore_pane_width(&outer, &root);
         shell.append(&outer);
         root.set_content(Some(&shell));
+        // The reading and composer windows were opened out of this one, and leaving them behind
+        // would leave the app running as a scatter of message windows with no way back to the
+        // list (`docs/reading-window.md`). Each window's own close is what frees the body
+        // the core was holding for it.
+        let detached = DetachedWindows::default();
+        let closing = detached.clone();
+        root.connect_close_request(move |_| {
+            closing.close_all();
+            gtk::glib::Propagation::Proceed
+        });
 
         Self {
             root,
@@ -232,6 +247,7 @@ impl AppWidgets {
             contacts,
             reading,
             composer,
+            detached,
             connectivity,
             notice,
             sync_strip,
@@ -322,23 +338,7 @@ impl AppWidgets {
             self.settings.close();
             if !self.composer.is_active(model.composer_generation) {
                 self.reading.suspend();
-                // (id, the label the From picker shows). The label is `Name <address>`, or the
-                // address alone when no name is set, composed by the core so the four clients
-                // cannot disagree about the empty case (`docs/sending.md`).
-                let accounts = model
-                    .snapshot
-                    .accounts
-                    .iter()
-                    .map(|account| {
-                        (
-                            account.id.clone(),
-                            mailcal_bindings::sender_label(
-                                account.name.clone(),
-                                account.email.clone(),
-                            ),
-                        )
-                    })
-                    .collect::<Vec<_>>();
+                let accounts = super::detached::sender_accounts(model);
                 self.composer.show(
                     model.composer_generation,
                     request,
@@ -438,6 +438,9 @@ impl AppWidgets {
             .render(model.pending_mail_delete.as_ref(), &self.root, &self.sender);
         self.discard_draft
             .render(model.discard_prompt, &self.root, &self.sender);
+        // Last: a detached window draws the same views as the panes above, and building one takes
+        // the toolkit's focus, so the mailbox is brought to the model first.
+        self.detached.render(model, &self.sender);
     }
 }
 

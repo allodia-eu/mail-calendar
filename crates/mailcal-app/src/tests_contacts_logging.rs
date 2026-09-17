@@ -19,6 +19,7 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
 use super::*;
+use crate::ContactsIntent;
 
 /// A card whose every field is a nonsense token, so "did this leak?" is answerable by a
 /// substring search that cannot collide with an unrelated log line.
@@ -92,16 +93,17 @@ async fn every_contacts_stage_logs_a_count_and_a_duration() {
     );
     let _ = captured();
 
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
     // The per-source line: which account, which source, and what it actually applied. Without
     // the counts, "synced" and "synced nothing" are the same line.
     assert_logged("contacts[a0]: source[0] +1 -0 card(s)");
     assert_logged("1 source(s) on 1 of 1 account(s); 1 synced, 0 unavailable, 0 failed");
 
     let row = app.contacts().rows.remove(0);
-    app.dispatch(crate::Intent::SearchContacts {
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::SearchContacts {
         query: "zel".to_owned(),
-    })
+    }))
     .await;
     // The length, never the term; `query_chars=3` for "zel".
     assert_logged("rebuild_contacts: 1 row(s), query_chars=3");
@@ -136,11 +138,12 @@ async fn the_contacts_log_never_carries_a_name_or_an_address() {
     // Drive every path that touches a card, including the three that take user-typed text;
     // a search term, a composer token and an editor's fields are themselves names and
     // addresses.
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
     let row = app.contacts().rows.remove(0);
-    app.dispatch(crate::Intent::SearchContacts {
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::SearchContacts {
         query: NAME.to_owned(),
-    })
+    }))
     .await;
     app.contact_detail(&row.id).await;
     app.recipient_suggestions(EMAIL).await;
@@ -152,22 +155,22 @@ async fn the_contacts_log_never_carries_a_name_or_an_address() {
         emails: vec![EMAIL.to_owned()],
         ..mailcal_account::ContactEdit::default()
     };
-    app.dispatch(crate::Intent::CreateContact {
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::CreateContact {
         account: None,
         address_book: None,
         edit: typed.clone(),
-    })
+    }))
     .await;
-    app.dispatch(crate::Intent::CreateContact {
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::CreateContact {
         account: None,
         address_book: None,
         edit: mailcal_account::ContactEdit {
             emails: vec![NAME.to_owned()],
             ..mailcal_account::ContactEdit::default()
         },
-    })
+    }))
     .await;
-    app.dispatch(crate::Intent::UpdateContact {
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::UpdateContact {
         person: row.id.clone(),
         account: "work".to_owned(),
         card: "c1".to_owned(),
@@ -176,7 +179,7 @@ async fn the_contacts_log_never_carries_a_name_or_an_address() {
             surname: "Quorrix-Vane".into(),
             ..typed
         },
-    })
+    }))
     .await;
 
     for line in lines() {
@@ -198,7 +201,8 @@ async fn an_account_with_no_contact_sources_says_so_rather_than_logging_nothing(
     let app = app(vec![account("work", Vec::new())], &surfaces);
     let _ = captured();
 
-    app.dispatch(crate::Intent::RefreshContacts).await;
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
 
     assert_logged("contacts[a0]: skipped; no contact sources bound");
     assert_logged("refresh_contacts: no contact sources on any of 1 account(s)");

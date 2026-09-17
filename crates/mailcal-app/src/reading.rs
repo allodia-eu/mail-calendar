@@ -1,11 +1,8 @@
-//! The reading-view read (`App::open_message`): fetch one message's body, sanitise its
+//! The reading-view read (`App::open_message_in`): fetch one message's body, sanitise its
 //! HTML, and publish a [`ReadingSnapshot`] for the host. A second `impl App` block (like
 //! `calendar_ops`) so `lib.rs` stays small.
 
-use std::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use engine_api::{
     AccountId, AttachmentPartId, EmailAddress, Message, MessageAttachment, Provider, SystemKeyword,
@@ -15,7 +12,7 @@ use mailcal_viewmodel::{
     avatar::{self},
 };
 
-use crate::{App, html, reference::MessageRef};
+use crate::{App, ReaderId, html, reading_trace::OpenTrace, reference::MessageRef};
 
 /// How long a cold reading-open waits for the opened message's account to finish dialing its
 /// mail provider before giving up, polled in small steps. A cold open (e.g. tapped from a
@@ -33,59 +30,10 @@ const OPEN_DIAL_POLL: Duration = Duration::from_millis(400);
 /// instant, and short enough that a real wait is never silent.
 const READING_PENDING_AFTER: Duration = Duration::from_millis(500);
 
-/// Rising id for one reading-open, so two overlapping opens can be told apart in the log and a
-/// retried one stays recognisable across its attempts.
-static OPEN_SEQ: AtomicU64 = AtomicU64::new(0);
-
-/// Times a reading-open step by step, at `debug`.
-///
-/// The reading view sits on its spinner until [`App::open_message`] publishes, and every step
-/// between is an `await`: a store read, the accounts lock, a provider round-trip, the inline-image
-/// and attachment reads. When an open does not come back, "which one of those is it in" is the only
-/// question worth asking, and one elapsed figure for the whole open cannot answer it.
-///
-/// Durations, byte counts and a synthetic id only: no key, no address, no subject
-/// (`docs/logging.md`).
-struct OpenTrace {
-    id: u64,
-    started: Instant,
-    lap: Instant,
-}
-
-impl OpenTrace {
-    fn new() -> Self {
-        let now = Instant::now();
-        Self {
-            id: OPEN_SEQ.fetch_add(1, Ordering::Relaxed),
-            started: now,
-            lap: now,
-        }
-    }
-
-    /// Logs how long the step just finished took, and starts the next lap.
-    fn step(&mut self, what: &str) {
-        log::debug!(
-            "read[{}]: {what} in {}ms",
-            self.id,
-            self.lap.elapsed().as_millis()
-        );
-        self.lap = Instant::now();
-    }
-
-    /// Logs an outcome against the whole open rather than the current lap.
-    fn total(&self, what: &str) {
-        log::debug!(
-            "read[{}]: {what} after {}ms",
-            self.id,
-            self.started.elapsed().as_millis()
-        );
-    }
-}
-
 impl<P: Provider> App<P> {
     /// The body for `message`: one fetch, plus the bounded retry a cold open needs.
     ///
-    /// Split out of [`Self::open_message`] so the *whole* wait sits under one timeout. A first
+    /// Split out of [`Self::open_message_in`] so the *whole* wait sits under one timeout. A first
     /// fetch that fails fast and then retries for the account to dial is still a user waiting on
     /// a blank pane; timing only the first attempt would leave that wait unannounced for as
     /// long as [`OPEN_DIAL_WAIT`].
@@ -123,10 +71,18 @@ impl<P: Provider> App<P> {
     /// first mail provider serves any folder (the routing mark-read/reply already rely on).
     /// The host always gets a snapshot for the key it opened; a failed fetch is flagged via
     /// [`ReadingSnapshot::load_error`] so it is distinguishable from a body-less message.
-    pub(crate) async fn open_message(&self, message: MessageRef) {
+    ///
+    /// Every rule here belongs to the open rather than to the pane, which is why a detached
+    /// reading window (`docs/reading-window.md`) is a `reader` and not a second code path: it
+    /// gets the retry, the pending threshold and the mark-read by coming through here. Only the
+    /// slot the body lands in differs, so several windows hold several messages at once.
+    pub(crate) async fn open_message_in(&self, reader: ReaderId, message: MessageRef) {
         // One trace across the retries: a reading-open that never comes back is the same open to
         // the user however many attempts it took, and separate ids would hide that.
         let mut trace = OpenTrace::new();
+        // Claim the slot before the first `await`: a publish only lands in an open one, so this is
+        // what lets a close taken mid-open drop the body that arrives after it.
+        self.reading.open(reader.clone());
         let snapshot = {
             // The body, and (only if it takes long enough to be worth saying so) a snapshot
             // that announces the wait first. Pinned and re-awaited rather than raced against a
@@ -140,11 +96,14 @@ impl<P: Provider> App<P> {
             {
                 snapshot
             } else {
-                self.reading.publish(ReadingSnapshot {
-                    key: message.key.as_str().to_owned(),
-                    pending: true,
-                    ..ReadingSnapshot::default()
-                });
+                self.reading.publish(
+                    &reader,
+                    ReadingSnapshot {
+                        key: message.key.as_str().to_owned(),
+                        pending: true,
+                        ..ReadingSnapshot::default()
+                    },
+                );
                 resolve.await
             }
         };
@@ -153,7 +112,7 @@ impl<P: Provider> App<P> {
         // or when it is already marked Seen. Publish the snapshot first so the reading view
         // opens immediately; the mark-read settles in the background.
         let load_failed = snapshot.load_error;
-        self.reading.publish(snapshot);
+        self.reading.publish(&reader, snapshot);
         // The wait ends here, and only here; everything above it is what the user waits on.
         trace.total(if load_failed {
             "published a load error"
@@ -171,6 +130,16 @@ impl<P: Provider> App<P> {
         }
     }
 
+    /// Forgets a closed reading window's body.
+    ///
+    /// A body is the largest thing the core holds per viewer: sanitised HTML with every inline
+    /// image resolved into it. Nothing signals, because the reader that would have pulled has
+    /// gone; the pane's slot is a different variant of [`ReaderId`] and cannot be reached from
+    /// here, so no host string can empty the pane.
+    pub fn close_reader(&self, reader: &ReaderId) {
+        self.reading.close(reader);
+    }
+
     /// Whether `account` currently has at least one connected mail provider. A freshly booted
     /// account dials asynchronously and stays a provider-less placeholder until then, so this
     /// lets a cold reading-open tell "still connecting" apart from a genuine load failure.
@@ -186,10 +155,10 @@ impl<P: Provider> App<P> {
     /// (which also covers a provider that can't fetch sources, e.g. one without
     /// `message_source` support): as distinct from a body-less message.
     ///
-    /// **This is the non-mutating read path.** [`App::open_message`] is only the wrapper that
+    /// **This is the non-mutating read path.** [`App::open_message_in`] is only the wrapper that
     /// stores the snapshot, signals the surface, and marks the message read on the server; the
     /// agent adapter's `query_message` calls *this* instead, so an assistant reading a message
-    /// does not silently mark it read in the user's mailbox. Do not copy `open_message`'s body.
+    /// does not silently mark it read in the user's mailbox. Do not copy `open_message_in`'s body.
     /// The reading header's avatar, for the same sender the header names.
     ///
     /// The photo comes from the map the list already filled, so opening a message shows the
@@ -210,7 +179,7 @@ impl<P: Provider> App<P> {
     }
 
     /// [`fetch_reading`](Self::fetch_reading), timing each `await` into `trace`. Separate so
-    /// [`open_message`](Self::open_message) can keep one trace across its retries.
+    /// [`open_message_in`](Self::open_message_in) can keep one trace across its retries.
     async fn fetch_reading_traced(
         &self,
         message: MessageRef,
@@ -286,7 +255,7 @@ impl<P: Provider> App<P> {
         ReadingSnapshot {
             key,
             // This snapshot IS the answer, so it never announces a wait; `pending` is only ever
-            // set by the separate one `open_message` publishes while still working.
+            // set by the separate one `open_message_in` publishes while still working.
             pending: false,
             // The sender line, shown in the reading header as the full `Name <email>` (the list
             // row shows just the name). `from` is a list, but a message has one author, take the

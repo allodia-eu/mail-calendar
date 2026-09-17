@@ -70,8 +70,10 @@ if (-not $NoCapture -and -not $Out) {
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 
-# Mirrors MailboxModel.DataDir + Log.Init: %LOCALAPPDATA%\Allodia\MailCalendar\logs\app.log.
-$logPath = Join-Path $env:LOCALAPPDATA 'Allodia\MailCalendar\logs\app.log'
+# Reading the app's own log, across the rotation that can carry a running session's banner out of
+# app.log. $AppLogPath comes with it, mirroring MailboxModel.DataDir + Log.Init.
+. (Join-Path $here 'applog.ps1')
+$logPath = $AppLogPath
 
 function Find-Exe {
   $exe = Get-ChildItem -Path (Join-Path $here 'Mailcal/bin') -Recurse -Filter 'Mailcal.exe' -ErrorAction SilentlyContinue |
@@ -122,41 +124,6 @@ Rebuild first:  clients/windows/build-and-run.ps1 -NoRun
 # checks the same line (scripts/dev/lib.sh SHOWCASE_LOG_MARKER; the three copies are kept in step
 # by cargo xtask check-showcase-flag). Rust's `{locale:?}` renders the variant capitalized.
 #
-<#
-.SYNOPSIS
-The log lines belonging to the session that started at or after $since, or '' if there is no such
-session yet.
-.DESCRIPTION
-Anchored on the last `--- session start` banner and its TIMESTAMP, rather than on a byte offset
-taken before the launch. Both halves are load-bearing:
-
-  * the log ROTATES at a size cap (docs/logging.md), so an absolute offset can outlive the bytes it
-    points at, and the session banner and the line we are looking for are milliseconds apart, so a
-    rotation between them puts the answer in a file the offset no longer addresses. That reads as
-    "this build never entered showcase mode", which is an alarming and completely false accusation;
-  * the timestamp is what stops the opposite failure. Without it, an app that never started at all
-    leaves the PREVIOUS session's banner as the last one in the file, and its marker answers for a
-    launch that never happened.
-
-Opened ReadWrite-shared because the app holds the file open while we read it.
-#>
-function Get-SessionLog([datetime] $since) {
-  if (-not (Test-Path $logPath)) { return '' }
-  $stream = [IO.File]::Open($logPath, 'Open', 'Read', 'ReadWrite')
-  try { $text = (New-Object IO.StreamReader($stream, [Text.Encoding]::UTF8)).ReadToEnd() }
-  finally { $stream.Dispose() }
-
-  $banners = [regex]::Matches($text, '(?m)^(?<at>\S+ \S+ \S+) \[info\] --- session start')
-  if ($banners.Count -eq 0) { return '' }
-  $last = $banners[$banners.Count - 1]
-  $at = [datetimeoffset]::MinValue
-  if (-not [datetimeoffset]::TryParse($last.Groups['at'].Value, [ref] $at)) { return '' }
-  # One second of slack for clock granularity; a previous session's banner is many seconds older,
-  # because that app had to come up before this one could replace it.
-  if ($at -lt ([datetimeoffset] $since).AddSeconds(-1)) { return '' }
-  $text.Substring($last.Index)
-}
-
 function Assert-ShowcaseRunning([datetime] $since, [int] $TimeoutSec = 30) {
   # Rust's `{locale:?}` renders the ShowcaseLocale variant, so the seeded language appears with its
   # first letter capitalized: En / Nl / De / Fr / Es / It / Pt. Derived from the code rather than
@@ -183,7 +150,7 @@ function Assert-ShowcaseRunning([datetime] $since, [int] $TimeoutSec = 30) {
   # showcase mode.
   $timer = [Diagnostics.Stopwatch]::StartNew()
   while ($true) {
-    $fresh = Get-SessionLog $since
+    $fresh = Get-AppLogSession -Since $since
     if ($fresh.IndexOf($marker, [StringComparison]::Ordinal) -ge 0) { return }
     if ($timer.Elapsed.TotalSeconds -ge $TimeoutSec) { break }
     Start-Sleep -Milliseconds 200

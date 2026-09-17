@@ -284,6 +284,31 @@ check that what is announced is where it is drawn.
   rotating `app.log` deliberately stays **shared**: one file diagnoses whatever ran last, so a
   test that asserts on log content needs no dev-specific path, but must tolerate real-run lines.
 
+## 5.5. When the screen cannot see the bug
+
+Three ways a Windows UI check reports success over a live defect. Each cost a day.
+
+- **A foreground or z-order assertion cannot see a steal that lasts 20 ms.** A window fell behind
+  the mailbox because the app activated the mailbox tens of milliseconds after opening it, and the
+  app usually had the front back before any screen read landed. A dozen cases asserting "the window
+  is in front" passed throughout, on the machine where the fault reproduced every time. **Assert the
+  cause, not the symptom**: make the app say what it did at DEBUG level, give the suite
+  `Env = @{ ALLODIA_LOG_LEVEL = 'debug' }`, and read `app.log` through `applog.ps1`. A log line is
+  timestamped and cannot be missed by sampling. The rule that finally held was not "the window is in
+  front" but "every activation the mailbox takes is followed by it giving the front back".
+- **A fixture chosen to make one assertion easy can be the one case that does not reproduce.** The
+  reading-window suite double-clicks the seeded invitation, because its card guarantees the window
+  has content to draw. An invitation's card is native XAML where an ordinary body is a document in a
+  WebView2, and the whole class of fault only appeared on ordinary bodies. Every case in the file
+  was exercising the one message type that was safe. When picking a fixture, ask which one is
+  closest to the risky path, not which one is easiest to assert on.
+- **A negative result is evidence only if you can show the stimulus arrived.** "The window held the
+  front for 100 seconds while eight messages were delivered" was reported as proof the fault was not
+  mail arriving. The messages never reached the app: the row count was 14 before and after, and the
+  diagnostic said every bound collection was untouched. The probe had been inert from the start.
+  Before a quiet result is allowed to rule anything out, assert that the thing being tested for
+  actually happened.
+
 ## 6. Report honestly
 
 State what was actually observed. If a check could not run (no touch screen, no harness), say so

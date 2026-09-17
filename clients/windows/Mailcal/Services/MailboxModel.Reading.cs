@@ -47,19 +47,44 @@ public sealed partial class MailboxModel
     /// </summary>
     public void OpenMessage(MailRow row)
     {
-        OpenedMessage = new OpenedMessage
-        {
-            Account = row.Account,
-            Key = row.LatestKey,
-            Subject = row.Title,
-            RawSubject = row.RawSubject,
-            From = row.Subtitle,
-            Avatar = row.Avatar,
-            // The reading header shows the full absolute date, not the row's compact relative label.
-            DateText = row.FullDateText,
-        };
-        OpenKey(row.Account, row.LatestKey);
+        var opened = RowHeader(row);
+        OpenedMessage = opened;
+        OpenKey(opened.Account, opened.Key);
     }
+
+    /// <summary>
+    /// The reading header a list row carries, which is what any reader of that message opens with:
+    /// the pane, and a window of its own (docs/reading-window.md).
+    /// </summary>
+    /// <remarks>
+    /// One definition, because a window that derived its own header would draw a different subject
+    /// or a different face from the row it was opened on. A conversation row has no key of its own,
+    /// so it stands for its latest message, the one a click opens.
+    /// </remarks>
+    public static OpenedMessage RowHeader(MailRow row) => new()
+    {
+        Account = row.Account,
+        Key = row.LatestKey,
+        Subject = row.Title,
+        RawSubject = row.RawSubject,
+        From = row.Subtitle,
+        Avatar = row.Avatar,
+        // The reading header shows the full absolute date, not the row's compact relative label.
+        DateText = row.FullDateText,
+    };
+
+    /// <summary>The same, for one message inside an expanded conversation.</summary>
+    public static OpenedMessage ThreadMessageHeader(ThreadMessageItem message) => new()
+    {
+        Account = message.Account,
+        Key = message.Key,
+        Subject = message.Subject,
+        RawSubject = message.RawSubject,
+        From = message.FromText,
+        Avatar = message.Avatar,
+        // The reading header shows the full absolute date, not the sub-row's relative label.
+        DateText = message.FullDateText,
+    };
 
     // The conversation rows expanded inline, by their list id ("t:account:thread"). Kept here so
     // a snapshot refresh restores expansion (the projection reads it) rather than collapsing every
@@ -88,17 +113,7 @@ public sealed partial class MailboxModel
     /// <summary>Opens one message of an expanded conversation (a sub-row) in the reading pane.</summary>
     public void OpenThreadMessage(ThreadMessageItem message)
     {
-        OpenedMessage = new OpenedMessage
-        {
-            Account = message.Account,
-            Key = message.Key,
-            Subject = message.Subject,
-            RawSubject = message.RawSubject,
-            From = message.FromText,
-            Avatar = message.Avatar,
-            // The reading header shows the full absolute date, not the sub-row's relative label.
-            DateText = message.FullDateText,
-        };
+        OpenedMessage = ThreadMessageHeader(message);
         OpenKey(message.Account, message.Key);
     }
 
@@ -140,6 +155,39 @@ public sealed partial class MailboxModel
     {
         Reading = null;
         _app?.Dispatch(new Intent.OpenMessage(account, key));
+    }
+
+    /// <summary>
+    /// Puts the reading pane back on the message it was showing, or empties it when it was showing
+    /// none.
+    /// </summary>
+    /// <remarks>
+    /// For the double-click that opens a message in a window of its own: the list raises its click
+    /// on the first press, so the pane has already opened the row by the time the second press says
+    /// the user wanted a window, and the contract is that a double-click leaves the pane alone
+    /// (docs/reading-window.md). Re-opening rather than un-doing, because the core's pane slot has
+    /// been overwritten by then and the body has to be fetched back into it; the pane keeps drawing
+    /// what it had while that runs (<see cref="ReadingHandover"/>), so nothing flickers.
+    /// </remarks>
+    public void RestoreReadingPane(OpenedMessage? previous)
+    {
+        // Already there: a double-click on the message the pane was reading, or on a row reached
+        // by a modifier click, which opens nothing. Re-opening would drop the body and fetch it
+        // again for no change on screen.
+        if (previous is { } same
+            && OpenedMessage is { } current
+            && same.Account == current.Account
+            && same.Key == current.Key)
+        {
+            return;
+        }
+        if (previous is null)
+        {
+            CloseReading();
+            return;
+        }
+        OpenedMessage = previous;
+        OpenKey(previous.Account, previous.Key);
     }
 
     /// <summary>Clear the open message (the reading pane falls back to its placeholder); called
@@ -293,15 +341,27 @@ public sealed partial class MailboxModel
     public static string ExportFileName(string subject) =>
         MailcalBindingsMethods.MessageExportFileName(subject);
 
-    /// <summary>Pulls the reading snapshot from the core (on a <c>Surface.Reading</c> signal).</summary>
+    /// <summary>Pulls the reading pane's snapshot from the core (on a <c>Surface.Reading</c>
+    /// signal).</summary>
     private void PullReading()
     {
         if (_app is null)
         {
             return;
         }
-        var snapshot = _app.ReadingView();
-        Reading = new ReadingBody
+        Reading = Project(_app.ReadingView());
+    }
+
+    /// <summary>
+    /// The core's reading snapshot as the reading views bind it.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the pane and by every detached reading window (docs/reading-window.md), because a
+    /// window draws the pane's own view: two projections would be two answers to what one body
+    /// looks like, and they would drift apart a field at a time.
+    /// </remarks>
+    private static ReadingBody Project(ReadingSnapshot snapshot) =>
+        new()
         {
             Key = snapshot.Key,
             From = snapshot.From,
@@ -327,7 +387,6 @@ public sealed partial class MailboxModel
             // not re-projected. Null for all but a genuine iMIP invitation.
             Invitation = snapshot.Invitation,
         };
-    }
 
     /// <summary>
     /// Answer the invitation the open message carries, then refresh the calendar and this pane.
