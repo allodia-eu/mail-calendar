@@ -294,14 +294,29 @@ Three ways a Windows UI check reports success over a live defect. Each cost a da
   is in front" passed throughout, on the machine where the fault reproduced every time. **Assert the
   cause, not the symptom**: make the app say what it did at DEBUG level, give the suite
   `Env = @{ ALLODIA_LOG_LEVEL = 'debug' }`, and read `app.log` through `applog.ps1`. A log line is
-  timestamped and cannot be missed by sampling. The rule that finally held was not "the window is in
-  front" but "every activation the mailbox takes is followed by it giving the front back".
+  timestamped and cannot be missed by sampling. The rule that holds is not "the window is in front"
+  but "the mailbox takes no activation of its own after a window opens", stated of the activation
+  because that is the thing with a cause; the foreground is only where it shows.
 - **A fixture chosen to make one assertion easy can be the one case that does not reproduce.** The
-  reading-window suite double-clicks the seeded invitation, because its card guarantees the window
-  has content to draw. An invitation's card is native XAML where an ordinary body is a document in a
-  WebView2, and the whole class of fault only appeared on ordinary bodies. Every case in the file
-  was exercising the one message type that was safe. When picking a fixture, ask which one is
-  closest to the risky path, not which one is easiest to assert on.
+  reading-window suite double-clicked the seeded invitation throughout, because its card guarantees
+  the window has content to draw. An invitation's card is native XAML where an ordinary body is a
+  document in a WebView2, and every case in the file was exercising the one message type that was
+  safe. The case that reads the log now uses an ordinary message for exactly that reason. When
+  picking a fixture, ask which one is closest to the risky path, not which one is easiest to assert
+  on.
+- **The driver is part of the measurement, and it raises the main window.** `Invoke-RowClicks`
+  calls `Show-Mailbox` first, and `Close-ExtraWindows` activates the mailbox by closing what was in
+  front of it, so a loop that opens a window every 1.5s stamps an activation into the log on a
+  cadence that reads exactly like a fault with a fixed delay. Twelve opens in a row "reproduced" a
+  steal at 1.47s that way, and the app had logged nothing at all between 0.03s and 1.46s, which is
+  what gave it away. Keep the driver out of the observation window: settle well past what you
+  intend to read, and read only up to the moment the driver moves again.
+- **A mailbox with nothing to do hides faults that a real account shows.** The seeded harness holds
+  a static list and reconciles a handful of times; a real account reconciles continuously. A
+  diagnostic reporting that every bound collection is untouched means nothing on the first, and
+  ruling a cause out on that basis is the inert-probe mistake wearing a different hat. Run the
+  final check against `MAILCAL_DEV_ACCOUNT=personal` as well: opening messages is read-only, and it
+  is the only way to see what the person filing the bug sees.
 - **A negative result is evidence only if you can show the stimulus arrived.** "The window held the
   front for 100 seconds while eight messages were delivered" was reported as proof the fault was not
   mail arriving. The messages never reached the app: the row count was 14 before and after, and the

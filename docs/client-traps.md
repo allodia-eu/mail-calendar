@@ -335,6 +335,36 @@ that same file.
   is which window the framework considered "current". Name the element instead:
   `FindFirstFocusableElement(root)` then `TryFocusAsync(element, …)`, neither of which can reach
   outside the tree it is given.
+- **A window opened from inside a pointer gesture is put behind again by the rest of that gesture.**
+  WinUI raises `DoubleTapped` in the middle of the second press, so a window shown from that handler
+  is shown while the list still has the press to finish. The list then focuses the row under the
+  pointer, `SetFocus` activates the top-level window that element is in, and the mailbox climbs back
+  over the window it has just opened, 31 to 41 ms later. Nothing about the code looks wrong, the
+  window is genuinely created and fronted first, and the same route through the row's context menu
+  is clean, because a menu item's invoke leaves no press behind: chasing the difference between two
+  routes that "do the same thing" is most of the cost. Show a window one dispatcher turn after it is
+  asked for, which lets the press finish first; the work behind it (minting a reader, starting a
+  fetch) can still run at once. The tell in the log is a `code` activation of the main window with
+  every bound collection reading "never".
+- **Creating a WebView2 takes the foreground off the window it is in.** Roughly 100 ms into
+  `EnsureCoreWebView2Async`, the main window activates itself, so a second window that has just
+  taken the front loses it: 2 to 4 times in 25 opens with a CPU load alongside, rarely on an idle
+  machine. There are no frames of ours on the stack. Ruled out by measurement, and not to be
+  re-investigated without new evidence: the window's own focus call (suppressed, unchanged rate),
+  the bound collections (every one reads "never" at the activation), the `WEBVIEW2_TEMP_PARENT`
+  top-level window the element creates (removed by initialising only into a loaded tree, unchanged
+  rate), and the pointer resting over the main window (parked in a screen corner the instant the
+  press lands, unchanged rate). It is the toolkit's to fix; until it is, the shell puts the window
+  back (`MainWindow.ReadingWindows.cs`).
+
+  ⚠️ **`FocusState.Pointer` and `InputDevice` name the last input device, not the cause.** The
+  focus move that accompanies this activation reports `Pointer by Mouse` even with the cursor
+  parked in a corner of the screen and no press anywhere, which reads as a definite answer and is
+  not one. Only a change that moves the RATE is evidence about a cause. The same reading is
+  trustworthy for a focus move that a press really did cause, which is how the trailing-press fault
+  above was found, so the label is useful and treacherous in the same breath: believe it when an
+  experiment confirms it, never on its own.
+
 - **`Process.MainWindowHandle` is not "the app's main window", it is whichever top-level window
   Windows hands back.** Fine while an app has one window; wrong the moment it opens a second. A
   helper that resolved the app through it started returning a *reading* window, so every UI

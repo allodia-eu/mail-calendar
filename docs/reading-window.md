@@ -114,16 +114,10 @@ has been given nothing. And **the mailbox can always be raised over it**, the mo
 clicks it: these are peer windows, as a message window is in every other mail client on the desktop.
 
 Every toolkit here leaves a new top-level window in front on its own. What breaks the rule is an app
-that activates its **main** window afterwards, and on Windows this one did: a mailbox activation
-measured at 7 to 22 ms after the window appeared, on 64 opens out of 64. The cause was a focus move
-made through the focus manager rather than through an element, which the ⚠️ below states as a rule.
-A second activation, tens of milliseconds later, has no identified cause and is what the correction
-below exists for.
-
-So the Windows client puts the window back in front if the mailbox takes it while the window is
-still opening, and stops as soon as the reader presses anything in the mailbox, or after three
-seconds, whichever comes first. The boundedness is the point: it corrects the app's own interference
-and never the reader's intent.
+that activates its **main** window afterwards, and on Windows three separate things did. Two were
+ours and are gone at the cause: a focus move made through the focus manager rather than through an
+element, and showing the window from inside the gesture that asked for it. The ⚠️ below states each
+as a rule. The third is the toolkit's and is under "Known gaps".
 
 ⚠️ **A window that a toolkit stacks above the mailbox breaks the second half of the rule**, and
 this is the shape it takes: GTK's `transient_for`, which is `xdg_toplevel.set_parent` on Wayland,
@@ -136,6 +130,16 @@ parent, and each client's own sweep is what closes them together.
 element holds focus *now*, which is in the window being moved away from, so a call meant to put
 focus in a new window focuses the old one and activates it. That was this contract's own bug on
 Windows, at 64 opens out of 64. A window that wants focus somewhere names the element.
+
+⚠️ **A window is shown once the input that asked for it has been delivered, never from inside it.**
+A double-click raises its "open a window" event in the middle of the second press, and the list
+still has that press to finish: it focuses the row under the pointer, and focusing an element
+activates the window it is in, so the mailbox climbs back over the window it has just opened. The
+same gesture through the row's context menu never showed it, because a menu item's invoke leaves no
+press behind. On Windows the shell shows a window a dispatcher turn after it is asked for, which
+costs nothing measurable and is what holds the rule above; the reader it draws is minted at once, so
+the body is already being fetched while the press finishes. This is the app's own arrangement, not a
+toolkit defect: a control focusing what was clicked is what a list is supposed to do.
 
 ## One application's windows
 
@@ -184,18 +188,28 @@ none either, and `GApplication` hands a second launch to the process already run
 
 ## Known gaps
 
+- **On Windows the mailbox still activates itself after a window opens, and the shell puts the
+  window back.** The cause is not known. It is seen during a WebView2's creation, a few times in
+  25 opens with a CPU load alongside and rarely on an idle machine, with nothing of ours on the
+  stack and four candidates ruled out by measurement (`docs/client-traps.md`). So the Windows
+  client corrects rather than prevents: **one** activation, within **750 ms** of a window opening,
+  is undone. Both bounds are the point, because a correction cannot tell the fault from a person:
+  750 ms is twice the slowest activation ever measured with the app left alone, and correcting only
+  once means a mailbox raised a second time is never fought. A press in the mailbox ends it too,
+  though Alt-Tab and the taskbar raise no press, which is the whole reason the reach is small. The
+  UI suite is deliberately blind to the correction: it fails on the activation itself, so the
+  correction cannot launder a regression.
+
+  ⚠️ **A quiet mailbox hides all of this**, which is why the suite's own gate is not enough on its
+  own. The seeded harness reconciles a static list a handful of times; a real account reconciles
+  continuously, and both the fault and the honest all-clear look different there. A change to any
+  of this is checked against a real account by hand as well as by the suite.
 - **On Linux nothing gates the stacking itself.** The widget tests assert that neither window names
   the mailbox as its parent, which is the mechanism, but the acceptance suite runs on a **tiling**
   compositor, where a second window is placed beside the first and "in front" means nothing. That a
   window opens in front and that the mailbox can be raised back over it are hand-verified on a
   GNOME session; what a capture there can show is the `app_id` each window carries
   (`swaymsg -t get_tree`), which is the other half of the rule.
-- **On Windows one activation after a window opens is still unexplained, and the correction is a
-  timer rather than a cure.** Three seconds covers what was measured and a press in the mailbox ends
-  it sooner, but neither proves the mailbox has stopped: an activation arriving later would put a
-  window behind again. The reading pane's WebView2 was the obvious suspect and is not it, measured:
-  its navigation completes more than a second before the activation arrives. Whatever it is,
-  removing it is better than correcting it, and `MainWindow.WindowOrder.cs` is the instrument.
 - **On Windows the first press of a double-click still opens the row in the pane, and is undone.**
   The list raises its own click on that press, before anything can know a window was wanted, so the
   pane is put back once the double-tap arrives and the trailing click is refused. The end state is

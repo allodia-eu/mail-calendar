@@ -5,9 +5,9 @@
 // windows a desktop opens beside it (docs/reading-window.md). Each of these has already been
 // forgotten once by a window added later, and each is visible when it is: a window with no icon
 // shows the system default in the title bar, the taskbar and Alt-Tab, next to siblings carrying the
-// brand; a raw physical-pixel default opens as a sliver on a 200%-scale display; and a window that
-// never takes the foreground is drawn in front for a moment and then disappears behind the window
-// it was opened from.
+// brand; a raw physical-pixel default opens as a sliver on a 200%-scale display; and a window this
+// app raises from outside its own foreground, which is every OAuth redirect and every second
+// launch, is ignored unless it asks past the OS's foreground lock.
 //
 // Dress() exists so a new window cannot half-do it: the icon is not a line to remember beside the
 // title and the size, it comes with them.
@@ -70,20 +70,14 @@ internal static class WindowChrome
     /// Makes <paramref name="window"/> the window in front, restoring it first if it is minimised.
     /// </summary>
     /// <remarks>
-    /// <c>Activate()</c> alone is not enough, and the two cases it fails in are different.
+    /// Two steps before the activation itself. A minimised window is restored, because a window the
+    /// reader asked for is asked for on screen: that is the path a second double-click on a message
+    /// whose window is minimised takes.
     /// <para>
-    /// After an out-of-process activation (the Microsoft OAuth redirect arrives through the
-    /// browser) this process does not hold foreground rights at all, so a bare Activate is ignored.
-    /// Attaching briefly to the current foreground window's input queue is the standard way past
-    /// the OS's foreground-stealing lock.
-    /// </para>
-    /// <para>
-    /// The second case is a window this app opens while one of its own windows is mid-input, which
-    /// is every reading window: a double-click is still being delivered to the mailbox when the new
-    /// window appears. Activate shows it and puts it at the top of the z-order but leaves the
-    /// foreground where it was, and Windows then restores its foreground window to the top, so the
-    /// new window is drawn in front for about fifty milliseconds and then vanishes behind the
-    /// mailbox. Taking the foreground is what makes it stay.
+    /// And after an out-of-process activation (the Microsoft OAuth redirect arrives through the
+    /// browser) this process does not hold foreground rights at all, so a bare <c>Activate()</c> is
+    /// ignored. Attaching briefly to the current foreground window's input queue is the standard way
+    /// past the OS's foreground-stealing lock.
     /// </para>
     /// </remarks>
     internal static void BringToForeground(Window window)
@@ -110,12 +104,19 @@ internal static class WindowChrome
     }
 
     /// <summary>
-    /// Brings <paramref name="window"/> to the front, and again once its content has loaded.
+    /// Brings <paramref name="window"/> to the front and puts focus inside it once its content has
+    /// loaded.
     /// </summary>
     /// <remarks>
-    /// Twice, because the mailbox's own work lands inside the few tens of milliseconds this window
-    /// spends loading and whichever of the two arrives second wins; asking again once this window
-    /// is real closes that gap.
+    /// The front is taken once, and this does not watch it afterwards. Nothing of the app's own
+    /// takes it back, because a window is shown only after the input that asked for it has been
+    /// delivered (MainWindow.ReadingWindows.cs); a second grab here would be hedging against that
+    /// and would be indistinguishable from a real regression in the log. The one thing that does
+    /// take it back belongs to the shell, which knows which window it opened and when a browser is
+    /// attaching under it.
+    /// <para>
+    /// Focus waits for <c>Loaded</c>, which is the first moment the tree has anything to focus.
+    /// </para>
     /// <para>
     /// ⚠️ Nothing here may touch <c>FocusManager</c>'s static moves. They act on the element that
     /// holds focus NOW, which is in the mailbox, so a call meant to put focus in this window
@@ -133,19 +134,13 @@ internal static class WindowChrome
         }
         if (root.IsLoaded)
         {
-            Log.Debug("window: already loaded, focusing");
             FocusInto(root);
-            Log.Debug("window: focused");
             return;
         }
         void OnLoaded(object sender, RoutedEventArgs e)
         {
             root.Loaded -= OnLoaded;
-            Log.Debug("window: loaded, taking the front");
-            BringToForeground(window);
-            Log.Debug("window: front taken");
             FocusInto(root);
-            Log.Debug("window: focused");
         }
         root.Loaded += OnLoaded;
     }

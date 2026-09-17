@@ -90,10 +90,9 @@ public sealed partial class MailListView
         {
             return;
         }
-        // The pane is put back BEFORE the window is opened, not after. Restoring it moves the
-        // list's selection back too, and that assignment pulls focus to the mailbox: done
-        // afterwards it takes the foreground off the window that was just opened, which is the
-        // window appearing for a moment and then dropping behind the mailbox.
+        // The pane is put back BEFORE the window is asked for, so the restore is already under way
+        // when the window appears rather than landing behind it: the shell shows a window a
+        // dispatcher turn later than it is asked for (MainWindow.ReadingWindows.cs).
         Model?.RestoreReadingPane(_paneBeforeClick);
         OpenInWindow(opened);
     }

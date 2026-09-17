@@ -151,15 +151,15 @@ $Suite = @{
     @{
       Name = 'and the window stays in front rather than sinking behind the mailbox'
       Body = {
-        # THE REGRESSION THIS CASE IS NAMED AFTER. The window appeared, and about fifty
-        # milliseconds later disappeared behind the mailbox. Two separate causes, and the second
-        # one is why a plain foreground check is not enough on its own: Activate() left the
-        # FOREGROUND on the mailbox, and even once the window took it, the mailbox's message list
-        # still held keyboard focus, so the next snapshot reconciled the rows under it, restored
-        # focus there and re-activated the mailbox with it.
+        # THE SYMPTOM, read from outside: the window opened and, tens of milliseconds later, was
+        # behind the mailbox. This is the weaker of the two checks on that rule, because a steal
+        # shorter than a screen read passes it; the case below that reads the app's log is the one
+        # with teeth. It is kept because it is the state a reader would actually report, and
+        # because it is the only one that would see a window sinking for a reason nobody has
+        # thought of yet.
         #
-        # So it is checked twice: once as soon as the window is up, and again after the snapshots
-        # the double-click set off have landed. Only the second one fails on the bug.
+        # Twice, because the first read lands before the snapshots the double-click set off have
+        # arrived and the window has to still be in front once they have.
         Close-ExtraWindows
         Invoke-RowClicks -Subject $OtherSubject
         Invoke-RowClicks -Subject $RowSubject -Times 2
@@ -187,10 +187,9 @@ $Suite = @{
         #
         #   * the double-click does not open a window at all, which is what this case catches
         #     first and what the assertion below reports;
-        #   * a window that did open loses the foreground, because WinUI 3 reassigns focus when
-        #     the element holding it is removed and that activates the mailbox
-        #     (microsoft-ui-xaml#8520). That is what the case above is named for, and it is why
-        #     the foreground is checked here too, well past the mark-read.
+        #   * a window that did open loses the foreground, which is the rule the log-reading case
+        #     below holds; it is checked here as well, well past the mark-read, because this is the
+        #     one case where the row the gesture is working on is rewritten under it.
         Close-ExtraWindows
         $unread = Find-RowMenuItem -Subject $RowSubject -Key 'action_mark_unread'
         if ($unread) { Invoke-UiaElement $unread }
@@ -237,25 +236,34 @@ $Suite = @{
       Name = 'the mailbox does not climb over a window while it opens'
       Body = {
         # THE RULE THE WHOLE Z-ORDER RESTS ON, checked from the app's own log because nothing
-        # outside can see it. Windows leaves a new top-level window in front on its own; this app
-        # loses that only because the MAILBOX activates itself while the window is opening, twice,
-        # measured at roughly 20ms and 1.5s after it appears.
+        # outside can see it: the steal it guards against lasted tens of milliseconds and the app
+        # had the front back before a screen read landed, so a suite full of foreground checks
+        # passed on every run while the window still sank.
         #
-        # So this asserts the CAUSE and its correction: every activation the mailbox takes while a
-        # window is settling must be followed by it losing the front again. A foreground check
-        # cannot stand in for this. The steals are milliseconds long and the app usually has the
-        # front back before a screen read lands, which is exactly how this survived a suite full of
-        # foreground checks: every one of them passed while the window still sank on a real account.
+        # The rule is that the mailbox takes NO activation of its own after a window opens. The
+        # shell DOES put the window back when one happens (KeepInFrontWhileItSettles), and this
+        # case deliberately refuses that as an excuse: the correction is there for the reader, not
+        # to launder a regression, and a gate that accepted it would have passed the very fault
+        # this case is named for. The activation it was written for landed about 35 ms in, because
+        # the window was shown from inside the second press of the double-click and the list then
+        # focused the row under the pointer.
+        #
+        # ON AN ORDINARY MESSAGE, not the invitation the cases above use: an invitation's card is
+        # native XAML where an ordinary body is a WebView2 document, and the fixture that makes an
+        # assertion easy is not the one closest to what breaks.
         Close-ExtraWindows
+        # The pane on a different message, so the double-click's restore actually runs; on the
+        # message already open, RestoreReadingPane returns without touching anything.
+        Invoke-RowClicks -Subject $RowSubject
         $since = Get-Date
-        Invoke-RowClicks -Subject $RowSubject -Times 2
-        $null = Wait-AppWindow -Title $RowSubject
+        Invoke-RowClicks -Subject $OtherSubject -Times 2
+        $null = Wait-AppWindow -Title $OtherSubject
         Start-Sleep -Seconds 4
         $lines = (Get-AppLogNewestSession) -split "`n"
         $openedAt = $null
         $opened = 0
-        $pending = 0      # activations the mailbox has taken and not yet given back
-        $unanswered = @()
+        $gaveTheFront = 0
+        $took = @()
         foreach ($line in $lines) {
           if ($line -notmatch '^(?<at>\S+ \S+ \S+) ') { continue }
           $at = [datetimeoffset]::MinValue
@@ -265,13 +273,16 @@ $Suite = @{
           if (-not $openedAt -or $at -lt $openedAt) { continue }
           # Invoke-RowClicks brings the mailbox forward before it clicks, which is an activation
           # the harness asked for; only what happens AFTER the window opened is the app's doing.
-          if ($line -match 'window order: mailbox (code|pointer)') { $pending++; $unanswered += $line }
-          if ($line -match 'window order: mailbox lost the front') { $pending = 0; $unanswered = @() }
+          if ($line -match 'window order: mailbox (code|pointer)') { $took += $line }
+          if ($line -match 'window order: mailbox lost the front') { $gaveTheFront++ }
         }
         Assert-True ($opened -gt 0) 'the app logged the window it opened'
-        Assert-Equal 0 $pending `
-          "the mailbox gave the front back every time it took it: $($unanswered -join ' / ')"
-        Assert-Equal $RowSubject (Get-ForegroundTitle) 'and the window is the one in front at the end'
+        # A quiet log proves nothing on its own: without this, a run where the window never took
+        # the front at all would report zero activations and read as a pass.
+        Assert-True ($gaveTheFront -gt 0) 'and the window took the front off it, so there was a front to steal'
+        Assert-Equal 0 $took.Count `
+          "the mailbox took the front back after the window opened: $($took -join ' / ')"
+        Assert-Equal $OtherSubject (Get-ForegroundTitle) 'and the window is the one in front at the end'
       }
     },
     @{

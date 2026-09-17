@@ -137,9 +137,10 @@ public sealed partial class ReadingView
         // Block in-view navigations; allow only our NavigateToString. A clicked link opens
         // in the default browser instead (OnNavigationStarting).
         core.NavigationStarting += OnNavigationStarting;
-        // Paired with the "loading" line above, this is how long a body takes to appear, and it
-        // is what ruled the web view out of the window-order fault: the navigation completes more
-        // than a second before the mailbox takes the foreground (MainWindow.WindowOrder.cs).
+        // Paired with the "loading" line above, this is how long a body takes to appear. It is also
+        // what separates the two halves of this element in the window-order fault: NAVIGATING is
+        // not part of it and completes long after, while CREATING the view is the interval the
+        // mailbox takes the foreground in (docs/client-traps.md).
         core.NavigationCompleted += (_, _) => Log.Debug("reading: the body finished loading");
         // Never open popups / new windows in-app; a target=_blank link the user clicked is
         // surfaced here rather than as a navigation, so open it in the default browser too.
