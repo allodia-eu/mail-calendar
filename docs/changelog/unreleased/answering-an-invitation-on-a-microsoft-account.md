@@ -10,8 +10,9 @@ Bump: patch
 > anywhere but Exchange had one identity in the mail and another in the calendar, nothing joined
 > the two, and answering fell through to "put the meeting on the calendar first", which Graph has
 > no verb for. Fixed in the engine
-> (allodia-eu/email-calendar-sync-engine#204). An invitation the calendar already held before this
-> release keeps the old identity until the account's calendar is synced afresh.
+> (allodia-eu/email-calendar-sync-engine#204), which also stamps a new store version
+> (allodia-eu/email-calendar-sync-engine#208), so an installation re-snapshots once on its next
+> launch and a meeting it already held picks the corrected identity up on its own.
 
 **English**
 
