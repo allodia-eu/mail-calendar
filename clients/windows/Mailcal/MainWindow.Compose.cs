@@ -1,4 +1,4 @@
-// The compose-request state: the one place that decides whether the detail column shows the
+// The compose state: the one place that decides whether the detail column shows the
 // reading pane or the composer.
 //
 // The composer used to be a ContentDialog, constructed independently at five call sites (three in
@@ -36,7 +36,7 @@ public sealed partial class MainWindow
         var quoting = Model.QuoteSettings;
         // Composing while one mailbox is open sends from that account; in the combined inbox there
         // is no such context, so the app-level default send account decides.
-        BeginCompose(new ComposeRequest(
+        BeginCompose(new ComposeContext(
             RichComposeKind.New,
             Account: null,
             Key: null,
@@ -51,7 +51,7 @@ public sealed partial class MainWindow
     /// <summary>Opens the reply (or reply-all) composer for a message in the reading pane's column,
     /// with the To/Cc the core suggests pre-filled and editable.</summary>
     internal void ComposeReply(string account, string key, bool replyAll, string subject) =>
-        BeginCompose(ReplyRequest(
+        BeginCompose(ReplyContext(
             account, key, replyAll, subject, Model.OpenedMessage, Model.Reading));
 
     /// <summary>Opens the reply (or reply-all) composer for a message read in a detached window, in
@@ -61,7 +61,7 @@ public sealed partial class MainWindow
     /// different messages, which is the whole point of the window.
     /// </remarks>
     internal void ComposeReplyInWindow(OpenedMessage opened, ReadingBody? body, bool replyAll) =>
-        OpenComposerWindow(ReplyRequest(
+        OpenComposerWindow(ReplyContext(
             opened.Account, opened.Key, replyAll, opened.RawSubject, opened, body));
 
     /// <summary>
@@ -88,7 +88,7 @@ public sealed partial class MainWindow
         // The composer lives in the mail surface's detail column, and a draft can arrive while the
         // calendar or Contacts is up, where it would open behind them, unseen.
         Model.ShowMail();
-        BeginCompose(new ComposeRequest(
+        BeginCompose(new ComposeContext(
             RichComposeKind.New,
             Account: null,
             Key: null,
@@ -107,27 +107,84 @@ public sealed partial class MainWindow
         BringToForeground();
     }
 
+    /// <summary>
+    /// Opens a message the core withdrew from the Outbox, <b>unsent</b>, so the user can change it
+    /// and send it again (docs/sending.md).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What arrives here is the <b>only</b> copy: the core took it out of the queue before raising
+    /// the request, precisely so a drain cannot deliver the message while it is being edited. So
+    /// this may not refuse. The discard guard still runs, because a half-written draft in the pane
+    /// is the user's own too, but its "Keep editing" answer opens the withdrawn message in a
+    /// composer window instead of dropping it, which is the one thing nothing here may do.
+    /// </para>
+    /// <para>
+    /// The same composer an assistant's draft opens (<see cref="ComposeAgentDraft"/>): a prefilled,
+    /// unsent message a person reviews and sends themselves is the same thing either way. It seeds
+    /// no signature for the same reason, the body already carries whatever was on it when it was
+    /// queued, and a second one would be sent with it.
+    /// </para>
+    /// </remarks>
+    // Qualified, and it has to be: this file has both namespaces in scope, and the core's
+    // ComposeRequest and this client's ComposeContext are two different things (ComposeContext.cs).
+    internal async void ComposeWithdrawnMessage(uniffi.mailcal_bindings.ComposeRequest request)
+    {
+        // The recipients, the subject and the body are the user's own mail; none is logged.
+        Log.Info("outbox: a withdrawn message is going back into the composer");
+        var context = new ComposeContext(
+            RichComposeKind.New,
+            Account: null,
+            Key: null,
+            InitialFrom: Model.SendAccount(request.Account)?.Id,
+            InitialTo: request.To,
+            InitialCc: request.Cc,
+            Quote: null,
+            QuoteStyle: Model.QuoteSettings.Style,
+            QuoteStylePerMessage: Model.QuoteSettings.PerMessage,
+            InitialBcc: request.Bcc,
+            InitialSubject: request.Subject,
+            InitialBody: request.BodyText,
+            SeedsSignature: false);
+        if (await ConfirmDiscardDraftAsync())
+        {
+            // The composer lives in the mail surface's detail column, and Edit is reachable from
+            // the Outbox while the calendar or Contacts is up, where it would open unseen.
+            Model.ShowMail();
+            BeginCompose(context);
+        }
+        else
+        {
+            Log.Info("outbox: the open draft was kept, so the withdrawn message took a window");
+            OpenComposerWindow(context);
+        }
+        BringToForeground();
+        // Only now: the core holds this message and nothing else does, so it may forget it only
+        // once a composer on screen has it (docs/sending.md).
+        Model.DismissComposeRequest();
+    }
+
     /// <summary>Opens the forward composer for a message in the reading pane's column, holding the
     /// files the original carries (recipients entered fresh).</summary>
     internal async void ComposeForward(string account, string key, string subject) =>
-        BeginCompose(await ForwardRequestAsync(
+        BeginCompose(await ForwardContextAsync(
             account, key, subject, Model.OpenedMessage, Model.Reading));
 
     /// <summary>Opens the forward composer for a message read in a detached window, in a composer
     /// window of its own (docs/reading-window.md).</summary>
     internal async void ComposeForwardInWindow(OpenedMessage opened, ReadingBody? body) =>
-        OpenComposerWindow(await ForwardRequestAsync(
+        OpenComposerWindow(await ForwardContextAsync(
             opened.Account, opened.Key, opened.RawSubject, opened, body));
 
     // Swap the detail column over to a freshly-built composer. Any composer already up is torn down
     // first, the caller has already asked the user about an unsent draft (ConfirmDiscardDraftAsync),
     // so reaching here means it may go.
-    private void BeginCompose(ComposeRequest request)
+    private void BeginCompose(ComposeContext context)
     {
         TeardownComposer();
 
         var composer = new ComposerView();
-        composer.Init(Model, request, CloseComposer);
+        composer.Init(Model, context, CloseComposer);
         _composer = composer;
         ComposerHost.Content = composer;
         ComposerHost.Visibility = Visibility.Visible;

@@ -96,7 +96,7 @@ impl<P: Provider> App<P> {
             // pane fields and the queued list are the whole snapshot. Running one anyway
             // would answer a click on the Outbox with the unified inbox, since that scope
             // names no account and no folder either.
-            self.outbox_snapshot(&account_rows).await
+            self.outbox_snapshot(&account_rows, mode).await
         } else if let Some(query) = query {
             self.search_snapshot(scope.account(), scope.folder(), query, mode, &account_rows)
                 .await
@@ -179,11 +179,22 @@ impl<P: Provider> App<P> {
     }
 
     /// The Outbox view: the pane, and the queued sends. No mail is read.
-    async fn outbox_snapshot(&self, account_rows: &[AccountRow]) -> MailboxListSnapshot {
+    ///
+    /// The pane fields are filled as any other view fills them, because the pane is on
+    /// screen in all of them (`docs/folder-pane.md`, rule 1): a defaulted `unified_unread`
+    /// would take the All Inboxes badge away for as long as the Outbox is open, and a
+    /// defaulted `mode` would tell a client the user had switched to a flat list.
+    async fn outbox_snapshot(
+        &self,
+        account_rows: &[AccountRow],
+        mode: ViewMode,
+    ) -> MailboxListSnapshot {
         let account_folders = self.all_account_folders(account_rows).await;
         MailboxListSnapshot {
             accounts: account_rows.to_vec(),
+            unified_unread: mailcal_viewmodel::unified_unread(&account_folders),
             account_folders,
+            mode,
             showing_outbox: true,
             outbox: self.all_queued_sends(account_rows).await,
             ..Default::default()

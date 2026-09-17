@@ -291,6 +291,24 @@ $Suite = @{
       }
     },
     @{
+      Name = 'an empty Outbox is not a row saying zero'
+      Body = {
+        # Rule 18 (docs/folder-pane.md): the Outbox is on the pane only while something is in it.
+        # The showcase seed queues nothing, so the honest pane here has no Outbox row at all.
+        #
+        # What this catches is one specific regression: a row made permanent, or one drawn off a
+        # snapshot field a client forgot to read. Both look entirely reasonable on screen, and a
+        # permanent Outbox reading zero is exactly the furniture rule 6 exists to prevent.
+        #
+        # The other half of the rule, that it APPEARS with the first queued message, needs a send
+        # that cannot go out, which means taking the mail server away mid-suite. The showcase
+        # engine has no server to take away and a Windows CI runner cannot run the harness at all,
+        # so that half is proven by hand (docs/sending.md) and by the core's own tests.
+        Assert-True ($null -eq (Get-SidebarRow -Name 'Outbox')) `
+          'nothing is queued, so the pane draws no Outbox row'
+      }
+    },
+    @{
       Name = 'a folder key opens the mailbox of the account whose tree it is in'
       Body = {
         # Both accounts have a folder keyed `sent`, every provider names its folders the same

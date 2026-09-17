@@ -1,10 +1,15 @@
-// What the reading-pane composer is currently composing. One request replaces the five
+// What the reading-pane composer is currently composing. One context replaces the five
 // dialog-construction call sites the composer used to have (three in MailListView, two in
 // ReadingView): the shell holds at most one of these, and it is the single thing that decides
 // whether the detail column shows the reading pane or the composer.
 //
 // The Windows twin of the Apple client's `ComposeContext` (Mailcal.swift's `@State var compose`),
-// deliberately the same shape, an optional request, not a presented modal.
+// deliberately the same shape, an optional context, not a presented modal.
+//
+// Not `ComposeRequest`: the core has a record of that name, and it is a different thing. Theirs is
+// the core ASKING this host to open a composer over a message it has withdrawn from the Outbox
+// (docs/sending.md); this one is what the composer that then opens is holding. Both are in scope
+// in most of the files below.
 
 using System.Collections.Generic;
 using Allodia.Mailcal.Dialogs;
@@ -55,7 +60,7 @@ namespace Allodia.Mailcal.ViewModels;
 // Internal, not public: `Attachments` carries the generated `ComposerFileAttachment`, and every
 // record the C# bindgen emits is internal. The public types in this directory are the ones XAML
 // binds to; this one is only ever constructed and read from code-behind.
-internal sealed record ComposeRequest(
+internal sealed record ComposeContext(
     RichComposeKind Kind,
     string? Account,
     string? Key,

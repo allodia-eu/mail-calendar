@@ -340,7 +340,11 @@ pub fn build(
 ///
 /// Saturating, so a set of accounts whose counts overflow a `u32` reports the ceiling
 /// rather than wrapping to a small, confidently wrong number.
-fn unified_unread(account_folders: &[AccountFolderRow]) -> u32 {
+///
+/// Public because the pane is drawn in every view mode, so a snapshot that builds no mail
+/// list still owes it a count (`docs/folder-pane.md`, rule 1).
+#[must_use]
+pub fn unified_unread(account_folders: &[AccountFolderRow]) -> u32 {
     account_folders.iter().fold(0u32, |total, account| {
         total.saturating_add(crate::folders::inbox_unread(&account.folders))
     })
