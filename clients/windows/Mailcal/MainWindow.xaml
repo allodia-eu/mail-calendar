@@ -22,15 +22,10 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- The window's caption, drawn by us rather than by the system. The system one is a
-             separate surface from the app's content: it does not read the app's theme, so it came
-             up pale over a dark window, and the only lever it offers is a set of AppWindowTitleBar
-             colour properties that each have to be re-set by hand on every theme change. The
-             TitleBar control is content, so it inherits ActualTheme like everything else and follows
-             a light/dark switch for free, and it owns the drag regions, the caption button spacing
-             (incl. RTL) and the min-drag region, none of which is then hand-computed.
-             MainWindow.TitleBar.cs hands the window over to it, and mirrors the theme onto the one
-             piece the framework still will not: the system-drawn caption buttons.
+        <!-- The window's caption, drawn by the app rather than by the system, on the terms
+             Services/WindowCaption.cs states; the height and the brand icon are the application's
+             (App.xaml), so this window and the reading and composer windows beside it cannot come
+             up looking like three applications.
 
              The pane toggle moves up here from the NavigationView, which is the Fluent guidance
              when a custom title bar exists, it sits with the caption instead of hanging over the
@@ -42,28 +37,16 @@
              obvious slot and it centres what is in it on the room the caption buttons leave, which
              is not the middle of the window; over this Grid the field is simply centred on the
              glass. The drag region is computed from this element minus the interactive things
-             inside it, so both the field and the pane toggle still take a click.
-
-             MinHeight is 48px, which is what the TitleBar takes when it carries content of its
-             own. It carries none now, so left alone the row comes up at the compact 32 and the
-             field fills it edge to edge, touching the top of the window. -->
-        <Grid x:Name="CaptionRow" Grid.Row="0" MinHeight="48">
+             inside it, so both the field and the pane toggle still take a click. -->
+        <Grid x:Name="CaptionRow" Grid.Row="0" MinHeight="{StaticResource AppCaptionHeight}">
             <TitleBar
                 x:Name="AppTitleBar"
                 AutomationProperties.AutomationId="AppTitleBar"
                 Title="{x:Bind l10n:L10n.AppTitle()}"
                 IsPaneToggleButtonVisible="{x:Bind IsVisible(Model.MainVisibility), Mode=OneWay}"
+                IconSource="{StaticResource AppCaptionIcon}"
                 SizeChanged="OnTitleBarSizeChanged"
-                PaneToggleRequested="OnTitleBarPaneToggle">
-                <!-- The PNG, not app.ico. WinUI decodes an .ico to its FIRST frame, which in ours
-                     is the 16px one (Images/generate-assets.ps1 writes them smallest-first, as the
-                     format expects), and the caption then scales that up: 32 physical pixels of a
-                     16-pixel picture on a 200% display, which reads as a soft, smeared logo beside
-                     a crisp title. A single-resolution source lets the decoder scale DOWN. -->
-                <TitleBar.IconSource>
-                    <ImageIconSource ImageSource="ms-appx:///Images/TitleBarLogo.png" />
-                </TitleBar.IconSource>
-            </TitleBar>
+                PaneToggleRequested="OnTitleBarPaneToggle" />
             <!-- The search field, over the middle of the window. Its default scope is every
                  account and every folder (docs/search.md, rule 2), so drawn over the message list
                  it was a control whose reach was wider than the one column it sat on; the window's

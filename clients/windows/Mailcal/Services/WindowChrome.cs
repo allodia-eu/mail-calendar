@@ -9,16 +9,16 @@
 // app raises from outside its own foreground, which is every OAuth redirect and every second
 // launch, is ignored unless it asks past the OS's foreground lock.
 //
-// Dress() exists so a new window cannot half-do it: the icon is not a line to remember beside the
-// title and the size, it comes with them.
+// Dress() exists so a new window cannot half-do it: the icon and the caption are not lines to
+// remember beside the title and the size, they come with them.
 
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Windows.Graphics;
 
@@ -28,22 +28,26 @@ namespace Allodia.Mailcal.Services;
 internal static class WindowChrome
 {
     /// <summary>
-    /// Gives <paramref name="window"/> its content, its title, its opening size and the brand icon.
+    /// Gives <paramref name="window"/> its caption, its content, its title, its opening size and the
+    /// brand icon.
     /// </summary>
     /// <remarks>
-    /// The content is wrapped in a <see cref="Grid"/> because that root is what carries the
-    /// appearance: <c>RequestedTheme</c> is set on an element, never on the application, so a
-    /// window needs one element of its own to paint.
+    /// The content is wrapped in a <see cref="WindowShell"/>, which is both the caption this window
+    /// draws for itself and the one element the appearance is painted on: <c>RequestedTheme</c> is
+    /// set on an element, never on the application, so a window needs a root of its own to carry it.
     /// </remarks>
     internal static void Dress(Window window, UIElement content, string title, SizeInt32 logical)
     {
-        var root = new Grid();
-        root.Children.Add(content);
+        var root = new WindowShell();
+        root.Init(title, content);
         window.Content = root;
-        // Window.Title is what the taskbar, Alt-Tab and UI Automation read.
+        // Window.Title is what the taskbar, Alt-Tab and UI Automation read. The caption is given the
+        // same string, so the two cannot name one window two things.
         window.Title = title;
         window.AppWindow.Resize(ToDpi(window, logical));
         SetAppIcon(window.AppWindow);
+        // Last: the caption is handed over only once the window has content to hand over.
+        WindowCaption.Extend(window, root.DragRegion);
     }
 
     /// <summary>
