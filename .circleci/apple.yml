@@ -1,0 +1,304 @@
+# The two Apple legs, continued into from .circleci/config.yml once that pipeline has decided the
+# change can reach them. Everything about WHAT is built is the same as the `apple` job in
+# .github/workflows/ci.yml, including the split into a macOS and an iOS leg and the reasons for it;
+# read that job for the product reasoning and this file for what is different about the provider.
+#
+# Three things are different, and each one is why this pipeline exists:
+#
+#   1. Six cores instead of three (m4pro.medium, 6 @ 4.51 GHz, 28 GB). The GitHub job's own notes
+#      record a simulator boot taking the whole three-core runner for itself; that is the figure
+#      this is meant to move.
+#   2. Xcode is pinned by the executor rather than inherited from a runner label, so the image
+#      cannot quietly move to another Xcode major under us. Bumping it is an edit here.
+#   3. Xcode's own compilation cache, granular and keyed on source CONTENT, in place of the bulk
+#      DerivedData cache the GitHub job keeps. That swap is not a preference. A git checkout stamps
+#      every source file with a fresh mtime, so a restored DerivedData directory is stale on
+#      arrival, and the GitHub job needs an action that records and replays mtimes to get any value
+#      out of it. Nothing here does that, and a content-keyed cache does not care.
+version: 2.1
+
+parameters:
+  apple:
+    type: boolean
+    default: false
+
+executors:
+  apple:
+    macos:
+      xcode: "27.0.0"
+    resource_class: m4pro.medium
+    environment:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+
+      # The values Allodia injects into the core at build time. These are the same deliberately
+      # fake placeholders .github/workflows/ci.yml carries, and that file explains at length why
+      # a placeholder exercises the same branches a real registration does, and why the shape of
+      # one matters more than its value. Not restated here.
+      MAILCAL_GOOGLE_DESKTOP_CLIENT_ID: "1234567890-ci.apps.googleusercontent.com"
+      MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET: "not-a-real-secret"
+      MAILCAL_GOOGLE_IOS_CLIENT_ID: "1234567890-ci-ios.apps.googleusercontent.com"
+      MAILCAL_GOOGLE_ANDROID_CLIENT_ID: "1234567890-ci-android.apps.googleusercontent.com"
+      MAILCAL_MS_CLIENT_ID: "00000000-0000-4000-8000-000000000000"
+      MAILCAL_ALLODIA_CLIENT_ID: "ci-placeholder"
+      MAILCAL_ALLODIA_HOST: "https://accounts.invalid"
+      ALLODIA_TELEMETRY_URL: "https://telemetry.invalid"
+
+jobs:
+  apple:
+    executor: apple
+    parameters:
+      platform:
+        description: Which leg this is, and the only thing the conditional steps below read.
+        type: enum
+        enum: [macos, ios]
+      slice:
+        description: What build-core.sh compiles for this leg.
+        type: string
+      rust_targets:
+        description: The same slices said to rustup.
+        type: string
+    steps:
+      - checkout
+
+      # This tree's scripts are bash 5 and a macOS image ships 3.2 as /bin/bash, so they would each
+      # stop on their first line without one on PATH. Installed only when the image has none, since
+      # a brew install is 20 seconds this job does not owe.
+      - run:
+          name: Make sure bash 5 is on PATH
+          command: |
+            if [ "$(bash -c 'printf %s "${BASH_VERSION%%.*}"')" -lt 5 ]; then
+              brew install bash
+            fi
+            bash --version | head -1
+            [ "$(bash -c 'printf %s "${BASH_VERSION%%.*}"')" -ge 5 ] || {
+              echo "bash on PATH is still $(bash --version | head -1)" >&2
+              exit 1
+            }
+
+      # .cargo/config.toml points build.build-dir outside the checkout so that worktrees share one
+      # copy of the compile work. A runner has no worktrees, and everything cached below is under
+      # target/, so the build directory goes back there. Written through BASH_ENV rather than the
+      # executor's `environment` because it names the working directory, which only the job knows.
+      - run:
+          name: Keep the build output under target/
+          command: |
+            echo "export CARGO_BUILD_BUILD_DIR=$PWD/target" >>"$BASH_ENV"
+
+      # Two caches for the Rust half, and they age differently. The registry follows Cargo.lock and
+      # is shared by both legs; the compiled tree follows the commit and is per leg, because each
+      # holds one target triple. Both restore on any branch: a CircleCI cache is project-wide
+      # rather than scoped to the branch that wrote it, so a PR reads main's entry the way the
+      # GitHub job intends and cannot be handed a cache belonging to nothing.
+      #
+      # Not cached at all, yet: DerivedData and the SwiftPM scratch path the GitHub job keeps.
+      # They are ~600 MB and ~785 MB a leg, and the compilation cache below is meant to make them
+      # unnecessary. Whether it does is the first thing to read off a warm run.
+      - restore_cache:
+          keys:
+            - v1-cargo-home-{{ checksum "Cargo.lock" }}
+            - v1-cargo-home-
+      - restore_cache:
+          keys:
+            - v1-apple-target-<< parameters.platform >>-{{ checksum "Cargo.lock" }}-{{ .Revision }}
+            - v1-apple-target-<< parameters.platform >>-{{ checksum "Cargo.lock" }}-
+            - v1-apple-target-<< parameters.platform >>-
+
+      # A third cache, a few megabytes, and the cheapest of the three by a distance.
+      # build-core.sh mirrors every file it generates into clients/apple/build/generated and puts
+      # the recorded timestamp back over any whose bytes did not move, the XCFramework included.
+      # Without the mirror a checkout has none of them, they all arrive freshly dated, and a
+      # re-dated framework recompiles MailcalBindings and all of MailcalUI above it: the GitHub
+      # job measured that at 96-193s against 10-12s. Keyed per leg, because the manifest beside
+      # the mirror is a hash of the slices this leg assembles.
+      - restore_cache:
+          keys:
+            - v1-apple-generated-<< parameters.platform >>-{{ .Revision }}
+            - v1-apple-generated-<< parameters.platform >>-
+
+      # rust-toolchain.toml is the single source of the version, here as in the GitHub workflow and
+      # in cargo xtask gate, so the channel is read from it rather than written twice.
+      - run:
+          name: Install Rust for << parameters.rust_targets >>
+          command: |
+            channel=$(sed -n 's/^channel[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' rust-toolchain.toml)
+            [ -n "$channel" ] || { echo "no [toolchain] channel in rust-toolchain.toml" >&2; exit 1; }
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+              sh -s -- -y --profile minimal --default-toolchain none
+            # Twice over, and deliberately: the installer's own line reaches a login shell through
+            # the profile it edits, and BASH_ENV reaches the steps that get a plain one.
+            echo 'export PATH="$HOME/.cargo/bin:$PATH"' >>"$BASH_ENV"
+            export PATH="$HOME/.cargo/bin:$PATH"
+            rustup toolchain install "$channel" --profile minimal \
+              --component clippy --target "<< parameters.rust_targets >>"
+            rustup default "$channel"
+
+      - run:
+          name: Install XcodeGen
+          command: brew install xcodegen
+
+      - run:
+          name: Build the Rust core into an XCFramework and bindings
+          command: ./clients/apple/Scripts/build-core.sh --slices << parameters.slice >>
+
+      # Saved here rather than at the end of the job, so a failure in the Swift half still leaves
+      # the next run the cargo work this one did. Only main writes, for the reason the GitHub
+      # workflow gives: a cache written on every branch is a cache every branch evicts.
+      - when:
+          condition:
+            equal: [main, << pipeline.git.branch >>]
+          steps:
+            - save_cache:
+                key: v1-cargo-home-{{ checksum "Cargo.lock" }}
+                paths:
+                  - ~/.cargo/registry
+                  - ~/.cargo/git
+            - save_cache:
+                key: v1-apple-target-<< parameters.platform >>-{{ checksum "Cargo.lock" }}-{{ .Revision }}
+                paths:
+                  - target
+            - save_cache:
+                key: v1-apple-generated-<< parameters.platform >>-{{ .Revision }}
+                paths:
+                  - clients/apple/build/generated
+
+      # Plain logic, no UI and no simulator, so it runs before anything Xcode builds and a broken
+      # rule fails in seconds. macOS leg only: `swift test` builds for the host, so the iOS leg
+      # would be testing the same macOS binary a second time.
+      - when:
+          condition:
+            equal: [macos, << parameters.platform >>]
+          steps:
+            - run:
+                name: Test MailcalKit
+                command: clients/apple/Scripts/test-kit.sh
+
+      # The brand has to be in the environment before xcodegen runs, and brand_assert_expanded is
+      # what says so when it was not (docs/branding.md). `shell` is overridden here alone because
+      # this step SOURCES one of this tree's scripts, so the step's own shell has to be the bash 5
+      # that script requires. Every other step runs a script as a file, whose shebang finds it.
+      - run:
+          name: Generate the Xcode project
+          shell: bash -euo pipefail
+          command: |
+            . scripts/dev/lib.sh
+            (cd clients/apple && xcodegen generate)
+            brand_assert_expanded clients/apple/AllodiaMail.xcodeproj/project.pbxproj
+            brand_assert_expanded clients/apple/App/Info.plist
+
+      - with_tool_cache:
+          tool: xcode
+          steps:
+            # The cache server is a unix socket this wrapper starts, and its address only exists
+            # inside these steps. Xcode takes the settings that reach it as build settings, which
+            # would mean threading them through three scripts and two xcodebuild invocations, so
+            # they go in an xcconfig that XCODE_XCCONFIG_FILE applies to every target instead.
+            # No socket means no cache and a normal build, never a broken one.
+            #
+            # printf rather than a here-document, and that is a provider constraint rather than a
+            # style: CircleCI reads `<<` as the opening of a parameter expression and stops on
+            # `<<EOF` before the shell ever sees it.
+            - run:
+                name: Point Xcode's compile cache at this run's cache server
+                command: |
+                  sock="${COMPILATION_CACHE_REMOTE_SERVICE_PATH#unix://}"
+                  if [ -z "$sock" ]; then
+                    echo "no compilation cache server for this run; building without one"
+                    exit 0
+                  fi
+                  # `circleci run cache configure xcode`, which the wrapper runs just above, may
+                  # already have pointed Xcode at an xcconfig of its own. Appending to that one
+                  # keeps whatever it set and adds the settings the compile cache needs.
+                  xcconfig="${XCODE_XCCONFIG_FILE:-$HOME/compile-cache.xcconfig}"
+                  printf '%s\n' \
+                    "COMPILATION_CACHE_REMOTE_SERVICE_PATH = $sock" \
+                    "COMPILATION_CACHE_ENABLE_PLUGIN = YES" \
+                    "SWIFT_ENABLE_COMPILE_CACHE = YES" \
+                    "CLANG_ENABLE_COMPILE_CACHE = YES" \
+                    "SWIFT_ENABLE_EXPLICIT_MODULES = YES" \
+                    "SWIFT_USE_INTEGRATED_DRIVER = YES" \
+                    "CLANG_ENABLE_MODULES = YES" \
+                    "COMPILATION_CACHE_ENABLE_INTEGRATED_QUERIES = YES" \
+                    "COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES = YES" \
+                    >>"$xcconfig"
+                  cat "$xcconfig"
+                  echo "export XCODE_XCCONFIG_FILE=$xcconfig" >>"$BASH_ENV"
+
+            # Both invocations share one derived-data path, so the app build and the verifier reuse
+            # each other's MailcalKit products rather than compiling it twice. The index store only
+            # feeds the Xcode UI, so generating it here is pure cost.
+            - when:
+                condition:
+                  equal: [macos, << parameters.platform >>]
+                steps:
+                  - run:
+                      name: Build the macOS app
+                      working_directory: clients/apple
+                      command: |
+                        xcodebuild -project AllodiaMail.xcodeproj -scheme AllodiaMail \
+                          -destination 'platform=macOS' -configuration Debug \
+                          -derivedDataPath build/DerivedData -quiet COMPILER_INDEX_STORE_ENABLE=NO build
+                  - run:
+                      name: Build and run the headless FFI verifier (demo mode)
+                      working_directory: clients/apple
+                      command: |
+                        xcodebuild -project AllodiaMail.xcodeproj -scheme MailcalVerify \
+                          -destination 'platform=macOS' -configuration Debug \
+                          -derivedDataPath build/DerivedData -quiet COMPILER_INDEX_STORE_ENABLE=NO build
+                        MAILCAL_DEMO=1 ./build/DerivedData/Build/Products/Debug/MailcalVerify
+
+            # The UI suite, which is also what builds the iOS app. Which three classes run, and why
+            # the other two do not, is decided in the GitHub workflow's own comment; this leg runs
+            # the same three so the two providers can be compared on equal work.
+            #
+            # `no_output_timeout` because the step is quiet while the simulator becomes test-ready:
+            # xcodebuild prints nothing at all for as long as that takes, and on the three-core
+            # GitHub runner that was up to four minutes. Whether it is shorter here is the question.
+            - when:
+                condition:
+                  equal: [ios, << parameters.platform >>]
+                steps:
+                  - run:
+                      name: Build and test the iOS app (showcase dataset)
+                      no_output_timeout: 20m
+                      command: |
+                        clients/apple/Scripts/test-ui.sh --no-core \
+                          --only ReadingActionRowTests --only ReadingHeaderScrollTests \
+                          --only CalendarPinchTests
+
+  # A pipeline with no workflow left to run is a pipeline CircleCI reports as an error, so the
+  # skipped case gets one line on a small container rather than a red tick nobody can act on.
+  no-apple-change:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Nothing in this change reaches the Apple clients
+          command: echo "changed-areas.sh turned the apple area off for this change set."
+
+workflows:
+  apple:
+    when: << pipeline.parameters.apple >>
+    jobs:
+      # fail-fast is off by default here, which is what the GitHub matrix has to ask for: a red
+      # macOS leg and a red iOS leg are different information, and cancelling one to report the
+      # other means pushing again to learn the rest.
+      - apple:
+          name: apple-macos
+          platform: macos
+          # The macOS leg carries the simulator slice it does not link, because a cold
+          # `--slices macos` races cargo against its own proc macros (build-core.sh says how).
+          slice: sim,macos
+          rust_targets: aarch64-apple-darwin,aarch64-apple-ios-sim
+      - apple:
+          name: apple-ios
+          platform: ios
+          slice: sim
+          rust_targets: aarch64-apple-ios-sim
+
+  nothing-to-build:
+    when:
+      not: << pipeline.parameters.apple >>
+    jobs:
+      - no-apple-change

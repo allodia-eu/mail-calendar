@@ -1,0 +1,71 @@
+# The Apple clients on CircleCI, beside the GitHub Actions workflow rather than in place of it, so
+# the same commits can be timed on both providers before either is trusted with the gate.
+#
+# Why a second provider is worth trying: the macOS runner GitHub gives this repository is three
+# cores, which is what the Apple job's twelve minutes were mostly spent on, and its images trail
+# Xcode releases (actions/runner-images#14709). CircleCI's macOS class is six M4 Pro cores with
+# 28 GB, and its image already carries the Xcode 27 this tree targets.
+#
+# This file is a SETUP config. It runs one small Linux job that decides whether the change can
+# reach the Apple clients, then continues into .circleci/apple.yml carrying the answer. That is
+# rule 1 of .github/workflows/ci.yml applied here: an expensive job gates on the change set, and a
+# macOS VM is the most expensive thing either provider rents us. The mapping is not restated,
+# scripts/ci/changed-areas.sh owns it for both providers.
+#
+# ⚠️ A setup config does nothing until "Enable dynamic config using setup workflows" is on in the
+# project's advanced settings. Without it CircleCI runs this file as the whole pipeline, the
+# continuation step fails, and no Apple job ever starts.
+version: 2.1
+setup: true
+
+orbs:
+  continuation: circleci/continuation@2.0.1
+
+jobs:
+  changes:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - checkout
+
+      # changed-areas.sh resolves the change set from the GitHub event payload, which this provider
+      # has no equivalent of, so the file list is worked out from git and handed to the script's
+      # `--files` mode. The classification itself stays in the one place that owns it.
+      #
+      # A branch is compared against its merge base with main. That is the wrong base for a stacked
+      # PR, whose base is the branch below it, and being wrong that way reports MORE changed files
+      # than the PR carries: it over-builds, which is the direction this script fails in anyway.
+      # A range that cannot be resolved leaves the list empty, and an empty list turns every area on.
+      - run:
+          name: Which areas does this change touch?
+          command: |
+            range=
+            if [ "${CIRCLE_BRANCH:-}" = "main" ]; then
+              range="HEAD~1..HEAD"
+            else
+              git fetch --no-tags origin main >/dev/null 2>&1 || true
+              base=$(git merge-base FETCH_HEAD HEAD 2>/dev/null || true)
+              [ -n "$base" ] && range="$base..HEAD"
+            fi
+
+            files=
+            [ -n "$range" ] && files=$(git diff --name-only "$range" 2>/dev/null || true)
+
+            apple=true
+            if [ -n "$files" ]; then
+              apple=$(printf '%s\n' "$files" |
+                scripts/ci/changed-areas.sh --files - |
+                awk '$1 == "apple" { print $2 }')
+            fi
+            printf '{"apple": %s}\n' "$apple" >/tmp/pipeline-parameters.json
+            cat /tmp/pipeline-parameters.json
+
+      - continuation/continue:
+          configuration_path: .circleci/apple.yml
+          parameters: /tmp/pipeline-parameters.json
+
+workflows:
+  setup:
+    jobs:
+      - changes
