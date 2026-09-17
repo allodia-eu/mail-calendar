@@ -7,6 +7,9 @@
 //! `GtkApplication`, so the app still ends when the mailbox does rather than living on as a
 //! scatter of message windows.
 //!
+//! They are the mailbox's **peers** on screen, not its children, so the reader can put either one
+//! in front of the other.
+//!
 //! The model decides which windows exist; this file only brings the screen to that list, the way
 //! the message rows are brought to the mailbox snapshot.
 
@@ -57,12 +60,7 @@ pub(super) struct DetachedWindows {
 }
 
 impl DetachedWindows {
-    pub(super) fn render(
-        &self,
-        model: &AppModel,
-        parent: &adw::ApplicationWindow,
-        sender: &relm4::Sender<AppInput>,
-    ) {
+    pub(super) fn render(&self, model: &AppModel, sender: &relm4::Sender<AppInput>) {
         let mut windows = self.windows.borrow_mut();
         if windows.swept {
             return;
@@ -85,7 +83,7 @@ impl DetachedWindows {
             let open = windows
                 .reading
                 .entry(window.clone())
-                .or_insert_with(|| reading_window(window, parent, sender));
+                .or_insert_with(|| reading_window(window, sender));
             // The subject, so the window list the desktop draws tells two open messages apart.
             // From the header the window was opened on rather than from the body, which is what
             // lets it be named from its first frame, before the fetch has landed.
@@ -131,7 +129,7 @@ impl DetachedWindows {
             let open = windows
                 .composer
                 .entry(draft.id)
-                .or_insert_with(|| composer_window(draft.id, parent, sender));
+                .or_insert_with(|| composer_window(draft.id, sender));
             if !open.view.is_active(draft.id) {
                 open.window.set_title(Some(&window_title(
                     Some(draft.request.subject.as_str()),
@@ -188,13 +186,9 @@ pub(super) fn sender_accounts(model: &AppModel) -> Vec<(String, String)> {
         .collect()
 }
 
-fn reading_window(
-    window: &str,
-    parent: &adw::ApplicationWindow,
-    sender: &relm4::Sender<AppInput>,
-) -> ReadingWindow {
+fn reading_window(window: &str, sender: &relm4::Sender<AppInput>) -> ReadingWindow {
     let source = ReadingSource::Window(window.to_owned());
-    let detached = new_window(parent, 720, 640);
+    let detached = new_window(720, 640);
     let view = ReadingPane::new(&detached, sender.clone(), source);
     detached.set_content(Some(view.widget()));
     let input = sender.clone();
@@ -209,12 +203,8 @@ fn reading_window(
     }
 }
 
-fn composer_window(
-    id: u64,
-    parent: &adw::ApplicationWindow,
-    sender: &relm4::Sender<AppInput>,
-) -> ComposerWindow {
-    let detached = new_window(parent, 760, 700);
+fn composer_window(id: u64, sender: &relm4::Sender<AppInput>) -> ComposerWindow {
+    let detached = new_window(760, 700);
     let view = ComposerPane::new();
     detached.set_content(Some(view.widget()));
     // Closing discards the draft, exactly as Cancel does, and asks no more than Cancel does: the
@@ -231,13 +221,19 @@ fn composer_window(
     }
 }
 
-/// A window beside the mailbox: transient for it, and deliberately **not** an application window.
+/// A window beside the mailbox: a peer of it, and deliberately **not** an application window.
+///
+/// **No transient parent.** `transient_for` is how GTK stacks a child above its parent, and on
+/// Wayland it is `xdg_toplevel.set_parent`, which the compositor honours as a constraint: a window
+/// built that way cannot be put behind the mailbox at all, and these two are peers
+/// (`docs/reading-window.md`). Nothing depended on the link: `close_all()` sweeps the windows from
+/// the mailbox's own close handler, and the desktop groups them with the app because the process
+/// claims the application id as its program name (`claim_desktop_identity`, in `main.rs`).
 ///
 /// `AdwWindow` rather than `GtkWindow` because the view inside it carries its own `AdwHeaderBar`,
 /// which is then the window's titlebar and draws the desktop's own controls.
-fn new_window(parent: &adw::ApplicationWindow, width: i32, height: i32) -> adw::Window {
+fn new_window(width: i32, height: i32) -> adw::Window {
     adw::Window::builder()
-        .transient_for(parent)
         .default_width(width)
         .default_height(height)
         .build()

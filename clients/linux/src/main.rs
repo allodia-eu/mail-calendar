@@ -36,7 +36,22 @@ static APP_BROKER: relm4::MessageBroker<ui::AppInput> = relm4::MessageBroker::ne
 const APPLICATION_FLAGS: gtk::gio::ApplicationFlags =
     gtk::gio::ApplicationFlags::HANDLES_COMMAND_LINE;
 
+/// Claim the application id as the program name, so every window this process opens reaches the
+/// desktop as this app's.
+///
+/// GTK takes a window's Wayland `app_id` from the `GtkApplication` the window belongs to, and from
+/// the program name for every window that belongs to none. The reading, composer and settings
+/// windows are deliberately not application windows (`docs/reading-window.md`), so without this
+/// they arrive as `mailcal-linux`, which matches no desktop entry: the shell files them under a
+/// second application, with neither the app's name nor its icon, and its window switcher will not
+/// move between them and the mailbox.
+fn claim_desktop_identity() {
+    gtk::glib::set_program_name(Some(l10n::APP_ID));
+}
+
 fn main() {
+    claim_desktop_identity();
+
     // A showcase run pins the language for the session only, above the stored choice and without
     // touching it; a capture must never rewrite the developer's own preference. Compiled out of a
     // release build with the rest of `showcase`.
@@ -98,7 +113,18 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::APPLICATION_FLAGS;
+    use super::{APPLICATION_FLAGS, claim_desktop_identity};
+
+    /// Every window, including the ones that belong to no `GtkApplication`, reaches the desktop as
+    /// this app rather than as the binary that happens to draw it.
+    #[test]
+    fn every_window_this_process_opens_is_filed_under_the_app() {
+        claim_desktop_identity();
+        assert_eq!(
+            gtk::glib::program_name().as_deref(),
+            Some(crate::l10n::APP_ID)
+        );
+    }
 
     /// A second launch reaches the running app rather than starting a second core.
     ///

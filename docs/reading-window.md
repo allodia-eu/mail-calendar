@@ -125,14 +125,28 @@ still opening, and stops as soon as the reader presses anything in the mailbox, 
 seconds, whichever comes first. The boundedness is the point: it corrects the app's own interference
 and never the reader's intent.
 
-**Linux does not satisfy the second half of this rule yet**, and the entry under Known gaps says so:
-its windows are `transient_for` the mailbox, which is GTK's way of saying a child is stacked above
-its parent, so the mailbox cannot be raised over a message window there.
+⚠️ **A window that a toolkit stacks above the mailbox breaks the second half of the rule**, and
+this is the shape it takes: GTK's `transient_for`, which is `xdg_toplevel.set_parent` on Wayland,
+tells the compositor the child belongs above its parent and it is honoured as a constraint, not a
+starting order. Such a window never falls behind, which reads as the rule above being satisfied
+rather than broken. The mailbox and a message window are peers, so neither names the other as its
+parent, and each client's own sweep is what closes them together.
 
 ⚠️ **Nothing here may reach for a focus manager's "move focus" call.** Those act on whichever
 element holds focus *now*, which is in the window being moved away from, so a call meant to put
 focus in a new window focuses the old one and activates it. That was this contract's own bug on
 Windows, at 64 opens out of 64. A window that wants focus somewhere names the element.
+
+## One application's windows
+
+**Every window a client opens is the app's own window in the desktop's window list, switcher and
+dock.** A window filed under a second application is one the reader has to hunt for: it carries
+neither the app's name nor its icon, and the switcher the desktop offers for moving between one
+application's windows will not reach it. macOS and Windows get this from the toolkit, where a
+window belongs to the running application by construction. GTK does not: a window that is in no
+`GtkApplication`, which both of these deliberately are not, carries the **process name** as its
+Wayland `app_id`, so the process claims the application id as its program name instead
+(`client-traps.md`).
 
 ## An action reaching more than one window
 
@@ -159,7 +173,8 @@ capability matrix claims.
 | Reply / forward → composer window | ✅ | ✅ | ✅ | — | — |
 | Main window closing sweeps both | ✅ | ✅ | ✅ | — | — |
 | A window stays in front of the mailbox | ✅ | ✅ | ✅ | — | — |
-| The mailbox can be raised back over it | ✅ | ✅ | ❌ | — | — |
+| The mailbox can be raised back over it | ✅ | ✅ | ✅ | — | — |
+| The windows are all one application's | ✅ | ✅ | ✅ | — | — |
 
 **How each desktop satisfies the first row**, the question this contract opened and each client
 has now answered of its own toolkit. macOS had a real second core behind SwiftUI's ⌘N and that
@@ -169,13 +184,12 @@ none either, and `GApplication` hands a second launch to the process already run
 
 ## Known gaps
 
-- **On Linux the mailbox cannot be raised over a message window.** Both windows are built
-  `transient_for` the mailbox (`ui/detached.rs`), which stacks a child above its parent under
-  Mutter and maps to `xdg_toplevel.set_parent` on Wayland. That is the behaviour this contract
-  rejects, and it reads as satisfying the rule above only because a pinned window never falls
-  behind. The sweep does not depend on it: `close_all()` already runs from the mailbox's own close
-  handler. Dropping the parent link is a one-line change and a behaviour change, so it wants a host
-  that can run the client.
+- **On Linux nothing gates the stacking itself.** The widget tests assert that neither window names
+  the mailbox as its parent, which is the mechanism, but the acceptance suite runs on a **tiling**
+  compositor, where a second window is placed beside the first and "in front" means nothing. That a
+  window opens in front and that the mailbox can be raised back over it are hand-verified on a
+  GNOME session; what a capture there can show is the `app_id` each window carries
+  (`swaymsg -t get_tree`), which is the other half of the rule.
 - **On Windows one activation after a window opens is still unexplained, and the correction is a
   timer rather than a cure.** Three seconds covers what was measured and a press in the mailbox ends
   it sooner, but neither proves the mailbox has stopped: an activation arriving later would put a

@@ -1211,7 +1211,7 @@ trap cleanup_runtime EXIT INT TERM
 info "running semantic Linux UI acceptance on a private headless compositor"
 export LINUX_SESSION_LOG="$ARTIFACT_DIR/compositor.log"
 export XDG_RUNTIME_DIR="$SESSION_RUNTIME"
-linux_session_start 1440x900 1 mailcal-linux
+linux_session_start 1440x900 1
 trap 'linux_session_stop; cleanup_runtime' EXIT INT TERM
 
 LIBGL_ALWAYS_SOFTWARE=1 \

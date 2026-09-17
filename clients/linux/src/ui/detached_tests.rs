@@ -37,18 +37,21 @@ fn closing(
     seen
 }
 
-/// A reading window is a *view of the running app*: it hangs off the mailbox window and is not an
-/// application window of its own, so the app still ends when the mailbox does rather than living
-/// on as a scatter of message windows. Closing it frees the body on both sides, and the id it
-/// reports is what the core drops its slot by.
-pub(crate) fn a_reading_window_hangs_off_the_mailbox_and_is_not_a_second_app() {
-    let parent = adw::ApplicationWindow::builder().build();
+/// A reading window is a *view of the running app*: it is not an application window of its own, so
+/// the app still ends when the mailbox does rather than living on as a scatter of message windows.
+/// Closing it frees the body on both sides, and the id it reports is what the core drops its slot
+/// by.
+///
+/// And it is the mailbox's peer, not its child. A transient parent is how GTK stacks a window
+/// above another one, so a reading window built that way could never be put behind the mailbox
+/// (`docs/reading-window.md`).
+pub(crate) fn a_reading_window_is_the_mailbox_peer_and_not_a_second_app() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let open = reading_window("account/message-a", &parent, &sender);
+    let open = reading_window("account/message-a", &sender);
 
-    assert_eq!(
-        open.window.transient_for().as_ref(),
-        Some(parent.upcast_ref::<gtk::Window>())
+    assert!(
+        open.window.transient_for().is_none(),
+        "a reading window the mailbox cannot be raised over is not a peer of it"
     );
     assert!(
         open.window.application().is_none(),
@@ -68,9 +71,12 @@ pub(crate) fn a_reading_window_hangs_off_the_mailbox_and_is_not_a_second_app() {
 /// Closing a composer window discards the draft exactly as Cancel does, and asks no more than
 /// Cancel does: one report, no question.
 pub(crate) fn closing_a_composer_window_discards_without_a_question() {
-    let parent = adw::ApplicationWindow::builder().build();
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let open = composer_window(7, &parent, &sender);
+    let open = composer_window(7, &sender);
 
+    assert!(
+        open.window.transient_for().is_none(),
+        "a composer window the mailbox cannot be raised over is not a peer of it"
+    );
     assert_eq!(closing(&open.window, &sender, &receiver), ["composer 7"]);
 }

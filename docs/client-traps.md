@@ -278,6 +278,16 @@ that same file.
   by watching the adjustment therefore has to ignore a move made while the page size is not the one
   it last measured against, or it stores the accident and the position is gone before the real
   height arrives.
+- **A GTK window that is in no `GtkApplication` reaches the desktop under the process name.** GTK
+  takes a top-level's Wayland `app_id` from the `GtkApplication` the window is in, and from the
+  program name for every window that is in none. The reading, composer and settings windows are in
+  none on purpose ([`reading-window.md`](reading-window.md)), so they arrived as `mailcal-linux`,
+  which matches no desktop entry: the shell files them under a second application, with neither the
+  app's name nor its icon, and the switcher for "windows of this application" does not move between
+  them and the mailbox. `glib::set_program_name(APP_ID)` before the application runs fixes every
+  such window at once, X11's `WM_CLASS` included. Nothing on screen says which application a window
+  is filed under, so the tell is the compositor rather than a screenshot or the accessibility tree:
+  `swaymsg -t get_tree` on the headless session prints each window's `app_id`.
 - **A GLib critical is diagnosed with a backtrace, never by reading widget code.** The message is
   raised by a check deep inside the toolkit that knows nothing about what you did, so reasoning
   from its wording to a cause produces a plausible theory and the wrong file.

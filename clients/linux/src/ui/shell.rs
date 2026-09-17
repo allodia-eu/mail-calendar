@@ -440,7 +440,7 @@ impl AppWidgets {
             .render(model.discard_prompt, &self.root, &self.sender);
         // Last: a detached window draws the same views as the panes above, and building one takes
         // the toolkit's focus, so the mailbox is brought to the model first.
-        self.detached.render(model, &self.root, &self.sender);
+        self.detached.render(model, &self.sender);
     }
 }
 
