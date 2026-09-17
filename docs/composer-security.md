@@ -154,6 +154,40 @@ port:
       `multipart/related` part the sent body points at, the same destination a signature's logo
       reaches. Everything else pasted stays plain text (Gate 7). One implementation, so a pasted
       screenshot behaves identically on all four hosts.
+
+      ⚠️ **Except where the WebView tells the page nothing.** WebKitGTK's paste `DataTransfer`
+      answers `getData` for the text flavours and nothing else: `types`, `items` and `files` are
+      empty whatever is on the clipboard, and `getData("image/png")` is the empty string. The
+      bundle therefore cannot see a picture there, and the page cannot recover one afterwards
+      either, because letting WebKit's own paste run yields `<img src="blob:…">` and this
+      document's `connect-src 'none'` blocks `fetch` and `XMLHttpRequest` on that blob. So on
+      **Linux only** the host reads the clipboard itself and feeds the picture to the same
+      `insertComposerImage` seam a dropped one arrives by, its bytes sniffed by the core's
+      `composer_image_data_url_from_bytes`: the byte-shaped twin of the call a dropped file makes,
+      same cap, same closed raster set, because a picture with no path on it is not a picture with
+      fewer rules. It takes a paste **only** when the clipboard actually holds a picture, so text
+      is still the page's, and so is the plain-text paste Ctrl+Shift+V asks for. A host whose
+      WebView *does* deliver files must not do this: it would paste the picture twice.
+
+      **A clipboard carries a picture two ways, and both are ordinary.** A screenshot tool or a
+      browser's Copy Image puts the *pixels* there. A file manager's Copy puts a *reference to the
+      file* instead, as `text/uri-list` and the desktop portal's own transfer types, with no
+      `image/*` among them at all. Both must work, and the second is read as the same `GdkFileList`
+      a drop carries, so the portal's types are GDK's problem rather than a second parser here.
+
+      ⚠️ **A pasted picture goes straight into the message; a dropped one is asked about.** The two
+      gestures differ in what they have already said. A drop lands on the composer as a whole, so
+      *show it* and *attach it* are both live and the client asks. A paste lands at the **caret**:
+      the user put the caret in the message and asked for the picture there, and a question at that
+      point argues with what they just did. Anything that is not a picture is attached either way.
+
+      **The Settings signature editor is the same bundle, so it meets the same gap and gets the
+      same answer**, through `insertSignatureImage` rather than the composer's manifest. What it
+      does **not** share is the rule: a signature's picture is capped far lower
+      ([`signatures.md`](signatures.md)), because it rides in every message the account sends. So
+      the host reads the clipboard once, in one place, and hands each editor the **bytes**; the rule
+      that turns those into something insertable is the editor's own. There is no attachment list
+      behind a signature, so a file it cannot take is refused in words rather than attached.
     - **Drop is refused by the page and handled by the host.** The editor cancels `dragover`/`drop`,
       because web code only ever receives a `File` with no path: it could neither hand the bytes to
       Rust for a streamed send nor put a removable row in the client's attachment list. The host
@@ -176,6 +210,17 @@ port:
       inline attachments the blocks actually name, so a picture the user pasted and then deleted,
       or one that ended up inside a quoted original (which travels as HTML, not as document nodes),
       cannot leave a dangling part that fails the send.
+    - **A picture in the body is resized by dragging a corner, in the shared bundle.** One
+      implementation, so the gesture is the same with a mouse, a trackpad, a pen and a finger:
+      Pointer Events are what every host's WebView reports for all four, and a host that added a
+      touch path of its own would be a second answer to a question already settled here. The grips
+      are drawn from **outside** the editor element, because `composerDocument()` and
+      `signatureBody()` read the editor's own tree and chrome inside it would be sent as part of
+      the message. What travels is a **width**, clamped to what the picture's own column can show,
+      so the composer never carries a size it is not displaying; the height follows the ratio. A
+      picture inside a quoted original or a signature is resizable too (both are editable, and
+      `width`/`height` survive the sanitiser), and its own `height` is scaled with the width rather
+      than left to squash it in the reader's client.
 
 14. **The composer's right-click menu is the editing actions and nothing else.** Every host's
     WebView ships a default menu built for browsing, and the composer must not offer what is on it:
@@ -189,6 +234,16 @@ port:
     label, keyboard equivalent and behaviour, so it is already in the user's language and does what
     that platform's users expect. The bundle draws no menu of its own, and a page-level menu could
     not reach the clipboard anyway.
+
+    ⚠️ **One item is not the platform's, on Linux only: Paste.** Gate 13 has the host read the
+    clipboard there, which means knowing the user chose Paste, and the stock item cannot say so:
+    its action is a `WebKitContextMenuGAction`, neither a `GSimpleAction` nor the carrier of an
+    `activate` signal, so nothing can be connected to it. Reusing its label is no way out either,
+    since `webkit_context_menu_item_get_title` arrived in WebKitGTK 2.52, far above the client's
+    floor. So that one item carries the app's own `action_paste` label, in the app's own language,
+    and falls straight back to the stock paste for anything that is not a picture. A unit test
+    asserts the stock action is still unobservable, so the day that changes the item goes back to
+    being WebKit's. Every other item in the menu is untouched.
 
     **Copy link is the item that has to be there.** A link inside a quoted original cannot be
     clicked open in the composer, so without it the address is text the user can see and cannot
@@ -251,10 +306,11 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | New windows blocked | no popup-opening `WKUIDelegate` path | no popup path; navigation cancelled | `NewWindowRequested.Handled = true` | `create → None`; `NewWindowAction` is ignored |
 | No arbitrary file/content access | file picking via native panel/picker only; no web file URLs; Rust reads selected paths on submit | `allowFileAccess = false`, `allowContentAccess = false`; native picker stages content to app cache; Rust reads staged paths on submit | no arbitrary file access; native picker only; Rust reads selected paths on submit | file/universal access disabled; native `GtkFileDialog` paths are passed to Rust only on submit |
 | Paste/import sanitisation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | shared editor paste rules plus Rust validation |
-| Pasted picture → inline `cid:` | shared bundle (`imageFilesFrom` + `insertCapturedImage`) | (same: shared bundle) | (same: shared bundle) | (same: shared bundle) |
+| Pasted picture → inline `cid:` | shared bundle (`imageFilesFrom` + `insertCapturedImage`) | (same: shared bundle) | (same: shared bundle) | shared bundle **plus a host clipboard read**: this WebView hands the page no files at all, so `composer_paste` takes the chord and the context menu's Paste, sniffs the bytes through the core and feeds the same seam a drop does |
+| Picture resized by dragging a corner | shared bundle (`installImageResize`), Pointer Events for mouse, trackpad, pen and finger alike | (same: shared bundle) | (same: shared bundle) | (same: shared bundle) |
 | Dropped file → native attachment | `ComposerDropModifier` for the chrome **plus** a drop target on `EditorWebView` for the editor itself, both calling one handler: SwiftUI hit-tests its own tree, so a representable's rectangle is a hole in it and the chrome alone would take drops. `NSDraggingDestination` on macOS; `UIDropInteraction` on iPhone/iPad, which also **stages** each item to a file, a drop there carrying an `NSItemProvider` and never a path | Compose `dragAndDropTarget` + `requestDragAndDropPermissions`, staged to the app cache | `AllowDrop` on the composer grid, `StorageItems` from the data package | `GtkDropTarget` on the composer content, **capture** phase (the WebView installs one of its own) |
-| Dropped picture asks show-or-attach | `confirmationDialog` | Material `AlertDialog` | `ContentDialog` (three answers) | `AdwAlertDialog` |
-| Right-click menu filtered to the editing actions | macOS: `EditorWebView.willOpenMenu` keeps the four `WKMenuItemIdentifier`s and `validRequestor` answers `nil` to keep Services off (AppKit's AutoFill survives both: see "Known gaps"); iPhone/iPad get the system edit menu, which carries the editing actions but **no link item at all** (see "Known gaps") | selection bar for Cut/Copy/Paste; `installEditorLinkMenu` adds Copy link on a long press | `ContextMenuRequested` keeps `cut`/`copy`/`paste`/`selectAll`/`copyLinkLocation` | `connect_context_menu` rebuilds it from the stock `ContextMenuAction`s |
+| Dropped picture asks show-or-attach | `confirmationDialog` | Material `AlertDialog` | `ContentDialog` (three answers) | `AdwAlertDialog`; a **pasted** picture is not asked about, because a paste is aimed at the caret and has already answered (Gate 13) |
+| Right-click menu filtered to the editing actions | macOS: `EditorWebView.willOpenMenu` keeps the four `WKMenuItemIdentifier`s and `validRequestor` answers `nil` to keep Services off (AppKit's AutoFill survives both: see "Known gaps"); iPhone/iPad get the system edit menu, which carries the editing actions but **no link item at all** (see "Known gaps") | selection bar for Cut/Copy/Paste; `installEditorLinkMenu` adds Copy link on a long press | `ContextMenuRequested` keeps `cut`/`copy`/`paste`/`selectAll`/`copyLinkLocation` | `connect_context_menu` rebuilds it from the stock `ContextMenuAction`s, **except Paste**, which is the app's own so the host can read a picture off the clipboard (Gate 13) |
 | Editor chrome localised | shared catalog via `setComposerLabels` (`ComposerLabels.swift`), in the composer **and** the signature editor | shared catalog via `setComposerLabels` | shared catalog via `setComposerLabels` (`ComposerLabels.cs`), in the composer **and** the signature editor | shared catalog via `setComposerLabels` |
 | Rust canonical output | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | calls `submit_rich_*_with_files`; selected files are native metadata, never WebKit uploads |
 | No body-content logging | lengths/counts only | lengths/counts only | lengths/counts only | no composer body is logged |
@@ -367,6 +423,14 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   body two ways (Gate 13): a paste, handled in the shared bundle, and the "show it in the message"
   answer to a dropped picture. Neither is a *picker*: a toolbar button that browses for a picture
   to insert is still outstanding, and would reuse the same `insertComposerImage` seam.
+- **Resizing a picture is a pointer gesture, deliberately: there is no keyboard route and none is
+  planned.** The grips are hidden from assistive technology (they are chrome, and the picture's alt
+  text is what carries it), so someone working from the keyboard alone inserts a picture and sends
+  it at the size it came in. That is where the desktop mail clients people arrive from stand too,
+  and a size is never required to send: the picture goes out either way, and the reader's client
+  fits it to their own window. Recorded here because it is a real limit rather than an oversight; if
+  it is ever answered, the shape is a size in the toolbar or the overflow menu acting on the picture
+  at the caret, which is the seam a picture *picker* would need as well.
 - **`mailto:` handling ships on macOS, Windows, Android and Linux (Gate 12); iOS/iPadOS is
   registered but gated.** Linux registers
   `MimeType=x-scheme-handler/mailto` in its generated desktop entry and handles both a cold launch
