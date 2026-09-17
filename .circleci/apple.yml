@@ -174,17 +174,23 @@ jobs:
                 command: clients/apple/Scripts/test-kit.sh
 
       # The brand has to be in the environment before xcodegen runs, and brand_assert_expanded is
-      # what says so when it was not (docs/branding.md). `shell` is overridden here alone because
-      # this step SOURCES one of this tree's scripts, so the step's own shell has to be the bash 5
-      # that script requires. Every other step runs a script as a file, whose shebang finds it.
+      # what says so when it was not (docs/branding.md).
+      #
+      # This is the one step that SOURCES one of this tree's scripts rather than executing one, so
+      # the shell it runs in has to be bash 5 itself. It calls bash rather than setting the step's
+      # `shell`, because that key becomes the script's shebang line and the shell it names is NOT
+      # the one PATH resolves in the step: `shell: bash -euo pipefail` ran under 3.2 and stopped on
+      # lib.sh's own version guard. Every other step runs a script as a file, whose
+      # `#!/usr/bin/env bash` is resolved by this shell's PATH and so finds 5.
       - run:
           name: Generate the Xcode project
-          shell: bash -euo pipefail
           command: |
-            . scripts/dev/lib.sh
-            (cd clients/apple && xcodegen generate)
-            brand_assert_expanded clients/apple/AllodiaMail.xcodeproj/project.pbxproj
-            brand_assert_expanded clients/apple/App/Info.plist
+            bash -euo pipefail -c '
+              . scripts/dev/lib.sh
+              (cd clients/apple && xcodegen generate)
+              brand_assert_expanded clients/apple/AllodiaMail.xcodeproj/project.pbxproj
+              brand_assert_expanded clients/apple/App/Info.plist
+            '
 
       - with_tool_cache:
           tool: xcode
