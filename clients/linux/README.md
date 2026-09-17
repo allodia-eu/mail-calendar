@@ -94,6 +94,11 @@ put `AdwSidebar` and friends within reach.
 `dbus-run-session` comes from `dbus-daemon`, which is already installed on any desktop; the
 acceptance suite needs no `dbus-x11`.
 
+Pointer input needs no package either: it is
+[`crates/mailcal-vpointer`](../../crates/mailcal-vpointer), built on demand by `cargo`. `wlrctl` is
+packaged and looks like the tool for it; it is not, for the reason under "Capture and control the
+window".
+
 Install Docker Engine or Docker Desktop separately for the Stalwart harness, and install Rust with
 `rustup`; the repository's `rust-toolchain.toml` then selects the exact compiler. The Linux build
 script checks the native packages while compiling; GTK, libadwaita, and WebKitGTK are linked into
@@ -199,24 +204,36 @@ not routed focus to the new device by the time the key arrives: measured here, a
 `wtype -k Escape` left a popover open where `wtype -s 300 -k Escape` closed it. `control.sh linux
 key` sleeps first; a hand-rolled `wtype` call needs to as well.
 
-**Known gap: there is no pointer, and it is upstream's.** A gesture cannot be driven on the
-headless compositor, so a drag, a swipe and a wheel scroll stay unexercised on Linux. Use AT-SPI
-actions and the launch hooks for everything else.
+**Pointer input works, and the packaged tool for it does not.** `click`, `drag` and `scroll` drive
+a real pointer through [`crates/mailcal-vpointer`](../../crates/mailcal-vpointer), which is built on
+demand and ships in nothing. It is the only way to reach a **gesture** or the **wheel**, and the
+only way to open a **list row**, which exposes no AT-SPI action.
 
-The seat starts with no input devices, so `wl_seat` reports `capabilities(0)` and
-`swaymsg seat - cursor` reports success while delivering nothing. The protocol route looks like the
-answer and is not: sway advertises `zwlr_virtual_pointer_manager_v1`, `wlrctl` (packaged) speaks
-it, and running `wlrctl pointer` does create the device (`swaymsg -t get_inputs` shows
-`0:0:wlr_virtual_pointer_v1`) and does raise the seat to `capabilities(1)`. **The events still
-reach no client.** Measured here: a click on a known control, with a virtual pointer continuously
-present, changed nothing at all.
+Compose it with `locate`, so a flow never stores a coordinate:
 
-That is [cage#305](https://github.com/cage-kiosk/cage/issues/305), open, reproduced on sway as
-well, and believed to be a wlroots bug rather than a caller's mistake. So do not reach for
-`wlrctl`, and do not install it expecting a pointer; the device appearing and the capability
-turning on are exactly what makes this look like a working setup that is somehow being driven
-wrongly. Closing it needs the upstream fix, after which a held-open virtual pointer would also give
-absolute positioning, which `wlrctl pointer move` (relative only) does not.
+```sh
+scripts/dev/control.sh linux click $(scripts/dev/control.sh linux locate "Lunch on Friday?")
+```
+
+`locate` reports the centre of a node's **window** extents. Desktop coordinates are unusable here
+and not obviously so: Wayland does not tell a client where it is on screen, so every node reports
+`0,0` in `DESKTOP_COORDS`, which reads as a valid point. Window coordinates are measured and
+correct, and the headless compositor tiles the client full-bleed at the origin, so they are also
+the output's.
+
+⚠️ **A virtual pointer has to stay open for the whole gesture, which is why `wlrctl` cannot do
+this.** A seat with no physical pointer gains its pointer capability only while a virtual pointer
+is alive. `wlrctl` creates one, sends a single action and exits, so the device is gone before a
+client has bound `wl_pointer`, and a move in one invocation and a click in the next are two
+unrelated pointers. Measured here: three `wlrctl pointer` invocations to move and click a control
+changed **zero** pixels; one connection doing the same move and click changed 702,956.
+
+That is worth knowing before reading
+[cage#305](https://github.com/cage-kiosk/cage/issues/305), which reports this as a wlroots bug and
+reproduces it with the same invocation-per-action shape. Treat "virtual pointer does not work on
+headless" as a claim about that shape rather than about the protocol. So do not install `wlrctl`
+for this: it will create the device and turn the capability on, which is exactly what makes a
+non-delivering setup look like a working one being driven wrongly.
 
 Use only the demo or Stalwart harness for captures, never a personal account.
 
