@@ -57,6 +57,22 @@ pub(in crate::ui) mod widget_tests {
     use webkit6::{ContextMenuAction, ContextMenuItem};
 
     use super::super::{PasteAnswer, install, paste_menu_item, picture_type, read_clipboard};
+    use crate::ui::{
+        AppInput,
+        webview::{DocumentKind, SecureWebView},
+    };
+
+    /// The composer's editor, built the way the composer builds it.
+    ///
+    /// ⚠️ **Never a bare `webkit6::WebView::new()`.** That takes WebKit's *default* network session
+    /// rather than the ephemeral one every view in this app is given, and a test process that has
+    /// created one aborts on the way out, long after the last assertion passed: the suite reports
+    /// every test ok and then dies with SIGABRT, which reads as a broken harness rather than as
+    /// anything to do with the test that did it.
+    fn editor_view() -> SecureWebView {
+        let (sender, _receiver) = relm4::channel::<AppInput>();
+        SecureWebView::new(DocumentKind::Composer, sender)
+    }
 
     /// Enough of a PNG for the core's sniff, which reads the magic number and nothing else.
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR";
@@ -152,10 +168,11 @@ pub(in crate::ui) mod widget_tests {
     /// added to the view afterwards is behind WebKit's and never sees a chord WebKit claimed. Only
     /// an ancestor's capture-phase controller is ahead of all of them.
     pub(in crate::ui) fn the_chord_is_answered_ahead_of_the_web_view() {
-        let view = webkit6::WebView::new();
+        let web = editor_view();
+        let view = web.widget();
         let host = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        host.append(&view);
-        install(&host, &view, answer());
+        host.append(view);
+        install(&host, view, answer());
 
         // The trap itself, asserted: the view already carries a key controller of WebKit's, so one
         // added there would be second in the same phase and would never see a claimed chord.
@@ -192,12 +209,12 @@ pub(in crate::ui) mod widget_tests {
     /// The composer's own Paste is offered only where there is something to answer with, so the
     /// reading view's menu is untouched and a composer still being built keeps the stock item.
     pub(in crate::ui) fn only_the_composer_gets_its_own_paste_item() {
-        let view = webkit6::WebView::new();
+        let web = editor_view();
 
-        let stock = paste_menu_item(&view, None);
+        let stock = paste_menu_item(web.widget(), None);
         assert_eq!(stock.stock_action(), ContextMenuAction::Paste);
 
-        let ours = paste_menu_item(&view, Some(&answer()));
+        let ours = paste_menu_item(web.widget(), Some(&answer()));
         assert!(
             ours.gaction().is_some(),
             "the composer's Paste carries the action that reads the clipboard"
