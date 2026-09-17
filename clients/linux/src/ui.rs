@@ -39,6 +39,7 @@ mod contacts_actions;
 pub(crate) mod destinations;
 mod detached;
 mod dns;
+mod editor_paste;
 mod folder_pane;
 mod google;
 mod host_tasks;

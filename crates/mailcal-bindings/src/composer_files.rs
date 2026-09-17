@@ -34,6 +34,28 @@ pub fn composer_image_data_url(path: String) -> Result<String, MailcalError> {
     })
 }
 
+/// The largest picture that may be shown in the message body, so a host reading from a store with
+/// no length to ask first (the clipboard) can stop at the cap instead of buffering past it and
+/// being refused. The number is the core's; this only makes it readable.
+pub const MAX_INLINE_IMAGE_BYTES: u64 = mailcal_app::MAX_INLINE_IMAGE_BYTES;
+
+/// The same answer for bytes a host already holds rather than a file it can name: a picture on the
+/// clipboard, which no path describes.
+///
+/// **Not FFI-exported.** The one client that needs it, Linux, links this crate as Rust, and its
+/// WebView is the one that hands a page no clipboard files (`docs/composer-security.md`, Gate 13).
+/// Export it the day a client that reaches the core only over the FFI needs the same.
+///
+/// # Errors
+///
+/// Returns [`MailcalError::Composer`] when the bytes are not a raster picture within the core's
+/// cap, which is the same cap and the same sniff a dropped file meets.
+pub fn composer_image_data_url_from_bytes(bytes: &[u8]) -> Result<String, MailcalError> {
+    mailcal_app::image_data_url_from_bytes(bytes).ok_or_else(|| {
+        MailcalError::Composer("the clipboard does not hold a picture this app can show".to_owned())
+    })
+}
+
 /// A host-selected file to attach to a rich composer submission.
 #[derive(uniffi::Record)]
 pub struct ComposerFileAttachment {

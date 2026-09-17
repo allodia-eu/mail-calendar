@@ -93,6 +93,7 @@
 	"action_retry": "Retry",
 	"action_attach": "Attach files",
 	"action_copy_link": "Copy link",
+	"action_paste": "Paste",
 	"action_remove": "Remove",
 	"action_save": "Save",
 	"action_save_as_eml": "Save as .eml…",

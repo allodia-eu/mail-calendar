@@ -125,7 +125,7 @@ use background_sync::NotifyMarksState;
 pub use background_sync::{AccountNewMail, BackgroundNewMail, NewMailPreview};
 pub use calendar_cache::{CalendarPage, MonthPage};
 use calendar_prefs::CalendarPrefsState;
-pub use composer_image::image_data_url;
+pub use composer_image::{MAX_INLINE_IMAGE_BYTES, image_data_url, image_data_url_from_bytes};
 pub use connector::MailboxConnector;
 pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;

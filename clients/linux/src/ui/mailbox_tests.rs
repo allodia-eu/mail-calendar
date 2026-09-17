@@ -202,6 +202,17 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     );
     crate::ui::composer_draft::widget_tests::each_navigation_gets_its_own_answer();
     crate::ui::composer_attach::tests::the_drop_target_listens_ahead_of_the_web_view();
+    crate::ui::composer_attach::tests::a_paste_shows_the_picture_and_a_drop_asks_about_it();
+    crate::ui::editor_paste::tests::widget_tests::a_picture_on_the_clipboard_is_read_and_sniffed();
+    crate::ui::editor_paste::tests::widget_tests::text_on_the_clipboard_is_left_to_the_page();
+    crate::ui::editor_paste::tests::widget_tests::
+        a_copied_file_is_seen_even_though_it_carries_no_pixels();
+    crate::ui::editor_paste::tests::widget_tests::
+        a_script_capable_picture_is_not_a_format_the_host_asks_for();
+    crate::ui::editor_paste::tests::widget_tests::the_chord_is_answered_ahead_of_the_web_view();
+    crate::ui::editor_paste::tests::widget_tests::
+        the_stock_paste_cannot_be_observed_which_is_why_ours_replaces_it();
+    crate::ui::editor_paste::tests::widget_tests::only_the_composer_gets_its_own_paste_item();
     crate::ui::calendar::attendees::tests::attendee_rows_never_parse_a_name_as_markup();
     crate::ui::calendar::widget_tests::
         the_create_drag_owns_the_primary_pointer_before_event_buttons();
