@@ -8,8 +8,34 @@
 //! A child of [`super`] (the send tests), reusing its `SubmitProvider` and app builders; split
 //! into its own file to keep each test module under the 500-line limit.
 
+use std::sync::Arc;
+
+use mailcal_viewmodel::QueuedRow;
+
 use super::{SubmitProvider, app_over, dispatch_until, plain_send};
-use crate::{Intent, OutboxIntent, QueuedRef, SendStatus};
+use crate::{App, Intent, OutboxIntent, QueuedRef, SendStatus};
+
+/// Waits until the Outbox holds `count` message(s), and answers with them.
+///
+/// The send status is set **before** the rebuild that reads the queue back, so reaching
+/// `SendStatus::Queued` says nothing about the snapshot yet: a test that read `mailbox_list`
+/// on that signal alone is reading whatever the last rebuild left. The rebuild's store reads
+/// go through `spawn_blocking`, whose pool every test in this binary shares, so a fixed number
+/// of yields is a race that opens under load and nowhere else. Waiting for the condition makes
+/// the wait independent of how busy the machine is; the bound is what still turns a queue that
+/// never fills into a failure rather than a hang.
+async fn outbox_holding(app: &Arc<App<SubmitProvider>>, count: usize) -> Vec<QueuedRow> {
+    for _ in 0..100_000 {
+        let outbox = app.mailbox_list().outbox;
+        if outbox.len() == count {
+            return outbox;
+        }
+        tokio::task::yield_now().await;
+    }
+    panic!(
+        "the Outbox never reached {count} message(s): a send that did not go out must still be somewhere"
+    )
+}
 
 /// **The regression.** A send that fails for a reason worth retrying is not lost: it reaches
 /// its own status, and the message is in the Outbox with its recipients and subject intact.
@@ -20,13 +46,8 @@ async fn a_send_with_no_network_is_kept_in_the_outbox() {
     let task = dispatch_until(&app, plain_send(), SendStatus::Queued).await;
     assert_eq!(app.send_status(), SendStatus::Queued);
 
-    let snapshot = app.mailbox_list();
-    assert_eq!(
-        snapshot.outbox.len(),
-        1,
-        "the message must still be somewhere"
-    );
-    let queued = &snapshot.outbox[0];
+    let outbox = outbox_holding(&app, 1).await;
+    let queued = &outbox[0];
     assert_eq!(queued.subject, "Hi");
     assert_eq!(queued.to, "you@test.local");
     assert_eq!(queued.account, "acct-1");
@@ -61,6 +82,8 @@ async fn showing_the_outbox_shows_queued_sends_rather_than_mail() {
         .await
         .unwrap();
 
+    outbox_holding(&app, 1).await;
+
     app.dispatch(Intent::Outbox(OutboxIntent::Show)).await;
 
     let snapshot = app.mailbox_list();
@@ -77,7 +100,7 @@ async fn a_queued_send_can_be_withdrawn() {
         .await
         .await
         .unwrap();
-    let queued = app.mailbox_list().outbox[0].clone();
+    let queued = outbox_holding(&app, 1).await[0].clone();
 
     app.dispatch(Intent::Outbox(OutboxIntent::Cancel(
         QueuedRef::from_parts(&queued.account, queued.op).unwrap(),
@@ -97,7 +120,7 @@ async fn a_queued_send_goes_out_when_the_user_asks() {
         .await
         .await
         .unwrap();
-    let queued = app.mailbox_list().outbox[0].clone();
+    let queued = outbox_holding(&app, 1).await[0].clone();
 
     app.dispatch(Intent::Outbox(OutboxIntent::SendNow(
         QueuedRef::from_parts(&queued.account, queued.op).unwrap(),
@@ -120,7 +143,7 @@ async fn editing_a_queued_send_withdraws_it_before_offering_the_composer() {
         .await
         .await
         .unwrap();
-    let queued = app.mailbox_list().outbox[0].clone();
+    let queued = outbox_holding(&app, 1).await[0].clone();
 
     app.dispatch(Intent::Outbox(OutboxIntent::Edit(
         QueuedRef::from_parts(&queued.account, queued.op).unwrap(),
@@ -151,7 +174,7 @@ async fn reconnecting_sends_what_was_written_offline() {
         .await
         .await
         .unwrap();
-    assert_eq!(app.mailbox_list().outbox.len(), 1);
+    outbox_holding(&app, 1).await;
 
     app.dispatch(Intent::ReportNetworkReachable(false)).await;
     app.dispatch(Intent::ReportNetworkReachable(true)).await;
