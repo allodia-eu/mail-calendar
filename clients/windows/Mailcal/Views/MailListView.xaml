@@ -330,12 +330,21 @@
                   IsItemClickEnabled="True" ItemClick="OnRowClick"
                   SelectionChanged="OnSelectionChanged"
                   Loaded="OnRowsListLoaded"
+                  KeyboardAcceleratorPlacementMode="Hidden"
                   Padding="12,0,12,0">
             <ListView.KeyboardAccelerators>
                 <!-- ScopeOwner is what scopes these to the list: an accelerator without one is
                      invoked for the whole window whatever has focus, so a focused search box or
                      composer would lose its own Delete and Escape (docs/list-selection.md,
-                     rule 9). Declaring them here is not the scope; naming the owner is. -->
+                     rule 9). Declaring them here is not the scope; naming the owner is.
+
+                     KeyboardAcceleratorPlacementMode above is why the list says nothing on hover:
+                     left at Auto the framework raises a tooltip naming the accelerator's KEY over
+                     whichever row the pointer is resting on, so a mouse moving down the mailbox
+                     trails a bare "Delete" across it. It is the framework's word for the key, not
+                     ours, so it survives every locale and matches no action on the row's own menu
+                     (which calls this "Move to Trash"). Nothing else here draws on hover, and
+                     nothing should: a pointer passing over a message is not asking a question. -->
                 <KeyboardAccelerator Key="Delete" Invoked="OnDeleteSelection"
                                      ScopeOwner="{x:Bind RowsList}" />
                 <KeyboardAccelerator Key="Back" Invoked="OnDeleteSelection"

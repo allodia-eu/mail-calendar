@@ -19,7 +19,10 @@
 #     this file is about the caption following whatever the app resolved to.
 #   * the pane toggle moved INTO the caption and still works. A forwarded event handler
 #     (PaneToggleRequested -> Nav.IsPaneOpen) is exactly the kind of wiring that compiles, renders,
-#     and does nothing, the class of bug this whole suite exists for.
+#     and does nothing, the class of bug this whole suite exists for;
+#   * the minimise / maximise / close buttons are as tall as the caption. They are the one piece of
+#     it the app does not draw, so they follow it only when the window asks, and a build that does
+#     not ask renders them a third of a row above the icon and the name beside them.
 #
 # And the caption is where the search field lives, which is the rest of this file (docs/search.md,
 # "Where the field lives"). That is a placement rule, so it is geometry: a field merely PRESENT in
@@ -172,6 +175,33 @@ $Suite = @{
           Assert-True ($lum -gt $MidLuminance) (
             "the desktop is in $mode mode but the caption sampled at luminance $lum, i.e. it is " +
             'dark. The caption must follow the desktop''s app mode in BOTH directions')
+        }
+      }
+    },
+    @{
+      Name = 'the caption buttons are as tall as the caption they sit in'
+      Body = {
+        # The one piece of the caption the app does not draw, and so the one piece that does not
+        # follow it: minimise / maximise / close come up 32 epx unless the window asks otherwise,
+        # while this caption is 48. Left alone their glyphs sit a third of a row above the app's
+        # icon and name beside them, and the target a finger has to find is a third shorter than
+        # the bar it is in.
+        #
+        # Invisible to everything else here, because they are drawn on a surface outside the XAML
+        # tree: no binding, no snapshot and no unit test can see them, and every other case in this
+        # file passes either way.
+        #
+        # Height alone is the whole rule: the system draws them from the window's top edge down, so
+        # one as tall as the caption is one centred on it.
+        $expected = ConvertTo-UiaPixels (Get-CaptionHeightDip)
+        foreach ($entry in (Get-CaptionButtons).GetEnumerator()) {
+          $bounds = Get-RenderedBounds -Element $entry.Value -What "the $($entry.Key) caption button"
+          # Rounded, not exact: the height is the app's epx through the display scale, so a
+          # fractional scale lands a pixel either side of it.
+          Assert-True ([Math]::Abs($bounds.Height - $expected) -le 1) (
+            "the $($entry.Key) button is $($bounds.Height)px tall against a caption of ${expected}px. " +
+            'A caption the app draws itself is only half taken over while these keep the height ' +
+            'the system would have given them')
         }
       }
     },
