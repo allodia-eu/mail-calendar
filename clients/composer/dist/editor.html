@@ -403,6 +403,58 @@
     .allodia-signature {
       margin: 14px 0 0;
     }
+
+    /* --- Resizing a picture ---
+       Drawn over the picture from OUTSIDE the editor, and placed by `resize.ts`, whose header explains
+       why and holds the reach these insets have to agree with. Below the toolbar and its popovers
+       (z-index 2 and 3): the clip keeps the grips inside the editor's own box, and a popover that
+       opens over it still wins. */
+    .allodia-resize {
+      position: fixed;
+      z-index: 1;
+      pointer-events: none;
+      outline: 1px solid var(--active);
+    }
+
+    .allodia-resize[hidden] {
+      display: none;
+    }
+
+    .allodia-resize .grip {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      margin: -6px;
+      border: 1px solid var(--active);
+      border-radius: 50%;
+      background: var(--control);
+      box-shadow: 0 1px 3px rgba(21, 35, 48, 0.3);
+      pointer-events: auto;
+      /* The gesture is the grip's from the first touch: without this a finger on one scrolls the
+         message instead of resizing the picture. */
+      touch-action: none;
+    }
+
+    /* A finger needs a larger target than the dot a mouse aims at, and growing the dot would hide the
+       corner it marks. A transparent extension is hit-tested with its parent, so the reach grows and
+       the picture stays visible. */
+    .allodia-resize .grip::after {
+      content: "";
+      position: absolute;
+      inset: -9px;
+    }
+
+    @media (pointer: coarse) {
+      .allodia-resize .grip {
+        width: 18px;
+        height: 18px;
+        margin: -9px;
+      }
+
+      .allodia-resize .grip::after {
+        inset: -12px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1470,6 +1522,174 @@
     return true;
   }
 
+  // src/resize.ts
+  var MIN_WIDTH_PX = 24;
+  var GRIP_REACH_PX = 24;
+  var CORNERS = {
+    nw: { x: -1, y: -1 },
+    ne: { x: 1, y: -1 },
+    sw: { x: -1, y: 1 },
+    se: { x: 1, y: 1 }
+  };
+  function draggedWidth(start, dx, dy, max) {
+    const ceiling = Math.max(max, MIN_WIDTH_PX);
+    const diagonal = Math.hypot(start.width, start.height);
+    if (diagonal <= 0)
+      return Math.round(Math.min(Math.max(start.width, MIN_WIDTH_PX), ceiling));
+    const along = (dx * start.corner.x * start.width + dy * start.corner.y * start.height) / diagonal;
+    const width = start.width * (diagonal + along) / diagonal;
+    return Math.round(Math.min(Math.max(width, MIN_WIDTH_PX), ceiling));
+  }
+  function applyWidth(image, width, aspect) {
+    const height = aspect > 0 ? Math.max(1, Math.round(width / aspect)) : 0;
+    image.setAttribute("width", String(width));
+    if (height > 0 && image.hasAttribute("height"))
+      image.setAttribute("height", String(height));
+    if (image.style.width)
+      image.style.width = `${width}px`;
+    if (height > 0 && image.style.height.endsWith("px"))
+      image.style.height = `${height}px`;
+  }
+  function installImageResize(editor) {
+    const doc = documentOf(editor);
+    const view = windowOf(editor);
+    const overlay = doc.createElement("div");
+    overlay.className = "allodia-resize";
+    overlay.setAttribute("aria-hidden", "true");
+    overlay.hidden = true;
+    let active = null;
+    let pinned = false;
+    let drag = null;
+    function hide() {
+      active = null;
+      pinned = false;
+      overlay.hidden = true;
+    }
+    function place() {
+      if (!active || !editor.contains(active)) {
+        hide();
+        return;
+      }
+      const rect = active.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        hide();
+        return;
+      }
+      overlay.style.left = `${rect.left}px`;
+      overlay.style.top = `${rect.top}px`;
+      overlay.style.width = `${rect.width}px`;
+      overlay.style.height = `${rect.height}px`;
+      overlay.style.clipPath = clipPath(rect);
+      overlay.hidden = false;
+    }
+    function clipPath(rect) {
+      const box = editor.getBoundingClientRect();
+      const inset = (value) => `${Math.max(0, value) - GRIP_REACH_PX}px`;
+      const top = inset(Math.max(box.top, 0) - rect.top);
+      const right = inset(rect.right - Math.min(box.right, view.innerWidth));
+      const bottom = inset(rect.bottom - Math.min(box.bottom, view.innerHeight));
+      const left = inset(Math.max(box.left, 0) - rect.left);
+      return `inset(${top} ${right} ${bottom} ${left})`;
+    }
+    function imageAt(target) {
+      const node = target;
+      if (!node || typeof node.closest !== "function")
+        return null;
+      const image = node.closest("img");
+      return image && editor.contains(image) ? image : null;
+    }
+    function availableWidth(image) {
+      let host = image.parentElement;
+      while (host && host !== editor && host.clientWidth <= 0)
+        host = host.parentElement;
+      const box = host ?? editor;
+      const style = view.getComputedStyle(box);
+      const padding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+      const room = box.clientWidth - padding;
+      return room > MIN_WIDTH_PX ? room : Math.max(view.innerWidth, MIN_WIDTH_PX);
+    }
+    doc.addEventListener("pointermove", (event) => {
+      if (drag) {
+        if (event.pointerId !== drag.pointerId)
+          return;
+        event.preventDefault();
+        const width = draggedWidth(drag.start, event.clientX - drag.originX, event.clientY - drag.originY, drag.max);
+        applyWidth(drag.image, width, drag.aspect);
+        place();
+        return;
+      }
+      if (event.pointerType !== "mouse")
+        return;
+      const image = imageAt(event.target);
+      if (image) {
+        active = image;
+        place();
+        return;
+      }
+      if (pinned || !active || overlay.contains(event.target))
+        return;
+      const rect = active.getBoundingClientRect();
+      const outside = event.clientX < rect.left - GRIP_REACH_PX || event.clientX > rect.right + GRIP_REACH_PX || event.clientY < rect.top - GRIP_REACH_PX || event.clientY > rect.bottom + GRIP_REACH_PX;
+      if (outside)
+        hide();
+    });
+    doc.addEventListener("pointerdown", (event) => {
+      if (drag || overlay.contains(event.target))
+        return;
+      const image = imageAt(event.target);
+      if (!image) {
+        hide();
+        return;
+      }
+      active = image;
+      pinned = true;
+      place();
+    });
+    for (const name of Object.keys(CORNERS)) {
+      const grip = doc.createElement("div");
+      const corner = CORNERS[name];
+      grip.className = "grip";
+      grip.style.left = corner.x < 0 ? "0" : "100%";
+      grip.style.top = corner.y < 0 ? "0" : "100%";
+      grip.style.cursor = corner.x === corner.y ? "nwse-resize" : "nesw-resize";
+      overlay.appendChild(grip);
+      grip.addEventListener("pointerdown", (event) => {
+        if (!active)
+          return;
+        const rect = active.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0)
+          return;
+        event.preventDefault();
+        drag = {
+          image: active,
+          pointerId: event.pointerId,
+          start: { width: rect.width, height: rect.height, corner },
+          aspect: rect.width / rect.height,
+          originX: event.clientX,
+          originY: event.clientY,
+          max: availableWidth(active)
+        };
+        pinned = true;
+        try {
+          grip.setPointerCapture(event.pointerId);
+        } catch {}
+      });
+    }
+    const end = (event) => {
+      if (!drag || event.pointerId !== drag.pointerId)
+        return;
+      drag = null;
+      place();
+    };
+    doc.addEventListener("pointerup", end);
+    doc.addEventListener("pointercancel", end);
+    doc.body.appendChild(overlay);
+    editor.addEventListener("input", place);
+    editor.addEventListener("scroll", place, { passive: true });
+    view.addEventListener("scroll", place, { passive: true });
+    view.addEventListener("resize", place);
+  }
+
   // src/seeds.ts
   function focusComposerBody(editor) {
     const lead = editor.firstElementChild;
@@ -1892,6 +2112,7 @@
   var labels = DEFAULT_LABELS;
   var toolbar = installToolbar(editor, toolbarRoot, () => labels);
   var chrome = installNativeChrome(editor, toolbarRoot);
+  installImageResize(editor);
   editor.addEventListener("paste", (event) => {
     event.preventDefault();
     const images = imageFilesFrom(event.clipboardData);

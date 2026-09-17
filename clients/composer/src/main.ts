@@ -20,6 +20,7 @@ import {
 import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
 import { indentSelection } from "./lists";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
+import { installImageResize } from "./resize";
 import { focusComposerBody, setPlainText } from "./seeds";
 import {
   routeClickBelowSignature,
@@ -39,6 +40,7 @@ const attachments = new Attachments();
 let labels: Labels = DEFAULT_LABELS;
 const toolbar = installToolbar(editor, toolbarRoot, () => labels);
 const chrome = installNativeChrome(editor, toolbarRoot);
+installImageResize(editor);
 
 // Paste. A picture on the clipboard goes into the body where the caret is, as an inline image the
 // core turns into a `cid:` part on send: what Outlook does with a pasted screenshot, and what the

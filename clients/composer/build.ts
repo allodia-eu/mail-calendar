@@ -1,4 +1,5 @@
-// Bundles the TypeScript editor sources into the single `editor.html` every client loads.
+// Bundles the TypeScript editor sources and the stylesheet into the single `editor.html` every
+// client loads.
 //
 // The output is ONE self-contained file because that is what the four hosts can load: Apple's
 // `loadHTMLString` and Linux's `include_str!` + `load_html` both hand WebKit a document with no
@@ -18,6 +19,7 @@
 const ROOT = `${import.meta.dir}/`;
 const OUTPUT = `${ROOT}dist/editor.html`;
 const PLACEHOLDER = "<!--EDITOR_BUNDLE-->";
+const STYLES = "<!--EDITOR_STYLES-->";
 
 const BANNER = `<!--
   GENERATED FILE; do not edit.
@@ -52,17 +54,28 @@ async function bundle(): Promise<string> {
   return (await artifact.text()).trimEnd();
 }
 
+/// The stylesheet, indented back to where it sat when it lived in the shell, so the artifact reads
+/// as one document rather than as two files stapled together.
+async function styles(): Promise<string> {
+  const css = (await Bun.file(`${ROOT}src/editor.css`).text()).trimEnd();
+  const indented = css.replace(/^(?=.)/gm, "    ");
+  return `<style>\n${indented}\n  </style>`;
+}
+
 async function render(): Promise<string> {
   const shell = await Bun.file(`${ROOT}src/index.html`).text();
-  if (!shell.includes(PLACEHOLDER)) {
-    throw new Error(`src/index.html is missing the ${PLACEHOLDER} placeholder`);
+  for (const marker of [PLACEHOLDER, STYLES]) {
+    if (!shell.includes(marker)) {
+      throw new Error(`src/index.html is missing the ${marker} placeholder`);
+    }
   }
+  const stylesheet = await styles();
   const script = `<script>\n${await bundle()}\n  </script>`;
   // A function replacer, not the string itself: `String.replace` reads `$&`, `` $` ``, `$'` and
   // `$1` in a *replacement string* as patterns, so a source file containing one would splice the
   // shell's own text into the bundle. `--check` would then agree with the corrupted artifact,
   // because it re-derives it the same way.
-  return BANNER + shell.replace(PLACEHOLDER, () => script);
+  return BANNER + shell.replace(STYLES, () => stylesheet).replace(PLACEHOLDER, () => script);
 }
 
 const rendered = await render();

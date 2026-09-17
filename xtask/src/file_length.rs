@@ -22,13 +22,16 @@ use std::path::Path;
 const MAX: usize = 500;
 
 /// The extensions under the rule. Every tracked file matching one of these is checked.
-const PATTERNS: &[&str] = &["*.rs", "*.cs", "*.ts", "*.js", "*.html", "*.swift", "*.kt"];
+const PATTERNS: &[&str] = &[
+    "*.rs", "*.cs", "*.ts", "*.js", "*.css", "*.html", "*.swift", "*.kt",
+];
 
 /// The one exception, and the only kind there can be: a build output that is committed rather than
 /// generated per build. `clients/composer/dist/editor.html` is the whole rich editor inlined into a
 /// single self-contained file, because that is what its four WebView hosts can load (see the file's
-/// own header). Its sources, `clients/composer/src/*.ts` and that directory's `index.html`, are
-/// tracked, checked here like everything else, and are where the rule actually bites.
+/// own header). Its sources, `clients/composer/src/*.ts` and that directory's `index.html` and
+/// `editor.css`, are tracked, checked here like everything else, and are where the rule actually
+/// bites.
 const EXCLUDED: &[&str] = &["clients/composer/dist/editor.html"];
 
 /// Runs the check. `Ok(true)` means every file is within the ceiling.
