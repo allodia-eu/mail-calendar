@@ -1,28 +1,28 @@
-// Why a window that opened in front is no longer in front.
+// Whether the mailbox comes forward while a window is open beside it, and what it was doing when
+// it did.
 //
 // This is a diagnostic, not a mechanism: it changes nothing about the windows and only writes at
-// DEBUG level, so a normal run carries none of it. It exists because the fault does not reproduce
-// on the seeded harness. A mailbox that is quiet reconciles its list a handful of times; one
-// syncing a real account reconciles it continuously, and only the second loses the window.
+// DEBUG level, so a normal run carries none of it. It stays wired because the rule it watches
+// cannot be seen from outside the app. A steal lasts tens of milliseconds, so a screen read lands
+// after the app has the front back and passes over a live fault; a log line is timestamped and
+// cannot be missed by sampling (docs/reading-window.md, "Staying in front").
 //
-// The z-order itself no longer depends on the answer: WindowChrome.Own settles that by a rule of
-// the system. What is still open is WHY the mailbox takes the foreground unasked, which is worth
-// knowing because it is what ownership is paying for, and because the day WinUI stops doing it the
-// windows can go back to being peers (docs/reading-window.md, "Known gaps").
+// WHAT IT SAYS. One line per activation, pairing it with what holds the mailbox's focus and how
+// long ago each of its bound collections moved:
 //
-// WHAT IT IS FOR. WinUI 3 reassigns focus when the element holding it is removed, and that
-// reassignment activates the window the element was in. So the question is never "did the mailbox
-// come forward", it is "what did the mailbox do immediately before it came forward". These lines
-// pair a mailbox activation with the state Windows reports for it and with the list's last
-// reconcile, which is what tells a removed row from a user's click:
-//
-//   window order: mailbox activated (code), focus on WebView2, rows 9s ago, sidebar 11ms ago
-//   window order: mailbox activated (pointer), focus on ListViewItem, rows 9s ago, sidebar 9s ago
+//   window order: mailbox code, focus on WebView2, rows 9s ago, sidebar 11ms ago
+//   window order: mailbox pointer, focus on ListViewItem, rows 9s ago, sidebar 9s ago
 //
 // A `pointer` line is the reader clicking the mailbox, which is allowed to bring it forward. A
-// `code` line is the fault, and the two halves after it say why: what holds the focus the mailbox
-// just took, and which of its collections moved most recently. A collection that changed
-// milliseconds before the activation is the one whose elements were torn down.
+// `code` line after a window has opened is the fault, and what follows it says where to look: what
+// holds the focus the mailbox just took, and which of its collections moved most recently.
+//
+// Ask what INPUT the mailbox still has in flight before suspecting anything it draws. The one such
+// line this has caught was the list focusing the row under the pointer, from the second press of
+// the double-click that had just opened the window, and every collection read "never" throughout,
+// which is what ruled them out. The shell shows a window a dispatcher turn after it is asked for so
+// that press finishes first (MainWindow.ReadingWindows.cs), and ReadingWindow.Tests reads these
+// lines to hold it there.
 
 using System;
 using System.Collections.Specialized;
@@ -55,6 +55,21 @@ public sealed partial class MainWindow
         Track("accounts", Model.Accounts);
         Track("folders", Model.Folders);
         Track("sidebar", SidebarItems);
+        if (Content is UIElement root)
+        {
+            // WHETHER A PERSON ASKED. WinUI reports a pointer activation as a code one, so the
+            // activation itself cannot say; a press in the mailbox, logged beside it, can.
+            root.AddHandler(
+                UIElement.PointerPressedEvent,
+                new PointerEventHandler((_, _) => Log.Debug("window order: mailbox pressed")),
+                handledEventsToo: true);
+            // WHAT TOOK THE FOCUS, which is the half an activation alone cannot say. WinUI raises
+            // this on the way IN, so the line lands beside the activation it explains, and the
+            // state says who asked: Pointer is the reader, Programmatic is the app.
+            root.GettingFocus += (_, e) => Log.Debug(
+                $"window order: mailbox focus to {Describe(e.NewFocusedElement)}"
+                + $" from {Describe(e.OldFocusedElement)}, {e.FocusState} by {e.InputDevice}");
+        }
         Activated += (_, e) =>
         {
             var state = e.WindowActivationState switch
@@ -65,6 +80,19 @@ public sealed partial class MainWindow
             };
             Log.Debug($"window order: mailbox {state}, focus on {FocusHere()}, {Ages()}");
         };
+    }
+
+    // An element as one short token: the type, and its name when it has one.
+    private static string Describe(object? element)
+    {
+        if (element is null)
+        {
+            return "nothing";
+        }
+        var name = element is FrameworkElement framework && !string.IsNullOrEmpty(framework.Name)
+            ? $" '{framework.Name}'"
+            : string.Empty;
+        return element.GetType().Name + name;
     }
 
     private void Track(string name, INotifyCollectionChanged collection)

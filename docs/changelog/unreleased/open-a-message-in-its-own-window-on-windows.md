@@ -11,8 +11,11 @@ Bump: minor
 > double-click, so the pane opens the row before anything knows a window was wanted. The pane is put
 > back once the double-tap arrives, and the trailing click is refused so it cannot undo that
 > correction, which is the ordering the whole arrangement turns on and is measured rather than
-> assumed. WinUI offers no "New Window" and the app already redirected a second launch to the
-> running process, so one core over one store held without a change.
+> assumed. The same press is why the window is shown a dispatcher turn after it is asked for: shown
+> from inside the gesture, it was still there when the list focused the row under the pointer, and
+> that focus activated the mailbox back over it. WinUI offers no "New Window" and the app already
+> redirected a second launch to the running process, so one core over one store held without a
+> change.
 
 **English**
 
