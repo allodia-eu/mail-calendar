@@ -96,3 +96,25 @@ fn every_feature_scope_is_one_the_sign_in_actually_asks_for() {
         );
     }
 }
+
+/// The standing prompt is for what the app does on its own. Opening the account screen and buying
+/// something are not that: both are deliberate, so the prompt for them belongs on that screen.
+///
+/// Putting either in `ALL` is a bug that looks like tidiness. Every grant issued before these
+/// scopes existed carries neither, so every one of those people would be told to sign in again,
+/// about a screen most of them will never open. What gates the call is `grant_permits`, where the
+/// call is made.
+#[test]
+fn the_subscription_scopes_raise_no_standing_prompt() {
+    for feature in [Feature::ReadSubscription, Feature::WriteSubscription] {
+        assert!(!Feature::ALL.contains(&feature));
+        assert!(grant_permits(
+            Some(&vec![feature.scope().to_owned()]),
+            feature
+        ));
+        assert!(!grant_permits(
+            Some(&vec!["mailcal:entitlement:read".to_owned()]),
+            feature
+        ));
+    }
+}

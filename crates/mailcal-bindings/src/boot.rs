@@ -19,11 +19,12 @@ use crate::{
     account_registry::{AccountRegistry, dial_all},
     analytics,
     background::BackgroundManager,
-    build_runtime, connection_log,
+    connection_log,
     connector::HostConnector,
     credential_store::AccountCredentialStore,
     device_zone, logging,
     observer::{DebouncedObserver, ObserverBridge},
+    runtime::build_runtime,
     token_sink::token_sink,
 };
 
@@ -303,6 +304,8 @@ pub(crate) fn build_accounts(
         allodia_tokens: crate::allodia_tokens::Tokens::default(),
         #[cfg(feature = "allodia-license")]
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
+        #[cfg(feature = "allodia-license")]
+        allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(allodia),
         credential_store,

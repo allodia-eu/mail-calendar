@@ -35,5 +35,9 @@ workspace = true
 # than a test -- but the failures it finds (a scope the service does not know, a redirect it will
 # not accept, a loopback port it matches exactly) are exactly the ones no unit test can see.
 [dev-dependencies]
+# Reading the access token's claims in the probe, for diagnosis only. An audience or an issuer
+# that does not match what the API verifies is invisible from a `401`, and is exactly the kind of
+# failure the probe exists to make visible. Nothing is verified here and nothing decides anything.
+base64 = { workspace = true }
 reqwest = { workspace = true, features = ["blocking"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

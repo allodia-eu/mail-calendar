@@ -14,7 +14,7 @@ use std::{
 
 use engine_api::{AccountId, Provider};
 use mailcal_app::{Account, App};
-use tokio::runtime::{Builder, Runtime};
+use tokio::runtime::Runtime;
 
 mod about;
 mod account_registry;
@@ -24,6 +24,8 @@ mod allodia;
 mod allodia_health;
 #[cfg(feature = "allodia-license")]
 mod allodia_pass;
+mod allodia_purchase;
+mod allodia_subscription;
 mod allodia_sync;
 #[cfg(feature = "allodia-license")]
 mod allodia_tokens;
@@ -34,6 +36,8 @@ mod app_accounts;
 mod app_accounts_google;
 mod app_accounts_microsoft;
 mod app_allodia;
+mod app_allodia_purchase;
+mod app_allodia_subscription;
 mod app_allodia_sync;
 mod app_calendar;
 mod app_contacts;
@@ -89,6 +93,7 @@ mod records_recurrence;
 mod records_repeat_summary;
 mod rendering;
 mod repeat_editor;
+mod runtime;
 pub mod save;
 mod setup;
 mod share;
@@ -105,6 +110,15 @@ pub use allodia::{
     AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,
 };
 pub use allodia_health::AllodiaGrantHealth;
+pub use allodia_purchase::{
+    AllodiaOffer, AllodiaPlan, AllodiaPurchaseError, AllodiaPurchaseReport, AllodiaStore,
+    AllodiaStoreProduct, AllodiaStorePurchase,
+};
+pub use allodia_subscription::{
+    AllodiaBiller, AllodiaCancellation, AllodiaCheckout, AllodiaIntervalChange, AllodiaOwnStatus,
+    AllodiaOwnSubscription, AllodiaPrices, AllodiaStoreStatus, AllodiaStoreSubscription,
+    AllodiaSubscription, AllodiaSubscriptionActions, AllodiaSubscriptionRefusal,
+};
 pub use allodia_sync::{
     AllodiaAccountChange, AllodiaAccountKind, AllodiaAccountOffer, AllodiaAccountSyncMode,
     AllodiaSyncReport, setup_from_offer,
@@ -195,24 +209,6 @@ pub use timezone::{available_time_zones, device_time_zone};
 /// open `HashMap` it replaced.
 type SharedRegistry = Arc<account_registry::AccountRegistry>;
 
-/// Builds the app's async runtime, capping worker threads to **one fewer than the core
-/// count** so a heavy multi-folder sync never saturates every core and starves the host's
-/// UI thread (the user's "keep the UI thread on its own core" ask). At least one worker.
-fn build_runtime() -> std::io::Result<Runtime> {
-    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
-    let workers = cores.saturating_sub(1).max(1);
-    Builder::new_multi_thread()
-        .worker_threads(workers)
-        .enable_all()
-        .build()
-}
-
-/// The capped runtime, panicking if it cannot start (the demo path, where a missing
-/// runtime is fatal anyway).
-fn runtime() -> Runtime {
-    build_runtime().expect("tokio runtime starts")
-}
-
 /// One account the app drives, with its providers boxed behind the [`Provider`] trait so
 /// every account shares one concrete app type.
 type BoxedAccount = Account<Box<dyn Provider>>;
@@ -271,6 +267,10 @@ pub struct MailcalApp {
     /// succeeds.
     #[cfg(feature = "allodia-license")]
     allodia_health: Mutex<AllodiaGrantHealth>,
+    /// Store purchases this process has not yet had granted; see [`allodia_license::Ledger`].
+    /// Nothing in it is written down and nothing needs to be: the store is the durable copy.
+    #[cfg(feature = "allodia-license")]
+    allodia_purchases: Mutex<allodia_license::Ledger>,
     /// Where this device remembers what it has synced with the account service, once a host has
     /// installed somewhere to keep it. `None` until then, which is a wiring bug rather than a
     /// state a pass may quietly run in; see [`crate::app_allodia_sync`].

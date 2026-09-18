@@ -19,7 +19,7 @@ use crate::{
 pub(crate) fn all(run: &Runner<'_>) -> Vec<Step> {
     let mut out = Vec::new();
     out.extend(apple(run));
-    out.push(android(run));
+    out.extend(android(run));
     out.extend(windows(run));
     out.extend(linux(run));
     out
@@ -50,6 +50,14 @@ fn apple(run: &Runner<'_>) -> Vec<Step> {
             "clients/apple/Scripts/test-kit.sh",
             &[],
         ),
+        // Its own script and its own Xcode target: the suite above runs under `swift test`, which
+        // has no application for StoreKit to resolve products against and no way to load a
+        // StoreKit Configuration.
+        run.external(
+            "apple (StoreKit purchases)",
+            "clients/apple/Scripts/test-storekit.sh",
+            &[],
+        ),
         run.external(
             "apple (iOS simulator build)",
             "clients/apple/Scripts/build-and-run.sh",
@@ -64,18 +72,18 @@ fn apple(run: &Runner<'_>) -> Vec<Step> {
 /// `:app:test` dies at configuration with "SDK location not found": a failure that says nothing
 /// about the change under test, on a host that simply does not build Android. A gate that is red
 /// for a reason nobody can act on is one people stop reading.
-fn android(run: &Runner<'_>) -> Step {
+fn android(run: &Runner<'_>) -> Vec<Step> {
     let wrapper = gradle_wrapper(run.root);
     if !wrapper.is_file() {
-        return run.skip("android", "no Gradle wrapper in clients/android");
+        return vec![run.skip("android", "no Gradle wrapper in clients/android")];
     }
     if !android_sdk_found(run.root) {
-        return run.skip(
+        return vec![run.skip(
             "android",
             "no Android SDK: set ANDROID_HOME, or sdk.dir in clients/android/local.properties",
-        );
+        )];
     }
-    run.gradle()
+    vec![run.gradle(), run.gradle_without_play()]
 }
 
 /// Windows: the pure `net10.0` half runs anywhere dotnet does, including macOS. The WinUI app and

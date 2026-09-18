@@ -1,6 +1,6 @@
 # Privacybeleid: Allodia Mail & Calendar
 
-**Versie 2.3 · Van kracht: 2026-09-09**
+**Versie 2.4 · Van kracht: 2026-09-18**
 
 Allodia Mail & Calendar is een e-mail- en agenda-app die op je eigen apparaat draait en verbinding
 maakt met de e-mailprovider die **jij** kiest. Dit beleid legt in gewone taal uit wat dat betekent
@@ -33,6 +33,10 @@ e-mail (§3).
 - **Een AI-assistent kan toegang tot je e-mail krijgen, en alleen als jij dat zegt.** Het staat
   uit, hij draait op je eigen computer, hij komt nergens bij tot je een account aanvinkt, en
   Allodia zit ook niet in dat pad (§7).
+- **Betaal je voor de app, dan zien wij je pas nooit.** Je kunt bij ons kopen, of in de app bij
+  Apple of Google. Je betaalgegevens gaan naar onze betaaldienstverlener of naar die store, nooit
+  naar ons; wat wij bewaren is het abonnement zelf, zodat het werkt op elk apparaat waarop je
+  inlogt (§10).
 - **We verkopen nooit gegevens, tonen nooit advertenties, stellen nooit een profiel van je op en
   gebruiken nooit analyse- of trackingdiensten van derden.** Wat we wél ontvangen, blijft op
   servers die we zelf in de EU beheren.
@@ -47,8 +51,8 @@ ingeschreven bij de Kamer van Koophandel (KvK) onder nr. **56789823**, Kamerling
 Voor alles wat in dit beleid staat: **info@allodia.eu**.
 
 We zijn alleen "verwerkingsverantwoordelijke" voor het weinige dat ons daadwerkelijk bereikt: een
-Allodia-account als je er een aanmaakt (§3), optionele gebruiksstatistieken (§6), berichten die je
-ons stuurt (§8) en de website (§10). Voor alles wat de app op je apparaat verwerkt, zijn we
+Allodia-account als je er een aanmaakt (§3), een abonnement als je er een koopt (§10), optionele
+gebruiksstatistieken (§6), berichten die je ons stuurt (§8) en de website (§11). Voor alles wat de app op je apparaat verwerkt, zijn we
 verwerkingsverantwoordelijke noch verwerker, want we ontvangen het nooit (§2).
 
 ## 2. Standaard: alles blijft op je apparaat
@@ -206,11 +210,12 @@ wat wij erin hebben en die lijst erbij: **Instellingen → Allodia-account → A
 Dat opent je accountpagina in je browser, waar je inlogt en het bevestigt — de app verwijdert het
 account niet zelf. Die pagina kun je ook rechtstreeks openen op
 **https://mailcal.allodia.eu/account**, op elk apparaat en zonder de app. Vraag je het liever aan
-ons, mail dan **info@allodia.eu**. Je rechten staan in §13.
+ons, mail dan **info@allodia.eu**. Je rechten staan in §14.
 
-**Wat het vandaag doet.** Een identiteit, en de accountlijst hierboven. Verder doet de app geen
-enkel verzoek aan ons. Elke volgende functie die echt een server van ons nodig heeft, wordt in dit
-beleid opgenomen **voordat** het uitkomt, en vraagt het je voordat er iets wordt verstuurd (§15).
+**Wat het vandaag doet.** Een identiteit, de accountlijst hierboven, en, als je er een hebt
+gekocht, het abonnement dat het account draagt (§10). Verder doet de app geen enkel verzoek aan
+ons. Elke volgende functie die echt een server van ons nodig heeft, wordt in dit
+beleid opgenomen **voordat** het uitkomt, en vraagt het je voordat er iets wordt verstuurd (§16).
 
 ## 4. Gegevens die je niet hoeft te verstrekken
 
@@ -344,9 +349,55 @@ onder hun eigen privacybeleid, niet namens ons. Wat wij van hen ontvangen zijn g
 dashboards (installaties, actieve apparaten, versies van besturingssystemen, apparaatmodellen,
 crashstatistieken) die jou voor ons niet identificeren; of jouw apparaat daaraan bijdraagt, wordt
 bepaald door de deelinstellingen van je besturingssysteem. De app zelf bevat geen crashrapportage
-en doet zelf geen updatecontroles.
+en doet zelf geen updatecontroles. Wat wij wél ontvangen als je in de app een abonnement koopt, en
+wat we daarvan bewaren, staat in §10.
 
-## 10. De website allodia.eu
+## 10. Betalen voor Allodia Mail & Calendar
+
+De app wordt verkocht als abonnement, en je kunt hem op drie plekken kopen: rechtstreeks bij ons,
+in Apple's App Store of in Google Play. Welke je kiest, bepaalt wie je geld afhandelt, en dat is
+het enige aan betalen dat verandert wat wij bewaren. **In geen van de drie ontvangen wij ooit je
+pas- of bankgegevens.**
+
+**Bij ons kopen.** De betaling wordt afgehandeld door **Mollie B.V.** (Amsterdam, Nederland), onze
+betaaldienstverlener, op hun eigen afrekenpagina. Je pas- of bankgegevens vul je daar in en horen
+bij die pagina: wij zien, ontvangen of bewaren ze nooit. Wat wij bewaren is het abonnement zelf —
+welk plan, wat het kost, wanneer de volgende betaling volgt, en of elke betaling is gelukt,
+mislukt of terugbetaald — samen met de referenties die Mollie gebruikt voor je klantgegevens, je
+betaalmachtiging en elke betaling. Je naam en e-mailadres hebben we al uit §3; die geven we aan
+Mollie door zodat de betaling kan worden gedaan en je een factuur kunt krijgen.
+
+**In de app kopen, bij Apple of Google.** De aankoop is van hen. Je betaalt Apple of Google onder
+hun eigen privacybeleid en als zelfstandige verwerkingsverantwoordelijken, en je betaalgegevens
+komen nooit bij ons in de buurt. Wat er van je apparaat naar ons gaat is alleen de eigen referentie
+van de store voor die aankoop, bij welke van de twee stores hij is gedaan, en wanneer. Niets over
+je apparaat, en verder niets over jou.
+
+Daarna vragen wij die store of de referentie echt is en waar je er op dit moment recht op hebt: een
+vraag over een transactie die die store zelf al heeft (§12). Wat wij van het antwoord bewaren is:
+welke store, die referentie, welk plan is gekocht, of het actief, opgezegd, verlopen of terugbetaald
+is, tot wanneer het loopt, of het doorloopt, en de prijs en valuta die de store heeft gerekend. De
+app vraagt het van tijd tot tijd opnieuw, zodat opzeggen of laten verlopen hier ook doorwerkt, en
+zodat het abonnement werkt op elk apparaat waarop je inlogt. Dat is de hele reden dat die referentie
+ons überhaupt bereikt.
+
+**Een abonnement hoort bij een Allodia-account** (§3), en dat is wat het van het ene apparaat naar
+het andere draagt. Kopen bij een store betekent dus eerst inloggen, en het koppelen van de aankoop
+aan dat account is waar die referentie voor dient. Alles wat §3 over dat account zegt, geldt
+onveranderd: een abonnement voegt geen e-mail, geen postbus en geen nieuwe toegang tot een van
+beide toe.
+
+**Waarom we het mogen bewaren.** Om je te geven waarvoor je betaald hebt, waar je ook inlogt, en om
+je te kunnen helpen als een betaling misgaat: uitvoering van onze overeenkomst met jou (AVG art.
+6, lid 1, onder b). Voor facturen en betaalgegevens onze eigen wettelijke plicht om ze te bewaren
+(art. 6, lid 1, onder c), en dat is het enige deel hiervan dat je account overleeft (§13).
+
+**Opzeggen en terugbetalen.** Een abonnement dat je bij ons hebt gekocht, zeg je op je accountpagina
+op; een abonnement van Apple of Google zeg je bij die store op, want het is aan die store om het te
+beëindigen, en een terugbetaling is aan hen om te geven. Opzeggen stopt de volgende betaling. Het
+wist niet de gegevens van betalingen die al zijn gedaan, en die moeten wij bewaren.
+
+## 11. De website allodia.eu
 
 Onze website gebruikt alleen cookies en lokale opslag die nodig zijn om te functioneren
 (taalvoorkeur, beveiliging, sessiebeheer), en geen analyse- of marketingcookies. Mocht dat ooit
@@ -354,30 +405,37 @@ veranderen, dan vragen we het eerst. Gebruik je het contactformulier, dan verwer
 e-mailadres, optionele bedrijfsnaam en bericht om je te antwoorden, net als in §8. De site wordt
 gehost in Nederland en Duitsland.
 
-## 11. Wat we nooit doen
+## 12. Wat we nooit doen
 
 - We verkopen of verhuren nooit persoonsgegevens, en delen ze nooit voor advertenties.
 - We gebruiken nooit analyse-, tracking- of advertentie-SDK's van derden in de app.
 - We nemen nooit geautomatiseerde besluiten over je en stellen nooit een profiel van je op (AVG
   art. 22).
 - We trainen nooit AI-modellen op je e-mail. We hebben überhaupt geen toegang tot je e-mail.
-- We dragen de persoonsgegevens die we hebben nooit over buiten de EU/EER. (Waar **je eigen
-  provider** zich bevindt, is jouw keuze en een rechtstreekse relatie tussen jou en hen. Dat geldt
-  ook voor Apple of Google kiezen om in te loggen op een Allodia-account, een route die je gewoon
-  niet hoeft te nemen, §3.)
+- We dragen de persoonsgegevens die we hebben nooit over buiten de EU/EER, met één uitzondering
+  die we liever benoemen dan wegstoppen: **een abonnement controleren dat je bij Apple of Google
+  hebt gekocht** betekent dat we die store ernaar vragen, en dat zijn allebei Amerikaanse bedrijven
+  (§10). Wat die vraag meeneemt, is de eigen referentie van de store voor een transactie die die
+  store zelf al heeft, en het is de enige manier om een aankoop te bevestigen waarvoor de store, en
+  niet wij, het geld heeft aangenomen. Koop je bij ons, dan gebeurt dit helemaal niet. (Waar **je
+  eigen provider** zich bevindt, is net zo goed jouw keuze en een rechtstreekse relatie tussen jou
+  en hen. Dat geldt ook voor Apple of Google kiezen om in te loggen op een Allodia-account, een
+  route die je gewoon niet hoeft te nemen, §3.)
 
-## 12. Bewaartermijnen in één oogopslag
+## 13. Bewaartermijnen in één oogopslag
 
 | Gegevens | Bewaard | Waar |
 |---|---|---|
 | Je e-mail, afspraken, contacten, instellingen, handtekeningen, diagnostisch logboek | Op je apparaat, onder jouw controle; verwijder de gegevens van de app of de app zelf en het is weg | Je apparaat |
 | Je Allodia-account en de lijst met e-mailaccounts die het gelijk houdt, als je er een aanmaakt | Tot je ons vraagt het te verwijderen | Servers beheerd door Allodia, EU |
 | Gebruiksstatistieken (opt-in) | Tot je ze intrekt, maximaal 24 maanden | Servers beheerd door Allodia, EU |
+| Je abonnement en de betaalgeschiedenis ervan, als je bij ons koopt | Tot je je account verwijdert, facturen uitgezonderd (hieronder) | Servers beheerd door Allodia, EU; betaalafhandeling door Mollie, NL |
+| Een abonnement gekocht bij Apple of Google, en de referentie die de store ervoor heeft | Tot je je account verwijdert | Servers beheerd door Allodia, EU |
 | Supportcorrespondentie | 24 maanden na het laatste bericht | Soverin, NL |
 | Berichten via het contactformulier | Als supportcorrespondentie | Soverin, NL |
 | Facturen/administratie, als je iets bij ons koopt | Zolang de Nederlandse belastingwet vereist (7 jaar) | Administratie van Allodia, EU |
 
-## 13. Je rechten
+## 14. Je rechten
 
 Onder de AVG kun je ons vragen om inzage in, correctie of verwijdering van je persoonsgegevens of
 een kopie ervan (overdraagbaarheid), ons vragen de verwerking te beperken, bezwaar maken tegen
@@ -396,7 +454,7 @@ een klacht indienen bij een toezichthouder. Die van ons is de Nederlandse **Auto
 Persoonsgegevens** (autoriteitpersoonsgegevens.nl), maar je mag de toezichthouder van je eigen
 EU/EER-land gebruiken.
 
-## 14. Beveiliging
+## 15. Beveiliging
 
 Inloggegevens worden alleen opgeslagen in de beveiligde sleutelopslag van je apparaat en worden
 nooit weggeschreven naar de database of de logboeken van de app. Verbindingen met je provider
@@ -405,13 +463,13 @@ in een geharde weergavecomponent waarin scripts nooit draaien en externe inhoud 
 geblokkeerd. Het weinige dat we serverzijdig beheren, draait op EU-infrastructuur met toegang
 beperkt tot wie die nodig heeft, beschermd met meerfactorauthenticatie en versleuteling.
 
-## 15. Wijzigingen in dit beleid
+## 16. Wijzigingen in dit beleid
 
 Veranderen we welke gegevens worden verwerkt, dan werken we dit beleid **vóór** die verandering
 bij en verhogen we het versienummer en de datum bovenaan. Waar de verandering zou verbreden wat
 de app verstuurt, vraagt de app je opnieuw om toestemming in plaats van die aan te nemen. De
 actuele versie staat altijd op **https://allodia.eu/privacy/mail-calendar**.
 
-## 16. Contact
+## 17. Contact
 
 Allodia · KvK 56789823 · Kamerlingh Onnesweg 2, 3316GL Dordrecht, Nederland · **info@allodia.eu**
