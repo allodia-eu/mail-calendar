@@ -380,13 +380,13 @@ The core decides; the client talks to the store it is running on, because no Rus
 | Attach a store purchase, over the shared account-service transport | 🚧 | n/a | n/a | n/a | n/a | n/a |
 | The account screen's read | ✅ | n/a | n/a | n/a | n/a | n/a |
 | Its four writes: checkout, cancel, switch period, resubscribe | 🚧 | n/a | n/a | n/a | n/a | n/a |
-| Talk to the platform's store: fetch, buy, collect, finish | n/a | 🚧 | 🚧 | n/a | 🚧 | n/a |
-| That half tested against a **simulated** store | n/a | ✅ | n/a | n/a | ⬜ | n/a |
-| Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ⬜ | 🚧 | ⬜ |
+| Talk to the platform's store: fetch, buy, collect, finish | n/a | 🚧 | 🚧 | n/a | ✅ | n/a |
+| That half tested against a **simulated** store | n/a | ✅ | n/a | n/a | n/a | n/a |
+| Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ⬜ | ✅ | ⬜ |
 | Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Open Allodia's own checkout | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Link out to that checkout from inside the app | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
-| Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | n/a | 🚧 | n/a |
+| Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | n/a | ✅ | n/a |
 | Build with no Google library in it at all | n/a | n/a | n/a | n/a | ✅ | n/a |
 | Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ⬜ | ✅ | ⬜ |
 
@@ -396,15 +396,24 @@ has none, so on both the only route is Allodia's own checkout. **Android is two 
 compiled and tested by `:app:test` in the gate, and the `foss` one already opens the checkout,
 which is why that row is ✅ for Android alone.
 
-**Android's screen is 🚧 because the shop half of it has nothing to show yet.** Both flavours draw
-the same card, under the account it belongs to, and each gets the shop its flavour supplies without
-the card knowing which: `play` shows Play's own prices behind a buy button, `foss` shows Allodia's
-two prices and opens the checkout in a browser. The `play` card has been driven on a physical
-device (2026-09-18) against the **production** account service: the read arrives and the free state
-is drawn. Play itself connects and then answers **no products at all**, which is the ordinary
-answer until the app is distributed by Play with a matching application id and signing, so no price
-has been fetched, no sheet opened and no manage page reached. The checkout page has still never
-been paid on.
+**Android's `play` half has been driven end to end against the real store** (2026-09-18, physical
+device, production account service). The catalogue resolved, the sheet opened on a licence tester's
+test card, and the purchase was taken, attached and granted without anything else being touched;
+the card then redrew itself as paid, naming Google Play and offering its manage page. A later
+**fresh install** of the app, which had bought nothing, signed in and came back paid from the
+account alone, which is the cross-device claim proven on this platform rather than argued.
+
+Both flavours draw the same card, under the account it belongs to, and each gets the shop its
+flavour supplies without the card knowing which: `play` shows Play's own prices behind a buy
+button, `foss` shows Allodia's two prices and opens the checkout in a browser. The **`foss`
+checkout has still never been paid on**, which is what holds that flavour where it is.
+
+⚠️ **What Play withholds until an app is published is the catalogue, and nothing else about the
+build.** `queryProductDetails` answers nothing at all until a build has reached a track, which
+reads exactly like a wrong product id and cost a day's worth of guessing; once one has, an
+ordinary debug build installed over `adb` fetches, buys and collects like any other. The signing
+key is not the gate, and believing it was sent this work down a slow loop of release builds it
+never needed.
 
 ⚠️ **A sign-in older than the permission this read needs is an offer, not an outage**, and the
 first device this card was opened on had one. The remedies are opposites, so the read's failure
@@ -437,13 +446,15 @@ certificate, so Apple's App Store Server API has never heard of it and the servi
 **It is also why `unknown_purchase` is retried rather than concluded from**: under that
 configuration it is the ordinary answer about a purchase that is perfectly real.
 
-Play has no equivalent. There is no local simulator, and `queryProductDetails` answers nothing
-until the app is distributed by Play with a matching application id and signing, so the Android
-layer stays unexercised until there are products in the console and a build on a test track.
+Play has no equivalent, and needs none: there is no local simulator, and the real store is
+reachable from a developer machine as soon as the products exist in the console and **any** build
+has reached a track. A licence tester then buys on a test card that is never charged, and a period
+runs in minutes rather than a year, which is how the Android layer above was exercised.
 
 Everything still 🚧 compiles and is covered by the suites that can reach it, and has **never run
-against a real store or a real payment**. **Nothing here has taken a payment**, so the four writes
-are the half where being wrong costs somebody money and the half that is least proven.
+against a real store**. **No real money has moved anywhere**: Android's purchase was a licence
+tester's, on a card that is never charged, and Apple's was a sandbox one. The four writes are the
+half where being wrong costs somebody money and the half that is least proven.
 
 ## Known gaps
 
@@ -457,9 +468,9 @@ are the half where being wrong costs somebody money and the half that is least p
   [`../docs/updates.md`](../docs/updates.md), because an F-Droid build is updated by F-Droid and a
   Play build by Play, it earns a doc beside
   [`../docs/windows-channels.md`](../docs/windows-channels.md), which is the same shape of problem.
-- **Nothing above has been run against a real store.** Apple's screen exists and buys through the
-  simulated store only, and Android's has fetched no price from Play at all. A deployment with no
-  billing configured answers `503 unavailable`, which the ledger treats as an outage and retries.
+- **Apple's store half has still only met a simulated store and a sandbox**, where Android's has
+  now met the real one. A deployment with no billing configured answers `503 unavailable`, which
+  the ledger treats as an outage and retries.
 - ⚠️ **A StoreKit purchase sheet that never answers suspends its caller for good**, the same hole
   the Play listener has below, and observed rather than reasoned about: a sandbox sign-in that
   could not complete left `Product.purchase()` awaiting with nothing logged and nothing returned.
