@@ -271,11 +271,16 @@ What can be said in its favour is narrow and worth stating precisely: the dispat
 product identifier and nothing else, the counterparty is the platform the person already bought
 their device from and is already signed in to, it happens only when they tap a purchase button,
 and [`../docs/privacy-policy.md`](../docs/privacy-policy.md) §§9 and 10 describe the stores as
-independent controllers under their own policies, and name the one transfer verifying a purchase
-makes.
+independent controllers processing the purchase under their own policies.
+
+⚠️ **The transfer the policy names in §12 is a different one, and arguing the two as one would
+grant this carve-out on the strength of something it does not cover.** That transfer is the
+account service asking Apple or Google to verify a purchase, which happens on Allodia's side and
+leaves no device. `JurisdictionGate` governs what leaves the **app**, so the policy's account of
+that transfer neither supports this carve-out nor stands in its way.
 
 That is an argument for a carve-out, not a carve-out. It has not been made, and **no purchase
-surface ships until it is**, nor until the published policy below matches.
+surface ships until it is**, nor until the published policy matches (the known gap below).
 
 ## What a client calls
 
