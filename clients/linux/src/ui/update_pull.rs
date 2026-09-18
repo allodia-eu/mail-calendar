@@ -29,9 +29,9 @@ impl AppModel {
                 self.notice = match app.send_status() {
                     SendStatus::Sending => Some(l10n::send_status_sending().to_owned()),
                     SendStatus::Sent => Some(l10n::send_status_sent().to_owned()),
-                    // Not a failure: the message waits in the Outbox and goes out by
-                    // itself. This client draws no Outbox yet (`docs/sending.md` → Known
-                    // gaps), so the hint is the only thing that says so.
+                    // Not a failure: the message waits in the Outbox and goes out by itself.
+                    // The passing form of what the pane's Outbox row says for as long as the
+                    // message is waiting.
                     SendStatus::Queued => Some(l10n::send_status_queued().to_owned()),
                     SendStatus::Failed => Some(l10n::send_status_failed().to_owned()),
                     // Nothing to show, for two different reasons: nothing is in flight, and for

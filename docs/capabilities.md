@@ -109,8 +109,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Meeting invitations: when the calendar server says it **could not** pass your answer to the organiser, you are told and offered the email instead, naming who it would go to; the choice can be remembered per account ([`docs/invitations.md`](docs/invitations.md)) | ✅ | ✅ | ✅ | ✅ | ✅ |✅ |
 | Contacts: a unified A–Z list of people from every account's address books (CardDAV · JMAP), with search and a detail view ([`docs/contacts.md`](docs/contacts.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Contacts: **add and edit** a contact, into (or in) an address book the account can write to; the edit names one source card, so a person filed in two accounts is asked about. Deleting is not offered | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Outbox**: a message that could not be sent is kept and sent later by itself, instead of being lost; it appears as one row above the accounts, only while something is waiting ([`docs/sending.md`](docs/sending.md)) | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
-| Outbox: **send now**, **cancel** or **edit** a message that has not gone yet | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
+| **Outbox**: a message that could not be sent is kept and sent later by itself, instead of being lost; it appears as one row above the accounts, only while something is waiting ([`docs/sending.md`](docs/sending.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Outbox: **send now**, **cancel** or **edit** a message that has not gone yet | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Sender **avatars**: a coloured monogram beside every sender, replaced by their photo where an account's address book has one ([`docs/avatars.md`](docs/avatars.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Contacts: the same person in several accounts is **one** row (joined on a shared address, never on a name), and says so: "In N accounts" + the accounts named in the detail | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer **recipient autosuggest**: ranked addresses from synced contacts **and** from people you have written to, so it works on an account with no address book | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

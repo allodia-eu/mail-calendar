@@ -9,9 +9,8 @@ Bump: minor
 > can be listed, retried and withdrawn, and the app shows it as one Outbox row above the accounts,
 > present only while something is in it. The queue drains when the device comes back online, at
 > the end of every sync pass, and when the user asks; reconnecting also clears each message's
-> backoff, since the outage it was waiting out has just ended. Apple, Windows and Linux ship the
-> row, the list and the three actions; Android queues and drains but does not draw it yet
-> (`docs/sending.md` → Known gaps).
+> backoff, since the outage it was waiting out has just ended. Every client ships the row, the
+> list and the three actions.
 
 **English**
 

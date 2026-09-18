@@ -14,6 +14,8 @@ import android.content.Context
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -42,12 +44,15 @@ class FolderDrawerTest {
     private val expandToggles = mutableListOf<Pair<String, Boolean>>()
     private val selectedAccounts = mutableListOf<String?>()
     private val selectedFolders = mutableListOf<Pair<String, String>>()
+    private var outboxOpened = 0
 
     private fun drawer(
         accounts: List<AccountRow>,
         accountFolders: List<AccountFolderRow>,
         selectedAccount: String? = null,
         unifiedUnread: UInt = 0u,
+        queued: Int = 0,
+        showingOutbox: Boolean = false,
     ) {
         compose.setContent {
             FolderDrawerScaffold(
@@ -57,9 +62,12 @@ class FolderDrawerTest {
                 selectedAccount = selectedAccount,
                 selectedFolder = null,
                 unifiedUnread = unifiedUnread,
+                queued = queued,
+                showingOutbox = showingOutbox,
                 onSelectAccount = { selectedAccounts.add(it) },
                 onSelectFolder = { account, key -> selectedFolders.add(account to key) },
                 onSetExpanded = { id, expanded -> expandToggles.add(id to expanded) },
+                onShowOutbox = { outboxOpened += 1 },
                 content = {},
             )
         }
@@ -222,5 +230,48 @@ class FolderDrawerTest {
         // The count is announced as a sentence, not as a bare number beside a folder name.
         compose.onNodeWithContentDescription(L10n.a11y_unread_count(ctx(), 4)).assertExists()
         compose.onNodeWithText("0").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the Outbox is on screen only while something is waiting to be sent`() {
+        drawer(
+            accounts = listOf(account("work", "me@work.example", expanded = false)),
+            accountFolders = emptyList(),
+            queued = 0,
+        )
+        // An Outbox nobody has anything in is furniture that only ever says zero (rule 18).
+        compose.onNodeWithText(L10n.folder_outbox(ctx())).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the Outbox badge counts what is waiting and says so in its own words`() {
+        drawer(
+            accounts = listOf(account("work", "me@work.example", expanded = false)),
+            accountFolders = emptyList(),
+            queued = 3,
+        )
+        compose.onNodeWithText(L10n.folder_outbox(ctx())).assertIsDisplayed()
+        // Its own sentence, never the unread one: those are messages nobody has read, these are
+        // messages nobody has received.
+        compose.onNodeWithContentDescription(L10n.a11y_outbox_count(ctx(), 3)).assertExists()
+        compose.onNodeWithContentDescription(L10n.a11y_unread_count(ctx(), 3)).assertDoesNotExist()
+
+        compose.onNodeWithText(L10n.folder_outbox(ctx())).performClick()
+        assertEquals(1, outboxOpened)
+    }
+
+    @Test
+    fun `All Inboxes gives up the highlight while the Outbox is what is on screen`() {
+        // Both selection scalars are null on the Outbox *and* on the unified inbox, so a drawer
+        // reading them alone lights All Inboxes over the Outbox's own list.
+        drawer(
+            accounts = listOf(account("work", "me@work.example", expanded = false)),
+            accountFolders = emptyList(),
+            selectedAccount = null,
+            queued = 2,
+            showingOutbox = true,
+        )
+        compose.onNodeWithText(L10n.sidebar_all_inboxes(ctx())).assertIsNotSelected()
+        compose.onNodeWithText(L10n.folder_outbox(ctx())).assertIsSelected()
     }
 }

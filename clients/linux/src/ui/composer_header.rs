@@ -6,7 +6,7 @@
 use std::{rc::Rc, sync::Arc};
 
 use adw::prelude::*;
-use gtk::accessible::Property as AccessibleProperty;
+use gtk::accessible::{Property as AccessibleProperty, Relation as AccessibleRelation};
 use mailcal_bindings::MailcalApp;
 
 use super::{composer_model::ComposeContext, recipients::RecipientField};
@@ -184,6 +184,12 @@ pub(super) fn entry_row(
     let entry = gtk::Entry::new();
     entry.set_text(value);
     entry.set_hexpand(true);
+    // The caption is a label *beside* the field, not on it: a grid puts the two in neighbouring
+    // cells and nothing relates them, so without this the entry reaches assistive technology
+    // with an empty name and someone tabbing into it is told only that it is a text field. The
+    // relation rather than a copied string, so the name is whatever is on screen, in whatever
+    // language, and cannot drift from it.
+    entry.update_relation(&[AccessibleRelation::LabelledBy(&[caption.upcast_ref()])]);
     if focus {
         entry.set_activates_default(true);
     }

@@ -191,25 +191,23 @@ someone their own file back is noise that repeats on every turn of a long thread
 |---|---|---|---|---|---|
 | macOS / iOS / iPadOS | ✅ pane row, hidden at zero | ✅ | ✅ | ✅ | ✅ |
 | Windows | ✅ pane row, hidden at zero | ✅ in the list's own column | ✅ row menu | ✅ row menu | ✅ row menu |
+| Android | ✅ drawer row, hidden at zero | ✅ its own screen | ✅ row menu | ✅ row menu | ✅ row menu |
 | Linux | ✅ pane row, hidden at zero | ✅ | ✅ row menu | ✅ row menu | ✅ row menu |
-| Android | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-
-A ⬜ client still **queues** and still **drains**: that half is the core's and every platform
-has it the moment it takes this build. What it does not yet have is the row, the list and the
-three actions, so a user there sees `SendStatus::Queued` and no way to look at what is
-waiting. See "Known gaps".
 
 **The three actions are offered only on a message that is still waiting.** One in flight cannot be
 called back, and one whose delivery could not be confirmed may already be in front of its
 recipients. Windows draws them disabled rather than absent, so the menu is the same shape on every
-row and the state beside it says why; Apple and Linux leave them off, and Linux drops the row's
-overflow button with them rather than opening it onto nothing. Either answers the rule, which is
-that neither row may offer a retry.
+row and the state beside it says why; Apple, Linux and Android leave them off, and the latter two
+drop the row's overflow control with them rather than opening it onto nothing. Either answers the
+rule, which is that neither row may offer a retry.
 
 **Edit may not be refused.** The message has left the queue by the time a host is asked to open it,
-so it exists nowhere else. On Windows and Linux the composer's own discard guard still runs,
-because a half-written draft in the pane is the user's too, but answering *Keep editing* opens the
-withdrawn message in a composer window of its own rather than dropping it.
+so it exists nowhere else, and the request stays standing until a host says its composer has had
+it. On Windows and Linux the composer's own discard guard still runs, because a half-written draft
+in the pane is the user's too, but answering *Keep editing* opens the withdrawn message in a
+composer window of its own rather than dropping it. Android has no second window and needs none:
+its composer is a full-screen dialog over whichever list is behind it, so the withdrawn message
+opens there and nothing of the user's is displaced.
 
 | Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup | Name in Settings | `Name <address>` in From |
 |---|---|---|---|---|---|---|---|
@@ -227,11 +225,6 @@ withdrawn message in a composer window of its own rather than dropping it.
 
 ## Known gaps
 
-- **The Outbox does not ship on Android.** It queues and drains correctly, because that is core
-  behaviour, but draws no Outbox row and offers none of the three actions. Until it does, a
-  queued message there is visible only as `SendStatus::Queued` while the hint lasts, and is
-  recoverable only by waiting for it to go. The snapshot already carries everything it needs
-  (`outbox`, `showing_outbox`).
 - **An Apple row names its account only when it has nothing else to say.** `docs/folder-pane.md`
   rule 18 has every row naming the account it will go out from, because this is the one list
   holding every account's mail at once; the Apple row puts the account on the first line as a
@@ -243,9 +236,9 @@ withdrawn message in a composer window of its own rather than dropping it.
   harness at all, so what the suites gate is the half that holds at zero: that the pane draws no
   Outbox row when nothing is waiting (`FolderPane.Tests.ps1`). The rest is the core's own tests
   (`outbox_tests.rs`) plus, per client, the row rules a unit suite can reach
-  (`OutboxRowTests.cs`, `SidebarTreeTests.cs`, `outbox_tests.rs` in `clients/linux`). Verify the
-  running client by hand: bring the harness up, connect, stop its container, send, and act on the
-  row.
+  (`OutboxRowTests.cs`, `SidebarTreeTests.cs`, `outbox_tests.rs` in `clients/linux`,
+  `OutboxTest.kt`). Verify the running client by hand: bring the harness up, connect, stop its
+  container, send, and act on the row.
 - **A staged file outlives its composer.** The files are written into the client's own cache and
   nothing deletes them when a forward is sent or abandoned, exactly as for an attachment opened
   from the reading view. The OS reclaims that directory; until it does, a decoded copy of the
