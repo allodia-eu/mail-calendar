@@ -1,6 +1,6 @@
 # Privacy Policy: Allodia Mail & Calendar
 
-**Version 2.3 · Effective: 2026-09-09**
+**Version 2.4 · Effective: 2026-09-18**
 
 Allodia Mail & Calendar is a mail and calendar app that runs on your device and connects to the
 mail provider **you** choose. This policy explains, in plain language, what that means for your
@@ -30,6 +30,10 @@ mail accounts you asked us to keep in step across your devices, and still never 
 - **An AI assistant can be given access to your mail, and only if you say so.** It is off, it
   runs on your own computer, it reaches nothing until you tick an account, and Allodia is not in
   that path either (§7).
+- **If you pay for the app, we never see your card.** You can buy from us or inside the app
+  from Apple or Google. Your payment details go to our payment processor or to that store, never
+  to us; what we keep is the subscription itself, so it works on every device you sign in on
+  (§10).
 - **We never sell data, never show ads, never profile you, and never use third-party analytics
   or tracking services.** Anything we do receive stays on servers we ourselves operate in the EU.
 - **Your rights are the GDPR's**, and most of them you can exercise directly in the app, because the
@@ -43,8 +47,8 @@ registered with the Dutch Chamber of Commerce (KvK) under no. **56789823**, Kame
 For anything in this policy: **info@allodia.eu**.
 
 We are the "controller" only for the little that actually reaches us: an Allodia account if you
-create one (§3), optional usage statistics (§6), messages you send us (§8), and the website
-(§10). For everything the app processes on your device, we are neither controller nor processor,
+create one (§3), a subscription if you buy one (§10), optional usage statistics (§6), messages you
+send us (§8), and the website (§11). For everything the app processes on your device, we are neither controller nor processor,
 because we never receive it (§2).
 
 ## 2. The default: everything stays on your device
@@ -189,11 +193,12 @@ until that account is deleted. To delete the account itself, and everything we h
 included: **Settings → Allodia account → Delete account**. That opens your account page in your
 browser, where you sign in and confirm it — the app does not delete the account itself. You can open
 that page directly at **https://mailcal.allodia.eu/account**, on any device and without the app. If
-you would rather ask us, write to **info@allodia.eu**. Your rights are in §13.
+you would rather ask us, write to **info@allodia.eu**. Your rights are in §14.
 
-**What it does today.** An identity, and the account list above. Beyond those the app makes no
-further request to us. Any further feature that genuinely needs a server of ours will be written
-into this policy **before** it ships, and will ask you before it sends anything (§15).
+**What it does today.** An identity, the account list above, and, if you have bought one, the
+subscription the account carries (§10). Beyond those the app makes no further request to us. Any
+further feature that genuinely needs a server of ours will be written into this policy **before**
+it ships, and will ask you before it sends anything (§16).
 
 ## 4. Data you are not required to provide
 
@@ -321,9 +326,54 @@ The stores process your purchase and device data as **independent controllers** 
 privacy policies, not on our behalf. What we receive from them are aggregated dashboards
 (installs, active devices, OS versions, device models, crash statistics) that don't identify you
 to us; whether your device contributes to those is governed by your OS-level sharing settings.
-The app itself contains no crash reporter and performs no update checks of its own.
+The app itself contains no crash reporter and performs no update checks of its own. What we do
+receive when you buy a subscription inside the app, and what we keep of it, is §10.
 
-## 10. The allodia.eu website
+## 10. Paying for Allodia Mail & Calendar
+
+The app is sold as a subscription, and you can buy it in one of three places: from us directly,
+from Apple's App Store, or from Google Play. Which one you choose decides who handles your money,
+and it is the only thing about paying that changes what we hold. **In none of them do we ever
+receive your card or bank details.**
+
+**Buying from us.** Payment is handled by **Mollie B.V.** (Amsterdam, the Netherlands), our
+payment processor, on their own hosted checkout page. Your card or bank details are entered there
+and belong to that page: we never see, receive or store them. What we keep is the subscription
+itself — which plan, what it costs, when the next payment is due, and whether each payment
+succeeded, failed or was refunded — together with the references Mollie uses for your customer
+record, your payment authorisation and each payment. Your name and email address are already ours
+from §3; we pass them to Mollie so the payment can be taken and you can be invoiced.
+
+**Buying inside the app, from Apple or Google.** The purchase is theirs. You pay Apple or Google
+under their own privacy policies, as independent controllers, and your payment details never come
+near us. What crosses from your device to us is only the store's own reference for that purchase,
+which of the two stores it came from, and when it was made. Nothing about your device, and nothing
+else about you.
+
+We then ask that store whether the reference is genuine and what it currently entitles you to,
+which is a question about a transaction that store already holds (§12). What we keep from the
+answer is: which store, that reference, which plan was bought, whether it is active, cancelled,
+expired or refunded, what it runs until, whether it renews, and the price and currency the store
+charged. The app asks again from time to time so that cancelling or letting it lapse takes effect
+here too, and so the subscription works on every device you sign in on. That is the whole reason
+the reference reaches us at all.
+
+**A subscription belongs to an Allodia account** (§3), which is what carries it from one device to
+the next. So buying from a store means signing in first, and attaching the purchase to your
+account is what the reference above is for. Everything §3 says about that account applies
+unchanged, and a subscription adds no mail, no mailbox and no new access to either.
+
+**Why we may hold it.** To give you what you paid for, wherever you signed in, and to answer you
+if a payment goes wrong: performance of our contract with you (GDPR Art. 6(1)(b)). For invoices
+and payment records, our own legal obligation to keep them (Art. 6(1)(c)), which is the one part
+of this that outlives your account (§13).
+
+**Cancelling, and refunds.** A subscription bought from us is cancelled on your account page; one
+bought from Apple or Google is cancelled at that store, because it is that store's to end, and a
+refund for it is theirs to give. Cancelling stops the next payment. It does not erase the record
+of payments already made, which we are required to keep.
+
+## 11. The allodia.eu website
 
 Our website uses only cookies and local storage necessary for it to function (language
 preference, security, session handling), and no analytics or marketing cookies. If that ever
@@ -331,28 +381,35 @@ changes, we will ask first. If you use the contact form, we process your name, e
 optional company name, and message to reply to you, as in §8. The site is hosted in the
 Netherlands and Germany.
 
-## 11. What we never do
+## 12. What we never do
 
 - We never sell or rent personal data, and never share it for advertising.
 - We never use third-party analytics, tracking, or advertising SDKs in the app.
 - We never make automated decisions about you or profile you (GDPR Art. 22).
 - We never train AI models on your mail. We have no access to your mail at all.
-- We never transfer the personal data we hold outside the EU/EEA. (Where **your own provider**
-  is located is your choice and a direct relationship between you and them. So is choosing Apple or
-  Google to sign in to an Allodia account, which is a route you can simply not take, §3.)
+- We never transfer the personal data we hold outside the EU/EEA, with one exception we would
+  rather name than bury: **checking a subscription you bought from Apple or Google** means asking
+  that store about it, and both are US companies (§10). What that question carries is the store's
+  own reference for a transaction it already holds, and it is the only way to confirm a purchase
+  the store, not we, took the money for. Buying from us instead avoids it altogether. (Where
+  **your own provider** is located is likewise your choice and a direct relationship between you
+  and them. So is choosing Apple or Google to sign in to an Allodia account, which is a route you
+  can simply not take, §3.)
 
-## 12. Retention at a glance
+## 13. Retention at a glance
 
 | Data | Kept | Where |
 |---|---|---|
 | Your mail, events, contacts, settings, signatures, diagnostic log | On your device, under your control; delete the app's data or the app and it's gone | Your device |
 | Your Allodia account and the mail-account list it keeps in step, if you create one | Until you ask us to delete it | Allodia-operated servers, EU |
 | Usage statistics (opt-in) | Until you withdraw, at most 24 months | Allodia-operated servers, EU |
+| Your subscription and its payment history, if you buy from us | Until you delete your account, invoices excepted (below) | Allodia-operated servers, EU; payment handling by Mollie, NL |
+| A subscription bought from Apple or Google, and the store's reference for it | Until you delete your account | Allodia-operated servers, EU |
 | Support correspondence | 24 months after the last message | Soverin, NL |
 | Website contact-form messages | As support correspondence | Soverin, NL |
 | Invoices/records, if you buy from us | As long as Dutch tax law requires (7 years) | Allodia administration, EU |
 
-## 13. Your rights
+## 14. Your rights
 
 Under the GDPR you can ask us for access to, correction, deletion, or a copy (portability) of
 your personal data, ask us to restrict processing, object to processing based on legitimate
@@ -368,7 +425,7 @@ For everything else: **info@allodia.eu**. We respond within a month (Art. 12(3))
 complain to a data protection authority. Ours is the Dutch **Autoriteit Persoonsgegevens**
 (autoriteitpersoonsgegevens.nl), but you may use the authority of your own EU/EEA country.
 
-## 14. Security
+## 15. Security
 
 Credentials are stored only in your device's secure keystore and are never written to the app's
 database or its logs. Connections to your provider use the encrypted protocols it offers (TLS).
@@ -376,13 +433,13 @@ Inbound HTML is sanitized in a hardened renderer where scripts never run and rem
 blocked by default. The little we operate server-side runs on EU infrastructure with access
 limited to those who need it, protected by multi-factor authentication and encryption at rest.
 
-## 15. Changes to this policy
+## 16. Changes to this policy
 
 If we change what data is handled, we update this policy **before** the change ships and bump
 the version and date at the top. Where the change would widen what the app sends, the app asks
 for your consent again rather than assuming it. The current version is always at
 **https://allodia.eu/privacy/mail-calendar**.
 
-## 16. Contact
+## 17. Contact
 
 Allodia · KvK 56789823 · Kamerlingh Onnesweg 2, 3316GL Dordrecht, the Netherlands · **info@allodia.eu**
