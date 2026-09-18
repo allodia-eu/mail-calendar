@@ -18,6 +18,8 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.text.NumberFormat
+import java.util.Currency
 import java.util.Locale
 import uniffi.mailcal_bindings.AllodiaBiller
 import uniffi.mailcal_bindings.AllodiaOffer
@@ -185,6 +187,23 @@ internal fun allodiaDate(raw: String, locale: Locale): String? {
     if (raw.isEmpty()) return null
     val day = allodiaDay(raw) ?: return raw.take(10)
     return day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(locale))
+}
+
+// Minor units and an ISO 4217 code as something a reader can price.
+//
+// ⚠️ **Only for what Allodia bills directly.** A store's price is the store's own formatted string,
+// drawn and never recomputed; this is the other route, where the service sends 199 and EUR because
+// the core carries no locale data at all. Both stores require the first and neither forbids the
+// second, because the second is not theirs.
+//
+// A currency this JVM cannot name formats as a plain number rather than throwing: an amount with no
+// symbol is still the right amount, and a screen that crashed over a code would say nothing at all.
+internal fun allodiaMinorUnits(minorUnits: Long, currency: String, locale: Locale): String {
+    val format = NumberFormat.getCurrencyInstance(locale)
+    runCatching { Currency.getInstance(currency) }
+        .onSuccess { format.currency = it }
+        .onFailure { return NumberFormat.getNumberInstance(locale).format(minorUnits / 100.0) }
+    return format.format(minorUnits / 100.0)
 }
 
 private fun allodiaDay(raw: String): LocalDate? =

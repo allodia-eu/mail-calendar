@@ -383,7 +383,7 @@ The core decides; the client talks to the store it is running on, because no Rus
 | Talk to the platform's store: fetch, buy, collect, finish | n/a | 🚧 | 🚧 | n/a | ✅ | n/a |
 | That half tested against a **simulated** store | n/a | ✅ | n/a | n/a | n/a | n/a |
 | Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ⬜ | ✅ | ⬜ |
-| Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
 | Open Allodia's own checkout | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Link out to that checkout from inside the app | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
 | Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | n/a | ✅ | n/a |
@@ -487,17 +487,23 @@ half where being wrong costs somebody money and the half that is least proven.
   a deliberate choice, but somebody who has read one of them will be surprised by the other, and
   the copy for either switch has to be the store's rather than one sentence reused. Play will have
   its own answer again.
-- **The four writes reach no screen.** Checkout, cancel, switch period and resubscribe are
-  implemented and covered in the core, and Apple's screen calls none of them: cancelling and
-  switching belong to the store for a store's subscription, and the two that would act on Allodia's
-  own subscription wait with the link-out below.
+- **The four writes reach one screen and have never been run.** Android draws all four: checkout
+  is what the `foss` buy buttons already call, and cancel, switch period and resubscribe sit under
+  the paid state, each drawn only where `actions` permits. Apple's screen calls none of them,
+  correctly for a store's subscription, and nothing has yet exercised any of them against a real
+  subscription of Allodia's own, which is why the row is 🚧 rather than ✅.
 - **Windows and Linux draw no purchase surface**, and they are not merely unwritten: both need
   the checkout route rather than the store one. The copy is in the catalog in all seven locales
   already, so what each owes is the drawing.
 - **The four writes are unrun.** Starting a checkout leaves a `pending_first_payment` subscription
   behind at the service, and cancelling, switching and resubscribing each need a real one to act
   on, so none of them has been driven even against production. They are the half where being wrong
-  costs somebody money.
+  costs somebody money, and now the half that is drawn but unexercised.
+- ⚠️ **A switch reports an amount and no currency.** `AllodiaIntervalChange` carries minor units
+  alone, so a client prices it from `prices.currency`, which is today's list currency rather than
+  the one this subscriber was charged in. The two differ only for somebody whose billing currency
+  has since changed, which the service does not currently do, so it is a latent wrong rather than a
+  present one.
 - **The invoice history is not modelled.** `GET /subscription` also returns each payment and what
   has been refunded of it; nothing draws that yet, and serde ignores what nothing asked for, so
   adding it later needs no service change.

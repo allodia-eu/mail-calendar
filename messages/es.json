@@ -624,6 +624,18 @@
 	"settings_subscription_pending": "Esperando aprobación. El acceso empieza en cuanto se apruebe.",
 	"settings_subscription_stuck": "Una compra todavía no se ha completado. Se seguirá intentando.",
 	"settings_subscription_failed": "No ha funcionado: {error}",
+	"settings_subscription_cancel": "Cancelar la suscripción",
+	"settings_subscription_cancel_title": "¿Cancelar tu suscripción?",
+	"settings_subscription_cancel_body": "Conservas todo hasta el {date}. Después no se cobrará nada más, y puedes volver a empezar cuando quieras.",
+	"settings_subscription_cancel_keep": "Mantener la suscripción",
+	"settings_subscription_cancelled": "Cancelada. Conservas todo hasta el {date}.",
+	"settings_subscription_resubscribe": "Volver a suscribirte",
+	"settings_subscription_resubscribed": "Tu suscripción vuelve a estar activa.",
+	"settings_subscription_switch_yearly": "Cambiar a anual",
+	"settings_subscription_switch_monthly": "Cambiar a mensual",
+	"settings_subscription_switch_title": "¿Cambiar tu próximo pago?",
+	"settings_subscription_switch_body": "Hoy no se cobra nada, y todo lo que has pagado sigue hasta el {date}. Solo cambia el pago posterior.",
+	"settings_subscription_switched": "Tu próximo pago el {date} será de {amount}.",
 
 	"settings_advanced_reset_description": "Borra el correo guardado en el dispositivo y descárgalo todo de nuevo del servidor. Los envíos en cola se conservan.",
 

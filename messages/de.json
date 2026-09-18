@@ -624,6 +624,18 @@
 	"settings_subscription_pending": "Wartet auf Freigabe. Der Zugriff beginnt, sobald sie erteilt ist.",
 	"settings_subscription_stuck": "Ein Kauf ist noch nicht durchgegangen. Es wird weiter versucht.",
 	"settings_subscription_failed": "Das hat nicht geklappt: {error}",
+	"settings_subscription_cancel": "Abonnement kündigen",
+	"settings_subscription_cancel_title": "Ihr Abonnement kündigen?",
+	"settings_subscription_cancel_body": "Sie behalten alles bis {date}. Danach wird nichts mehr abgebucht, und Sie können jederzeit neu beginnen.",
+	"settings_subscription_cancel_keep": "Abonnement behalten",
+	"settings_subscription_cancelled": "Gekündigt. Sie behalten alles bis {date}.",
+	"settings_subscription_resubscribe": "Abonnement erneut starten",
+	"settings_subscription_resubscribed": "Ihr Abonnement läuft wieder.",
+	"settings_subscription_switch_yearly": "Zu jährlich wechseln",
+	"settings_subscription_switch_monthly": "Zu monatlich wechseln",
+	"settings_subscription_switch_title": "Ihre nächste Zahlung ändern?",
+	"settings_subscription_switch_body": "Heute wird nichts abgebucht, und alles, wofür Sie bezahlt haben, läuft bis {date} weiter. Nur die Zahlung danach ändert sich.",
+	"settings_subscription_switched": "Ihre nächste Zahlung am {date} beträgt dann {amount}.",
 
 	"settings_advanced_reset_description": "Die lokal gespeicherten E-Mails löschen und alles neu vom Server laden. Nachrichten in der Warteschlange bleiben erhalten.",
 

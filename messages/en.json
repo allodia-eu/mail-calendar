@@ -624,6 +624,18 @@
 	"settings_subscription_pending": "Waiting for approval. Access starts as soon as it’s approved.",
 	"settings_subscription_stuck": "A purchase hasn’t gone through yet. It will keep trying.",
 	"settings_subscription_failed": "That didn’t work: {error}",
+	"settings_subscription_cancel": "Cancel subscription",
+	"settings_subscription_cancel_title": "Cancel your subscription?",
+	"settings_subscription_cancel_body": "You keep everything until {date}. Nothing is charged after that, and you can start again whenever you like.",
+	"settings_subscription_cancel_keep": "Keep subscription",
+	"settings_subscription_cancelled": "Cancelled. You keep everything until {date}.",
+	"settings_subscription_resubscribe": "Start subscription again",
+	"settings_subscription_resubscribed": "Your subscription is running again.",
+	"settings_subscription_switch_yearly": "Switch to yearly",
+	"settings_subscription_switch_monthly": "Switch to monthly",
+	"settings_subscription_switch_title": "Change your next payment?",
+	"settings_subscription_switch_body": "Nothing is charged today, and everything you have paid for runs on until {date}. Only the payment after that changes.",
+	"settings_subscription_switched": "Your next payment on {date} becomes {amount}.",
 
 	"settings_advanced_reset_description": "Clear the locally cached mail and download everything again from the server. Queued sends are kept.",
 

@@ -624,6 +624,18 @@
 	"settings_subscription_pending": "In attesa di approvazione. L’accesso inizia appena viene approvata.",
 	"settings_subscription_stuck": "Un acquisto non è ancora andato a buon fine. Verrà riprovato.",
 	"settings_subscription_failed": "Non ha funzionato: {error}",
+	"settings_subscription_cancel": "Disdici l’abbonamento",
+	"settings_subscription_cancel_title": "Disdire il tuo abbonamento?",
+	"settings_subscription_cancel_body": "Mantieni tutto fino al {date}. Dopo non verrà addebitato più nulla, e puoi ricominciare quando vuoi.",
+	"settings_subscription_cancel_keep": "Mantieni l’abbonamento",
+	"settings_subscription_cancelled": "Disdetto. Mantieni tutto fino al {date}.",
+	"settings_subscription_resubscribe": "Riattiva l’abbonamento",
+	"settings_subscription_resubscribed": "Il tuo abbonamento è di nuovo attivo.",
+	"settings_subscription_switch_yearly": "Passa ad annuale",
+	"settings_subscription_switch_monthly": "Passa a mensile",
+	"settings_subscription_switch_title": "Modificare il prossimo pagamento?",
+	"settings_subscription_switch_body": "Oggi non viene addebitato nulla, e tutto ciò che hai pagato prosegue fino al {date}. Cambia solo il pagamento successivo.",
+	"settings_subscription_switched": "Il tuo prossimo pagamento del {date} sarà di {amount}.",
 
 	"settings_advanced_reset_description": "Cancella la posta salvata in locale e scarica di nuovo tutto dal server. Gli invii in coda vengono mantenuti.",
 

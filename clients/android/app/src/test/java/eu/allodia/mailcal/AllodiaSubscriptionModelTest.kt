@@ -208,6 +208,56 @@ class AllodiaSubscriptionModelTest {
     }
 
     /**
+     * A switch moves to the other period, and only where the service said it may.
+     *
+     * ⚠️ **`actions` is the authority, not the subscription's shape.** It was computed with every
+     * biller in view, which a client cannot do: somebody the App Store is charging has a period,
+     * and switching it here is exactly what the service refuses.
+     */
+    @Test
+    fun a_switch_offers_the_other_period_and_only_where_it_is_allowed() {
+        val monthly = subscription(entitled = true, own = ownSubscription(interval = AllodiaPlan.MONTHLY))
+        assertEquals(AllodiaPlan.YEARLY, allodiaSwitchTarget(monthly))
+
+        val yearly = subscription(entitled = true, own = ownSubscription(interval = AllodiaPlan.YEARLY))
+        assertEquals(AllodiaPlan.MONTHLY, allodiaSwitchTarget(yearly))
+
+        assertNull("no subscription of Allodia's own", allodiaSwitchTarget(subscription(entitled = true)))
+        assertNull("the service refused", allodiaSwitchTarget(monthly.copy(actions = refusing())))
+    }
+
+    /**
+     * Restarting is offered for a cancelled subscription and nothing else.
+     *
+     * A subscription still running has nothing to restart, and one whose period has run out is a
+     * fresh checkout rather than a restart, which is a distinction only the service can make.
+     */
+    @Test
+    fun restarting_is_offered_only_for_a_cancelled_subscription() {
+        val cancelled = subscription(
+            entitled = true,
+            own = ownSubscription(status = AllodiaOwnStatus.Cancelled, nextPaymentDate = null),
+        )
+        assertTrue(allodiaOffersRestart(cancelled))
+        assertFalse(allodiaOffersRestart(subscription(entitled = true, own = ownSubscription())))
+        assertFalse(allodiaOffersRestart(cancelled.copy(actions = refusing())))
+    }
+
+    /**
+     * ⚠️ A currency this JVM cannot name is still an amount worth showing.
+     *
+     * The service sends minor units and a code, and the code arrives empty when the read that
+     * carries it did not. Throwing there would take down a screen over a symbol.
+     */
+    @Test
+    fun an_amount_survives_a_currency_this_machine_cannot_name() {
+        val dutch = Locale.forLanguageTag("nl-NL")
+        assertTrue("2,99", allodiaMinorUnits(299, "EUR", dutch).contains("2,99"))
+        assertTrue("no code", allodiaMinorUnits(299, "", dutch).contains("2,99"))
+        assertTrue("nonsense code", allodiaMinorUnits(299, "not-a-currency", dutch).contains("2,99"))
+    }
+
+    /**
      * ⚠️ The account service is a different server from the sync engine and sends a numeric offset
      * rather than the engine's `Z`. A reader parsing only the engine's shape drew every date on
      * this card as a raw `2026-09-18`.
