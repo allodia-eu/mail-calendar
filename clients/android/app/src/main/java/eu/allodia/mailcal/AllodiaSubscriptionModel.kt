@@ -76,10 +76,19 @@ internal fun allodiaBillerName(biller: AllodiaBiller): String =
 
 // Everyone charging for this account right now, in a stable order: Allodia's own billing first,
 // then each store in the order the service listed them.
+//
+// ⚠️ **"Right now" is the whole of it, and reading every store the service listed was a bug.** The
+// list keeps a subscription after it ends, so an account that bought at one store and later at
+// another carries both, and naming the first named the dead one: a device billed by Google Play
+// was told it was billed by Apple, whose sandbox subscription had run out hours earlier. A store
+// that has stopped charging still gets its manage button, because somebody may want its receipt;
+// it does not get to be the answer to "who is taking my money".
 internal fun allodiaBillers(subscription: AllodiaSubscription): List<AllodiaBiller> =
     buildList {
-        if (subscription.own != null) add(AllodiaBiller.Allodia)
-        subscription.stores.forEach { store ->
+        if (subscription.own != null && subscription.own?.status != AllodiaOwnStatus.PendingFirstPayment) {
+            add(AllodiaBiller.Allodia)
+        }
+        subscription.stores.filter { allodiaStoreIsLive(it.status) }.forEach { store ->
             add(
                 when (store.source) {
                     AllodiaStore.APPLE -> AllodiaBiller.Apple
@@ -91,6 +100,22 @@ internal fun allodiaBillers(subscription: AllodiaSubscription): List<AllodiaBill
                 }
             )
         }
+    }
+
+// Whether a store subscription is one somebody is still on: renewing, being retried, or cancelled
+// and running out the period already paid for.
+//
+// The rest grant nothing, and `AllodiaStoreStatus` is deliberately read arm by arm rather than by
+// exclusion: a status this build does not know is **never read as permission**, which is the rule
+// the core states about the same enum.
+private fun allodiaStoreIsLive(status: AllodiaStoreStatus): Boolean =
+    when (status) {
+        AllodiaStoreStatus.Active, AllodiaStoreStatus.Grace, AllodiaStoreStatus.Cancelled -> true
+        AllodiaStoreStatus.OnHold,
+        AllodiaStoreStatus.Paused,
+        AllodiaStoreStatus.Expired,
+        AllodiaStoreStatus.Revoked -> false
+        else -> false
     }
 
 // Whether anything will charge again, which decides between "renews on" and "runs until".

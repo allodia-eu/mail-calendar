@@ -56,19 +56,44 @@ extension AllodiaPlan {
 /// Everyone charging for this account right now, in a stable order: Allodia's own billing first,
 /// then each store in the order the service listed them.
 ///
+/// ⚠️ **"Right now" is the whole of it, and reading every store the service listed was a bug.** The
+/// list keeps a subscription after it ends, so an account that bought at one store and later at
+/// another carries both, and naming the first named the dead one: an Android device billed by
+/// Google Play was told it was billed by Apple, whose sandbox subscription had run out hours
+/// earlier. A store that has stopped charging still gets its manage button, because somebody may
+/// want its receipt; it does not get to be the answer to "who is taking my money".
+///
 /// Pure, so the sentence a screen says about being charged twice is unit-testable.
 func allodiaBillers(of subscription: AllodiaSubscription) -> [AllodiaBiller] {
-    var billers: [AllodiaBiller] = subscription.own == nil ? [] : [.allodia]
-    billers.append(contentsOf: subscription.stores.map { store in
-        switch store.source {
-        case .apple: return .apple
-        case .google: return .google
-        // The service never reports its own billing as a store, so this arm is unreachable rather
-        // than meaningful. Saying "Allodia" is still the right answer if it ever is reached.
-        case .allodia: return .allodia
-        }
-    })
+    var billers: [AllodiaBiller] = []
+    if let own = subscription.own, own.status != .pendingFirstPayment {
+        billers.append(.allodia)
+    }
+    billers.append(contentsOf: subscription.stores.filter { allodiaStoreIsLive($0.status) }
+        .map { store in
+            switch store.source {
+            case .apple: return .apple
+            case .google: return .google
+            // The service never reports its own billing as a store, so this arm is unreachable
+            // rather than meaningful. Saying "Allodia" is still the right answer if it is reached.
+            case .allodia: return .allodia
+            }
+        })
     return billers
+}
+
+/// Whether a store subscription is one somebody is still on: renewing, being retried, or cancelled
+/// and running out the period already paid for.
+///
+/// The rest grant nothing, and `AllodiaStoreStatus` is deliberately read arm by arm rather than by
+/// exclusion: a status this build does not know is **never read as permission**, which is the rule
+/// the core states about the same enum.
+func allodiaStoreIsLive(_ status: AllodiaStoreStatus) -> Bool {
+    switch status {
+    case .active, .grace, .cancelled: return true
+    case .onHold, .paused, .expired, .revoked: return false
+    case .unknown: return false
+    }
 }
 
 /// Whether anything will charge again, which decides between "renews on" and "runs until".

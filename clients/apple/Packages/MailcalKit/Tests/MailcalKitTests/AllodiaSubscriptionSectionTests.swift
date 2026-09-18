@@ -142,6 +142,40 @@ struct AllodiaSubscriptionSectionTests {
         )
     }
 
+    /// ⚠️ A store that has stopped charging is not a biller, whatever order the service listed it
+    /// in.
+    ///
+    /// Observed on an Android device: the account had bought through the App Store hours earlier,
+    /// that sandbox subscription had since expired, and a purchase through Google Play was then
+    /// told "Billed by Apple". The service was right both times; the reading of it was not. This
+    /// screen had the same gap. The expired store keeps its manage button, so this is about the
+    /// sentence, not about hiding the row.
+    @Test func aStoreThatHasStoppedChargingIsNotWhoIsBillingYou() {
+        let subscription = subscription(stores: [
+            store(source: .apple, status: .expired, autoRenewing: false),
+            store(source: .google, status: .active, autoRenewing: true),
+        ])
+        #expect(allodiaBillers(of: subscription) == [.google])
+    }
+
+    /// Cancelled is still being billed in the only sense that matters here: the period was paid
+    /// for and is still running. Revoked, on hold and paused grant nothing and name nobody.
+    @Test func aCancelledSubscriptionStillNamesItsStoreAndARevokedOneDoesNot() {
+        #expect(allodiaStoreIsLive(.active))
+        #expect(allodiaStoreIsLive(.grace))
+        #expect(allodiaStoreIsLive(.cancelled))
+        #expect(!allodiaStoreIsLive(.revoked))
+        #expect(!allodiaStoreIsLive(.onHold))
+        #expect(!allodiaStoreIsLive(.paused))
+        #expect(!allodiaStoreIsLive(.expired))
+        #expect(!allodiaStoreIsLive(.unknown(label: "something new")))
+    }
+
+    /// A checkout that was started and never paid is not somebody who is being charged.
+    @Test func aCheckoutAwaitingItsFirstPaymentNamesNobody() {
+        #expect(allodiaBillers(of: subscription(own: own(status: .pendingFirstPayment, next: nil))).isEmpty)
+    }
+
     /// ⚠️ A sign-in too old to carry the permission this read needs is an offer, not an outage.
     ///
     /// The two are indistinguishable from the failure alone, and their remedies are opposites:
@@ -155,11 +189,12 @@ struct AllodiaSubscriptionSectionTests {
     }
 
     private func store(
+        source: AllodiaStore = .apple,
         status: AllodiaStoreStatus,
         autoRenewing: Bool
     ) -> AllodiaStoreSubscription {
         AllodiaStoreSubscription(
-            source: .apple,
+            source: source,
             status: status,
             interval: .yearly,
             productId: "eu.allodia.mailcal.services.yearly",

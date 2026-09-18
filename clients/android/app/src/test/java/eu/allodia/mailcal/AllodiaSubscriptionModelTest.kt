@@ -39,6 +39,61 @@ class AllodiaSubscriptionModelTest {
     }
 
     /**
+     * ⚠️ A store that has stopped charging is not a biller, whatever order the service listed it
+     * in.
+     *
+     * Observed on a device: the account had bought through the App Store hours earlier, that
+     * sandbox subscription had since expired, and a purchase through Google Play was then told
+     * "Billed by Apple". The service was right both times; the reading of it was not. The expired
+     * store keeps its manage button, so this is about the sentence, not about hiding the row.
+     */
+    @Test
+    fun a_store_that_has_stopped_charging_is_not_who_is_billing_you() {
+        val lapsedApple = subscription(
+            entitled = true,
+            stores = listOf(
+                storeSubscription(
+                    source = AllodiaStore.APPLE,
+                    status = AllodiaStoreStatus.Expired,
+                    autoRenewing = false,
+                ),
+                storeSubscription(source = AllodiaStore.GOOGLE),
+            ),
+        )
+        assertEquals(listOf(AllodiaBiller.Google), allodiaBillers(lapsedApple))
+    }
+
+    /**
+     * Cancelled is still being billed in the only sense that matters here: the period was paid for
+     * and is still running. Revoked, on hold and paused grant nothing and name nobody.
+     */
+    @Test
+    fun a_cancelled_subscription_still_names_its_store_and_a_revoked_one_does_not() {
+        for (status in listOf(AllodiaStoreStatus.Cancelled, AllodiaStoreStatus.Grace)) {
+            val live = subscription(stores = listOf(storeSubscription(status = status)))
+            assertEquals(status.toString(), listOf(AllodiaBiller.Google), allodiaBillers(live))
+        }
+        for (status in listOf(
+            AllodiaStoreStatus.Revoked,
+            AllodiaStoreStatus.OnHold,
+            AllodiaStoreStatus.Paused,
+            AllodiaStoreStatus.Unknown("something new"),
+        )) {
+            val dead = subscription(stores = listOf(storeSubscription(status = status)))
+            assertEquals(status.toString(), emptyList<AllodiaBiller>(), allodiaBillers(dead))
+        }
+    }
+
+    /** A checkout that was started and never paid is not somebody who is being charged. */
+    @Test
+    fun a_checkout_awaiting_its_first_payment_names_nobody() {
+        val pending = subscription(
+            own = ownSubscription(status = AllodiaOwnStatus.PendingFirstPayment)
+        )
+        assertEquals(emptyList<AllodiaBiller>(), allodiaBillers(pending))
+    }
+
+    /**
      * A biller this build cannot name still appears.
      *
      * Dropping it would turn "two things are charging you" into a sentence naming one, which is
