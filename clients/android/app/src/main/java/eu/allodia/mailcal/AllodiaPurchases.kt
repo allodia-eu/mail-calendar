@@ -49,9 +49,14 @@ internal class AllodiaPurchases(
     //
     // Returns once the purchase has been attached or has been left safely outstanding. A person who
     // closes the app in between loses nothing: Play still reports it, so the next pass picks it up.
+    //
+    // A pass runs for anything but a dismissed sheet, not only for a sale. Play refuses a second
+    // purchase of something already owned, and a purchase nothing has attached yet is exactly what
+    // that refusal describes, so the refusal is the moment to carry it over. A pass costs nothing
+    // when Play is reporting nothing.
     suspend fun buy(activity: Activity, plan: AllodiaPlan): AllodiaPurchaseOutcome {
         val outcome = billing.buy(activity, plan)
-        if (outcome is AllodiaPurchaseOutcome.Bought) linkOutstanding()
+        if (outcome !is AllodiaPurchaseOutcome.Cancelled) linkOutstanding()
         return outcome
     }
 

@@ -466,8 +466,9 @@ dependencies {
 
     // Google Play's billing library, for buying a subscription to the services Allodia runs
     // (the purchasing contract beside the Allodia Licence). The `-ktx` artifact is what supplies
-    // the suspending `queryProductDetails`/`queryPurchasesAsync`/`acknowledgePurchase` the billing
-    // code here awaits; the base artifact has only the listener callbacks.
+    // the suspending `queryProductDetails` and `queryPurchasesAsync` the billing code here awaits;
+    // the base artifact has only the listener callbacks. Nothing here acknowledges a purchase: the
+    // account service does that once it has attached one.
     //
     // ⚠️ **It needs the Play Store app on the device, not merely this dependency.** The library is
     // a stub that binds to `com.android.vending` over IPC, so on a build with no Play Store it can

@@ -385,6 +385,26 @@ are the half where being wrong costs somebody money and the half that is least p
   `unknown_purchase` because Apple has no completed transaction for it, and the ledger retries
   until the approval lands: no money is lost, but the "not gone through" warning could reach
   somebody who is only waiting for a parent to approve, which is the wrong thing to tell them.
+- ⚠️ **An unrelated Play update can steal the flow a purchase is awaiting.**
+  `PurchasesUpdatedListener` is told about every update, not only the one `launchBillingFlow`
+  started, so a renewal or a purchase made on another device arriving while the sheet is open
+  completes the awaited flow with **that** result. No money is lost, because the person's own
+  purchase then arrives through the same listener and starts a pass, but `buy` reports a failure
+  for a purchase that succeeded. Play issues no correlation token for a launched flow, so the fix
+  is a choice (match on the product bought, or time the wait out) rather than an oversight. The
+  same listener is why a flow Play never answers leaves its caller suspended.
+- ⚠️ **A refused token reads as an unreachable service on the account screen.**
+  `Error::Unauthorized` reaches a client as `Unreachable`, which is the collapse
+  [`entitlement.md`](entitlement.md) forbids for grant health: a revoked grant and an outage are
+  different answers. `allodia_grant_health` carries the truth, so a client reading both is not
+  misled, and one reading only the screen's own error is. Whether the fix is a new variant or the
+  health channel staying the single place that says it is a contract decision.
+- **On Play, a settled purchase is attached again on every pass.** `Ledger::apply` drops a linked
+  purchase, and `queryPurchasesAsync` reports an acknowledged subscription for its whole life, so
+  the next `sync` takes it up again as new. It is idempotent at the service and costs one request,
+  and the alternative is remembering settled identifiers, which on Apple would mean forgetting a
+  `finish` that never happened and leaving StoreKit re-delivering it forever. Worth revisiting only
+  if the request itself becomes a cost.
 - **Nothing attaches an account identifier to a purchase, and that has to be decided before the
   first real one.** Both stores let a purchase carry an opaque id chosen by the app
   (`appAccountToken` on Apple, `obfuscatedAccountId` on Play), which then appears in the store's

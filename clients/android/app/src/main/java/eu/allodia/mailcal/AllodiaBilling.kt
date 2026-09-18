@@ -2,8 +2,7 @@
 //
 // The rules are `purchasing.md`, the contract that ships beside the Allodia Licence, and the core
 // holds every one of them. What lives here is the part no Rust can do: asking Play for the
-// subscription, launching the billing flow, collecting what Play still reports, and acknowledging
-// a purchase once the core says it has been granted.
+// subscription, launching the billing flow, and collecting what Play still reports.
 //
 // ⚠️ **This client never acknowledges a purchase.** It is acknowledged once the purchase has been
 // attached to the account, and not before: Play refunds an unacknowledged purchase after three
@@ -160,10 +159,22 @@ internal class AllodiaBilling(
 
         val (result, purchases) = awaited.await()
         return when (result.responseCode) {
-            BillingClient.BillingResponseCode.OK ->
-                AllodiaPurchaseOutcome.Bought(purchases.flatMap(::purchasesFrom))
+            BillingClient.BillingResponseCode.OK -> bought(purchases)
             BillingClient.BillingResponseCode.USER_CANCELED -> AllodiaPurchaseOutcome.Cancelled
             else -> AllodiaPurchaseOutcome.Unavailable(reasonFrom(result))
+        }
+    }
+
+    // An `OK` result that carries nothing this build can attach is not a purchase, and saying it
+    // is would tell somebody they had bought something when nothing was paid for and nothing
+    // crosses to the core. `purchasesFrom` drops a payment that has not cleared and a purchase of
+    // another product, so an empty list here is one of those rather than a sale.
+    private fun bought(purchases: List<Purchase>): AllodiaPurchaseOutcome {
+        val attachable = purchases.flatMap(::purchasesFrom)
+        return if (attachable.isEmpty()) {
+            AllodiaPurchaseOutcome.Unavailable("nothing to attach")
+        } else {
+            AllodiaPurchaseOutcome.Bought(attachable)
         }
     }
 
