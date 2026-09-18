@@ -143,9 +143,13 @@ private fun MainActivity.noteFor(outcome: AllodiaPurchaseOutcome, plan: AllodiaP
 // days rather than lost. What this buys is the way back from a flow the shop never answers, which
 // would otherwise leave every button disabled behind a spinner that does not stop.
 internal fun MainActivity.forgetAllodiaPurchaseInFlight() {
-    if (allodiaSubscription.buying == null) return
-    logUiInfo("allodia: the subscription card was closed while a purchase was in flight")
-    allodiaSubscription = allodiaSubscription.copy(buying = null)
+    if (allodiaSubscription.buying != null) {
+        logUiInfo("allodia: the subscription card was closed while a purchase was in flight")
+    }
+    // The note goes with it. It answers an attempt somebody has just made, so it survives the
+    // re-read that follows one, and reading "your next payment becomes X" on opening Settings a
+    // week later is a statement about nothing that just happened.
+    allodiaSubscription = allodiaSubscription.copy(buying = null, note = null)
 }
 
 // Opens the store's own subscription page, which is the only thing that can change a subscription
