@@ -9,7 +9,7 @@ use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::MailcalApp;
 
-use super::{composer_model::ComposeRequest, recipients::RecipientField};
+use super::{composer_model::ComposeContext, recipients::RecipientField};
 use crate::l10n;
 
 /// Whether the composer must open with Cc and Bcc revealed, given what the request pre-filled them
@@ -53,7 +53,7 @@ impl Row {
 /// and the Android composer share.
 pub(super) fn recipient_rows(
     form: &gtk::Grid,
-    request: &ComposeRequest,
+    request: &ComposeContext,
     app: Option<&Arc<MailcalApp>>,
 ) -> RecipientRows {
     let chevron = gtk::Image::from_icon_name("pan-down-symbolic");

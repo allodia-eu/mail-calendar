@@ -277,7 +277,7 @@ mod tests {
     }
 
     use super::{ComposeKind, ComposerSubmission, submit};
-    use crate::{boot, observer::SurfaceObserver, ui::composer_model::ComposeRequest};
+    use crate::{boot, observer::SurfaceObserver, ui::composer_model::ComposeContext};
 
     const DOCUMENT: &str = r#"{
         "blocks": [{
@@ -324,7 +324,7 @@ mod tests {
         };
         let recipients = app.reply_recipients(account.clone(), key.clone(), false);
         let submission = ComposerSubmission {
-            request: ComposeRequest {
+            request: ComposeContext {
                 kind: ComposeKind::Reply,
                 host: crate::ui::reader::ComposerHost::Pane,
                 account: Some(account.clone()),

@@ -19,7 +19,7 @@ use super::{
     composer_draft::{DraftGuard, HeaderValues},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
     composer_model::{
-        ComposeKind, ComposeRequest, ComposerSubmission, PickedFile, plain_text_seed_script,
+        ComposeContext, ComposeKind, ComposerSubmission, PickedFile, plain_text_seed_script,
     },
     composer_signature::SignatureControl,
     reader::ComposerHost,
@@ -75,7 +75,7 @@ impl ComposerPane {
     pub(crate) fn show(
         &self,
         generation: u64,
-        request: &ComposeRequest,
+        request: &ComposeContext,
         accounts: &[(String, String)],
         app: Option<&Arc<MailcalApp>>,
         window: &impl IsA<gtk::Window>,
@@ -291,7 +291,7 @@ impl ComposerPane {
 fn connect_send(
     button: &gtk::Button,
     editor: &webkit6::WebView,
-    request: ComposeRequest,
+    request: ComposeContext,
     accounts: Vec<(String, String)>,
     from: gtk::DropDown,
     to: Rc<RecipientField>,
@@ -395,7 +395,7 @@ pub(super) fn editor_labels() -> serde_json::Value {
 /// what makes a reply read message → signature → original.
 fn seed_editor(
     web: &SecureWebView,
-    request: &ComposeRequest,
+    request: &ComposeContext,
     editor_host: &gtk::Box,
     signature: Option<&Rc<SignatureControl>>,
     seed: Rc<RefCell<Option<String>>>,

@@ -46,9 +46,13 @@ impl AppModel {
                 self.reply_prompt = app.reply_prompt();
                 self.reply_prompt_generation = self.reply_prompt_generation.wrapping_add(1);
             }
-            // A queued message offered back for the composer. Nothing to do yet: this
-            // client raises no edit, because it draws no Outbox to raise one from.
-            Surface::ComposeRequest => {}
+            // A message the core withdrew from the Outbox so the user could change it. It
+            // exists nowhere else by the time this arrives, so this may not refuse.
+            Surface::ComposeRequest => {
+                if let Some(request) = app.compose_request() {
+                    self.open_withdrawn_message(request);
+                }
+            }
             Surface::UnfiledCopy => {
                 self.unfiled_copy = app.unfiled_copy().map(|copy| UnfiledCopyNotice {
                     body: l10n::unfiled_copy_body(&copy.subject),

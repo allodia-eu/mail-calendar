@@ -8,7 +8,7 @@ use mailcal_bindings::{AccountProvider, AccountSyncRow, SyncSettingsSnapshot, Sy
 use super::{PageContext, dialog_box, group, page_box};
 use crate::{
     l10n,
-    ui::{folder_pane::folder_label, mailbox::plain_text_row},
+    ui::{folder_names::folder_label, mailbox::plain_text_row},
 };
 
 pub(super) fn accounts(ctx: &PageContext) -> gtk::Box {

@@ -13,7 +13,7 @@ use std::{
 
 use super::{
     AppInput, AppModel,
-    composer_model::{ComposeKind, ComposeRequest, PickedFile, initial_sender},
+    composer_model::{ComposeContext, ComposeKind, PickedFile, initial_sender},
     composer_notice::ComposerNotice,
     composer_quote::quote_seed,
     reader::{ComposerHost, ReadingSource},
@@ -144,7 +144,7 @@ impl AppModel {
             }
             _ => String::new(),
         };
-        let request = ComposeRequest {
+        let request = ComposeContext {
             kind,
             host,
             account: opened.map(|message| message.account.clone()),

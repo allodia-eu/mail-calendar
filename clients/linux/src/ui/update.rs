@@ -198,6 +198,10 @@ impl AppModel {
                 self.archive_thread(&account, &thread_id);
             }
             AppInput::ActivateSidebar(target) => self.activate_sidebar(&target),
+            AppInput::ShowOutbox => self.show_outbox(),
+            AppInput::QueuedSendAction { target, action } => {
+                self.queued_send_action(&target, action);
+            }
             AppInput::SetAccountExpanded { account, expanded } => {
                 self.dispatch(Intent::SetAccountExpanded { account, expanded });
             }

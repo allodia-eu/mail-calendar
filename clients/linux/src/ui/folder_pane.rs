@@ -12,7 +12,9 @@ use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::{AccountRow, FolderRole, FolderRow, Intent, MailboxListSnapshot};
 
-use super::{AppInput, AppModel, PrimaryView, mailbox, row_action};
+use super::{
+    AppInput, AppModel, PrimaryView, folder_names::folder_label, mailbox, outbox, row_action,
+};
 use crate::l10n;
 
 /// A navigation target represented by one pane row. Carried by the row's own handler rather than
@@ -24,56 +26,6 @@ pub(crate) enum SidebarTarget {
     AllInboxes,
     Account(String),
     Folder { account: String, key: String },
-}
-
-/// What a folder is **called** on screen: the app's own word for a role-bearing folder, the
-/// server's name for everything else.
-///
-/// The server's name for a special folder is not a name the user chose; it is whatever their
-/// provider stores, in whatever language and casing it likes: `INBOX` shouting in capitals (the
-/// one name IMAP mandates), `Deleted Items` from Exchange, `[Gmail]/Sent Mail`. Naming them
-/// ourselves is also what makes the folder list follow the **app's** language.
-///
-/// [`FolderRole::Other`] keeps the server's name deliberately: the core collapses flagged,
-/// important and all-mail into that one value, so any single word for it would rename three
-/// different folders to the same thing.
-///
-/// Public to the UI module because the pane is not the only place a folder is named; the list
-/// header and the sync-settings folder list show one too, and a folder called two things in one
-/// app is worse than one called something odd in both.
-pub(crate) fn folder_label(role: Option<&FolderRole>, name: &str) -> String {
-    match role {
-        Some(FolderRole::Inbox) => l10n::folder_inbox().to_owned(),
-        Some(FolderRole::Drafts) => l10n::folder_drafts().to_owned(),
-        Some(FolderRole::Sent) => l10n::folder_sent().to_owned(),
-        Some(FolderRole::Archive) => l10n::folder_archive().to_owned(),
-        Some(FolderRole::Junk) => l10n::folder_junk().to_owned(),
-        Some(FolderRole::Trash) => l10n::folder_trash().to_owned(),
-        Some(FolderRole::Other) | None => name.to_owned(),
-    }
-}
-
-/// What the mail list's header calls the scope on screen: the unified inbox, the selected folder
-/// by the app's own name for it, or the account's whole mailbox.
-///
-/// Here rather than in the shell because the pane is not the only place a folder is named, and one
-/// function every site calls is what stops the header and the tree disagreeing (rule 13).
-pub(crate) fn header_title(snapshot: &MailboxListSnapshot) -> String {
-    let Some(account) = snapshot.selected_account.as_deref() else {
-        return l10n::folder_inbox().to_owned();
-    };
-    let Some(key) = snapshot.selected.as_deref() else {
-        return l10n::sidebar_all_mail().to_owned();
-    };
-    folders_of(snapshot, account)
-        .iter()
-        .find(|folder| folder.key == key)
-        .map_or_else(
-            // A key with no row behind it: the folder list has moved on (a rename, a sync) and
-            // the header would otherwise name a folder that is no longer there.
-            || l10n::folder_fallback().to_owned(),
-            |folder| folder_label(folder.role.as_ref(), &folder.name),
-        )
 }
 
 /// The symbolic icon for a folder's special role; a plain folder for anything without one.
@@ -124,6 +76,10 @@ pub(crate) fn render(
     mailbox::install_styles();
     mailbox::clear(list);
 
+    // Rule 18: above the account trees, and off screen entirely at zero.
+    if !snapshot.outbox.is_empty() {
+        list.append(&outbox::pane_row(snapshot.outbox.len(), sender));
+    }
     list.append(&unified_group_row(snapshot.unified_expanded, sender));
     if snapshot.unified_expanded {
         list.append(&unified_inbox_row(snapshot.unified_unread, sender));
@@ -156,10 +112,20 @@ pub(super) fn select_snapshot_row(list: &gtk::ListBox, snapshot: &MailboxListSna
 }
 
 fn selected_row_index(snapshot: &MailboxListSnapshot) -> Option<i32> {
+    // The Outbox row when it is drawn, which also shifts every row beneath it down by one.
+    let outbox = usize::from(!snapshot.outbox.is_empty());
+    // Neither selection scalar can say this: both are `None` on the Outbox *and* on the unified
+    // inbox, so a pane that guessed would highlight All Inboxes while the Outbox is on screen.
+    if snapshot.showing_outbox {
+        return (outbox == 1).then_some(0);
+    }
     let Some(selected_account) = snapshot.selected_account.as_deref() else {
-        return snapshot.unified_expanded.then_some(1);
+        return snapshot
+            .unified_expanded
+            .then(|| i32::try_from(outbox + 1).ok())
+            .flatten();
     };
-    let mut index = 1 + usize::from(snapshot.unified_expanded);
+    let mut index = outbox + 1 + usize::from(snapshot.unified_expanded);
     for account in &snapshot.accounts {
         if account.id == selected_account {
             let Some(selected_folder) = snapshot.selected.as_deref() else {
@@ -186,7 +152,7 @@ fn selected_row_index(snapshot: &MailboxListSnapshot) -> Option<i32> {
 ///
 /// Visible to the UI module because the search filter names the folder it would narrow to, and it
 /// has to be the same row this pane drew.
-pub(super) fn folders_of<'a>(snapshot: &'a MailboxListSnapshot, account: &str) -> &'a [FolderRow] {
+pub(crate) fn folders_of<'a>(snapshot: &'a MailboxListSnapshot, account: &str) -> &'a [FolderRow] {
     snapshot
         .account_folders
         .iter()
@@ -382,17 +348,28 @@ pub(super) struct FolderPaneRendering {
     accounts: Vec<RenderedAccount>,
     unified_unread: u32,
     unified_expanded: bool,
+    /// How many messages are waiting to be sent: the Outbox row's badge, and whether that row
+    /// is drawn at all. Its own field for the reason the counts are: the row appears, changes
+    /// and goes away without any account's text changing.
+    queued: usize,
 }
 
 /// Applies a snapshot selection once, leaving GTK's optimistic row mark alone until it changes.
 #[derive(Default)]
-pub(super) struct FolderPaneSelection {
-    rendered: Option<(Option<String>, Option<String>)>,
+pub(crate) struct FolderPaneSelection {
+    rendered: Option<(Option<String>, Option<String>, bool)>,
 }
 
 impl FolderPaneSelection {
     pub(super) fn sync(&mut self, list: &gtk::ListBox, snapshot: &MailboxListSnapshot) {
-        let next = (snapshot.selected_account.clone(), snapshot.selected.clone());
+        // `showing_outbox` is part of the key because the two scalars beside it cannot tell the
+        // Outbox from the unified inbox: both are `None` in each case, so without it opening the
+        // Outbox is "no change" and the highlight stays on All Inboxes.
+        let next = (
+            snapshot.selected_account.clone(),
+            snapshot.selected.clone(),
+            snapshot.showing_outbox,
+        );
         if self.rendered.as_ref() == Some(&next) {
             return;
         }
@@ -445,6 +422,7 @@ impl FolderPaneRendering {
                 .collect(),
             unified_unread: snapshot.unified_unread,
             unified_expanded: snapshot.unified_expanded,
+            queued: snapshot.outbox.len(),
         }
     }
 }
