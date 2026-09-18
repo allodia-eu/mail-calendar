@@ -405,6 +405,14 @@ are the half where being wrong costs somebody money and the half that is least p
 - **Nothing above has been run against a real store.** Apple's screen exists and buys through the
   simulated store only; no other client draws a purchase surface at all. A deployment with no
   billing configured answers `503 unavailable`, which the ledger treats as an outage and retries.
+- ⚠️ **Switching period does a different thing depending on who sold it, and nothing says so.**
+  Through this API, on Allodia's own subscription, it changes the next charge and moves no money
+  today. On the App Store it is Apple's own upgrade: the two products sit at different levels in
+  the subscription group, so monthly to yearly takes the money at once and refunds the unused part
+  of the month, and yearly to monthly waits for the renewal. Both are defensible and the levels are
+  a deliberate choice, but somebody who has read one of them will be surprised by the other, and
+  the copy for either switch has to be the store's rather than one sentence reused. Play will have
+  its own answer again.
 - **The four writes reach no screen.** Checkout, cancel, switch period and resubscribe are
   implemented and covered in the core, and Apple's screen calls none of them: cancelling and
   switching belong to the store for a store's subscription, and the two that would act on Allodia's
