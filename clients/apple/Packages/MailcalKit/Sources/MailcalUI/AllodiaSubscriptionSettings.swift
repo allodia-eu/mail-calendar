@@ -39,11 +39,16 @@ extension AllodiaBiller {
 }
 
 extension AllodiaPlan {
-    /// Which period, for a button and for a line about one.
-    var displayName: String {
+    /// The button that buys this period, priced.
+    ///
+    /// **The period is on the button, not under it.** It is the thing being chosen, so a row of
+    /// buttons that all read "Subscribe" makes the reader pair each one with a line of small print
+    /// to find out what it does. The renewal terms stay underneath, because they are the same
+    /// sentence for both and belong to the commitment rather than to the choice.
+    func buyLabel(price: String) -> String {
         switch self {
-        case .yearly: return L10n.settings_subscription_yearly()
-        case .monthly: return L10n.settings_subscription_monthly()
+        case .yearly: return L10n.settings_subscription_buy_yearly(price: price)
+        case .monthly: return L10n.settings_subscription_buy_monthly(price: price)
         }
     }
 }
@@ -91,6 +96,12 @@ struct AllodiaSubscriptionSettings: View {
     @State private var state: AllodiaSubscriptionState = .checking
     /// Which period has a purchase sheet up, so its button alone shows the spinner.
     @State private var buying: AllodiaPlan?
+    /// The wait on that sheet, held so leaving the screen can let go of it.
+    ///
+    /// ⚠️ **StoreKit puts no bound on `purchase()`, and a sheet that never answers suspends its
+    /// caller for the life of the process.** Without this the screen has no way back: every button
+    /// stays disabled behind a spinner that will not stop, and only relaunching the app clears it.
+    @State private var purchase: Task<Void, Never>?
     /// The last thing worth saying about an attempt: a pending approval, or a failure in the
     /// store's own words. Cleared when the next attempt starts.
     @State private var note: String?
@@ -111,6 +122,16 @@ struct AllodiaSubscriptionSettings: View {
             .padding(6)
         }
         .task { state = await model.allodiaSubscriptionState() }
+        .onDisappear {
+            // **Letting go of the wait is not abandoning the purchase.** Whatever the store does
+            // with it arrives on `Transaction.updates`, which starts a redemption pass of its own,
+            // and an unfinished transaction is offered again at every launch until the account
+            // service has granted it. So the money is safe whether this screen is watching or not,
+            // and closing it is the way out of a sheet that never answered.
+            purchase?.cancel()
+            purchase = nil
+            buying = nil
+        }
     }
 
     @ViewBuilder
@@ -213,17 +234,21 @@ struct AllodiaSubscriptionSettings: View {
             Button {
                 buy(offer.plan)
             } label: {
-                if buying == offer.plan {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Text(L10n.settings_subscription_buy(price: offer.displayPrice))
+                // The label stays while the spinner runs. A button that becomes a bare spinner
+                // stops saying what it is doing, which is the wrong half to drop when what it is
+                // doing is charging somebody.
+                HStack(spacing: 6) {
+                    if buying == offer.plan {
+                        ProgressView().controlSize(.small)
+                    }
+                    Text(offer.plan.buyLabel(price: offer.displayPrice))
                 }
             }
             .disabled(buying != nil)
-            // The period and what renewing means, beside the button and not a tap away: both
-            // stores make this review-blocking, and somebody agreeing to a recurring charge is
-            // owed it whether or not they are.
-            Text("\(offer.plan.displayName). \(L10n.settings_subscription_terms())")
+            // What renewing means, beside the button and not a tap away: both stores make this
+            // review-blocking, and somebody agreeing to a recurring charge is owed it whether or
+            // not they are.
+            Text(L10n.settings_subscription_terms())
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -254,10 +279,14 @@ struct AllodiaSubscriptionSettings: View {
     }
 
     private func buy(_ plan: AllodiaPlan) {
-        Task {
+        purchase = Task {
             note = nil
             buying = plan
             let outcome = await model.buyAllodiaSubscription(plan)
+            // A wait this screen has let go of says nothing further: the state it would report is
+            // about a screen that is no longer there, and the pass that outlives it is what
+            // records the purchase.
+            if Task.isCancelled { return }
             buying = nil
             switch outcome {
             case .bought:
@@ -280,12 +309,56 @@ struct AllodiaSubscriptionSettings: View {
 /// Day precision on purpose: a renewal is a date somebody's bank statement will agree with, and an
 /// hour and minute in this sentence would invite a comparison with a clock that means nothing here.
 @MainActor func allodiaDate(_ raw: String) -> String? {
-    guard let date = parseUtcInstant(raw) else {
-        // A bare date, or a naive one. Both are already the answer.
-        return raw.isEmpty ? nil : String(raw.prefix(10))
+    guard !raw.isEmpty else { return nil }
+    if let date = allodiaInstant(raw) {
+        return allodiaDateFormatter.string(from: date)
     }
-    return allodiaDateFormatter.string(from: date)
+    // A shape this build cannot read. The leading ten characters are still the right day, so the
+    // sentence stays true and only stops being localised.
+    return String(raw.prefix(10))
 }
+
+/// An ISO 8601 instant in the shapes the **account service** sends.
+///
+/// ⚠️ **`parseUtcInstant` next door is not enough, and using it here was a bug.** It requires a
+/// `Z` suffix because the engine's timestamps carry one; the account service is a different
+/// server, sends a numeric offset instead, and every date on this screen therefore fell through to
+/// the raw string and was drawn as `2026-09-18` to a Dutch reader who should have seen
+/// `18 september 2026`.
+private func allodiaInstant(_ raw: String) -> Date? {
+    if let date = parseUtcInstant(raw) { return date }
+    for parser in allodiaIsoParsers {
+        if let date = parser.date(from: raw) { return date }
+    }
+    return allodiaDayParser.date(from: String(raw.prefix(10)))
+}
+
+/// Built once each: `ISO8601DateFormatter` loads ICU data on construction, the same cost the
+/// timestamp helpers next door carry a warning about. Fractional seconds are a separate parser
+/// rather than a flag, because the option makes a formatter **require** them rather than allow
+/// them, so one configuration cannot read both shapes.
+private nonisolated(unsafe) let allodiaIsoParsers: [ISO8601DateFormatter] = [
+    {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        return iso
+    }(),
+    {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return iso
+    }(),
+]
+
+/// A date with no time at all, which is what the service sends for a period that ends on a day
+/// rather than at an instant. POSIX locale: this parses the wire, it never formats for a reader.
+private let allodiaDayParser: DateFormatter = {
+    let parser = DateFormatter()
+    parser.locale = Locale(identifier: "en_US_POSIX")
+    parser.timeZone = TimeZone(secondsFromGMT: 0)
+    parser.dateFormat = "yyyy-MM-dd"
+    return parser
+}()
 
 /// Built once: `DateFormatter` loads ICU locale data on construction, which the timestamp helpers
 /// next door carry the same warning about.

@@ -92,10 +92,21 @@ extension MailboxModel {
             return .failed(L10n.settings_allodia_browser_failed())
         }
         do {
+            // ⚠️ **Every ending is logged, the quiet ones most of all.** A dismissed sheet says
+            // nothing to the person, deliberately, and StoreKit reports a sign-in that failed
+            // against the sandbox as the same `userCancelled` a dismissal gives. So a purchase
+            // that never had a chance and one somebody thought better of look identical on screen,
+            // and the log is the only place they can be told apart.
             switch try await purchases.buy(plan) {
-            case .bought: return .bought
-            case .cancelled: return .cancelled
-            case .awaitingApproval: return .awaitingApproval
+            case .bought:
+                logAppleLifecycle("allodia: store took a \(plan) purchase")
+                return .bought
+            case .cancelled:
+                logAppleLifecycle("allodia: a \(plan) purchase ended without one")
+                return .cancelled
+            case .awaitingApproval:
+                logAppleLifecycle("allodia: a \(plan) purchase is waiting for approval")
+                return .awaitingApproval
             }
         } catch {
             // The store's messages name products and storefronts, never an address or a secret, so

@@ -67,12 +67,44 @@ struct AllodiaSubscriptionSectionTests {
 
     /// A date is shown to the day: a renewal is what a bank statement will agree with, and an hour
     /// invites a comparison with a clock that means nothing here.
-    @Test func aPeriodEndIsShownToTheDay() {
-        #expect(allodiaDate("2026-10-18T09:30:00Z")?.contains("2026") == true)
-        // A bare date from the service is already the answer, and is not dropped for lacking a
-        // time.
-        #expect(allodiaDate("2026-10-18") == "2026-10-18")
+    ///
+    /// ⚠️ **Every shape here is one the account service actually sends**, and the offset form is a
+    /// regression test: it was parsed by a helper that demands a `Z`, so a real renewal date
+    /// reached a Dutch screen as `2026-09-18` rather than `18 september 2026`. A formatted answer
+    /// is one that no longer looks like the wire, which is what these assert.
+    @Test func aPeriodEndIsFormattedWhateverShapeItArrivesIn() {
+        for raw in [
+            "2026-10-18T09:30:00Z",
+            "2026-10-18T09:30:00+00:00",
+            "2026-10-18T11:30:00+02:00",
+            "2026-10-18T09:30:00.123456Z",
+            "2026-10-18",
+        ] {
+            let shown = allodiaDate(raw)
+            #expect(shown != nil, "\(raw) produced nothing")
+            #expect(shown != raw, "\(raw) was drawn as the wire rather than formatted")
+            #expect(shown?.contains("2026") == true, "\(raw) lost its year")
+        }
+    }
+
+    /// Nothing to say is said as nothing, rather than as an empty line where a date belongs.
+    @Test func anAbsentPeriodEndIsNoLineAtAll() {
         #expect(allodiaDate("") == nil)
+    }
+
+    /// A **time** this build cannot read still yields a localised day, because the day is the only
+    /// part this screen draws: the leading ten characters parse even when the rest does not.
+    @Test func anUnreadableTimeStillYieldsALocalisedDay() {
+        let shown = allodiaDate("2026-10-18 09:30 CET")
+        #expect(shown != nil)
+        #expect(shown != "2026-10-18", "the day parsed, so it should have been formatted")
+        #expect(shown?.contains("2026") == true)
+    }
+
+    /// Something that is not a date at all is drawn as what arrived rather than as a guess. It is
+    /// wrong either way; showing the wire at least says so.
+    @Test func somethingThatIsNoDateIsNotInvented() {
+        #expect(allodiaDate("no-such-date") == "no-such-da")
     }
 
     // MARK: builders

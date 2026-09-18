@@ -42,6 +42,20 @@ targets:
     scheme:
       testTargets:
         - AllodiaMailUITests
+      # The local store, so the subscription screen can be driven without an Apple Account of any
+      # kind. It resolves both products, completes a purchase instantly and lets it be made again,
+      # which is what makes the half after the purchase testable at all: the redemption pass, the
+      # account service, and the `finish` the core has to name before StoreKit lets go.
+      #
+      # **The same file the StoreKit suite runs against**, deliberately. Two copies would let the
+      # ids a developer sees drift from the ids the suite asserts on, and the ids are the one thing
+      # neither store ever lets us change.
+      #
+      # ⚠️ **This reaches a build only when Xcode launches it.** A scheme is not part of the app,
+      # so nothing shipped carries it; and `scripts/dev/boot.sh` runs the built `.app` directly,
+      # which therefore talks to the real App Store. A price that looks wrong is usually that
+      # difference rather than a bug.
+      storeKitConfiguration: StoreKitTests/Allodia.storekit
     sources:
       - App
     dependencies:

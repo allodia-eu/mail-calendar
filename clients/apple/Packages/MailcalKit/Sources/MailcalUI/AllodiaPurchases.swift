@@ -24,9 +24,15 @@ final class AllodiaPurchases {
     private let store: AllodiaStoreKit
     private var listener: Task<Void, Never>?
 
+    /// How many products the core asked the store for, kept so the log line below can say how many
+    /// of them came back without asking the core a second time.
+    private let wanted: Int
+
     init(app: MailcalApp) {
+        let catalogue = app.allodiaStoreProducts(store: .apple)
         self.app = app
-        self.store = AllodiaStoreKit(catalogue: app.allodiaStoreProducts(store: .apple))
+        self.wanted = catalogue.count
+        self.store = AllodiaStoreKit(catalogue: catalogue)
     }
 
     deinit {
@@ -57,8 +63,18 @@ final class AllodiaPurchases {
     ///
     /// Offers from Allodia's own checkout are added by the caller, which knows whether this
     /// platform may draw them at all; the ordering is the core's either way.
+    /// ⚠️ **A screen drawing no offers has to be diagnosable from the log.** Leaving a product the
+    /// store does not know about out of the list is deliberate, and it makes "this storefront does
+    /// not sell it", "these products are not live yet" and "the store could not be reached" look
+    /// identical to the person, correctly. They must not look identical to us.
     func offers(including others: [AllodiaOffer] = []) async -> [AllodiaOffer] {
-        let fromStore = (try? await store.offers()) ?? []
+        var fromStore: [AllodiaOffer] = []
+        do {
+            fromStore = try await store.offers()
+            logAppleLifecycle("allodia: store offered \(fromStore.count) of \(wanted) product(s)")
+        } catch {
+            logAppleLifecycle("allodia: store offered nothing (\(error))")
+        }
         return app.orderAllodiaOffers(offers: fromStore + others)
     }
 

@@ -405,6 +405,14 @@ are the half where being wrong costs somebody money and the half that is least p
 - **Nothing above has been run against a real store.** Apple's screen exists and buys through the
   simulated store only; no other client draws a purchase surface at all. A deployment with no
   billing configured answers `503 unavailable`, which the ledger treats as an outage and retries.
+- ⚠️ **A StoreKit purchase sheet that never answers suspends its caller for good**, the same hole
+  the Play listener has below, and observed rather than reasoned about: a sandbox sign-in that
+  could not complete left `Product.purchase()` awaiting with nothing logged and nothing returned.
+  Apple's screen holds the wait to the screen that started it, so closing the subscription section
+  cancels it and every button comes back; the purchase itself is unaffected, because an unfinished
+  transaction is re-offered at every launch and the updates listener starts a pass for it. What is
+  still missing is any bound on the wait, so a person who stays on the screen waits forever, and
+  choosing between a timeout and something better is a decision rather than an oversight.
 - ⚠️ **Switching period does a different thing depending on who sold it, and nothing says so.**
   Through this API, on Allodia's own subscription, it changes the next charge and moves no money
   today. On the App Store it is Apple's own upgrade: the two products sit at different levels in
