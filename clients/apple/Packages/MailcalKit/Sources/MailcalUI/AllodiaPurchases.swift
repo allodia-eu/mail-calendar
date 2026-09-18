@@ -85,11 +85,29 @@ final class AllodiaPurchases {
     /// launch picks it up.
     @discardableResult
     func buy(_ plan: AllodiaPlan) async throws -> AllodiaPurchaseOutcome {
-        let outcome = try await store.buy(plan)
+        let outcome = try await store.buy(plan, for: allodiaAccountToken())
         if case .bought = outcome {
             _ = try? await linkOutstanding()
         }
         return outcome
+    }
+
+    /// The Allodia account to tag a purchase with, read at the moment of buying rather than held.
+    ///
+    /// ⚠️ **Read now, because it can change under a long-lived object**: somebody signs out and
+    /// signs in as somebody else without the app restarting, and a token captured at construction
+    /// would attribute the second person's money to the first.
+    ///
+    /// **Apple requires a UUID and refuses anything else.** The service's ids are UUIDs, so a
+    /// value that will not parse is a service this build does not understand rather than a stored
+    /// id to coerce; it buys untagged, which is what a build predating the id does anyway.
+    private func allodiaAccountToken() -> UUID? {
+        guard let id = app.allodiaAccount()?.id else { return nil }
+        guard let token = UUID(uuidString: id) else {
+            logAppleLifecycle("allodia: the account id is not a uuid; buying without one")
+            return nil
+        }
+        return token
     }
 
     /// One pass: hand the account service everything the store is still offering, then finish only

@@ -17,4 +17,7 @@ internal fun allodiaBillingProvider(
         context = context,
         catalogue = app.allodiaStoreProducts(store = AllodiaStore.GOOGLE),
         onPurchaseReported = onPurchaseReported,
+        // Asked on every purchase rather than read once here, so signing in as somebody else
+        // reaches the next purchase without the provider being rebuilt.
+        accountId = { app.allodiaAccount()?.id },
     )

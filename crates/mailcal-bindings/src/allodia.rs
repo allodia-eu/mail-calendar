@@ -43,6 +43,16 @@ pub(crate) const ACCOUNT_ID: &str = "allodia-account";
 /// a client holds.
 #[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
 pub struct AllodiaAccount {
+    /// The account's own id at the service.
+    ///
+    /// ⚠️ **Handed to a store with a purchase** (`appAccountToken` on Apple,
+    /// `obfuscatedAccountId` on Play) so the account service can attribute one whose report was
+    /// lost. `None` where this device signed in before the id was recorded, and a client then
+    /// buys without one rather than inventing a value: a wrong id would attribute somebody's money
+    /// to the wrong account, which is worse than no id at all.
+    ///
+    /// Never drawn. It names an account, not a person, and says nothing a screen should show.
+    pub id: Option<String>,
     /// The account's email address.
     pub email: String,
     /// The person's display name, when the service holds one.
@@ -85,6 +95,15 @@ pub fn allodia_sign_in_available() -> bool {
 /// top-level section, and this is a fifth that no mail parse accepts.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct StoredAccount {
+    /// The account's own id at the service, the OpenID Connect `sub`.
+    ///
+    /// ⚠️ **What a store purchase is tagged with**, so the account service can attribute one whose
+    /// report never arrived. Optional because **absent means not known**: a grant stored before
+    /// this field existed has none, and there is no launch that would fetch it, so such a grant
+    /// carries no id until the next sign-in. A purchase made meanwhile is attributed the way every
+    /// purchase is today, by the app naming it, and loses only the repair path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) id: Option<String>,
     /// The account's email address.
     pub(crate) email: String,
     /// The person's display name, when the service gave one.
@@ -151,6 +170,7 @@ impl StoredAccount {
     /// What a client is told about it; everything except the secret.
     pub(crate) fn account(&self) -> AllodiaAccount {
         AllodiaAccount {
+            id: self.id.clone(),
             email: self.email.clone(),
             name: self.name.clone(),
         }
@@ -220,6 +240,7 @@ mod tests {
 
     fn stored() -> StoredAccount {
         StoredAccount {
+            id: Some("11111111-2222-4333-8444-555555555555".to_owned()),
             email: "someone@example.com".to_owned(),
             name: Some("Someone".to_owned()),
             refresh_token: "refresh-token".to_owned(),
@@ -239,6 +260,26 @@ mod tests {
         // And its permissions are NOT KNOWN rather than empty, which is the difference between
         // carrying on and prompting every signed-in person on the day this ships.
         assert!(read.granted_scopes.is_none());
+        // The account id is the same shape of answer, and the same reason: a grant that predates
+        // it has none, and a client buys without one rather than inventing a value, because an
+        // invented id would attribute somebody's money to the wrong account.
+        assert!(read.id.is_none());
+    }
+
+    #[test]
+    fn an_account_id_reaches_the_client_but_is_never_required_to() {
+        assert_eq!(
+            stored().account().id.as_deref(),
+            Some("11111111-2222-4333-8444-555555555555")
+        );
+        // A grant with no id still produces an account: the id is what a purchase is tagged with,
+        // never what makes somebody signed in.
+        let older = StoredAccount {
+            id: None,
+            ..stored()
+        };
+        assert!(older.account().id.is_none());
+        assert_eq!(older.account().email, "someone@example.com");
     }
 
     #[test]

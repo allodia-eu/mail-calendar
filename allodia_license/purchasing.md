@@ -124,6 +124,29 @@ Three more consequences worth stating rather than discovering:
 - **Retrying is capped at an hour.** A backoff left to double would pass Play's three-day refund
   clock, which turns a service having a bad afternoon into a refund nobody asked for.
 
+## Every purchase names the account it is for
+
+A purchase carries an opaque id the app chooses, `appAccountToken` on Apple and
+`obfuscatedAccountId` on Play, and it is **the Allodia Account subject**: the identity the account
+service issued, which every client already holds from its own sign-in.
+
+**Not the subscription service's own user id**, which is a different value. That one is created
+when the service first sees a sign-in and is this service's mirror of the identity; the subject is
+the identity. A purchase outlives mirrors, and Apple keeps the token for the life of the
+subscription, so the token names the thing that does not move.
+
+⚠️ **It cannot be attached afterwards.** A purchase made without one is never taggable, so every
+purchase carries it from the first, not from the first that turned out to need it.
+
+**What it is for is the purchase whose report never arrived.** The ordinary path is the device
+naming its own transaction; this is the path for a device that paid and then lost the network or
+was killed before it could. The store's own notification about the renewal or the refund is then
+all that reaches the account service, and the token is the only thing in it that says whose money
+it was. Apple requires a UUID and refuses anything else; Play takes any string.
+
+It identifies an **account, not a person**: an opaque id the service already holds, carrying no
+address and no name, and it is never drawn on a screen.
+
 ## The device names the purchase; it says nothing about it
 
 **One identifier crosses, and nothing else**: Apple's StoreKit transaction id, or Play's purchase
@@ -480,9 +503,8 @@ are the half where being wrong costs somebody money and the half that is least p
   and the alternative is remembering settled identifiers, which on Apple would mean forgetting a
   `finish` that never happened and leaving StoreKit re-delivering it forever. Worth revisiting only
   if the request itself becomes a cost.
-- **Nothing attaches an account identifier to a purchase, and that has to be decided before the
-  first real one.** Both stores let a purchase carry an opaque id chosen by the app
-  (`appAccountToken` on Apple, `obfuscatedAccountId` on Play), which then appears in the store's
-  own server notifications about renewals and refunds. It **cannot be attached afterwards**, which
-  is what makes it a decision to take before the first real purchase rather than after. It needs an
-  identifier the account service names, which is why it is not guessed here.
+- **A grant stored before the account id was recorded carries none**, and no launch fetches one,
+  so such a device buys untagged until its next sign-in. Untagged is what every purchase was
+  before, so nothing regresses; what it loses is the repair path below. Buying with a guessed id
+  would be worse than buying without one, because it would attribute somebody's money to an
+  account that is not theirs.

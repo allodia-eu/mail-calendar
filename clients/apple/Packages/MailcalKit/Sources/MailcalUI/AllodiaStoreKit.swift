@@ -85,7 +85,19 @@ actor AllodiaStoreKit {
     ///
     /// What comes back is **not** a granted subscription. The core attaches it to the account
     /// first, and only what the core names is finished.
-    func buy(_ plan: AllodiaPlan) async throws -> AllodiaPurchaseOutcome {
+    /// `account` tags the purchase with the Allodia account it is for, and comes back to the
+    /// account service in Apple's **own** notifications about renewals and refunds.
+    ///
+    /// ⚠️ **It is the only repair path for a purchase whose report never arrived.** The device
+    /// pays and then loses the network, or is killed, before naming the transaction; without this
+    /// the money exists at Apple attached to nobody. It also **cannot be added afterwards**, which
+    /// is why a purchase is tagged from the first one rather than from the first one that needed
+    /// it.
+    ///
+    /// `nil` where this device signed in before the id was recorded. A purchase then goes
+    /// untagged rather than tagged with a guess: the app still reports it, and a wrong id would
+    /// attribute somebody's money to a different account.
+    func buy(_ plan: AllodiaPlan, for account: UUID?) async throws -> AllodiaPurchaseOutcome {
         try await loadProducts()
         guard
             let wanted = catalogue.first(where: { $0.plan == plan }),
@@ -94,7 +106,8 @@ actor AllodiaStoreKit {
             throw AllodiaPurchaseFailure.noSuchProduct
         }
 
-        switch try await product.purchase() {
+        let options: Set<Product.PurchaseOption> = account.map { [.appAccountToken($0)] } ?? []
+        switch try await product.purchase(options: options) {
         case let .success(verification):
             return .bought(purchase(from: verification))
         case .userCancelled:

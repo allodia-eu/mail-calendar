@@ -74,7 +74,7 @@ class AllodiaAccountCardTest {
         card(
             AllodiaSettings(
                 available = true,
-                account = AllodiaAccount("someone@example.com", null),
+                account = AllodiaAccount(id = null, email = "someone@example.com", name = null),
             ),
         )
 
@@ -109,7 +109,7 @@ class AllodiaAccountCardTest {
         card(
             AllodiaSettings(
                 available = true,
-                account = AllodiaAccount(email = "alice@allodia.eu", name = "Alice Ackermann"),
+                account = AllodiaAccount(id = null, email = "alice@allodia.eu", name = "Alice Ackermann"),
             ),
         )
 
@@ -128,7 +128,7 @@ class AllodiaAccountCardTest {
         card(
             AllodiaSettings(
                 available = true,
-                account = AllodiaAccount(email = "alice@allodia.eu", name = null),
+                account = AllodiaAccount(id = null, email = "alice@allodia.eu", name = null),
             ),
         )
 
