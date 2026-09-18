@@ -22,11 +22,11 @@ use mailcal_bindings::SharePrefill;
 
 use super::{
     AppModel, PendingNavigation,
-    composer_model::{ComposeKind, ComposeRequest, PickedFile},
+    composer_model::{ComposeContext, ComposeKind, PickedFile},
     reader::ComposerHost,
 };
 
-impl ComposeRequest {
+impl ComposeContext {
     /// A new message pre-filled from a share.
     ///
     /// The recipient fields come straight through: they are non-empty only when the shared text
@@ -82,7 +82,7 @@ impl AppModel {
                 app.default_send_account(),
             )
         });
-        let request = ComposeRequest::from_share(prefill, initial_from);
+        let request = ComposeContext::from_share(prefill, initial_from);
         if self.composer.is_some() {
             self.queue_navigation(PendingNavigation::Composer(request));
         } else {

@@ -112,10 +112,11 @@ function Wait-AppWindow {
 .SYNOPSIS
 Close every window but the mailbox, and wait until they are gone.
 .DESCRIPTION
-WM_CLOSE rather than a Close button. The shell draws its own caption (MainWindow.TitleBar.cs) and
-so has a #Close element; a reading or composer window carries the SYSTEM caption, whose buttons are
-not in the app's automation tree at all. Invoking a #Close that is not there fails silently, which
-leaves the window open and hands the next case somebody else's windows to count.
+WM_CLOSE rather than the window's own Close button. Every window here has one, but it belongs to
+the system rather than to the app (Services/WindowCaption.cs), so pressing it is an OS gesture on a
+surface outside the XAML tree, and a case that is closing up after itself should not depend on one.
+A close that silently does nothing leaves the window open and hands the next case somebody else's
+windows to count.
 
 It also matters that the windows really go: uia.ps1 resolves the app through
 Process.MainWindowHandle, which names ONE window, so a leftover reading window can shadow the

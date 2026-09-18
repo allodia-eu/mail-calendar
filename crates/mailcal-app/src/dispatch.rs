@@ -121,6 +121,8 @@ impl<P: Provider> App<P> {
             }
             Intent::RefreshCalendar => self.refresh_calendar().await,
             Intent::Contacts(contacts) => self.dispatch_contacts(contacts).await,
+            Intent::Outbox(outbox) => self.dispatch_outbox(outbox).await,
+            Intent::DismissComposeRequest => self.dismiss_compose_request(),
             // The mail-mutation handlers report whether the edit applied, for the agent adapter
             // (`mail_ops::result`). An intent stays fire-and-forget: the interactive surface
             // learns the outcome from the optimistic hide being undone and the re-sync, not from

@@ -11,7 +11,7 @@ use mailcal_viewmodel::{QuoteStyleKind, SwipeActionKind, SwipeDirection, ViewMod
 // Named only by intra-doc links below, which rustdoc resolves against this module's scope.
 #[allow(unused_imports, reason = "named by intra-doc links on the variants")]
 use super::Surface;
-use super::{BulkAction, ComposerBlob, ContactsIntent, SearchScope};
+use super::{BulkAction, ComposerBlob, ContactsIntent, OutboxIntent, SearchScope};
 use crate::{
     ReaderId,
     invitations_rsvp::InvitationResponse,
@@ -412,6 +412,21 @@ pub enum Intent {
     /// changes. Going offline stops the app attempting network syncs (and shows a banner);
     /// coming back online triggers a refresh so mail catches up and dead connections heal.
     ReportNetworkReachable(bool),
+    /// An action on the Outbox: show it, or act on one queued send.
+    ///
+    /// Its own family for the reason [`Contacts`](Self::Contacts) is one: a surface with a
+    /// list and actions nothing else has, because no other row names a message no server
+    /// has yet.
+    Outbox(OutboxIntent),
+    /// The host's composer now holds the message [`Surface::ComposeRequest`] offered, so the
+    /// request is answered and must not be offered again.
+    ///
+    /// The host's acknowledgement, not a cancellation: the message is already out of the
+    /// outbox by the time the request exists, so nothing is lost by clearing it and the
+    /// request would otherwise reappear on every relaunch.
+    ///
+    /// [`Surface::ComposeRequest`]: crate::Surface::ComposeRequest
+    DismissComposeRequest,
     /// Report the device's current OS timezone (an IANA id). The host dispatches this
     /// on launch and whenever the OS signals a zone change; the app adopts it on first
     /// boot, else raises a pending change for the user to accept or dismiss when it

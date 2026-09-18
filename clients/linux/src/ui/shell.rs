@@ -20,6 +20,7 @@ use super::{
     mail_toolbar::MailToolbar,
     mailbox::MailboxRendering,
     mailbox_progressive::ProgressiveRenderer,
+    outbox,
     reader::ReadingSource,
     reading::{InvitationClock, ReadingPane},
     search::SearchBar,
@@ -318,14 +319,23 @@ impl AppWidgets {
         let display_zone = model.calendar.display_zone();
         let rendering = MailboxRendering::new(&model.snapshot, display_zone);
         if self.rendered_snapshot.as_ref() != Some(&rendering) {
-            self.mailbox_renderer.render(
-                &self.messages,
-                &model.snapshot,
-                &model.expanded_threads,
-                mail_actions::in_junk_folder(&model.snapshot),
-                display_zone,
-                &self.sender,
-            );
+            // One widget, two lists. The Outbox holds no stored mail, so the progressive
+            // renderer has nothing to reconcile against and is left out of the path entirely;
+            // its own rendered state is cleared so returning to mail rebuilds from scratch
+            // rather than reconciling against rows that are no longer on screen.
+            if model.snapshot.showing_outbox {
+                self.mailbox_renderer = ProgressiveRenderer::default();
+                outbox::render(&self.messages, &model.snapshot, &self.sender);
+            } else {
+                self.mailbox_renderer.render(
+                    &self.messages,
+                    &model.snapshot,
+                    &model.expanded_threads,
+                    mail_actions::in_junk_folder(&model.snapshot),
+                    display_zone,
+                    &self.sender,
+                );
+            }
             self.rendered_snapshot = Some(rendering);
         }
         // After the rows, always: a plain click has already moved the widget's own selection, and

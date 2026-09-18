@@ -30,6 +30,7 @@ import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.AnalyticsConsent
 import uniffi.mailcal_bindings.Appearance
+import uniffi.mailcal_bindings.ComposeRequest
 import uniffi.mailcal_bindings.ConnectivitySnapshot
 import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.CalendarWriteStatus
@@ -40,6 +41,7 @@ import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailtoPrefill
 import uniffi.mailcal_bindings.Observer
+import uniffi.mailcal_bindings.QueuedRow
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.ReadingSnapshot
@@ -86,6 +88,15 @@ class MainActivity : AppCompatActivity() {
     internal var accountFolders by mutableStateOf<List<AccountFolderRow>>(emptyList())
     // The All Inboxes badge: every account's Inbox unread, summed. 0 shows none.
     internal var unifiedUnread by mutableStateOf(0u)
+    // Every account's unsent messages, and whether the list is showing them rather than mail.
+    // Both pulled with the snapshot: the count badges the drawer's Outbox row in every view, and
+    // `showingOutbox` is not derivable from the two selection scalars, which are null on the
+    // Outbox *and* on the unified inbox (docs/folder-pane.md, rule 18).
+    internal var outbox by mutableStateOf<List<QueuedRow>>(emptyList())
+    internal var showingOutbox by mutableStateOf(false)
+    // A message the core withdrew from the Outbox so the user can change it. It exists nowhere
+    // else by the time it arrives, so it is held until this client's composer has it.
+    internal var withdrawnMessage by mutableStateOf<ComposeRequest?>(null)
     // The selected folder key within the selected account (null = all mail). Pulled with the snapshot.
     internal var selectedFolder by mutableStateOf<String?>(null)
     // How far back the active search looked, or null when the list is not a search.

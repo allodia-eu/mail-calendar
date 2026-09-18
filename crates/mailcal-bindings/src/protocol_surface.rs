@@ -41,6 +41,11 @@ pub enum Surface {
     /// `MailcalApp::unfiled_copy`); drives the modal offering to file it. Unlike `Sending`
     /// this does **not** auto-clear; it stands until the user answers.
     UnfiledCopy,
+    /// A queued send the user asked to edit, waiting to be opened in the host's composer
+    /// (pulled via `MailcalApp::compose_request`). Like `UnfiledCopy` it does **not**
+    /// auto-clear: the message has already left the Outbox, so this is the only copy of it,
+    /// and the host clears it once its composer holds it.
+    ComposeRequest,
 }
 
 /// A foreign (Kotlin/Swift) observer the app notifies when a surface changes; the

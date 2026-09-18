@@ -49,10 +49,10 @@ fn instant(row: &MailRow) -> Option<UtcDateTime> {
 /// all. A mailbox list shows who a message is *from*: a person's name reads far better than
 /// their address, and the reading view still carries the full `Name <email>` for detail.
 fn sender(row: &MailRow) -> String {
-    match row.from_name.as_deref() {
-        Some(name) if !name.trim().is_empty() => name.to_owned(),
-        _ => row.from_addr.clone().unwrap_or_default(),
-    }
+    crate::sender::address_label(
+        row.from_name.as_deref(),
+        row.from_addr.as_deref().unwrap_or_default(),
+    )
 }
 
 /// The sender's email address, which is what an avatar is *of*.

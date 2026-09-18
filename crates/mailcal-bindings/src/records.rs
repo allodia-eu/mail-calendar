@@ -10,7 +10,7 @@
 
 pub(crate) mod settings;
 
-use crate::records_avatar::Avatar;
+use crate::{records_avatar::Avatar, records_outbox::QueuedRow};
 
 /// An immutable snapshot of the display-timezone setting for a host to render.
 #[derive(uniffi::Record)]
@@ -173,7 +173,13 @@ pub enum SendStatus {
     /// the recipients have the message, only the sender's own record of it is missing.
     /// Never as a failure, that invites a re-send of mail that already went out.
     SentNotFiled,
-    /// The most recent submission failed: the message did **not** go out.
+    /// The submission has **not gone yet** and is waiting in the Outbox; it will be sent
+    /// when the network comes back. Show it as pending, never as a failure: the message is
+    /// not lost, and telling someone their send failed invites them to write it again.
+    /// The standing form of this is the pane's Outbox row.
+    Queued,
+    /// The most recent submission failed: the message did **not** go out, and nothing will
+    /// retry it.
     Failed,
 }
 
@@ -273,6 +279,19 @@ pub struct MailboxListSnapshot {
     pub folders: Vec<FolderRow>,
     /// Every account's sorted folder list: the folder pane's source, populated in every view.
     pub account_folders: Vec<AccountFolderRow>,
+    /// Whether the list is showing the **Outbox** rather than mail.
+    ///
+    /// A client switches its list on this: the rows come from [`Self::outbox`] and
+    /// [`Self::rows`] is empty. Not derivable from [`Self::selected_account`] and
+    /// [`Self::selected`], which are both `None` here *and* on the unified inbox.
+    pub showing_outbox: bool,
+    /// Every account's unsent messages, oldest first: what the pane's **Outbox** row counts,
+    /// and what the list shows when [`Self::showing_outbox`] is set.
+    ///
+    /// Populated in every view, like [`Self::account_folders`], because the row it badges is
+    /// on screen whatever else is. **Empty means draw no Outbox row at all**: an Outbox
+    /// that only ever says zero is furniture (`docs/folder-pane.md`, rule 6).
+    pub outbox: Vec<QueuedRow>,
     /// The badge on the **All Accounts** group's Inbox row: every account's Inbox unread,
     /// summed. `0` shows no badge. The group's own row carries none, as an account's does not.
     pub unified_unread: u32,

@@ -240,6 +240,14 @@
          seconds of UI thread opening a 57-folder account. Cost is invisible to a screenshot and to
          UI Automation alike (both see the right sidebar either way), so it is asserted here as
          arithmetic. WinUI-free on purpose, that is what lets it be. -->
+    <!-- What an Outbox row says about itself, and which rows offer their three actions
+         (docs/sending.md). WinUI-free and L10n-free on purpose, the words and glyphs arrive as
+         parameters, the same seam SidebarTree uses: all three of its rules fail silently on
+         screen, most sharply the one that decides whether a message whose delivery could not be
+         confirmed is offered "Send now", which is how it arrives twice. It reads the generated
+         QueuedRow, so it needs the bindings below. -->
+    <Compile Include="..\Mailcal\ViewModels\QueuedRowItem.cs" Link="ViewModels\QueuedRowItem.cs" />
+    <Compile Include="..\Mailcal\Services\OutboxRows.cs" Link="Services\OutboxRows.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarSources.cs" Link="ViewModels\SidebarSources.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarItem.cs" Link="ViewModels\SidebarItem.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarTree.cs" Link="ViewModels\SidebarTree.cs" />

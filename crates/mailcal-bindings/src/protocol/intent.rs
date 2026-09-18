@@ -460,6 +460,15 @@ pub enum Intent {
     /// and whenever the OS reachability signal changes. Offline stops the app attempting
     /// syncs (and shows a banner); online triggers a refresh so mail catches up and dead
     /// connections heal.
+    /// An action on the Outbox: show it, or act on one queued send
+    /// ([`OutboxIntent`](super::OutboxIntent)).
+    Outbox {
+        /// Which Outbox action.
+        intent: super::OutboxIntent,
+    },
+    /// The host's composer now holds the message `Surface::ComposeRequest` offered, so the
+    /// request is answered and must not be offered again.
+    DismissComposeRequest,
     ReportNetworkReachable {
         /// Whether the device can currently reach the network.
         reachable: bool,

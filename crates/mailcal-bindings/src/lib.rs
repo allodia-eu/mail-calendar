@@ -85,6 +85,7 @@ mod records_avatar;
 mod records_calendar;
 mod records_connectivity;
 mod records_contacts;
+mod records_outbox;
 pub mod sync_state;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
 mod records_invitation;
@@ -145,7 +146,9 @@ pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
 pub use oauth_routes::{OAuthRoutes, oauth_routes};
-pub use protocol::{BulkAction, Intent, InvitationResponse, SearchScope, SelectedRow};
+pub use protocol::{
+    BulkAction, Intent, InvitationResponse, OutboxIntent, SearchScope, SelectedRow,
+};
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
     AccountFolderRow, AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, FlatRow,
@@ -175,6 +178,7 @@ pub use records_contacts::{
 pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
 };
+pub use records_outbox::{ComposeRequest, QueuedRow, QueuedState};
 pub use records_recurrence::{
     EventRecurrence, ProposedEdit, RecurrenceChange, RecurrenceDay, RecurrenceEnd,
     RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,

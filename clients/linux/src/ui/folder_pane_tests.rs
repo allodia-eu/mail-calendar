@@ -3,11 +3,14 @@
 use std::collections::HashSet;
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountFolderRow, AccountRow, FolderRole, FolderRow, MailboxListSnapshot};
+use mailcal_bindings::{
+    AccountFolderRow, AccountRow, FolderRole, FolderRow, MailboxListSnapshot, QueuedRow,
+    QueuedState,
+};
 
 use super::{
-    FolderPaneRendering, FolderPaneSelection, SidebarTarget, folder_label, header_title, render,
-    role_icon, select_snapshot_row, width,
+    FolderPaneRendering, FolderPaneSelection, SidebarTarget, render, role_icon,
+    select_snapshot_row, width,
 };
 use crate::{
     l10n,
@@ -238,26 +241,6 @@ pub(crate) fn only_an_unreachable_account_gets_the_warning() {
 }
 
 #[test]
-fn a_role_bearing_folder_is_named_by_the_app_and_every_other_keeps_its_name() {
-    assert_eq!(folder_label(Some(&FolderRole::Inbox), "INBOX"), "Inbox");
-    assert_eq!(
-        folder_label(Some(&FolderRole::Trash), "Deleted Items"),
-        "Trash"
-    );
-    // Renamed on the server, and still called what we call it; the trade rule 12 names.
-    assert_eq!(
-        folder_label(Some(&FolderRole::Archive), "Archief 2024"),
-        "Archive"
-    );
-    // `Other` collapses flagged, important and all-mail, so there is no one honest word for it.
-    assert_eq!(
-        folder_label(Some(&FolderRole::Other), "All Mail"),
-        "All Mail"
-    );
-    assert_eq!(folder_label(None, "Sales & Marketing"), "Sales & Marketing");
-}
-
-#[test]
 fn a_role_with_no_icon_of_its_own_takes_the_plain_folder() {
     assert_eq!(role_icon(None), role_icon(Some(&FolderRole::Other)));
     assert_ne!(role_icon(Some(&FolderRole::Inbox)), role_icon(None));
@@ -309,6 +292,25 @@ fn the_pane_is_rebuilt_when_a_tree_opens_or_a_count_moves() {
         key,
         FolderPaneRendering::new(&two_accounts(), &unreachable),
         "a connectivity signal must redraw the account badge without rebuilding the mail list"
+    );
+
+    // A queued send appears in no account's tree, so without the count in the key the Outbox row
+    // never arrives on screen at all: the message queues, the core publishes it, and the pane
+    // decides nothing changed.
+    let mut queued = two_accounts();
+    queued.outbox = vec![QueuedRow {
+        account: "acct-1".to_owned(),
+        op: 1,
+        to: "ada@example.test".to_owned(),
+        subject: "Lunch".to_owned(),
+        state: QueuedState::Waiting,
+        attempts: 1,
+        detail: None,
+    }];
+    assert_ne!(
+        key,
+        FolderPaneRendering::new(&queued, &HashSet::new()),
+        "the Outbox row has to be drawn, and taken away again once the queue empties"
     );
 }
 
@@ -475,25 +477,4 @@ fn widget_tooltips(root: &gtk::Widget) -> Vec<String> {
         child = node.next_sibling();
     }
     found
-}
-
-#[test]
-fn the_list_header_names_the_scope_the_same_way_the_pane_does() {
-    let mut snapshot = two_accounts();
-    assert_eq!(header_title(&snapshot), "Inbox");
-
-    // An account with no folder chosen is that account's whole mailbox.
-    snapshot.selected_account = Some("acct-1".to_owned());
-    assert_eq!(header_title(&snapshot), "All Mail");
-
-    // A folder is named by the app, exactly as its row is: never `INBOX`.
-    snapshot.selected = Some("inbox".to_owned());
-    assert_eq!(header_title(&snapshot), "Inbox");
-    snapshot.selected = Some("custom".to_owned());
-    assert_eq!(header_title(&snapshot), "Sales & Marketing");
-
-    // The key resolves within the *selected* account, not across the pane: acct-2 has no
-    // `custom`, so the header must not borrow acct-1's row for it.
-    snapshot.selected_account = Some("acct-2".to_owned());
-    assert_eq!(header_title(&snapshot), "Mail");
 }

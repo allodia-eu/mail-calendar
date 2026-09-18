@@ -32,6 +32,11 @@ pub(super) fn empty_mailbox() -> MailboxListSnapshot {
         total: 0,
         // The empty snapshot stands in before a search has run, so there is no depth to state.
         search_horizon: None,
+        // No Outbox: this client draws none yet (`docs/sending.md`, "Known gaps"), and an
+        // empty one would take the row off screen in any case (`docs/folder-pane.md`,
+        // rule 18).
+        showing_outbox: false,
+        outbox: Vec::new(),
     }
 }
 

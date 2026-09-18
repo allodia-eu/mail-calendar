@@ -39,6 +39,7 @@ mod contacts_actions;
 pub(crate) mod destinations;
 mod detached;
 mod dns;
+mod folder_names;
 mod folder_pane;
 mod google;
 mod host_tasks;
@@ -62,6 +63,7 @@ mod notifications;
 mod oauth_actions;
 mod oauth_loopback;
 mod operations;
+mod outbox;
 mod reader;
 mod reading;
 mod reading_windows;
@@ -106,9 +108,9 @@ mod welcome;
 
 use calendar::CalendarModel;
 use composer_draft::PendingNavigation;
+use composer_model::ComposeContext;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 use composer_model::ComposeKind;
-use composer_model::ComposeRequest;
 use composer_notice::ComposerNotice;
 use connectivity::ConnectivityState;
 use contacts::ContactsModel;
@@ -168,7 +170,7 @@ pub(crate) struct AppModel {
     /// render; a rebuild mid-render would take a half-typed note to the organiser away.
     reading_generation: u64,
     pending_mail_delete: Option<DeleteTarget>,
-    composer: Option<ComposeRequest>,
+    composer: Option<ComposeContext>,
     composer_generation: u64,
     /// The drafts being written in windows of their own, and the counter each is named by. Host
     /// state: a message exists to the core only once it is sent.
@@ -454,12 +456,19 @@ impl AppModel {
         if self.search.is_active() {
             return l10n::search_results().to_owned();
         }
-        folder_pane::header_title(&self.snapshot)
+        folder_names::header_title(&self.snapshot)
     }
 
     fn subtitle(&self) -> String {
         if let Some(error) = &self.boot_error {
             return l10n::status_connect_failed(error);
+        }
+        // The Outbox builds no mail list, so `total` is 0 there: counting conversations would
+        // say "0 conversations" over a list of messages the user can see. The same sentence the
+        // pane badge speaks, so the two agree (`docs/folder-pane.md`, rule 13).
+        if self.snapshot.showing_outbox {
+            let waiting = i64::try_from(self.snapshot.outbox.len()).unwrap_or(i64::MAX);
+            return l10n::a11y_outbox_count(waiting);
         }
         let total = i64::try_from(self.snapshot.total).unwrap_or(i64::MAX);
         match self.snapshot.mode {

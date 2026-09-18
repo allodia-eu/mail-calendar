@@ -45,9 +45,14 @@ internal fun FolderDrawerScaffold(
     selectedAccount: String?,
     selectedFolder: String?,
     unifiedUnread: UInt,
+    // How many messages are waiting to be sent, and whether the Outbox is what the list is
+    // showing. Zero draws no Outbox row at all (docs/folder-pane.md, rule 18).
+    queued: Int,
+    showingOutbox: Boolean,
     onSelectAccount: (id: String?) -> Unit,
     onSelectFolder: (account: String, key: String) -> Unit,
     onSetExpanded: (id: String, expanded: Boolean) -> Unit,
+    onShowOutbox: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -62,9 +67,12 @@ internal fun FolderDrawerScaffold(
                 selectedAccount = selectedAccount,
                 selectedFolder = selectedFolder,
                 unifiedUnread = unifiedUnread,
+                queued = queued,
+                showingOutbox = showingOutbox,
                 onSelectAccount = onSelectAccount,
                 onSelectFolder = onSelectFolder,
                 onSetExpanded = onSetExpanded,
+                onShowOutbox = onShowOutbox,
             )
         },
         content = {
@@ -82,7 +90,9 @@ internal fun FolderDrawerScaffold(
             // The folder half exists because the core opens every launch on the unified inbox
             // (`selected_account` starts `None` and is never persisted), so that view, not
             // whichever folder you wandered into, is the mailbox's home.
-            val narrowed = selectedAccount != null || selectedFolder != null
+            // The Outbox counts as a narrowing: it is not the mailbox's home either, and back
+            // out of it must reach the unified list rather than the app's exit.
+            val narrowed = selectedAccount != null || selectedFolder != null || showingOutbox
             BackHandler(enabled = drawerState.isOpen || narrowed) {
                 if (drawerState.isOpen) {
                     scope.launch { drawerState.close() }
@@ -107,9 +117,12 @@ private fun FolderDrawerSheet(
     selectedAccount: String?,
     selectedFolder: String?,
     unifiedUnread: UInt,
+    queued: Int,
+    showingOutbox: Boolean,
     onSelectAccount: (id: String?) -> Unit,
     onSelectFolder: (account: String, key: String) -> Unit,
     onSetExpanded: (id: String, expanded: Boolean) -> Unit,
+    onShowOutbox: () -> Unit,
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -118,6 +131,30 @@ private fun FolderDrawerSheet(
     }
     ModalDrawerSheet {
         LazyColumn {
+            // The Outbox, above everything and **only while something is in it** (rule 18). Not
+            // inside an account's tree, because it is not a folder on anybody's server, and not
+            // per account, because "did that go?" is not a question about a particular mailbox.
+            if (queued > 0) {
+                item(key = "outbox") {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    NavigationDrawerItem(
+                        label = { Text(L10n.folder_outbox(ctx)) },
+                        icon = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_outbox),
+                                contentDescription = null,
+                            )
+                        },
+                        badge = queuedBadge(queued, ctx),
+                        selected = showingOutbox,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onShowOutbox()
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
+                }
+            }
             item {
                 Spacer(modifier = Modifier.height(12.dp))
                 // "All Inboxes", unified view across all accounts.
@@ -125,7 +162,9 @@ private fun FolderDrawerSheet(
                     label = { Text(L10n.sidebar_all_inboxes(ctx)) },
                     icon = { Icon(painterResource(R.drawable.ic_inbox), contentDescription = null) },
                     badge = unreadBadge(unifiedUnread, ctx),
-                    selected = selectedAccount == null,
+                    // `selectedAccount` is null on the Outbox *and* here, so without the second
+                    // half this row stays lit while the Outbox is what is on screen.
+                    selected = selectedAccount == null && !showingOutbox,
                     onClick = {
                         scope.launch { drawerState.close() }
                         onSelectAccount(null)
@@ -200,6 +239,22 @@ private fun unreadBadge(unread: UInt, ctx: android.content.Context): (@Composabl
                     // unread should read as "a lot", not wrap to a negative number.
                     contentDescription =
                         L10n.a11y_unread_count(ctx, unread.coerceAtMost(Int.MAX_VALUE.toUInt()).toInt())
+                },
+            )
+        }
+    }
+
+// The Outbox badge. Its own sentence rather than the unread one: those are messages nobody has
+// read, these are messages nobody has received, and only one of the two is something to go and do.
+private fun queuedBadge(queued: Int, ctx: android.content.Context): (@Composable () -> Unit)? =
+    if (queued == 0) {
+        null
+    } else {
+        {
+            Text(
+                text = queued.toString(),
+                modifier = Modifier.semantics {
+                    contentDescription = L10n.a11y_outbox_count(ctx, queued)
                 },
             )
         }

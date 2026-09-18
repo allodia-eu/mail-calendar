@@ -269,15 +269,21 @@ mod tests {
         // no brand file is read. A checkout that gains `branding/allodia.env` would otherwise go
         // on generating the neutral catalog, which `scripts/dev/test-linux-ui.sh` sees as the
         // branded window never appearing.
-        let lines = tracking(Path::new("/checkout"), APP_NAME_KEY);
+        let root = Path::new("/checkout");
+        let lines = tracking(root, APP_NAME_KEY);
 
         assert!(
             lines.contains(&format!("cargo:rerun-if-env-changed={APP_NAME_KEY}")),
             "{lines:?}"
         );
+        // Joined rather than spelled out: a path separator is the host's, so a literal
+        // "/checkout/branding" is a Windows-only failure of a rule that holds on every host.
         for file in ["branding", "branding/allodia.env", "branding/default.env"] {
+            let watched = file
+                .split('/')
+                .fold(root.to_path_buf(), |path, part| path.join(part));
             assert!(
-                lines.contains(&format!("cargo:rerun-if-changed=/checkout/{file}")),
+                lines.contains(&format!("cargo:rerun-if-changed={}", watched.display())),
                 "{file} is not watched: {lines:?}"
             );
         }

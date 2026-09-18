@@ -138,6 +138,10 @@ extension ContentView {
         case .sentNotFiled:
             // No transient hint: the standing UnfiledCopy question already says this, and says it with a button.
             EmptyView()
+        case .queued:
+            // Not a failure: the message is in the Outbox and goes out by itself. Saying it
+            // failed would invite writing it a second time, and then both arrive.
+            sendBanner(L10n.send_status_queued(), systemImage: "clock.fill", tint: .secondary)
         case .failed:
             sendBanner(L10n.send_status_failed(), systemImage: "exclamationmark.triangle.fill", tint: .orange)
         }
