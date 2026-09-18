@@ -623,6 +623,7 @@
 	"settings_subscription_terms": "Verlängert sich automatisch, bis Sie kündigen.",
 	"settings_subscription_pending": "Wartet auf Freigabe. Der Zugriff beginnt, sobald sie erteilt ist.",
 	"settings_subscription_stuck": "Ein Kauf ist noch nicht durchgegangen. Es wird weiter versucht.",
+	"settings_subscription_claimed_elsewhere": "Ein auf diesem Gerät gekauftes Abonnement gehört zu einem anderen Allodia-Konto und wurde diesem daher nicht hinzugefügt. Melden Sie sich mit jenem Konto an, um es zu nutzen.",
 	"settings_subscription_failed": "Das hat nicht geklappt: {error}",
 	"settings_subscription_cancel": "Abonnement kündigen",
 	"settings_subscription_cancel_title": "Ihr Abonnement kündigen?",

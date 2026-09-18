@@ -71,7 +71,11 @@ func allodiaBillers(of subscription: AllodiaSubscription) -> [AllodiaBiller] {
     if let own = subscription.own, own.status != .pendingFirstPayment {
         billers.append(.allodia)
     }
-    billers.append(contentsOf: subscription.stores.filter { allodiaStoreIsBilling($0.status) }
+    // Distinct for the same reason the manage buttons are: two subscriptions at one store is an
+    // ordinary shape, and naming that store twice would say somebody is charged twice by it.
+    var billing: Set<AllodiaStore> = []
+    billers.append(contentsOf: subscription.stores
+        .filter { allodiaStoreIsBilling($0.status) && billing.insert($0.source).inserted }
         .map { store in
             switch store.source {
             case .apple: return .apple
@@ -96,6 +100,20 @@ func allodiaStoreIsBilling(_ status: AllodiaStoreStatus) -> Bool {
     case .onHold, .paused, .expired, .revoked: return false
     case .unknown: return false
     }
+}
+
+/// The stores worth offering a way into, one entry per store rather than per subscription.
+///
+/// ⚠️ **An account can carry more than one subscription at the same store**, and it does the moment
+/// somebody resubscribes: the lapsed one is still inside the period it was paid for, so both are
+/// manageable and both were drawn, as two identical buttons opening the same page. A store's
+/// subscription page is the store's, not the subscription's, so one button is the whole of what
+/// there is to offer.
+func allodiaManageableStores(of subscription: AllodiaSubscription) -> [AllodiaStoreSubscription] {
+    var seen: Set<AllodiaStore> = []
+    return subscription.stores
+        .filter { allodiaStoreCanBeManaged($0.status) }
+        .filter { seen.insert($0.source).inserted }
 }
 
 /// Whether the store still has something for this person to do about this subscription.
@@ -240,6 +258,15 @@ struct AllodiaSubscriptionSettings: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // ⚠️ The other ending that owes somebody an explanation: what they bought is on a
+            // different Allodia account, so it is never coming to this one and no amount of
+            // waiting changes that.
+            if view.claimedElsewhere {
+                Text(L10n.settings_subscription_claimed_elsewhere())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -284,7 +311,7 @@ struct AllodiaSubscriptionSettings: View {
         // offering a cancel button that would have nothing to call. Review-blocking on both
         // stores, which is why it is drawn for every store that still has something to do rather
         // than for a recognised one.
-        let manageable = subscription.stores.filter { allodiaStoreCanBeManaged($0.status) }
+        let manageable = allodiaManageableStores(of: subscription)
         ForEach(manageable.indices, id: \.self) { index in
             let store = manageable[index]
             let biller: AllodiaBiller = store.source == .google ? .google : .apple

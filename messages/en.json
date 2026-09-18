@@ -623,6 +623,7 @@
 	"settings_subscription_terms": "Renews automatically until you cancel.",
 	"settings_subscription_pending": "Waiting for approval. Access starts as soon as it’s approved.",
 	"settings_subscription_stuck": "A purchase hasn’t gone through yet. It will keep trying.",
+	"settings_subscription_claimed_elsewhere": "A subscription bought on this device belongs to a different Allodia account, so it has not been added to this one. Sign in with that account to use it.",
 	"settings_subscription_failed": "That didn’t work: {error}",
 	"settings_subscription_cancel": "Cancel subscription",
 	"settings_subscription_cancel_title": "Cancel your subscription?",

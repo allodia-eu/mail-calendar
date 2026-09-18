@@ -623,6 +623,7 @@
 	"settings_subscription_terms": "Renova-se automaticamente até que a cancele.",
 	"settings_subscription_pending": "A aguardar aprovação. O acesso começa assim que for aprovada.",
 	"settings_subscription_stuck": "Uma compra ainda não foi concluída. Serão feitas novas tentativas.",
+	"settings_subscription_claimed_elsewhere": "Uma subscrição comprada neste dispositivo pertence a outra conta Allodia, por isso não foi adicionada a esta. Inicie sessão com essa conta para a utilizar.",
 	"settings_subscription_failed": "Não resultou: {error}",
 	"settings_subscription_cancel": "Cancelar a subscrição",
 	"settings_subscription_cancel_title": "Cancelar a sua subscrição?",

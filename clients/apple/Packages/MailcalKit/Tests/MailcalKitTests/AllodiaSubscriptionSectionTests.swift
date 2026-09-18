@@ -157,6 +157,29 @@ struct AllodiaSubscriptionSectionTests {
         #expect(allodiaBillers(of: subscription) == [.google])
     }
 
+    /// ⚠️ Two subscriptions at one store get one way in, not two.
+    ///
+    /// Resubscribing is what produces the pair: the lapsed one is still inside the period it was
+    /// paid for, so both are manageable. Found on an Android device, which drew "Manage at Google
+    /// Play" twice, both opening the same page. A store's subscription page is the store's, not the
+    /// subscription's.
+    @Test func twoSubscriptionsAtOneStoreGetOneWayIn() {
+        let both = subscription(stores: [
+            store(source: .google, status: .cancelled, autoRenewing: false),
+            store(source: .google, status: .active, autoRenewing: true),
+        ])
+        #expect(allodiaManageableStores(of: both).count == 1)
+        #expect(allodiaBillers(of: both) == [.google])
+
+        // Two different stores keep two of each: it is one per store, not one in total.
+        let apart = subscription(stores: [
+            store(source: .apple, status: .active, autoRenewing: true),
+            store(source: .google, status: .active, autoRenewing: true),
+        ])
+        #expect(allodiaManageableStores(of: apart).count == 2)
+        #expect(allodiaBillers(of: apart) == [.apple, .google])
+    }
+
     /// ⚠️ "Who is billing you" and "is there anything to do at the store" are different questions,
     /// and they part company on the two states where somebody most needs the answer.
     ///

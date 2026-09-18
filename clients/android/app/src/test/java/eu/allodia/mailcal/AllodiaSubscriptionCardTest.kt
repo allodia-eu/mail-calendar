@@ -57,11 +57,12 @@ class AllodiaSubscriptionCardTest {
         subscription: uniffi.mailcal_bindings.AllodiaSubscription,
         offers: List<AllodiaOffer> = emptyList(),
         anythingStuck: Boolean = false,
+        claimedElsewhere: Boolean = false,
         accountId: String? = "an-id",
         buying: AllodiaPlan? = null,
     ) = AllodiaSubscriptionUi(
         state = AllodiaSubscriptionState.Loaded(
-            AllodiaSubscriptionView(subscription, offers, anythingStuck)
+            AllodiaSubscriptionView(subscription, offers, anythingStuck, claimedElsewhere)
         ),
         accountId = accountId,
         buying = buying,
@@ -277,6 +278,21 @@ class AllodiaSubscriptionCardTest {
             .assertCountEquals(0)
         compose.onAllNodesWithText(ctx().getString(R.string.settings_subscription_switch_yearly))
             .assertCountEquals(0)
+    }
+
+    /**
+     * ⚠️ A purchase that belongs to a different Allodia account is said out loud.
+     *
+     * It is what signing in to a second account on a phone that has bought something looks like,
+     * and it is the one ending waiting cannot fix: nothing was granted here and nothing will be.
+     * Reachable today on a device that bought through Play and then signed in elsewhere, where it
+     * said nothing at all.
+     */
+    @Test
+    fun a_purchase_owned_by_another_account_is_said_out_loud() {
+        card(loaded(subscription(), claimedElsewhere = true))
+        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_claimed_elsewhere))
+            .assertIsDisplayed()
     }
 
     /**

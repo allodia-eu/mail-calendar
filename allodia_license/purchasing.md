@@ -538,6 +538,11 @@ half where being wrong costs somebody money and the half that is least proven.
   for a purchase that succeeded. Play issues no correlation token for a launched flow, so the fix
   is a choice (match on the product bought, or time the wait out) rather than an oversight. The
   same listener is why a flow Play never answers leaves its caller suspended.
+- ⚠️ **A pass says how it ended in counts, never in ids.** `attaching N` was the only line the
+  redemption pass wrote, so a pass that granted nothing and one that granted everything read
+  identically, and the ending that costs somebody an explanation was invisible in a support log.
+  It now says how many settled, how many belonged to another account and how many are coming round
+  again. Ids stay out: a purchase id is the store's and names the person's transaction.
 - ⚠️ **A refused token reads as an unreachable service on the account screen.**
   `Error::Unauthorized` reaches a client as `Unreachable`, which is the collapse
   [`entitlement.md`](entitlement.md) forbids for grant health: a revoked grant and an outage are

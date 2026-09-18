@@ -53,7 +53,11 @@ internal fun MainActivity.refreshAllodiaSubscription() {
     val instance = app ?: return
     val purchases = allodiaPurchases ?: return
     allodiaPurchaseScope.launch {
-        val stuck = purchases.linkOutstanding()?.anythingStuck == true
+        val report = purchases.linkOutstanding()
+        val stuck = report?.anythingStuck == true
+        // A list rather than a flag, because the core names which purchases; a person cannot act
+        // on a store transaction id, so only whether it happened reaches the screen.
+        val claimedElsewhere = report?.claimedElsewhere.orEmpty().isNotEmpty()
         // The read is a network round trip and the core call blocks on it, so it goes off the main
         // thread exactly as the sign-in and sync passes do.
         val answer =
@@ -85,6 +89,7 @@ internal fun MainActivity.refreshAllodiaSubscription() {
                     subscription = answer,
                     offers = offers,
                     anythingStuck = stuck,
+                    claimedElsewhere = claimedElsewhere,
                 )
             ),
             accountId = instance.allodiaAccount()?.id,

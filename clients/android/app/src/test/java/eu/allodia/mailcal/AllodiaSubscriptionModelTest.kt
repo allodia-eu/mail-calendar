@@ -208,6 +208,38 @@ class AllodiaSubscriptionModelTest {
     }
 
     /**
+     * ⚠️ Two subscriptions at one store get one way in, not two.
+     *
+     * Resubscribing is what produces the pair: the lapsed one is still inside the period it was
+     * paid for, so both are manageable. Found on a device, which drew "Manage at Google Play"
+     * twice, both opening the same page. A store's subscription page is the store's, not the
+     * subscription's.
+     */
+    @Test
+    fun two_subscriptions_at_one_store_get_one_way_in() {
+        val both = subscription(
+            entitled = true,
+            stores = listOf(
+                storeSubscription(status = AllodiaStoreStatus.Cancelled, autoRenewing = false),
+                storeSubscription(),
+            ),
+        )
+        assertEquals(1, allodiaManageableStores(both).size)
+        assertEquals(listOf(AllodiaBiller.Google), allodiaBillers(both))
+
+        // Two different stores keep two of each: it is one per store, not one in total.
+        val apart = subscription(
+            entitled = true,
+            stores = listOf(
+                storeSubscription(source = AllodiaStore.APPLE),
+                storeSubscription(source = AllodiaStore.GOOGLE),
+            ),
+        )
+        assertEquals(2, allodiaManageableStores(apart).size)
+        assertEquals(listOf(AllodiaBiller.Apple, AllodiaBiller.Google), allodiaBillers(apart))
+    }
+
+    /**
      * A switch moves to the other period, and only where the service said it may.
      *
      * ⚠️ **`actions` is the authority, not the subscription's shape.** It was computed with every

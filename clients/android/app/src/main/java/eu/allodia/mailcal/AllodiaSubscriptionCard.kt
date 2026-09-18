@@ -157,6 +157,9 @@ private fun Loaded(
     // ⚠️ Money was taken and nothing has been granted. A card that stays silent here leaves
     // somebody with no way to find that out.
     if (view.anythingStuck) Secondary(L10n.settings_subscription_stuck(ctx))
+    // ⚠️ The other ending that owes somebody an explanation: what they bought is on a different
+    // Allodia account, so it is never coming to this one and no amount of waiting changes that.
+    if (view.claimedElsewhere) Secondary(L10n.settings_subscription_claimed_elsewhere(ctx))
 }
 
 /** What a paid account says: who is charging, until when, and where to change it. */
@@ -206,7 +209,7 @@ private fun Active(
     // A store's subscription is the store's to change, so this opens its page rather than offering
     // a cancel button that would have nothing to call. Review-blocking on both stores, which is why
     // it is drawn for every store that still has something to do rather than for a recognised one.
-    subscription.stores.filter { allodiaStoreCanBeManaged(it.status) }.forEach { store ->
+    allodiaManageableStores(subscription).forEach { store ->
         val biller = if (store.source == AllodiaStore.APPLE) "Apple" else "Google Play"
         TextButton(onClick = { onManageStore(store) }) {
             Text(L10n.settings_subscription_manage(ctx, biller))

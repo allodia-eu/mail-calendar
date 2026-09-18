@@ -623,6 +623,7 @@
 	"settings_subscription_terms": "Se renouvelle automatiquement jusqu’à résiliation.",
 	"settings_subscription_pending": "En attente d’approbation. L’accès commence dès qu’elle est accordée.",
 	"settings_subscription_stuck": "Un achat n’est pas encore passé. De nouvelles tentatives auront lieu.",
+	"settings_subscription_claimed_elsewhere": "Un abonnement acheté sur cet appareil appartient à un autre compte Allodia et n’a donc pas été ajouté à celui-ci. Connectez-vous avec ce compte pour l’utiliser.",
 	"settings_subscription_failed": "Cela n’a pas fonctionné : {error}",
 	"settings_subscription_cancel": "Résilier l’abonnement",
 	"settings_subscription_cancel_title": "Résilier votre abonnement ?",

@@ -26,6 +26,7 @@ import uniffi.mailcal_bindings.AllodiaOffer
 import uniffi.mailcal_bindings.AllodiaOwnStatus
 import uniffi.mailcal_bindings.AllodiaStore
 import uniffi.mailcal_bindings.AllodiaStoreStatus
+import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.AllodiaSubscription
 
 // What the subscription section has to draw.
@@ -58,6 +59,11 @@ internal data class AllodiaSubscriptionView(
     // and nothing has been granted, and a card that draws nothing here leaves the person with no
     // way to find that out.
     val anythingStuck: Boolean,
+    // Whether the pass just dropped a purchase because a **different** Allodia account already owns
+    // it, which is what signing in to a second account on a phone that has bought something looks
+    // like. Nothing was granted here and nothing will be, so the person is told rather than left to
+    // wonder why a subscription they paid for is not on this account.
+    val claimedElsewhere: Boolean = false,
 )
 
 // What a biller is called on screen.
@@ -91,7 +97,12 @@ internal fun allodiaBillers(subscription: AllodiaSubscription): List<AllodiaBill
         if (subscription.own != null && subscription.own?.status != AllodiaOwnStatus.PendingFirstPayment) {
             add(AllodiaBiller.Allodia)
         }
-        subscription.stores.filter { allodiaStoreIsBilling(it.status) }.forEach { store ->
+        // Distinct for the same reason the manage buttons are: two subscriptions at one store is
+        // an ordinary shape, and naming that store twice would say somebody is charged twice by it.
+        subscription.stores
+            .filter { allodiaStoreIsBilling(it.status) }
+            .distinctBy { it.source }
+            .forEach { store ->
             add(
                 when (store.source) {
                     AllodiaStore.APPLE -> AllodiaBiller.Apple
@@ -120,6 +131,20 @@ internal fun allodiaStoreIsBilling(status: AllodiaStoreStatus): Boolean =
         AllodiaStoreStatus.Revoked -> false
         else -> false
     }
+
+// The stores worth offering a way into, one entry per store rather than per subscription.
+//
+// ⚠️ **An account can carry more than one subscription at the same store**, and it does the moment
+// somebody resubscribes: the lapsed one is still inside the period it was paid for, so both are
+// manageable and both were drawn, as two identical buttons opening the same page. A store's
+// subscription page is the store's, not the subscription's, so one button is the whole of what
+// there is to offer.
+internal fun allodiaManageableStores(
+    subscription: AllodiaSubscription
+): List<AllodiaStoreSubscription> =
+    subscription.stores
+        .filter { allodiaStoreCanBeManaged(it.status) }
+        .distinctBy { it.source }
 
 // Whether the store still has something for this person to do about this subscription.
 //
