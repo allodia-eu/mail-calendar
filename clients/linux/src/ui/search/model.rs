@@ -99,7 +99,7 @@ pub(crate) fn scope_label(snapshot: &MailboxListSnapshot) -> String {
             // A key with no row behind it: the folder list has moved on under the search, and the
             // filter would otherwise offer to narrow to a folder that is no longer there.
             || l10n::search_scope_folder().to_owned(),
-            |folder| folder_pane::folder_label(folder.role.as_ref(), &folder.name),
+            |folder| crate::ui::folder_names::folder_label(folder.role.as_ref(), &folder.name),
         )
 }
 

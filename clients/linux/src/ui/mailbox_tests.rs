@@ -15,7 +15,7 @@ use crate::ui::{
     AppInput,
     composer::ComposerPane,
     composer_header::tests as composer_header,
-    composer_model::{ComposeKind, ComposeRequest},
+    composer_model::{ComposeContext, ComposeKind},
     connectivity::tests as connectivity,
     contacts::pane::tests as contacts,
     destinations::tests as destinations,
@@ -235,6 +235,13 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::webview::tests::opening_another_message_starts_again_at_its_own_fit();
     crate::ui::modal::tests::a_modal_renders_its_title_in_native_chrome_only();
     crate::ui::avatar::tests::avatars_and_unread_dots_are_presentational();
+    crate::ui::outbox::tests::the_pane_row_appears_only_while_something_is_waiting();
+    crate::ui::outbox::tests::the_pane_highlights_the_outbox_rather_than_everyones_inbox();
+    crate::ui::outbox::tests::a_queued_row_states_its_case_and_offers_a_retry_only_when_one_is_safe(
+    );
+    crate::ui::outbox::tests::
+        opening_the_outbox_moves_a_highlight_the_selection_cache_would_have_held();
+    crate::ui::outbox::tests::an_emptied_outbox_says_so_rather_than_going_blank();
     crate::ui::settings::tests::a_closed_settings_window_is_not_on_screen();
     crate::ui::settings::allodia::tests::the_card_names_the_account_by_address_and_offers_a_way_out(
     );
@@ -405,7 +412,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     let window = adw::ApplicationWindow::new(&application);
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let pane = ComposerPane::new();
-    let request = ComposeRequest {
+    let request = ComposeContext {
         kind: ComposeKind::Reply,
         host: crate::ui::reader::ComposerHost::Pane,
         account: Some("fixture".to_owned()),

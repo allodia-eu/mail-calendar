@@ -77,7 +77,7 @@ public sealed partial class MainWindow
             // calendar or Contacts would otherwise open it behind them and the click would look
             // like it did nothing.
             Model.ShowMail();
-            BeginCompose(new ComposeRequest(
+            BeginCompose(new ComposeContext(
                 RichComposeKind.New,
                 Account: null,
                 Key: null,

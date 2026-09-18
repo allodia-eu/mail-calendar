@@ -105,6 +105,7 @@ extension ContentView {
     func sidebarList(showsCalendarAndContacts: Bool) -> some View {
         List {
             Section(L10n.sidebar_accounts()) {
+                outboxRow
                 allAccountsGroup
                 ForEach(model.accounts, id: \.id) { account in
                     HStack(spacing: 0) {
@@ -223,6 +224,24 @@ extension ContentView {
         // have taken the window's name with it and left the Window menu listing "Untitled".
         .toolbar(removing: .title)
         #endif
+    }
+
+    /// The **Outbox** row: every account's unsent messages, above the trees, and **only while
+    /// there are some** (`docs/folder-pane.md`, rule 18).
+    ///
+    /// Not inside a tree, because it is not a folder on anybody's server, and not per account,
+    /// because "did that go?" is not a question about a particular mailbox. It carries the
+    /// count as its badge, which is the one place in this pane a number is drawn for something
+    /// other than unread mail; at zero the row is absent rather than saying nothing.
+    @ViewBuilder private var outboxRow: some View {
+        if !model.outbox.isEmpty {
+            sidebarRow(
+                title: L10n.folder_outbox(),
+                icon: "tray.and.arrow.up",
+                selected: model.destination == .mail && model.showingOutbox,
+                unread: UInt32(model.outbox.count)
+            ) { model.showOutbox() }
+        }
     }
 
     /// The **All Accounts** group: every account's mail together, as one more tree in the pane,

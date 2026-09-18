@@ -75,6 +75,14 @@ public sealed partial class MailboxModel
             PullUnfiledCopy();
             return;
         }
+        // A queued message the user asked to edit. The core has already withdrawn it, so what is
+        // waiting here is the only copy of it: open the composer with it and say so. It does not
+        // touch the mailbox projection, which the withdrawal's own MailboxList signal carries.
+        if (changed == Surface.ComposeRequest)
+        {
+            PullComposeRequest();
+            return;
+        }
         // A contacts signal, an address-book sync landed, or the core answered a search, only
         // rebuilds the people list; it touches neither the mailbox projection nor the calendar.
         if (changed == Surface.Contacts)
@@ -107,6 +115,11 @@ public sealed partial class MailboxModel
         // both), never against a half-updated set.
         SyncAccounts(snapshot.Accounts, snapshot.AccountFolders);
         SyncFolders(snapshot.Folders);
+        // Beside the folders rather than with the rows below: the Outbox rides the pane, which is
+        // on screen in every view, so its count is current whatever the list happens to be showing
+        // (docs/folder-pane.md, rule 18).
+        SyncOutbox(snapshot.Outbox);
+        ShowingOutbox = snapshot.ShowingOutbox;
         UnifiedUnread = snapshot.UnifiedUnread;
         UnifiedExpanded = snapshot.UnifiedExpanded;
         Mode = snapshot.Mode == ViewMode.Threaded ? ViewModeKind.Threaded : ViewModeKind.Flat;
@@ -203,7 +216,7 @@ public sealed partial class MailboxModel
         }
 
         Log.Info($"reload: rows={Rows.Count} ({Mode}), folders={Folders.Count}, "
-            + $"events={Events.Count}, zone={zone} "
+            + $"queued={Outbox.Count}, events={Events.Count}, zone={zone} "
             + $"(FFI pull {pullMs}ms, total {reloadSw.ElapsedMilliseconds}ms)");
 
         // DEBUG-only: honour any MAILCAL_* launch hook now that this surface has populated
@@ -407,87 +420,4 @@ public sealed partial class MailboxModel
 
     private static bool SameEvent(EventItem a, EventItem b) =>
         a.Title == b.Title && a.StartText == b.StartText && a.OffersDelete == b.OffersDelete;
-
-    /// <summary>
-    /// Reconciles <paramref name="target"/> toward <paramref name="next"/> in place: items
-    /// matched by <paramref name="key"/> are kept, gone items removed, new items inserted, and
-    /// survivors moved into order, so unchanged rows keep their container. An item whose content
-    /// changed is handed to <paramref name="update"/> where one is given, and replaced otherwise.
-    /// </summary>
-    /// <remarks>
-    /// <paramref name="update"/> is what keeps a CHANGED row's container too. Replacing the item
-    /// makes the ListView build a new container, and WinUI 3 reassigns focus when the element
-    /// holding it goes, which activates that element's window: see MailRow.cs for the reading
-    /// window that fell behind the mailbox because the message it opened had been marked read.
-    /// A type with no change notifications has nothing to update with and still replaces.
-    /// </remarks>
-    private static void Reconcile<T>(
-        ObservableCollection<T> target,
-        IReadOnlyList<T> next,
-        Func<T, string> key,
-        Func<T, T, bool> equal,
-        Action<T, T>? update = null)
-    {
-        var keep = new HashSet<string>(next.Select(key));
-        for (var i = target.Count - 1; i >= 0; i--)
-        {
-            if (!keep.Contains(key(target[i])))
-            {
-                target.RemoveAt(i);
-            }
-        }
-        // Earlier positions are already final, so the item for position i is at i or ahead.
-        for (var i = 0; i < next.Count; i++)
-        {
-            var wanted = key(next[i]);
-            if (i < target.Count && key(target[i]) == wanted)
-            {
-                Refresh(target, i, next[i], equal, update);
-                continue;
-            }
-            var found = -1;
-            for (var j = i + 1; j < target.Count; j++)
-            {
-                if (key(target[j]) == wanted)
-                {
-                    found = j;
-                    break;
-                }
-            }
-            if (found >= 0)
-            {
-                target.Move(found, i);
-                Refresh(target, i, next[i], equal, update);
-            }
-            else
-            {
-                target.Insert(i, next[i]);
-            }
-        }
-        while (target.Count > next.Count)
-        {
-            target.RemoveAt(target.Count - 1);
-        }
-    }
-
-    // Brings the item at `index` up to date with `wanted`, in place where the type can be told to
-    // update itself and by replacement where it cannot.
-    private static void Refresh<T>(
-        ObservableCollection<T> target,
-        int index,
-        T wanted,
-        Func<T, T, bool> equal,
-        Action<T, T>? update)
-    {
-        if (equal(target[index], wanted))
-        {
-            return;
-        }
-        if (update is null)
-        {
-            target[index] = wanted;
-            return;
-        }
-        update(target[index], wanted);
-    }
 }

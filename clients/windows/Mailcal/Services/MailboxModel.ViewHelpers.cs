@@ -27,6 +27,11 @@ public sealed partial class MailboxModel
         SendStatus.Sending => L10n.SendStatusSending(),
         SendStatus.Sent => L10n.SendStatusSent(),
         SendStatus.Failed => L10n.SendStatusFailed(),
+        // Not a failure: the message waits in the Outbox and goes out by itself. Saying it
+        // failed would invite writing it a second time, and then both arrive. Without this
+        // arm the bar still shows (SendStatusVisible is true for it) carrying no text at
+        // all, because C# takes the discard rather than refusing to compile.
+        SendStatus.Queued => L10n.SendStatusQueued(),
         _ => string.Empty,
     };
     /// <summary>The info-bar severity for the current status.</summary>
@@ -75,6 +80,27 @@ public sealed partial class MailboxModel
     public Visibility SubmittingVisibility => IsSubmitting ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>The Connect button's label: a "connecting" status while in flight, else "Connect".</summary>
     public string ConnectButtonText => IsSubmitting ? L10n.StatusConnecting() : L10n.ActionConnect();
+    /// <summary>Show the Outbox list in place of the mail rows.</summary>
+    /// <remarks>
+    /// The two swap rather than stack, because a queued send is not a stored message and none of
+    /// the list's selection, threading or paging behaviour applies to it (docs/sending.md).
+    /// </remarks>
+    public Visibility OutboxListVisible =>
+        ShowingOutbox ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Show the mail rows: the inverse of <see cref="OutboxListVisible"/>, because
+    /// XAML has no negation in a binding.</summary>
+    public Visibility MailRowsVisible =>
+        ShowingOutbox ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>Show the "nothing is waiting" line, over an Outbox that has emptied.</summary>
+    /// <remarks>
+    /// Reachable: the row that opens the Outbox goes away with the last message, but the list the
+    /// user is already looking at stays where it is. Without this it would simply be blank.
+    /// </remarks>
+    public Visibility OutboxEmptyVisible =>
+        ShowingOutbox && !HasOutbox ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>Show the mailbox detail when the mail destination is active.</summary>
     public Visibility MailVisibility =>
         Destination == AppDestination.Mail ? Visibility.Visible : Visibility.Collapsed;
@@ -107,6 +133,12 @@ public sealed partial class MailboxModel
     {
         get
         {
+            if (ShowingOutbox)
+            {
+                // Before the unified test below, not after it: the Outbox names no account and no
+                // folder either, so the two are indistinguishable from here down.
+                return L10n.FolderOutbox();
+            }
             if (SelectedAccount is null)
             {
                 return FolderLabel.Unified();
@@ -151,7 +183,11 @@ public sealed partial class MailboxModel
     /// <summary>The mailbox footer count ("N messages" / "N conversations"), the folder's
     /// full total, not the visible window (<see cref="Rows"/> holds only the loaded page).</summary>
     public string MailCountText =>
-        Mode == ViewModeKind.Threaded
-            ? L10n.MailboxCountConversations((int)_total)
-            : L10n.MailboxCountMessages((int)_total);
+        ShowingOutbox
+            // The Outbox holds no stored mail, so the snapshot's total is zero and "0 messages"
+            // would be a count of the wrong thing. The row count is already on the pane's badge.
+            ? string.Empty
+            : Mode == ViewModeKind.Threaded
+                ? L10n.MailboxCountConversations((int)_total)
+                : L10n.MailboxCountMessages((int)_total);
 }

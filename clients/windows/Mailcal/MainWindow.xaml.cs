@@ -92,7 +92,13 @@ public sealed partial class MainWindow : Window
             if (e.PropertyName is nameof(MailboxModel.SelectedAccount)
                 or nameof(MailboxModel.SelectedFolder)
                 or nameof(MailboxModel.Destination)
-                or nameof(MailboxModel.UnifiedExpanded))
+                or nameof(MailboxModel.UnifiedExpanded)
+                // The Outbox row appears and disappears with the queue (docs/folder-pane.md,
+                // rule 18), and it holds the pane's highlight while it is the list on screen,
+                // which neither selection scalar above can say: both are null there and on the
+                // unified inbox alike.
+                or nameof(MailboxModel.HasOutbox)
+                or nameof(MailboxModel.ShowingOutbox))
             {
                 SyncNavItems();
             }
@@ -110,6 +116,11 @@ public sealed partial class MainWindow : Window
         // this thread; the shell owns the composer, so this is where it becomes one. Subscribed
         // before Start(), so a server that comes up listening cannot deliver into a dead handler.
         Model.AgentDraftRequested += ComposeAgentDraft;
+
+        // A queued message the user asked to edit. The core has withdrawn it already, so the
+        // request carries the only copy: subscribed before Start() for the same reason as the line
+        // above, and because a request raised before this session began is waiting right now.
+        Model.ComposeRequested += ComposeWithdrawnMessage;
 
         // Arm the screenshot driver before Start(), so no row can arrive before it is listening.
         ShowcaseInit();

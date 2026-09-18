@@ -224,6 +224,65 @@
         <local:MailRowTemplateSelector x:Key="RowSelector"
             Flat="{StaticResource FlatRowTemplate}"
             Thread="{StaticResource ThreadRowTemplate}" />
+
+        <!-- One unsent message (docs/sending.md). No swipe, no selection, no disclosure: none of
+             the message list's gestures mean anything over something that is not in a folder yet.
+
+             The three actions are the context menu alone, which is where the mail row beside it
+             keeps its full action set too, and they are DISABLED rather than absent on a row that
+             cannot take them: a message in flight cannot be called back, and one whose delivery
+             could not be confirmed may already be in front of its recipients, so offering to send
+             it again is how it arrives twice. An empty popup would say none of that.
+
+             The whole row carries one spoken name. Three TextBlocks are announced as three items,
+             which is what a list of messages sounds like, and this is not one. -->
+        <DataTemplate x:Key="OutboxRowTemplate" x:DataType="vm:QueuedRowItem">
+            <Grid Padding="4,6" RowSpacing="2"
+                  AutomationProperties.Name="{x:Bind A11yText}">
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionSendNow()}" Tag="{x:Bind}"
+                                        IsEnabled="{x:Bind IsActionable}" Click="OnSendQueuedNow" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionEditQueued()}" Tag="{x:Bind}"
+                                        IsEnabled="{x:Bind IsActionable}" Click="OnEditQueued" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionCancelSend()}" Tag="{x:Bind}"
+                                        IsEnabled="{x:Bind IsActionable}" Click="OnCancelQueued" />
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Text="{x:Bind ToText}" FontWeight="SemiBold"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Row="1" Text="{x:Bind SubjectText}"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <!-- Where it has got to, and which account it is going out from. The account is on
+                     every row, not just a nameless one: this is the only list in the app holding
+                     every account's mail at once (docs/folder-pane.md, rule 18), and which identity
+                     a message is waiting on is usually the whole of why it is waiting. It takes the
+                     trailing edge, where a mail row keeps its date. -->
+                <Grid Grid.Row="2" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="{x:Bind StateGlyph}" FontSize="12"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="{x:Bind StateText}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{x:Bind AccountText}"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
@@ -331,6 +390,7 @@
                   SelectionChanged="OnSelectionChanged"
                   Loaded="OnRowsListLoaded"
                   KeyboardAcceleratorPlacementMode="Hidden"
+                  Visibility="{x:Bind Model.MailRowsVisible, Mode=OneWay}"
                   Padding="12,0,12,0">
             <ListView.KeyboardAccelerators>
                 <!-- ScopeOwner is what scopes these to the list: an accelerator without one is
@@ -358,6 +418,34 @@
                 </Style>
             </ListView.ItemContainerStyle>
         </ListView>
+
+        <!-- The Outbox: every account's unsent messages, in the list's own row, in place of the
+             mail rather than over it (docs/sending.md). Selection is Single and click does
+             nothing: there is no body to read, so the only thing a row offers is its menu.
+
+             The header above says "Outbox" through the same ListTitle the mail scopes use, so the
+             two cannot disagree about what the column is showing. -->
+        <ListView Grid.Row="2" x:Name="OutboxList" ItemsSource="{x:Bind Model.Outbox}"
+                  ItemTemplate="{StaticResource OutboxRowTemplate}" SelectionMode="Single"
+                  AutomationProperties.AutomationId="OutboxList"
+                  Visibility="{x:Bind Model.OutboxListVisible, Mode=OneWay}"
+                  Padding="12,0,12,0">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                </Style>
+            </ListView.ItemContainerStyle>
+        </ListView>
+
+        <!-- An Outbox that has emptied while the user was looking at it. The pane row went away
+             with the last message; this column stays where it is, so without a line it would just
+             be blank. -->
+        <TextBlock Grid.Row="2" Margin="16,24" VerticalAlignment="Top" TextWrapping="Wrap"
+                   HorizontalAlignment="Center"
+                   AutomationProperties.AutomationId="OutboxEmpty"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Visibility="{x:Bind Model.OutboxEmptyVisible, Mode=OneWay}"
+                   Text="{x:Bind l10n:L10n.OutboxEmpty()}" />
 
         <!-- Transient send hint: "Sending…" while in flight, then a brief Sent/Failed
              confirmation. Floats at the top of the list; the core auto-clears it. -->

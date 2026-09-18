@@ -18,14 +18,15 @@ use gtk::{
     gio,
     prelude::{BoxExt, ButtonExt, EditableExt, GtkWindowExt, IsA, WidgetExt},
 };
-use mailcal_bindings::Intent;
+use mailcal_bindings::{ComposeRequest as CoreComposeRequest, Intent};
 use webkit6::prelude::WebViewExt;
 
 use super::{
     AppInput, AppModel, PrimaryView,
     composer_header::RecipientRows,
-    composer_model::{ComposeRequest, PickedFile},
+    composer_model::{ComposeContext, PickedFile},
     model::OpenedMessage,
+    reader::ComposerHost,
 };
 use crate::l10n;
 
@@ -41,7 +42,13 @@ pub(crate) struct HeaderValues {
 /// A surface change that must wait until the open draft says whether it would be lost.
 pub(crate) enum PendingNavigation {
     Message(OpenedMessage),
-    Composer(ComposeRequest),
+    Composer(ComposeContext),
+    /// A message the core withdrew from the Outbox, waiting on the guard's answer.
+    ///
+    /// Its own variant because it is the one navigation that **may not be refused**: the core
+    /// took the message out of the queue before offering it back, so what is held here is the
+    /// only copy of it (`docs/sending.md`).
+    WithdrawnMessage(ComposeContext),
 }
 
 /// Whether the header fields hold anything the user put there: the half of "is there a draft to
@@ -263,7 +270,7 @@ impl AppModel {
                 app.default_send_account(),
             )
         });
-        let request = ComposeRequest::from_mailto(prefill, initial_from);
+        let request = ComposeContext::from_mailto(prefill, initial_from);
         if self.composer.is_some() {
             self.queue_navigation(PendingNavigation::Composer(request));
         } else {
@@ -281,7 +288,7 @@ impl AppModel {
                 )
             })
         });
-        let request = ComposeRequest::from_agent(draft, initial_from);
+        let request = ComposeContext::from_agent(draft, initial_from);
         if self.composer.is_some() {
             self.queue_navigation(PendingNavigation::Composer(request));
         } else {
@@ -303,7 +310,7 @@ impl AppModel {
         self.draft_check = Some(self.draft_check_seq);
     }
 
-    pub(super) fn commit_composer(&mut self, request: ComposeRequest) {
+    pub(super) fn commit_composer(&mut self, request: ComposeContext) {
         self.primary = PrimaryView::Mail;
         self.composer_generation = self.composer_generation.wrapping_add(1);
         self.composer_error = None;
@@ -324,14 +331,44 @@ impl AppModel {
         self.discard_prompt = false;
         match self.pending_navigation.take() {
             Some(PendingNavigation::Message(message)) => self.commit_open(message),
-            Some(PendingNavigation::Composer(request)) => self.commit_composer(request),
+            Some(
+                PendingNavigation::Composer(request) | PendingNavigation::WithdrawnMessage(request),
+            ) => self.commit_composer(request),
             None => {}
         }
     }
 
     pub(super) fn keep_editing(&mut self) {
         self.discard_prompt = false;
-        self.pending_navigation = None;
+        // Everything else waiting here still exists elsewhere and can simply be dropped. A
+        // withdrawn message cannot: it has already left the Outbox, so this is the only copy,
+        // and it takes a window of its own rather than being lost (`docs/sending.md`).
+        if let Some(PendingNavigation::WithdrawnMessage(request)) = self.pending_navigation.take() {
+            let id = self.next_composer_window();
+            self.open_composer_window(
+                id,
+                ComposeContext {
+                    host: ComposerHost::Window(id),
+                    ..request
+                },
+            );
+        }
+    }
+
+    /// Takes a message the core withdrew from the Outbox into this client's composer.
+    ///
+    /// Dismisses the request as soon as it is held here, which is what the core waits for: it
+    /// keeps the offer standing precisely because the message exists nowhere else until a host
+    /// answers.
+    pub(super) fn open_withdrawn_message(&mut self, request: CoreComposeRequest) {
+        let initial_from = Some(request.account.clone()).filter(|account| !account.is_empty());
+        let context = ComposeContext::from_withdrawn(request, initial_from);
+        if self.composer.is_some() {
+            self.queue_navigation(PendingNavigation::WithdrawnMessage(context));
+        } else {
+            self.commit_composer(context);
+        }
+        self.dispatch(Intent::DismissComposeRequest);
     }
 }
 

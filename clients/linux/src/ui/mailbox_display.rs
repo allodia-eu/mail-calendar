@@ -1,6 +1,8 @@
 //! Pure rendering keys for mailbox rows.
 
-use mailcal_bindings::{FlatRow, MailboxListSnapshot, SnapshotRow, ThreadMessage, ThreadRow};
+use mailcal_bindings::{
+    FlatRow, MailboxListSnapshot, QueuedRow, SnapshotRow, ThreadMessage, ThreadRow,
+};
 
 use super::{avatar::AvatarData, mail_actions, mailbox_reconcile::Row};
 use crate::l10n;
@@ -13,6 +15,12 @@ use crate::l10n;
 pub(super) struct MailboxRendering {
     rows: Vec<DisplayRow>,
     in_junk_folder: bool,
+    /// The Outbox's rows, and the fact that they are what the list is showing.
+    ///
+    /// Part of the key rather than a separate one: the two lists share the widget, so a switch
+    /// between them, and a queued send changing state underneath, are both "the list changed".
+    outbox: Vec<QueuedRow>,
+    showing_outbox: bool,
 }
 
 impl MailboxRendering {
@@ -24,6 +32,8 @@ impl MailboxRendering {
                 .map(|row| display_row(row, zone))
                 .collect(),
             in_junk_folder: mail_actions::in_junk_folder(snapshot),
+            outbox: snapshot.outbox.clone(),
+            showing_outbox: snapshot.showing_outbox,
         }
     }
 }

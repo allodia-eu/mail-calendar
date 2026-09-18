@@ -10,10 +10,12 @@ use mailcal_composer::DraftBlobHandle;
 // `lib.rs` re-exports every half, so the split is invisible to a host.
 mod intent;
 mod intent_contacts;
+mod intent_outbox;
 mod status;
 
 pub use intent::Intent;
 pub use intent_contacts::ContactsIntent;
+pub use intent_outbox::OutboxIntent;
 pub use status::{CalendarWriteStatus, ContactWriteStatus, SendStatus};
 
 /// A surface a host observes and pulls an immutable snapshot for.
@@ -57,6 +59,11 @@ pub enum Surface {
     /// [`Self::Sending`] this does **not** auto-clear: it is a standing question, and the
     /// user answers it by retrying or dismissing.
     UnfiledCopy,
+    /// A queued send the user asked to edit, waiting to be opened in the host's composer
+    /// (pulled via `App::compose_request`). Like [`Self::UnfiledCopy`] it does **not**
+    /// auto-clear: the message has already left the outbox, so this request is the only
+    /// copy of it, and the host clears it once the composer holds it.
+    ComposeRequest,
 }
 
 /// A host implements this to learn a [`Surface`] changed, then pulls its snapshot.

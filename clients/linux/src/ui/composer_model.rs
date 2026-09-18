@@ -17,7 +17,7 @@ pub(crate) enum ComposeKind {
 
 /// Everything fixed when a single composer session opens.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ComposeRequest {
+pub(crate) struct ComposeContext {
     pub(crate) kind: ComposeKind,
     /// Where this draft is being written: the pane, or a window of its own. Fixed when the
     /// composer opens like everything else here, and it is what Cancel, Send and the window's
@@ -39,7 +39,7 @@ pub(crate) struct ComposeRequest {
     pub(crate) files: Vec<PickedFile>,
 }
 
-impl ComposeRequest {
+impl ComposeContext {
     pub(crate) fn from_mailto(prefill: MailtoPrefill, initial_from: Option<String>) -> Self {
         Self {
             kind: ComposeKind::New,
@@ -76,6 +76,33 @@ impl ComposeRequest {
         }
     }
 
+    /// A message the core **withdrew from the Outbox** and handed back, unsent.
+    ///
+    /// The same composer an assistant's draft opens: a prefilled, unsent message a person
+    /// reviews and sends themselves is the same thing either way. It seeds no signature for the
+    /// same reason, that the body already carries whatever was on it when the message was
+    /// queued, and a second one would go out with it.
+    pub(crate) fn from_withdrawn(
+        request: mailcal_bindings::ComposeRequest,
+        initial_from: Option<String>,
+    ) -> Self {
+        Self {
+            kind: ComposeKind::New,
+            host: ComposerHost::Pane,
+            account: None,
+            key: None,
+            initial_to: request.to,
+            initial_cc: request.cc,
+            initial_bcc: request.bcc,
+            subject: request.subject,
+            initial_body: (!request.body_text.is_empty()).then_some(request.body_text),
+            quote: None,
+            initial_from,
+            seeds_signature: false,
+            files: Vec::new(),
+        }
+    }
+
     /// Whether this composer opens with the caret in the message body rather than in To.
     ///
     /// A reply/forward is already addressed, so writing is the only thing left to do and the body
@@ -105,7 +132,7 @@ pub(crate) struct PickedFile {
 /// Editor and header values captured by the Send action.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ComposerSubmission {
-    pub(crate) request: ComposeRequest,
+    pub(crate) request: ComposeContext,
     pub(crate) to: String,
     pub(crate) cc: String,
     pub(crate) bcc: String,
@@ -132,12 +159,12 @@ mod tests {
     use mailcal_bindings::{AgentDraft, MailtoPrefill, QuoteStyleKind, ReadingSnapshot};
     use serde_json::Value;
 
-    use super::{ComposeKind, ComposeRequest, initial_sender, plain_text_seed_script};
+    use super::{ComposeContext, ComposeKind, initial_sender, plain_text_seed_script};
     use crate::ui::{composer_quote::quote_seed, model::OpenedMessage};
 
     #[test]
     fn a_mail_link_becomes_an_editable_new_message_without_interpreting_its_body_as_code() {
-        let request = ComposeRequest::from_mailto(
+        let request = ComposeContext::from_mailto(
             MailtoPrefill {
                 to: "ada@example.test".to_owned(),
                 cc: "copy@example.test".to_owned(),
@@ -165,7 +192,7 @@ mod tests {
 
     #[test]
     fn an_assistant_draft_is_unsent_new_mail_without_a_second_signature() {
-        let request = ComposeRequest::from_agent(
+        let request = ComposeContext::from_agent(
             AgentDraft {
                 account: Some("work".to_owned()),
                 to: "ada@example.test".to_owned(),
