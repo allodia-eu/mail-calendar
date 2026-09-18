@@ -382,11 +382,11 @@ The core decides; the client talks to the store it is running on, because no Rus
 | Its four writes: checkout, cancel, switch period, resubscribe | 🚧 | n/a | n/a | n/a | n/a | n/a |
 | Talk to the platform's store: fetch, buy, collect, finish | n/a | 🚧 | 🚧 | n/a | 🚧 | n/a |
 | That half tested against a **simulated** store | n/a | ✅ | n/a | n/a | ⬜ | n/a |
-| Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ⬜ | ⬜ | ⬜ |
+| Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ⬜ | 🚧 | ⬜ |
 | Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Open Allodia's own checkout | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Link out to that checkout from inside the app | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
-| Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | n/a | ⬜ | n/a |
+| Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | n/a | 🚧 | n/a |
 | Build with no Google library in it at all | n/a | n/a | n/a | n/a | ✅ | n/a |
 | Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ⬜ | ✅ | ⬜ |
 
@@ -395,6 +395,14 @@ Windows and Linux ship no store purchase: the Microsoft Store's commerce is not 
 has none, so on both the only route is Allodia's own checkout. **Android is two builds**: both are
 compiled and tested by `:app:test` in the gate, and the `foss` one already opens the checkout,
 which is why that row is ✅ for Android alone.
+
+**Android's screen is 🚧 for a different reason: nothing has driven it.** Both flavours draw the
+same card, under the account it belongs to, and each gets the shop its flavour supplies without the
+card knowing which: `play` shows Play's own prices behind a buy button, `foss` shows Allodia's two
+prices and opens the checkout in a browser. What is unproven is everything past the drawing. Play
+answers nothing about products until the app is distributed by Play, so no price has been fetched,
+no sheet opened and no manage page reached on a real device, and the checkout page has still never
+been paid on.
 
 **Apple's screen is 🚧 rather than ✅, and the distance is not code.** Settings → Allodia account
 draws the subscription: who is charging, until when, a retry that is not a lapse, every biller when
@@ -432,17 +440,18 @@ are the half where being wrong costs somebody money and the half that is least p
 
 ## Known gaps
 
-- **The `foss` checkout has never been opened by anybody.** `WebBillingProvider` resolves the two
-  prices and launches a Custom Tab, and no screen calls it, so what is unproven is the same thing
-  unproven everywhere else here: nothing has taken a payment. Its price formatting is the one part
-  with no test at all, because it needs a device locale.
+- **The `foss` checkout has never been paid on.** The subscription card calls
+  `WebBillingProvider`, which resolves the two prices and launches a Custom Tab, so the route is
+  now reachable; what is unproven is the same thing unproven everywhere else here: nothing has
+  taken a payment. Its price formatting is the one part with no test at all, because it needs a
+  device locale.
 - **The flavour is Android's only**, and it is recorded here rather than in a contract of its own.
   If it grows past purchasing, and the likeliest way is
   [`../docs/updates.md`](../docs/updates.md), because an F-Droid build is updated by F-Droid and a
   Play build by Play, it earns a doc beside
   [`../docs/windows-channels.md`](../docs/windows-channels.md), which is the same shape of problem.
 - **Nothing above has been run against a real store.** Apple's screen exists and buys through the
-  simulated store only; no other client draws a purchase surface at all. A deployment with no
+  simulated store only, and Android's has fetched no price from Play at all. A deployment with no
   billing configured answers `503 unavailable`, which the ledger treats as an outage and retries.
 - ⚠️ **A StoreKit purchase sheet that never answers suspends its caller for good**, the same hole
   the Play listener has below, and observed rather than reasoned about: a sandbox sign-in that
@@ -464,10 +473,9 @@ are the half where being wrong costs somebody money and the half that is least p
   implemented and covered in the core, and Apple's screen calls none of them: cancelling and
   switching belong to the store for a store's subscription, and the two that would act on Allodia's
   own subscription wait with the link-out below.
-- **Apple's screen is the only one, and the other five are not merely unwritten.** Windows and
-  Linux need the checkout route rather than this one, and Android needs it twice, once per
-  flavour. The copy is in the catalog in all seven locales already, so what each owes is the
-  drawing.
+- **Windows and Linux draw no purchase surface**, and they are not merely unwritten: both need
+  the checkout route rather than the store one. The copy is in the catalog in all seven locales
+  already, so what each owes is the drawing.
 - **The four writes are unrun.** Starting a checkout leaves a `pending_first_payment` subscription
   behind at the service, and cancelling, switching and resubscribing each need a real one to act
   on, so none of them has been driven even against production. They are the half where being wrong

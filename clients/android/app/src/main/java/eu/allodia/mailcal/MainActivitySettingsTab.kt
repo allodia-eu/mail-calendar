@@ -107,6 +107,13 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onAllodiaCreate = { registerAllodiaAccount() },
                             onAllodiaManage = { manageAllodiaAccount() },
                             onAllodiaSignOut = { signOutOfAllodia() },
+                            // The subscription on that account: what is being charged, by whom,
+                            // and the way to start one (MainActivityAllodiaPurchases.kt).
+                            allodiaSubscription = allodiaSubscription,
+                            onAllodiaRefreshSubscription = { refreshAllodiaSubscription() },
+                            onAllodiaBuy = { buyAllodiaSubscription(it) },
+                            onAllodiaManageStore = { manageAllodiaStoreSubscription(it) },
+                            onAllodiaSubscriptionClosed = { forgetAllodiaPurchaseInFlight() },
                             // Accounts, what the person's other devices have to say, drawn above
                             // their own accounts because an offer becomes one of them.
                             allodiaSync = allodiaSync,

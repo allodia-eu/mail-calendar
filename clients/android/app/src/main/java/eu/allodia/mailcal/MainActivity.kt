@@ -336,6 +336,15 @@ class MainActivity : AppCompatActivity() {
     // What the person's other devices have to say about their mail accounts. Empty until a pass
     // has run, which is not the same as a pass that found nothing.
     internal var allodiaSync by mutableStateOf(AllodiaSyncState())
+    // This build's shop, and the scope its purchases and reads run in. Both flows leave the app,
+    // for Play's sheet or for a browser, so neither may belong to a screen that was recomposed
+    // while somebody was away (MainActivityAllodiaPurchases.kt).
+    internal var allodiaPurchases: AllodiaPurchases? = null
+    internal val allodiaPurchaseScope = allodiaPurchaseScope()
+    // What the subscription card draws: the service's answer, what the shop will sell, and which
+    // period has a sheet up. Checking until the card is first opened; the read is a network round
+    // trip, and a category nobody opened is not worth one.
+    internal var allodiaSubscription by mutableStateOf(AllodiaSubscriptionUi())
     // How each account is shared with the other devices, keyed by account id, what the
     // per-account three-position control draws. A local read; it never asks the service.
     internal var accountsSyncMode by
@@ -447,6 +456,7 @@ class MainActivity : AppCompatActivity() {
         logUiInfo(
             "activity destroyed (finishing=$isFinishing, changing_config=$isChangingConfigurations)",
         )
+        closeAllodiaPurchases()
         super.onDestroy()
     }
 
