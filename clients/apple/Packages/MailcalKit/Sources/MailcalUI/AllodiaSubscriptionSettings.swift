@@ -149,6 +149,14 @@ struct AllodiaSubscriptionSettings: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        case .needsReauth:
+            // An offer rather than an error: they are signed in and this one read is asleep, and
+            // the ordinary sign-in asks for the full current scope set.
+            Text(L10n.settings_subscription_reauth())
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(L10n.settings_allodia_reauth_action()) { signInAgain() }
         case let .loaded(view):
             loaded(view)
         }

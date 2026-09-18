@@ -409,8 +409,7 @@ been paid on.
 ⚠️ **A sign-in older than the permission this read needs is an offer, not an outage**, and the
 first device this card was opened on had one. The remedies are opposites, so the read's failure
 alone may not decide the sentence: `allodia_grant_health` does, exactly as the account list's own
-failure does ([`entitlement.md`](entitlement.md)). Apple's screen does not make this distinction
-yet and draws the outage sentence for both.
+failure does ([`entitlement.md`](entitlement.md)). Both screens read it.
 
 **Apple's screen is 🚧 rather than ✅, and the distance is not code.** Settings → Allodia account
 draws the subscription: who is charging, until when, a retry that is not a lapse, every biller when

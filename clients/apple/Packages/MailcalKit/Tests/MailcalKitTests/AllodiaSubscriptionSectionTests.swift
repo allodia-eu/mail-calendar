@@ -142,6 +142,18 @@ struct AllodiaSubscriptionSectionTests {
         )
     }
 
+    /// ⚠️ A sign-in too old to carry the permission this read needs is an offer, not an outage.
+    ///
+    /// The two are indistinguishable from the failure alone, and their remedies are opposites:
+    /// waiting fixes an outage and never fixes this. Observed on an Android device whose grant
+    /// predated the permission and which was told its subscription could not be checked "right
+    /// now"; this screen had the same gap.
+    @Test func aSignInTooOldToReadTheSubscriptionOffersAFreshOne() {
+        #expect(allodiaReadFailure(.needsReauth) == .needsReauth)
+        #expect(allodiaReadFailure(.ok) == .unavailable)
+        #expect(allodiaReadFailure(.signedOut) == .unavailable)
+    }
+
     private func store(
         status: AllodiaStoreStatus,
         autoRenewing: Bool
