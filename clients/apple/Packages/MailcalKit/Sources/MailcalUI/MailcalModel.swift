@@ -253,6 +253,10 @@ final class MailboxModel {
     /// The session's presentation context provider is a **weak** reference, so without this the
     /// provider is released the moment the call returns and the browser has nowhere to present.
     @ObservationIgnored var allodiaBrowser: AllodiaSignIn?
+    /// The App Store side of a subscription: the redemption pass, and the listener the store's
+    /// out-of-band transactions arrive on. Nil until `connect()` has an app to attach them to, and
+    /// in a build carrying no Allodia registration it stays nil.
+    @ObservationIgnored var allodiaPurchases: AllodiaPurchases?
     @ObservationIgnored private var pump: Task<Void, Never>?
     /// The pending search dispatch, cancelled by the next keystroke; see
     /// `MailboxModel.search(_:)` for why typing does not mean searching.

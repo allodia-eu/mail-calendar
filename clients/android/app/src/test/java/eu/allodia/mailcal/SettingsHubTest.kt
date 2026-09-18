@@ -245,7 +245,7 @@ class SettingsHubTest {
             initialCategory = SettingsCategory.ALLODIA,
             allodia = AllodiaSettings(
                 available = true,
-                account = AllodiaAccount("someone@example.com", null),
+                account = AllodiaAccount(id = null, email = "someone@example.com", name = null),
             ),
         )
         compose

@@ -51,6 +51,12 @@ internal class GooglePlayBillingProvider(
     // over what arrived would create a second path to the same work, and two paths to one pass is
     // two chances for them to disagree about what is outstanding.
     private val onPurchaseReported: () -> Unit,
+    // The Allodia account a purchase is tagged with, asked for rather than held.
+    //
+    // ⚠️ A function and not a value, because it can change under a long-lived provider: somebody
+    // signs out and signs in as somebody else without the app restarting, and an id captured at
+    // construction would attribute the second person's money to the first.
+    private val accountId: () -> String?,
 ) : AllodiaBillingProvider {
     private val listener = PurchasesUpdatedListener { result, purchases ->
         // A flow this app is awaiting takes the result and nothing else: its caller attaches as
@@ -136,6 +142,19 @@ internal class GooglePlayBillingProvider(
                             .build()
                     )
                 )
+                // The Allodia account this is for, which comes back to the account service in
+                // Play's own notifications about renewals and refunds.
+                //
+                // ⚠️ **The only repair path for a purchase whose report never arrived**, and it
+                // cannot be added afterwards, so every purchase carries it from the first one.
+                // Read at the moment of buying: somebody can sign out and in as somebody else
+                // without the app restarting, and a value captured earlier would attribute the
+                // second person's money to the first.
+                //
+                // Play takes any string here, unlike Apple, so the id is passed as the service
+                // gave it. Absent where this device signed in before the id was recorded, and the
+                // purchase then goes untagged rather than tagged with a guess.
+                .apply { accountId()?.let { setObfuscatedAccountId(it) } }
                 .build()
         val launched = client.launchBillingFlow(activity, params)
         if (launched.responseCode != BillingClient.BillingResponseCode.OK) {

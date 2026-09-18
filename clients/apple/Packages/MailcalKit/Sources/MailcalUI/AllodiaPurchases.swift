@@ -24,9 +24,15 @@ final class AllodiaPurchases {
     private let store: AllodiaStoreKit
     private var listener: Task<Void, Never>?
 
+    /// How many products the core asked the store for, kept so the log line below can say how many
+    /// of them came back without asking the core a second time.
+    private let wanted: Int
+
     init(app: MailcalApp) {
+        let catalogue = app.allodiaStoreProducts(store: .apple)
         self.app = app
-        self.store = AllodiaStoreKit(catalogue: app.allodiaStoreProducts(store: .apple))
+        self.wanted = catalogue.count
+        self.store = AllodiaStoreKit(catalogue: catalogue)
     }
 
     deinit {
@@ -57,8 +63,18 @@ final class AllodiaPurchases {
     ///
     /// Offers from Allodia's own checkout are added by the caller, which knows whether this
     /// platform may draw them at all; the ordering is the core's either way.
+    /// ⚠️ **A screen drawing no offers has to be diagnosable from the log.** Leaving a product the
+    /// store does not know about out of the list is deliberate, and it makes "this storefront does
+    /// not sell it", "these products are not live yet" and "the store could not be reached" look
+    /// identical to the person, correctly. They must not look identical to us.
     func offers(including others: [AllodiaOffer] = []) async -> [AllodiaOffer] {
-        let fromStore = (try? await store.offers()) ?? []
+        var fromStore: [AllodiaOffer] = []
+        do {
+            fromStore = try await store.offers()
+            logAppleLifecycle("allodia: store offered \(fromStore.count) of \(wanted) product(s)")
+        } catch {
+            logAppleLifecycle("allodia: store offered nothing (\(error))")
+        }
         return app.orderAllodiaOffers(offers: fromStore + others)
     }
 
@@ -69,11 +85,29 @@ final class AllodiaPurchases {
     /// launch picks it up.
     @discardableResult
     func buy(_ plan: AllodiaPlan) async throws -> AllodiaPurchaseOutcome {
-        let outcome = try await store.buy(plan)
+        let outcome = try await store.buy(plan, for: allodiaAccountToken())
         if case .bought = outcome {
             _ = try? await linkOutstanding()
         }
         return outcome
+    }
+
+    /// The Allodia account to tag a purchase with, read at the moment of buying rather than held.
+    ///
+    /// ⚠️ **Read now, because it can change under a long-lived object**: somebody signs out and
+    /// signs in as somebody else without the app restarting, and a token captured at construction
+    /// would attribute the second person's money to the first.
+    ///
+    /// **Apple requires a UUID and refuses anything else.** The service's ids are UUIDs, so a
+    /// value that will not parse is a service this build does not understand rather than a stored
+    /// id to coerce; it buys untagged, which is what a build predating the id does anyway.
+    private func allodiaAccountToken() -> UUID? {
+        guard let id = app.allodiaAccount()?.id else { return nil }
+        guard let token = UUID(uuidString: id) else {
+            logAppleLifecycle("allodia: the account id is not a uuid; buying without one")
+            return nil
+        }
+        return token
     }
 
     /// One pass: hand the account service everything the store is still offering, then finish only

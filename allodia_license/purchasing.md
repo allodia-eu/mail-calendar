@@ -124,6 +124,29 @@ Three more consequences worth stating rather than discovering:
 - **Retrying is capped at an hour.** A backoff left to double would pass Play's three-day refund
   clock, which turns a service having a bad afternoon into a refund nobody asked for.
 
+## Every purchase names the account it is for
+
+A purchase carries an opaque id the app chooses, `appAccountToken` on Apple and
+`obfuscatedAccountId` on Play, and it is **the Allodia Account subject**: the identity the account
+service issued, which every client already holds from its own sign-in.
+
+**Not the subscription service's own user id**, which is a different value. That one is created
+when the service first sees a sign-in and is this service's mirror of the identity; the subject is
+the identity. A purchase outlives mirrors, and Apple keeps the token for the life of the
+subscription, so the token names the thing that does not move.
+
+⚠️ **It cannot be attached afterwards.** A purchase made without one is never taggable, so every
+purchase carries it from the first, not from the first that turned out to need it.
+
+**What it is for is the purchase whose report never arrived.** The ordinary path is the device
+naming its own transaction; this is the path for a device that paid and then lost the network or
+was killed before it could. The store's own notification about the renewal or the refund is then
+all that reaches the account service, and the token is the only thing in it that says whose money
+it was. Apple requires a UUID and refuses anything else; Play takes any string.
+
+It identifies an **account, not a person**: an opaque id the service already holds, carrying no
+address and no name, and it is never drawn on a screen.
+
 ## The device names the purchase; it says nothing about it
 
 **One identifier crosses, and nothing else**: Apple's StoreKit transaction id, or Play's purchase
@@ -294,26 +317,41 @@ Two obligations that are review-blocking rather than optional, and one that turn
 
 ## Sovereignty scope
 
-⚠️ **Undecided, and it is a decision rather than a refactor.**
-[`../AGENTS.md`](../AGENTS.md) requires every external dispatch to pass the `JurisdictionGate` or
-to earn a dated, condition-bounded carve-out, and lists four. A store purchase would be a fifth:
-StoreKit and Play Billing dispatch to Apple and Google, neither of them EU-hosted, and neither
-reachable through a gate the app controls.
+**Buying from the store that distributed the build is a carve-out from the `JurisdictionGate`**,
+the fifth [`../AGENTS.md`](../AGENTS.md) carries. Decided 2026-09-18.
 
-What can be said in its favour is narrow and worth stating precisely: the dispatch carries a
-product identifier and nothing else, the counterparty is the platform the person already bought
-their device from and is already signed in to, it happens only when they tap a purchase button,
-and [`../docs/privacy-policy.md`](../docs/privacy-policy.md) §§9 and 10 describe the stores as
+**What it covers.** A purchase dispatched to Apple through StoreKit or to Google through Play
+Billing, and nothing else. The dispatch carries a product identifier and the account id the
+purchase is tagged with; it happens only when somebody presses a purchase button; and the
+counterparty is the platform the person bought their device from and is already signed in to.
+[`../docs/privacy-policy.md`](../docs/privacy-policy.md) §§9 and 10 describe both stores as
 independent controllers processing the purchase under their own policies.
 
-⚠️ **The transfer the policy names in §12 is a different one, and arguing the two as one would
-grant this carve-out on the strength of something it does not cover.** That transfer is the
-account service asking Apple or Google to verify a purchase, which happens on Allodia's side and
-leaves no device. `JurisdictionGate` governs what leaves the **app**, so the policy's account of
-that transfer neither supports this carve-out nor stands in its way.
+**Why it cannot be gated rather than carved out.** StoreKit and Play Billing reach Apple and
+Google through the operating system, not through a transport this app routes, so there is no point
+at which a gate could stand. It is a property of the platform rather than a choice this app makes,
+which is what separates it from a dispatch we could have routed and did not.
 
-That is an argument for a carve-out, not a carve-out. It has not been made, and **no purchase
-surface ships until it is**, nor until the published policy matches (the known gap below).
+⚠️ **It reaches only the builds those stores distribute.** Android's `foss` flavour sells through
+Allodia's own checkout, carries no Play Billing at all, and is therefore outside this entirely:
+reading the carve-out off the platform rather than the channel would grant it to a build that
+never makes the dispatch. The same rule as
+[the shop follows the channel](#the-shop-follows-the-channel-not-the-platform), for the same
+reason.
+
+**What ends it.** It lapses on a platform as soon as Allodia's own checkout is reachable from
+inside the app there, because the store dispatch is then no longer the only way to buy and the
+carve-out is no longer load-bearing. For EU storefronts that turns on the external-purchase-link
+entitlement, which is a date rather than a hope.
+
+⚠️ **The transfer the policy names in §12 is a different one, and arguing the two as one would
+rest this carve-out on something it does not cover.** That transfer is the account service asking
+Apple or Google to verify a purchase, which happens on Allodia's side and leaves no device.
+`JurisdictionGate` governs what leaves the **app**, so the policy's account of that transfer
+neither supports this carve-out nor stands in its way.
+
+⚠️ **The carve-out is not the last gate.** A purchase surface still does not ship until the
+published policy matches the one in this tree (the known gap below).
 
 ## What a client calls
 
@@ -344,10 +382,11 @@ The core decides; the client talks to the store it is running on, because no Rus
 | Its four writes: checkout, cancel, switch period, resubscribe | 🚧 | n/a | n/a | n/a | n/a | n/a |
 | Talk to the platform's store: fetch, buy, collect, finish | n/a | 🚧 | 🚧 | n/a | 🚧 | n/a |
 | That half tested against a **simulated** store | n/a | ✅ | n/a | n/a | ⬜ | n/a |
-| Draw the account screen: prices, state, buttons | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ⬜ | ⬜ | ⬜ |
+| Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Open Allodia's own checkout | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Link out to that checkout from inside the app | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
-| Reach the store's own manage-or-cancel page | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
+| Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | n/a | ⬜ | n/a |
 | Build with no Google library in it at all | n/a | n/a | n/a | n/a | ✅ | n/a |
 | Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ⬜ | ✅ | ⬜ |
 
@@ -355,8 +394,15 @@ Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ pl
 Windows and Linux ship no store purchase: the Microsoft Store's commerce is not used and Flatpak
 has none, so on both the only route is Allodia's own checkout. **Android is two builds**: both are
 compiled and tested by `:app:test` in the gate, and the `foss` one already opens the checkout,
-which is why that row is ✅ for Android alone. No screen calls it yet, which is what keeps the row
-above it ⬜.
+which is why that row is ✅ for Android alone.
+
+**Apple's screen is 🚧 rather than ✅, and the distance is not code.** Settings → Allodia account
+draws the subscription: who is charging, until when, a retry that is not a lapse, every biller when
+more than one is charging, the store's own manage page, and the two periods with the store's own
+prices behind a buy button, and a purchase has been made against the App Store **sandbox** end to
+end: taken, attached, granted, finished, and read back on a second platform that never saw it.
+What holds it at 🚧 is the unpublished policy mirror below, which alone forbids shipping it, and
+that no purchase has been made against the **production** store.
 
 **What each mark means here, precisely, because a matrix that overstates is worse than none.** The
 core's rules are unit-tested against a canned transport and a supplied clock.
@@ -395,12 +441,33 @@ are the half where being wrong costs somebody money and the half that is least p
   [`../docs/updates.md`](../docs/updates.md), because an F-Droid build is updated by F-Droid and a
   Play build by Play, it earns a doc beside
   [`../docs/windows-channels.md`](../docs/windows-channels.md), which is the same shape of problem.
-- **No client draws a purchase surface yet**, so nothing above has been run against a real store.
-  A deployment with no billing configured answers `503 unavailable`, which the ledger treats as an
-  outage and retries.
-- **No screen draws any of it.** The account-screen read and its four writes are implemented and
-  covered, and nothing in a client calls them: the copy needs the service's name, which the pledge
-  constrains, and the sovereignty carve-out below.
+- **Nothing above has been run against a real store.** Apple's screen exists and buys through the
+  simulated store only; no other client draws a purchase surface at all. A deployment with no
+  billing configured answers `503 unavailable`, which the ledger treats as an outage and retries.
+- ⚠️ **A StoreKit purchase sheet that never answers suspends its caller for good**, the same hole
+  the Play listener has below, and observed rather than reasoned about: a sandbox sign-in that
+  could not complete left `Product.purchase()` awaiting with nothing logged and nothing returned.
+  Apple's screen holds the wait to the screen that started it, so closing the subscription section
+  cancels it and every button comes back; the purchase itself is unaffected, because an unfinished
+  transaction is re-offered at every launch and the updates listener starts a pass for it. What is
+  still missing is any bound on the wait, so a person who stays on the screen waits forever, and
+  choosing between a timeout and something better is a decision rather than an oversight.
+- ⚠️ **Switching period does a different thing depending on who sold it, and nothing says so.**
+  Through this API, on Allodia's own subscription, it changes the next charge and moves no money
+  today. On the App Store it is Apple's own upgrade: the two products sit at different levels in
+  the subscription group, so monthly to yearly takes the money at once and refunds the unused part
+  of the month, and yearly to monthly waits for the renewal. Both are defensible and the levels are
+  a deliberate choice, but somebody who has read one of them will be surprised by the other, and
+  the copy for either switch has to be the store's rather than one sentence reused. Play will have
+  its own answer again.
+- **The four writes reach no screen.** Checkout, cancel, switch period and resubscribe are
+  implemented and covered in the core, and Apple's screen calls none of them: cancelling and
+  switching belong to the store for a store's subscription, and the two that would act on Allodia's
+  own subscription wait with the link-out below.
+- **Apple's screen is the only one, and the other five are not merely unwritten.** Windows and
+  Linux need the checkout route rather than this one, and Android needs it twice, once per
+  flavour. The copy is in the catalog in all seven locales already, so what each owes is the
+  drawing.
 - **The four writes are unrun.** Starting a checkout leaves a `pending_first_payment` subscription
   behind at the service, and cancelling, switching and resubscribing each need a real one to act
   on, so none of them has been driven even against production. They are the half where being wrong
@@ -408,8 +475,6 @@ are the half where being wrong costs somebody money and the half that is least p
 - **The invoice history is not modelled.** `GET /subscription` also returns each payment and what
   has been refunded of it; nothing draws that yet, and serde ignores what nothing asked for, so
   adding it later needs no service change.
-- **The sovereignty carve-out has not been made**, and the section above says what it would have
-  to argue.
 - ⚠️ **The privacy policy describes this, and the published mirror does not yet.**
   [`docs/privacy-policy.md`](../docs/privacy-policy.md) §10 covers all three routes as of version
   2.4, in both locales. The page at `allodia.eu/privacy/mail-calendar` renders a vendored mirror in
@@ -452,9 +517,8 @@ are the half where being wrong costs somebody money and the half that is least p
   and the alternative is remembering settled identifiers, which on Apple would mean forgetting a
   `finish` that never happened and leaving StoreKit re-delivering it forever. Worth revisiting only
   if the request itself becomes a cost.
-- **Nothing attaches an account identifier to a purchase, and that has to be decided before the
-  first real one.** Both stores let a purchase carry an opaque id chosen by the app
-  (`appAccountToken` on Apple, `obfuscatedAccountId` on Play), which then appears in the store's
-  own server notifications about renewals and refunds. It **cannot be attached afterwards**, which
-  is what makes it a decision to take before the first real purchase rather than after. It needs an
-  identifier the account service names, which is why it is not guessed here.
+- **A grant stored before the account id was recorded carries none**, and no launch fetches one,
+  so such a device buys untagged until its next sign-in. Untagged is what every purchase was
+  before, so nothing regresses; what it loses is the repair path below. Buying with a guessed id
+  would be worse than buying without one, because it would attribute somebody's money to an
+  account that is not theirs.

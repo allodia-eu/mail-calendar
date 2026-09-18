@@ -24,6 +24,18 @@ struct AllodiaAccountSettings: View {
     @State private var failure: String?
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            accountBox
+            // A subscription belongs to an account, so there is nothing to say about one before
+            // somebody has signed in. Keyed on the account so signing in or out rebuilds it and
+            // its read runs again for whoever is signed in now.
+            if let account {
+                AllodiaSubscriptionSettings(model: model).id(account.email)
+            }
+        }
+    }
+
+    private var accountBox: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 Text(L10n.settings_allodia_heading()).font(.headline)

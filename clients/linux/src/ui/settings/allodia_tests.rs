@@ -17,6 +17,9 @@ use crate::{
 
 fn account(email: &str, name: Option<&str>) -> mailcal_bindings::AllodiaAccount {
     mailcal_bindings::AllodiaAccount {
+        // None, because nothing this screen draws reads it: the id is what a store purchase is
+        // tagged with, and Linux sells through Allodia's own checkout rather than a store.
+        id: None,
         email: email.to_owned(),
         name: name.map(str::to_owned),
     }

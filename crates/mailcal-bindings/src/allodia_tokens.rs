@@ -350,6 +350,9 @@ mod tests {
     /// A grant that was stored when the service lived on the old host.
     fn signed_in_with(end_session: Option<&str>) -> StoredAccount {
         StoredAccount {
+            // None, because what this fixture is about is a grant from an older build: the id is
+            // exactly what such a grant does not carry.
+            id: None,
             email: "person@example.test".to_owned(),
             name: None,
             refresh_token: "RT".to_owned(),

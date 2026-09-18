@@ -85,7 +85,19 @@ actor AllodiaStoreKit {
     ///
     /// What comes back is **not** a granted subscription. The core attaches it to the account
     /// first, and only what the core names is finished.
-    func buy(_ plan: AllodiaPlan) async throws -> AllodiaPurchaseOutcome {
+    /// `account` tags the purchase with the Allodia account it is for, and comes back to the
+    /// account service in Apple's **own** notifications about renewals and refunds.
+    ///
+    /// ⚠️ **It is the only repair path for a purchase whose report never arrived.** The device
+    /// pays and then loses the network, or is killed, before naming the transaction; without this
+    /// the money exists at Apple attached to nobody. It also **cannot be added afterwards**, which
+    /// is why a purchase is tagged from the first one rather than from the first one that needed
+    /// it.
+    ///
+    /// `nil` where this device signed in before the id was recorded. A purchase then goes
+    /// untagged rather than tagged with a guess: the app still reports it, and a wrong id would
+    /// attribute somebody's money to a different account.
+    func buy(_ plan: AllodiaPlan, for account: UUID?) async throws -> AllodiaPurchaseOutcome {
         try await loadProducts()
         guard
             let wanted = catalogue.first(where: { $0.plan == plan }),
@@ -94,7 +106,8 @@ actor AllodiaStoreKit {
             throw AllodiaPurchaseFailure.noSuchProduct
         }
 
-        switch try await product.purchase() {
+        let options: Set<Product.PurchaseOption> = account.map { [.appAccountToken($0)] } ?? []
+        switch try await product.purchase(options: options) {
         case let .success(verification):
             return .bought(purchase(from: verification))
         case .userCancelled:
@@ -104,6 +117,11 @@ actor AllodiaStoreKit {
         @unknown default:
             // A result this build does not know is not a purchase it may act on. Whatever it
             // turns out to be, StoreKit will offer the transaction again if one was made.
+            //
+            // Logged because it is otherwise indistinguishable from somebody closing the sheet,
+            // and the two want opposite responses from us: one is a person changing their mind,
+            // the other is this app being a StoreKit version behind.
+            logAppleLifecycle("allodia: the store gave a purchase result this build cannot read")
             return .cancelled
         }
     }
@@ -135,12 +153,22 @@ actor AllodiaStoreKit {
         }
     }
 
-    /// Loads the products once per process.
+    /// Loads the products, and keeps them once the store has answered with all of them.
     ///
-    /// A storefront change or a network failure leaves this empty, which reads as "no offers" and
-    /// draws nothing rather than an error, the same posture the entitlement rules take.
+    /// ⚠️ **A partial answer is not a loaded catalogue, and caching one hides the store's own
+    /// progress for the rest of the process.** A product published, priced or approved after this
+    /// app started is exactly the case that arrives short, so a cache keyed on "not empty" would
+    /// pin the app to the half it saw first and no amount of reopening the screen would correct
+    /// it. Asking again costs one round trip on a screen nobody opens twice a minute.
+    ///
+    /// A storefront that genuinely lacks one is then asked about each time, which is the right
+    /// trade: it is the rarer case, and it is indistinguishable from the one above until the store
+    /// says otherwise.
+    ///
+    /// A network failure leaves this empty, which reads as "no offers" and draws nothing rather
+    /// than an error, the same posture the entitlement rules take.
     private func loadProducts() async throws {
-        guard products.isEmpty else { return }
+        guard products.count < catalogue.count else { return }
         do {
             let fetched = try await Product.products(for: catalogue.map(\.productId))
             products = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })

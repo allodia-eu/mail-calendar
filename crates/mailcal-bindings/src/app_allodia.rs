@@ -215,6 +215,7 @@ impl MailcalApp {
                 );
             }
             let stored = StoredAccount {
+                id: Some(identity.id),
                 email: identity.email,
                 name: identity.name,
                 refresh_token: refresh_token.expose().to_owned(),

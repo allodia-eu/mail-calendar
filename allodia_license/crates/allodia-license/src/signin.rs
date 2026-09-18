@@ -150,6 +150,12 @@ pub fn available() -> bool {
 /// resolved from the token by the server.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identity {
+    /// The account's own id at the service, the OpenID Connect `sub`.
+    ///
+    /// ⚠️ **What a store purchase is tagged with** (`purchasing.md`), which is the only way to
+    /// attribute one whose report never arrived. It names an account, never a person, and is
+    /// never drawn.
+    pub id: String,
     /// The account's email address.
     pub email: String,
     /// The person's display name, when the service holds one.
@@ -160,6 +166,8 @@ pub struct Identity {
 /// ignored rather than rejected, so a service that adds a claim does not break a client.
 #[derive(serde::Deserialize)]
 struct UserinfoClaims {
+    /// The subject identifier: this account's id at the issuer, stable for its whole life.
+    sub: Option<String>,
     email: Option<String>,
     name: Option<String>,
 }
@@ -463,7 +471,14 @@ impl SignIn {
             .email
             .filter(|email| !email.is_empty())
             .ok_or_else(|| SignInError::NoIdentity("it named no address".to_owned()))?;
+        // Required, not optional: `sub` is mandatory in an OpenID Connect userinfo response, and
+        // an identity with no id leaves a purchase unattributable the one time its report is lost.
+        let id = claims
+            .sub
+            .filter(|sub| !sub.is_empty())
+            .ok_or_else(|| SignInError::NoIdentity("it named no subject".to_owned()))?;
         Ok(Identity {
+            id,
             email,
             name: claims.name.filter(|name| !name.is_empty()),
         })
