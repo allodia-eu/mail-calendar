@@ -148,8 +148,7 @@ struct AllodiaSubscriptionSectionTests {
     /// Observed on an Android device: the account had bought through the App Store hours earlier,
     /// that sandbox subscription had since expired, and a purchase through Google Play was then
     /// told "Billed by Apple". The service was right both times; the reading of it was not. This
-    /// screen had the same gap. The expired store keeps its manage button, so this is about the
-    /// sentence, not about hiding the row.
+    /// screen had the same gap.
     @Test func aStoreThatHasStoppedChargingIsNotWhoIsBillingYou() {
         let subscription = subscription(stores: [
             store(source: .apple, status: .expired, autoRenewing: false),
@@ -158,17 +157,39 @@ struct AllodiaSubscriptionSectionTests {
         #expect(allodiaBillers(of: subscription) == [.google])
     }
 
+    /// ⚠️ "Who is billing you" and "is there anything to do at the store" are different questions,
+    /// and they part company on the two states where somebody most needs the answer.
+    ///
+    /// On hold and paused grant nothing, so neither may say it is billing you; both are fixed only
+    /// at the store, so both keep the way there. Expired and revoked are the other way about:
+    /// nothing to manage, and offering the route walks somebody into the store's own resubscribe
+    /// button while another source is already charging them.
+    @Test func aLapsedStoreOffersNoWayInButAHeldOneDoes() {
+        for status in [AllodiaStoreStatus.onHold, .paused] {
+            #expect(!allodiaStoreIsBilling(status))
+            #expect(allodiaStoreCanBeManaged(status))
+        }
+        for status in [AllodiaStoreStatus.expired, .revoked] {
+            #expect(!allodiaStoreIsBilling(status))
+            #expect(!allodiaStoreCanBeManaged(status))
+        }
+        for status in [AllodiaStoreStatus.active, .grace, .cancelled] {
+            #expect(allodiaStoreIsBilling(status))
+            #expect(allodiaStoreCanBeManaged(status))
+        }
+    }
+
     /// Cancelled is still being billed in the only sense that matters here: the period was paid
     /// for and is still running. Revoked, on hold and paused grant nothing and name nobody.
     @Test func aCancelledSubscriptionStillNamesItsStoreAndARevokedOneDoesNot() {
-        #expect(allodiaStoreIsLive(.active))
-        #expect(allodiaStoreIsLive(.grace))
-        #expect(allodiaStoreIsLive(.cancelled))
-        #expect(!allodiaStoreIsLive(.revoked))
-        #expect(!allodiaStoreIsLive(.onHold))
-        #expect(!allodiaStoreIsLive(.paused))
-        #expect(!allodiaStoreIsLive(.expired))
-        #expect(!allodiaStoreIsLive(.unknown(label: "something new")))
+        #expect(allodiaStoreIsBilling(.active))
+        #expect(allodiaStoreIsBilling(.grace))
+        #expect(allodiaStoreIsBilling(.cancelled))
+        #expect(!allodiaStoreIsBilling(.revoked))
+        #expect(!allodiaStoreIsBilling(.onHold))
+        #expect(!allodiaStoreIsBilling(.paused))
+        #expect(!allodiaStoreIsBilling(.expired))
+        #expect(!allodiaStoreIsBilling(.unknown(label: "something new")))
     }
 
     /// A checkout that was started and never paid is not somebody who is being charged.

@@ -84,6 +84,35 @@ class AllodiaSubscriptionModelTest {
         }
     }
 
+    /**
+     * ⚠️ "Who is billing you" and "is there anything to do at the store" are different questions,
+     * and they part company on the two states where somebody most needs the answer.
+     *
+     * On hold and paused grant nothing, so neither may say it is billing you; both are fixed only
+     * at the store, so both keep the way there. Expired and revoked are the other way about:
+     * nothing to manage, and offering the route walks somebody into the store's own resubscribe
+     * button while another source is already charging them.
+     */
+    @Test
+    fun a_lapsed_store_offers_no_way_in_but_a_held_one_does() {
+        for (status in listOf(AllodiaStoreStatus.OnHold, AllodiaStoreStatus.Paused)) {
+            assertFalse(status.toString(), allodiaStoreIsBilling(status))
+            assertTrue(status.toString(), allodiaStoreCanBeManaged(status))
+        }
+        for (status in listOf(AllodiaStoreStatus.Expired, AllodiaStoreStatus.Revoked)) {
+            assertFalse(status.toString(), allodiaStoreIsBilling(status))
+            assertFalse(status.toString(), allodiaStoreCanBeManaged(status))
+        }
+        for (status in listOf(
+            AllodiaStoreStatus.Active,
+            AllodiaStoreStatus.Grace,
+            AllodiaStoreStatus.Cancelled,
+        )) {
+            assertTrue(status.toString(), allodiaStoreIsBilling(status))
+            assertTrue(status.toString(), allodiaStoreCanBeManaged(status))
+        }
+    }
+
     /** A checkout that was started and never paid is not somebody who is being charged. */
     @Test
     fun a_checkout_awaiting_its_first_payment_names_nobody() {

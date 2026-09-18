@@ -60,8 +60,10 @@ extension AllodiaPlan {
 /// list keeps a subscription after it ends, so an account that bought at one store and later at
 /// another carries both, and naming the first named the dead one: an Android device billed by
 /// Google Play was told it was billed by Apple, whose sandbox subscription had run out hours
-/// earlier. A store that has stopped charging still gets its manage button, because somebody may
-/// want its receipt; it does not get to be the answer to "who is taking my money".
+/// earlier.
+///
+/// Whether a store still has something to manage is a different question, answered by
+/// `allodiaStoreCanBeManaged`, and the two part company on the states that matter most.
 ///
 /// Pure, so the sentence a screen says about being charged twice is unit-testable.
 func allodiaBillers(of subscription: AllodiaSubscription) -> [AllodiaBiller] {
@@ -69,7 +71,7 @@ func allodiaBillers(of subscription: AllodiaSubscription) -> [AllodiaBiller] {
     if let own = subscription.own, own.status != .pendingFirstPayment {
         billers.append(.allodia)
     }
-    billers.append(contentsOf: subscription.stores.filter { allodiaStoreIsLive($0.status) }
+    billers.append(contentsOf: subscription.stores.filter { allodiaStoreIsBilling($0.status) }
         .map { store in
             switch store.source {
             case .apple: return .apple
@@ -88,10 +90,29 @@ func allodiaBillers(of subscription: AllodiaSubscription) -> [AllodiaBiller] {
 /// The rest grant nothing, and `AllodiaStoreStatus` is deliberately read arm by arm rather than by
 /// exclusion: a status this build does not know is **never read as permission**, which is the rule
 /// the core states about the same enum.
-func allodiaStoreIsLive(_ status: AllodiaStoreStatus) -> Bool {
+func allodiaStoreIsBilling(_ status: AllodiaStoreStatus) -> Bool {
     switch status {
     case .active, .grace, .cancelled: return true
     case .onHold, .paused, .expired, .revoked: return false
+    case .unknown: return false
+    }
+}
+
+/// Whether the store still has something for this person to do about this subscription.
+///
+/// ⚠️ **Not the same question as who is billing them, and the two answers differ on exactly the
+/// states somebody needs most.** On hold and paused grant nothing, so neither may claim the "billed
+/// by" line, and both are fixed only at the store: a card that failed is replaced there and a pause
+/// is lifted there. Dropping their button strands the person it matters to.
+///
+/// Expired and revoked are the other way about. Nothing is left to manage, and offering the route
+/// anyway walks somebody into the store's own resubscribe button while another source is already
+/// charging them, which is the duplicate billing this contract warns about rather than causes.
+func allodiaStoreCanBeManaged(_ status: AllodiaStoreStatus) -> Bool {
+    switch status {
+    case .active, .grace, .cancelled, .onHold, .paused: return true
+    case .expired, .revoked: return false
+    // A status this build does not know names no action it could offer.
     case .unknown: return false
     }
 }
@@ -261,10 +282,11 @@ struct AllodiaSubscriptionSettings: View {
         }
         // A store's subscription is the store's to change, so this opens its page rather than
         // offering a cancel button that would have nothing to call. Review-blocking on both
-        // stores, which is why it is drawn for every store subscription rather than for a
-        // recognised one.
-        ForEach(subscription.stores.indices, id: \.self) { index in
-            let store = subscription.stores[index]
+        // stores, which is why it is drawn for every store that still has something to do rather
+        // than for a recognised one.
+        let manageable = subscription.stores.filter { allodiaStoreCanBeManaged($0.status) }
+        ForEach(manageable.indices, id: \.self) { index in
+            let store = manageable[index]
             let biller: AllodiaBiller = store.source == .google ? .google : .apple
             Button(L10n.settings_subscription_manage(biller: biller.displayName)) {
                 manage(store)

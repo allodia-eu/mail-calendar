@@ -80,15 +80,16 @@ internal fun allodiaBillerName(biller: AllodiaBiller): String =
 // ⚠️ **"Right now" is the whole of it, and reading every store the service listed was a bug.** The
 // list keeps a subscription after it ends, so an account that bought at one store and later at
 // another carries both, and naming the first named the dead one: a device billed by Google Play
-// was told it was billed by Apple, whose sandbox subscription had run out hours earlier. A store
-// that has stopped charging still gets its manage button, because somebody may want its receipt;
-// it does not get to be the answer to "who is taking my money".
+// was told it was billed by Apple, whose sandbox subscription had run out hours earlier.
+//
+// Whether a store still has something to manage is a different question, answered by
+// [allodiaStoreCanBeManaged], and the two part company on the states that matter most.
 internal fun allodiaBillers(subscription: AllodiaSubscription): List<AllodiaBiller> =
     buildList {
         if (subscription.own != null && subscription.own?.status != AllodiaOwnStatus.PendingFirstPayment) {
             add(AllodiaBiller.Allodia)
         }
-        subscription.stores.filter { allodiaStoreIsLive(it.status) }.forEach { store ->
+        subscription.stores.filter { allodiaStoreIsBilling(it.status) }.forEach { store ->
             add(
                 when (store.source) {
                     AllodiaStore.APPLE -> AllodiaBiller.Apple
@@ -108,13 +109,35 @@ internal fun allodiaBillers(subscription: AllodiaSubscription): List<AllodiaBill
 // The rest grant nothing, and `AllodiaStoreStatus` is deliberately read arm by arm rather than by
 // exclusion: a status this build does not know is **never read as permission**, which is the rule
 // the core states about the same enum.
-private fun allodiaStoreIsLive(status: AllodiaStoreStatus): Boolean =
+internal fun allodiaStoreIsBilling(status: AllodiaStoreStatus): Boolean =
     when (status) {
         AllodiaStoreStatus.Active, AllodiaStoreStatus.Grace, AllodiaStoreStatus.Cancelled -> true
         AllodiaStoreStatus.OnHold,
         AllodiaStoreStatus.Paused,
         AllodiaStoreStatus.Expired,
         AllodiaStoreStatus.Revoked -> false
+        else -> false
+    }
+
+// Whether the store still has something for this person to do about this subscription.
+//
+// ⚠️ **Not the same question as who is billing them, and the two answers differ on exactly the
+// states somebody needs most.** On hold and paused grant nothing, so neither may claim the "billed
+// by" line, and both are fixed only at the store: a card that failed is replaced there and a pause
+// is lifted there. Dropping their button strands the person it matters to.
+//
+// Expired and revoked are the other way about. Nothing is left to manage, and offering the route
+// anyway walks somebody into the store's own resubscribe button while another source is already
+// charging them, which is the duplicate billing this contract warns about rather than causes.
+internal fun allodiaStoreCanBeManaged(status: AllodiaStoreStatus): Boolean =
+    when (status) {
+        AllodiaStoreStatus.Active,
+        AllodiaStoreStatus.Grace,
+        AllodiaStoreStatus.Cancelled,
+        AllodiaStoreStatus.OnHold,
+        AllodiaStoreStatus.Paused -> true
+        AllodiaStoreStatus.Expired, AllodiaStoreStatus.Revoked -> false
+        // A status this build does not know names no action it could offer.
         else -> false
     }
 
