@@ -204,15 +204,29 @@ checkout with no programme to enrol in, exactly as Windows and Linux do. Reading
 platform instead of the channel gets the un-Googled build wrong in the expensive direction: it
 would offer a person no way to pay at all.
 
-**`GOOGLE_GMS_AVAILABLE=false` is that build**, and it is a different APK rather than the same one
+**Android ships two flavours, `play` and `foss`**, and they are different APKs rather than one
 behaving differently. Play Billing is a stub that binds to the Play Store app over IPC, so on a
-device without one it can only answer `BILLING_UNAVAILABLE`; graceful degradation would be enough
-to avoid a crash, and it is **not** enough for F-Droid, whose inclusion policy is about what a
-build contains. So the switch removes the dependency, the Play sources and the merged
-`com.android.vending.BILLING` permission together.
+device without one it can only answer `BILLING_UNAVAILABLE`; degrading gracefully is enough to
+avoid a crash and **not** enough for F-Droid, whose inclusion policy is about what a build
+contains. The flavour therefore drops the dependency (`playImplementation`), the Play sources
+(`src/play`) and the merged `com.android.vending.BILLING` permission together.
 
-This is not the brand axis. An unbranded build still carries Play Billing, because branding decides
-what a build is called and the channel decides where it is sold.
+| | `play` | `foss` |
+|---|---|---|
+| Sold by | Google Play | Allodia's own checkout |
+| Google library in the APK | yes | **none** |
+| `com.android.vending.BILLING` | merged in | **absent** |
+| Goes to | Play | F-Droid, and the download we host |
+
+Each flavour supplies its own `allodiaBillingProvider`, so nothing above that line branches on the
+build. ⚠️ **The two shops do not have the same shape and the seam does not pretend otherwise**: Play
+hands a purchase back for the device to attach, while a checkout hands back nothing at all, because
+the person leaves for a browser and the subscription is created on the account. That is what
+`SentToCheckout` is for, and why the checkout side reports nothing outstanding rather than leaving
+it unimplemented.
+
+This is not the brand axis. An unbranded `play` build still carries Play Billing, because branding
+decides what a build is called and the flavour decides where it is sold.
 
 ## The account screen, and who may change what
 
@@ -335,12 +349,14 @@ The core decides; the client talks to the store it is running on, because no Rus
 | Link out to that checkout from inside the app | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
 | Reach the store's own manage-or-cancel page | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
 | Build with no Google library in it at all | n/a | n/a | n/a | n/a | ✅ | n/a |
+| Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ⬜ | ✅ | ⬜ |
 
 Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 Windows and Linux ship no store purchase: the Microsoft Store's commerce is not used and Flatpak
-has none, so on both the only route is Allodia's own checkout. **Android is two builds**, and the
-un-Googled one is in the same position as those two: `GOOGLE_GMS_AVAILABLE=false` is ✅ because it
-is built and compiled in the gate, and everything it would sell through is still ⬜ above.
+has none, so on both the only route is Allodia's own checkout. **Android is two builds**: both are
+compiled and tested by `:app:test` in the gate, and the `foss` one already opens the checkout,
+which is why that row is ✅ for Android alone. No screen calls it yet, which is what keeps the row
+above it ⬜.
 
 **What each mark means here, precisely, because a matrix that overstates is worse than none.** The
 core's rules are unit-tested against a canned transport and a supplied clock.
@@ -370,18 +386,12 @@ are the half where being wrong costs somebody money and the half that is least p
 
 ## Known gaps
 
-- ⚠️ **The un-Googled build can sell nothing yet, and it is the build with no second route.** A
-  Play build at least has Play. `GOOGLE_GMS_AVAILABLE=false` has only Allodia's own checkout, and
-  "open Allodia's own checkout" is ⬜ on every platform, so today that APK is a free application
-  with no way to pay. Nothing is mis-sold, because no client draws a purchase surface at all; it
-  is the first thing that build needs when one is drawn.
-- ⚠️ **A purchase surface has to compile in both Android configurations**, which is the one
-  standing constraint the switch puts on the work after it. `AllodiaPurchases` is absent from the
-  un-Googled build, so a screen that names it needs either a counterpart in a source set of its own
-  or a flag it can branch on. Neither exists, deliberately: there is no surface to hold the seam up
-  yet, and guessing its shape now is how the wrong seam gets built.
-- **The channel switch is Android's only**, and it is recorded here rather than in a contract of
-  its own. If it grows past purchasing, and the likeliest way is
+- **The `foss` checkout has never been opened by anybody.** `WebBillingProvider` resolves the two
+  prices and launches a Custom Tab, and no screen calls it, so what is unproven is the same thing
+  unproven everywhere else here: nothing has taken a payment. Its price formatting is the one part
+  with no test at all, because it needs a device locale.
+- **The flavour is Android's only**, and it is recorded here rather than in a contract of its own.
+  If it grows past purchasing, and the likeliest way is
   [`../docs/updates.md`](../docs/updates.md), because an F-Droid build is updated by F-Droid and a
   Play build by Play, it earns a doc beside
   [`../docs/windows-channels.md`](../docs/windows-channels.md), which is the same shape of problem.

@@ -84,30 +84,6 @@ impl<'a> Runner<'a> {
         self.finish(label, Command::new(program).args(args).current_dir(dir))
     }
 
-    /// Runs one external command from `dir` with one environment variable set.
-    ///
-    /// Separate from [`Self::external_in`] because the variable is the thing under test: a build
-    /// switch nothing ever sets is a switch that rots, and the first person to find out is
-    /// whoever submits the build it produces.
-    pub(crate) fn external_env_in(
-        &self,
-        dir: &Path,
-        label: &str,
-        program: impl AsRef<OsStr>,
-        args: &[&str],
-        key: &str,
-        value: &str,
-    ) -> Step {
-        self.heading(label);
-        self.finish(
-            label,
-            Command::new(program)
-                .args(args)
-                .current_dir(dir)
-                .env(key, value),
-        )
-    }
-
     /// Runs a prepared command and records the verdict.
     fn finish(&self, label: &str, command: &mut Command) -> Step {
         let ok = match command.status() {
@@ -195,28 +171,16 @@ impl<'a> Runner<'a> {
 
     /// The Android suite. JDK 17 is pinned in the module, so this matches the pipeline's locale
     /// data.
+    ///
+    /// **Both APKs.** The module carries a `play` flavour and a `foss` one, and `:app:test` builds
+    /// and runs each, so the build that carries no Google library is exercised here rather than
+    /// first at an F-Droid submission.
     pub(crate) fn gradle(&self) -> Step {
         self.external_in(
             &self.root.join("clients/android"),
             "android (:app:test)",
             gradle_wrapper(self.root),
             &[":app:test"],
-        )
-    }
-
-    /// The same module built as the APK we publish ourselves, with no Google library in it.
-    ///
-    /// Compiled rather than tested, because what breaks here is a reference to a Play source that
-    /// this configuration does not carry, and that is a compile error. The suite above already
-    /// ran every test the two configurations share.
-    pub(crate) fn gradle_without_play(&self) -> Step {
-        self.external_env_in(
-            &self.root.join("clients/android"),
-            "android (no Google Play build)",
-            gradle_wrapper(self.root),
-            &[":app:compileDebugUnitTestKotlin"],
-            "GOOGLE_GMS_AVAILABLE",
-            "false",
         )
     }
 

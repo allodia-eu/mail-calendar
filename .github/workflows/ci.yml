@@ -839,7 +839,7 @@ jobs:
           # crates/mailcal-bindings/build.rs). Deliberately not workflow-level: an ordinary push,
           # and every fork, must keep building without secrets.
           MAILCAL_REQUIRE_INJECTED_CONFIG: 1
-        run: ./gradlew --no-daemon :app:assembleRelease
+        run: ./gradlew --no-daemon :app:assemblePlayRelease :app:assembleFossRelease
 
       # A suite that compiles away to nothing still reports BUILD SUCCESSFUL, and Gradle prints no
       # test count — so a green Android job would prove nothing. Read the JUnit XML and insist the

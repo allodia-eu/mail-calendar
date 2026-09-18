@@ -49,7 +49,7 @@ floor, not a preference**, it is the first release aligned on every ABI. Don't l
 `build-release.sh` asserts all of this on the packaged APK via
 [`scripts/dev/check-android-native-libs.sh`](../../scripts/dev/check-android-native-libs.sh),
 which fails on an unexpected ABI, on an ABI missing `libmailcal_bindings.so`, and on any LOAD
-segment under 16 KB. **Run it on the `.aab` too before uploading** (`./gradlew :app:bundleRelease`)
+segment under 16 KB. **Run it on the `.aab` too before uploading** (`./gradlew :app:bundlePlayRelease`)
 The bundle is the artifact Play actually checks.
 
 One warning survives all of this and is expected: Android Studio's APK Analyzer reports

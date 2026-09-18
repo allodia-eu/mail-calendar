@@ -2,7 +2,7 @@
 # Build the Android RELEASE APK, the thing that actually ships, and the only build whose
 # performance is worth comparing against anyone else's app.
 #
-#   ./build-release.sh [--install] [--bundle]
+#   ./build-release.sh [--install] [--bundle] [--foss]
 #
 # `--bundle` also builds the .aab Play requires. The APK is what you sideload and what performance
 # is measured on; Play accepts only the bundle, so a release needs both and they are built from one
@@ -55,10 +55,15 @@ PKG="$MAILCAL_APP_ID"
 
 INSTALL=false
 BUNDLE=false
+FLAVOUR=play
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --install) INSTALL=true; shift ;;
     --bundle) BUNDLE=true; shift ;;
+    # The APK with no Google library in it, which is what F-Droid and the download we host take.
+    # `purchasing.md` has the rule: Play's payment rules bind the builds Play distributes, so this
+    # one sells through Allodia's own checkout instead.
+    --foss) FLAVOUR=foss; shift ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
@@ -118,11 +123,12 @@ done
 # Studio, `./gradlew :app:test`, and CI, regenerates them from one definition instead of each
 # remembering to. Nothing to do here.
 
-echo "==> Assembling the release APK (R8: shrink + optimize + obfuscate)"
-(cd "$HERE" && ./gradlew --quiet :app:assembleRelease)
+echo "==> Assembling the release APK (R8: shrink + optimize + obfuscate), flavour: $FLAVOUR"
+(cd "$HERE" && ./gradlew --quiet ":app:assemble${FLAVOUR^}Release")
 
-SIGNED="$HERE/app/build/outputs/apk/release/app-release.apk"
-UNSIGNED="$HERE/app/build/outputs/apk/release/app-release-unsigned.apk"
+OUT="$HERE/app/build/outputs/apk/$FLAVOUR/release"
+SIGNED="$OUT/app-$FLAVOUR-release.apk"
+UNSIGNED="$OUT/app-$FLAVOUR-release-unsigned.apk"
 
 if [[ -f "$SIGNED" ]]; then
   APK="$SIGNED"
@@ -139,9 +145,12 @@ echo "    $APK"
 "$ROOT/scripts/dev/check-android-native-libs.sh" "$APK"
 
 if [[ "$BUNDLE" == true ]]; then
+  # Only the Play flavour has anywhere to send an .aab: F-Droid and the download we host both
+  # take the APK, so bundling the other one would produce an artifact with no destination.
+  [[ "$FLAVOUR" == play ]] || { echo "--bundle is for the play flavour: .aab is Play's format" >&2; exit 1; }
   echo "==> Bundling the release .aab (the only format Play accepts)"
-  (cd "$HERE" && ./gradlew --quiet :app:bundleRelease)
-  AAB="$HERE/app/build/outputs/bundle/release/app-release.aab"
+  (cd "$HERE" && ./gradlew --quiet :app:bundlePlayRelease)
+  AAB="$HERE/app/build/outputs/bundle/playRelease/app-play-release.aab"
   [[ -f "$AAB" ]] || { echo "bundleRelease produced no .aab at $AAB" >&2; exit 1; }
   echo "    $AAB"
   # The same remote gate, asserted on the artifact that actually goes to Play. The APK passing says
@@ -155,13 +164,13 @@ if [[ "$INSTALL" == true ]]; then
     # on a developer's own device, this is a measurement build, never a distributable one.
     BT="$(ls -d "$ANDROID_HOME/build-tools/"* | sort -V | tail -1)"
     echo "==> Signing with the local DEBUG key so it can be installed (measurement only, never ship this)"
-    "$BT/zipalign" -f -p 4 "$APK" "$HERE/app/build/outputs/apk/release/aligned.apk"
+    "$BT/zipalign" -f -p 4 "$APK" "$OUT/aligned.apk"
     "$BT/apksigner" sign \
       --ks "$HOME/.android/debug.keystore" --ks-pass pass:android \
       --ks-key-alias androiddebugkey --key-pass pass:android \
-      --out "$HERE/app/build/outputs/apk/release/debug-signed.apk" \
-      "$HERE/app/build/outputs/apk/release/aligned.apk"
-    APK="$HERE/app/build/outputs/apk/release/debug-signed.apk"
+      --out "$OUT/debug-signed.apk" \
+      "$OUT/aligned.apk"
+    APK="$OUT/debug-signed.apk"
   fi
   echo "==> Installing + launching"
   "$ADB" wait-for-device

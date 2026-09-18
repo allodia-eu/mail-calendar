@@ -35,26 +35,12 @@ import uniffi.mailcal_bindings.AllodiaStorePurchase
 import uniffi.mailcal_bindings.AllodiaStore
 import uniffi.mailcal_bindings.AllodiaStoreProduct
 
-// How one trip through the billing flow ended.
-internal sealed interface AllodiaPurchaseOutcome {
-    // Play took the money. The purchase still has to be attached to the account before it is
-    // anything at all.
-    data class Bought(val purchases: List<AllodiaStorePurchase>) : AllodiaPurchaseOutcome
-
-    // The sheet was dismissed. Not a failure, and nothing is said about it.
-    data object Cancelled : AllodiaPurchaseOutcome
-
-    // Play could not sell it: no such base plan in this country, billing unavailable, a device
-    // with no Play Store. The person sees the other routes rather than an error about this one.
-    data class Unavailable(val reason: String) : AllodiaPurchaseOutcome
-}
-
 // Google Play, as this app uses it.
 //
 // One per app. Play drops the connection at will, and since Billing 8 the library re-establishes
 // it: `enableAutoServiceReconnection` below means a call made while disconnected reconnects rather
 // than failing, so what is left here is the first connection and nothing else.
-internal class AllodiaBilling(
+internal class GooglePlayBillingProvider(
     context: Context,
     private val catalogue: List<AllodiaStoreProduct>,
     // Called when Play reports a purchase this app did not just ask for: a renewal, a deferred
@@ -65,7 +51,7 @@ internal class AllodiaBilling(
     // over what arrived would create a second path to the same work, and two paths to one pass is
     // two chances for them to disagree about what is outstanding.
     private val onPurchaseReported: () -> Unit,
-) {
+) : AllodiaBillingProvider {
     private val listener = PurchasesUpdatedListener { result, purchases ->
         // A flow this app is awaiting takes the result and nothing else: its caller attaches as
         // soon as it returns, so notifying as well would run the same pass twice for one purchase.
@@ -105,7 +91,7 @@ internal class AllodiaBilling(
     // already in it. A base plan Play does not offer in this country is left out rather than
     // raised, so a person sees the plans that are available rather than an error about one that
     // is not.
-    suspend fun offers(): List<AllodiaOffer> {
+    override suspend fun offers(): List<AllodiaOffer> {
         val details = productDetails() ?: return emptyList()
         return catalogue.mapNotNull { wanted ->
             val basePlan = wanted.basePlan ?: return@mapNotNull null
@@ -124,7 +110,7 @@ internal class AllodiaBilling(
     //
     // What comes back is **not** a granted subscription. The core attaches it to the account
     // first, and only an attached purchase is acknowledged with Play.
-    suspend fun buy(activity: Activity, plan: AllodiaPlan): AllodiaPurchaseOutcome {
+    override suspend fun buy(activity: Activity, plan: AllodiaPlan): AllodiaPurchaseOutcome {
         val details = productDetails() ?: return AllodiaPurchaseOutcome.Unavailable("no products")
         val basePlan =
             catalogue.firstOrNull { it.plan == plan }?.basePlan
@@ -183,7 +169,7 @@ internal class AllodiaBilling(
     //
     // Handed to the core whole: the store is the authority on what is outstanding, so a pass is
     // told the set rather than the difference.
-    suspend fun outstanding(): List<AllodiaStorePurchase> {
+    override suspend fun outstanding(): List<AllodiaStorePurchase> {
         if (!connect()) return emptyList()
         val params =
             QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
@@ -194,7 +180,7 @@ internal class AllodiaBilling(
         return result.purchasesList.flatMap(::purchasesFrom)
     }
 
-    fun close() {
+    override fun close() {
         client.endConnection()
     }
 
