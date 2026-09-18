@@ -98,8 +98,16 @@ internal class GooglePlayBillingProvider(
     // raised, so a person sees the plans that are available rather than an error about one that
     // is not.
     override suspend fun offers(): List<AllodiaOffer> {
-        val details = productDetails() ?: return emptyList()
-        return catalogue.mapNotNull { wanted ->
+        val details = productDetails()
+        if (details == null) {
+            // ⚠️ **The one line that says why nothing is for sale.** Play answers nothing about
+            // products until it distributes the app itself, so an empty screen is the ordinary
+            // answer for a sideloaded build and indistinguishable, without this, from a catalogue
+            // that is wrong.
+            logUiWarn("allodia: play offered no products at all")
+            return emptyList()
+        }
+        val offered = catalogue.mapNotNull { wanted ->
             val basePlan = wanted.basePlan ?: return@mapNotNull null
             val offer =
                 details.subscriptionOfferDetails
@@ -110,6 +118,10 @@ internal class GooglePlayBillingProvider(
                     ?: return@mapNotNull null
             AllodiaOffer(plan = wanted.plan, store = AllodiaStore.GOOGLE, displayPrice = price)
         }
+        // A base plan Play does not offer in this country is left out rather than raised, so the
+        // two counts differing is ordinary; it is still the only place the difference is visible.
+        logUiInfo("allodia: play offered ${offered.size} of ${catalogue.size} base plan(s)")
+        return offered
     }
 
     // Launches the billing flow for one period and waits for Play to report the result.
@@ -230,13 +242,18 @@ internal class GooglePlayBillingProvider(
     // caller offers the routes that do not need Play.
     private suspend fun connect(): Boolean {
         if (client.isReady) return true
+        logUiInfo("allodia: connecting to play billing")
         val connected = CompletableDeferred<Boolean>()
         client.startConnection(
             object : BillingClientStateListener {
                 override fun onBillingSetupFinished(result: BillingResult) {
-                    connected.complete(
-                        result.responseCode == BillingClient.BillingResponseCode.OK
-                    )
+                    val ok = result.responseCode == BillingClient.BillingResponseCode.OK
+                    if (ok) {
+                        logUiInfo("allodia: play billing is connected")
+                    } else {
+                        logUiWarn("allodia: play billing is not available here (${result.debugMessage})")
+                    }
+                    connected.complete(ok)
                 }
 
                 override fun onBillingServiceDisconnected() {

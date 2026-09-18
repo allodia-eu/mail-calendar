@@ -610,7 +610,7 @@
 	"settings_subscription_checking": "A verificar a sua subscrição…",
 	"settings_subscription_unavailable": "Não foi possível verificar a sua subscrição neste momento. Tudo o que já tem continua a funcionar.",
 	"settings_subscription_free": "Está a utilizar a aplicação gratuita.",
-	"settings_subscription_reauth": "Este dispositivo iniciou sessão antes de existirem subscrições aqui, por isso ainda não pode subscrever. Basta iniciar sessão novamente; não muda mais nada.",
+	"settings_subscription_reauth": "Este dispositivo iniciou sessão antes de existirem subscrições aqui, por isso ainda não pode mostrar nem subscrever. Basta iniciar sessão novamente; não muda mais nada.",
 	"settings_subscription_buy_yearly": "Subscrever anualmente, {price}",
 	"settings_subscription_buy_monthly": "Subscrever mensalmente, {price}",
 	"settings_subscription_renews": "Renova-se a {date}.",

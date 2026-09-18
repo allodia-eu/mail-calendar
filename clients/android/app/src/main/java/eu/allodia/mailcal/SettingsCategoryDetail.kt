@@ -20,6 +20,8 @@ import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
+import uniffi.mailcal_bindings.AllodiaPlan
+import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.DisplaySettings
@@ -78,6 +80,13 @@ internal fun CategoryDetail(
     onAllodiaCreate: () -> Unit,
     onAllodiaManage: () -> Unit,
     onAllodiaSignOut: () -> Unit,
+    // The subscription, drawn under the account card and only while somebody is signed in. Its
+    // state is the activity's for the same reason: buying leaves for Play's sheet or a browser.
+    allodiaSubscription: AllodiaSubscriptionUi,
+    onAllodiaRefreshSubscription: () -> Unit,
+    onAllodiaBuy: (AllodiaPlan) -> Unit,
+    onAllodiaManageStore: (AllodiaStoreSubscription) -> Unit,
+    onAllodiaSubscriptionClosed: () -> Unit,
     allodiaSync: AllodiaSyncState,
     onAllodiaSetUp: (AllodiaAccountOffer) -> Unit,
     onAllodiaKeepLocal: (String) -> Unit,
@@ -238,6 +247,21 @@ internal fun CategoryDetail(
                 onAllodiaManage,
                 onAllodiaSignOut,
             )
+            // The subscription belongs to the account above it, so it is drawn under that card
+            // and only once there is one to draw it for.
+            if (allodia.account != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                AllodiaSubscriptionCard(
+                    ui = allodiaSubscription,
+                    onRefresh = onAllodiaRefreshSubscription,
+                    onBuy = onAllodiaBuy,
+                    onManageStore = onAllodiaManageStore,
+                    // The same sign-in as the card above, not a special one: there is nothing to
+                    // migrate, only a claim this device never asked for and now does.
+                    onSignInAgain = onAllodiaSignIn,
+                    onClosed = onAllodiaSubscriptionClosed,
+                )
+            }
         }
 
         // Accounts, per-account fetch depth + sync behaviour, for mail accounts only, under

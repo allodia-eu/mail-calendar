@@ -610,7 +610,7 @@
 	"settings_subscription_checking": "Je abonnement wordt gecontroleerd…",
 	"settings_subscription_unavailable": "Kon je abonnement nu niet controleren. Alles wat je al hebt, blijft gewoon werken.",
 	"settings_subscription_free": "Je gebruikt de gratis app.",
-	"settings_subscription_reauth": "Dit apparaat is aangemeld voordat abonnementen hier bestonden en kan er nog geen afsluiten. Opnieuw aanmelden is genoeg; er verandert verder niets.",
+	"settings_subscription_reauth": "Dit apparaat is aangemeld voordat abonnementen hier bestonden en kan er nog geen tonen of afsluiten. Opnieuw aanmelden is genoeg; er verandert verder niets.",
 	"settings_subscription_buy_yearly": "Abonneren per jaar, {price}",
 	"settings_subscription_buy_monthly": "Abonneren per maand, {price}",
 	"settings_subscription_renews": "Wordt verlengd op {date}.",
