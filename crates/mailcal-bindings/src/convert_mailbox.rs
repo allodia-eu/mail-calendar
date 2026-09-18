@@ -12,7 +12,7 @@ use mailcal_viewmodel::{
 
 use crate::{
     AccountFolderRow, AccountRow, FlatRow, FolderRole, FolderRow, MailboxListSnapshot,
-    SearchHorizon, SnapshotRow, ThreadMessage, ThreadRow,
+    SearchHorizon, SnapshotRow, ThreadMessage, ThreadRow, records_outbox::QueuedRow,
 };
 
 impl From<AppFolderRole> for FolderRole {
@@ -136,6 +136,8 @@ impl From<AppSnapshot> for MailboxListSnapshot {
                 .into_iter()
                 .map(AccountFolderRow::from)
                 .collect(),
+            showing_outbox: snapshot.showing_outbox,
+            outbox: snapshot.outbox.into_iter().map(QueuedRow::from).collect(),
             unified_unread: snapshot.unified_unread,
             unified_expanded: snapshot.unified_expanded,
             selected: snapshot.selected,

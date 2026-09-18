@@ -1,4 +1,4 @@
-// What the composer is composing. Its own file, free of WinUI and of the localised ComposeRequest
+// What the composer is composing. Its own file, free of WinUI and of the localised ComposeContext
 // around it, so the rules that turn it into behaviour can be linked into Mailcal.Tests and pinned
 // there, the signature slot in particular (ComposerSignatures.SlotFor), where "a reply, a reply-all
 // and a forward share one slot" is a contract from docs/signatures.md rather than a local choice.

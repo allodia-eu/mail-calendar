@@ -29,6 +29,10 @@ impl AppModel {
                 self.notice = match app.send_status() {
                     SendStatus::Sending => Some(l10n::send_status_sending().to_owned()),
                     SendStatus::Sent => Some(l10n::send_status_sent().to_owned()),
+                    // Not a failure: the message waits in the Outbox and goes out by itself.
+                    // The passing form of what the pane's Outbox row says for as long as the
+                    // message is waiting.
+                    SendStatus::Queued => Some(l10n::send_status_queued().to_owned()),
                     SendStatus::Failed => Some(l10n::send_status_failed().to_owned()),
                     // Nothing to show, for two different reasons: nothing is in flight, and for
                     // `SentNotFiled` the standing UnfiledCopy question already says it: with a
@@ -41,6 +45,13 @@ impl AppModel {
             Surface::InvitationReply => {
                 self.reply_prompt = app.reply_prompt();
                 self.reply_prompt_generation = self.reply_prompt_generation.wrapping_add(1);
+            }
+            // A message the core withdrew from the Outbox so the user could change it. It
+            // exists nowhere else by the time this arrives, so this may not refuse.
+            Surface::ComposeRequest => {
+                if let Some(request) = app.compose_request() {
+                    self.open_withdrawn_message(request);
+                }
             }
             Surface::UnfiledCopy => {
                 self.unfiled_copy = app.unfiled_copy().map(|copy| UnfiledCopyNotice {

@@ -27,13 +27,13 @@ public sealed partial class MainWindow
     /// from; pass <c>null</c> for both when there is nothing to quote, which is a reply raised from
     /// the list's context menu on a row nobody has opened.
     /// </remarks>
-    private ComposeRequest ReplyRequest(
+    private ComposeContext ReplyContext(
         string account, string key, bool replyAll, string subject,
         OpenedMessage? quoting, ReadingBody? body)
     {
         var prefill = Model.ReplyRecipients(account, key, replyAll);
         var quotes = Model.QuoteSettings;
-        return new ComposeRequest(
+        return new ComposeContext(
             replyAll ? RichComposeKind.ReplyAll : RichComposeKind.Reply,
             account,
             key,
@@ -58,7 +58,7 @@ public sealed partial class MainWindow
     /// attachments this staging exists to prevent. It reads from the raw source the reading view
     /// has already cached, so in the ordinary case there is nothing to wait for.
     /// </remarks>
-    private async Task<ComposeRequest> ForwardRequestAsync(
+    private async Task<ComposeContext> ForwardContextAsync(
         string account, string key, string subject,
         OpenedMessage? quoting, ReadingBody? body)
     {
@@ -70,7 +70,7 @@ public sealed partial class MainWindow
             Guid.NewGuid().ToString("N"));
         var staged = await Task.Run(
             () => Model.StageForwardedAttachments(account, key, directory));
-        return new ComposeRequest(
+        return new ComposeContext(
             RichComposeKind.Forward,
             account,
             key,

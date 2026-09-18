@@ -1,8 +1,10 @@
-//! How an account's own sending identity is written on screen.
+//! How an address is written on screen: an account's own sending identity, and one
+//! person in a row.
 //!
-//! One rule, in one place, because four clients draw a From field and the interesting case is
-//! the empty one: an account with no name sends as a bare address, and a client that filled
-//! that gap by hand would put words in the sender's mouth (`docs/sending.md` rule 3).
+//! One rule per shape, in one place, because four clients draw a From field and the
+//! interesting case is the empty one: an account with no name sends as a bare address, and a
+//! client that filled that gap by hand would put words in the sender's mouth
+//! (`docs/sending.md` rule 3).
 
 /// The From label for an account: `Name <address>`, or the address alone when no name is set.
 ///
@@ -19,6 +21,22 @@ pub fn sender_label(name: &str, email: &str) -> String {
         return email.to_owned();
     }
     format!("{name} <{email}>")
+}
+
+/// One person as a **row** shows them: their display name, or their address when the header
+/// carried no usable name.
+///
+/// Distinct from [`sender_label`], which writes the full `Name <address>` a From field wants.
+/// A list row has one line and no room for both, and this is the half a reader recognises.
+///
+/// Whitespace-only is no name, for the reason [`sender_label`] trims: a name that is a single
+/// space must not beat the address a reader could actually use.
+#[must_use]
+pub fn address_label(name: Option<&str>, email: &str) -> String {
+    match name {
+        Some(name) if !name.trim().is_empty() => name.to_owned(),
+        _ => email.to_owned(),
+    }
 }
 
 #[cfg(test)]

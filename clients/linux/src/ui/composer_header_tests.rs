@@ -9,7 +9,7 @@ use super::{recipient_rows, reveals_cc_bcc};
 use crate::{
     l10n,
     ui::{
-        composer_model::{ComposeKind, ComposeRequest},
+        composer_model::{ComposeContext, ComposeKind},
         recipients::RecipientField,
     },
 };
@@ -30,7 +30,7 @@ fn a_pre_filled_cc_or_bcc_opens_the_collapsed_row() {
 fn the_caret_opens_in_the_body_only_for_a_composer_that_is_already_addressed() {
     // One predicate, because exactly one of To and the body may take the caret and two flags can
     // disagree (docs/contacts.md §4).
-    let new_message = |to: &str| ComposeRequest {
+    let new_message = |to: &str| ComposeContext {
         initial_to: to.to_owned(),
         ..request("")
     };
@@ -47,7 +47,7 @@ fn the_caret_opens_in_the_body_only_for_a_composer_that_is_already_addressed() {
         ComposeKind::Forward,
     ] {
         assert!(
-            ComposeRequest {
+            ComposeContext {
                 kind,
                 ..request("")
             }
@@ -100,7 +100,7 @@ pub(crate) fn a_reply_all_opens_with_its_cc_on_screen() {
 /// A mail link may name Bcc, so the composer must expose that recipient before anything can send.
 pub(crate) fn a_mail_link_opens_with_its_bcc_on_screen() {
     let form = gtk::Grid::new();
-    let request = ComposeRequest {
+    let request = ComposeContext {
         initial_bcc: "snoop@example.test".to_owned(),
         ..request("")
     };
@@ -110,8 +110,8 @@ pub(crate) fn a_mail_link_opens_with_its_bcc_on_screen() {
     assert_eq!(rows.bcc.text(), "snoop@example.test, ");
 }
 
-fn request(initial_cc: &str) -> ComposeRequest {
-    ComposeRequest {
+fn request(initial_cc: &str) -> ComposeContext {
+    ComposeContext {
         kind: ComposeKind::New,
         host: crate::ui::reader::ComposerHost::Pane,
         account: None,

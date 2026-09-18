@@ -78,7 +78,7 @@ public sealed partial class MainWindow
                 // The composer lives in the mail surface's detail column, so a share arriving over
                 // the calendar or Contacts would otherwise open it behind them.
                 Model.ShowMail();
-                BeginCompose(new ComposeRequest(
+                BeginCompose(new ComposeContext(
                     RichComposeKind.New,
                     Account: null,
                     Key: null,

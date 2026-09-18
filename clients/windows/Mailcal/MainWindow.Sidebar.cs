@@ -24,17 +24,19 @@ public sealed partial class MainWindow
 {
     // Sentinel tags distinguishing the synthetic sidebar entries from folder keys; an account
     // entry carries AccountTagPrefix + its id, a folder child carries the raw folder key. The
-    // three mail-side ones live in SidebarTree, which builds the entries that carry them.
+    // mail-side ones live in SidebarTree, which builds the entries that carry them.
     private const string AllAccountsTag = SidebarTree.AllAccountsTag;
     private const string AllInboxesTag = SidebarTree.AllInboxesTag;
     private const string AddAccountTag = SidebarTree.AddAccountTag;
+    private const string OutboxTag = SidebarTree.OutboxTag;
     private const string AccountTagPrefix = SidebarTree.AccountTagPrefix;
     private const string CalendarTag = "@calendar";
     private const string ContactsTag = "@contacts";
 
     // Segoe Fluent glyphs: a contact for an account, a folder for a mailbox, a plus for
-    // add-account. The All Accounts heading carries none, and the unified Inbox under it takes the
-    // Inbox role's own glyph through ForRole, like every other folder row.
+    // add-account, and an arrow leaving a line for the Outbox. The All Accounts heading
+    // carries none, and the unified Inbox under it takes the Inbox role's own glyph through
+    // ForRole, like every other folder row.
     //
     // Written as \u escapes, not as the literal characters. These live in the Unicode private use
     // area, where they carry no meaning outside Segoe Fluent Icons and render as nothing (or as a
@@ -47,6 +49,7 @@ public sealed partial class MainWindow
         Account: "\uE77B",     // Contact
         Folder: "\uE8B7",      // Folder
         AddAccount: "\uE710",  // Add
+        Outbox: "\uE898",      // Upload (an arrow leaving a line)
         ForRole: RoleGlyph);
 
     /// <summary>
@@ -148,6 +151,7 @@ public sealed partial class MainWindow
             showFolders: Model.Destination == AppDestination.Mail,
             Model.UnifiedUnread,
             Model.UnifiedExpanded,
+            (uint)Model.Outbox.Count,
             Model.IsAccountUnreachable,
             OnExpandedChanged,
             new SidebarLabels(
@@ -156,9 +160,11 @@ public sealed partial class MainWindow
                 // header over the unified list cannot drift apart (rule 13).
                 FolderLabel.Unified(),
                 L10n.ActionAddAccount(),
+                L10n.FolderOutbox(),
                 // Saturating rather than unchecked: the label is decoration, and a mailbox past
                 // int.MaxValue unread should read as "a lot", not wrap to a negative number.
-                count => L10n.A11yUnreadCount((int)Math.Min(count, int.MaxValue))),
+                count => L10n.A11yUnreadCount((int)Math.Min(count, int.MaxValue)),
+                count => L10n.A11yOutboxCount((int)Math.Min(count, int.MaxValue))),
             Glyphs);
         RestoreSelection();
     }
@@ -204,6 +210,16 @@ public sealed partial class MainWindow
         {
             var tag = Model.Destination == AppDestination.Calendar ? CalendarTag : ContactsTag;
             Nav.SelectedItem = FooterItems.FirstOrDefault(i => i.Tag == tag);
+            return;
+        }
+        if (Model.ShowingOutbox)
+        {
+            // Before the unified test below, never after it: the Outbox names no account and no
+            // folder, exactly as the unified inbox does, so from here down the two are
+            // indistinguishable and the highlight would land on All Inboxes (docs/sending.md).
+            // A null is the right answer once the row itself is gone, which is what the last
+            // message leaving the queue does to a list the user is still looking at.
+            Nav.SelectedItem = SidebarItems.FirstOrDefault(i => i.Tag == OutboxTag);
             return;
         }
         if (Model.SelectedAccount is null)
@@ -331,6 +347,9 @@ public sealed partial class MainWindow
                 break;
             case AllInboxesTag:
                 Model.SelectAccount(null);
+                break;
+            case OutboxTag:
+                Model.ShowOutbox();
                 break;
             case AddAccountTag:
                 Model.BeginAddAccount();

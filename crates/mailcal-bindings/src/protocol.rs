@@ -8,8 +8,10 @@
 // `mailcal-app` splits its own protocol module; `lib.rs` re-exports both halves, so a host
 // sees no split at all.
 mod intent;
+mod intent_outbox;
 
 pub use intent::Intent;
+pub use intent_outbox::OutboxIntent;
 
 /// Which folders an active search covers: the host's scope filter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]

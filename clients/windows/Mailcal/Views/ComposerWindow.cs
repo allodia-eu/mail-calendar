@@ -2,7 +2,7 @@
 // inside a reading window.
 //
 // It hosts ComposerView, the same composer the shell renders in the reading pane's column, built
-// from the same ComposeRequest: so a reply raised in a window is seeded, signed, submitted and
+// from the same ComposeContext: so a reply raised in a window is seeded, signed, submitted and
 // cancelled by the paths that already existed. What this file adds is the window around it.
 //
 // THE MAIN WINDOW'S COMPOSER DOES NOT MOVE. A reply raised in the reading pane still replaces that
@@ -26,7 +26,7 @@ internal sealed class ComposerWindow : Window
     private const int DefaultHeight = 680;
 
     /// <summary>Opens a window on <paramref name="request"/>.</summary>
-    internal ComposerWindow(MailboxModel model, ComposeRequest request)
+    internal ComposerWindow(MailboxModel model, ComposeContext request)
     {
         // Named after the DRAFT, so two open drafts are distinguishable in the window list the OS
         // draws. The subject the composer opens with, falling back to what it is doing when there

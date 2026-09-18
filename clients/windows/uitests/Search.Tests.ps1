@@ -33,6 +33,12 @@ $Thread = [pscustomobject]@{
 # A query nothing in either seeded account answers, which is what takes the count to zero.
 $NoMatch = 'zzzznothingmatchesthis'
 
+# What the debounce case types, and the one key it TIMES, which are deliberately separate: the word
+# is typed to put the field in the state the rule is about, then waited out, and the key after it is
+# the one measured. That case says why.
+$TypedWord = 'quarterly'
+$TypedTail = 'x'
+
 # $AppLogPath comes from applog.ps1, which the runner dot-sources.
 $LogPath = $AppLogPath
 
@@ -104,6 +110,29 @@ function Get-LogLinesSince {
     $reader = New-Object System.IO.StreamReader($stream)
     try { ($rotated + $reader.ReadToEnd()) -split "`n" } finally { $reader.Dispose() }
   } finally { $stream.Dispose() }
+}
+
+<#
+.SYNOPSIS
+Block until the core has stopped writing to the log, or $false when it never does.
+.DESCRIPTION
+"Nothing is in flight" is the precondition the debounce measurement rests on, and the log is where
+the core says so: it writes a line per rebuild, so a log that has stopped growing is a core that has
+stopped answering. Length alone, because what is being waited for is silence rather than any
+particular line, and a rotation mid-wait only reads as one more change.
+#>
+function Wait-CoreQuiet {
+  param([int] $QuietMs = 1000, [int] $CapMs = 8000)
+  $cap = [Diagnostics.Stopwatch]::StartNew()
+  $last = (Get-Item -LiteralPath $LogPath).Length
+  $since = [Diagnostics.Stopwatch]::StartNew()
+  while ($cap.ElapsedMilliseconds -lt $CapMs) {
+    Start-Sleep -Milliseconds 150
+    $now = (Get-Item -LiteralPath $LogPath).Length
+    if ($now -ne $last) { $last = $now; $since.Restart() }
+    elseif ($since.ElapsedMilliseconds -ge $QuietMs) { return $true }
+  }
+  return $false
 }
 
 <#
@@ -210,18 +239,25 @@ $Suite = @{
         # word. Real keystrokes, because that is the whole question: Set-UiaText writes the value
         # in one go and would pass against a field with no debounce at all.
         #
-        # WHAT IS MEASURED IS THE GAP, not how many rebuilds there were, and that is deliberate.
-        # SendWait returns as soon as the key is posted, so how many TextChanged events WinUI
-        # raises for a word depends on how the loop below races its event pump: measured here, a
-        # 40ms gap coalesces nine keys into ONE event, which hands a counting assertion a
-        # confident green against a field that has no debounce at all, while a 150ms gap
-        # sometimes drifts past the 250ms the debounce waits and splits one word into three
-        # searches. A gap cannot be tuned into both at once. The DELAY has no such window: the
-        # first rebuild after the last key lands a debounce later when there is one, and within
-        # milliseconds when there is not, whatever the pump did in between.
+        # WHAT IS MEASURED IS THE GAP between one keystroke and the rebuild that answers it, never
+        # how many rebuilds a word caused. SendWait returns as soon as the key is posted, so how
+        # many TextChanged events WinUI raises for a word depends on how the loop below races its
+        # event pump: measured here, a 40ms gap coalesces nine keys into ONE event, which hands a
+        # counting assertion a confident green against a field that has no debounce at all, while a
+        # 150ms gap sometimes drifts past the 250ms the debounce waits and splits one word into
+        # three searches. A gap cannot be tuned into both at once.
+        #
+        # ⚠️ THE KEY BEING TIMED IS SENT INTO A QUIET CORE, which is what the word above is typed
+        # and then waited out for. Timed off the last key of the word instead, this read whichever
+        # rebuild came next, and that is not always the one the key asked for: a key posted just
+        # before the debounce ticks for the PREFIX is processed just after it, so the prefix's own
+        # search lands a fraction of a second later and gets timed in its place. It read 119ms,
+        # 151ms, 153ms and 168ms across five runs against a debounce that was working perfectly,
+        # and it went red on a loaded machine and green on an idle one, which reads as a
+        # performance problem in the app rather than as a measurement of the wrong event. With
+        # nothing in flight there is exactly one rebuild and it is this key's: 322ms to 582ms over
+        # twelve runs, idle and under load.
         $null = Set-Search -Query ''
-        Start-Sleep -Seconds 2
-        $before = (Get-Item -LiteralPath $LogPath).Length
 
         $box = Get-SearchBox
         $app = Get-Process Mailcal | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
@@ -229,15 +265,22 @@ $Suite = @{
         $box.SetFocus()
         Start-Sleep -Milliseconds 300
         Add-Type -AssemblyName System.Windows.Forms
-        $word = 'quarterly'
-        foreach ($c in $word.ToCharArray()) {
+        foreach ($c in $TypedWord.ToCharArray()) {
           [System.Windows.Forms.SendKeys]::SendWait($c)
           Start-Sleep -Milliseconds 120
         }
+        Assert-True (Wait-CoreQuiet) (
+          'the searches that typing asked for never finished, so the key below would be timed ' +
+          'against one of them instead of against itself')
+
+        $before = (Get-Item -LiteralPath $LogPath).Length
+        [System.Windows.Forms.SendKeys]::SendWait($TypedTail)
+        # Stamped here and not after a settling sleep: whatever sits between the key and this line
+        # is subtracted from the very interval being asserted.
         $lastKey = [DateTimeOffset]::Now
         Start-Sleep -Seconds 3
 
-        Assert-Equal $word (Get-UiaText $box) (
+        Assert-Equal "$TypedWord$TypedTail" (Get-UiaText $box) (
           'the keystrokes have to have reached the field, or this case measures nothing')
         $answered = Get-LogLinesSince -Path $LogPath -Offset $before |
           Where-Object { $_ -match $RebuildPattern } |
@@ -245,7 +288,7 @@ $Suite = @{
           Where-Object { $_ -ge $lastKey } |
           Select-Object -First 1
         Assert-True ($null -ne $answered) (
-          'the core rebuilt nothing after the last key, so the word never reached it at all')
+          'the core rebuilt nothing after the last key, so the key never reached it at all')
         $waited = ($answered - $lastKey).TotalMilliseconds
         Assert-True ($waited -ge 200) (
           "the list was rebuilt ${waited}ms after the last key; a search is a full-text query per " +

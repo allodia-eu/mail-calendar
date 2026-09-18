@@ -16,7 +16,10 @@ actions, and opens in a window of its own on a double-click or from that same me
 ([`docs/reading-window.md`](../../docs/reading-window.md)); a reply raised in such a window opens
 in a composer window beside it, and closing the mailbox sweeps both. The reading toolbar archives
 or moves to Trash and advances to the next visible message; conversation rows archive the whole
-conversation while leaving Sent copies in Sent.
+conversation while leaving Sent copies in Sent. A message that could not be sent waits in the
+**Outbox**, one pane row above the accounts and on screen only while something is in it, whose rows
+offer send-now, edit and cancel on the ones still waiting
+([`docs/sending.md`](../../docs/sending.md)).
 The calendar adds an agenda, a composed 6×7 month, and a drawn Cairo time grid whose semantic
 AT-SPI event buttons use the same unit-free core geometry as its painted blocks. Its header exposes
 day, 3-day, work-week, week, month, and agenda modes plus `< Today >` navigation. Event detail,

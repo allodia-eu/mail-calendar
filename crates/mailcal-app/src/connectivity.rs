@@ -265,6 +265,11 @@ impl<P: Provider> App<P> {
             // Back online: the reconnecting providers re-dial on their next call, so this
             // refresh both reconnects them and catches up on mail missed while offline.
             self.refresh_mail(RefreshProgress::Background).await;
+            // And whatever the user wrote while there was no network goes out now, backoffs
+            // and all: this is the engine's wake signal (it holds no timer for the outbox,
+            // because one would wake a dead network on a battery), and the outage each
+            // message was waiting out is precisely what has just ended.
+            self.flush_outboxes().await;
         }
     }
 

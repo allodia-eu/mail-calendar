@@ -8,6 +8,29 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- The caption every window of this app draws for itself (Services/WindowCaption.cs).
+                 Here rather than in either of the two files that write one, MainWindow.xaml and
+                 Views/WindowShell.xaml, because a height or an icon that differed between them would
+                 read as two applications; the UI suite reads the height from this key too.
+
+                 48 epx, which is what the TitleBar control takes when it carries content of its own.
+                 None of ours does (the shell's search field is a sibling of it, MainWindow.xaml says
+                 why), so each states 48 as a floor and the control centres its 32 in that. It is
+                 also the height WindowCaption asks the system for its caption buttons, which is what
+                 puts their glyphs on the same line as the icon and the name.
+
+                 The PNG, not app.ico. WinUI decodes an .ico to its FIRST frame, which in ours is the
+                 16px one (Images/generate-assets.ps1 writes them smallest-first, as the format
+                 expects), and the caption then scales that up: 32 physical pixels of a 16-pixel
+                 picture on a 200% display, which reads as a soft, smeared logo beside a crisp title.
+                 A single-resolution source lets the decoder scale DOWN.
+
+                 Neither of these is a brush, which is why they can live on the application at all: a
+                 brush read from here answers with the theme the APPLICATION is in, and the app's
+                 appearance is set on a content root instead (MainWindow.Theme.cs). -->
+            <x:Double x:Key="AppCaptionHeight">48</x:Double>
+            <ImageIconSource x:Key="AppCaptionIcon" ImageSource="ms-appx:///Images/TitleBarLogo.png" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

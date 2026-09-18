@@ -277,7 +277,7 @@ mod tests {
     }
 
     use super::{ComposeKind, ComposerSubmission, submit};
-    use crate::{boot, observer::SurfaceObserver, ui::composer_model::ComposeRequest};
+    use crate::{boot, observer::SurfaceObserver, ui::composer_model::ComposeContext};
 
     const DOCUMENT: &str = r#"{
         "blocks": [{
@@ -324,7 +324,7 @@ mod tests {
         };
         let recipients = app.reply_recipients(account.clone(), key.clone(), false);
         let submission = ComposerSubmission {
-            request: ComposeRequest {
+            request: ComposeContext {
                 kind: ComposeKind::Reply,
                 host: crate::ui::reader::ComposerHost::Pane,
                 account: Some(account.clone()),
@@ -356,6 +356,11 @@ mod tests {
                 // itself a defect, so this fails rather than passing quietly.
                 SendStatus::SentNotFiled => panic!("harness reply sent but its copy was not filed"),
                 SendStatus::Failed => panic!("harness reply failed"),
+                // Against the harness there is no network to lose, so a reply that only
+                // reaches the Outbox is a defect rather than a wait: this loop would
+                // otherwise spin until its deadline and report a timeout instead of the
+                // send that did not happen.
+                SendStatus::Queued => panic!("harness reply was queued rather than sent"),
                 SendStatus::Idle | SendStatus::Sending => {}
             }
             assert!(Instant::now() < deadline, "harness reply did not finish");

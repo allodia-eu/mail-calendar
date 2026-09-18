@@ -29,6 +29,7 @@ go away.
 | 15 | **Every folder row exposes one named native primary action to assistive technology.** The disclosure control remains separate because expanding an account is not opening it. | Focus and Return are keyboard mechanics, not a semantic action a screen reader can invoke. A row with no action is visible but unreachable. |
 | 16 | **The unified list is a group, not a row.** **All Accounts** stands above the accounts as one more tree, with the same rules (2, 3, 4, 8) and its own persisted expansion (`MailboxListSnapshot::unified_expanded`, `Intent::SetUnifiedExpanded`). Its children are the folders the unified scope has, which today is **Inbox** alone; that child is the destination (`Intent::SelectAccount { account: None }`), it carries the badge rule 7 describes, and it is what the message-list header names (rule 13). | The group is the shape the unified scope is *growing into*: a unified Sent and Drafts are folders under one heading, not three more top-level rows. It is also what makes rule 8 cover it: a count on the heading would sit directly above the identical number on the Inbox row beneath. |
 | 17 | **The group's own row navigates nowhere; activating it opens or shuts its tree.** The whole row is that control, unlike an account's, which is a destination and so needs a chevron of its own (rule 2). A shut group therefore takes the unified Inbox off screen, exactly as a shut account takes its folders. | Outlook's behaviour, and the honest one: the group heading would otherwise claim an "all mail, every account" scope the core does not have (`Scope` reaches every account's Inbox, not every account's everything). A row that navigates *and* discloses needs two targets in one row, which is what the chevron is for where the row really is a destination. |
+| 18 | **The Outbox is one row above the account trees, and it exists only when something is in it.** It holds every account's unsent messages together, each row naming its own account, and its badge is that count (`MailboxListSnapshot::outbox`). At zero it is not on screen at all. | Unsent mail is the one thing a person goes looking for across *all* their accounts at once: "did that go?" is not a question about a particular mailbox. Hiding it at zero is rule 6's reasoning taken to the row itself, and it is what Outlook does; a permanent Outbox saying nothing trains people to stop reading it, which is the opposite of what an unsent message needs. It sits outside the trees because it is not a folder on anybody's server. |
 
 ## Where each rule lives
 
@@ -51,6 +52,12 @@ account bound to a folder key, built once at the FFI boundary
 ([`reference.rs`](../crates/mailcal-app/src/reference.rs)), so a client cannot dispatch a folder
 without its account, and [`Scope`](../crates/mailcal-app/src/scope.rs) cannot hold one either. The
 rule is unrepresentable to break rather than merely tested against.
+
+Rule 18 is core-side and a client gets it by rendering the snapshot: `outbox` carries the rows
+in every view mode and `showing_outbox` says the list is showing them rather than mail. The two
+cannot be collapsed into the existing selection fields, because `selected_account` and
+`selected` are both `None` on the Outbox *and* on the unified inbox, so a client that guessed
+would answer a click on the Outbox with everyone's inbox.
 
 Rules 1, 5, 6, 7 and 9 are core-side and a client gets them by rendering the snapshot:
 [`folders.rs`](../crates/mailcal-viewmodel/src/folders.rs) projects `FolderRow` (with `unread` and

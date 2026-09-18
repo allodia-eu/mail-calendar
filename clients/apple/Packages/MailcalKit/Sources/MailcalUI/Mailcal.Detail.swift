@@ -79,6 +79,12 @@ extension ContentView {
             // list, so unlike the progress bar below, it moves no rows the user is reading.
             SearchHorizonStrip(horizon: model.searchHorizon) { settingsCategory = .accounts }
             Divider()
+            if model.showingOutbox {
+                // The Outbox is not mail: it has its own rows, and none of the selection,
+                // threading or infinite-scroll behaviour below applies to a list of things
+                // that have not been sent.
+                outboxList
+            } else {
             selectionBehaviour(
                 List {
                     let rows = visibleRows
@@ -102,6 +108,7 @@ extension ContentView {
                     }
                 }
             )
+            }
             Divider()
             // Background-download progress: a thin bar with a "downloading Y of X" count, shown
             // only while a sync is fetching mail (the rows arrive on their own signal).

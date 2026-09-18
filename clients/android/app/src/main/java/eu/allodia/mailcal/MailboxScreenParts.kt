@@ -47,6 +47,10 @@ internal fun SendStatusBanner(status: SendStatus, ctx: Context) {
         SendStatus.SENT -> L10n.send_status_sent(ctx) to MaterialTheme.colorScheme.primary
         // No transient hint: the standing UnfiledCopy question already says this, and says it with a button.
         SendStatus.SENT_NOT_FILED -> return
+        // Not a failure: the message is in the Outbox and goes out by itself. Saying it
+        // failed would invite writing it a second time, and then both arrive. The hint is the
+        // passing form of what the Outbox row says for as long as the message is waiting.
+        SendStatus.QUEUED -> L10n.send_status_queued(ctx) to MaterialTheme.colorScheme.onSurfaceVariant
         SendStatus.FAILED -> L10n.send_status_failed(ctx) to MaterialTheme.colorScheme.error
     }
     Row(

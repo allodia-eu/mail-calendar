@@ -11,7 +11,7 @@ use mailcal_bindings::{Intent, MailcalApp};
 
 use super::{
     AppModel,
-    composer_model::ComposeRequest,
+    composer_model::ComposeContext,
     composer_notice::ComposerNotice,
     model::{self, OpenedMessage, ReadingState},
     reader::{ComposerHost, ReadingSource},
@@ -24,7 +24,7 @@ use super::{
 /// the pane's; a failed prepare belongs beside the draft it failed for.
 pub(crate) struct DetachedDraft {
     pub(crate) id: u64,
-    pub(crate) request: ComposeRequest,
+    pub(crate) request: ComposeContext,
     pub(crate) error: Option<ComposerNotice>,
 }
 
@@ -111,7 +111,7 @@ impl AppModel {
         self.composer_window_seq.wrapping_add(1)
     }
 
-    pub(super) fn open_composer_window(&mut self, id: u64, request: ComposeRequest) {
+    pub(super) fn open_composer_window(&mut self, id: u64, request: ComposeContext) {
         debug_assert_eq!(request.host, ComposerHost::Window(id));
         self.composer_window_seq = id;
         self.composer_windows.push(DetachedDraft {

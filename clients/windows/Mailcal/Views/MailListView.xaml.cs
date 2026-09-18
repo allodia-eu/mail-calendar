@@ -346,6 +346,41 @@ public sealed partial class MailListView : UserControl
         }
     }
 
+    // The Outbox's three actions (docs/sending.md). Each names its row by account AND op id: an
+    // op id is unique only within its own account's queue, and this list holds every account's at
+    // once. The row arrives through the menu item's Tag, the same way the mail row's menu passes
+    // its own.
+    private static QueuedRowItem? QueuedOf(object sender) =>
+        (sender as FrameworkElement)?.Tag as QueuedRowItem
+        ?? (sender as FrameworkElement)?.DataContext as QueuedRowItem;
+
+    private void OnSendQueuedNow(object sender, RoutedEventArgs e)
+    {
+        if (QueuedOf(sender) is { } row)
+        {
+            Model?.SendQueuedNow(row);
+        }
+    }
+
+    private void OnCancelQueued(object sender, RoutedEventArgs e)
+    {
+        if (QueuedOf(sender) is { } row)
+        {
+            Model?.CancelQueued(row);
+        }
+    }
+
+    // Withdraws the message and asks for it back in the composer; the core raises
+    // Surface.ComposeRequest once it is out of the queue, and the window opens the composer from
+    // that. Nothing here waits for it: the withdrawal can be refused, and then nothing opens.
+    private void OnEditQueued(object sender, RoutedEventArgs e)
+    {
+        if (QueuedOf(sender) is { } row)
+        {
+            Model?.EditQueued(row);
+        }
+    }
+
     // The connection flyout's "Try again": a re-dial of the current scope, which is the same
     // dispatch the actions bar's Sync makes.
     private void OnRefresh(object sender, RoutedEventArgs e) => Model?.Refresh();

@@ -9,13 +9,19 @@ namespace Allodia.Mailcal.Tests;
 
 internal static class SidebarFixture
 {
-    public static readonly SidebarLabels Labels =
-        new("All Accounts", "Inbox", "Add account…", count => $"{count} unread");
+    public static readonly SidebarLabels Labels = new(
+        "All Accounts",
+        "Inbox",
+        "Add account…",
+        "Outbox",
+        count => $"{count} unread",
+        count => $"{count} waiting to send");
 
     public static readonly SidebarGlyphs Glyphs = new(
         "account",
         "folder",
         "add",
+        "outbox-glyph",
         role => role switch
         {
             SidebarFolderRole.Inbox => "inbox-glyph",
@@ -63,6 +69,7 @@ internal static class SidebarFixture
         bool showFolders = true,
         uint unifiedUnread = 0,
         bool unifiedExpanded = true,
+        uint queued = 0,
         Func<string, bool>? unreachable = null,
         Action<SidebarItem>? onExpanded = null) =>
         SidebarTree.Reconcile(
@@ -72,6 +79,7 @@ internal static class SidebarFixture
             showFolders,
             unifiedUnread,
             unifiedExpanded,
+            queued,
             unreachable ?? (_ => false),
             onExpanded ?? (_ => { }),
             Labels,
