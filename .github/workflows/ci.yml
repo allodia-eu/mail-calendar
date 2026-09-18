@@ -839,35 +839,44 @@ jobs:
           # crates/mailcal-bindings/build.rs). Deliberately not workflow-level: an ordinary push,
           # and every fork, must keep building without secrets.
           MAILCAL_REQUIRE_INJECTED_CONFIG: 1
-        run: ./gradlew --no-daemon :app:assembleRelease
+        run: ./gradlew --no-daemon :app:assemblePlayRelease :app:assembleFossRelease
 
       # A suite that compiles away to nothing still reports BUILD SUCCESSFUL, and Gradle prints no
       # test count — so a green Android job would prove nothing. Read the JUnit XML and insist the
-      # run had tests in it. (It also prints the count, which `> Task :app:testDebugUnitTest
+      # run had tests in it. (It also prints the count, which `> Task :app:testPlayDebugUnitTest
       # FROM-CACHE` otherwise hides.)
+      #
+      # ⚠️ **Both flavours are named, never globbed.** A glob would be satisfied by whichever
+      # directory happened to exist, and one flavour silently compiling away is precisely what this
+      # step is here to catch. Adding a flavour means adding it here.
       - name: The suite must have actually run
         working-directory: clients/android
         run: |
-          results=app/build/test-results/testDebugUnitTest
           shopt -s nullglob
-          reports=("$results"/TEST-*.xml)
-          if (( ${#reports[@]} == 0 )); then
-            echo "::error::no JUnit reports in $results — did the suite compile away?"
-            exit 1
-          fi
-          read -r total failures errors < <(
-            awk 'match($0, /tests="[0-9]+"/)    { t += substr($0, RSTART+7,  RLENGTH-8) }
-                 match($0, /failures="[0-9]+"/) { f += substr($0, RSTART+10, RLENGTH-11) }
-                 match($0, /errors="[0-9]+"/)   { e += substr($0, RSTART+8,  RLENGTH-9) }
-                 END { print t+0, f+0, e+0 }' "${reports[@]}"
-          )
-          echo "Android unit tests: $total run, $failures failures, $errors errors (${#reports[@]} classes)"
-          printf '### Android unit tests\n\n%s run, %s failures, %s errors across %s classes.\n' \
-            "$total" "$failures" "$errors" "${#reports[@]}" >>"$GITHUB_STEP_SUMMARY"
-          if (( total == 0 )); then
-            echo "::error::the suite ran 0 tests — a green run that proves nothing"
-            exit 1
-          fi
+          total=0; failures=0; errors=0; classes=0
+          for flavour in Play Foss; do
+            results="app/build/test-results/test${flavour}DebugUnitTest"
+            reports=("$results"/TEST-*.xml)
+            if (( ${#reports[@]} == 0 )); then
+              echo "::error::no JUnit reports in $results — did the $flavour suite compile away?"
+              exit 1
+            fi
+            read -r t f e < <(
+              awk 'match($0, /tests="[0-9]+"/)    { t += substr($0, RSTART+7,  RLENGTH-8) }
+                   match($0, /failures="[0-9]+"/) { f += substr($0, RSTART+10, RLENGTH-11) }
+                   match($0, /errors="[0-9]+"/)   { e += substr($0, RSTART+8,  RLENGTH-9) }
+                   END { print t+0, f+0, e+0 }' "${reports[@]}"
+            )
+            echo "Android unit tests ($flavour): $t run, $f failures, $e errors (${#reports[@]} classes)"
+            if (( t == 0 )); then
+              echo "::error::the $flavour suite ran 0 tests — a green run that proves nothing"
+              exit 1
+            fi
+            total=$(( total + t )); failures=$(( failures + f )); errors=$(( errors + e ))
+            classes=$(( classes + ${#reports[@]} ))
+          done
+          printf '### Android unit tests\n\n%s run, %s failures, %s errors across %s classes (play + foss).\n' \
+            "$total" "$failures" "$errors" "$classes" >>"$GITHUB_STEP_SUMMARY"
           (( failures == 0 && errors == 0 ))
 
       - name: Upload the test report on failure

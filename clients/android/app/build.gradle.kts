@@ -54,29 +54,6 @@ fun brandValue(key: String): String {
     error("branding/default.env gives no $key, every build needs one, so it is not optional there.")
 }
 
-// Whether this build may reach Google Play at all (`purchasing.md`, "the shop follows the
-// channel").
-//
-// True, the default, is the build we publish to Play. **False is a different APK**, for F-Droid and
-// for an Android with no Google services on it: it links no Google library, carries none of the
-// Play sources and merges no Play permission, so there is nothing in it that could reach a Play
-// Store that is not there. That is a stronger statement than degrading gracefully, and it is the
-// one F-Droid's inclusion policy actually asks for, because that policy is about what a build
-// *contains* rather than what it does at runtime.
-//
-// Absent means true, so an ordinary build needs nothing set; only `false`, `0` and `no` turn it
-// off, and anything else is a typo that must not quietly produce the un-Googled APK.
-fun googlePlayAvailable(): Boolean {
-    val set = System.getenv("GOOGLE_GMS_AVAILABLE")?.trim()?.lowercase() ?: return true
-    return when (set) {
-        "false", "0", "no" -> false
-        "true", "1", "yes" -> true
-        else -> error("GOOGLE_GMS_AVAILABLE is \"$set\": write true or false, never a guess.")
-    }
-}
-
-val googlePlayAvailable = googlePlayAvailable()
-
 // The custom scheme the Google OAuth redirect comes back to. Google matches an Android redirect on
 // the scheme alone, and the scheme IS the client id with its dotted components reversed:
 // including the numeric project-number prefix, without which Google answers redirect_uri_mismatch.
@@ -258,17 +235,28 @@ android {
         }
     }
 
+    // Two APKs, because a store's payment rules bind the builds that store distributes
+    // (`purchasing.md`, "the shop follows the channel").
+    //
+    // `play` is what goes to Google Play and is the one to build by default. **`foss` is a
+    // different APK**, for F-Droid and for an Android carrying no Google services: it links no
+    // Google library, compiles none of the Play sources and merges no Play permission, so there is
+    // nothing in it that could reach a Play Store that is not there. Degrading gracefully at
+    // runtime would be enough to avoid a crash and is not enough for F-Droid, whose inclusion
+    // policy is about what a build *contains*.
+    //
+    // ⚠️ **The brand is a different axis and does not decide this.** An unbranded `play` build
+    // still carries Play Billing: branding decides what a build is called, the flavour decides
+    // where it is sold.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("play") { dimension = "distribution" }
+        create("foss") { dimension = "distribution" }
+    }
+
     sourceSets {
         getByName("main") {
             assets.directories.add("../../composer/dist")
-            // Everything that speaks to Play, in one tree, so leaving it out is one decision
-            // rather than a per-file judgement somebody has to keep making.
-            if (googlePlayAvailable) java.srcDir("src/gms/java")
-        }
-        // Its tests travel with it: a suite asserting on code that is not in the build is a suite
-        // that cannot fail for the right reason.
-        getByName("test") {
-            if (googlePlayAvailable) java.srcDir("src/gmsTest/java")
         }
     }
 
@@ -445,7 +433,8 @@ val coreNativeSymbols = tasks.register<CoreNativeSymbolsTask>("coreNativeSymbols
 // empty ComponentActivity that `ui-test-manifest` contributes, and that artifact is a
 // `debugImplementation`, adding it to release would merge a test activity into the shipped
 // manifest. Running the same sources twice buys nothing, so the release unit-test variant is
-// switched off and `./gradlew test` means `testDebugUnitTest`.
+// switched off, so `./gradlew test` means the debug unit tests of **both** flavours:
+// `testPlayDebugUnitTest` and `testFossDebugUnitTest`.
 androidComponents {
     beforeVariants(selector().withBuildType("release")) { variant ->
         variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
@@ -507,14 +496,10 @@ dependencies {
     // than an error, and `purchasing.md` carries what a build distributed outside Play still owes
     // a person who wants to pay.
     //
-    // ⚠️ **The brand does not decide this and the channel does.** An unbranded build still carries
-    // this library, because branding changes what a build is called and not where it is sold; a
-    // dependency that came and went with an injected credential would make those two builds
-    // diverge in their dependency graph rather than only in what they offer. `GOOGLE_GMS_AVAILABLE`
-    // is the other axis, and the only one allowed to remove it.
-    if (googlePlayAvailable) {
-        implementation("com.android.billingclient:billing-ktx:9.1.0")
-    }
+    // ⚠️ **`playImplementation`, never `implementation`.** This is the one dependency the `foss`
+    // APK must not carry, and scoping it to the flavour is what keeps it out of that APK's
+    // dependency graph rather than merely unused in it.
+    "playImplementation"("com.android.billingclient:billing-ktx:9.1.0")
 
     // ---- Tests -------------------------------------------------------------------------------
     // The client's tests run on the JVM (`./gradlew :app:test`), never on a device: Robolectric

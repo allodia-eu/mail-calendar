@@ -60,9 +60,12 @@ for abi in "${ABIS[@]}"; do NDK_ABI_ARGS+=(-t "$abi"); done
 # rebuild it from its TypeScript sources before Gradle copies it into the APK.
 bash "$ROOT/scripts/dev/composer-bundle.sh"
 
+# The `play` flavour, which is the one to run while developing: it is what most people install,
+# and the other one differs only in having no Google library in it (`purchasing.md`). Build that
+# one with `./gradlew :app:assembleFossDebug`; the gate compiles and tests both either way.
 echo "==> Assembling the APK"
-(cd "$HERE" && ./gradlew --quiet :app:assembleDebug)
-APK="$HERE/app/build/outputs/apk/debug/app-debug.apk"
+(cd "$HERE" && ./gradlew --quiet :app:assemblePlayDebug)
+APK="$HERE/app/build/outputs/apk/play/debug/app-play-debug.apk"
 
 echo "==> Installing + launching on the device/emulator"
 "$ADB" wait-for-device
