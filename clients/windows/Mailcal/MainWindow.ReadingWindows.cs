@@ -164,10 +164,10 @@ public sealed partial class MainWindow
 
     /// <summary>Opens a draft in a window of its own, for a reply or forward raised inside a
     /// reading window.</summary>
-    internal void OpenComposerWindow(ComposeRequest request) =>
+    internal void OpenComposerWindow(ComposeContext context) =>
         ShowWindow(() =>
         {
-            var window = new ComposerWindow(Model, request);
+            var window = new ComposerWindow(Model, context);
             _composerWindows.Add(window);
             Log.Info("composer window: opened");
             return window;

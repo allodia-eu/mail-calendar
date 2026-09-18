@@ -6,7 +6,11 @@ use adw::prelude::*;
 use mailcal_bindings::{AccountRow, FlatRow, MailboxListSnapshot, SnapshotRow, ViewMode};
 
 use super::{INITIAL_ROWS, ProgressiveRenderer};
-use crate::ui::{AppInput, mailbox::tests::rendered_labels, model::blank_avatar};
+use crate::ui::{
+    AppInput,
+    mailbox::tests::rendered_labels,
+    model::{blank_avatar, empty_mailbox},
+};
 
 fn snapshot(folder: &str) -> MailboxListSnapshot {
     let rows = (0..100)
@@ -34,14 +38,10 @@ fn snapshot(folder: &str) -> MailboxListSnapshot {
         }],
         selected_account: Some("fixture".to_owned()),
         selected: Some(folder.to_owned()),
-        folders: Vec::new(),
-        account_folders: Vec::new(),
-        unified_unread: 0,
-        unified_expanded: true,
         mode: ViewMode::Flat,
         rows,
         total: 100,
-        search_horizon: None,
+        ..empty_mailbox()
     }
 }
 

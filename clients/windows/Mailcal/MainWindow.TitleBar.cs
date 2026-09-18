@@ -1,15 +1,12 @@
-// The window's caption: handing it over to the WinUI TitleBar control in MainWindow.xaml, and the
-// one part of it the framework will not theme for us. Split out of MainWindow.xaml.cs so the shell
-// file stays about the shell.
+// The shell's caption: handing the window over to the WinUI TitleBar control in MainWindow.xaml,
+// and what that control forwards back. Split out of MainWindow.xaml.cs so the shell file stays about
+// the shell.
 //
-// Why a custom caption at all: the system one is a separate surface from the app's content, so it
-// does not read the app's theme, on a dark-mode desktop the app came up dark with a pale strip
-// across the top of it. The TitleBar control *is* content, so it inherits ActualTheme like every
-// other control, and it owns the drag regions, the caption-button spacing (including RTL) and the
-// min-drag region, none of which then has to be hand-computed.
-// https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/title-bar
+// Why the app draws its own caption at all, and what the framework still will not do for it, are
+// Services/WindowCaption.cs's: the reading and composer windows draw one too, on the same terms.
+// What is here is the shell's own, the pane toggle and the search field it carries beside the name.
 
-using Microsoft.UI.Windowing;
+using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -17,33 +14,11 @@ namespace Allodia.Mailcal;
 
 public sealed partial class MainWindow
 {
-    // Hides the system caption and nominates the XAML TitleBar as the draggable region. Order
-    // matters: SetTitleBar on a window that has not extended its content is a no-op.
-    private void InitTitleBar()
-    {
-        ExtendsContentIntoTitleBar = true;
-        // The row, not the TitleBar control alone: the search field is a sibling of it rather than
-        // its content (MainWindow.xaml says why), and only what is inside the element handed over
-        // here is excluded from the drag region. Given the control alone, the field would sit on
-        // bare caption and a click on it would drag the window instead.
-        SetTitleBar(CaptionRow);
-
-        // The minimise / maximise / close buttons are drawn by the SYSTEM, on a surface that is not
-        // in the XAML tree, so unlike the rest of the caption they do not inherit ActualTheme, and
-        // left alone they keep whatever mode the window was created under. Flip the desktop to light
-        // while the app is running (which Windows itself does on a sunrise schedule) and the glyphs
-        // stay white on a now-pale bar: the close button effectively disappears. PreferredTheme is
-        // the property that re-themes them, so mirror the content's own theme onto it, now, and on
-        // every change for as long as the window lives.
-        var root = (FrameworkElement)Content;
-        root.ActualThemeChanged += (sender, _) => ApplyCaptionButtonTheme(sender.ActualTheme);
-        ApplyCaptionButtonTheme(root.ActualTheme);
-    }
-
-    // ActualTheme resolves Default, so it is only ever Light or Dark here.
-    private void ApplyCaptionButtonTheme(ElementTheme theme) =>
-        AppWindow.TitleBar.PreferredTheme =
-            theme == ElementTheme.Dark ? TitleBarTheme.Dark : TitleBarTheme.Light;
+    // The ROW, not the TitleBar control alone: the search field is a sibling of it rather than its
+    // content (MainWindow.xaml says why), and only what is inside the element handed over here is
+    // excluded from the drag region. Given the control alone, the field would sit on bare caption
+    // and a click on it would drag the window instead.
+    private void InitTitleBar() => WindowCaption.Extend(this, CaptionRow);
 
     /// <summary>
     /// Whether a <see cref="Visibility"/> is <c>Visible</c>, an <c>x:Bind</c> function helper, so

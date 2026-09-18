@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Allodia.Mailcal.Views.WindowShell"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- What a reading or composer window is, under the view it was opened for: a caption the app
+         draws itself, and the view below it. The shell's caption is the same control on the same
+         terms (Services/WindowCaption.cs), reading the same height and the same brand icon
+         (App.xaml), so the three windows cannot come up looking like three applications.
+
+         Markup rather than code, for the background: `{ThemeResource}` resolves against the
+         ELEMENT, and this app's appearance is applied to a content root rather than to the
+         application (Services/ThemePalette.cs says what reading a brush the other way costs). The
+         root is painted at all because extending into the caption puts the strip inside the client
+         area, where nothing else covers it: ReadingView paints its own pane and ComposerView
+         paints none. -->
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- The one part of these windows a test can name: everything in Body is the same
+             ReadingView or ComposerView the shell's own panes draw. The shell's automation id,
+             because the question being asked of it is the shell's question. -->
+        <TitleBar x:Name="Caption" Grid.Row="0"
+                  AutomationProperties.AutomationId="AppTitleBar"
+                  MinHeight="{StaticResource AppCaptionHeight}"
+                  IconSource="{StaticResource AppCaptionIcon}" />
+
+        <Grid x:Name="Body" Grid.Row="1" />
+    </Grid>
+</UserControl>

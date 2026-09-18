@@ -40,6 +40,7 @@ mod calendar_refresh;
 mod calendar_scope;
 mod calendar_status;
 mod calendar_unexpandable;
+mod compose_request;
 mod composer_image;
 mod connectivity;
 mod connector;
@@ -49,9 +50,11 @@ mod default_mail_app;
 mod dispatch;
 mod display_settings;
 mod folder_pane;
+mod folder_pane_snapshot;
 mod form_factor;
 mod helpers;
 mod html;
+mod outbox_ops;
 // The meeting-invitation card: the RSVP gate and the text/conflict rules (pure), and the
 // assembly that reads the account's diary (impure). Split so the contract has tests that can fail.
 mod invitations;
@@ -125,6 +128,7 @@ use background_sync::NotifyMarksState;
 pub use background_sync::{AccountNewMail, BackgroundNewMail, NewMailPreview};
 pub use calendar_cache::{CalendarPage, MonthPage};
 use calendar_prefs::CalendarPrefsState;
+pub use compose_request::ComposeRequest;
 pub use composer_image::{MAX_INLINE_IMAGE_BYTES, image_data_url, image_data_url_from_bytes};
 pub use connector::MailboxConnector;
 pub use contacts_write::ContactTarget;
@@ -140,13 +144,13 @@ use mcp_settings::McpSettingsState;
 pub use prefetch::default_prefetch_size_limit;
 pub use protocol::{
     AppObserver, BulkAction, CalendarWriteStatus, ComposerBlob, ContactWriteStatus, ContactsIntent,
-    Intent, RecipientSuggestion, SearchScope, SendStatus, StagedAttachment, Surface,
+    Intent, OutboxIntent, RecipientSuggestion, SearchScope, SendStatus, StagedAttachment, Surface,
 };
 pub use query::{MessageDetail, MessagePage};
 use quote_settings::QuoteSettingsState;
 pub use reader::ReaderId;
 pub use recipients::RecipientMatch;
-pub use reference::{EventRef, FolderRef, MessageRef, RowRef, ThreadRef};
+pub use reference::{EventRef, FolderRef, MessageRef, QueuedRef, RowRef, ThreadRef};
 use row_cache::CachedRows;
 use scope::Scope;
 use send_settings::SendSettingsState;
@@ -223,6 +227,10 @@ pub struct App<P> {
     reply_prompt: Mutex<Option<invitations_fallback::ReplyPrompt>>,
     /// The standing "your copy is not in Sent" question, until it is retried or dismissed.
     unfiled_copy: Mutex<Option<unfiled_copy::UnfiledCopy>>,
+    /// A queued send the user asked to edit, waiting for the host to open its composer.
+    /// Standing, like `unfiled_copy`: the outbox no longer holds the message, so nothing
+    /// else does.
+    compose_request: Mutex<Option<compose_request::ComposeRequest>>,
     view_mode: Mutex<ViewMode>,
     /// The preferences-file path (shared with the sub-settings states), or `None` for the
     /// in-memory demo/tests. Used to persist the message-list grouping across launches.

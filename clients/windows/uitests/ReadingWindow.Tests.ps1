@@ -305,6 +305,36 @@ $Suite = @{
       }
     },
     @{
+      Name = 'the window draws the app''s own caption, named after the message'
+      Body = {
+        # A window opened out of the mailbox is the same application, and until it drew its own
+        # caption it did not look like one: the system's strip carries neither the app's theme nor
+        # the caption the mailbox has beside it, so a message window read as something else the
+        # desktop had put on screen.
+        Close-ExtraWindows
+        Invoke-RowClicks -Subject $RowSubject -Times 2
+        $window = Wait-AppWindow -Title $RowSubject
+        $caption = Find-UiaElement -AutomationId 'AppTitleBar' -Root $window
+        Assert-True ($null -ne $caption) (
+          'the window''s caption must be the app''s own TitleBar control, the same one the mailbox ' +
+          'carries. Without it the system draws a strip that follows neither the appearance ' +
+          'setting nor the brand')
+        Assert-Equal $RowSubject $caption.Current.Name (
+          'and it names the message, which is what tells two open windows apart in the window ' +
+          'list the OS draws')
+
+        # The same rule TitleBar.Tests.ps1 holds for the mailbox: the three buttons the app does
+        # NOT draw still have to be as tall as the caption it does.
+        $expected = ConvertTo-UiaPixels (Get-CaptionHeightDip)
+        foreach ($entry in (Get-CaptionButtons -Root $window).GetEnumerator()) {
+          $bounds = Get-RenderedBounds -Element $entry.Value -What "the window's $($entry.Key) button"
+          Assert-True ([Math]::Abs($bounds.Height - $expected) -le 1) (
+            "the $($entry.Key) button is $($bounds.Height)px tall against a caption of ${expected}px, " +
+            'so this window''s caption was taken over only halfway')
+        }
+      }
+    },
+    @{
       Name = 'double-clicking the same message again raises its window instead of opening a second'
       Body = {
         # One window per message. A minted id would stack a second window here, and the two would

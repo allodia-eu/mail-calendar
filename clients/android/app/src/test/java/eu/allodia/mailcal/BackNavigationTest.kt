@@ -163,9 +163,12 @@ class BackNavigationTest {
                     selectedAccount = null,
                     selectedFolder = null,
                     unifiedUnread = 0u,
+                    queued = 0,
+                    showingOutbox = false,
                     onSelectAccount = {},
                     onSelectFolder = { _, _ -> },
                     onSetExpanded = { _, _ -> },
+                    onShowOutbox = {},
                 ) { Text("mailbox") }
             }
         }
@@ -237,9 +240,12 @@ class BackNavigationTest {
                     selectedAccount = "work",
                     selectedFolder = "archive",
                     unifiedUnread = 0u,
+                    queued = 0,
+                    showingOutbox = false,
                     onSelectAccount = { accounts += it },
                     onSelectFolder = { _, _ -> },
                     onSetExpanded = { _, _ -> },
+                    onShowOutbox = {},
                 ) { Text("mailbox") }
             }
         }
@@ -270,9 +276,12 @@ class BackNavigationTest {
                     selectedAccount = selectedAccount,
                     selectedFolder = selectedFolder,
                     unifiedUnread = 0u,
+                    queued = 0,
+                    showingOutbox = false,
                     onSelectAccount = onSelectAccount,
                     onSelectFolder = onSelectFolder,
                     onSetExpanded = { _, _ -> },
+                    onShowOutbox = {},
                 ) { Text("mailbox") }
             }
         }

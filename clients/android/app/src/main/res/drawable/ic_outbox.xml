@@ -1,0 +1,23 @@
+<!-- Material Symbols "outbox" (filled). The Outbox row above the accounts (docs/sending.md).
+     Vendored from google/material-design-icons; the Compose `Icon` supplies the real
+     colour, so the fillColor here is only a placeholder.
+
+     Its own glyph rather than "send": that one is already the Sent folder's, and an Outbox
+     drawn as Sent is the one confusion this row exists to prevent.
+
+     The group translate is the source's own coordinate system rather than a hand-transformed
+     path. Material Symbols draws in a `0 -960 960 960` viewBox, so every absolute y is
+     negative; shifting the whole group down by 960 is exactly that viewBox, and it leaves the
+     path data as upstream published it, where a retyped one is a glyph nobody would notice was
+     subtly wrong. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+  <group android:translateY="960">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm280-200q38 0 69-22t43-58h168v-360H200v360h168q12 36 43 58t69 22Zm-40-80v-166l-64 64-56-58 160-160 160 160-56 58-64-64v166h-80Z"/>
+  </group>
+</vector>

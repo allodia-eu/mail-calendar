@@ -35,6 +35,67 @@ public class SidebarTreeTests
     }
 
     [Fact]
+    public void The_outbox_stands_above_the_trees_while_something_is_in_it()
+    {
+        // Rule 18 (docs/folder-pane.md): one row, above the account trees, carrying every
+        // account's unsent messages together, because "did that go?" is not a question about a
+        // particular mailbox.
+        var target = new ObservableCollection<SidebarItem>();
+        Sync(target, Accounts("a", "b"), queued: 3);
+
+        Assert.Equal(
+            [
+                SidebarTree.OutboxTag,
+                SidebarTree.AllAccountsTag,
+                "acct:a",
+                "acct:b",
+                SidebarTree.AddAccountTag,
+            ],
+            target.Select(i => i.Tag));
+        var outbox = target[0];
+        Assert.Equal("Outbox", outbox.Content);
+        Assert.Equal("outbox-glyph", outbox.Glyph);
+        Assert.Equal(3u, outbox.Unread);
+        Assert.True(outbox.ShowUnread);
+        // Its own sentence, not the unread one: these are messages nobody has RECEIVED. Read
+        // aloud as "Outbox, 3 unread" the badge would name the wrong thing entirely, and the row
+        // would still look right on screen.
+        Assert.Equal("3 waiting to send", outbox.UnreadLabel);
+        // A destination, unlike Add account and unlike the group heading: it is a list to look at.
+        Assert.True(outbox.SelectsOnInvoked);
+        Assert.Empty(outbox.Children);
+    }
+
+    [Fact]
+    public void An_empty_outbox_is_not_a_row_saying_zero()
+    {
+        // Rule 18's second half, and the reason it is not rule 6: a row that only ever says zero
+        // trains people to stop reading it, which is the opposite of what an unsent message needs.
+        // Nothing on screen distinguishes a permanent Outbox with no badge from a correct one.
+        var target = new ObservableCollection<SidebarItem>();
+        Sync(target, Accounts("a"), queued: 2);
+        Assert.Equal(SidebarTree.OutboxTag, target[0].Tag);
+
+        Sync(target, Accounts("a"), queued: 0);
+
+        Assert.DoesNotContain(target, i => i.Tag == SidebarTree.OutboxTag);
+        Assert.Equal(SidebarTree.AllAccountsTag, target[0].Tag);
+    }
+
+    [Fact]
+    public void The_outbox_row_stays_on_the_calendar_and_contacts_destinations()
+    {
+        // It is not a folder, so the rule that takes the trees off screen there does not reach it:
+        // a message that has not gone is waiting whatever the user is looking at, and the count is
+        // the only thing that says so.
+        var target = new ObservableCollection<SidebarItem>();
+        Sync(target, Accounts("a"), showFolders: false, queued: 1);
+
+        Assert.Equal(SidebarTree.OutboxTag, target[0].Tag);
+        Assert.Equal(1u, target[0].Unread);
+    }
+
+    [Fact]
     public void The_unified_list_is_a_group_over_an_inbox_row_not_a_row_of_its_own()
     {
         // Rule 16 (docs/folder-pane.md): the unified scope is a tree like an account's, and the

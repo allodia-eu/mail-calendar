@@ -81,6 +81,13 @@ that same file.
   A WebView layout bug cannot be caught by the JVM suite: Robolectric has no renderer; prove it
   against a real WebView (`adb forward` to `webview_devtools_remote_<pid>` + CDP
   `Runtime.evaluate`).
+- **`adb reverse` survives airplane mode, so an Android emulator cannot go offline by itself.**
+  The dev harness is reached through that tunnel rather than through the device's network stack,
+  so a send in airplane mode still succeeds and nothing queues, while the core is told the device
+  is offline: the exact shape of "the Outbox does not work" when the Outbox is fine. Take the
+  harness container away **as well**, and the emulator behaves like a phone in a tunnel. The same
+  trap makes an offline test pass for the wrong reason, which is worse: whatever was being proved
+  went out over the tunnel.
 - **Each column of a `NavigationSplitView` reports its own `horizontalSizeClass`.** Read from
   inside a list row, an iPad's *list column* answers `.compact` while the window is regular, so
   any "is this the phone layout?" test written at the row decides the opposite of the one written

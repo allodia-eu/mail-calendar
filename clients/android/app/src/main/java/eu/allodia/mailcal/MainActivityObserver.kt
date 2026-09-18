@@ -12,6 +12,12 @@ import uniffi.mailcal_bindings.Surface as CoreSurface
 internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
     when (surface) {
         CoreSurface.MAILBOX_LIST -> reload()
+        // A message the core withdrew from the Outbox so the user could change it. It exists
+        // nowhere else by the time this arrives, so this may not drop it: it is held until the
+        // composer has it, and only then is the request dismissed (docs/sending.md).
+        CoreSurface.COMPOSE_REQUEST -> {
+            withdrawnMessage = app.composeRequest()
+        }
         // The agenda list is a snapshot; the grid is a pull, so the version bump is
         // what tells it to re-read whatever page is on screen.
         CoreSurface.CALENDAR -> {

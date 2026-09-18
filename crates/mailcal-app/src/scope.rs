@@ -24,6 +24,13 @@ pub(crate) enum Scope {
     Account(AccountId),
     /// One folder of one account.
     Folder(FolderRef),
+    /// The Outbox: every account's queued sends, in one list.
+    ///
+    /// The one scope that is not a place on a server. It names no account, because a
+    /// queued send belongs to the account it will go *from* and the list holds every
+    /// account's at once; and no folder, because nothing has filed these messages
+    /// anywhere yet.
+    Outbox,
 }
 
 impl Scope {
@@ -35,7 +42,7 @@ impl Scope {
     /// The account in view, or `None` on the unified list.
     pub(crate) fn account(&self) -> Option<&AccountId> {
         match self {
-            Self::AllInboxes => None,
+            Self::AllInboxes | Self::Outbox => None,
             Self::Account(account) => Some(account),
             Self::Folder(folder) => Some(&folder.account),
         }
@@ -44,7 +51,7 @@ impl Scope {
     /// The folder in view, or `None` when a whole account (or the unified list) is showing.
     pub(crate) fn folder(&self) -> Option<&str> {
         match self {
-            Self::AllInboxes | Self::Account(_) => None,
+            Self::AllInboxes | Self::Account(_) | Self::Outbox => None,
             Self::Folder(folder) => Some(folder.key.as_str()),
         }
     }

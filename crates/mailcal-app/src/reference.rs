@@ -8,7 +8,7 @@
 //! A reference is built **once**, at the FFI boundary ([`crate::Intent`] conversion),
 //! from the very row the host clicked; both halves travel together from there on.
 
-use engine_api::{AccountId, ProviderKey};
+use engine_api::{AccountId, PendingOpId, ProviderKey};
 
 /// A synced message, identified by its owning account and provider key **together**.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +41,20 @@ pub struct FolderRef {
     /// The folder's key, as projected into the snapshot's folder rows; unique only within
     /// `account`. A plain identifier, not a provider key.
     pub key: String,
+}
+
+/// A **queued** send, identified by its owning account and outbox op id **together**.
+///
+/// The outbox is account-scoped (`store-and-sync.md`), so an op id means nothing without the
+/// account whose queue it belongs to, exactly as a folder key means nothing without its
+/// account. Unlike every other reference here it names a message that does **not** exist on
+/// any server yet: the identity is the durable op, not a provider key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueuedRef {
+    /// The account whose outbox holds it (the row's account).
+    pub account: AccountId,
+    /// The durable op's id, as projected into the snapshot's outbox rows.
+    pub op: PendingOpId,
 }
 
 /// A synced conversation, identified by its owning account and thread id **together** (the
@@ -92,6 +106,23 @@ impl MessageRef {
         Some(Self {
             account: AccountId::try_from(account).ok()?,
             key: ProviderKey::new(key).ok()?,
+        })
+    }
+}
+
+impl QueuedRef {
+    /// Builds a queued-send reference from a host's `account` id and outbox op id; the
+    /// single construction point, at the FFI boundary. Returns `None` for a malformed
+    /// account id.
+    ///
+    /// The op id needs no validation of its own: it is a store-assigned integer, and one
+    /// that names nothing is refused by the store as `OpRejection::Unknown` rather than
+    /// guessed at here.
+    #[must_use]
+    pub fn from_parts(account: &str, op: u64) -> Option<Self> {
+        Some(Self {
+            account: AccountId::try_from(account).ok()?,
+            op: PendingOpId::new(op),
         })
     }
 }

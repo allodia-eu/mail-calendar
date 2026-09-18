@@ -16,7 +16,7 @@ use super::{
     ThreadKey, render_messages,
     tests::{glib_records, labels},
 };
-use crate::ui::AppInput;
+use crate::ui::{AppInput, model::empty_mailbox};
 
 fn message(key: &str, from: &str, preview: &str, unread: bool, outgoing: bool) -> ThreadMessage {
     ThreadMessage {
@@ -59,16 +59,10 @@ fn snapshot(rows: Vec<SnapshotRow>) -> MailboxListSnapshot {
             name: String::new(),
             expanded: true,
         }],
-        selected_account: None,
-        folders: Vec::new(),
-        account_folders: Vec::new(),
-        unified_unread: 0,
-        unified_expanded: true,
-        selected: None,
         mode: ViewMode::Threaded,
         total: u64::try_from(rows.len()).expect("a fixture list is small"),
         rows,
-        search_horizon: None,
+        ..empty_mailbox()
     }
 }
 

@@ -79,6 +79,13 @@ final class MailboxModel {
     /// every account's own (`docs/folder-pane.md` rule 3); seeded open because that is the state
     /// of a group nobody has shut, so the very first frame agrees with the core.
     var unifiedExpanded = true
+    /// Every account's unsent messages. **Empty means no Outbox row at all**
+    /// (`docs/folder-pane.md`, rule 18), which is why the pane tests `isEmpty` rather than
+    /// drawing a row that would only ever say zero.
+    var outbox: [QueuedRow] = []
+    /// Whether the list is showing the Outbox rather than mail. Not derivable from
+    /// `selectedAccount`/`selected`: both are `nil` here *and* on the unified inbox.
+    var showingOutbox = false
     var selected: String?
     /// How far back the active search looked, or `nil` when the list is not a search, the sync
     /// depth of the accounts its scope covered (`docs/search.md`).

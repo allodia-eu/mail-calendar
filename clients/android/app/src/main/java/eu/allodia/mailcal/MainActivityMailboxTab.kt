@@ -20,6 +20,7 @@ import uniffi.mailcal_bindings.ContactDetail
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
+import uniffi.mailcal_bindings.OutboxIntent
 
 private const val TAG = "Mailcal"
 
@@ -267,6 +268,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 selectedAccount = selectedAccount,
                                 selectedFolder = selectedFolder,
                                 unifiedUnread = unifiedUnread,
+                                queued = outbox.size,
+                                showingOutbox = showingOutbox,
                                 onSelectAccount = { id ->
                                     instance.dispatch(Intent.SelectAccount(id))
                                 },
@@ -276,7 +279,17 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 onSetExpanded = { id, expanded ->
                                     instance.dispatch(Intent.SetAccountExpanded(id, expanded))
                                 },
+                                onShowOutbox = {
+                                    instance.dispatch(Intent.Outbox(OutboxIntent.Show))
+                                },
                             ) {
+                            if (showingOutbox) {
+                                // The Outbox replaces the mailbox list rather than covering it:
+                                // it holds no stored mail, so none of that screen's chrome (the
+                                // account switcher, search, the selection bar, pull-to-refresh)
+                                // has anything to act on here.
+                                OutboxPane(instance, drawerState)
+                            } else {
                             MailboxScreen(
                             rows = rows,
                             sendStatus = sendStatus,
@@ -461,6 +474,13 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             sharePrefill = pendingShare,
                             onShareConsumed = { pendingShare = null },
                             )
+                            }
+                            // A message the core withdrew from the Outbox, over whichever list
+                            // is behind it. At this level rather than inside either screen,
+                            // because Edit is pressed on the Outbox and the composer that answers
+                            // it is the mailbox's: the message belongs to neither list once it
+                            // has left the queue.
+                            WithdrawnMessagePane(instance, signatures?.signatures.orEmpty())
                             } // FolderDrawerScaffold
                           }
                           }

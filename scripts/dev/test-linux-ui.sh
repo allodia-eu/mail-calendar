@@ -667,6 +667,13 @@ PY
   "$PYTHON" "$ATSPI" wait \
     --name "$REMOTE_SENDER: Remove recipient" --role "push button" \
     --enabled --showing --timeout 20
+
+  # Subject is a caption in one grid cell and an entry in the next, which relates them to the eye
+  # and to nothing else: the entry reached assistive technology with an empty name, so someone
+  # tabbing into it was told only that it was a text field. Nothing on the screen changes when
+  # that breaks, and the GTK bindings expose no getter for an accessible name, so this suite is
+  # the only thing that can see it.
+  "$PYTHON" "$ATSPI" wait --name "Subject" --role text --enabled --showing --timeout 20
   capture reply-recipients
 
   # Start observing before the action for the same reason as the Copy confirmation above: the

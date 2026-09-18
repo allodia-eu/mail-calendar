@@ -46,6 +46,31 @@ extension MailboxModel {
             unfiledCopy = app?.unfiledCopy()
             return
         }
+        // A queued message the user asked to edit. The core has already withdrawn it from the
+        // Outbox, so what arrives here is the **only** copy: open the composer with it and
+        // tell the core we have it, and it is safe for the core to forget.
+        //
+        // The same composer the assistant's `create_draft` opens: a prefilled, unsent message
+        // a person reviews and sends themselves is the same thing either way, so it reuses
+        // that path rather than growing a second one beside it.
+        if case .composeRequest = surface {
+            if let request = app?.composeRequest() {
+                pendingAgentDraft = AgentDraftRequest(
+                    draft: AgentDraft(
+                        account: request.account,
+                        to: request.to,
+                        cc: request.cc,
+                        bcc: request.bcc,
+                        subject: request.subject,
+                        bodyText: request.bodyText,
+                        replyToAccount: nil,
+                        replyToKey: nil
+                    )
+                )
+                app?.dispatch(intent: .dismissComposeRequest)
+            }
+            return
+        }
         // A settings signal only updates the settings surfaces (the timezone prompt, the
         // per-account sync behaviour, and the app-level composing/swipe preferences); it doesn't
         // change the mailbox/calendar projection.
@@ -104,6 +129,8 @@ extension MailboxModel {
         accountFolders = snapshot?.accountFolders ?? []
         unifiedUnread = snapshot?.unifiedUnread ?? 0
         unifiedExpanded = snapshot?.unifiedExpanded ?? true
+        outbox = snapshot?.outbox ?? []
+        showingOutbox = snapshot?.showingOutbox ?? false
         selected = snapshot?.selected
         searchHorizon = snapshot?.searchHorizon
         // The reading body (a potentially large HTML string) only changes on a Reading

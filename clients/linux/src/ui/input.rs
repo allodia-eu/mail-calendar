@@ -21,6 +21,7 @@ use super::{
     mailbox::ThreadKey,
     microsoft::MicrosoftOutcome,
     model::OpenedMessage,
+    outbox::{QueuedAction, QueuedTarget},
     reader::{ComposerHost, ReadingSource},
     selection::SelectMode,
     setup_model::{AccountSubmission, ManualForm},
@@ -135,6 +136,13 @@ pub(crate) enum AppInput {
     SetAccountExpanded {
         account: String,
         expanded: bool,
+    },
+    /// Show the Outbox: every account's unsent messages, in one list.
+    ShowOutbox,
+    /// Send now, withdraw, or reopen one queued message (`docs/sending.md`).
+    QueuedSendAction {
+        target: QueuedTarget,
+        action: QueuedAction,
     },
     /// Answer the invitation the named reader's message carries. The **message** is named where
     /// this is dispatched, never the event: the answer goes out as the address the invitation
@@ -354,6 +362,8 @@ impl fmt::Debug for AppInput {
             Self::ArchiveThread { .. } => "ArchiveThread",
             Self::ActivateSidebar(_) => "ActivateSidebar",
             Self::SetAccountExpanded { .. } => "SetAccountExpanded",
+            Self::ShowOutbox => "ShowOutbox",
+            Self::QueuedSendAction { .. } => "QueuedSendAction",
             Self::RespondToInvitation(..) => "RespondToInvitation",
             Self::AnswerReplyPrompt { .. } => "AnswerReplyPrompt",
             Self::LoadRemoteImages(_) => "LoadRemoteImages",

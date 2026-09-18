@@ -24,25 +24,33 @@ namespace Allodia.Mailcal.ViewModels;
 /// from the app's catalog, the same word the message-list header uses for that scope
 /// (docs/folder-pane.md, rule 13).</param>
 /// <param name="AddAccount">The "add another account" action.</param>
+/// <param name="Outbox">The Outbox row's own label.</param>
 /// <param name="UnreadLabel">What a screen reader says for an unread badge, given its count,
 /// "545 unread". A delegate rather than a string because it is a formatted message, and this
 /// assembly cannot reach L10n.cs.</param>
+/// <param name="QueuedLabel">The same for the Outbox's badge, "3 waiting to send". Its own
+/// sentence, not <paramref name="UnreadLabel"/>: those are messages nobody has read, these are
+/// messages nobody has received, and only one of the two is something to go and do.</param>
 public readonly record struct SidebarLabels(
     string AllAccounts,
     string UnifiedInbox,
     string AddAccount,
-    Func<uint, string> UnreadLabel);
+    string Outbox,
+    Func<uint, string> UnreadLabel,
+    Func<uint, string> QueuedLabel);
 
 /// <summary>The Segoe Fluent glyphs the sidebar entries carry.</summary>
 /// <param name="Account">A contact, for an account.</param>
 /// <param name="Folder">A folder, for a mailbox with no special role.</param>
 /// <param name="AddAccount">A plus, for add-account.</param>
+/// <param name="Outbox">An outbound tray, for the Outbox row.</param>
 /// <param name="ForRole">The glyph for a folder's special role, supplied by the shell, which is
 /// where the codepoints live.</param>
 public readonly record struct SidebarGlyphs(
     string Account,
     string Folder,
     string AddAccount,
+    string Outbox,
     Func<SidebarFolderRole, string> ForRole);
 
 /// <summary>Reconciles the bound sidebar collection toward the model's current state.</summary>
@@ -56,6 +64,9 @@ public static class SidebarTree
 
     /// <summary>The tag of the "add another account" action.</summary>
     public const string AddAccountTag = "@add-account";
+
+    /// <summary>The tag of the Outbox row: every account's unsent messages, in one list.</summary>
+    public const string OutboxTag = "@outbox";
 
     /// <summary>The prefix an account entry's tag carries, ahead of the account id.</summary>
     public const string AccountTagPrefix = "acct:";
@@ -87,6 +98,8 @@ public static class SidebarTree
     /// <param name="unifiedUnread">The unified Inbox badge: every account's Inbox unread, summed.</param>
     /// <param name="unifiedExpanded">Whether the All Accounts group's tree is open, the core's own
     /// value (<c>MailboxListSnapshot.UnifiedExpanded</c>).</param>
+    /// <param name="queued">How many unsent messages are waiting, across every account. <c>0</c>
+    /// draws no Outbox row at all (rule 18).</param>
     /// <param name="isUnreachable">Whether an account's server couldn't be reached on its last sync.</param>
     /// <param name="onExpandedChanged">Where a user's chevron click goes, the shell dispatches it
     /// to the core, which persists it.</param>
@@ -99,11 +112,31 @@ public static class SidebarTree
         bool showFolders,
         uint unifiedUnread,
         bool unifiedExpanded,
+        uint queued,
         Func<string, bool> isUnreachable,
         Action<SidebarItem> onExpandedChanged,
         SidebarLabels labels,
         SidebarGlyphs glyphs)
     {
+        var wanted = new List<SidebarItem>(accounts.Count + 3);
+
+        // The Outbox, above everything, and **only while something is in it** (rule 18). Not
+        // inside a tree, because it is not a folder on anybody's server, and not per account,
+        // because "did that go?" is not a question about a particular mailbox. Its badge is the
+        // one number in this pane that counts something other than unread mail.
+        if (queued > 0)
+        {
+            var outbox = Existing(target, OutboxTag) ?? new SidebarItem
+            {
+                Tag = OutboxTag,
+                Glyph = glyphs.Outbox,
+            };
+            outbox.Content = labels.Outbox;
+            outbox.Unread = queued;
+            outbox.UnreadLabel = labels.QueuedLabel(queued);
+            wanted.Add(outbox);
+        }
+
         // The group's heading. No glyph and no destination: its row IS the disclosure control
         // (rule 17), and an icon beside the accounts' would read as one more account row, which is
         // the thing that rule exists to prevent. The chevron the framework draws for an item with
@@ -120,7 +153,7 @@ public static class SidebarTree
         // it to the core again as a "user toggled it" is a rebuild per refresh.
         group.ApplyExpanded(showFolders && unifiedExpanded);
         ReconcileUnified(group.Children, showFolders, unifiedUnread, labels, glyphs);
-        var wanted = new List<SidebarItem>(accounts.Count + 2) { group };
+        wanted.Add(group);
 
         foreach (var account in accounts)
         {

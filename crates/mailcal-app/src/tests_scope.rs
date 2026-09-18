@@ -13,9 +13,9 @@ use fakes::{
     FakeConnector, FakeProvider, FlakyConnector, ObservingConnector, account, app,
     app_with_connector, flat_subjects, message, open_folder,
 };
-use mailcal_viewmodel::SnapshotRow;
+use mailcal_viewmodel::{SnapshotRow, ViewMode};
 
-use super::{Intent, Surface};
+use super::{Intent, OutboxIntent, Surface};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -347,4 +347,46 @@ async fn removing_the_selected_account_falls_back_to_the_unified_inbox() {
     assert!(snapshot.selected_account.is_none());
     assert_eq!(snapshot.accounts.len(), 1);
     assert_eq!(snapshot.accounts[0].id, "home");
+}
+
+/// The Outbox is a scope over the **list**, and the pane keeps everything it had.
+///
+/// The pane is drawn in every view mode (`docs/folder-pane.md`, rule 1), so the fields it
+/// renders are owed by a snapshot that builds no mail list at all. Both of these are silent
+/// when wrong: the All Inboxes badge blinks out for as long as the Outbox is open, and a
+/// client mirroring the view mode is told the user has just switched to a flat list, which
+/// is what the Settings radio then shows them.
+#[tokio::test]
+async fn showing_the_outbox_leaves_the_pane_as_it_was() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        vec![account(
+            "acct-1",
+            FakeProvider::with_unread(vec![message("m1", "a", "From one")], 5),
+        )],
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(Intent::SetViewMode(ViewMode::Threaded)).await;
+    assert_eq!(app.mailbox_list().unified_unread, 5);
+
+    app.dispatch(Intent::Outbox(OutboxIntent::Show)).await;
+
+    let snapshot = app.mailbox_list();
+    assert!(snapshot.showing_outbox);
+    assert_eq!(
+        snapshot.unified_unread, 5,
+        "the badge counts the server's unread mail, which the Outbox says nothing about"
+    );
+    assert_eq!(
+        snapshot.mode,
+        ViewMode::Threaded,
+        "grouping is the user's setting, not a property of the list on screen"
+    );
+    assert_eq!(snapshot.accounts.len(), 1);
+    assert_eq!(
+        snapshot.account_folders.len(),
+        1,
+        "the trees stay on screen"
+    );
 }

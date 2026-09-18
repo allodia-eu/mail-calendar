@@ -129,6 +129,24 @@ namespace Allodia
 '@
 }
 
+# Guarded like UiaDpi above, and separate from it because moving the pointer is a different
+# question from measuring a window.
+if (-not ('Allodia.UiaPointer' -as [type])) {
+  Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+namespace Allodia
+{
+    /// <summary>Moving the pointer, for the rules about what a surface draws underneath it.</summary>
+    public static class UiaPointer
+    {
+        [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, int data, UIntPtr extra);
+    }
+}
+'@
+}
+
 Set-Variable -Name UiaElement -Value ([System.Windows.Automation.AutomationElement]) -Scope Script
 Set-Variable -Name UiaChildren -Value ([System.Windows.Automation.TreeScope]::Children) -Scope Script
 Set-Variable -Name UiaAny -Value ([System.Windows.Automation.Condition]::TrueCondition) -Scope Script
@@ -204,6 +222,50 @@ function Get-BrandAppTitle {
 
 <#
 .SYNOPSIS
+A window's minimise / maximise / close buttons, keyed by automation id.
+.DESCRIPTION
+The SYSTEM draws these, on a surface that is not in the XAML tree, so they are NOT under the app's
+own caption control and a search scoped to it finds none of them. They sit in a pane of the window's
+own, which is why $Root is a WINDOW here (default: the mailbox) and never #AppTitleBar.
+
+They are the part of a custom caption that most easily ends up wrong while everything else about it
+is right, because nothing but a rendered window says so: a window either asks for them to match the
+caption's height or gets 32 epx ones, a third of a row above the icon and the name beside them.
+#>
+function Get-CaptionButtons {
+  param([object] $Root)
+  $buttons = [ordered] @{}
+  foreach ($id in 'Minimize', 'Maximize', 'Close') {
+    $button = Find-UiaElement -AutomationId $id -Type 'Button' -Root $Root
+    if (-not $button) {
+      throw "the window carries no '$id' caption button. Extending into the caption hides the " +
+        'system strip and leaves these three in place; a window that lost them cannot be closed ' +
+        'with a pointer at all'
+    }
+    $buttons[$id] = $button
+  }
+  $buttons
+}
+
+<#
+.SYNOPSIS
+How tall a caption is in this app, in the logical units XAML is written in.
+.DESCRIPTION
+Read out of App.xaml, where every window's caption reads it from (Services/WindowCaption.cs), rather
+than written here again: a suite carrying its own copy of the number asserts that the app matches
+the SUITE, and stays green on the day the two stop agreeing.
+#>
+function Get-CaptionHeightDip {
+  $appXaml = Join-Path $PSScriptRoot 'Mailcal/App.xaml'
+  if (-not (Test-Path -LiteralPath $appXaml)) { throw "no $appXaml to read the caption height from" }
+  $value = ([xml] (Get-Content -Raw -LiteralPath $appXaml)).SelectSingleNode(
+    "//*[local-name()='Double'][@*[local-name()='Key']='AppCaptionHeight']")
+  if (-not $value) { throw "$appXaml no longer defines AppCaptionHeight" }
+  [double] $value.InnerText
+}
+
+<#
+.SYNOPSIS
 The desktop's size in the LOGICAL units a XAML window is sized in: @(width, height).
 .DESCRIPTION
 For the one question that has to be answered before the app exists: is this desktop big enough to
@@ -256,6 +318,56 @@ function Get-RenderedBounds {
     throw "$What is in the tree but not rendered (bounds $rect), a collapsed element cannot be measured"
   }
   $rect
+}
+
+<#
+.SYNOPSIS
+Put the pointer on the centre of $Element, the way a hand arrives at it, and return @(x, y).
+.DESCRIPTION
+ABSOLUTE `mouse_event` injections, never SetCursorPos. WinUI's pointer stack acts on an injected
+move, and a bare cursor warp leaves the element with no pointer-over at all: measured 4 times out of
+4, a row that the cursor was sitting on top of drew no hover state and raised no tooltip. A hover
+rule written that way passes against a build that draws whatever it likes under the pointer, which
+is the exact shape of false pass this whole suite exists to refuse.
+
+It travels in steps for a second reason: a tooltip's delay starts when the pointer ENTERS, so a
+single jump that lands already inside can leave nothing to wait for.
+#>
+function Move-UiaPointerOnto {
+  param(
+    [object] $Element,
+    [Parameter(Mandatory)] [string] $What,
+    [int] $Steps = 14,
+    [int] $StepMs = 80
+  )
+  Add-Type -AssemblyName System.Windows.Forms
+  $bounds = Get-RenderedBounds -Element $Element -What $What
+  $toX = [int]($bounds.X + ($bounds.Width * 0.45))
+  $toY = [int]($bounds.Y + ($bounds.Height / 2))
+  $fromX = [int]($bounds.X + ($bounds.Width * 0.08))
+  $screen = [System.Windows.Forms.SystemInformation]::VirtualScreen
+  foreach ($step in 0..$Steps) {
+    $x = [int]($fromX + ($step * (($toX - $fromX) / $Steps)))
+    # Normalised to the whole virtual desktop, which is what MOUSEEVENTF_VIRTUALDESK reads.
+    $nx = [int](($x - $screen.Left) * 65535 / ($screen.Width - 1))
+    $ny = [int](($toY - $screen.Top) * 65535 / ($screen.Height - 1))
+    # MOVE | ABSOLUTE | VIRTUALDESK
+    [Allodia.UiaPointer]::mouse_event((0x0001 -bor 0x8000 -bor 0x4000), $nx, $ny, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds $StepMs
+  }
+  @($toX, $toY)
+}
+
+<#
+.SYNOPSIS
+Every tooltip the app has on screen right now, as @(element).
+.DESCRIPTION
+Walked from the main window rather than from the desktop: a WinUI tooltip lives in a popup of its
+own (a `PopupHost` site bridge), and that popup hangs off the window in the control view, so one
+walk finds both the window's own elements and anything floating over it.
+#>
+function Get-UiaToolTips {
+  @(Get-UiaTree | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::ToolTip })
 }
 
 <#

@@ -17,6 +17,8 @@ use super::{
 // 500-line limit. A child module, so it reaches the parent's imports through `super`.
 #[path = "mail_ops_fake_provider.rs"]
 mod fake;
+#[path = "outbox_tests.rs"]
+mod outbox_tests;
 
 use fake::SubmitProvider;
 

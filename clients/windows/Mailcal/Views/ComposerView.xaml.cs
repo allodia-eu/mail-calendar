@@ -30,7 +30,7 @@ public sealed partial class ComposerView : UserControl
 {
     private readonly List<PickedComposerAttachment> _attachments = new();
     private MailboxModel? _model;
-    private ComposeRequest? _request;
+    private ComposeContext? _request;
     private Action? _onDone;
 
     // The hardened host of the shared editor bundle, the same one the Settings signature editor
@@ -67,7 +67,7 @@ public sealed partial class ComposerView : UserControl
     /// <summary>Binds the composer to a request and starts loading the editor. <paramref name="onDone"/>
     /// is invoked once the composer is finished, after a successful send, or on Cancel, and the
     /// shell restores the reading pane.</summary>
-    internal void Init(MailboxModel model, ComposeRequest request, Action onDone)
+    internal void Init(MailboxModel model, ComposeContext request, Action onDone)
     {
         _model = model;
         _request = request;
