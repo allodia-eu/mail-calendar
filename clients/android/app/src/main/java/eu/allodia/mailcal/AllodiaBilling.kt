@@ -5,11 +5,10 @@
 // subscription, launching the billing flow, collecting what Play still reports, and acknowledging
 // a purchase once the core says it has been granted.
 //
-// ⚠️ **This client never acknowledges a purchase.** The account service does it, as the last step
-// of attaching the purchase, because acknowledging is the thing that must not happen before the
-// subscription exists: Play refunds an unacknowledged purchase after three days, which is exactly
-// the right outcome for one that could not be attached. Acknowledging here as well would be a
-// second place that could get the order wrong, for no gain.
+// ⚠️ **This client never acknowledges a purchase.** It is acknowledged once the purchase has been
+// attached to the account, and not before: Play refunds an unacknowledged purchase after three
+// days, which is exactly the right outcome for one that could not be attached. Acknowledging here
+// would throw that away and grant nothing in return.
 //
 // What is handed over is Play's **purchase token**, which is the whole of what the service takes.
 // It reads every fact about the subscription back from the Play Developer API with a service
@@ -19,6 +18,7 @@ package eu.allodia.mailcal
 import android.app.Activity
 import android.content.Context
 import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.PendingPurchasesParams
@@ -52,8 +52,9 @@ internal sealed interface AllodiaPurchaseOutcome {
 
 // Google Play, as this app uses it.
 //
-// One per app. The connection is re-established on demand rather than held open, because Play
-// drops it at will and every call has to cope with that anyway.
+// One per app. Play drops the connection at will, and since Billing 8 the library re-establishes
+// it: `enableAutoServiceReconnection` below means a call made while disconnected reconnects rather
+// than failing, so what is left here is the first connection and nothing else.
 internal class AllodiaBilling(
     context: Context,
     private val catalogue: List<AllodiaStoreProduct>,
@@ -81,6 +82,10 @@ internal class AllodiaBilling(
     private val client: BillingClient =
         BillingClient.newBuilder(context)
             .setListener(listener)
+            // The library retries a call made while the service is disconnected, which is every
+            // call here: Play drops the connection whenever it updates itself. Without it each of
+            // those surfaces as a failure a person would read as "the purchase did not work".
+            .enableAutoServiceReconnection()
             // Required since Billing 5: a client built without it throws on the first call. The
             // params have to declare at least one product type, and this app sells only
             // auto-renewing subscriptions, which are never pending, so what is declared here
@@ -119,7 +124,7 @@ internal class AllodiaBilling(
     // Launches the billing flow for one period and waits for Play to report the result.
     //
     // What comes back is **not** a granted subscription. The core attaches it to the account
-    // first, and the service acknowledges it with Play as the last step of doing so.
+    // first, and only an attached purchase is acknowledged with Play.
     suspend fun buy(activity: Activity, plan: AllodiaPlan): AllodiaPurchaseOutcome {
         val details = productDetails() ?: return AllodiaPurchaseOutcome.Unavailable("no products")
         val basePlan =
@@ -158,7 +163,7 @@ internal class AllodiaBilling(
             BillingClient.BillingResponseCode.OK ->
                 AllodiaPurchaseOutcome.Bought(purchases.flatMap(::purchasesFrom))
             BillingClient.BillingResponseCode.USER_CANCELED -> AllodiaPurchaseOutcome.Cancelled
-            else -> AllodiaPurchaseOutcome.Unavailable(result.debugMessage)
+            else -> AllodiaPurchaseOutcome.Unavailable(reasonFrom(result))
         }
     }
 
@@ -201,11 +206,17 @@ internal class AllodiaBilling(
         return result.productDetailsList?.firstOrNull()
     }
 
+    // The first connection. Transient drops after it are the library's to retry.
+    //
+    // ⚠️ **A device with no Play Store answers here, and it is not an error.** Billing 9 reports a
+    // Play Store that is absent or blocked as `BILLING_UNAVAILABLE` rather than the generic
+    // `ERROR` that Billing 8 used, so every non-OK answer is treated the same way: false, and the
+    // caller offers the routes that do not need Play.
     private suspend fun connect(): Boolean {
         if (client.isReady) return true
         val connected = CompletableDeferred<Boolean>()
         client.startConnection(
-            object : com.android.billingclient.api.BillingClientStateListener {
+            object : BillingClientStateListener {
                 override fun onBillingSetupFinished(result: BillingResult) {
                     connected.complete(
                         result.responseCode == BillingClient.BillingResponseCode.OK
@@ -219,6 +230,22 @@ internal class AllodiaBilling(
         )
         return connected.await()
     }
+
+    // Why a flow ended the way it did, for a diagnostic and never for a person to read.
+    //
+    // Billing 9 adds a sub-response code to the result the purchase listener receives, which is the
+    // difference between "the card was declined" and "this offer is not for you". Folded in here so
+    // the reason is not lost; what anybody is actually told is a client's to compose, because
+    // `debugMessage` is Play's own text and was not written for a reader.
+    private fun reasonFrom(result: BillingResult): String =
+        when (result.onPurchasesUpdatedSubResponseCode) {
+            BillingClient.OnPurchasesUpdatedSubResponseCode
+                .PAYMENT_DECLINED_DUE_TO_INSUFFICIENT_FUNDS ->
+                "insufficient funds: ${result.debugMessage}"
+            BillingClient.OnPurchasesUpdatedSubResponseCode.USER_INELIGIBLE ->
+                "not eligible for this offer: ${result.debugMessage}"
+            else -> result.debugMessage
+        }
 
     // What the core carries to the account service, one entry per purchase.
     //

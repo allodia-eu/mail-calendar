@@ -469,10 +469,16 @@ dependencies {
     // the suspending `queryProductDetails`/`queryPurchasesAsync`/`acknowledgePurchase` the billing
     // code here awaits; the base artifact has only the listener callbacks.
     //
+    // ⚠️ **It needs the Play Store app on the device, not merely this dependency.** The library is
+    // a stub that binds to `com.android.vending` over IPC, so on a build with no Play Store it can
+    // only answer `BILLING_UNAVAILABLE`. `AllodiaBilling` treats that as "no Play offers" rather
+    // than an error, and `purchasing.md` carries what a build distributed outside Play still owes
+    // a person who wants to pay.
+    //
     // It ships in every build, branded or not. Nothing calls it without a purchase surface, and a
     // dependency that came and went with an injected credential would make the two builds diverge
     // in their dependency graph rather than only in what they offer.
-    implementation("com.android.billingclient:billing-ktx:8.0.0")
+    implementation("com.android.billingclient:billing-ktx:9.1.0")
 
     // ---- Tests -------------------------------------------------------------------------------
     // The client's tests run on the JVM (`./gradlew :app:test`), never on a device: Robolectric
