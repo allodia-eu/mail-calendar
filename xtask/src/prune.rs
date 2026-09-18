@@ -65,7 +65,7 @@ fn roots(root: &Path) -> Vec<PathBuf> {
 /// Asked rather than read out of the config file, because the setting takes placeholders and can be
 /// overridden by an ancestor config or the environment. `None` when cargo cannot say, which is what
 /// the prune's own tests see.
-fn build_directory(root: &Path) -> Option<PathBuf> {
+pub(crate) fn build_directory(root: &Path) -> Option<PathBuf> {
     let output = Command::new("cargo")
         .args(["metadata", "--format-version", "1", "--no-deps"])
         .current_dir(root)

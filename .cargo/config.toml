@@ -40,9 +40,15 @@ xtask = 'run --config build.build-dir="{workspace-root}/target" --package xtask 
 # cannot satisfy, which is what a freshly created worktree is in line for, its files being the
 # newest thing that has not been compiled yet.
 #
-# `cargo xtask` is carved out of it by the alias above, so the gate at least is always this tree's.
-# Nothing else is. When a result cannot be squared with the diff, re-run the step with
-# `CARGO_BUILD_BUILD_DIR` pointed somewhere private before believing either answer.
+# The gate is held out of it from both ends: the alias above builds `xtask` here, so the gate is
+# this tree's own binary, and a gate run claims this directory before it judges anything, running
+# `cargo clean --workspace` when another checkout claimed it last. That drops the members'
+# artifacts, which are the ones that collide, and leaves every dependency compiled, which is the
+# whole of what the sharing buys. `xtask/src/shared_build.rs` holds it.
+#
+# A `cargo test` or `cargo build` typed by hand claims nothing and is not covered. When a result
+# cannot be squared with the diff, run the gate, or re-run the step with `CARGO_BUILD_BUILD_DIR`
+# pointed somewhere private.
 #
 # ⚠️ **Sharing the directory means never baking an absolute path into a compiled artifact.** The
 # cache key does not carry the worktree, so a test executable or example compiled by one checkout

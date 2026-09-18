@@ -32,7 +32,7 @@
 
 use std::{io::IsTerminal, path::Path, process::ExitCode};
 
-use crate::{gate_steps, prune};
+use crate::{gate_steps, prune, shared_build};
 
 /// What became of one step.
 #[derive(Debug)]
@@ -104,6 +104,9 @@ pub(crate) fn run(root: &Path, args: &[String]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     }
+
+    // Before anything is judged, so no step reports on a build another checkout left behind.
+    shared_build::claim(root);
 
     let palette = Palette::detect();
     let mut results: Vec<Step> = Vec::new();
