@@ -433,7 +433,8 @@ val coreNativeSymbols = tasks.register<CoreNativeSymbolsTask>("coreNativeSymbols
 // empty ComponentActivity that `ui-test-manifest` contributes, and that artifact is a
 // `debugImplementation`, adding it to release would merge a test activity into the shipped
 // manifest. Running the same sources twice buys nothing, so the release unit-test variant is
-// switched off and `./gradlew test` means `testDebugUnitTest`.
+// switched off, so `./gradlew test` means the debug unit tests of **both** flavours:
+// `testPlayDebugUnitTest` and `testFossDebugUnitTest`.
 androidComponents {
     beforeVariants(selector().withBuildType("release")) { variant ->
         variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
