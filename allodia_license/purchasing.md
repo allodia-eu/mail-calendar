@@ -271,11 +271,12 @@ reachable through a gate the app controls.
 What can be said in its favour is narrow and worth stating precisely: the dispatch carries a
 product identifier and nothing else, the counterparty is the platform the person already bought
 their device from and is already signed in to, it happens only when they tap a purchase button,
-and [`../docs/privacy-policy.md`](../docs/privacy-policy.md) §9 already describes the stores as
-independent controllers under their own policies.
+and [`../docs/privacy-policy.md`](../docs/privacy-policy.md) §§9 and 10 describe the stores as
+independent controllers under their own policies, and name the one transfer verifying a purchase
+makes.
 
 That is an argument for a carve-out, not a carve-out. It has not been made, and **no purchase
-surface ships until it is**, along with the privacy-policy change below.
+surface ships until it is**, nor until the published policy below matches.
 
 ## What a client calls
 
@@ -358,10 +359,12 @@ are the half where being wrong costs somebody money and the half that is least p
   adding it later needs no service change.
 - **The sovereignty carve-out has not been made**, and the section above says what it would have
   to argue.
-- **The privacy policy does not describe this.** §9 covers buying from a store as the store's own
-  processing; it does not cover Allodia receiving a transaction identifier and attaching it to an
-  account, nor Allodia's own checkout processing a payment. The pledge forbids shipping a hosted
-  service the policy does not describe, and every catalog locale moves in the same change.
+- ⚠️ **The privacy policy describes this, and the published mirror does not yet.**
+  [`docs/privacy-policy.md`](../docs/privacy-policy.md) §10 covers all three routes as of version
+  2.4, in both locales. The page at `allodia.eu/privacy/mail-calendar` renders a vendored mirror in
+  the website's own repository, which this repo cannot update: **publishing it precedes shipping a
+  purchase surface**, because until it is published the policy a user can read is the one that does
+  not describe this.
 - **Neither store's link-out has been applied for**, so the shape above is written against
   programmes this app is not enrolled in.
 - ⚠️ **A store the service has not sent before would read as the App Store.** `source` in the
