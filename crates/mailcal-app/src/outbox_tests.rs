@@ -39,8 +39,12 @@ async fn outbox_holding(app: &Arc<App<SubmitProvider>>, count: usize) -> Vec<Que
 
 /// **The regression.** A send that fails for a reason worth retrying is not lost: it reaches
 /// its own status, and the message is in the Outbox with its recipients and subject intact.
+///
+/// The **server** is what is not answering here; the device is online, so the write follow-up
+/// syncs and republishes on its way past. The case where the device itself is offline is the
+/// one below, and it is a different code path.
 #[tokio::test(start_paused = true)]
-async fn a_send_with_no_network_is_kept_in_the_outbox() {
+async fn a_send_the_server_refused_is_kept_in_the_outbox() {
     let app = app_over(SubmitProvider::offline());
 
     let task = dispatch_until(&app, plain_send(), SendStatus::Queued).await;
@@ -52,6 +56,28 @@ async fn a_send_with_no_network_is_kept_in_the_outbox() {
     assert_eq!(queued.to, "you@test.local");
     assert_eq!(queued.account, "acct-1");
     assert_eq!(queued.attempts, 1);
+    task.await.unwrap();
+}
+
+/// **The airplane-mode case, and the one a user actually meets.** A device with no network is
+/// the ordinary reason a send queues, and it was the one case where the Outbox stayed empty:
+/// the write follow-up has no server to re-read, returned without republishing the list, and
+/// nothing else was going to rebuild it while the network was down. So the send hint said
+/// "waiting to send" and the pane offered nowhere to look, until reconnecting fixed both at
+/// once and hid the whole thing.
+///
+/// The queue is in the store, not on a server, so it is knowable offline and must be shown.
+#[tokio::test(start_paused = true)]
+async fn a_send_queued_with_the_device_offline_still_reaches_the_outbox() {
+    let app = app_over(SubmitProvider::offline());
+    app.dispatch(Intent::ReportNetworkReachable(false)).await;
+
+    let task = dispatch_until(&app, plain_send(), SendStatus::Queued).await;
+    assert_eq!(app.send_status(), SendStatus::Queued);
+
+    let outbox = outbox_holding(&app, 1).await;
+    assert_eq!(outbox[0].subject, "Hi");
+    assert_eq!(outbox[0].to, "you@test.local");
     task.await.unwrap();
 }
 

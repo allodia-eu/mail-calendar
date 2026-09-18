@@ -39,6 +39,12 @@ queue the engine owns, and goes out by itself when it can.
   retryable class parks the op and everything else settles it (`store-and-sync.md`). The core
   asks the queue whether the message is still there rather than re-reading the error, so
   there is one rule, in the one place that owns it.
+- **A queued message is on screen the moment it queues, offline included.** The queue lives
+  in the store, not on a server, so being offline is no reason not to show it, and offline is
+  the ordinary reason a send queues in the first place. The follow-up after a write skips its
+  sync while the device is offline, which is right (there is nothing to read), but it must
+  still republish the list: without that the send hint says "waiting to send" while the pane
+  offers nowhere to look, and reconnecting hides the evidence by fixing both at once.
 - **The queue drains on three signals and no timer**: the device coming back online, the end
   of every sync pass, and the user pressing Send now. A timer would wake a dead network on a
   battery, and the reachability signal alone is not enough: a *server* outage with no device

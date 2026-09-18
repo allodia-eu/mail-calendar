@@ -207,10 +207,21 @@ impl<P: Provider> App<P> {
     /// meanwhile is what their poll timers and standing IDLE watches are for. Says nothing on
     /// either progress surface: a bar or a hint over the user's own archive is a row of layout
     /// appearing under their finger; see [`begin_sync_labeled`](App::begin_sync_labeled).
+    /// **A skipped sync still owes the list a republish.** `refresh_account_once` returns
+    /// without one while the device is offline, which is precisely when a send queues: the
+    /// Outbox is in the store rather than on a server, so the row a user is told to look for
+    /// would not appear until something else rebuilt, and nothing else is going to while the
+    /// network is down (`docs/sending.md`). The body prefetch stays behind the network, being
+    /// the only part of this that needs one.
     pub(crate) async fn refresh_after_write(&self, id: &AccountId) {
-        let _ = self
+        if self
             .refresh_account_once(id, "write-follow-up", false)
-            .await;
+            .await
+            .is_none()
+        {
+            self.rebuild_snapshot().await;
+            return;
+        }
         self.prefetch_account_bodies(id).await;
     }
 
