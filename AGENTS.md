@@ -115,14 +115,15 @@ attention, human or agent alike. Write the fact, not the story around it.
   must pass an in-process jurisdiction check **before data leaves**: never a perimeter it can route
   around, never air-gapped-exempt. ⚠️ `JurisdictionGate` is the named seam and **is not yet in
   code**, so the rule binds design rather than a call site: nothing new may ship a dispatch that
-  would have to route around it. Four carve-outs exist, each stated with the condition that ends it
+  would have to route around it. Five carve-outs exist, each stated with the condition that ends it
   in the doc
   that owns it: connecting a mail account
   ([`docs/provider-oauth.md`](docs/provider-oauth.md)), consented analytics
   ([`docs/analytics.md`](docs/analytics.md)), signing in to an Allodia account
-  ([`allodia_license/entitlement.md`](allodia_license/entitlement.md)) and the local MCP server
-  ([`docs/mcp.md`](docs/mcp.md)), each under "Sovereignty scope". Adding a fifth is a decision, not
-  a refactor.
+  ([`allodia_license/entitlement.md`](allodia_license/entitlement.md)), the local MCP server
+  ([`docs/mcp.md`](docs/mcp.md)) and buying from the store that distributed the build
+  ([`allodia_license/purchasing.md`](allodia_license/purchasing.md)), each under
+  "Sovereignty scope". Adding a sixth is a decision, not a refactor.
 - **Voice.** User-facing copy is clear, plain and anti-hype, and the product is named
   "Allodia Mail & Calendar", never "Allodia" alone.
 - **Security.** Encryption at rest, data classification, MFA for privileged access, secrets in the

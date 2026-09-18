@@ -317,26 +317,41 @@ Two obligations that are review-blocking rather than optional, and one that turn
 
 ## Sovereignty scope
 
-⚠️ **Undecided, and it is a decision rather than a refactor.**
-[`../AGENTS.md`](../AGENTS.md) requires every external dispatch to pass the `JurisdictionGate` or
-to earn a dated, condition-bounded carve-out, and lists four. A store purchase would be a fifth:
-StoreKit and Play Billing dispatch to Apple and Google, neither of them EU-hosted, and neither
-reachable through a gate the app controls.
+**Buying from the store that distributed the build is a carve-out from the `JurisdictionGate`**,
+the fifth [`../AGENTS.md`](../AGENTS.md) carries. Decided 2026-09-18.
 
-What can be said in its favour is narrow and worth stating precisely: the dispatch carries a
-product identifier and nothing else, the counterparty is the platform the person already bought
-their device from and is already signed in to, it happens only when they tap a purchase button,
-and [`../docs/privacy-policy.md`](../docs/privacy-policy.md) §§9 and 10 describe the stores as
+**What it covers.** A purchase dispatched to Apple through StoreKit or to Google through Play
+Billing, and nothing else. The dispatch carries a product identifier and the account id the
+purchase is tagged with; it happens only when somebody presses a purchase button; and the
+counterparty is the platform the person bought their device from and is already signed in to.
+[`../docs/privacy-policy.md`](../docs/privacy-policy.md) §§9 and 10 describe both stores as
 independent controllers processing the purchase under their own policies.
 
-⚠️ **The transfer the policy names in §12 is a different one, and arguing the two as one would
-grant this carve-out on the strength of something it does not cover.** That transfer is the
-account service asking Apple or Google to verify a purchase, which happens on Allodia's side and
-leaves no device. `JurisdictionGate` governs what leaves the **app**, so the policy's account of
-that transfer neither supports this carve-out nor stands in its way.
+**Why it cannot be gated rather than carved out.** StoreKit and Play Billing reach Apple and
+Google through the operating system, not through a transport this app routes, so there is no point
+at which a gate could stand. It is a property of the platform rather than a choice this app makes,
+which is what separates it from a dispatch we could have routed and did not.
 
-That is an argument for a carve-out, not a carve-out. It has not been made, and **no purchase
-surface ships until it is**, nor until the published policy matches (the known gap below).
+⚠️ **It reaches only the builds those stores distribute.** Android's `foss` flavour sells through
+Allodia's own checkout, carries no Play Billing at all, and is therefore outside this entirely:
+reading the carve-out off the platform rather than the channel would grant it to a build that
+never makes the dispatch. The same rule as
+[the shop follows the channel](#the-shop-follows-the-channel-not-the-platform), for the same
+reason.
+
+**What ends it.** It lapses on a platform as soon as Allodia's own checkout is reachable from
+inside the app there, because the store dispatch is then no longer the only way to buy and the
+carve-out is no longer load-bearing. For EU storefronts that turns on the external-purchase-link
+entitlement, which is a date rather than a hope.
+
+⚠️ **The transfer the policy names in §12 is a different one, and arguing the two as one would
+rest this carve-out on something it does not cover.** That transfer is the account service asking
+Apple or Google to verify a purchase, which happens on Allodia's side and leaves no device.
+`JurisdictionGate` governs what leaves the **app**, so the policy's account of that transfer
+neither supports this carve-out nor stands in its way.
+
+⚠️ **The carve-out is not the last gate.** A purchase surface still does not ship until the
+published policy matches the one in this tree (the known gap below).
 
 ## What a client calls
 
@@ -384,9 +399,10 @@ which is why that row is ✅ for Android alone.
 **Apple's screen is 🚧 rather than ✅, and the distance is not code.** Settings → Allodia account
 draws the subscription: who is charging, until when, a retry that is not a lapse, every biller when
 more than one is charging, the store's own manage page, and the two periods with the store's own
-prices behind a buy button. What holds it at 🚧 is the sovereignty carve-out above and the
-unpublished policy mirror below, either of which alone forbids shipping it, plus the fact that no
-purchase has been made against the real App Store.
+prices behind a buy button, and a purchase has been made against the App Store **sandbox** end to
+end: taken, attached, granted, finished, and read back on a second platform that never saw it.
+What holds it at 🚧 is the unpublished policy mirror below, which alone forbids shipping it, and
+that no purchase has been made against the **production** store.
 
 **What each mark means here, precisely, because a matrix that overstates is worse than none.** The
 core's rules are unit-tested against a canned transport and a supplied clock.
@@ -459,8 +475,6 @@ are the half where being wrong costs somebody money and the half that is least p
 - **The invoice history is not modelled.** `GET /subscription` also returns each payment and what
   has been refunded of it; nothing draws that yet, and serde ignores what nothing asked for, so
   adding it later needs no service change.
-- **The sovereignty carve-out has not been made**, and the section above says what it would have
-  to argue.
 - ⚠️ **The privacy policy describes this, and the published mirror does not yet.**
   [`docs/privacy-policy.md`](../docs/privacy-policy.md) §10 covers all three routes as of version
   2.4, in both locales. The page at `allodia.eu/privacy/mail-calendar` renders a vendored mirror in
