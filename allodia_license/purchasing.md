@@ -396,13 +396,21 @@ has none, so on both the only route is Allodia's own checkout. **Android is two 
 compiled and tested by `:app:test` in the gate, and the `foss` one already opens the checkout,
 which is why that row is ✅ for Android alone.
 
-**Android's screen is 🚧 for a different reason: nothing has driven it.** Both flavours draw the
-same card, under the account it belongs to, and each gets the shop its flavour supplies without the
-card knowing which: `play` shows Play's own prices behind a buy button, `foss` shows Allodia's two
-prices and opens the checkout in a browser. What is unproven is everything past the drawing. Play
-answers nothing about products until the app is distributed by Play, so no price has been fetched,
-no sheet opened and no manage page reached on a real device, and the checkout page has still never
+**Android's screen is 🚧 because the shop half of it has nothing to show yet.** Both flavours draw
+the same card, under the account it belongs to, and each gets the shop its flavour supplies without
+the card knowing which: `play` shows Play's own prices behind a buy button, `foss` shows Allodia's
+two prices and opens the checkout in a browser. The `play` card has been driven on a physical
+device (2026-09-18) against the **production** account service: the read arrives and the free state
+is drawn. Play itself connects and then answers **no products at all**, which is the ordinary
+answer until the app is distributed by Play with a matching application id and signing, so no price
+has been fetched, no sheet opened and no manage page reached. The checkout page has still never
 been paid on.
+
+⚠️ **A sign-in older than the permission this read needs is an offer, not an outage**, and the
+first device this card was opened on had one. The remedies are opposites, so the read's failure
+alone may not decide the sentence: `allodia_grant_health` does, exactly as the account list's own
+failure does ([`entitlement.md`](entitlement.md)). Apple's screen does not make this distinction
+yet and draws the outage sentence for both.
 
 **Apple's screen is 🚧 rather than ✅, and the distance is not code.** Settings → Allodia account
 draws the subscription: who is charging, until when, a retry that is not a lapse, every biller when

@@ -107,6 +107,23 @@ class AllodiaSubscriptionCardTest {
     }
 
     /**
+     * ⚠️ A sign-in too old to carry the permission this read needs is an offer, not an outage.
+     *
+     * The two look identical from the failure alone, and the remedies are opposites: waiting fixes
+     * an outage and never fixes this one. Observed on a real device, whose grant predated the
+     * permission and which was told its subscription could not be checked "right now".
+     */
+    @Test
+    fun a_sign_in_too_old_to_read_the_subscription_offers_a_fresh_one() {
+        card(AllodiaSubscriptionUi(state = AllodiaSubscriptionState.NeedsReauth))
+        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_reauth))
+            .assertIsDisplayed()
+        compose.onNodeWithText(ctx().getString(R.string.settings_allodia_reauth_action))
+            .performClick()
+        assertEquals(1, signInsAgain)
+    }
+
+    /**
      * ⚠️ Both stores reject an app that puts a recurring charge behind a button without saying,
      * beside it, that it renews until cancelled.
      */

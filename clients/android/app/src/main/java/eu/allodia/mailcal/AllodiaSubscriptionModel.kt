@@ -35,6 +35,12 @@ internal sealed interface AllodiaSubscriptionState {
     // The read did not come back, or this deployment has no billing configured.
     data object Unavailable : AllodiaSubscriptionState
 
+    // The read could not be made at all, because this device's sign-in predates the permission it
+    // needs. An offer rather than an error: they are signed in, one thing is asleep, and the
+    // ordinary sign-in asks for the full current scope set. Kept apart from [Unavailable] because
+    // the remedies differ: waiting fixes an outage and never fixes this.
+    data object NeedsReauth : AllodiaSubscriptionState
+
     // The service answered.
     data class Loaded(val view: AllodiaSubscriptionView) : AllodiaSubscriptionState
 }

@@ -127,6 +127,11 @@ internal fun MainActivity.completeAllodiaSignIn(callbackUrl: String) {
                 // The first thing a new sign-in is for: this device's accounts go up, and whatever
                 // the person's other devices hold comes back.
                 activity.syncAllodiaAccounts()
+                // A sign-in is also the remedy the subscription card offers, for a grant that
+                // predates the permission that read needs or one recorded before the account id
+                // was. Re-read here, because the card asks once when it appears and somebody who
+                // took the remedy is still looking at it.
+                activity.refreshAllodiaSubscription()
             }
         } catch (e: Exception) {
             logUiWarn("allodia: sign-in did not complete (${e.message})")

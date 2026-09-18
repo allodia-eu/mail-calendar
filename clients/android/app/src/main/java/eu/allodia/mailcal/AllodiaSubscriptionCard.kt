@@ -98,6 +98,14 @@ internal fun AllodiaSubscriptionCard(
                 // whether a capability is on is `allodiaEntitlement`'s answer, and it is local.
                 AllodiaSubscriptionState.Unavailable ->
                     Secondary(L10n.settings_subscription_unavailable(ctx))
+                // An offer rather than an error: they are signed in and this one read is asleep,
+                // and the ordinary sign-in asks for the full current scope set.
+                AllodiaSubscriptionState.NeedsReauth -> {
+                    Secondary(L10n.settings_subscription_reauth(ctx))
+                    TextButton(onClick = onSignInAgain) {
+                        Text(L10n.settings_allodia_reauth_action(ctx))
+                    }
+                }
                 is AllodiaSubscriptionState.Loaded ->
                     Loaded(state.view, ui, onBuy, onManageStore, onSignInAgain)
             }

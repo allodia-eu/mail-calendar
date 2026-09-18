@@ -17,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import uniffi.mailcal_bindings.AllodiaGrantHealth
 import uniffi.mailcal_bindings.AllodiaPlan
 import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.MailcalApp
@@ -59,9 +60,19 @@ internal fun MainActivity.refreshAllodiaSubscription() {
             runCatching { withContext(Dispatchers.IO) { instance.allodiaSubscription() } }
                 .getOrNull()
         if (answer == null) {
-            logUiWarn("allodia: the subscription could not be read")
+            // ⚠️ **The core's typed answer decides what a failed read may say, never the
+            // failure's text.** A sign-in that predates the permission this read needs is an
+            // offer with a remedy, and drawing it as an outage tells somebody to wait for
+            // something that will never arrive.
+            val health = instance.allodiaGrantHealth()
+            logUiWarn("allodia: the subscription could not be read (grant is $health)")
             allodiaSubscription = allodiaSubscription.copy(
-                state = AllodiaSubscriptionState.Unavailable,
+                state =
+                    if (health == AllodiaGrantHealth.NEEDS_REAUTH) {
+                        AllodiaSubscriptionState.NeedsReauth
+                    } else {
+                        AllodiaSubscriptionState.Unavailable
+                    },
                 accountId = instance.allodiaAccount()?.id,
             )
             return@launch
