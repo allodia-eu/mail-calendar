@@ -122,7 +122,10 @@ pub use background_sync::{AccountNewMail, BackgroundSyncOutcome, NewMailPreview}
 pub use composer::{
     ComposerBlob, Recipients, forward_subject, render_composer_document_json, reply_subject,
 };
-pub use composer_files::{ComposerFileAttachment, composer_image_data_url};
+pub use composer_files::{
+    ComposerFileAttachment, MAX_INLINE_IMAGE_BYTES, composer_image_data_url,
+    composer_image_data_url_from_bytes,
+};
 pub(crate) use connected_account::ConnectedAccount;
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};
 pub use error::MailcalError;

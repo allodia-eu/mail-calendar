@@ -248,7 +248,8 @@ async fn rich_submit_renders_composer_and_resolves_blob_bytes() {
     assert!(html.starts_with("<!DOCTYPE html><html><head>"));
     assert!(html.ends_with("</body></html>"));
     assert!(html.contains(
-        "<p><strong>Hello </strong><img src=\"cid:chart@test.local\" alt=\"Chart\" width=\"320\"></p>"
+        "<p><strong>Hello </strong><img src=\"cid:chart@test.local\" alt=\"Chart\" \
+         width=\"320\" style=\"width: 320px; max-width: 100%\"></p>"
     ));
     assert_eq!(draft.attachments.len(), 2);
     assert_eq!(draft.attachments[0].content, vec![1, 2, 3]);

@@ -94,6 +94,7 @@
 	"action_retry": "Opnieuw",
 	"action_attach": "Bestanden toevoegen",
 	"action_copy_link": "Link kopiëren",
+	"action_paste": "Plakken",
 	"action_remove": "Verwijderen",
 	"action_save": "Opslaan",
 	"action_save_as_eml": "Opslaan als .eml…",

@@ -5,6 +5,12 @@
 //! authoring mail content. The one thing it does that the composer does not is insert an image as
 //! a self-contained `data:` URI: that is what a signature stores (one file, no side-car blobs to
 //! lose) and what the core rewrites to a `cid:` part on send.
+//!
+//! A picture reaches it three ways, and they end in one place ([`place`]): the Insert image button,
+//! and, because this toolkit's WebView tells the page nothing about the clipboard
+//! ([`crate::ui::editor_paste`]), a paste of pixels or of a copied file. A signature's rule is its
+//! own, not the message body's: [`signature_image`] caps it far lower, because a signature rides in
+//! every message the account sends.
 
 use std::{rc::Rc, sync::Arc};
 
@@ -19,6 +25,7 @@ use crate::{
     l10n,
     ui::{
         composer::{EDITOR_HTML, editor_labels},
+        editor_paste::{self, PasteAnswer, PastedPicture},
         signature_image::{self, SignatureImage},
         webview::{DocumentKind, SecureWebView},
     },
@@ -98,6 +105,11 @@ pub(super) fn open(ctx: &PageContext, editing: EditingSignature, on_saved: impl 
     let add_image = gtk::Button::with_label(l10n::settings_signatures_insert_image());
     connect_image_picker(&add_image, web.widget(), &error, &ctx.window);
     actions.append(&add_image);
+    // A pasted picture takes the same road as a picked one. The controller goes on the frame around
+    // the view, never on the view itself, for the reason `editor_paste::install` states.
+    let paste = paste_answer(web.widget(), &error);
+    editor_paste::install(&frame, web.widget(), paste.clone());
+    web.set_paste_handler(paste);
     // A signature with no name is a row the user cannot tell apart in the picker, so Save waits
     // for one.
     let save = gtk::Button::with_label(l10n::settings_signatures_save());
@@ -241,26 +253,7 @@ fn connect_image_picker(
                 return;
             };
             error.set_visible(false);
-            match read_image(&file).await {
-                SignatureImage::DataUrl { value, alt_text } => {
-                    let payload = json!({ "data_url": value, "alt_text": alt_text }).to_string();
-                    let argument = json!(payload).to_string();
-                    editor.evaluate_javascript(
-                        &format!("window.insertSignatureImage({argument});"),
-                        None,
-                        None,
-                        None::<&gio::Cancellable>,
-                        |_| {},
-                    );
-                }
-                SignatureImage::TooLarge => show(
-                    &error,
-                    &l10n::settings_signatures_image_too_large(&signature_image::format_limit()),
-                ),
-                SignatureImage::Failed => {
-                    show(&error, l10n::settings_signatures_image_failed());
-                }
-            }
+            place(&editor, &error, read_image(&file).await);
         });
     });
 }
@@ -313,6 +306,68 @@ fn image_filters() -> (gio::ListStore, gtk::FileFilter) {
     let filters = gio::ListStore::new::<gtk::FileFilter>();
     filters.append(&filter);
     (filters, filter)
+}
+
+/// Puts one read image into the signature at the caret, or says why it could not go in.
+///
+/// The three routes in (the button, a pasted picture, a pasted file) all end here, so the size
+/// message and the refusal read the same however the user offered the picture.
+fn place(editor: &webkit6::WebView, error: &gtk::Label, image: SignatureImage) {
+    match image {
+        SignatureImage::DataUrl { value, alt_text } => {
+            let payload = json!({ "data_url": value, "alt_text": alt_text }).to_string();
+            let argument = json!(payload).to_string();
+            editor.evaluate_javascript(
+                &format!("window.insertSignatureImage({argument});"),
+                None,
+                None,
+                None::<&gio::Cancellable>,
+                |_| {},
+            );
+        }
+        SignatureImage::TooLarge => show(
+            error,
+            &l10n::settings_signatures_image_too_large(&signature_image::format_limit()),
+        ),
+        SignatureImage::Failed => show(error, l10n::settings_signatures_image_failed()),
+    }
+}
+
+/// What a paste into the signature editor does.
+///
+/// Pixels are judged by the signature's own rule with no name to give them; a copied **file** is
+/// read exactly as the Insert image button reads a picked one, so a picture offered either way is
+/// measured and named the same. There is no attachment list here to fall back on, so a file that is
+/// not a picture the signature can take is refused with the line the button uses.
+fn paste_answer(editor: &webkit6::WebView, error: &gtk::Label) -> PasteAnswer {
+    let picture_editor = editor.clone();
+    let picture_error = error.clone();
+    let files_editor = editor.clone();
+    let files_error = error.clone();
+    PasteAnswer {
+        picture: Rc::new(move |picture: Option<PastedPicture>| {
+            picture_error.set_visible(false);
+            let read = picture.map_or(SignatureImage::Failed, |picture| {
+                signature_image::signature_image(&picture.bytes, Some(&picture.media_type), "")
+            });
+            place(&picture_editor, &picture_error, read);
+        }),
+        files: Rc::new(move |paths| {
+            if paths.is_empty() {
+                return false;
+            }
+            files_error.set_visible(false);
+            let editor = files_editor.clone();
+            let error = files_error.clone();
+            glib::MainContext::default().spawn_local(async move {
+                for path in paths {
+                    let image = read_image(&gio::File::for_path(&path)).await;
+                    place(&editor, &error, image);
+                }
+            });
+            true
+        }),
+    }
 }
 
 fn show(label: &gtk::Label, message: &str) {

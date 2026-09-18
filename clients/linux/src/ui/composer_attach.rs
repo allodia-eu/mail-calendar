@@ -120,45 +120,77 @@ pub(super) fn sort_drop(paths: Vec<PathBuf>) -> DroppedFiles {
     }
 }
 
-/// Accepts files dragged onto the composer. The question a picture raises is asked once for the
-/// whole drop, not once per file.
-pub(super) fn install_drop_target(
-    target: &impl IsA<gtk::Widget>,
+/// What a picture among the files is for, when the gesture already says.
+///
+/// A **drop** lands on the composer as a whole, so both answers are live and the user is asked. A
+/// **paste** lands at the caret: the user put the caret in the message and pressed Ctrl+V, which is
+/// already the answer, and a question there is a dialog between someone and the thing they just
+/// asked for. Everything that is not a picture is attached either way, because there is nothing
+/// else it could sensibly be.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum PictureAnswer {
+    Ask,
+    ShowInMessage,
+}
+
+/// What the composer does with files the user handed it, whichever way they arrived: dragged onto
+/// it, or copied and pasted. Answers whether there was anything to take.
+///
+/// One closure, built once, because a file handed over two ways is still the same file: a drop and
+/// a paste that answered it differently would be two rules for the user to learn and two places for
+/// the gates to drift apart.
+pub(super) type AcceptFiles = Rc<dyn Fn(Vec<PathBuf>) -> bool>;
+
+/// Builds that answer. The question a picture raises is asked once for the whole batch, not once
+/// per file.
+pub(super) fn accept_files(
+    answer: PictureAnswer,
     show: ShowPicture,
     list: &gtk::ListBox,
     files: &Rc<RefCell<Vec<PickedFile>>>,
     window: &impl IsA<gtk::Window>,
     error: &gtk::Label,
-) {
-    let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
-    // Capture, not bubble: the WebView installs a drop target of its own, and a bubble-phase
-    // controller on an ancestor would never run for a drop over the editor, which is most of the
-    // composer's area.
-    drop.set_propagation_phase(gtk::PropagationPhase::Capture);
+) -> AcceptFiles {
     let list = list.clone();
     let files = Rc::clone(files);
     let parent: gtk::Window = window.as_ref().clone();
     let error = error.clone();
-    drop.connect_drop(move |_, value, _, _| {
-        let Ok(dropped) = value.get::<gdk::FileList>() else {
-            return false;
-        };
-        let sorted = sort_drop(dropped.files().iter().filter_map(gio::File::path).collect());
+    Rc::new(move |paths: Vec<PathBuf>| {
+        let sorted = sort_drop(paths);
         if sorted.attach.is_empty() && sorted.pictures.is_empty() {
             return false;
         }
         attach_all(&sorted.attach, &list, &files);
-        if !sorted.pictures.is_empty() {
-            ask_and_place(
+        match (sorted.pictures.is_empty(), answer) {
+            (true, _) => {}
+            (false, PictureAnswer::Ask) => ask_and_place(
                 sorted.pictures,
                 Rc::clone(&show),
                 list.clone(),
                 Rc::clone(&files),
                 parent.clone(),
                 error.clone(),
-            );
+            ),
+            (false, PictureAnswer::ShowInMessage) => {
+                place_in_message(sorted.pictures, &show, &list, &files, &error);
+            }
         }
         true
+    })
+}
+
+/// Accepts files dragged onto the composer.
+pub(super) fn install_drop_target(target: &impl IsA<gtk::Widget>, accept: AcceptFiles) {
+    let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
+    // Capture, not bubble: the WebView installs a drop target of its own, and a bubble-phase
+    // controller on an ancestor would never run for a drop over the editor, which is most of the
+    // composer's area.
+    drop.set_propagation_phase(gtk::PropagationPhase::Capture);
+    drop.connect_drop(move |_, value, _, _| {
+        let Ok(dropped) = value.get::<gdk::FileList>() else {
+            return false;
+        };
+        accept(dropped.files().iter().filter_map(gio::File::path).collect())
     });
     target.as_ref().add_controller(drop);
 }
@@ -197,29 +229,36 @@ fn ask_and_place(
     glib::MainContext::default().spawn_local(async move {
         match dialog.choose_future(Some(&parent)).await.as_str() {
             RESPONSE_ATTACH => attach_all(&pictures, &list, &files),
-            RESPONSE_INLINE => {
-                // A picture the core cannot read as one is attached rather than dropped on the
-                // floor: the user asked for it to be in the message, and losing it silently would
-                // be the worse answer.
-                let mut unreadable = Vec::new();
-                for path in pictures {
-                    let read = mailcal_bindings::composer_image_data_url(
-                        path.to_string_lossy().into_owned(),
-                    );
-                    match read {
-                        Ok(data_url) => show(&path, &data_url),
-                        Err(_) => unreadable.push(path),
-                    }
-                }
-                if !unreadable.is_empty() {
-                    error.set_text(l10n::compose_image_failed());
-                    error.set_visible(true);
-                    attach_all(&unreadable, &list, &files);
-                }
-            }
+            RESPONSE_INLINE => place_in_message(pictures, &show, &list, &files, &error),
             _ => {}
         }
     });
+}
+
+/// Shows each picture in the message body.
+///
+/// A picture the core cannot read as one is **attached** rather than dropped on the floor: the user
+/// asked for it to be in the message, and losing it silently would be the worse answer.
+fn place_in_message(
+    pictures: Vec<PathBuf>,
+    show: &ShowPicture,
+    list: &gtk::ListBox,
+    files: &Rc<RefCell<Vec<PickedFile>>>,
+    error: &gtk::Label,
+) {
+    let mut unreadable = Vec::new();
+    for path in pictures {
+        let read = mailcal_bindings::composer_image_data_url(path.to_string_lossy().into_owned());
+        match read {
+            Ok(data_url) => show(&path, &data_url),
+            Err(_) => unreadable.push(path),
+        }
+    }
+    if !unreadable.is_empty() {
+        error.set_text(l10n::compose_image_failed());
+        error.set_visible(true);
+        attach_all(&unreadable, list, files);
+    }
 }
 
 /// Hands one picture to the shared editor, which inserts it at the caret and records the inline

@@ -15,13 +15,17 @@ use webkit6::prelude::WebViewExt;
 
 use super::{
     AppInput,
-    composer_attach::{connect_file_picker, install_drop_target, render_files, show_in_message},
+    composer_attach::{
+        PictureAnswer, accept_files, connect_file_picker, install_drop_target, render_files,
+        show_in_message,
+    },
     composer_draft::{DraftGuard, HeaderValues},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
     composer_model::{
         ComposeContext, ComposeKind, ComposerSubmission, PickedFile, plain_text_seed_script,
     },
     composer_signature::SignatureControl,
+    editor_paste,
     reader::ComposerHost,
     recipients::{self, RecipientField},
     webview::{DocumentKind, SecureWebView},
@@ -156,14 +160,28 @@ impl ComposerPane {
         content.append(&error);
 
         let web = SecureWebView::new(DocumentKind::Composer, sender.clone());
-        install_drop_target(
-            &content,
-            show_in_message(web.widget()),
-            &file_list,
-            &files,
-            window,
-            &error,
-        );
+        // One route into the composer for files, taken twice, so a drop and a paste differ in the
+        // one place they should: a drop asks what a picture is for, a paste has already been told.
+        let take_files = |answer| {
+            accept_files(
+                answer,
+                show_in_message(web.widget()),
+                &file_list,
+                &files,
+                window,
+                &error,
+            )
+        };
+        install_drop_target(&content, take_files(PictureAnswer::Ask));
+        // A pasted picture takes the same road as a dropped one, because this toolkit's WebView
+        // hands the page no clipboard files at all (`editor_paste`). The context menu's own item
+        // is one route into it; the chord is the other, and is wired below, once the box that
+        // holds the editor exists to carry the controller.
+        let paste = editor_paste::PasteAnswer {
+            picture: editor_paste::paste_into_message(web.widget(), &error),
+            files: take_files(PictureAnswer::ShowInMessage),
+        };
+        web.set_paste_handler(paste.clone());
         web.widget()
             .update_property(&[AccessibleProperty::Label(l10n::compose_body())]);
         let signature = request
@@ -178,6 +196,7 @@ impl ComposerPane {
         editor_host.set_hexpand(true);
         editor_host.set_vexpand(true);
         editor_host.append(web.widget());
+        editor_paste::install(&editor_host, web.widget(), paste);
         // Captured once the seeding script returns, so the guard measures the body against what
         // the quote and signature put there rather than against empty.
         let seed = Rc::new(RefCell::new(None));

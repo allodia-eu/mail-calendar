@@ -94,6 +94,7 @@
 	"action_retry": "Erneut versuchen",
 	"action_attach": "Dateien anhängen",
 	"action_copy_link": "Link kopieren",
+	"action_paste": "Einfügen",
 	"action_remove": "Entfernen",
 	"action_save": "Sichern",
 	"action_save_as_eml": "Als .eml sichern…",

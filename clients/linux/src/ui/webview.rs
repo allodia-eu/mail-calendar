@@ -31,6 +31,11 @@ pub(crate) struct SecureWebView {
     expecting_load: Rc<Cell<bool>>,
     last_document: Rc<std::cell::RefCell<Option<(String, bool)>>>,
     paint: Rc<std::cell::RefCell<PaintGate>>,
+    /// The composer's answer to a paste that carries a picture, which its context menu's Paste
+    /// needs (`super::editor_paste`). Held behind a cell because the handler wants the
+    /// composer's own error line, and that does not exist until the composer is built around
+    /// this view; a reading view never sets one.
+    paste: Rc<std::cell::RefCell<Option<super::editor_paste::PasteAnswer>>>,
 }
 
 /// Whether the document last handed to [`SecureWebView::load`] has finished painting.
@@ -117,7 +122,8 @@ impl SecureWebView {
         }
 
         let expecting_load = Rc::new(Cell::new(false));
-        install_navigation_gates(&view, kind, Rc::clone(&expecting_load));
+        let paste = Rc::new(std::cell::RefCell::new(None));
+        install_navigation_gates(&view, kind, Rc::clone(&expecting_load), Rc::clone(&paste));
         if kind == DocumentKind::Reading {
             install_zoom_gestures(&view);
         }
@@ -160,7 +166,14 @@ impl SecureWebView {
             expecting_load,
             last_document,
             paint,
+            paste,
         }
+    }
+
+    /// Gives the composer's editor its answer to a paste that carries a picture or a file, so the
+    /// context menu's Paste reaches the same place the Ctrl+V chord does.
+    pub(crate) fn set_paste_handler(&self, paste: super::editor_paste::PasteAnswer) {
+        self.paste.replace(Some(paste));
     }
 
     /// Whether the document last asked for is on screen; see [`PaintGate`].
@@ -239,8 +252,10 @@ impl SecureWebView {
 /// already in the user's language.
 fn build_context_menu(
     kind: DocumentKind,
+    view: &WebView,
     menu: &webkit6::ContextMenu,
     hit_test: &webkit6::HitTestResult,
+    paste: &Rc<std::cell::RefCell<Option<super::editor_paste::PasteAnswer>>>,
 ) -> bool {
     if kind != DocumentKind::Composer {
         return true;
@@ -252,13 +267,16 @@ fn build_context_menu(
         ));
         menu.append(&ContextMenuItem::new_separator());
     }
-    for action in [
-        ContextMenuAction::Cut,
-        ContextMenuAction::Copy,
-        ContextMenuAction::Paste,
-    ] {
+    for action in [ContextMenuAction::Cut, ContextMenuAction::Copy] {
         menu.append(&ContextMenuItem::from_stock_action(action));
     }
+    // Paste is the composer's own, because the stock one cannot put a picture in the message on
+    // this toolkit; it keeps the stock label and falls back to the stock behaviour for everything
+    // that is not a picture (`super::editor_paste`).
+    menu.append(&super::editor_paste::paste_menu_item(
+        view,
+        paste.borrow().as_ref(),
+    ));
     menu.append(&ContextMenuItem::new_separator());
     menu.append(&ContextMenuItem::from_stock_action(
         ContextMenuAction::SelectAll,
@@ -377,8 +395,15 @@ fn hardened_settings(kind: DocumentKind) -> Settings {
     settings
 }
 
-fn install_navigation_gates(view: &WebView, kind: DocumentKind, expecting_load: Rc<Cell<bool>>) {
-    view.connect_context_menu(move |_, menu, hit_test| build_context_menu(kind, menu, hit_test));
+fn install_navigation_gates(
+    view: &WebView,
+    kind: DocumentKind,
+    expecting_load: Rc<Cell<bool>>,
+    paste: Rc<std::cell::RefCell<Option<super::editor_paste::PasteAnswer>>>,
+) {
+    view.connect_context_menu(move |view, menu, hit_test| {
+        build_context_menu(kind, view, menu, hit_test, &paste)
+    });
     view.connect_create(|_, _| None);
     view.connect_permission_request(|_, request| {
         request.deny();

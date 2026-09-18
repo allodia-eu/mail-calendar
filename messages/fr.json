@@ -94,6 +94,7 @@
 	"action_retry": "Réessayer",
 	"action_attach": "Joindre des fichiers",
 	"action_copy_link": "Copier le lien",
+	"action_paste": "Coller",
 	"action_remove": "Retirer",
 	"action_save": "Enregistrer",
 	"action_save_as_eml": "Enregistrer au format .eml…",

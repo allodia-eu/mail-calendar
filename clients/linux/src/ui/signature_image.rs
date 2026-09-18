@@ -67,6 +67,31 @@ pub(super) fn format_limit() -> String {
 mod tests {
     use super::{LIMIT_BYTES, SignatureImage, format_limit, signature_image};
 
+    /// A picture pasted into a signature meets the **signature's** cap, not the message body's.
+    ///
+    /// The two differ by more than an order of magnitude on purpose: a picture in a message is sent
+    /// once, and a signature's is sent with every message the account ever sends. A paste reaching
+    /// the body's much larger cap here would put a megabyte behind every mail, so the rule a
+    /// pasted picture meets is this one, exactly as a picked file's is.
+    #[test]
+    fn a_pasted_picture_meets_the_signatures_own_cap() {
+        let over = usize::try_from(LIMIT_BYTES).expect("cap fits a usize") + 1;
+        assert_eq!(
+            signature_image(&vec![0_u8; over], Some("image/png"), ""),
+            SignatureImage::TooLarge
+        );
+        // Well within the signature's cap, and far below the body's.
+        assert!(matches!(
+            signature_image(b"\x89PNG\r\n\x1a\n", Some("image/png"), ""),
+            SignatureImage::DataUrl { .. }
+        ));
+        // A clipboard that declares something a signature may not embed is refused, not embedded.
+        assert_eq!(
+            signature_image(b"%PDF-1.7", Some("application/pdf"), ""),
+            SignatureImage::Failed
+        );
+    }
+
     #[test]
     fn an_image_within_the_cap_becomes_a_self_contained_data_uri() {
         let outcome = signature_image(&[0x01, 0x02, 0x03], Some("image/png"), "logo");
