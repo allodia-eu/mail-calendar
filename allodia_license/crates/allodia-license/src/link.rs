@@ -5,8 +5,8 @@
 //! the service, so nothing a device claims about what it bought is believed, and there is no
 //! signed payload for this repository to carry or to mistakenly parse.
 //!
-//! **What the device still owes the store afterwards is not the same on both.** The service
-//! acknowledges a Play purchase itself, which is what Play requires within three days or it
+//! **What the device still owes the store afterwards is not the same on both.** A Play purchase is
+//! acknowledged once it has been attached, which is what Play requires within three days or it
 //! refunds it. A StoreKit transaction can only be finished by the device that holds it, so on
 //! Apple that stays a client's job, and the order it happens in is the rule everything here exists
 //! for:
@@ -70,7 +70,7 @@ impl fmt::Debug for StorePurchase {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinkOutcome {
     /// Attached to the signed-in account. On Apple the client finishes the transaction; on Play
-    /// the service has already acknowledged it and there is nothing left to do.
+    /// it has already been acknowledged and there is nothing left to do.
     Linked,
     /// `owned_by_another_account`: already attached to a **different** Allodia account.
     ///
@@ -191,7 +191,7 @@ pub enum Settled {
     /// Done with, as far as the service is concerned.
     ///
     /// On Apple that means finishing the transaction, which only the device can do. On Play it
-    /// means nothing at all: the service acknowledged the purchase when it attached it.
+    /// means nothing at all: attaching the purchase is what acknowledged it.
     Settled,
     /// Leave it alone. It stays in the ledger and will come round again.
     Keep,

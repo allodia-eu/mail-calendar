@@ -2,10 +2,10 @@
 // starts one when Play reports a purchase this app did not just ask for.
 //
 // The rules are `purchasing.md`, the contract that ships beside the Allodia Licence. On this
-// platform a pass has one half rather than two: the service acknowledges a Play purchase itself
-// when it attaches it, so there is nothing for this client to do afterwards. What that buys is the
-// safety net: a purchase the service could not attach is never acknowledged by anybody, and Play
-// gives the money back after three days.
+// platform a pass has one half rather than two: a Play purchase is acknowledged once it has been
+// attached, so there is nothing for this client to do afterwards. What that buys is the safety
+// net: a purchase that could not be attached is never acknowledged by anybody, and Play gives the
+// money back after three days.
 package eu.allodia.mailcal
 
 import android.app.Activity

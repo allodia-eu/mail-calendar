@@ -85,15 +85,14 @@ person:
 | StoreKit | re-delivered at every launch, indefinitely | the only copy of a purchase somebody paid for is gone |
 | Play Billing | **refunded and revoked after three days** | the money is taken and nothing is granted |
 
-⚠️ **Who settles it is not the same on the two platforms, and no client may assume it is.** The
-service acknowledges a Play purchase itself, as the last step of attaching it, so an Android client
+⚠️ **Who settles it is not the same on the two platforms, and no client may assume it is.** A Play
+purchase is acknowledged on the account's side once it has been attached, so an Android client
 acknowledges nothing and `AllodiaRedeemReport::finish` is a list it ignores. A StoreKit transaction
 can only be finished by the device that holds it, so on Apple that stays the client's job and the
 list is exactly what it finishes.
 
-That split is deliberate rather than incidental. Acknowledging is the step that must not happen
-before the subscription exists, and putting it on the same side as the thing that creates the
-subscription leaves one place that can get the order wrong instead of two.
+**Read `finish` and do what it says.** It is empty on Play and populated on Apple, and a client
+that hard-codes either has written down a split that is not its to know.
 
 `allodia_license::Ledger` tracks a purchase in between, and `Ledger::apply` is the only thing that
 returns `Settled::Settled`.
@@ -384,7 +383,6 @@ are the half where being wrong costs somebody money and the half that is least p
 - **Nothing attaches an account identifier to a purchase, and that has to be decided before the
   first real one.** Both stores let a purchase carry an opaque id chosen by the app
   (`appAccountToken` on Apple, `obfuscatedAccountId` on Play), which then appears in the store's
-  own server notifications about renewals and refunds. It **cannot be attached afterwards**. The
-  service can manage without it, by keeping the mapping it makes when a purchase is first redeemed,
-  so this is a robustness decision rather than a blocking one; it needs an identifier the account
-  service names, which is why it is not guessed here.
+  own server notifications about renewals and refunds. It **cannot be attached afterwards**, which
+  is what makes it a decision to take before the first real purchase rather than after. It needs an
+  identifier the account service names, which is why it is not guessed here.

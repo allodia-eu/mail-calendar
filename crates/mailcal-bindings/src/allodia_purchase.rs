@@ -87,8 +87,8 @@ pub struct AllodiaStorePurchase {
 pub struct AllodiaPurchaseReport {
     /// Purchases the service is done with, which an **Apple** client finishes with StoreKit.
     ///
-    /// Nothing to do on Play: the service acknowledges a Play purchase itself when it attaches it,
-    /// which is what Play requires within three days or it refunds the purchase. A StoreKit
+    /// Nothing to do on Play: a Play purchase is acknowledged once it has been attached, which is
+    /// what Play requires within three days or it refunds the purchase. A StoreKit
     /// transaction can only be finished by the device holding it, so there it stays a client's
     /// job, and until the client does it StoreKit keeps offering the transaction, which is the
     /// safety net rather than a bug.
