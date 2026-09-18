@@ -1069,12 +1069,19 @@ checkout's binary. Reduced to two workspaces sharing one build directory, `cargo
 whose only test asserts `2 + 2 == 5` reports `1 passed`. A worktree created before another worktree
 built is the everyday shape of it.
 
-`cargo xtask` carries `--config build.build-dir="{workspace-root}/target"` in its alias, so the
-gate and the contract checks are always the tree you are standing in. Everything else, `cargo test`
-and `cargo build` included, is not. The tell is a result that cannot be squared with the diff: a
-step failing over a file the branch never touched, a test passing that cannot, a gate step this
-tree does not define. Re-run with `CARGO_BUILD_BUILD_DIR` pointed somewhere private before
-believing either answer, and expect a full rebuild when you do.
+**The gate is held out of it, from both ends.** `cargo xtask` carries
+`--config build.build-dir="{workspace-root}/target"` in its alias, so the gate is this checkout's
+own binary rather than whichever one was compiled last. And a gate run *claims* the shared
+directory before it judges anything: it leaves a marker naming the checkout whose artifacts are in
+there, and when the marker names someone else it runs `cargo clean --workspace` first, which drops
+the members' artifacts and leaves every dependency compiled. So a gate run after a switch rebuilds
+this repository's own crates, and one from the checkout that built here last rebuilds nothing.
+
+Everything else is not covered. A `cargo test` or `cargo build` typed by hand claims nothing, so it
+can still be handed another checkout's output. The tell is a result that cannot be squared with the
+diff: a step failing over a file the branch never touched, or a test passing that cannot. Run the
+gate, or re-run the step with `CARGO_BUILD_BUILD_DIR` pointed somewhere private, and expect a full
+rebuild when you do.
 
 ## Known gaps / follow-ups
 

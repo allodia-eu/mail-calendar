@@ -44,6 +44,7 @@ mod prose;
 mod prune;
 mod public_hygiene;
 mod report;
+mod shared_build;
 mod showcase_flag;
 mod showcase_lists;
 mod surface_publish;

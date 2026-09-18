@@ -266,10 +266,11 @@ are worth knowing before they surprise you:
   decides freshness from mtimes against that relative file list. A checkout whose sources predate
   the build another checkout last ran is declared fresh and is given that checkout's binary, so a
   suite can report `1 passed` for an assertion this tree cannot satisfy, and a freshly created
-  worktree is exactly the shape that collects it. `cargo xtask` is carved out by the alias, so the
-  gate is always this tree's; nothing else is. When a result cannot be squared with the diff,
-  re-run that step with `CARGO_BUILD_BUILD_DIR` pointed somewhere private before believing either
-  answer.
+  worktree is exactly the shape that collects it. **The gate is held out of it**: its own binary is
+  built here by the alias, and a run claims the directory, rebuilding this repository's own crates
+  when another checkout claimed it last. A `cargo test` typed by hand claims nothing and is not
+  covered, so when a result cannot be squared with the diff, run the gate, or re-run that step with
+  `CARGO_BUILD_BUILD_DIR` pointed somewhere private.
 
 Anything else your machine needs goes in [`AGENTS.local.md`](AGENTS.local.md), untracked.
 
