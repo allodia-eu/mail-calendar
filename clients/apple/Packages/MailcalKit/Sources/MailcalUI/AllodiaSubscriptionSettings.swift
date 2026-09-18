@@ -163,7 +163,20 @@ struct AllodiaSubscriptionSettings: View {
                 Text(L10n.settings_subscription_free())
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                offers(view.offers)
+                // ⚠️ **A device that cannot name its account does not buy here.** The id a purchase
+                // is tagged with is the only way to attribute one whose report never arrives, and
+                // it cannot be added afterwards, so a grant stored before it existed is asked to
+                // sign in again rather than allowed to make a purchase that can never be repaired.
+                // Signing in is all it takes, and it is the same remedy the account-list gap uses.
+                if model.currentAllodiaAccount()?.id == nil {
+                    Text(L10n.settings_subscription_reauth())
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(L10n.settings_allodia_reauth_action()) { signInAgain() }
+                } else {
+                    offers(view.offers)
+                }
             }
             // ⚠️ Money was taken and nothing has been granted. A screen that stays silent here
             // leaves somebody with no way to find that out.
@@ -276,6 +289,18 @@ struct AllodiaSubscriptionSettings: View {
         }
         #endif
         if let url = URL(string: store.manageUrl) { openURL(url) }
+    }
+
+    /// Signs in again, which is what records the account id on a grant stored without one.
+    ///
+    /// The same sign-in as the account box above, not a special one: there is nothing to migrate,
+    /// only a claim this device never asked for and now does.
+    private func signInAgain() {
+        Task {
+            if case .signedIn = await model.signInToAllodia() {
+                state = await model.allodiaSubscriptionState()
+            }
+        }
     }
 
     private func buy(_ plan: AllodiaPlan) {

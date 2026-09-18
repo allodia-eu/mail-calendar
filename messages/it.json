@@ -610,6 +610,7 @@
 	"settings_subscription_checking": "Controllo dell’abbonamento…",
 	"settings_subscription_unavailable": "Non è stato possibile controllare il tuo abbonamento in questo momento. Tutto ciò che hai già continua a funzionare.",
 	"settings_subscription_free": "Stai usando l’app gratuita.",
+	"settings_subscription_reauth": "Questo dispositivo ha effettuato l’accesso prima che esistessero gli abbonamenti qui, quindi non può ancora sottoscriverne uno. Basta accedere di nuovo; non cambia nient’altro.",
 	"settings_subscription_buy_yearly": "Abbonati annualmente, {price}",
 	"settings_subscription_buy_monthly": "Abbonati mensilmente, {price}",
 	"settings_subscription_renews": "Si rinnova il {date}.",

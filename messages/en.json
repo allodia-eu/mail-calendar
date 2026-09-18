@@ -610,6 +610,7 @@
 	"settings_subscription_checking": "Checking your subscription…",
 	"settings_subscription_unavailable": "Couldn’t check your subscription right now. Everything you already have keeps working.",
 	"settings_subscription_free": "You’re using the free app.",
+	"settings_subscription_reauth": "This device signed in before subscriptions existed here, so it cannot buy one yet. Signing in again is all it takes; nothing else changes.",
 	"settings_subscription_buy_yearly": "Subscribe yearly, {price}",
 	"settings_subscription_buy_monthly": "Subscribe monthly, {price}",
 	"settings_subscription_renews": "Renews on {date}.",

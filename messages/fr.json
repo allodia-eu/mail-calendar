@@ -610,6 +610,7 @@
 	"settings_subscription_checking": "Vérification de votre abonnement…",
 	"settings_subscription_unavailable": "Impossible de vérifier votre abonnement pour le moment. Tout ce que vous avez déjà continue de fonctionner.",
 	"settings_subscription_free": "Vous utilisez l’application gratuite.",
+	"settings_subscription_reauth": "Cet appareil s’est connecté avant l’arrivée des abonnements ici et ne peut pas encore en souscrire. Il suffit de vous reconnecter ; rien d’autre ne change.",
 	"settings_subscription_buy_yearly": "S’abonner à l’année, {price}",
 	"settings_subscription_buy_monthly": "S’abonner au mois, {price}",
 	"settings_subscription_renews": "Se renouvelle le {date}.",
