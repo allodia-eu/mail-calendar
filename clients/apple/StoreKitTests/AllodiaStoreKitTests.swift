@@ -73,7 +73,7 @@ final class AllodiaStoreKitTests: XCTestCase {
         let store = AllodiaStoreKit(catalogue: catalogue())
         try await session.buyProduct(identifier: "eu.allodia.mailcal.services.yearly")
 
-        let outstanding = await store.unfinished()
+        let outstanding = await outstandingOnceReported(store)
 
         XCTAssertEqual(outstanding.count, 1)
         let purchase = try XCTUnwrap(outstanding.first)
@@ -90,6 +90,8 @@ final class AllodiaStoreKitTests: XCTestCase {
     func testReadingTheOutstandingSetFinishesNothing() async throws {
         let store = AllodiaStoreKit(catalogue: catalogue())
         try await session.buyProduct(identifier: "eu.allodia.mailcal.services.monthly")
+        let reported = await outstandingOnceReported(store)
+        XCTAssertEqual(reported.count, 1, "the purchase is there before anything reads it twice")
 
         _ = await store.unfinished()
         _ = await store.unfinished()
@@ -103,7 +105,7 @@ final class AllodiaStoreKitTests: XCTestCase {
     func testOnlyTheNamedPurchaseIsFinished() async throws {
         let store = AllodiaStoreKit(catalogue: catalogue())
         try await session.buyProduct(identifier: "eu.allodia.mailcal.services.yearly")
-        let outstanding = await store.unfinished()
+        let outstanding = await outstandingOnceReported(store)
         let purchase = try XCTUnwrap(outstanding.first)
 
         await store.finish(transactionIDs: ["not-this-one"])
@@ -128,6 +130,27 @@ final class AllodiaStoreKitTests: XCTestCase {
     // retries until the approval lands. No money is lost, but the "not gone through" warning could
     // reach somebody who is simply waiting for a parent, which is the wrong thing to tell them.
     // `purchasing.md` carries this under its known gaps.
+
+    /// The outstanding set, once StoreKit has actually published what was just bought.
+    ///
+    /// ⚠️ **`SKTestSession.buyProduct` returns before the transaction is observable.**
+    /// `Transaction.unfinished` came back empty on roughly one run in four, and the run it happened
+    /// on took 1.6 seconds where a clean one takes 0.09, so the gap is StoreKit settling rather
+    /// than anything this suite does. Waiting for it is nobody's subject here: every test below
+    /// asserts what happens to a purchase that **is** outstanding, so the wait belongs in one place
+    /// instead of being raced in each of them.
+    ///
+    /// It waits for one purchase rather than a count, because that is all any caller buys, and it
+    /// returns whatever it has at the deadline so the assertion that follows reports the real
+    /// number rather than this helper's idea of it.
+    private func outstandingOnceReported(_ store: AllodiaStoreKit) async -> [AllodiaStorePurchase] {
+        for _ in 0..<100 {
+            let purchases = await store.unfinished()
+            if !purchases.isEmpty { return purchases }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        return await store.unfinished()
+    }
 
     /// What the core is told to ask the store for. The same ids `Plan::store_product` returns, and
     /// the same ones `Allodia.storekit` publishes; all three move together.
