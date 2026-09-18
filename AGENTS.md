@@ -253,13 +253,23 @@ sets it up.** Each worktree is its own Cargo workspace, so left alone each compi
 tree into a `target/` of its own, several GB apiece: five worktrees and a main checkout reached
 **54 GB** on one machine. `build.build-dir` sends the intermediates to one shared directory and
 leaves binaries, cdylibs and test executables in each worktree's `target/`, so worktrees on
-different revisions share the compile work without overwriting each other's output. That file
-carries the reasoning; two consequences are worth knowing before they surprise you:
+different revisions share the compile work. That file carries the reasoning; three consequences
+are worth knowing before they surprise you:
 
 - ⚠️ **A nearly empty `target/` is the expected shape, not a broken build.**
 - Cargo locks the build directory for the length of a build, so a second worktree prints
   `Blocking waiting for file lock on build directory` and waits. Builds serialise rather than
-  oversubscribe the cores. `CARGO_BUILD_BUILD_DIR` opts one build out.
+  oversubscribe the cores. `CARGO_BUILD_BUILD_DIR` opts one build out, except the gate's own
+  build: a `--config` outranks the environment, and the alias carries one.
+- ⚠️ **The checkouts are not told apart, so a build can hand you another one's output.** Cargo
+  names an artifact, and the fingerprint guarding it, from the workspace-*relative* path, and then
+  decides freshness from mtimes against that relative file list. A checkout whose sources predate
+  the build another checkout last ran is declared fresh and is given that checkout's binary, so a
+  suite can report `1 passed` for an assertion this tree cannot satisfy, and a freshly created
+  worktree is exactly the shape that collects it. `cargo xtask` is carved out by the alias, so the
+  gate is always this tree's; nothing else is. When a result cannot be squared with the diff,
+  re-run that step with `CARGO_BUILD_BUILD_DIR` pointed somewhere private before believing either
+  answer.
 
 Anything else your machine needs goes in [`AGENTS.local.md`](AGENTS.local.md), untracked.
 

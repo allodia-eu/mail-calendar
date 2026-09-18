@@ -296,4 +296,24 @@ mod tests {
         let dir = std::env::temp_dir();
         assert!(!is_workspace_root(&dir));
     }
+
+    #[test]
+    fn the_alias_builds_this_checkout_s_own_xtask() {
+        // Every checkout shares one build directory, and cargo names an artifact, and the
+        // fingerprint guarding it, from the workspace-relative path, so it cannot tell them apart.
+        // Without a build directory of its own in the alias, `cargo xtask` is whichever `xtask`
+        // another worktree compiled last, running against this tree's files. `.cargo/config.toml`
+        // carries the rest, including why the alias stays a string.
+        let root = super::repo_root().expect("these tests run from inside the workspace");
+        let config = root.join(".cargo").join("config.toml");
+        let text = std::fs::read_to_string(&config).expect("the tracked cargo config is readable");
+        let alias = text
+            .lines()
+            .find(|line| line.starts_with("xtask = "))
+            .expect("the tracked cargo config declares the xtask alias on one line");
+        assert!(
+            alias.contains(r#"--config build.build-dir="{workspace-root}/target""#),
+            "the xtask alias must name a build directory of its own: {alias}"
+        );
+    }
 }

@@ -1061,6 +1061,21 @@ serialise on a lock, but a shared target dir also shares the **final** artifacts
 on different revisions overwrite each other's binaries and whichever built last is the one you run.
 `build-dir` shares only the intermediates.
 
+⚠️ **Sharing only the intermediates is better than that, and it is not safe.** Cargo derives an
+artifact's name, and the fingerprint guarding it, from the workspace-relative path, so every
+checkout collides on one entry and freshness comes down to mtimes against a relative file list. A
+checkout whose sources predate another checkout's last build is declared fresh and is uplifted that
+checkout's binary. Reduced to two workspaces sharing one build directory, `cargo test` in the one
+whose only test asserts `2 + 2 == 5` reports `1 passed`. A worktree created before another worktree
+built is the everyday shape of it.
+
+`cargo xtask` carries `--config build.build-dir="{workspace-root}/target"` in its alias, so the
+gate and the contract checks are always the tree you are standing in. Everything else, `cargo test`
+and `cargo build` included, is not. The tell is a result that cannot be squared with the diff: a
+step failing over a file the branch never touched, a test passing that cannot, a gate step this
+tree does not define. Re-run with `CARGO_BUILD_BUILD_DIR` pointed somewhere private before
+believing either answer, and expect a full rebuild when you do.
+
 ## Known gaps / follow-ups
 
 - **The Linux acceptance run drives no analytics consent and no Diagnostics.** Mail actions,

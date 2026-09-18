@@ -3,8 +3,23 @@
 
 # The repository's task runner: `cargo xtask --list`, `cargo xtask gate`. The alias resolves from
 # any directory in the workspace, so a check runs the same way wherever it is invoked from.
+#
+# ⚠️ **The `--config` is what makes the gate this checkout's gate.** Cargo tells the checkouts
+# sharing the build directory below apart by nothing at all (see the warning there), so without it
+# `cargo xtask` runs whichever `xtask` another worktree compiled last: the gate acquires a step
+# this tree does not define, or drops one it does, and reports on files it never read. `xtask` has
+# no dependencies, so a build directory of its own costs its own compile and nothing else.
+#
+# It stays a whitespace-split string, and the value carries no space so that it survives the split.
+# An array here would be a *different type* for a key an ancestor config also sets, and the
+# worktrees sit inside the main checkout: cargo refuses to merge the two and every cargo command in
+# the worktree fails with "failed to merge configuration" until both ends agree.
+#
+# A `--config` outranks the environment, so `CARGO_BUILD_BUILD_DIR` moves the steps the gate
+# *spawns* and not the gate's own build. That is the intended way round: this one is already
+# private to the checkout, and it is the binary deciding what the other steps are.
 [alias]
-xtask = "run --package xtask --quiet --"
+xtask = 'run --config build.build-dir="{workspace-root}/target" --package xtask --quiet --'
 
 # ---------------------------------------------------------------------------------------------
 # One build directory for every checkout, so worktrees share the compile work instead of each
@@ -15,6 +30,19 @@ xtask = "run --package xtask --quiet --"
 # Fixed name on purpose: `{workspace-path-hash}` would give every worktree its own directory and
 # defeat the sharing. `{cargo-cache-home}` is CARGO_HOME, so no absolute path is committed.
 # `rustc-wrapper` stays out of a tracked file: it would break every dev lacking that binary.
+#
+# ⚠️ **Cargo does not tell the checkouts apart, so a build can hand you another one's output.**
+# It names an artifact, and the fingerprint guarding it, from the workspace-*relative* path, so
+# every checkout of this repository lands on the same `deps/<crate>-<hash>` and the same
+# fingerprint entry. Freshness is then decided from mtimes against that relative file list: a
+# checkout whose sources predate the build another checkout last ran is declared fresh and is
+# uplifted that checkout's binary. A suite then reports `1 passed` for an assertion this tree
+# cannot satisfy, which is what a freshly created worktree is in line for, its files being the
+# newest thing that has not been compiled yet.
+#
+# `cargo xtask` is carved out of it by the alias above, so the gate at least is always this tree's.
+# Nothing else is. When a result cannot be squared with the diff, re-run the step with
+# `CARGO_BUILD_BUILD_DIR` pointed somewhere private before believing either answer.
 #
 # ⚠️ **Sharing the directory means never baking an absolute path into a compiled artifact.** The
 # cache key does not carry the worktree, so a test executable or example compiled by one checkout
