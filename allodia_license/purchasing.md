@@ -344,10 +344,11 @@ The core decides; the client talks to the store it is running on, because no Rus
 | Its four writes: checkout, cancel, switch period, resubscribe | 🚧 | n/a | n/a | n/a | n/a | n/a |
 | Talk to the platform's store: fetch, buy, collect, finish | n/a | 🚧 | 🚧 | n/a | 🚧 | n/a |
 | That half tested against a **simulated** store | n/a | ✅ | n/a | n/a | ⬜ | n/a |
-| Draw the account screen: prices, state, buttons | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ⬜ | ⬜ | ⬜ |
+| Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Open Allodia's own checkout | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Link out to that checkout from inside the app | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
-| Reach the store's own manage-or-cancel page | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
+| Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | n/a | ⬜ | n/a |
 | Build with no Google library in it at all | n/a | n/a | n/a | n/a | ✅ | n/a |
 | Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ⬜ | ✅ | ⬜ |
 
@@ -355,8 +356,14 @@ Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ pl
 Windows and Linux ship no store purchase: the Microsoft Store's commerce is not used and Flatpak
 has none, so on both the only route is Allodia's own checkout. **Android is two builds**: both are
 compiled and tested by `:app:test` in the gate, and the `foss` one already opens the checkout,
-which is why that row is ✅ for Android alone. No screen calls it yet, which is what keeps the row
-above it ⬜.
+which is why that row is ✅ for Android alone.
+
+**Apple's screen is 🚧 rather than ✅, and the distance is not code.** Settings → Allodia account
+draws the subscription: who is charging, until when, a retry that is not a lapse, every biller when
+more than one is charging, the store's own manage page, and the two periods with the store's own
+prices behind a buy button. What holds it at 🚧 is the sovereignty carve-out above and the
+unpublished policy mirror below, either of which alone forbids shipping it, plus the fact that no
+purchase has been made against the real App Store.
 
 **What each mark means here, precisely, because a matrix that overstates is worse than none.** The
 core's rules are unit-tested against a canned transport and a supplied clock.
@@ -395,12 +402,17 @@ are the half where being wrong costs somebody money and the half that is least p
   [`../docs/updates.md`](../docs/updates.md), because an F-Droid build is updated by F-Droid and a
   Play build by Play, it earns a doc beside
   [`../docs/windows-channels.md`](../docs/windows-channels.md), which is the same shape of problem.
-- **No client draws a purchase surface yet**, so nothing above has been run against a real store.
-  A deployment with no billing configured answers `503 unavailable`, which the ledger treats as an
-  outage and retries.
-- **No screen draws any of it.** The account-screen read and its four writes are implemented and
-  covered, and nothing in a client calls them: the copy needs the service's name, which the pledge
-  constrains, and the sovereignty carve-out below.
+- **Nothing above has been run against a real store.** Apple's screen exists and buys through the
+  simulated store only; no other client draws a purchase surface at all. A deployment with no
+  billing configured answers `503 unavailable`, which the ledger treats as an outage and retries.
+- **The four writes reach no screen.** Checkout, cancel, switch period and resubscribe are
+  implemented and covered in the core, and Apple's screen calls none of them: cancelling and
+  switching belong to the store for a store's subscription, and the two that would act on Allodia's
+  own subscription wait with the link-out below.
+- **Apple's screen is the only one, and the other five are not merely unwritten.** Windows and
+  Linux need the checkout route rather than this one, and Android needs it twice, once per
+  flavour. The copy is in the catalog in all seven locales already, so what each owes is the
+  drawing.
 - **The four writes are unrun.** Starting a checkout leaves a `pending_first_payment` subscription
   behind at the service, and cancelling, switching and resubscribing each need a real one to act
   on, so none of them has been driven even against production. They are the half where being wrong
