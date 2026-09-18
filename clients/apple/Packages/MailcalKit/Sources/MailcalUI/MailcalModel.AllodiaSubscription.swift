@@ -13,18 +13,23 @@ import Foundation
 import MailcalBindings
 
 /// What the subscription section has to draw.
-enum AllodiaSubscriptionState {
+enum AllodiaSubscriptionState: Equatable {
     /// The read is in flight. Distinct from `unavailable`: nothing has been learned yet, and a
     /// spinner and a failure are different things to put in front of somebody.
     case checking
     /// The read did not come back, or this deployment has no billing configured.
     case unavailable
+    /// The read could not be made at all, because this device's sign-in predates the permission it
+    /// needs. An offer rather than an error: they are signed in, one thing is asleep, and the
+    /// ordinary sign-in asks for the full current scope set. Kept apart from `unavailable` because
+    /// the remedies differ: waiting fixes an outage and never fixes this.
+    case needsReauth
     /// The service answered.
     case loaded(AllodiaSubscriptionView)
 }
 
 /// The answer, with the parts a screen needs alongside it.
-struct AllodiaSubscriptionView {
+struct AllodiaSubscriptionView: Equatable {
     let subscription: AllodiaSubscription
     /// What can be bought here, in the core's order. Empty while something is already being
     /// charged: the service refuses a second subscription for one plan, so offering one would be
@@ -47,6 +52,18 @@ enum AllodiaBuyOutcome {
     /// later on the updates stream, so there is nothing to do now but say it is pending.
     case awaitingApproval
     case failed(String)
+}
+
+/// What a read that did not come back is allowed to put on screen.
+///
+/// ⚠️ **The core's typed answer decides, never the failure's text.** A sign-in that predates the
+/// permission this read needs is an offer with a remedy, and drawing it as an outage tells somebody
+/// to wait for something that will never arrive. The sync card next door reads the same answer for
+/// the same reason, and everything else says nothing about the sign-in at all.
+///
+/// Pure, so the choice is unit-testable: the pane around it is not, needing a live `MailcalApp`.
+func allodiaReadFailure(_ health: AllodiaGrantHealth) -> AllodiaSubscriptionState {
+    health == .needsReauth ? .needsReauth : .unavailable
 }
 
 extension MailboxModel {
@@ -74,7 +91,7 @@ extension MailboxModel {
         let answer = await Task.detached(priority: .userInitiated) {
             try? app.allodiaSubscription()
         }.value
-        guard let answer else { return .unavailable }
+        guard let answer else { return allodiaReadFailure(app.allodiaGrantHealth()) }
         // Offers cost a StoreKit round trip, so they are fetched only when they can be drawn.
         let offers = answer.entitled ? [] : await allodiaPurchases?.offers() ?? []
         return .loaded(

@@ -186,9 +186,9 @@ private fun Active(
         )
     }
     // A store's subscription is the store's to change, so this opens its page rather than offering
-    // a cancel button that would have nothing to call. Review-blocking on both stores, which is
-    // why it is drawn for every store subscription rather than for a recognised one.
-    subscription.stores.forEach { store ->
+    // a cancel button that would have nothing to call. Review-blocking on both stores, which is why
+    // it is drawn for every store that still has something to do rather than for a recognised one.
+    subscription.stores.filter { allodiaStoreCanBeManaged(it.status) }.forEach { store ->
         val biller = if (store.source == AllodiaStore.APPLE) "Apple" else "Google Play"
         TextButton(onClick = { onManageStore(store) }) {
             Text(L10n.settings_subscription_manage(ctx, biller))

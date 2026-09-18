@@ -56,19 +56,65 @@ extension AllodiaPlan {
 /// Everyone charging for this account right now, in a stable order: Allodia's own billing first,
 /// then each store in the order the service listed them.
 ///
+/// ⚠️ **"Right now" is the whole of it, and reading every store the service listed was a bug.** The
+/// list keeps a subscription after it ends, so an account that bought at one store and later at
+/// another carries both, and naming the first named the dead one: an Android device billed by
+/// Google Play was told it was billed by Apple, whose sandbox subscription had run out hours
+/// earlier.
+///
+/// Whether a store still has something to manage is a different question, answered by
+/// `allodiaStoreCanBeManaged`, and the two part company on the states that matter most.
+///
 /// Pure, so the sentence a screen says about being charged twice is unit-testable.
 func allodiaBillers(of subscription: AllodiaSubscription) -> [AllodiaBiller] {
-    var billers: [AllodiaBiller] = subscription.own == nil ? [] : [.allodia]
-    billers.append(contentsOf: subscription.stores.map { store in
-        switch store.source {
-        case .apple: return .apple
-        case .google: return .google
-        // The service never reports its own billing as a store, so this arm is unreachable rather
-        // than meaningful. Saying "Allodia" is still the right answer if it ever is reached.
-        case .allodia: return .allodia
-        }
-    })
+    var billers: [AllodiaBiller] = []
+    if let own = subscription.own, own.status != .pendingFirstPayment {
+        billers.append(.allodia)
+    }
+    billers.append(contentsOf: subscription.stores.filter { allodiaStoreIsBilling($0.status) }
+        .map { store in
+            switch store.source {
+            case .apple: return .apple
+            case .google: return .google
+            // The service never reports its own billing as a store, so this arm is unreachable
+            // rather than meaningful. Saying "Allodia" is still the right answer if it is reached.
+            case .allodia: return .allodia
+            }
+        })
     return billers
+}
+
+/// Whether a store subscription is one somebody is still on: renewing, being retried, or cancelled
+/// and running out the period already paid for.
+///
+/// The rest grant nothing, and `AllodiaStoreStatus` is deliberately read arm by arm rather than by
+/// exclusion: a status this build does not know is **never read as permission**, which is the rule
+/// the core states about the same enum.
+func allodiaStoreIsBilling(_ status: AllodiaStoreStatus) -> Bool {
+    switch status {
+    case .active, .grace, .cancelled: return true
+    case .onHold, .paused, .expired, .revoked: return false
+    case .unknown: return false
+    }
+}
+
+/// Whether the store still has something for this person to do about this subscription.
+///
+/// ⚠️ **Not the same question as who is billing them, and the two answers differ on exactly the
+/// states somebody needs most.** On hold and paused grant nothing, so neither may claim the "billed
+/// by" line, and both are fixed only at the store: a card that failed is replaced there and a pause
+/// is lifted there. Dropping their button strands the person it matters to.
+///
+/// Expired and revoked are the other way about. Nothing is left to manage, and offering the route
+/// anyway walks somebody into the store's own resubscribe button while another source is already
+/// charging them, which is the duplicate billing this contract warns about rather than causes.
+func allodiaStoreCanBeManaged(_ status: AllodiaStoreStatus) -> Bool {
+    switch status {
+    case .active, .grace, .cancelled, .onHold, .paused: return true
+    case .expired, .revoked: return false
+    // A status this build does not know names no action it could offer.
+    case .unknown: return false
+    }
 }
 
 /// Whether anything will charge again, which decides between "renews on" and "runs until".
@@ -149,6 +195,14 @@ struct AllodiaSubscriptionSettings: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        case .needsReauth:
+            // An offer rather than an error: they are signed in and this one read is asleep, and
+            // the ordinary sign-in asks for the full current scope set.
+            Text(L10n.settings_subscription_reauth())
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(L10n.settings_allodia_reauth_action()) { signInAgain() }
         case let .loaded(view):
             loaded(view)
         }
@@ -228,10 +282,11 @@ struct AllodiaSubscriptionSettings: View {
         }
         // A store's subscription is the store's to change, so this opens its page rather than
         // offering a cancel button that would have nothing to call. Review-blocking on both
-        // stores, which is why it is drawn for every store subscription rather than for a
-        // recognised one.
-        ForEach(subscription.stores.indices, id: \.self) { index in
-            let store = subscription.stores[index]
+        // stores, which is why it is drawn for every store that still has something to do rather
+        // than for a recognised one.
+        let manageable = subscription.stores.filter { allodiaStoreCanBeManaged($0.status) }
+        ForEach(manageable.indices, id: \.self) { index in
+            let store = manageable[index]
             let biller: AllodiaBiller = store.source == .google ? .google : .apple
             Button(L10n.settings_subscription_manage(biller: biller.displayName)) {
                 manage(store)

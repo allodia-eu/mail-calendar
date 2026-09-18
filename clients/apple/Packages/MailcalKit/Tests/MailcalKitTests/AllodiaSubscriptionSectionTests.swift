@@ -142,12 +142,80 @@ struct AllodiaSubscriptionSectionTests {
         )
     }
 
+    /// ⚠️ A store that has stopped charging is not a biller, whatever order the service listed it
+    /// in.
+    ///
+    /// Observed on an Android device: the account had bought through the App Store hours earlier,
+    /// that sandbox subscription had since expired, and a purchase through Google Play was then
+    /// told "Billed by Apple". The service was right both times; the reading of it was not. This
+    /// screen had the same gap.
+    @Test func aStoreThatHasStoppedChargingIsNotWhoIsBillingYou() {
+        let subscription = subscription(stores: [
+            store(source: .apple, status: .expired, autoRenewing: false),
+            store(source: .google, status: .active, autoRenewing: true),
+        ])
+        #expect(allodiaBillers(of: subscription) == [.google])
+    }
+
+    /// ⚠️ "Who is billing you" and "is there anything to do at the store" are different questions,
+    /// and they part company on the two states where somebody most needs the answer.
+    ///
+    /// On hold and paused grant nothing, so neither may say it is billing you; both are fixed only
+    /// at the store, so both keep the way there. Expired and revoked are the other way about:
+    /// nothing to manage, and offering the route walks somebody into the store's own resubscribe
+    /// button while another source is already charging them.
+    @Test func aLapsedStoreOffersNoWayInButAHeldOneDoes() {
+        for status in [AllodiaStoreStatus.onHold, .paused] {
+            #expect(!allodiaStoreIsBilling(status))
+            #expect(allodiaStoreCanBeManaged(status))
+        }
+        for status in [AllodiaStoreStatus.expired, .revoked] {
+            #expect(!allodiaStoreIsBilling(status))
+            #expect(!allodiaStoreCanBeManaged(status))
+        }
+        for status in [AllodiaStoreStatus.active, .grace, .cancelled] {
+            #expect(allodiaStoreIsBilling(status))
+            #expect(allodiaStoreCanBeManaged(status))
+        }
+    }
+
+    /// Cancelled is still being billed in the only sense that matters here: the period was paid
+    /// for and is still running. Revoked, on hold and paused grant nothing and name nobody.
+    @Test func aCancelledSubscriptionStillNamesItsStoreAndARevokedOneDoesNot() {
+        #expect(allodiaStoreIsBilling(.active))
+        #expect(allodiaStoreIsBilling(.grace))
+        #expect(allodiaStoreIsBilling(.cancelled))
+        #expect(!allodiaStoreIsBilling(.revoked))
+        #expect(!allodiaStoreIsBilling(.onHold))
+        #expect(!allodiaStoreIsBilling(.paused))
+        #expect(!allodiaStoreIsBilling(.expired))
+        #expect(!allodiaStoreIsBilling(.unknown(label: "something new")))
+    }
+
+    /// A checkout that was started and never paid is not somebody who is being charged.
+    @Test func aCheckoutAwaitingItsFirstPaymentNamesNobody() {
+        #expect(allodiaBillers(of: subscription(own: own(status: .pendingFirstPayment, next: nil))).isEmpty)
+    }
+
+    /// ⚠️ A sign-in too old to carry the permission this read needs is an offer, not an outage.
+    ///
+    /// The two are indistinguishable from the failure alone, and their remedies are opposites:
+    /// waiting fixes an outage and never fixes this. Observed on an Android device whose grant
+    /// predated the permission and which was told its subscription could not be checked "right
+    /// now"; this screen had the same gap.
+    @Test func aSignInTooOldToReadTheSubscriptionOffersAFreshOne() {
+        #expect(allodiaReadFailure(.needsReauth) == .needsReauth)
+        #expect(allodiaReadFailure(.ok) == .unavailable)
+        #expect(allodiaReadFailure(.signedOut) == .unavailable)
+    }
+
     private func store(
+        source: AllodiaStore = .apple,
         status: AllodiaStoreStatus,
         autoRenewing: Bool
     ) -> AllodiaStoreSubscription {
         AllodiaStoreSubscription(
-            source: .apple,
+            source: source,
             status: status,
             interval: .yearly,
             productId: "eu.allodia.mailcal.services.yearly",
