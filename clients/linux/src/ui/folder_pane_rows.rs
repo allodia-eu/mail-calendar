@@ -218,7 +218,7 @@ fn folder_chevron(
 }
 
 /// The shared skeleton: one line, an icon, the whole row activatable.
-fn pane_row(
+pub(super) fn pane_row(
     icon: &str,
     sender: &relm4::Sender<AppInput>,
     target: &SidebarTarget,

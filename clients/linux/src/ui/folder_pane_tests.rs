@@ -446,7 +446,7 @@ pub(crate) fn an_optimistic_click_is_not_undone_by_the_previous_snapshot() {
 
 pub(crate) fn folder_rows_expose_their_navigation_as_a_semantic_action() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let row = super::pane_row(
+    let row = crate::ui::folder_pane_rows::pane_row(
         "folder-symbolic",
         &sender,
         &SidebarTarget::Folder {
