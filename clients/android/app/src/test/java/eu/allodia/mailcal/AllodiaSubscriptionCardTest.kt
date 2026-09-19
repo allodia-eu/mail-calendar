@@ -7,8 +7,10 @@
 package eu.allodia.mailcal
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertEquals
@@ -30,6 +32,9 @@ class AllodiaSubscriptionCardTest {
     private var managed = mutableListOf<AllodiaStoreSubscription>()
     private var signInsAgain = 0
     private var closes = 0
+    private var cancels = 0
+    private var restarts = 0
+    private var switched = mutableListOf<AllodiaPlan>()
 
     private fun card(ui: AllodiaSubscriptionUi) {
         compose.setContent {
@@ -40,6 +45,9 @@ class AllodiaSubscriptionCardTest {
                 onManageStore = { managed.add(it) },
                 onSignInAgain = { signInsAgain += 1 },
                 onClosed = { closes += 1 },
+                onCancel = { cancels += 1 },
+                onResubscribe = { restarts += 1 },
+                onSwitch = { switched.add(it) },
             )
         }
         compose.waitForIdle()
@@ -49,11 +57,12 @@ class AllodiaSubscriptionCardTest {
         subscription: uniffi.mailcal_bindings.AllodiaSubscription,
         offers: List<AllodiaOffer> = emptyList(),
         anythingStuck: Boolean = false,
+        claimedElsewhere: Boolean = false,
         accountId: String? = "an-id",
         buying: AllodiaPlan? = null,
     ) = AllodiaSubscriptionUi(
         state = AllodiaSubscriptionState.Loaded(
-            AllodiaSubscriptionView(subscription, offers, anythingStuck)
+            AllodiaSubscriptionView(subscription, offers, anythingStuck, claimedElsewhere)
         ),
         accountId = accountId,
         buying = buying,
@@ -83,6 +92,9 @@ class AllodiaSubscriptionCardTest {
                     onManageStore = {},
                     onSignInAgain = {},
                     onClosed = { closes += 1 },
+                onCancel = { cancels += 1 },
+                onResubscribe = { restarts += 1 },
+                onSwitch = { switched.add(it) },
                 )
             }
         }
@@ -200,6 +212,87 @@ class AllodiaSubscriptionCardTest {
             ctx().getString(R.string.settings_subscription_manage, "Google Play")
         ).performClick()
         assertEquals(listOf(store), managed)
+    }
+
+    /**
+     * ⚠️ Cancelling asks first, and the way out never says "Cancel".
+     *
+     * On a dialog headed "Cancel your subscription?" that word is the thing being asked about, so a
+     * dismiss button carrying it is a coin toss. The confirmation also has to name the date, or it
+     * reads as "it stops now", which is the one thing cancelling does not do.
+     */
+    @Test
+    fun cancelling_asks_first_and_says_what_is_kept() {
+        card(loaded(subscription(entitled = true, own = ownSubscription())))
+        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_cancel)).performClick()
+        assertEquals("nothing may happen before the question is answered", 0, cancels)
+
+        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_cancel_title))
+            .assertIsDisplayed()
+        compose.onNodeWithText("2027", substring = true).assertIsDisplayed()
+        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_cancel_keep))
+            .performClick()
+        assertEquals("dismissing cancels nothing", 0, cancels)
+    }
+
+    /**
+     * ⚠️ The switch confirmation quotes no price.
+     *
+     * What this subscriber is charged is not today's list price, because a price change never
+     * reaches somebody who already subscribed. The amount comes back from the switch itself, so
+     * saying one beforehand would be telling a long-standing subscriber a number they will not pay.
+     */
+    @Test
+    fun switching_period_asks_without_quoting_a_price() {
+        card(
+            loaded(
+                subscription(
+                    entitled = true,
+                    own = ownSubscription(interval = AllodiaPlan.MONTHLY),
+                )
+            )
+        )
+        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_switch_yearly))
+            .performClick()
+        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_switch_title))
+            .assertIsDisplayed()
+        compose.onAllNodesWithText("€", substring = true).assertCountEquals(0)
+
+        compose.onNodeWithText(ctx().getString(R.string.action_update)).performClick()
+        assertEquals(listOf(AllodiaPlan.YEARLY), switched)
+    }
+
+    /**
+     * A store's subscription is the store's to change, so none of the three writes is offered for
+     * one: the service refuses them, and the card draws what the service permits.
+     */
+    @Test
+    fun a_store_billed_account_is_offered_none_of_the_writes() {
+        card(
+            loaded(
+                subscription(entitled = true, stores = listOf(storeSubscription()))
+                    .copy(actions = refusing())
+            )
+        )
+        compose.onAllNodesWithText(ctx().getString(R.string.settings_subscription_cancel))
+            .assertCountEquals(0)
+        compose.onAllNodesWithText(ctx().getString(R.string.settings_subscription_switch_yearly))
+            .assertCountEquals(0)
+    }
+
+    /**
+     * ⚠️ A purchase that belongs to a different Allodia account is said out loud.
+     *
+     * It is what signing in to a second account on a phone that has bought something looks like,
+     * and it is the one ending waiting cannot fix: nothing was granted here and nothing will be.
+     * Reachable today on a device that bought through Play and then signed in elsewhere, where it
+     * said nothing at all.
+     */
+    @Test
+    fun a_purchase_owned_by_another_account_is_said_out_loud() {
+        card(loaded(subscription(), claimedElsewhere = true))
+        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_claimed_elsewhere))
+            .assertIsDisplayed()
     }
 
     /**

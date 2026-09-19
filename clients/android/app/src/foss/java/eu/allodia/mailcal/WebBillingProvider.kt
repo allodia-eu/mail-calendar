@@ -72,8 +72,8 @@ internal class WebBillingProvider(
 
     override fun close() = Unit
 
+    // Shared with the switch-period result next door, which prices the same way from the same
+    // service (AllodiaSubscriptionModel.kt).
     private fun formatPrice(minorUnits: Long, currency: String): String =
-        java.text.NumberFormat.getCurrencyInstance(context.resources.configuration.locales[0])
-            .apply { this.currency = java.util.Currency.getInstance(currency) }
-            .format(minorUnits / 100.0)
+        allodiaMinorUnits(minorUnits, currency, context.resources.configuration.locales[0])
 }

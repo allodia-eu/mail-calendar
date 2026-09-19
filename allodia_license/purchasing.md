@@ -382,13 +382,13 @@ The core decides; the client talks to the store it is running on, because no Rus
 | Its four writes: checkout, cancel, switch period, resubscribe | 🚧 | n/a | n/a | n/a | n/a | n/a |
 | Talk to the platform's store: fetch, buy, collect, finish | n/a | 🚧 | 🚧 | n/a | ✅ | n/a |
 | That half tested against a **simulated** store | n/a | ✅ | n/a | n/a | n/a | n/a |
-| Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ⬜ | ✅ | ⬜ |
-| Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Open Allodia's own checkout | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ✅ | ✅ | ⬜ |
+| Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ✅ | ✅ | ⬜ |
+| Open Allodia's own checkout | n/a | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
 | Link out to that checkout from inside the app | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
 | Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | n/a | ✅ | n/a |
 | Build with no Google library in it at all | n/a | n/a | n/a | n/a | ✅ | n/a |
-| Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ⬜ | ✅ | ⬜ |
+| Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ✅ | ✅ | ⬜ |
 
 Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 Windows and Linux ship no store purchase: the Microsoft Store's commerce is not used and Flatpak
@@ -406,7 +406,8 @@ account alone, which is the cross-device claim proven on this platform rather th
 Both flavours draw the same card, under the account it belongs to, and each gets the shop its
 flavour supplies without the card knowing which: `play` shows Play's own prices behind a buy
 button, `foss` shows Allodia's two prices and opens the checkout in a browser. The **`foss`
-checkout has still never been paid on**, which is what holds that flavour where it is.
+checkout has still never been paid on** from Android, which is what holds that flavour where it is,
+even though the page it opens has since been paid through from Windows.
 
 ⚠️ **What Play withholds until an app is published is the catalogue, and nothing else about the
 build.** `queryProductDetails` answers nothing at all until a build has reached a track, which
@@ -452,17 +453,20 @@ has reached a track. A licence tester then buys on a test card that is never cha
 runs in minutes rather than a year, which is how the Android layer above was exercised.
 
 Everything still 🚧 compiles and is covered by the suites that can reach it, and has **never run
-against a real store**. **No real money has moved anywhere**: Android's purchase was a licence
-tester's, on a card that is never charged, and Apple's was a sandbox one. The four writes are the
-half where being wrong costs somebody money and the half that is least proven.
+against a real store**. **No money has moved at either store**: Android's purchase was a licence
+tester's, on a card that is never charged, and Apple's was a sandbox one. Allodia's own checkout is
+the one shop that has taken a payment, from Windows, and it was **a real charge on a real card**,
+not a test mode standing in for one. That is the first money to move anywhere in this contract, and
+it is why the four writes are no longer the least proven half of this page.
 
 ## Known gaps
 
-- **The `foss` checkout has never been paid on.** The subscription card calls
-  `WebBillingProvider`, which resolves the two prices and launches a Custom Tab, so the route is
-  now reachable; what is unproven is the same thing unproven everywhere else here: nothing has
-  taken a payment. Its price formatting is the one part with no test at all, because it needs a
-  device locale.
+- **The `foss` checkout has never been paid on**, though the shop behind it now has. Windows
+  reaches the same hosted page through the same core call and a payment has completed there, so
+  what is unproven on Android is its own launch path rather than the checkout: `WebBillingProvider`
+  resolves the two prices and hands them to a Custom Tab, and nobody has followed that one through
+  to a payment. Its price formatting is the one part with no test at all, because it needs a device
+  locale.
 - **The flavour is Android's only**, and it is recorded here rather than in a contract of its own.
   If it grows past purchasing, and the likeliest way is
   [`../docs/updates.md`](../docs/updates.md), because an F-Droid build is updated by F-Droid and a
@@ -487,17 +491,62 @@ half where being wrong costs somebody money and the half that is least proven.
   a deliberate choice, but somebody who has read one of them will be surprised by the other, and
   the copy for either switch has to be the store's rather than one sentence reused. Play will have
   its own answer again.
-- **The four writes reach no screen.** Checkout, cancel, switch period and resubscribe are
-  implemented and covered in the core, and Apple's screen calls none of them: cancelling and
-  switching belong to the store for a store's subscription, and the two that would act on Allodia's
-  own subscription wait with the link-out below.
-- **Windows and Linux draw no purchase surface**, and they are not merely unwritten: both need
-  the checkout route rather than the store one. The copy is in the catalog in all seven locales
-  already, so what each owes is the drawing.
-- **The four writes are unrun.** Starting a checkout leaves a `pending_first_payment` subscription
-  behind at the service, and cancelling, switching and resubscribing each need a real one to act
-  on, so none of them has been driven even against production. They are the half where being wrong
-  costs somebody money.
+- **The four writes reach two screens.** Android draws all four: checkout is what the `foss` buy
+  buttons already call, and cancel, switch period and resubscribe sit under the paid state, each
+  drawn only where `actions` permits. Windows draws the same four, for the same reason and off the
+  same `actions`. Apple's screen calls none of them, correctly for a store's subscription, so
+  macOS, iOS and Linux still owe the drawing.
+- **Linux draws no purchase surface**, and it is not merely unwritten: it needs the checkout route
+  rather than the store one. The copy is in the catalog in all seven locales already, so what it
+  owes is the drawing.
+- ⚠️ **A card reads once and nothing tells it the answer changed.** Every client asks when the
+  card appears and not again, so it goes stale the moment the subscription moves anywhere else, and
+  the checkout route makes that the ordinary case rather than an edge one: the payment finishes in a
+  **browser**, and the person comes back to a card still offering to sell them what they have just
+  bought. The same staleness follows buying on a phone, subscribing on the website, a store
+  cancelling at renewal and a charge failing, none of which this app is present for, which is why
+  the remedy is the app being looked at again rather than anything a checkout could hand back.
+  Windows re-reads when its window is activated while the card is open. Apple and Android start
+  their read once per composition, neither re-runs on resume, and both still owe it.
+- ⚠️ **The manage-at-the-store button is unreachable in the two states it was written for.**
+  Every card draws the paid half only when `entitled` is true, and on hold and paused both grant
+  nothing, so `entitled` is false and the button goes with the rest of that half. Those are exactly
+  the two states the rule about which stores are manageable exists to keep it for: a card that
+  failed is replaced at the store and a pause is lifted there, so the person who most needs the
+  route is the one who has none. It is the same shape on all three clients, which is why it is
+  recorded here rather than fixed on whichever one noticed.
+- ⚠️ **The three clients that format a service date do not agree on which day it is.** The service
+  sends an offset-bearing instant, and a period ending at midnight `+02:00` is the previous day in
+  UTC. Android restates it in UTC and Apple in the reader's own zone, so the two already differ;
+  Windows repeats the day the service wrote, which is the only one of the three that cannot
+  disagree with its own fallback, since a string it fails to parse is drawn as its leading ten
+  characters. One rule should win, and the cheapest place to settle it is the service saying which
+  frame it means.
+- **All four writes have now been run, and Allodia's own checkout has been paid through.** A
+  Windows client started a monthly checkout (2026-09-19), the hosted page took **a real payment on a
+  real card**, and the subscription came back active and renewing a month later: the first money to
+  move anywhere in this contract, and the end of the longest-standing gap on this page. The other three
+  were driven against a **real** subscription of Allodia's own, from **two** clients: Android on 2026-09-18 and Windows on 2026-09-19, both against
+  production, each switching period, cancelling, restarting and ending where it began. Two answers
+  that had never been seen came back the first time and held the second: the period end does not
+  move when the period changes, and a restart reactivates on the authorisation already held rather
+  than handing back a payment page, so nobody re-enters a card to undo a cancellation. The Windows
+  run also showed the button set following `actions` rather than the card: cancelling withdrew the
+  switch button and produced the restart one, and restarting put it back. The free half was driven
+  in the same session on a second account: both periods drawn in the core's order, priced from the
+  service's own minor units at the same figures the switch above reported.
+- **The store-billed shape is now drawn on a desktop client too**, which is the half `actions`
+  exists for. A Windows client signed in to an account **Google Play** bills drew the store's name,
+  its renewal date and its manage page, offered it once, and offered none of cancel, switch or
+  restart, because the service refuses all three on a subscription it does not bill. Nothing in the
+  card works that out. The same account, minutes earlier with its licence-tester period lapsed, drew
+  the free state and both buy buttons instead, so both sides of the same passthrough were seen on
+  one machine within the hour.
+- ⚠️ **A switch reports an amount and no currency.** `AllodiaIntervalChange` carries minor units
+  alone, so a client prices it from `prices.currency`, which is today's list currency rather than
+  the one this subscriber was charged in. The two differ only for somebody whose billing currency
+  has since changed, which the service does not currently do, so it is a latent wrong rather than a
+  present one.
 - **The invoice history is not modelled.** `GET /subscription` also returns each payment and what
   has been refunded of it; nothing draws that yet, and serde ignores what nothing asked for, so
   adding it later needs no service change.
@@ -531,6 +580,11 @@ half where being wrong costs somebody money and the half that is least proven.
   for a purchase that succeeded. Play issues no correlation token for a launched flow, so the fix
   is a choice (match on the product bought, or time the wait out) rather than an oversight. The
   same listener is why a flow Play never answers leaves its caller suspended.
+- ⚠️ **A pass says how it ended in counts, never in ids.** `attaching N` was the only line the
+  redemption pass wrote, so a pass that granted nothing and one that granted everything read
+  identically, and the ending that costs somebody an explanation was invisible in a support log.
+  It now says how many settled, how many belonged to another account and how many are coming round
+  again. Ids stay out: a purchase id is the store's and names the person's transaction.
 - ⚠️ **A refused token reads as an unreachable service on the account screen.**
   `Error::Unauthorized` reaches a client as `Unreachable`, which is the collapse
   [`entitlement.md`](entitlement.md) forbids for grant health: a revoked grant and an outage are

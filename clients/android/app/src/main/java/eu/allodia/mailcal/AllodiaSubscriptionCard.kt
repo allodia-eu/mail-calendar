@@ -68,6 +68,9 @@ internal fun AllodiaSubscriptionCard(
     onManageStore: (AllodiaStoreSubscription) -> Unit,
     onSignInAgain: () -> Unit,
     onClosed: () -> Unit,
+    onCancel: () -> Unit,
+    onResubscribe: () -> Unit,
+    onSwitch: (AllodiaPlan) -> Unit,
 ) {
     val ctx = LocalContext.current
     // The read runs when the card appears rather than when the activity connects: it is a network
@@ -107,7 +110,16 @@ internal fun AllodiaSubscriptionCard(
                     }
                 }
                 is AllodiaSubscriptionState.Loaded ->
-                    Loaded(state.view, ui, onBuy, onManageStore, onSignInAgain)
+                    Loaded(
+                        state.view,
+                        ui,
+                        onBuy,
+                        onManageStore,
+                        onSignInAgain,
+                        onCancel,
+                        onResubscribe,
+                        onSwitch,
+                    )
             }
             ui.note?.let { note -> Secondary(note, modifier = Modifier.padding(top = 8.dp)) }
         }
@@ -121,10 +133,17 @@ private fun Loaded(
     onBuy: (AllodiaPlan) -> Unit,
     onManageStore: (AllodiaStoreSubscription) -> Unit,
     onSignInAgain: () -> Unit,
+    onCancel: () -> Unit,
+    onResubscribe: () -> Unit,
+    onSwitch: (AllodiaPlan) -> Unit,
 ) {
     val ctx = LocalContext.current
     if (view.subscription.entitled) {
         Active(view.subscription, onManageStore)
+        // What may be done to Allodia's own subscription, which the service decided
+        // (AllodiaSubscriptionWrites.kt). A store's is changed at that store and nothing here
+        // touches it.
+        AllodiaSubscriptionWrites(view.subscription, onCancel, onResubscribe, onSwitch)
     } else {
         Secondary(L10n.settings_subscription_free(ctx))
         if (allodiaNeedsReauthToBuy(view.offers, ui.accountId)) {
@@ -138,6 +157,9 @@ private fun Loaded(
     // ⚠️ Money was taken and nothing has been granted. A card that stays silent here leaves
     // somebody with no way to find that out.
     if (view.anythingStuck) Secondary(L10n.settings_subscription_stuck(ctx))
+    // ⚠️ The other ending that owes somebody an explanation: what they bought is on a different
+    // Allodia account, so it is never coming to this one and no amount of waiting changes that.
+    if (view.claimedElsewhere) Secondary(L10n.settings_subscription_claimed_elsewhere(ctx))
 }
 
 /** What a paid account says: who is charging, until when, and where to change it. */
@@ -147,8 +169,7 @@ private fun Active(
     onManageStore: (AllodiaStoreSubscription) -> Unit,
 ) {
     val ctx = LocalContext.current
-    val locale: Locale =
-        LocalConfiguration.current.locales.takeIf { !it.isEmpty }?.get(0) ?: Locale.getDefault()
+    val locale: Locale = allodiaReaderLocale()
     val billers = allodiaBillers(subscription)
     billers.firstOrNull()?.let { first ->
         Text(
@@ -188,7 +209,7 @@ private fun Active(
     // A store's subscription is the store's to change, so this opens its page rather than offering
     // a cancel button that would have nothing to call. Review-blocking on both stores, which is why
     // it is drawn for every store that still has something to do rather than for a recognised one.
-    subscription.stores.filter { allodiaStoreCanBeManaged(it.status) }.forEach { store ->
+    allodiaManageableStores(subscription).forEach { store ->
         val biller = if (store.source == AllodiaStore.APPLE) "Apple" else "Google Play"
         TextButton(onClick = { onManageStore(store) }) {
             Text(L10n.settings_subscription_manage(ctx, biller))
@@ -229,6 +250,12 @@ private fun Offers(offers: List<AllodiaOffer>, buying: AllodiaPlan?, onBuy: (All
         Secondary(L10n.settings_subscription_terms(ctx))
     }
 }
+
+// The locale this reader is actually being shown, which is the configuration's rather than the JVM
+// default: the app's own language picker writes the configuration.
+@Composable
+internal fun allodiaReaderLocale(): Locale =
+    LocalConfiguration.current.locales.takeIf { !it.isEmpty }?.get(0) ?: Locale.getDefault()
 
 @Composable
 private fun Secondary(text: String, modifier: Modifier = Modifier) {

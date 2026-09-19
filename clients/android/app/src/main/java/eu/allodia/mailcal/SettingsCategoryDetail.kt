@@ -87,6 +87,9 @@ internal fun CategoryDetail(
     onAllodiaBuy: (AllodiaPlan) -> Unit,
     onAllodiaManageStore: (AllodiaStoreSubscription) -> Unit,
     onAllodiaSubscriptionClosed: () -> Unit,
+    onAllodiaCancel: () -> Unit,
+    onAllodiaResubscribe: () -> Unit,
+    onAllodiaSwitch: (AllodiaPlan) -> Unit,
     allodiaSync: AllodiaSyncState,
     onAllodiaSetUp: (AllodiaAccountOffer) -> Unit,
     onAllodiaKeepLocal: (String) -> Unit,
@@ -260,6 +263,9 @@ internal fun CategoryDetail(
                     // migrate, only a claim this device never asked for and now does.
                     onSignInAgain = onAllodiaSignIn,
                     onClosed = onAllodiaSubscriptionClosed,
+                    onCancel = onAllodiaCancel,
+                    onResubscribe = onAllodiaResubscribe,
+                    onSwitch = onAllodiaSwitch,
                 )
             }
         }

@@ -138,6 +138,7 @@ public sealed partial class SettingsDialog : ContentDialog
             _editingSignature = null;
             _deletingSignature = null;
         }
+        CloseAllodiaSubscription(tag);
         _detail.Children.Clear();
         _detail.Children.Add(tag switch
         {

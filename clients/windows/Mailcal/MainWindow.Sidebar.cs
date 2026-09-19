@@ -249,7 +249,22 @@ public sealed partial class MainWindow
     private async Task OpenSettingsAsync(string category = "general")
     {
         var dialog = new SettingsDialog(Model, category) { XamlRoot = Content.XamlRoot };
-        _ = await DialogHelper.ShowAsync(dialog);
+        // Coming back to the window is what tells the subscription card to look again. The
+        // subscription is changed in places this app is not: a checkout finishes in a browser, and
+        // a purchase, a cancellation or a failed renewal can happen on another device entirely, so
+        // what the card last read can be out of date without anything here having happened. The
+        // dialog decides whether the question applies; the window only says when.
+        void Reactivated(object? sender, WindowActivatedEventArgs args) =>
+            dialog.OnHostActivated(args.WindowActivationState);
+        Activated += Reactivated;
+        try
+        {
+            _ = await DialogHelper.ShowAsync(dialog);
+        }
+        finally
+        {
+            Activated -= Reactivated;
+        }
         RestoreSelection();
     }
 

@@ -18,12 +18,15 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.text.NumberFormat
+import java.util.Currency
 import java.util.Locale
 import uniffi.mailcal_bindings.AllodiaBiller
 import uniffi.mailcal_bindings.AllodiaOffer
 import uniffi.mailcal_bindings.AllodiaOwnStatus
 import uniffi.mailcal_bindings.AllodiaStore
 import uniffi.mailcal_bindings.AllodiaStoreStatus
+import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.AllodiaSubscription
 
 // What the subscription section has to draw.
@@ -56,6 +59,11 @@ internal data class AllodiaSubscriptionView(
     // and nothing has been granted, and a card that draws nothing here leaves the person with no
     // way to find that out.
     val anythingStuck: Boolean,
+    // Whether the pass just dropped a purchase because a **different** Allodia account already owns
+    // it, which is what signing in to a second account on a phone that has bought something looks
+    // like. Nothing was granted here and nothing will be, so the person is told rather than left to
+    // wonder why a subscription they paid for is not on this account.
+    val claimedElsewhere: Boolean = false,
 )
 
 // What a biller is called on screen.
@@ -89,7 +97,12 @@ internal fun allodiaBillers(subscription: AllodiaSubscription): List<AllodiaBill
         if (subscription.own != null && subscription.own?.status != AllodiaOwnStatus.PendingFirstPayment) {
             add(AllodiaBiller.Allodia)
         }
-        subscription.stores.filter { allodiaStoreIsBilling(it.status) }.forEach { store ->
+        // Distinct for the same reason the manage buttons are: two subscriptions at one store is
+        // an ordinary shape, and naming that store twice would say somebody is charged twice by it.
+        subscription.stores
+            .filter { allodiaStoreIsBilling(it.status) }
+            .distinctBy { it.source }
+            .forEach { store ->
             add(
                 when (store.source) {
                     AllodiaStore.APPLE -> AllodiaBiller.Apple
@@ -118,6 +131,20 @@ internal fun allodiaStoreIsBilling(status: AllodiaStoreStatus): Boolean =
         AllodiaStoreStatus.Revoked -> false
         else -> false
     }
+
+// The stores worth offering a way into, one entry per store rather than per subscription.
+//
+// ⚠️ **An account can carry more than one subscription at the same store**, and it does the moment
+// somebody resubscribes: the lapsed one is still inside the period it was paid for, so both are
+// manageable and both were drawn, as two identical buttons opening the same page. A store's
+// subscription page is the store's, not the subscription's, so one button is the whole of what
+// there is to offer.
+internal fun allodiaManageableStores(
+    subscription: AllodiaSubscription
+): List<AllodiaStoreSubscription> =
+    subscription.stores
+        .filter { allodiaStoreCanBeManaged(it.status) }
+        .distinctBy { it.source }
 
 // Whether the store still has something for this person to do about this subscription.
 //
@@ -185,6 +212,23 @@ internal fun allodiaDate(raw: String, locale: Locale): String? {
     if (raw.isEmpty()) return null
     val day = allodiaDay(raw) ?: return raw.take(10)
     return day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(locale))
+}
+
+// Minor units and an ISO 4217 code as something a reader can price.
+//
+// ⚠️ **Only for what Allodia bills directly.** A store's price is the store's own formatted string,
+// drawn and never recomputed; this is the other route, where the service sends 199 and EUR because
+// the core carries no locale data at all. Both stores require the first and neither forbids the
+// second, because the second is not theirs.
+//
+// A currency this JVM cannot name formats as a plain number rather than throwing: an amount with no
+// symbol is still the right amount, and a screen that crashed over a code would say nothing at all.
+internal fun allodiaMinorUnits(minorUnits: Long, currency: String, locale: Locale): String {
+    val format = NumberFormat.getCurrencyInstance(locale)
+    runCatching { Currency.getInstance(currency) }
+        .onSuccess { format.currency = it }
+        .onFailure { return NumberFormat.getNumberInstance(locale).format(minorUnits / 100.0) }
+    return format.format(minorUnits / 100.0)
 }
 
 private fun allodiaDay(raw: String): LocalDate? =
