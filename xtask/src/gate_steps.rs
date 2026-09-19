@@ -43,6 +43,34 @@ const PYTHON_CHECKS: &[(&str, &str)] = &[
     ("user docs (contract)", "scripts/ci/check_user_docs.py"),
 ];
 
+/// The in-process contract checks the gate runs before the licensing lint, in order.
+///
+/// Named once because `all` and `print_list` both walk them: a second hand-kept copy is how a
+/// check ends up registered, listed and never actually run, which is the failure the list exists
+/// to make visible.
+const EARLY_CHECKS: &[&str] = &[
+    "check-version-sync",
+    "check-branding",
+    "check-public-hygiene",
+    "check-desktop-handoff",
+    "check-portal-runtime",
+    "check-store-sandbox",
+    "check-license-dir",
+];
+
+/// The in-process contract checks the gate runs after the Python ones, in order. The last five are
+/// the two writing rules and the three silent-failure rules; together they replaced 19.3s of
+/// Python with under a second.
+const LATE_CHECKS: &[&str] = &[
+    "check-showcase-flag",
+    "check-dev-account",
+    "check-log-hygiene",
+    "check-british-english",
+    "check-dash-hygiene",
+    "check-composer-labels",
+    "check-surface-publish",
+];
+
 /// Every step, in order, run as the list is built.
 pub(crate) fn all(root: &Path, clients: bool, palette: &Palette) -> Vec<Step> {
     let run = Runner::new(root, palette);
@@ -83,12 +111,9 @@ pub(crate) fn all(root: &Path, clients: bool, palette: &Palette) -> Vec<Step> {
 
     // 4. The contract checks. All of them are searches and file reads, and together they cost less
     //    than a second.
-    out.push(run.named("check-version-sync"));
-    out.push(run.named("check-branding"));
-    out.push(run.named("check-public-hygiene"));
-    out.push(run.named("check-desktop-handoff"));
-    out.push(run.named("check-portal-runtime"));
-    out.push(run.named("check-license-dir"));
+    for name in EARLY_CHECKS {
+        out.push(run.named(name));
+    }
 
     // Licensing, stated once in REUSE.toml and checked per file. It fires on vendoring: a file with
     // its own SPDX header whose licence text is not in LICENSES/, and a text left there after what
@@ -108,16 +133,9 @@ pub(crate) fn all(root: &Path, clients: bool, palette: &Palette) -> Vec<Step> {
         out.push(run.external(label, "python3", &[script]));
     }
 
-    out.push(run.named("check-showcase-flag"));
-    out.push(run.named("check-dev-account"));
-
-    // The two writing rules and the three silent-failure rules, all in this process. Together they
-    // replaced 19.3s of Python with under a second.
-    out.push(run.named("check-log-hygiene"));
-    out.push(run.named("check-british-english"));
-    out.push(run.named("check-dash-hygiene"));
-    out.push(run.named("check-composer-labels"));
-    out.push(run.named("check-surface-publish"));
+    for name in LATE_CHECKS {
+        out.push(run.named(name));
+    }
 
     // The script suites, discovered so a new helper's tests are picked up by existing.
     out.push(run.sequence(
@@ -196,29 +214,14 @@ pub(crate) fn print_list(clients: bool) {
     println!("1  format          cargo +<rust-nightly.toml> fmt --all --check");
     println!("2  file length     cargo xtask check-file-length");
     println!("3  docs            cargo doc --workspace --exclude mailcal-linux --no-deps");
-    for name in [
-        "check-version-sync",
-        "check-branding",
-        "check-public-hygiene",
-        "check-desktop-handoff",
-        "check-portal-runtime",
-        "check-license-dir",
-    ] {
+    for name in EARLY_CHECKS {
         println!("   {name:<24} in-process");
     }
     println!("   reuse                    reuse lint: required; the gate fails without it");
     for (_, script) in PYTHON_CHECKS {
         println!("   {script}");
     }
-    for name in [
-        "check-showcase-flag",
-        "check-dev-account",
-        "check-log-hygiene",
-        "check-british-english",
-        "check-dash-hygiene",
-        "check-composer-labels",
-        "check-surface-publish",
-    ] {
+    for name in LATE_CHECKS {
         println!("   {name:<24} in-process");
     }
     println!("   script tests             unittest discover (scripts/dev/tests, scripts/ci/tests)");
@@ -232,5 +235,39 @@ pub(crate) fn print_list(clients: bool) {
         println!("   clients                  Apple / Android / Windows / Linux, host permitting");
     } else {
         println!("   --clients adds           Apple / Android / Windows / Linux, host permitting");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EARLY_CHECKS, LATE_CHECKS};
+    use crate::TASKS;
+
+    /// Registering a check and running it are two steps, and CI does only the first: the always-run
+    /// `checks` job walks `TASKS`, while the gate walks the lists above. A check missing from them
+    /// is one nobody who builds ever runs, and it goes unnoticed because CI stays green.
+    #[test]
+    fn every_registered_check_is_in_the_gate() {
+        for task in TASKS {
+            // The 500-line rule runs second, before the contract group, so it is named there.
+            if task.name == "check-file-length" {
+                continue;
+            }
+            assert!(
+                EARLY_CHECKS.contains(&task.name) || LATE_CHECKS.contains(&task.name),
+                "{} is registered but the gate never runs it",
+                task.name
+            );
+        }
+    }
+
+    #[test]
+    fn the_gate_names_only_registered_checks() {
+        for name in EARLY_CHECKS.iter().chain(LATE_CHECKS) {
+            assert!(
+                TASKS.iter().any(|t| t.name == *name),
+                "the gate names {name}, which is not a registered task"
+            );
+        }
     }
 }

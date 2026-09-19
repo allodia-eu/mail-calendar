@@ -239,7 +239,9 @@ the log" feature this contract exists to enable. The surface is the same everywh
 
 - **View.** The **current** log file, read-only and monospace, newest last; the viewer opens at
   the end and offers a jump-to-end affordance. Reads are best-effort, tolerate a concurrent
-  writer, and never break the app; same discipline as the sink itself.
+  writer, and never break the app; same discipline as the sink itself. The text is **selectable,
+  across lines**: what a reader copies into a support request is the failing line *and* the ones
+  around it, so a viewer that can only yield one line at a time answers half the question.
 - **Share / export.** Hands the **current file only** to the system share sheet
   (Android / iOS / macOS) or a save-file dialog (Windows); backups stay on the device. The
   privacy note (what the file does and does not contain) is surfaced **before** the file
@@ -263,6 +265,11 @@ the log" feature this contract exists to enable. The surface is the same everywh
 
 ## Known gaps / follow-ups
 
+- **Only macOS selects across lines in the log viewer.** iOS and Android draw the log as a lazy
+  per-row list (one `Text` per line, a `LazyColumn` row per line), which keeps a ~1 MB file off the
+  main thread and scopes selection to a single row, so a drag cannot cross lines there. macOS draws
+  the whole log as one `NSTextView` document instead, which TextKit lays out incrementally anyway.
+  The same swap is open to both of the others; nothing about the contract stops it.
 - **On Apple the signal handler writes no timestamp**, because it cannot: formatting one needs
   allocation, and a signal handler may not allocate. The record is appended straight after the last
   timestamped line, so its position dates it to within that line, and its `*** … ***` banner makes

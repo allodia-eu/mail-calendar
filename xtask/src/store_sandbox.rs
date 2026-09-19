@@ -43,6 +43,24 @@ const RULES: &[Rule] = &[Rule {
               \"POSIXErrorCode(rawValue: 1): Operation not permitted\"",
 }];
 
+/// Whether the entitlements file actually **grants** `key`, rather than merely naming it.
+///
+/// Asking whether the text contains the key is not the same question. Every grant in that file
+/// carries a comment explaining it, so the key's own name is prose there as well as markup, and a
+/// grant written `<false/>` is a denial the sandbox enforces exactly as a missing key would. Either
+/// would leave this check green over the build it exists to fail, so what counts is the `<key>`
+/// element with `<true/>` as the next thing after it.
+fn grants(entitlements: &str, key: &str) -> bool {
+    let element = format!("<key>{key}</key>");
+    entitlements.match_indices(&element).any(|(at, _)| {
+        entitlements[at + element.len()..]
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .is_some_and(|line| line == "<true/>")
+    })
+}
+
 /// Runs the check. `Ok(true)` means the Store build grants everything the client uses.
 ///
 /// # Errors
@@ -55,7 +73,7 @@ pub(crate) fn run(root: &Path) -> Result<bool, String> {
 
     for rule in RULES {
         let hits = git::grep(root, Kind::Fixed, rule.marker, SOURCES)?;
-        if hits.is_empty() || entitlements.contains(rule.key) {
+        if hits.is_empty() || grants(&entitlements, rule.key) {
             continue;
         }
         println!(
@@ -85,4 +103,51 @@ the dev build both work, and so does every test.",
         "OK: the Mac App Store build grants every sandboxed capability the Apple client uses."
     );
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ENTITLEMENTS, RULES, grants};
+
+    #[test]
+    fn a_key_set_true_is_a_grant() {
+        assert!(grants(
+            "<key>com.apple.security.network.server</key>\n    <true/>\n",
+            "com.apple.security.network.server"
+        ));
+    }
+
+    #[test]
+    fn a_key_set_false_is_not_a_grant() {
+        // The sandbox denies this exactly as it denies a missing key, so the check must too.
+        assert!(!grants(
+            "<key>com.apple.security.network.server</key>\n    <false/>\n",
+            "com.apple.security.network.server"
+        ));
+    }
+
+    #[test]
+    fn a_key_named_only_in_a_comment_is_not_a_grant() {
+        // Every grant in the file is explained beside it, so the key's name is prose there too.
+        assert!(!grants(
+            "<!-- com.apple.security.network.server is what the bind needs. -->\n<true/>\n",
+            "com.apple.security.network.server"
+        ));
+    }
+
+    #[test]
+    fn the_shipped_entitlements_grant_every_rule() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("the xtask crate sits in the workspace root");
+        let entitlements =
+            std::fs::read_to_string(root.join(ENTITLEMENTS)).expect("the entitlements file");
+        for rule in RULES {
+            assert!(
+                grants(&entitlements, rule.key),
+                "{} is not granted",
+                rule.key
+            );
+        }
+    }
 }
