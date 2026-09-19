@@ -93,10 +93,36 @@ fn prepare_directory(path: &Path) -> bool {
         return false;
     }
     if let Err(err) = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700)) {
-        log::warn!("mcp: could not restrict the socket directory: {err}");
-        return false;
+        // A directory the system owns refuses the chmod and does not need it. The sandboxed macOS
+        // build binds inside its App Group container, which macOS creates owner-only and then
+        // denies chmod on, so treating the refusal as "unsafe" turned assistant access off on the
+        // one build that cannot be told to use another path. What decides is therefore the
+        // property the chmod exists to establish, not whether the call was allowed.
+        if !keeps_others_out(parent) {
+            log::warn!("mcp: could not restrict the socket directory: {err}");
+            return false;
+        }
+        log::debug!(
+            "mcp: the socket directory is already this user's alone and is not ours to set"
+        );
     }
     true
+}
+
+/// Whether `dir` already lets no user but its owner traverse it, which is what the chmod above
+/// exists to guarantee.
+///
+/// The mode alone decides it. A directory carrying no group or other bits cannot be entered by
+/// anyone else, and if its owner were some other user this process could not create the socket in
+/// it either, so there is no case where this answers yes and the endpoint is exposed. That keeps
+/// the check `std`-only: reading our own uid to compare owners would mean `geteuid`, which is
+/// `unsafe`, and this crate forbids it.
+// `verbose_bit_mask` would have this as `mode().trailing_zeros() >= 6`. A permission mask is how
+// every reader and every other line in this module spells a mode, and counting low zero bits is
+// not; the octal literal is the clearer form here.
+#[allow(clippy::verbose_bit_mask)]
+fn keeps_others_out(dir: &Path) -> bool {
+    std::fs::metadata(dir).is_ok_and(|meta| meta.permissions().mode() & 0o077 == 0)
 }
 
 /// Whether the socket path is ours to bind.
@@ -150,5 +176,58 @@ fn peer_is(stream: &UnixStream, ours: u32) -> bool {
             log::warn!("mcp: could not read peer credentials: {err}");
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    use super::{keeps_others_out, prepare_directory};
+
+    /// A scratch directory at `mode`, removed when the test ends.
+    fn dir_at(mode: u32, name: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("mailcal-mcp-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
+        path
+    }
+
+    #[test]
+    fn a_directory_others_can_enter_does_not_satisfy_the_rule() {
+        for mode in [0o755, 0o750, 0o705, 0o777] {
+            let dir = dir_at(mode, &format!("open{mode:o}"));
+            assert!(
+                !keeps_others_out(&dir),
+                "mode {mode:o} lets another user traverse in"
+            );
+            let _ = fs::remove_dir_all(&dir);
+        }
+    }
+
+    #[test]
+    fn an_owner_only_directory_satisfies_the_rule() {
+        let dir = dir_at(0o700, "owner-only");
+        assert!(keeps_others_out(&dir));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_missing_directory_never_satisfies_the_rule() {
+        assert!(!keeps_others_out(std::path::Path::new(
+            "/mailcal-mcp-no-such-directory"
+        )));
+    }
+
+    #[test]
+    fn an_existing_owner_only_directory_is_accepted() {
+        // The shape the sandboxed build arrives in: the container is already 0700, and the chmod
+        // that follows is the part the system refuses. The refusal itself cannot be reproduced
+        // here, because only the App Group container's own protection produces it, so what is
+        // pinned is the decision taken when it happens.
+        let dir = dir_at(0o700, "prepare");
+        assert!(prepare_directory(&dir.join("mcp.sock")));
+        let _ = fs::remove_dir_all(&dir);
     }
 }

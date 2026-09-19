@@ -68,14 +68,20 @@ final class MicrosoftSignIn: NSObject, ASWebAuthenticationPresentationContextPro
                 callbackURLScheme: MicrosoftOAuthConfig.callbackScheme
             ) { @Sendable callbackURL, error in
                 if let callbackURL {
+                    logBrowserSignIn("microsoft", "the browser came back with the redirect")
                     continuation.resume(returning: callbackURL.absoluteString)
                 } else {
                     // A user dismissing the browser surfaces as `.canceledLogin`; normalise it
                     // to our `.cancelled` so the model can quietly reset without showing an error.
                     let cancelled = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
+                    let ending: Error = error ?? MicrosoftSignInError.cancelled
+                    logBrowserSignIn(
+                        "microsoft",
+                        cancelled
+                            ? "the browser was closed before the redirect"
+                            : "the browser ended without a redirect (\(ending))")
                     continuation.resume(
-                        throwing: cancelled ? MicrosoftSignInError.cancelled
-                            : (error ?? MicrosoftSignInError.cancelled))
+                        throwing: cancelled ? MicrosoftSignInError.cancelled : ending)
                 }
             }
             session.presentationContextProvider = self
@@ -83,7 +89,9 @@ final class MicrosoftSignIn: NSObject, ASWebAuthenticationPresentationContextPro
             // signed-in user skips re-entering their password (the whole UX win).
             session.prefersEphemeralWebBrowserSession = false
             self.session = session
+            logBrowserSignIn("microsoft", "opening the browser")
             if !session.start() {
+                logBrowserSignIn("microsoft", "the browser did not open")
                 continuation.resume(throwing: MicrosoftSignInError.couldNotStart)
             }
         }
