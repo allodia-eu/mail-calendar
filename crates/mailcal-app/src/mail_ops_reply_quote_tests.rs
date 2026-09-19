@@ -134,3 +134,61 @@ async fn rich_reply_reattaches_quoted_inline_images_as_cid_keeping_the_original_
     assert_eq!(part.media_type, "image/png");
     assert_eq!(part.content, b"hello");
 }
+
+#[tokio::test(start_paused = true)]
+async fn rich_reply_keeps_the_line_breaks_of_a_quoted_plain_text_original() {
+    let (app, submissions) = reply_app(vec![original_message("m1")]);
+    app.dispatch(Intent::RefreshMail).await;
+
+    // An original with no `text/html` part: the editor wraps its text in a `white-space: pre-wrap`
+    // element, because the newlines between the lines are the only structure that body has and HTML
+    // collapses them. The two halves are in different languages, the wrapper in the shared
+    // TypeScript editor and the re-sanitiser here, so this is where they are held together: a
+    // sanitiser that dropped the declaration would put the whole quoted thread on one line.
+    let quoted = "Hi Alice,\n\nThanks for getting back to me.\n\n> Earlier line";
+    let document = ComposerDocument {
+        blocks: vec![
+            Block::Paragraph(Paragraph {
+                content: Vec::new(),
+            }),
+            Block::Quote(Quote {
+                style: QuoteStyle::Indented,
+                attribution: QuoteAttribution {
+                    line: "On 30 Jun 2026, sender@remote.test wrote:".to_owned(),
+                    headers: Vec::new(),
+                },
+                body_html: format!(
+                    "<div class=\"aq-plain\" style=\"white-space: pre-wrap;\">{quoted}</div>"
+                ),
+                body_plain: quoted.to_owned(),
+            }),
+        ],
+        attachments: Vec::new(),
+    };
+    let intent = Intent::SubmitRichReply {
+        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
+        from: None,
+        to: "reply@remote.test".to_owned(),
+        cc: String::new(),
+        bcc: String::new(),
+        subject: None,
+        document,
+        blobs: Vec::new(),
+    };
+    let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
+
+    let submissions = submissions.lock().unwrap();
+    let html = submissions[0]
+        .html_body
+        .as_deref()
+        .expect("rich reply has an HTML body");
+    assert!(
+        html.contains("white-space: pre-wrap"),
+        "the declaration laying the quoted lines out must survive sanitisation: {html}"
+    );
+    // `>` is HTML-escaped, so the quote level is compared as the entity the wire carries.
+    assert!(
+        html.contains("Hi Alice,\n\nThanks for getting back to me.\n\n&gt; Earlier line"),
+        "the quoted text must reach the wire with its own newlines: {html}"
+    );
+}

@@ -382,12 +382,9 @@
       white-space: pre-wrap;
     }
 
-    /* A plain-text original keeps the line breaks its sender wrote. It is inserted with
-       `textContent`, so there are no <br>s to lay it out: without this the whole message
-       collapses onto one line. */
-    .aq-body.aq-plain {
-      white-space: pre-wrap;
-    }
+    /* A plain-text original keeps the line breaks its sender wrote, and `quote.ts` states that
+       inline on the `.aq-plain` wrapper rather than here: this stylesheet is the editor's own and
+       never reaches the recipient, while the wrapper is serialised into the sent message. */
 
     .allodia-quote[data-quote-style="Indented"] .aq-body {
       margin: 0 0 0 0.8ex;
@@ -904,8 +901,11 @@
     if (seed.body_html) {
       body.innerHTML = seed.body_html;
     } else {
-      body.textContent = seed.body_plain || "";
-      body.classList.add("aq-plain");
+      const plain = doc.createElement("div");
+      plain.className = "aq-plain";
+      plain.style.whiteSpace = "pre-wrap";
+      plain.textContent = seed.body_plain || "";
+      body.appendChild(plain);
     }
     container.appendChild(body);
     renderQuoteAttribution(container);

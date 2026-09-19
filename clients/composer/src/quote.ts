@@ -102,10 +102,19 @@ export function setComposerQuote(editor: HTMLElement, seed: QuoteSeed): void {
     // invisible to a MIME check, obvious to a person, who sees their reply lose the message they
     // answered.
     //
+    // The text goes inside a wrapper that states `white-space: pre-wrap` INLINE, and the reason is
+    // that `quoteBlock` serialises this element's `innerHTML`: a rule in the editor's own stylesheet
+    // lays the breaks out here and then stays here, so the sent HTML has a plain-text thread with no
+    // markup between its lines and every reader, ours included, collapses it onto one line. A
+    // sender's own line breaks, blank lines and `>` levels are the only structure this body has.
+    //
     // Rendered as TEXT, never markup: this is the one place a quoted body is not already sanitised
     // HTML from the core, and `textContent` cannot introduce an element whatever it contained.
-    body.textContent = seed.body_plain || "";
-    body.classList.add("aq-plain");
+    const plain = doc.createElement("div");
+    plain.className = "aq-plain";
+    plain.style.whiteSpace = "pre-wrap";
+    plain.textContent = seed.body_plain || "";
+    body.appendChild(plain);
   }
   container.appendChild(body);
 
