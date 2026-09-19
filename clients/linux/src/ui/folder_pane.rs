@@ -8,7 +8,6 @@
 
 use std::collections::HashSet;
 
-use adw::prelude::*;
 use mailcal_bindings::{FolderRow, Intent, MailboxListSnapshot};
 
 use super::{
