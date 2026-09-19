@@ -52,14 +52,10 @@ pub(crate) fn a_nested_folder_is_indented_and_a_shut_one_is_not_drawn() {
     // One indent step per level, on top of the account's own. Asserted on the row rather than
     // on a number in the source, because the indent is the only thing on screen that says
     // where a folder sits: every adapter names it by its own name alone.
+    // The margin is read off the row itself: an `AdwActionRow` **is** a `GtkListBoxRow`, so the
+    // widget the list holds is the row, and `child()` would hand back the box inside it.
     let drawn = rows(&list);
-    let margin = |index: usize| {
-        drawn[index]
-            .child()
-            .and_downcast::<adw::ActionRow>()
-            .expect("an ActionRow")
-            .margin_start()
-    };
+    let margin = |index: usize| drawn[index].margin_start();
     // [0] All Accounts, [1] its Inbox, [2] the account, [3] Inbox, [4] Archive, [5] Clients,
     // [6] Acme.
     assert!(margin(5) > margin(4), "Clients sits inside Archive");
@@ -85,11 +81,7 @@ pub(crate) fn a_folder_chevron_toggles_without_navigating() {
     let drawn = rows(&list);
 
     // The Archive's own chevron: the trailing button on that row.
-    let archive = drawn[4]
-        .child()
-        .and_downcast::<adw::ActionRow>()
-        .expect("an ActionRow");
-    let chevron = super::buttons(archive.upcast_ref::<gtk::Widget>())
+    let chevron = super::buttons(drawn[4].upcast_ref::<gtk::Widget>())
         .into_iter()
         .find(|button| {
             button
@@ -108,12 +100,8 @@ pub(crate) fn a_folder_chevron_toggles_without_navigating() {
     );
 
     // The Inbox holds no folders, so it must not offer to open one.
-    let inbox = drawn[3]
-        .child()
-        .and_downcast::<adw::ActionRow>()
-        .expect("an ActionRow");
     assert!(
-        !super::buttons(inbox.upcast_ref::<gtk::Widget>())
+        !super::buttons(drawn[3].upcast_ref::<gtk::Widget>())
             .into_iter()
             .any(|button| button
                 .icon_name()
