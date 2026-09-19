@@ -107,14 +107,20 @@ final class GoogleSignIn: NSObject, GoogleBrowserFlow, ASWebAuthenticationPresen
                 callbackURLScheme: scheme
             ) { @Sendable callbackURL, error in
                 if let callbackURL {
+                    logBrowserSignIn("google", "the browser came back with the redirect")
                     continuation.resume(returning: callbackURL.absoluteString)
                 } else {
                     // A user dismissing the browser surfaces as `.canceledLogin`; normalise it
                     // to our `.cancelled` so the model can quietly reset without showing an error.
                     let cancelled = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
+                    let ending: Error = error ?? GoogleSignInError.cancelled
+                    logBrowserSignIn(
+                        "google",
+                        cancelled
+                            ? "the browser was closed before the redirect"
+                            : "the browser ended without a redirect (\(ending))")
                     continuation.resume(
-                        throwing: cancelled ? GoogleSignInError.cancelled
-                            : (error ?? GoogleSignInError.cancelled))
+                        throwing: cancelled ? GoogleSignInError.cancelled : ending)
                 }
             }
             session.presentationContextProvider = self
@@ -122,7 +128,9 @@ final class GoogleSignIn: NSObject, GoogleBrowserFlow, ASWebAuthenticationPresen
             // skips re-entering their password (the whole UX win).
             session.prefersEphemeralWebBrowserSession = false
             self.session = session
+            logBrowserSignIn("google", "opening the browser")
             if !session.start() {
+                logBrowserSignIn("google", "the browser did not open")
                 continuation.resume(throwing: GoogleSignInError.couldNotStart)
             }
         }
@@ -185,7 +193,9 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
             self.callbackContinuation = continuation
             // The user's default browser, reuses their existing Google session (the UX win) and is
             // where Google redirects to our loopback address on success.
+            logBrowserSignIn("google", "opening the browser")
             if !NSWorkspace.shared.open(url) {
+                logBrowserSignIn("google", "the browser did not open")
                 fail(GoogleSignInError.couldNotStart)
             }
         }
@@ -196,9 +206,14 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
         case .ready:
             guard let assigned = listener?.port?.rawValue else { return }
             port = assigned
+            logBrowserSignIn("google", "waiting for the redirect on 127.0.0.1:\(assigned)")
             readyContinuation?.resume(returning: "http://127.0.0.1:\(assigned)/")
             readyContinuation = nil
         case let .failed(error):
+            // A sandboxed build without `com.apple.security.network.server` arrives here rather
+            // than at the constructor, since the bind is asynchronous, so this is the only line
+            // that carries the cause; every line before it reads like a healthy sign-in.
+            logBrowserSignIn("google", "could not wait for the redirect (\(error))")
             fail(error)
         default:
             break
@@ -220,10 +235,14 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
         guard let data, let request = String(data: data, encoding: .utf8),
               let target = Self.requestTarget(request)
         else {
-            if let error { fail(error) }
+            if let error {
+                logBrowserSignIn("google", "the redirect did not arrive whole (\(error))")
+                fail(error)
+            }
             connection.cancel()
             return
         }
+        logBrowserSignIn("google", "the browser came back with the redirect")
         // Reconstruct the full callback URL the core validates (state) and exchanges (code):
         // http://127.0.0.1:<port>/?code=...&state=...&scope=...
         let callbackURL = "http://127.0.0.1:\(port)\(target)"

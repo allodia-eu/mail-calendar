@@ -80,15 +80,21 @@ final class JmapSignIn: NSObject, ASWebAuthenticationPresentationContextProvidin
                 callbackURLScheme: JmapOAuthConfig.callbackScheme
             ) { @Sendable callbackURL, error in
                 if let callbackURL {
+                    logBrowserSignIn("jmap", "the browser came back with the redirect")
                     continuation.resume(returning: callbackURL.absoluteString)
                 } else {
                     // A user dismissing the browser surfaces as `.canceledLogin`; normalise it
                     // to our `.cancelled` so the form can quietly reset without claiming sign-in
                     // failed (it didn't, they closed it).
                     let cancelled = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
+                    let ending: Error = error ?? JmapSignInError.cancelled
+                    logBrowserSignIn(
+                        "jmap",
+                        cancelled
+                            ? "the browser was closed before the redirect"
+                            : "the browser ended without a redirect (\(ending))")
                     continuation.resume(
-                        throwing: cancelled ? JmapSignInError.cancelled
-                            : (error ?? JmapSignInError.cancelled))
+                        throwing: cancelled ? JmapSignInError.cancelled : ending)
                 }
             }
             session.presentationContextProvider = self
@@ -96,7 +102,9 @@ final class JmapSignIn: NSObject, ASWebAuthenticationPresentationContextProvidin
             // signed-in user skips re-entering their password (the whole UX win).
             session.prefersEphemeralWebBrowserSession = false
             self.session = session
+            logBrowserSignIn("jmap", "opening the browser")
             if !session.start() {
+                logBrowserSignIn("jmap", "the browser did not open")
                 continuation.resume(throwing: JmapSignInError.couldNotStart)
             }
         }

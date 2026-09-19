@@ -47,6 +47,7 @@ mod report;
 mod shared_build;
 mod showcase_flag;
 mod showcase_lists;
+mod store_sandbox;
 mod surface_publish;
 mod version_sync;
 
@@ -105,6 +106,11 @@ pub(crate) const TASKS: &[Task] = &[
         name: "check-portal-runtime",
         label: "portal runtime (one shared Tokio runtime)",
         run: portal_runtime::run,
+    },
+    Task {
+        name: "check-store-sandbox",
+        label: "store sandbox (the Store build grants what the client uses)",
+        run: store_sandbox::run,
     },
     Task {
         name: "check-license-dir",

@@ -99,15 +99,21 @@ final class AllodiaSignIn: NSObject, ASWebAuthenticationPresentationContextProvi
                 callbackURLScheme: AllodiaOAuthConfig.callbackScheme
             ) { @Sendable callbackURL, error in
                 if let callbackURL {
+                    logBrowserSignIn("allodia", "the browser came back with the redirect")
                     continuation.resume(returning: callbackURL.absoluteString)
                 } else {
                     // A dismissed browser surfaces as `.canceledLogin`; normalise it so the screen
                     // can reset quietly without claiming sign-in failed (it didn't, they closed
                     // it). Escaping the wait arrives here too, by way of `cancel()`.
                     let cancelled = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
+                    let ending: Error = error ?? AllodiaSignInError.cancelled
+                    logBrowserSignIn(
+                        "allodia",
+                        cancelled
+                            ? "the browser was closed before the redirect"
+                            : "the browser ended without a redirect (\(ending))")
                     continuation.resume(
-                        throwing: cancelled ? AllodiaSignInError.cancelled
-                            : (error ?? AllodiaSignInError.cancelled))
+                        throwing: cancelled ? AllodiaSignInError.cancelled : ending)
                 }
             }
             session.presentationContextProvider = self
@@ -115,7 +121,9 @@ final class AllodiaSignIn: NSObject, ASWebAuthenticationPresentationContextProvi
             // their Allodia account is not asked for a password again.
             session.prefersEphemeralWebBrowserSession = false
             self.session = session
+            logBrowserSignIn("allodia", "opening the browser")
             if !session.start() {
+                logBrowserSignIn("allodia", "the browser did not open")
                 continuation.resume(throwing: AllodiaSignInError.couldNotStart)
             }
         }
