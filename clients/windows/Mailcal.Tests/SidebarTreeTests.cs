@@ -353,4 +353,95 @@ public class SidebarTreeTests
         Assert.Equal(
             ["inbox-glyph", "sent-glyph", "folder", "folder"],
             target[1].Children.Select(c => c.Glyph));
-    }}
+    }
+    // A folder filed inside another becomes a child of that folder's entry, not of the account's.
+    // This pane nests rows natively, so the framework draws the chevron, the indent and the
+    // hiding; the three panes that draw a flat list read FolderRow.visible instead
+    // (docs/folder-pane.md).
+    [Fact]
+    public void FolderInsideFolderIsNestedUnderIt()
+    {
+        var target = new ObservableCollection<SidebarItem>();
+        SidebarFixture.Sync(target, [SidebarFixture.Account("a", folders: SidebarFixture.Tree())]);
+
+        var account = target.Single(item => item.AccountId == "a");
+        var outer = Assert.Single(account.Children);
+        Assert.Equal("outer", outer.Tag);
+        var inner = Assert.Single(outer.Children);
+        Assert.Equal("inner", inner.Tag);
+        Assert.Equal("deep", Assert.Single(inner.Children).Tag);
+
+        // Every level carries its account, because a folder key names a mailbox only together
+        // with one (rule 14).
+        Assert.Equal("a", inner.OwnerAccountId);
+        Assert.Equal("a", Assert.Single(inner.Children).OwnerAccountId);
+    }
+
+    // A folder holding nothing but mail gets no children, which is what keeps the chevron off it:
+    // the framework draws one only for an item that has some.
+    [Fact]
+    public void AFolderHoldingNoFoldersHasNoChildren()
+    {
+        var target = new ObservableCollection<SidebarItem>();
+        SidebarFixture.Sync(target, [SidebarFixture.Account("a", folders: SidebarFixture.Tree())]);
+
+        var deep = target
+            .Single(item => item.AccountId == "a")
+            .Children.Single()
+            .Children.Single()
+            .Children.Single();
+        Assert.Empty(deep.Children);
+    }
+
+    // Expansion is the core's, mirrored here and never invented: a shut folder comes back shut,
+    // and applying the core's own value must not report itself as a user's chevron click.
+    [Fact]
+    public void FolderExpansionMirrorsTheCoreWithoutEchoingBack()
+    {
+        var toggled = new List<SidebarItem>();
+        var target = new ObservableCollection<SidebarItem>();
+        SidebarFixture.Sync(
+            target,
+            [SidebarFixture.Account("a", folders: SidebarFixture.Tree(innerExpanded: false))],
+            onExpanded: toggled.Add);
+
+        var outer = target.Single(item => item.AccountId == "a").Children.Single();
+        Assert.True(outer.IsExpanded);
+        Assert.False(outer.Children.Single().IsExpanded);
+        Assert.Empty(toggled);
+    }
+
+    // A refresh reuses the entry a nested folder already has. The flat lookup could not find one:
+    // a nested folder is a child of its parent's entry, not of the account's, so a miss would mint
+    // a second entry and cost the framework a container it had already realised.
+    [Fact]
+    public void ARefreshKeepsTheEntriesANestedTreeAlreadyHas()
+    {
+        var target = new ObservableCollection<SidebarItem>();
+        var account = SidebarFixture.Account("a", folders: SidebarFixture.Tree());
+        SidebarFixture.Sync(target, [account]);
+        var before = target.Single(item => item.AccountId == "a").Children.Single().Children.Single();
+
+        SidebarFixture.Sync(target, [account]);
+
+        var after = target.Single(item => item.AccountId == "a").Children.Single().Children.Single();
+        Assert.Same(before, after);
+    }
+
+    // A folder that stops holding folders loses the rows that were under it, rather than keeping
+    // them on screen beneath a parent that no longer names them.
+    [Fact]
+    public void AFolderThatEmptiesOutDropsWhatWasUnderIt()
+    {
+        var target = new ObservableCollection<SidebarItem>();
+        SidebarFixture.Sync(target, [SidebarFixture.Account("a", folders: SidebarFixture.Tree())]);
+
+        SidebarFixture.Sync(
+            target,
+            [SidebarFixture.Account("a", folders: [SidebarFixture.Folder("outer", "Outer")])]);
+
+        var outer = target.Single(item => item.AccountId == "a").Children.Single();
+        Assert.Equal("outer", outer.Tag);
+        Assert.Empty(outer.Children);
+    }
+}

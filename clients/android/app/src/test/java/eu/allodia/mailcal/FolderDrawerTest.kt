@@ -34,14 +34,34 @@ import uniffi.mailcal_bindings.FolderRow
 
 private fun ctx(): Context = RuntimeEnvironment.getApplication()
 
-private fun folder(key: String, name: String, role: FolderRole?, unread: UInt = 0u) =
-    FolderRow(key = key, name = name, role = role, unread = unread)
+private fun folder(
+    key: String,
+    name: String,
+    role: FolderRole?,
+    unread: UInt = 0u,
+    parent: String? = null,
+    depth: UInt = 0u,
+    hasChildren: Boolean = false,
+    expanded: Boolean = false,
+    visible: Boolean = true,
+) = FolderRow(
+    key = key,
+    name = name,
+    role = role,
+    unread = unread,
+    parent = parent,
+    depth = depth,
+    hasChildren = hasChildren,
+    expanded = expanded,
+    visible = visible,
+)
 
 @RunWith(RobolectricTestRunner::class)
 class FolderDrawerTest {
     @get:Rule val compose = createComposeRule()
 
     private val expandToggles = mutableListOf<Pair<String, Boolean>>()
+    private val folderToggles = mutableListOf<Triple<String, String, Boolean>>()
     private val selectedAccounts = mutableListOf<String?>()
     private val selectedFolders = mutableListOf<Pair<String, String>>()
     private var outboxOpened = 0
@@ -67,6 +87,9 @@ class FolderDrawerTest {
                 onSelectAccount = { selectedAccounts.add(it) },
                 onSelectFolder = { account, key -> selectedFolders.add(account to key) },
                 onSetExpanded = { id, expanded -> expandToggles.add(id to expanded) },
+                onSetFolderExpanded = { account, key, expanded ->
+                    folderToggles.add(Triple(account, key, expanded))
+                },
                 onShowOutbox = { outboxOpened += 1 },
                 content = {},
             )
@@ -75,6 +98,75 @@ class FolderDrawerTest {
 
     private fun account(id: String, email: String, expanded: Boolean) =
         AccountRow(id = id, email = email, name = "", expanded = expanded)
+
+    @Test
+    fun `a folder inside a folder is drawn and its chevron shuts it without selecting it`() {
+        drawer(
+            accounts = listOf(account("work", "me@work.example", expanded = true)),
+            accountFolders = listOf(
+                AccountFolderRow(
+                    "work",
+                    listOf(
+                        folder("clients", "Clients", role = null, hasChildren = true, expanded = true),
+                        folder("clients/acme", "Acme", role = null, parent = "clients", depth = 1u),
+                    ),
+                ),
+            ),
+        )
+
+        compose.onNodeWithText("Clients").assertIsDisplayed()
+        compose.onNodeWithText("Acme").assertIsDisplayed()
+
+        // The chevron is its own target. Pressing it must report the toggle and select nothing:
+        // opening a folder to see what is in it is not opening its mail.
+        compose.onNodeWithContentDescription(L10n.a11y_collapse_folder(ctx())).performClick()
+        assertEquals(listOf(Triple("work", "clients", false)), folderToggles)
+        assertEquals(emptyList<Pair<String, String>>(), selectedFolders)
+    }
+
+    @Test
+    fun `a folder the core marked hidden is not drawn at all`() {
+        // What a shut `Clients` looks like coming back from the core: the row is still in the
+        // list, carrying `visible = false`, and the drawer must leave it off screen rather than
+        // working out for itself which parents are shut.
+        drawer(
+            accounts = listOf(account("work", "me@work.example", expanded = true)),
+            accountFolders = listOf(
+                AccountFolderRow(
+                    "work",
+                    listOf(
+                        folder("clients", "Clients", role = null, hasChildren = true),
+                        folder(
+                            "clients/acme",
+                            "Acme",
+                            role = null,
+                            parent = "clients",
+                            depth = 1u,
+                            visible = false,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        compose.onNodeWithText("Clients").assertIsDisplayed()
+        compose.onNodeWithText("Acme").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a folder that holds no folders draws no chevron`() {
+        // A chevron beside it would promise a tree that is not there.
+        drawer(
+            accounts = listOf(account("work", "me@work.example", expanded = true)),
+            accountFolders = listOf(
+                AccountFolderRow("work", listOf(folder("w1", "Tenders", role = null))),
+            ),
+        )
+
+        compose.onNodeWithText("Tenders").assertIsDisplayed()
+        compose.onNodeWithContentDescription(L10n.a11y_expand_folder(ctx())).assertDoesNotExist()
+        compose.onNodeWithContentDescription(L10n.a11y_collapse_folder(ctx())).assertDoesNotExist()
+    }
 
     @Test
     fun `every expanded account shows its folders regardless of which is selected`() {

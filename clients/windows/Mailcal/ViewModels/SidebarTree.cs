@@ -171,7 +171,12 @@ public static class SidebarTree
             // feeding it to the core again as a "user toggled it" is a rebuild per refresh.
             item.ApplyExpanded(showFolders && account.Expanded);
             ReconcileFolders(
-                item.Children, account.Id, showFolders ? account.Folders : [], labels, glyphs);
+                item.Children,
+                account.Id,
+                showFolders ? account.Folders : [],
+                onExpandedChanged,
+                labels,
+                glyphs);
             wanted.Add(item);
         }
 
@@ -218,14 +223,33 @@ public static class SidebarTree
         Apply(target, wanted);
     }
 
+    /// <summary>
+    /// One account's folders, as the tree the provider files them in rather than as a flat list.
+    /// </summary>
+    /// <remarks>
+    /// A folder filed inside another becomes a child of that folder's entry, so the framework
+    /// draws the chevron, the indent and the hiding itself: this pane nests rows natively, where
+    /// the three that draw a flat list read <c>FolderRow.visible</c> and an indent step instead
+    /// (docs/folder-pane.md).
+    /// <para>
+    /// The rows arrive **depth-first**, each folder ahead of the folders inside it, which is what
+    /// lets one pass attach every child to a parent it has already built.
+    /// </para>
+    /// </remarks>
     private static void ReconcileFolders(
         ObservableCollection<SidebarItem> target,
         string accountId,
         IReadOnlyList<FolderItem> folders,
+        Action<SidebarItem> onExpandedChanged,
         SidebarLabels labels,
         SidebarGlyphs glyphs)
     {
-        var wanted = new List<SidebarItem>(folders.Count);
+        var existing = new Dictionary<string, SidebarItem>();
+        CollectByTag(target, existing);
+        var built = new Dictionary<string, SidebarItem>();
+        var children = new Dictionary<string, List<SidebarItem>>();
+        var roots = new List<SidebarItem>();
+
         foreach (var folder in folders)
         {
             // The synthetic null-key "All Mail" head is skipped: the account row itself is that view.
@@ -236,18 +260,57 @@ public static class SidebarTree
             // Each folder carries the account it belongs to, because its key does not name a
             // mailbox on its own: the two travel together in one intent (docs/folder-pane.md,
             // rule 14).
-            var item = Existing(target, key)
-                ?? new SidebarItem
+            if (!existing.TryGetValue(key, out var item))
+            {
+                item = new SidebarItem
                 {
                     Tag = key,
                     OwnerAccountId = accountId,
                     Glyph = glyphs.ForRole(folder.Role),
+                    ExpandedChanged = onExpandedChanged,
                 };
+            }
             item.Content = folder.Name;
             SetUnread(item, folder.Unread, labels);
-            wanted.Add(item);
+            // `ApplyExpanded`, not the setter: the core's own value coming back, which fed to the
+            // core again would be a rebuild per refresh.
+            item.ApplyExpanded(folder.HasChildren && folder.Expanded);
+            built[key] = item;
+            // Every folder gets a list, so a folder that has emptied out has its old children
+            // removed rather than left on screen under a parent that no longer names them.
+            children[key] = [];
+            if (folder.Parent is { } parent && built.ContainsKey(parent))
+            {
+                children[parent].Add(item);
+            }
+            else
+            {
+                roots.Add(item);
+            }
         }
-        Apply(target, wanted);
+
+        foreach (var (key, nested) in children)
+        {
+            Apply(built[key].Children, nested);
+        }
+        Apply(target, roots);
+    }
+
+    /// <summary>Indexes a whole folder subtree by tag, so a refresh reuses the entries it has.</summary>
+    /// <remarks>
+    /// The flat <see cref="Existing"/> cannot do this: a folder that was nested last refresh is a
+    /// child of its parent's entry, not of the account's, and a lookup that missed it would mint a
+    /// second entry and cost the framework a container it had already realised.
+    /// </remarks>
+    private static void CollectByTag(
+        ObservableCollection<SidebarItem> items,
+        Dictionary<string, SidebarItem> into)
+    {
+        foreach (var item in items)
+        {
+            into[item.Tag] = item;
+            CollectByTag(item.Children, into);
+        }
     }
 
     /// <summary>Sets a row's unread count and the sentence a screen reader reads for it.</summary>

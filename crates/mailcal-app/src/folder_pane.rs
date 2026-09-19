@@ -1,4 +1,5 @@
-//! Which trees are open in the sidebar: one per account, plus the **All Accounts** group's.
+//! Which trees are open in the sidebar: one per account, one per folder that holds folders,
+//! plus the **All Accounts** group's.
 //!
 //! Held in memory and consulted on **every** snapshot rebuild; including one per search
 //! keystroke: so it cannot be a file read the way the per-sync settings are. The persisted
@@ -13,8 +14,9 @@ use std::path::PathBuf;
 
 use engine_api::Provider;
 use mailcal_account::{Preferences, load_preferences, save_preferences};
+use mailcal_viewmodel::FolderRow;
 
-use crate::App;
+use crate::{App, reference::FolderRef};
 
 /// The loaded per-account expansion state and where to persist it.
 pub(crate) struct FolderPaneState {
@@ -64,10 +66,53 @@ impl FolderPaneState {
         true
     }
 
-    /// Forgets an account's expansion, and persists: so a later re-add opens showing its
-    /// folders rather than inheriting a shut tree nobody remembers shutting.
+    /// Records whether one folder's own sub-folders are showing, and persists. Returns
+    /// whether anything changed, for the reason [`FolderPaneState::set`] does.
+    fn set_folder(&mut self, account: &str, folder: &str, expanded: bool) -> bool {
+        if self.prefs.folder_expanded(account, folder) == expanded {
+            return false;
+        }
+        self.prefs.set_folder_expanded(account, folder, expanded);
+        self.persist();
+        true
+    }
+
+    /// Fills in [`FolderRow::expanded`] and [`FolderRow::visible`] over one account's rows,
+    /// which arrive depth-first with a folder immediately followed by the folders inside it.
+    ///
+    /// Both here rather than in the projection: expansion is this state's, and visibility is
+    /// one walk of the chain that three of the four panes would otherwise each have to do in
+    /// their own toolkit (`docs/folder-pane.md`).
+    pub(crate) fn stamp_folders(&self, account: &str, rows: &mut [FolderRow]) {
+        // The depth at which the tree is currently shut: every row at or below it sits inside
+        // a folder the user closed. Depth-first order is what lets one pass answer it, and
+        // `u32::MAX` is "nothing is shut".
+        let mut shut_below = u32::MAX;
+        for row in rows {
+            row.visible = row.depth < shut_below;
+            // A folder with nothing inside it is never "expanded": there is no tree to open,
+            // so a client drawing a chevron from this cannot draw one that does nothing.
+            row.expanded = row.has_children && self.prefs.folder_expanded(account, &row.key);
+            if !row.visible {
+                // Already inside something shut; a shut folder deeper in must not raise the
+                // cut-off to its own level and bring its siblings' children back on screen.
+                continue;
+            }
+            shut_below = if row.has_children && !row.expanded {
+                row.depth + 1
+            } else {
+                u32::MAX
+            };
+        }
+    }
+
+    /// Forgets an account's expansion, and every folder's inside it, and persists: so a later
+    /// re-add opens showing its folders rather than inheriting a shut tree nobody remembers
+    /// shutting.
     pub(crate) fn remove_account(&mut self, account: &str) {
-        if self.prefs.remove_account_expansion(account) {
+        let tree = self.prefs.remove_account_expansion(account);
+        let folders = self.prefs.remove_folder_expansions(account);
+        if tree || folders {
             self.persist();
         }
     }
@@ -81,6 +126,9 @@ impl FolderPaneState {
                 .collapsed_accounts
                 .clone_from(&self.prefs.collapsed_accounts);
             on_disk.unified_collapsed = self.prefs.unified_collapsed;
+            on_disk
+                .collapsed_folders
+                .clone_from(&self.prefs.collapsed_folders);
             let _ = save_preferences(path, &on_disk);
         }
     }
@@ -140,7 +188,27 @@ impl<P: Provider> App<P> {
             .unified()
     }
 
-    /// Forgets an account's expansion state (account removal).
+    /// Opens or shuts the folders inside one folder, and persists the choice.
+    ///
+    /// An account's tree and a folder's are the same thing one level down, so this follows
+    /// [`App::set_account_expanded`]'s rules exactly: it is not navigation, it touches neither
+    /// the selected account nor the selected folder, and it survives a restart. The folder
+    /// arrives as a [`FolderRef`] because a folder key is unique only within its account
+    /// (`docs/folder-pane.md`, rule 14).
+    // `async` with no inner `await`: see `set_account_expanded`.
+    #[allow(clippy::unused_async)]
+    pub async fn set_folder_expanded(&self, folder: &FolderRef, expanded: bool) {
+        let changed = self
+            .folder_pane
+            .lock()
+            .expect("folder-pane mutex poisoned")
+            .set_folder(folder.account.as_str(), &folder.key, expanded);
+        if changed {
+            self.rebuild_snapshot().await;
+        }
+    }
+
+    /// Forgets an account's expansion state, and its folders' (account removal).
     pub(crate) fn remove_account_expansion(&self, account: &str) {
         self.folder_pane
             .lock()

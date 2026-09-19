@@ -16,6 +16,8 @@ use crate::view_rows::flat_row;
 
 #[path = "view_tests/flat.rs"]
 mod flat;
+#[path = "view_tests/folder_tree.rs"]
+mod folder_tree;
 #[path = "view_tests/folders_and_accounts.rs"]
 mod folders_and_accounts;
 #[path = "view_tests/search.rs"]

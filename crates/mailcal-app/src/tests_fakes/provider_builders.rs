@@ -348,6 +348,24 @@ impl FakeProvider {
 
     /// An adapter that cannot report at all: the dev fixtures and the showcase engine, and
     /// any transport added later without a junk verb. The core files the message itself.
+    /// Files two folders inside the provider's existing Archive: `Clients`, and `Acme` inside
+    /// that. Two levels because one proves only that a row was indented once, where the rule a
+    /// pane has to hold is that a row is on screen while **every** folder above it is open.
+    pub(crate) fn with_nested_folders(mut self) -> Self {
+        let mut clients = Mailbox::new(
+            MailboxId::try_from("archive/clients").unwrap(),
+            // The folder's own name, which is what every adapter reports: the path to it is
+            // the id, and the pane's indent is what says where it sits.
+            "Clients",
+        );
+        clients.parent = Some(MailboxId::try_from("archive").unwrap());
+        let mut acme = Mailbox::new(MailboxId::try_from("archive/clients/acme").unwrap(), "Acme");
+        acme.parent = Some(clients.id.clone());
+        self.mailboxes.push(clients);
+        self.mailboxes.push(acme);
+        self
+    }
+
     pub(crate) fn without_reporting(mut self) -> Self {
         self.caps = Capabilities::none()
             .with_mail()

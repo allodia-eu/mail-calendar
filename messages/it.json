@@ -112,6 +112,8 @@
 	"a11y_close_folders": "Chiudi le caselle",
 	"a11y_expand_account": "Mostra le cartelle",
 	"a11y_collapse_account": "Nascondi le cartelle",
+	"a11y_expand_folder": "Mostra le sottocartelle",
+	"a11y_collapse_folder": "Nascondi le sottocartelle",
 	"a11y_unread_count": "{count} da leggere",
 	"a11y_unread_count_one": "{count} da leggere",
 	"a11y_outbox_count": "{count} in attesa di invio",

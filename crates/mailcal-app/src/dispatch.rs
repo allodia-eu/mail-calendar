@@ -65,6 +65,11 @@ impl<P: Provider> App<P> {
                 // Same reasoning as the account trees above: the pane changed, the list did not.
                 self.set_unified_expanded(expanded).await;
             }
+            Intent::SetFolderExpanded { folder, expanded } => {
+                // And the same again one level down. In particular this does **not** select the
+                // folder: opening a folder to see what is inside it is not opening its mail.
+                self.set_folder_expanded(&folder, expanded).await;
+            }
             Intent::SelectFolder { folder } => {
                 // One write, so the account and the key can never be half-applied: a reader
                 // between two writes is how the same key got resolved against the wrong account.

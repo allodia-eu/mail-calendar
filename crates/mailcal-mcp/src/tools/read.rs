@@ -165,6 +165,7 @@ fn folder_out(row: FolderRow) -> FolderOut {
             }
             .to_owned()
         }),
+        parent: row.parent,
     }
 }
 

@@ -27,12 +27,25 @@ import uniffi.mailcal_bindings.SearchScope
 
 private fun ctx(): Context = RuntimeEnvironment.getApplication()
 
+// A top-level folder with nothing inside it: all this suite needs of the tree.
+private fun row(key: String, name: String, role: FolderRole) = FolderRow(
+    key = key,
+    name = name,
+    role = role,
+    unread = 0u,
+    parent = null,
+    depth = 0u,
+    hasChildren = false,
+    expanded = false,
+    visible = true,
+)
+
 private fun folders() = listOf(
     AccountFolderRow(
         accountId = "work",
         folders = listOf(
-            FolderRow(key = "inbox-key", name = "Inbox", role = FolderRole.INBOX, unread = 0u),
-            FolderRow(key = "arch-key", name = "Archief", role = FolderRole.ARCHIVE, unread = 0u),
+            row("inbox-key", "Inbox", FolderRole.INBOX),
+            row("arch-key", "Archief", FolderRole.ARCHIVE),
         ),
     ),
 )

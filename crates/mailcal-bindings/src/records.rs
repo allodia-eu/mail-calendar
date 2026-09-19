@@ -5,12 +5,17 @@
 //! the pure `mailcal-viewmodel` types. `lib.rs` re-exports them so the FFI object and the
 //! conversions reference them at the crate root.
 //!
-//! The Settings-surface records live in the `settings` submodule (this file was over the
-//! 500-line limit); `lib.rs` re-exports both halves, so the split is invisible to a host.
+//! The Settings-surface records live in the `settings` submodule, and the folder-pane ones in
+//! `records_folders` (this file was over the 500-line limit twice over); `lib.rs` re-exports
+//! every half, so the splits are invisible to a host.
 
 pub(crate) mod settings;
 
-use crate::{records_avatar::Avatar, records_outbox::QueuedRow};
+use crate::{
+    records_avatar::Avatar,
+    records_folders::{AccountFolderRow, FolderRow},
+    records_outbox::QueuedRow,
+};
 
 /// An immutable snapshot of the display-timezone setting for a host to render.
 #[derive(uniffi::Record)]
@@ -331,51 +336,6 @@ pub enum SearchHorizon {
         /// The depth in months, as the sync-depth setting names it.
         months: u32,
     },
-}
-
-/// The special role a folder plays (RFC 6154 SPECIAL-USE / JMAP equivalent), exposed on
-/// [`FolderRow`] so a client can badge or group well-known folders without name heuristics.
-#[derive(uniffi::Enum)]
-pub enum FolderRole {
-    /// The primary inbox.
-    Inbox,
-    /// Drafts; messages in-progress.
-    Drafts,
-    /// Sent; copies of sent messages.
-    Sent,
-    /// Archive; long-term storage.
-    Archive,
-    /// Junk / Spam; server-side spam filter destination.
-    Junk,
-    /// Trash; recoverable deleted messages.
-    Trash,
-    /// Other role-bearing special folder (flagged, all, important, …).
-    Other,
-}
-
-/// One sidebar folder: its key, display name, optional special role, and unread count.
-#[derive(uniffi::Record)]
-pub struct FolderRow {
-    /// The mailbox's provider key (used to select it).
-    pub key: String,
-    /// The folder's display name.
-    pub name: String,
-    /// The folder's special role, or `None` for an ordinary custom folder.
-    pub role: Option<FolderRole>,
-    /// How many messages in the folder are unread, as the **server** counts them: so it
-    /// covers mail older than the synced window. **Show no badge at `0`**: zero folds
-    /// together "nothing unread" and "this provider reports no count", and both must
-    /// render as nothing (`docs/folder-pane.md`).
-    pub unread: u32,
-}
-
-/// One account's sorted folder list, for the navigation drawer that shows all accounts at once.
-#[derive(uniffi::Record)]
-pub struct AccountFolderRow {
-    /// The account's stable id, matching [`AccountRow::id`].
-    pub account_id: String,
-    /// The account's sorted folder rows, ready for display.
-    pub folders: Vec<FolderRow>,
 }
 
 /// One mailbox-list row: a single message (flat) or a conversation (threaded).

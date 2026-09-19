@@ -29,6 +29,7 @@ go away.
 | 15 | **Every folder row exposes one named native primary action to assistive technology.** The disclosure control remains separate because expanding an account is not opening it. | Focus and Return are keyboard mechanics, not a semantic action a screen reader can invoke. A row with no action is visible but unreachable. |
 | 16 | **The unified list is a group, not a row.** **All Accounts** stands above the accounts as one more tree, with the same rules (2, 3, 4, 8) and its own persisted expansion (`MailboxListSnapshot::unified_expanded`, `Intent::SetUnifiedExpanded`). Its children are the folders the unified scope has, which today is **Inbox** alone; that child is the destination (`Intent::SelectAccount { account: None }`), it carries the badge rule 7 describes, and it is what the message-list header names (rule 13). | The group is the shape the unified scope is *growing into*: a unified Sent and Drafts are folders under one heading, not three more top-level rows. It is also what makes rule 8 cover it: a count on the heading would sit directly above the identical number on the Inbox row beneath. |
 | 17 | **The group's own row navigates nowhere; activating it opens or shuts its tree.** The whole row is that control, unlike an account's, which is a destination and so needs a chevron of its own (rule 2). A shut group therefore takes the unified Inbox off screen, exactly as a shut account takes its folders. | Outlook's behaviour, and the honest one: the group heading would otherwise claim an "all mail, every account" scope the core does not have (`Scope` reaches every account's Inbox, not every account's everything). A row that navigates *and* discloses needs two targets in one row, which is what the chevron is for where the row really is a destination. |
+| 19 | **A folder inside a folder is drawn inside it**, one indent step per level, with a disclosure control on the folders that hold folders and on no others. A folder's tree follows the account trees' rules (2, 3, 4): shutting one is not navigating, the state is the core's and is persisted per account **and** folder key, and a folder nobody has touched shows what is inside it. Two folders go to the top whatever the server says: a **role-bearing** one, and one whose parent this account does not list. | A mailbox is a tree on three of the four transports, and the fourth (Gmail) spells one in its label names. Drawn flat, the rows are in an order nothing on screen explains: every adapter now names a folder by its own name alone, so `2024` appears twice with nothing saying which Archive each is in. The two exceptions are what stops the tree hiding things: Gmail files Sent, Drafts and Trash inside a `[Gmail]` container over IMAP, and an unsubscribed intermediate would otherwise take its children off screen with it. |
 | 18 | **The Outbox is one row above the account trees, and it exists only when something is in it.** It holds every account's unsent messages together, each row naming its own account, and its badge is that count (`MailboxListSnapshot::outbox`). At zero it is not on screen at all. | Unsent mail is the one thing a person goes looking for across *all* their accounts at once: "did that go?" is not a question about a particular mailbox. Hiding it at zero is rule 6's reasoning taken to the row itself, and it is what Outlook does; a permanent Outbox saying nothing trains people to stop reading it, which is the opposite of what an unsent message needs. It sits outside the trees because it is not a folder on anybody's server. |
 
 ## Where each rule lives
@@ -59,6 +60,17 @@ cannot be collapsed into the existing selection fields, because `selected_accoun
 `selected` are both `None` on the Outbox *and* on the unified inbox, so a client that guessed
 would answer a click on the Outbox with everyone's inbox.
 
+Rule 19 is core-side apart from the drawing. `sorted_folder_rows`
+([`folders.rs`](../crates/mailcal-viewmodel/src/folders.rs)) flattens the tree **depth-first**,
+each folder immediately ahead of the folders inside it, and stamps `parent`, `depth` and
+`has_children` on each row; `FolderPaneState::stamp_folders`
+([`folder_pane.rs`](../crates/mailcal-app/src/folder_pane.rs)) then fills in `expanded` and
+`visible` at publish time, for the reason the account rows' expansion is stamped there. So a pane
+that draws a flat list skips a row where `visible` is false and indents by `depth`; it never walks
+the chain of parents itself. The Windows pane is the exception and uses `parent`: its
+`NavigationView` nests rows natively, so the framework draws the chevron, the indent and the
+hiding, and `visible` is the one field it ignores.
+
 Rules 1, 5, 6, 7 and 9 are core-side and a client gets them by rendering the snapshot:
 [`folders.rs`](../crates/mailcal-viewmodel/src/folders.rs) projects `FolderRow` (with `unread` and
 `role`) and sums `inbox_unread`; [`view.rs`](../crates/mailcal-viewmodel/src/view.rs) carries
@@ -79,14 +91,14 @@ advertises LIST-STATUS, else one `STATUS` per mailbox.
 
 ## Per-platform
 
-| Platform | Tree source | Expansion control | Badge | Role icons | Resizable | Opens with its account | Semantic primary action | All Accounts group (16, 17) |
-|---|---|---|---|---|---|---|---|---|
-| Windows | `account_folders` → `SidebarTree.Reconcile` | `NavigationViewItem.IsExpanded`, two-way → `Intent.SetAccountExpanded` | accent `TextBlock`, trailing | Segoe Fluent (`MainWindow.Sidebar.cs`, `RoleGlyph`) | ✅ `SidebarSplitter` → `OpenPaneLength`, persisted (`PaneLayoutStore`) | `MailboxModel.SelectFolder` ← `SidebarItem.OwnerAccountId` | `NavigationViewItem.Invoke` | ✅ `SidebarTree` group row, `SelectsOnInvoked="False"` → `Intent.SetUnifiedExpanded` |
-| macOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols (`Mailcal.Sidebar.swift`, `folderIcon`) | ✅ 220–320 pt: the `HSplitView` pane in `macOSLayout`, autosaved by AppKit (`SplitViewAutosave`) | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ `allAccountsGroup` → `setUnifiedExpanded` |
-| iPadOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: fixed column, per the platform | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane |
-| iOS (iPhone) | `model.accountFolders` → `sidebarList` in a drawer | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: a drawer is not resizable | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane |
-| Android | `accountFolders` → `FolderDrawerScaffold` | chevron `IconButton` → `Intent.SetAccountExpanded` | `NavigationDrawerItem` badge slot | Material Symbols (`FolderDrawer.kt`, `folderIcon`) | n/a: a modal drawer is not resizable | `FolderDrawer.kt`, off the row's own account | `NavigationDrawerItem` click semantics | ⬜ still one flat "All Inboxes" row |
-| Linux | `account_folders` → `folder_pane::render` | chevron `GtkButton` → `Intent::SetAccountExpanded` | accent `GtkLabel` pill, trailing | symbolic icons (`folder_pane.rs`, `role_icon`): Adwaita's, except the bundled inbox and archive it has none of | ✅ 200–560 px: the `GtkPaned`, persisted (`HostPreferences::folder_pane_width`) | `activate_sidebar` → `SidebarTarget::Folder` | row-named `GtkButton`, also the `AdwActionRow` activatable widget | ✅ `SidebarTarget::UnifiedGroup` → `Intent::SetUnifiedExpanded` |
+| Platform | Tree source | Expansion control | Badge | Role icons | Resizable | Opens with its account | Semantic primary action | All Accounts group (16, 17) | Folders inside folders (19) |
+|---|---|---|---|---|---|---|---|---|---|
+| Windows | `account_folders` → `SidebarTree.Reconcile` | `NavigationViewItem.IsExpanded`, two-way → `Intent.SetAccountExpanded` | accent `TextBlock`, trailing | Segoe Fluent (`MainWindow.Sidebar.cs`, `RoleGlyph`) | ✅ `SidebarSplitter` → `OpenPaneLength`, persisted (`PaneLayoutStore`) | `MailboxModel.SelectFolder` ← `SidebarItem.OwnerAccountId` | `NavigationViewItem.Invoke` | ✅ `SidebarTree` group row, `SelectsOnInvoked="False"` → `Intent.SetUnifiedExpanded` | ✅ natively nested: `SidebarItem.Children` off `parent`, the framework's own chevron and indent |
+| macOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols (`Mailcal.Sidebar.swift`, `folderIcon`) | ✅ 220–320 pt: the `HSplitView` pane in `macOSLayout`, autosaved by AppKit (`SplitViewAutosave`) | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ `allAccountsGroup` → `setUnifiedExpanded` | ✅ flat list, `visible` + `depth` × `indentWidth`, `folderDisclosure` |
+| iPadOS | `model.accountFolders` → `sidebarList` | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: fixed column, per the platform | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane | ✅ the same pane |
+| iOS (iPhone) | `model.accountFolders` → `sidebarList` in a drawer | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: a drawer is not resizable | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane | ✅ the same pane |
+| Android | `accountFolders` → `FolderDrawerScaffold` | chevron `IconButton` → `Intent.SetAccountExpanded` | `NavigationDrawerItem` badge slot | Material Symbols (`FolderDrawer.kt`, `folderIcon`) | n/a: a modal drawer is not resizable | `FolderDrawer.kt`, off the row's own account | `NavigationDrawerItem` click semantics | ⬜ still one flat "All Inboxes" row | ✅ flat list, `visible` + `depth` × `FOLDER_INDENT`, `FolderDisclosure` in the icon slot |
+| Linux | `account_folders` → `folder_pane::render` | chevron `GtkButton` → `Intent::SetAccountExpanded` | accent `GtkLabel` pill, trailing | symbolic icons (`folder_pane_rows.rs`, `role_icon`): Adwaita's, except the bundled inbox and archive it has none of | ✅ 200–560 px: the `GtkPaned`, persisted (`HostPreferences::folder_pane_width`) | `activate_sidebar` → `SidebarTarget::Folder` | row-named `GtkButton`, also the `AdwActionRow` activatable widget | ✅ `SidebarTarget::UnifiedGroup` → `Intent::SetUnifiedExpanded` | ✅ flat list, `visible` + `margin_start` × `INDENT`, `folder_chevron` |
 
 The iPhone draws the same pane as the desktop, in a drawer over the whole screen (opened from the
 toolbar or a drag off the leading edge). Calendar and Contacts are **not** on it there: they are
@@ -137,13 +149,10 @@ gesture needs a real mouse.
   the leading slot would make it read as one more account row. Rule 10 leaves the artwork to each
   platform, and this is that latitude used; if it ever reads as a missing icon rather than as a
   heading, the fix is a glyph, not a destination.
-- **A folder inside a folder sits beside it, not under it.** `FolderRow` carries no parent, so an
-  account's folders render as one flat list however the server nests them. What that reads like
-  depends on the provider: IMAP and Gmail name a folder by its whole path (`Archive/2024`), so the
-  flat list still says where each one lives, while JMAP and Graph name it by its last segment alone
-  (`2024`, under an Archive the row never mentions). Closing this is a core change (the parent
-  carried through `AccountFolderRow`) plus an indent and a disclosure control in four panes, not a
-  client tweak.
+- **A folder is never moved, renamed or made from the pane.** The tree it draws is the server's,
+  and the only thing a row does is open its mail or open what is inside it. Creating a folder,
+  renaming one, and dragging one into another are three separate writes with three separate
+  provider capabilities behind them, and none of them exists yet.
 - **The group has one child.** A unified Sent, Drafts and Archive are what rule 16's shape is for,
   and none of them exists: the core's unified scope reaches every account's **Inbox** only
   ([`scope.rs`](../crates/mailcal-app/src/scope.rs)), so a second child would need a scope to
@@ -179,5 +188,12 @@ When you change the folder pane on any client:
 6. **Do not give the All Accounts row a destination** (rule 17). It reads as one more account row,
    and an account row navigates; this one would have to claim a scope the core has no `Scope` for,
    and the Inbox child under it is already that click.
-7. Apply the change to **every** platform that ships a folder pane, update the matrix above, and
+7. **Draw the tree from the fields, never from the names.** Skip a row whose `visible` is false,
+   indent by `depth`, and draw a disclosure control only where `has_children` is true. Every
+   adapter names a folder by its own name alone, so a pane that ignored these would put two rows
+   called `2024` in one list with nothing saying which Archive each is in. And **count the same
+   rows you drew**: a selection index computed over the whole list and a pane drawn from the
+   visible subset are two orderings that have to agree, which is what put the highlight on the
+   wrong row the last time this pane held two.
+8. Apply the change to **every** platform that ships a folder pane, update the matrix above, and
    record any shortfall under Known gaps rather than leaving it silent.

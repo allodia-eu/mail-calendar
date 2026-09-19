@@ -205,6 +205,17 @@ impl AppModel {
             AppInput::SetAccountExpanded { account, expanded } => {
                 self.dispatch(Intent::SetAccountExpanded { account, expanded });
             }
+            AppInput::SetFolderExpanded {
+                account,
+                key,
+                expanded,
+            } => {
+                self.dispatch(Intent::SetFolderExpanded {
+                    account,
+                    key,
+                    expanded,
+                });
+            }
             AppInput::LoadRemoteImages(source) => {
                 if let Some(reading) = self.reader_mut(&source) {
                     reading.load_remote_images = true;

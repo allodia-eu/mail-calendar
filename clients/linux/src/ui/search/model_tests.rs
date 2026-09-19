@@ -14,6 +14,11 @@ fn folder(key: &str, name: &str, role: Option<FolderRole>) -> FolderRow {
         name: name.to_owned(),
         role,
         unread: 0,
+        parent: None,
+        depth: 0,
+        has_children: false,
+        expanded: false,
+        visible: true,
     }
 }
 

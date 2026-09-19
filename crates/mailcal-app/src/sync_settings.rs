@@ -21,7 +21,8 @@ use mailcal_account::{
     load_preferences, save_preferences, snap_poll_interval,
 };
 use mailcal_viewmodel::{
-    AccountSyncRow, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind, folder_role,
+    AccountSyncRow, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind, folder_paths,
+    sorted_folder_rows,
 };
 
 use crate::{App, Surface, message_size::default_size_limit_mb, sync::sync_window};
@@ -152,16 +153,18 @@ impl<P: Provider> App<P> {
             let eff = effective(stored.as_ref(), idle_supported, &default_push);
             let subscribed: HashSet<&str> = eff.push_folders.iter().map(String::as_str).collect();
             let is_push = matches!(eff.strategy, SyncStrategy::Push);
-            let folders = mailboxes
+            // The pane's own rows, so this list is in the pane's order rather than the
+            // provider's, and each name carries the folders it sits inside: the list is flat, so
+            // two folders called `2024` would otherwise read as one word each.
+            let tree = sorted_folder_rows(&mailboxes);
+            let folders = tree
                 .iter()
-                .map(|mailbox| {
-                    let key = mailbox.id.key().as_str().to_owned();
-                    SyncFolderRow {
-                        subscribed: is_push && subscribed.contains(key.as_str()),
-                        name: mailbox.name.clone(),
-                        role: folder_role(mailbox),
-                        key,
-                    }
+                .zip(folder_paths(&tree))
+                .map(|(row, path)| SyncFolderRow {
+                    subscribed: is_push && subscribed.contains(row.key.as_str()),
+                    name: path,
+                    role: row.role,
+                    key: row.key.clone(),
                 })
                 .collect();
             // Read from the same capability every other client-visible answer comes from,

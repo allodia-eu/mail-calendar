@@ -111,6 +111,11 @@ impl MailBackend for FakeBackend {
             name: "Inbox".to_owned(),
             role: Some(FolderRole::Inbox),
             unread: 3,
+            parent: None,
+            depth: 0,
+            has_children: false,
+            expanded: false,
+            visible: true,
         }]
     }
 

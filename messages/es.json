@@ -112,6 +112,8 @@
 	"a11y_close_folders": "Cerrar buzones",
 	"a11y_expand_account": "Mostrar carpetas",
 	"a11y_collapse_account": "Ocultar carpetas",
+	"a11y_expand_folder": "Mostrar subcarpetas",
+	"a11y_collapse_folder": "Ocultar subcarpetas",
 	"a11y_unread_count": "{count} sin leer",
 	"a11y_unread_count_one": "{count} sin leer",
 	"a11y_outbox_count": "{count} esperando para enviarse",

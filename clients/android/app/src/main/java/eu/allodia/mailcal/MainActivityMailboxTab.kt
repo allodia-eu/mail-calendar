@@ -276,6 +276,11 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 onSelectFolder = { account, key ->
                                     instance.dispatch(Intent.SelectFolder(account, key))
                                 },
+                                onSetFolderExpanded = { account, key, expanded ->
+                                    instance.dispatch(
+                                        Intent.SetFolderExpanded(account, key, expanded),
+                                    )
+                                },
                                 onSetExpanded = { id, expanded ->
                                     instance.dispatch(Intent.SetAccountExpanded(id, expanded))
                                 },

@@ -32,8 +32,32 @@ internal static class SidebarFixture
 
 
     public static FolderItem Folder(
-        string key, string name, SidebarFolderRole role = SidebarFolderRole.None, uint unread = 0) =>
-        new() { Key = key, Name = name, Role = role, Unread = unread };
+        string key,
+        string name,
+        SidebarFolderRole role = SidebarFolderRole.None,
+        uint unread = 0,
+        string? parent = null,
+        bool hasChildren = false,
+        bool expanded = false) =>
+        new()
+        {
+            Key = key,
+            Name = name,
+            Role = role,
+            Unread = unread,
+            Parent = parent,
+            HasChildren = hasChildren,
+            Expanded = expanded,
+        };
+
+    /// <summary>One account's folders as the core projects a tree: `outer` holding `inner`,
+    /// holding `deep`, depth-first with each folder ahead of the ones inside it.</summary>
+    public static List<FolderItem> Tree(bool outerExpanded = true, bool innerExpanded = true) =>
+        [
+            Folder("outer", "Outer", hasChildren: true, expanded: outerExpanded),
+            Folder("inner", "Inner", parent: "outer", hasChildren: true, expanded: innerExpanded),
+            Folder("deep", "Deep", parent: "inner"),
+        ];
 
     /// <summary>The folder list as the model projects one: the synthetic null-key "All Mail" head,
     /// then the real folders.</summary>

@@ -1,10 +1,11 @@
-//! The [`Intent`] enum: the single inbound channel of the unidirectional loop, as the FFI
-//! exposes it.
+//! The [`Intent`] enum: the single inbound channel of the unidirectional loop, as the FFI exposes
+//! it. Split from [`super`] (the surfaces, the observer and the small enums an intent carries),
+//! mirroring `mailcal-app`'s own `protocol` / `protocol::intent` split; `lib.rs` re-exports both
+//! halves, so a host sees one API.
 //!
-//! Split from [`super`] (the surfaces, the observer and the small enums an intent carries) to
-//! keep each file under the 500-line limit; nothing about the enum changed in the move. The
-//! shape mirrors `mailcal-app`'s own `protocol` / `protocol::intent` split, and `lib.rs`
-//! re-exports both halves, so the split is invisible to a host.
+//! ⚠️ **An enum cannot be split the way a module can, and this one is at the line limit.** The
+//! variant after next needs a seam first, and the calendar intents are the obvious one: a nested
+//! enum of their own, which is an FFI change and so a PR of its own.
 
 use super::{BulkAction, InvitationResponse, SearchScope, SelectedRow};
 // Named only by an intra-doc link on a variant below, which rustdoc resolves against this
@@ -43,25 +44,32 @@ pub enum Intent {
     },
     /// Open or shut one account's folder tree in the sidebar, and remember it across launches.
     ///
-    /// **Not navigation**: it changes neither the selected account nor the selected folder, so
-    /// any number of trees can be open at once and moving to All Inboxes, the calendar or
-    /// contacts leaves them as they were. Render the chevron from `AccountRow::expanded` rather
-    /// than keeping client-side state (`docs/folder-pane.md`).
+    /// **Not navigation**, and neither are the two below it: they change neither the selected
+    /// account nor the selected folder, so any number of trees can stand open and moving to All
+    /// Inboxes, the calendar or contacts leaves them as they were. Render each chevron from the
+    /// snapshot rather than keeping client-side state (`docs/folder-pane.md`): this one from
+    /// `AccountRow::expanded`.
     SetAccountExpanded {
         /// The account whose tree to open or shut.
         account: String,
         /// Whether the tree is open.
         expanded: bool,
     },
-    /// Open or shut the **All Accounts** group's tree in the sidebar, and remember it across
-    /// launches.
-    ///
-    /// The group sits above the accounts and holds the unified Inbox row. It is
-    /// account-shaped, so it follows the same rules as `SetAccountExpanded`: not navigation,
-    /// independent of what is selected, persisted by the core. Render the chevron from
-    /// `MailboxListSnapshot::unified_expanded` (`docs/folder-pane.md`).
+    /// Open or shut the **All Accounts** group's tree, which sits above the accounts and holds
+    /// the unified Inbox row. Its chevron is `MailboxListSnapshot::unified_expanded`.
     SetUnifiedExpanded {
         /// Whether the group's tree is open.
+        expanded: bool,
+    },
+    /// Open or shut the folders filed **inside** one folder: an account's tree one level down.
+    /// Both halves travel together for `SelectFolder`'s reason, and what to draw comes from
+    /// `FolderRow` (`docs/folder-pane.md`, rule 19).
+    SetFolderExpanded {
+        /// The account whose folder this is.
+        account: String,
+        /// The folder key, from the row the user pressed.
+        key: String,
+        /// Whether the folders inside it are showing.
         expanded: bool,
     },
     /// Set the name one account's outgoing mail is sent under: the `Name` in
@@ -80,12 +88,11 @@ pub enum Intent {
     },
     /// Show one folder's mail: the folder key and the account that owns it **together**.
     ///
-    /// A folder key is unique only within its account (every provider calls its inbox `inbox`),
-    /// and the pane shows every account's tree at once: so pass the account the pane row sits
-    /// under, not whichever one is selected. There is no folder-only form: without an account the
-    /// key means nothing, and dispatching it alone used to leave the list exactly as it was
-    /// (`docs/folder-pane.md`, rule 14). For an account's whole mailbox use
-    /// [`Intent::SelectAccount`], which is the pane's other destination.
+    /// A folder key is unique only within its account (every provider calls its inbox `inbox`)
+    /// and the pane shows every account's tree at once, so pass the account the **row** sits
+    /// under, never whichever one is selected. There is no folder-only form; dispatching a key
+    /// alone used to leave the list exactly as it was (`docs/folder-pane.md`, rule 14). An
+    /// account'''s whole mailbox is [`Intent::SelectAccount`], the pane'''s other destination.
     SelectFolder {
         /// The id of the account whose tree the folder row sits under.
         account: String,

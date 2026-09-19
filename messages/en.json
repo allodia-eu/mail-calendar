@@ -112,6 +112,8 @@
 	"a11y_close_folders": "Close folders",
 	"a11y_expand_account": "Show folders",
 	"a11y_collapse_account": "Hide folders",
+	"a11y_expand_folder": "Show subfolders",
+	"a11y_collapse_folder": "Hide subfolders",
 	"a11y_unread_count": "{count} unread",
 	"a11y_unread_count_one": "{count} unread",
 	"a11y_outbox_count": "{count} waiting to send",
