@@ -362,6 +362,14 @@ Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ pl
 ## Known gaps
 
 
+- **One refresh at a time is held per core, and a host can build a second core.** Every caller in
+  one core now waits on one gate and is served the token the winner minted, so a grant is presented
+  once however many subsystems ask at the same instant. Two cores are two gates: each reads the same
+  refresh token out of the host's store and presents it, which is the replay this closes within a
+  core. `mailcal-account` solved that for mail accounts by sharing the credential state across
+  cores, keyed per account, and nothing shares the Allodia grant that way yet. On Android a
+  background pass reuses the live core and claims a process-wide flag before building a cold one, so
+  the overlap is unlikely rather than impossible.
 - **The grant-health prompt is built on all five clients and run on one.** Windows was built,
   driven and verified against the production service on a grant that really was narrower than the
   build wanted: the whole chain, from a refresh that now succeeds where it used to be refused, to

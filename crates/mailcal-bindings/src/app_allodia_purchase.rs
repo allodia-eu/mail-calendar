@@ -136,7 +136,7 @@ mod pass {
             &self,
             purchases: &[AllodiaStorePurchase],
         ) -> Result<AllodiaPurchaseReport, AllodiaPurchaseError> {
-            let token = self.allodia_access_token().map_err(|_| {
+            let token = self.allodia_access_token("a purchase").map_err(|_| {
                 if self.allodia.lock().expect("allodia account lock").is_none() {
                     AllodiaPurchaseError::NotSignedIn
                 } else {

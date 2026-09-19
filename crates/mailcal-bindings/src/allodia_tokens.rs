@@ -12,7 +12,13 @@
 //! server that treats a replayed refresh token as theft, presenting the old one revokes the whole
 //! grant rather than merely failing. `credential_store` carries the long version.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    future::Future,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 use allodia_license::Refresher;
 use mailcal_oauth::TokenSet;
@@ -37,6 +43,18 @@ pub(crate) struct Tokens {
     refresher: tokio::sync::OnceCell<Arc<Refresher>>,
     /// The access token in hand, until it is near expiry.
     access: Mutex<Option<TokenSet>>,
+    /// How many callers are inside the refresh path at this instant.
+    ///
+    /// Kept only so the log can say that two of them were, which is the one thing a report of a
+    /// refused grant cannot otherwise establish: a refusal reads identically whether the sign-in
+    /// is genuinely dead or whether this device raced itself and presented a token it had already
+    /// spent a moment earlier.
+    asking: AtomicUsize,
+    /// Serialises the refresh, so one grant is never presented twice.
+    ///
+    /// Async, because it is deliberately held across the network round trip; `access` never
+    /// is.
+    refreshing: tokio::sync::Mutex<()>,
 }
 
 impl Tokens {
@@ -50,9 +68,51 @@ impl Tokens {
             .map(|tokens| tokens.access_token.expose().to_owned())
     }
 
+    /// Note that a caller has entered the refresh path, and how many are now in it.
+    ///
+    /// The returned guard leaves the count correct on every exit, including the `?` that a refusal
+    /// takes.
+    fn asking(&self) -> (Asking<'_>, usize) {
+        let count = self.asking.fetch_add(1, Ordering::SeqCst) + 1;
+        (Asking(&self.asking), count)
+    }
+
+    /// Mint an access token, with at most one refresh in flight for this process.
+    ///
+    /// ⚠️ **The re-check inside the gate is the load-bearing half, not a fast path.** A caller that
+    /// merely waited its turn and then refreshed anyway would present the refresh token the winner
+    /// has already spent, and a rotating service answers `invalid_grant`. What that looks like is a
+    /// device that has just signed in being told, a fraction of a second later, that it is signed
+    /// out: signing in is what reaches this, because storing the new grant drops the held token and
+    /// every subsystem asks for one at the same instant.
+    async fn minted<F, Fut>(&self, reason: &str, refresh: F) -> Result<String, MailcalError>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<TokenSet, MailcalError>>,
+    {
+        let _gate = self.refreshing.lock().await;
+        if let Some(token) = self.live(OffsetDateTime::now_utc()) {
+            log::info!("allodia: {reason} waited for another caller's refresh");
+            return Ok(token);
+        }
+        let minted = refresh().await?;
+        let token = minted.access_token.expose().to_owned();
+        *self.access.lock().expect("allodia token lock") = Some(minted);
+        Ok(token)
+    }
+
     /// Drop what is held, because the grant it was minted from is gone.
     fn forget(&self) {
         *self.access.lock().expect("allodia token lock") = None;
+    }
+}
+
+/// Holds the refresh path's occupancy count up for as long as a caller is in it.
+struct Asking<'a>(&'a AtomicUsize);
+
+impl Drop for Asking<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -69,52 +129,63 @@ impl MailcalApp {
     /// service could not be reached or refused the grant; the second is a sign-in that has to
     /// be made again, and is reported rather than acted on, because a service having a bad
     /// afternoon must not sign anybody out.
-    pub(crate) fn allodia_access_token(&self) -> Result<String, MailcalError> {
+    ///
+    /// `reason` names what the token is for, in the words the person would use for it, and appears
+    /// in the log beside the number of callers asking at once.
+    pub(crate) fn allodia_access_token(&self, reason: &str) -> Result<String, MailcalError> {
         let now = OffsetDateTime::now_utc();
         if let Some(token) = self.allodia_tokens.live(now) {
             return Ok(token);
         }
-        let refresh_token = {
-            let signed_in = self.allodia.lock().expect("allodia account lock");
-            let stored = signed_in.as_ref().ok_or_else(|| {
-                MailcalError::Config("no Allodia account is signed in".to_owned())
-            })?;
-            stored.refresh_token.clone()
-        };
-
+        let (_asking, asking) = self.allodia_tokens.asking();
+        // Built outside the gate: discovery has a `OnceCell` of its own, and holding the refresh
+        // gate across it would serialise the one part that is already shared.
         let refresher = self.allodia_refresher()?;
-        log::info!("allodia: the access token has run out; refreshing the grant");
-        let minted = block_on(
+        block_on(
             self.runtime.handle(),
-            refresher.refresh(&refresh_token, now),
-        )
-        .map_err(|error| {
-            // Whether this says anything about the grant, and what. A refusal the service gave is
-            // evidence; anything else is a bad afternoon and must change nothing.
-            if let allodia_license::SignInError::OAuth(oauth) = &error
-                && let Some(health) = AllodiaGrantHealth::from_refusal(oauth.refusal())
-            {
-                self.note_allodia_health(health);
-            }
-            log::warn!("allodia: the grant could not be refreshed; {error}");
-            MailcalError::Connect(error.to_string())
-        })?;
+            self.allodia_tokens.minted(reason, || async {
+                let now = OffsetDateTime::now_utc();
+                // Read inside the gate rather than on the way in: a caller that waited must present
+                // what the winner stored, never the token it saw before the winner rotated it.
+                let refresh_token = {
+                    let signed_in = self.allodia.lock().expect("allodia account lock");
+                    let stored = signed_in.as_ref().ok_or_else(|| {
+                        MailcalError::Config("no Allodia account is signed in".to_owned())
+                    })?;
+                    stored.refresh_token.clone()
+                };
+                log::info!(
+                    "allodia: the access token has run out; refreshing the grant for {reason} \
+                     ({asking} asking at once)"
+                );
+                let minted = refresher
+                    .refresh(&refresh_token, now)
+                    .await
+                    .map_err(|error| {
+                        // Whether this says anything about the grant, and what. A refusal the
+                        // service gave is evidence; anything else is a bad
+                        // afternoon and must change nothing.
+                        if let allodia_license::SignInError::OAuth(oauth) = &error
+                            && let Some(health) = AllodiaGrantHealth::from_refusal(oauth.refusal())
+                        {
+                            self.note_allodia_health(health);
+                        }
+                        log::warn!("allodia: the grant could not be refreshed; {error}");
+                        MailcalError::Connect(error.to_string())
+                    })?;
 
-        // A refresh that worked is the strongest evidence there is that the sign-in is alive, and
-        // the response may also name a scope set narrower than this build wants: the state a
-        // person is in after a scope is added. Both are recorded here rather than guessed at the
-        // point some feature fails.
-        self.record_allodia_grant_scopes(&minted);
-        if let Some(rotated) = &minted.refresh_token {
-            self.store_rotated_allodia_grant(rotated.expose());
-        }
-        let token = minted.access_token.expose().to_owned();
-        *self
-            .allodia_tokens
-            .access
-            .lock()
-            .expect("allodia token lock") = Some(minted);
-        Ok(token)
+                // A refresh that worked is the strongest evidence there is that the sign-in is
+                // alive, and the response may also name a scope set narrower than this build
+                // wants: the state a person is in after a scope is added. Both are recorded here
+                // rather than guessed at the point some feature fails. Inside the gate, so the
+                // rotation reaches the store before the next caller can read it.
+                self.record_allodia_grant_scopes(&minted);
+                if let Some(rotated) = &minted.refresh_token {
+                    self.store_rotated_allodia_grant(rotated.expose());
+                }
+                Ok(minted)
+            }),
+        )
     }
 
     /// The discovered client, built on first use and kept for the process.
@@ -322,148 +393,5 @@ impl MailcalApp {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::mpsc;
-
-    use mailcal_oauth::Secret;
-
-    use super::{Duration, REFRESH_SKEW, Tokens};
-    use crate::{
-        LogLevel, MailcalApp,
-        allodia::StoredAccount,
-        tests::{ChannelObserver, NullLogger},
-    };
-
-    /// A demo app whose credential store **refuses** every write, which is what makes the
-    /// adoption tests below say something: the value has to end up correct in memory even when
-    /// persisting it cannot succeed.
-    fn app() -> std::sync::Arc<MailcalApp> {
-        let (tx, _rx) = mpsc::channel();
-        MailcalApp::new_demo(
-            Box::new(ChannelObserver { tx }),
-            Box::new(NullLogger),
-            LogLevel::Info,
-            "Etc/UTC".to_owned(),
-        )
-    }
-
-    /// A grant that was stored when the service lived on the old host.
-    fn signed_in_with(end_session: Option<&str>) -> StoredAccount {
-        StoredAccount {
-            // None, because what this fixture is about is a grant from an older build: the id is
-            // exactly what such a grant does not carry.
-            id: None,
-            email: "person@example.test".to_owned(),
-            name: None,
-            refresh_token: "RT".to_owned(),
-            granted_scopes: None,
-            end_session_endpoint: end_session.map(str::to_owned),
-        }
-    }
-
-    /// The regression this whole mechanism exists for.
-    ///
-    /// Moving the account service to another host left every stored grant pointing at the old
-    /// host's sign-out endpoint, so signing out asked a service that no longer held the session
-    /// to end it. Discovery already runs once a launch to build the refresher, so the fresh answer
-    /// is free there; this is the part that spends it.
-    #[test]
-    fn a_moved_sign_out_endpoint_is_adopted() {
-        let app = app();
-        *app.allodia.lock().unwrap() =
-            Some(signed_in_with(Some("https://old.example.test/end-session")));
-
-        app.adopt_discovered_end_session(Some("https://new.example.test/end-session"));
-
-        assert_eq!(
-            app.allodia
-                .lock()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .end_session_endpoint
-                .as_deref(),
-            Some("https://new.example.test/end-session"),
-        );
-    }
-
-    /// A service that stops advertising one is an answer, not a value to keep out of politeness:
-    /// holding the old URL would send somebody to end a session at a host that no longer offers
-    /// the endpoint.
-    #[test]
-    fn an_endpoint_that_goes_away_is_adopted_too() {
-        let app = app();
-        *app.allodia.lock().unwrap() =
-            Some(signed_in_with(Some("https://old.example.test/end-session")));
-
-        app.adopt_discovered_end_session(None);
-
-        assert!(
-            app.allodia
-                .lock()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .end_session_endpoint
-                .is_none()
-        );
-    }
-
-    /// Nobody signed in means no grant to keep current. Writing one here would invent an account,
-    /// and this runs on every token mint, so it has to be inert in that state rather than merely
-    /// harmless.
-    #[test]
-    fn adopting_invents_no_account_when_nobody_is_signed_in() {
-        let app = app();
-        assert!(app.allodia.lock().unwrap().is_none());
-
-        app.adopt_discovered_end_session(Some("https://new.example.test/end-session"));
-
-        assert!(app.allodia.lock().unwrap().is_none());
-    }
-
-    fn held(expires_in_minutes: i64) -> mailcal_oauth::TokenSet {
-        mailcal_oauth::TokenSet {
-            access_token: Secret::new("AT".to_owned()),
-            refresh_token: None,
-            expires_at: time::OffsetDateTime::now_utc() + Duration::minutes(expires_in_minutes),
-            scope: String::new(),
-            token_type: "Bearer".to_owned(),
-        }
-    }
-
-    /// The regression this exists for, found by signing in again on a real account.
-    ///
-    /// A token is held for about an hour, so a sign-in that stored a NEW grant and left the old
-    /// token cached went on presenting it, and the service refused it, because the new
-    /// authorisation superseded the grant it came from. On screen that is signing in successfully
-    /// and being told a fraction of a second later that you are signed out. Nothing cleared this
-    /// cache on sign-in OR on sign-out; it stayed hidden while the only way in was from a
-    /// signed-out state, where there is no stale token to present.
-    #[test]
-    fn forgetting_the_grant_forgets_the_token_minted_from_it() {
-        let tokens = Tokens::default();
-        let now = time::OffsetDateTime::now_utc();
-        *tokens.access.lock().unwrap() = Some(held(45));
-        assert_eq!(
-            tokens.live(now).as_deref(),
-            Some("AT"),
-            "a live token is served from the cache, which is the whole reason a stale one is a bug"
-        );
-        tokens.forget();
-        assert!(
-            tokens.live(now).is_none(),
-            "after the grant is replaced or erased, nothing minted from it may be presented again"
-        );
-    }
-
-    #[test]
-    fn a_token_inside_the_skew_is_already_spent() {
-        let tokens = Tokens::default();
-        *tokens.access.lock().unwrap() = Some(held(REFRESH_SKEW.whole_minutes() - 1));
-        assert!(
-            tokens.live(time::OffsetDateTime::now_utc()).is_none(),
-            "a token handed out with seconds left dies mid-request"
-        );
-    }
-}
+#[path = "allodia_tokens_tests.rs"]
+mod tests;

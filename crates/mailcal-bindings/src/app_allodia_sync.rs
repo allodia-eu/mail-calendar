@@ -204,7 +204,7 @@ mod enabled {
     impl MailcalApp {
         /// One pass, from the token to the report.
         pub(super) fn run_allodia_pass(&self) -> Result<AllodiaSyncReport, MailcalError> {
-            let token = self.allodia_access_token()?;
+            let token = self.allodia_access_token("the account list")?;
             // Asked after the token, because minting one is what learns the grant's scopes on an
             // install that had never recorded them, and asked before the first request, because
             // that request cannot succeed and its refusal would read as the service being down.
@@ -281,7 +281,7 @@ mod enabled {
                 }
                 AllodiaAccountSyncMode::Off => {
                     if let Some(state) = bookkeeping.get(account_id) {
-                        let token = self.allodia_access_token()?;
+                        let token = self.allodia_access_token("removing an account")?;
                         let transport = HttpsTransport::new(self.runtime.handle().clone())
                             .map_err(MailcalError::Connect)?;
                         let service = AccountService::new(allodia_license::host());
@@ -318,7 +318,7 @@ mod enabled {
             let Some(state) = bookkeeping.get(account_id) else {
                 return;
             };
-            let Ok(token) = self.allodia_access_token() else {
+            let Ok(token) = self.allodia_access_token("forgetting an account") else {
                 return;
             };
             let Ok(transport) = HttpsTransport::new(self.runtime.handle().clone()) else {
