@@ -223,6 +223,17 @@
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />
     <!-- The debug-only harness send gate: which recipients count as outside test.local. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\HarnessRecipientGate.cs" Link="Services\HarnessRecipientGate.cs" />
+    <!-- What the subscription card decides from one account-service read, and what a write's ending
+         earns as a sentence (`purchasing.md`, the contract beside the Allodia Licence). WinUI-free and L10n-free on purpose:
+         every one of these rules fails silently on screen, and two of them cost somebody money to
+         get wrong. A cancel button offered on a subscription the App Store is charging is a button
+         whose only outcome is a refusal; naming a store twice in the duplicate-billing warning says
+         somebody is charged twice by it; and a cancellation confirmation with no date reads as "it
+         stops now", which is the one thing cancelling does not do. They read the generated
+         AllodiaSubscription, so they need the bindings below. -->
+    <Compile Include="..\Mailcal\Services\AllodiaSubscriptionCard.cs" Link="Services\AllodiaSubscriptionCard.cs" />
+    <Compile Include="..\Mailcal\Services\AllodiaSubscriptionFormat.cs" Link="Services\AllodiaSubscriptionFormat.cs" />
+    <Compile Include="..\Mailcal\Services\AllodiaWriteResult.cs" Link="Services\AllodiaWriteResult.cs" />
     <!-- What a new-mail pass puts on the desktop (docs/background-sync.md). WinUI-free and
          L10n-free on purpose, the words arrive as parameters and the toast itself is
          NewMailNotifier, because the contract's load-bearing rule, one notification per MESSAGE
