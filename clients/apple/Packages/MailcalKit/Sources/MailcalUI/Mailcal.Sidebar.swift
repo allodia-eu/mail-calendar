@@ -94,6 +94,10 @@ let chevronTargetWidth: CGFloat = 16
 let chevronTargetWidth: CGFloat = 32
 #endif
 
+/// One step of the pane's indent: what an account's own rows are moved by, and what each level
+/// of folders inside a folder adds again.
+let indentWidth: CGFloat = 16
+
 extension ContentView {
     /// The accounts / folders / settings sidebar.
     ///
@@ -159,22 +163,32 @@ extension ContentView {
                     // selected one's, which is why the tree no longer empties when the user picks
                     // another account.
                     if model.destination == .mail && account.expanded {
-                        sidebarRow(
-                            title: L10n.sidebar_all_mail(),
-                            icon: "tray.full",
-                            selected: model.selectedAccount == account.id && model.selected == nil,
-                            indent: true
-                        ) { selectAccount(account.id) }
+                        HStack(spacing: 0) {
+                            disclosureSlot
+                            sidebarRow(
+                                title: L10n.sidebar_all_mail(),
+                                icon: "tray.full",
+                                selected: model.selectedAccount == account.id
+                                    && model.selected == nil
+                            ) { selectAccount(account.id) }
+                        }
+                        .padding(.leading, indentWidth)
                         ForEach(model.folderRows(for: account.id)) { row in
                             let folder = row.folder
-                            sidebarRow(
-                                title: folderLabel(role: folder.role, name: folder.name),
-                                icon: folderIcon(folder.role),
-                                selected: model.selectedAccount == account.id
-                                    && model.selected == folder.key,
-                                indent: true,
-                                unread: folder.unread
-                            ) { selectFolder(in: account.id, key: folder.key) }
+                            HStack(spacing: 0) {
+                                folderDisclosure(in: account.id, folder: folder)
+                                sidebarRow(
+                                    title: folderLabel(role: folder.role, name: folder.name),
+                                    icon: folderIcon(folder.role),
+                                    selected: model.selectedAccount == account.id
+                                        && model.selected == folder.key,
+                                    unread: folder.unread
+                                ) { selectFolder(in: account.id, key: folder.key) }
+                            }
+                            // One step per level, plus the account's own. The indent is on the
+                            // stack rather than inside the row so the chevrons line up down a
+                            // branch, the way the account chevrons line up down the pane.
+                            .padding(.leading, indentWidth * CGFloat(folder.depth + 1))
                         }
                     }
                 }
@@ -268,14 +282,49 @@ extension ContentView {
                     : L10n.a11y_expand_account()
             )
         if model.destination == .mail && model.unifiedExpanded {
-            sidebarRow(
-                title: L10n.folder_inbox(),
-                icon: folderIcon(.inbox),
-                selected: model.selectedAccount == nil,
-                indent: true,
-                unread: model.unifiedUnread
-            ) { selectAccount(nil) }
+            HStack(spacing: 0) {
+                disclosureSlot
+                sidebarRow(
+                    title: L10n.folder_inbox(),
+                    icon: folderIcon(.inbox),
+                    selected: model.selectedAccount == nil,
+                    unread: model.unifiedUnread
+                ) { selectAccount(nil) }
+            }
+            .padding(.leading, indentWidth)
         }
+    }
+
+    /// The control that opens or shuts the folders inside `folder`, or the blank of the same
+    /// width where it holds none.
+    ///
+    /// Its own control, never the row: opening a folder to see what is in it is not opening
+    /// its mail, the same separation the account rows above have (`docs/folder-pane.md`). The
+    /// blank is reserved either way, so the names line up down a branch instead of stepping
+    /// left wherever a folder happens to hold nothing.
+    @ViewBuilder
+    func folderDisclosure(in account: String, folder: FolderRow) -> some View {
+        if folder.hasChildren {
+            Button {
+                model.setFolderExpanded(account, folder.key, !folder.expanded)
+            } label: {
+                Image(systemName: folder.expanded ? "chevron.down" : "chevron.right")
+                    .font(.caption)
+                    .frame(width: chevronTargetWidth, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                folder.expanded ? L10n.a11y_collapse_folder() : L10n.a11y_expand_folder()
+            )
+        } else {
+            disclosureSlot
+        }
+    }
+
+    /// The space a disclosure control would take, for a row that has none to draw.
+    private var disclosureSlot: some View {
+        Color.clear.frame(width: chevronTargetWidth, height: 28)
     }
 
     @ViewBuilder
@@ -283,7 +332,6 @@ extension ContentView {
         title: String,
         icon: String,
         selected: Bool,
-        indent: Bool = false,
         unread: UInt32 = 0,
         action: @escaping () -> Void
     ) -> some View {
@@ -308,7 +356,6 @@ extension ContentView {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, indent ? 16 : 0)
             // The whole row is the target, not just the words on it. A `Spacer` is not
             // hit-testable, so the gap the count sits beside swallowed every click landing in
             // the middle of a row, the wider the pane, the more of the row was dead.

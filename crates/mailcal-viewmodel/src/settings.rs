@@ -143,8 +143,10 @@ pub enum SyncStrategyKind {
 pub struct SyncFolderRow {
     /// The mailbox's provider key.
     pub key: String,
-    /// The folder's **server** name. A client shows its own word for a role-bearing folder
-    /// (`docs/folder-pane.md` rule 12), so this list reads the same as the folder pane.
+    /// The folder's **server** name, with the folders it sits inside ahead of it
+    /// (`Clients / Acme`): this list is flat, so the nesting has nowhere else to go. A client
+    /// shows its own word for a role-bearing folder (`docs/folder-pane.md` rule 12), and those
+    /// are never nested, so this list still reads the same as the folder pane.
     pub name: String,
     /// The folder's special role, or `None` for an ordinary custom folder: the same value
     /// [`FolderRow::role`](crate::FolderRow) carries, and for the same reason: it is what picks

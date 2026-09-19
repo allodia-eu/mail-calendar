@@ -197,6 +197,12 @@ public sealed partial class MainWindow
         {
             Model.SetAccountExpanded(id, item.IsExpanded);
         }
+        else if (item.OwnerAccountId is { } owner)
+        {
+            // A folder that holds folders. Its key is unique only within its account, so both
+            // halves travel together, exactly as they do when the folder is opened.
+            Model.SetFolderExpanded(owner, item.Tag, item.IsExpanded);
+        }
     }
 
     // Highlights the item matching the model's current scope, so the native selection survives a

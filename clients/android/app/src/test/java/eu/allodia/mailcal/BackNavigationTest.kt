@@ -168,6 +168,7 @@ class BackNavigationTest {
                     onSelectAccount = {},
                     onSelectFolder = { _, _ -> },
                     onSetExpanded = { _, _ -> },
+                    onSetFolderExpanded = { _, _, _ -> },
                     onShowOutbox = {},
                 ) { Text("mailbox") }
             }
@@ -245,6 +246,7 @@ class BackNavigationTest {
                     onSelectAccount = { accounts += it },
                     onSelectFolder = { _, _ -> },
                     onSetExpanded = { _, _ -> },
+                    onSetFolderExpanded = { _, _, _ -> },
                     onShowOutbox = {},
                 ) { Text("mailbox") }
             }
@@ -281,6 +283,7 @@ class BackNavigationTest {
                     onSelectAccount = onSelectAccount,
                     onSelectFolder = onSelectFolder,
                     onSetExpanded = { _, _ -> },
+                    onSetFolderExpanded = { _, _, _ -> },
                     onShowOutbox = {},
                 ) { Text("mailbox") }
             }

@@ -112,6 +112,8 @@
 	"a11y_close_folders": "Mappen sluiten",
 	"a11y_expand_account": "Mappen tonen",
 	"a11y_collapse_account": "Mappen verbergen",
+	"a11y_expand_folder": "Submappen tonen",
+	"a11y_collapse_folder": "Submappen verbergen",
 	"a11y_unread_count": "{count} ongelezen",
 	"a11y_unread_count_one": "{count} ongelezen",
 	"a11y_outbox_count": "{count} wachten op verzending",

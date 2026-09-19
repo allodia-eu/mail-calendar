@@ -85,6 +85,7 @@ mod records_avatar;
 mod records_calendar;
 mod records_connectivity;
 mod records_contacts;
+mod records_folders;
 mod records_outbox;
 pub mod sync_state;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
@@ -154,10 +155,10 @@ pub use protocol::{
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
-    AccountFolderRow, AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, FlatRow,
-    FolderRole, FolderRow, MailboxListSnapshot, ReadingSnapshot, RecipientSuggestion,
-    SearchHorizon, SendStatus, SnapshotRow, SyncProgressSnapshot, ThreadMessage, ThreadRow,
-    TimeZoneSnapshot, UnfiledCopy, ViewMode,
+    AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, FlatRow,
+    MailboxListSnapshot, ReadingSnapshot, RecipientSuggestion, SearchHorizon, SendStatus,
+    SnapshotRow, SyncProgressSnapshot, ThreadMessage, ThreadRow, TimeZoneSnapshot, UnfiledCopy,
+    ViewMode,
     settings::{
         AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
         McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow,
@@ -178,6 +179,7 @@ pub use records_contacts::{
     ContactCardRef, ContactDetail, ContactEdit, ContactRow, ContactTarget, ContactValue,
     ContactWriteStatus, ContactsSnapshot, RecipientMatch,
 };
+pub use records_folders::{AccountFolderRow, FolderRole, FolderRow};
 pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
 };

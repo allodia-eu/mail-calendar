@@ -361,6 +361,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     folder_pane::moving_the_selection_reuses_the_pane();
     folder_pane::an_optimistic_click_is_not_undone_by_the_previous_snapshot();
     folder_pane::folder_rows_expose_their_navigation_as_a_semantic_action();
+    folder_pane::a_nested_folder_is_indented_and_a_shut_one_is_not_drawn();
+    folder_pane::a_folder_chevron_toggles_without_navigating();
 
     crate::ui::selection_bar::tests::every_action_icon_resolves_to_a_real_glyph();
     crate::ui::selection_bar::tests::

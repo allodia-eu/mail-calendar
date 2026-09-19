@@ -75,6 +75,56 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
+    /// Opens or shuts the folders filed inside one folder; the core persists it.
+    /// </summary>
+    /// <remarks>
+    /// A folder's tree and an account's are the same thing one level down, so this follows
+    /// <see cref="SetAccountExpanded"/> exactly, local value first and then the dispatch. It does
+    /// <b>not</b> select the folder: opening a folder to see what is inside it is not opening its
+    /// mail (docs/folder-pane.md).
+    /// <para>
+    /// Both halves are required: a folder key is unique only within its account, and the pane
+    /// holds every account's tree at once (rule 14).
+    /// </para>
+    /// </remarks>
+    public void SetFolderExpanded(string account, string key, bool expanded)
+    {
+        for (var i = 0; i < Accounts.Count; i++)
+        {
+            if (Accounts[i].Id != account)
+            {
+                continue;
+            }
+            // The same local-first move SetAccountExpanded makes, and for the same
+            // reason: the dispatch is asynchronous, and shutting the folder makes the shell
+            // reconcile the pane before the core's snapshot arrives, so a reconcile off the old
+            // value springs the tree back open within a frame.
+            var current = Accounts[i];
+            Accounts[i] = new AccountItem
+            {
+                Id = current.Id,
+                Email = current.Email,
+                SendLabel = current.SendLabel,
+                Expanded = current.Expanded,
+                Folders = [.. current.Folders.Select(folder => folder.Key == key
+                    ? new FolderItem
+                    {
+                        Key = folder.Key,
+                        Name = folder.Name,
+                        Role = folder.Role,
+                        Unread = folder.Unread,
+                        Parent = folder.Parent,
+                        HasChildren = folder.HasChildren,
+                        Expanded = expanded,
+                    }
+                    : folder)],
+            };
+            break;
+        }
+        _app?.Dispatch(new Intent.SetFolderExpanded(account, key, expanded));
+    }
+
+    /// <summary>
     /// Opens or shuts the All Accounts group's tree in the sidebar; the core persists it.
     /// </summary>
     /// <remarks>

@@ -7,11 +7,7 @@
 //! values (the chosen zone for calendar resolution; per-account [`SyncDepth`] cutoffs used to
 //! build per-sync windows).
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs, io,
-    path::{Path, PathBuf},
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +17,7 @@ use crate::signatures::{AccountSignatureAssignment, SignatureId, SignatureSlot};
 mod behavior;
 mod display;
 // Which accounts have their sidebar folder tree shut, and its accessors.
+mod file;
 mod folder_pane;
 // The per-account "may we email the organiser ourselves?" choice, and its accessors.
 mod reply_fallback;
@@ -33,6 +30,7 @@ pub use display::{
     Appearance, CalendarLayout, CalendarPrefs, DEFAULT_VISIBLE_HOURS, DefaultCalendar,
     MAX_VISIBLE_HOURS, MIN_VISIBLE_HOURS, TimeFormat, WeekStart, clamp_visible_hours,
 };
+pub use file::{load_preferences, preferences_path, save_preferences};
 pub use reply_fallback::ReplyFallback;
 pub use sender_name::{MAX_SENDER_NAME_CHARS, sanitize_sender_name};
 pub use sync::{
@@ -257,6 +255,17 @@ pub struct Preferences {
     /// `bool::default()` is `false`. Read it through [`Preferences::unified_expanded`].
     #[serde(default)]
     pub unified_collapsed: bool,
+    /// The folders whose own sub-folders are **shut**, by account id then folder key.
+    ///
+    /// Keyed on both halves because a folder key is unique only within its account: every
+    /// provider calls its inbox `inbox`, and the pane holds every account's tree at once
+    /// (`docs/folder-pane.md`, rule 14). Nested rather than one set of joined strings because
+    /// a folder key is a provider's own string and may hold whatever separator the join
+    /// picked. The collapsed ones for the reason `collapsed_accounts` stores them: a folder
+    /// nobody has touched shows what is inside it. Read it through
+    /// [`Preferences::folder_expanded`].
+    #[serde(default)]
+    pub collapsed_folders: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// The `serde` default for a flag that is on unless the user turns it off.
@@ -299,6 +308,7 @@ impl Default for Preferences {
             mcp_require_known_recipient: true,
             collapsed_accounts: BTreeSet::new(),
             unified_collapsed: false,
+            collapsed_folders: BTreeMap::new(),
         }
     }
 }
@@ -450,45 +460,7 @@ impl Preferences {
     }
 }
 
-/// The preferences file's name, in the app data directory.
-const FILE_NAME: &str = "preferences.toml";
-
-/// The preferences file's path inside the app data directory `base`.
-///
-/// Derived here so a host that reads the file before the app exists; [`Appearance`] is wanted
-/// before the first frame; cannot end up naming a different file from the one the app writes.
-#[must_use]
-pub fn preferences_path(base: impl AsRef<Path>) -> PathBuf {
-    base.as_ref().join(FILE_NAME)
-}
-
-/// Loads preferences from `path`. A missing or unreadable/unparseable file yields
-/// defaults (`display_timezone: None`) rather than an error: a preferences file is
-/// best-effort state, and a host that cannot read it simply falls back to the
-/// device zone on next boot.
-#[must_use]
-pub fn load_preferences(path: impl AsRef<Path>) -> Preferences {
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|body| toml::from_str(&body).ok())
-        .unwrap_or_default()
-}
-
-/// Writes `prefs` to `path` as TOML, creating parent directories as needed.
-///
-/// # Errors
-///
-/// Returns an [`io::Error`] if the parent directory or file cannot be written (a
-/// TOML serialization failure is mapped to [`io::ErrorKind::InvalidData`], though a
-/// flat preferences struct never triggers it in practice).
-pub fn save_preferences(path: impl AsRef<Path>, prefs: &Preferences) -> io::Result<()> {
-    let body =
-        toml::to_string(prefs).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-    if let Some(parent) = path.as_ref().parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, body)
-}
-
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_accounts;

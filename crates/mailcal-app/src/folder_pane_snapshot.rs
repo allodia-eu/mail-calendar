@@ -26,12 +26,25 @@ impl<P: Provider> App<P> {
     /// alternative (a generation counter over the whole snapshot) would pay for a race this state
     /// is the only writer of.
     pub(crate) fn restamp_expansion(&self, snapshot: &mut MailboxListSnapshot) {
+        // One lock for the whole pane rather than one per row: a large account is fifty-odd
+        // folders, and every one of them is stamped on every rebuild.
+        let pane = self.folder_pane.lock().expect("folder-pane mutex poisoned");
         for row in &mut snapshot.accounts {
-            row.expanded = self.account_expanded(&row.id);
+            row.expanded = pane.expanded(&row.id);
         }
         // The All Accounts group is one more tree in the same pane, and the projection never
         // sets it, so this is also where it is filled in at all.
-        snapshot.unified_expanded = self.unified_expanded();
+        snapshot.unified_expanded = pane.unified();
+        // And the folder trees inside each account, which are the same thing one level down.
+        for account in &mut snapshot.account_folders {
+            pane.stamp_folders(&account.account_id, &mut account.folders);
+        }
+        // `folders` is the selected account's own list. It is not the pane's source (rule 1),
+        // but it carries the same rows, and a row that disagreed with its twin in the pane
+        // would be a second answer to one question.
+        if let Some(account) = snapshot.selected_account.clone() {
+            pane.stamp_folders(&account, &mut snapshot.folders);
+        }
     }
 
     /// Fetches every account's sorted folder list in `account_rows` order: for the

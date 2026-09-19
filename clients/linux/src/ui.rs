@@ -42,6 +42,7 @@ mod dns;
 mod editor_paste;
 mod folder_names;
 mod folder_pane;
+mod folder_pane_rows;
 mod google;
 mod host_tasks;
 mod input;

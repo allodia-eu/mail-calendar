@@ -112,6 +112,8 @@
 	"a11y_close_folders": "Fechar as caixas de correio",
 	"a11y_expand_account": "Mostrar as pastas",
 	"a11y_collapse_account": "Ocultar as pastas",
+	"a11y_expand_folder": "Mostrar as subpastas",
+	"a11y_collapse_folder": "Ocultar as subpastas",
 	"a11y_unread_count": "{count} por ler",
 	"a11y_unread_count_one": "{count} por ler",
 	"a11y_outbox_count": "{count} à espera de envio",

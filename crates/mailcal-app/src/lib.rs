@@ -437,6 +437,8 @@ mod tests_default_mail_app;
 #[cfg(test)]
 mod tests_depth;
 #[cfg(test)]
+mod tests_folder_tree;
+#[cfg(test)]
 mod tests_invitation_delivery;
 #[cfg(test)]
 mod tests_invitation_fixtures;
