@@ -282,6 +282,73 @@ mod tests {
         assert_eq!(older.account().email, "someone@example.com");
     }
 
+    /// ⚠️ Only a core that can use the grant keeps it, and a headless one cannot.
+    ///
+    /// A refresh is serialised per core, so two cores holding one grant are two gates: each reads
+    /// the same refresh token from the host's store and presents it, and the second is a replay the
+    /// service answers `invalid_grant`. Rather than share the state across cores, the grant is kept
+    /// out of the core that has no use for it: nothing below this crate knows an Allodia account
+    /// exists, and a background worker calls one method, which syncs mail.
+    ///
+    /// Both cores are given the same config, so this fails if boot ever starts keeping it in both,
+    /// and it reads the account out of `configs` either way: leaving it there would hand a grant to
+    /// the mail parsers as a corrupt account.
+    #[test]
+    fn a_headless_core_is_not_given_the_grant_and_a_live_one_is() {
+        use std::sync::{Arc, mpsc};
+
+        use crate::{
+            LogLevel, MailcalApp,
+            tests::{
+                ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle,
+                temp_data_dir,
+            },
+        };
+
+        fn boot(headless: bool, dir: &str) -> Arc<MailcalApp> {
+            let (tx, _rx) = mpsc::channel();
+            let recorder = Arc::new(RecordingCredentialStore::default());
+            let configs = vec![stored().to_toml().expect("serializable")];
+            let build = if headless {
+                MailcalApp::new_background_worker
+            } else {
+                MailcalApp::new_accounts
+            };
+            build(
+                Box::new(ChannelObserver { tx }),
+                Box::new(NullLogger),
+                LogLevel::Info,
+                configs,
+                dir.to_owned(),
+                "Etc/UTC".to_owned(),
+                crate::analytics::test_device(),
+                Box::new(RecordingStoreHandle(recorder)),
+            )
+            .expect("a core boots with no mail account at all")
+        }
+
+        let headless_dir = temp_data_dir("allodia-headless");
+        let live_dir = temp_data_dir("allodia-live");
+
+        let headless = boot(true, &headless_dir.to_string_lossy());
+        assert!(
+            headless.allodia.lock().expect("allodia lock").is_none(),
+            "a background pass mints no Allodia token, so holding the grant there would only put a \
+             second refresher over one credential in this process",
+        );
+
+        let live = boot(false, &live_dir.to_string_lossy());
+        assert!(
+            live.allodia.lock().expect("allodia lock").is_some(),
+            "the foreground core is the one that reads the subscription and redeems purchases",
+        );
+
+        drop(headless);
+        drop(live);
+        let _ = std::fs::remove_dir_all(headless_dir);
+        let _ = std::fs::remove_dir_all(live_dir);
+    }
+
     #[test]
     fn a_stored_grant_survives_the_round_trip() {
         let toml = stored().to_toml().expect("serializable");
