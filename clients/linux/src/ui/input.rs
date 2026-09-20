@@ -137,6 +137,13 @@ pub(crate) enum AppInput {
         account: String,
         expanded: bool,
     },
+    /// Open or shut the folders filed inside one folder. The account travels with the key, as it
+    /// does for a folder's own activation: a folder key is unique only within its account.
+    SetFolderExpanded {
+        account: String,
+        key: String,
+        expanded: bool,
+    },
     /// Show the Outbox: every account's unsent messages, in one list.
     ShowOutbox,
     /// Send now, withdraw, or reopen one queued message (`docs/sending.md`).
@@ -362,6 +369,7 @@ impl fmt::Debug for AppInput {
             Self::ArchiveThread { .. } => "ArchiveThread",
             Self::ActivateSidebar(_) => "ActivateSidebar",
             Self::SetAccountExpanded { .. } => "SetAccountExpanded",
+            Self::SetFolderExpanded { .. } => "SetFolderExpanded",
             Self::ShowOutbox => "ShowOutbox",
             Self::QueuedSendAction { .. } => "QueuedSendAction",
             Self::RespondToInvitation(..) => "RespondToInvitation",

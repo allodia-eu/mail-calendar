@@ -56,6 +56,16 @@ pub enum Intent {
         /// Whether the group's tree is open.
         expanded: bool,
     },
+    /// Open or shut the folders filed inside one folder, and remember it across launches. An
+    /// account's tree and a folder's are the same thing one level down, so this follows
+    /// [`Intent::SetAccountExpanded`]'s rules: not navigation, independent of what is selected,
+    /// and the core's to remember. A [`FolderRef`] for [`Intent::SelectFolder`]'s reason.
+    SetFolderExpanded {
+        /// The folder whose own sub-folders to show or hide, bound to its owning account.
+        folder: FolderRef,
+        /// Whether the folders inside it are showing.
+        expanded: bool,
+    },
     /// Show one folder's mail. A [`FolderRef`], never a bare key: a key is unique only within
     /// its account, and there is no folder-only form (`docs/folder-pane.md`, rule 14). An
     /// account's own all-mail view is [`Intent::SelectAccount`].

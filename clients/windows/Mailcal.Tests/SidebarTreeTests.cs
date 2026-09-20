@@ -252,12 +252,15 @@ public class SidebarTreeTests
         Sync(target, accounts, showFolders: true, onExpanded: i => toggles.Add((i.AccountId ?? i.Tag, i.IsExpanded)));
         Sync(target, accounts, showFolders: false, onExpanded: i => toggles.Add((i.AccountId ?? i.Tag, i.IsExpanded)));
 
-        Assert.Empty(target[1].Children);
+        // Shut, not emptied. On screen those are the same thing, and only one of them leaves a
+        // row the framework has realised with nothing in it, which is a row that can be told it is
+        // open and then show nothing (SidebarTree.ApplyExpansion).
         Assert.False(target[1].IsExpanded);
+        Assert.Equal(3, target[1].Children.Count);
         // The All Accounts group goes with them: the unified Inbox is a folder, and the calendar
         // is not what a folder pane is for.
-        Assert.Empty(target[0].Children);
         Assert.False(target[0].IsExpanded);
+        Assert.Single(target[0].Children);
         // Crucially, the core was never told the user shut anything, so coming back to mail
         // restores the tree rather than reopening a collapsed one.
         Assert.Empty(toggles);
@@ -353,4 +356,5 @@ public class SidebarTreeTests
         Assert.Equal(
             ["inbox-glyph", "sent-glyph", "folder", "folder"],
             target[1].Children.Select(c => c.Glyph));
-    }}
+    }
+}

@@ -106,6 +106,11 @@ fn only_the_selected_junk_role_reverses_the_spam_action() {
         name: "Anything the server calls it".to_owned(),
         role: Some(FolderRole::Junk),
         unread: 0,
+        parent: None,
+        depth: 0,
+        has_children: false,
+        expanded: false,
+        visible: true,
     }];
     assert!(in_junk_folder(&snapshot));
 

@@ -36,6 +36,11 @@ impl From<AppFolderRow> for FolderRow {
             name: row.name,
             role: row.role.map(FolderRole::from),
             unread: row.unread,
+            parent: row.parent,
+            depth: row.depth,
+            has_children: row.has_children,
+            expanded: row.expanded,
+            visible: row.visible,
         }
     }
 }

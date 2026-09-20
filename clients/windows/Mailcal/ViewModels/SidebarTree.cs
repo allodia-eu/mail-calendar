@@ -116,9 +116,11 @@ public static class SidebarTree
         Func<string, bool> isUnreachable,
         Action<SidebarItem> onExpandedChanged,
         SidebarLabels labels,
-        SidebarGlyphs glyphs)
+        SidebarGlyphs glyphs,
+        Action<Action>? defer = null)
     {
         var wanted = new List<SidebarItem>(accounts.Count + 3);
+        var expansion = new List<(SidebarItem Item, bool Expanded)>();
 
         // The Outbox, above everything, and **only while something is in it** (rule 18). Not
         // inside a tree, because it is not a folder on anybody's server, and not per account,
@@ -149,10 +151,8 @@ public static class SidebarTree
             ExpandedChanged = onExpandedChanged,
         };
         group.Content = labels.AllAccounts;
-        // `ApplyExpanded`, not the setter: this is the core's own value coming back, and feeding
-        // it to the core again as a "user toggled it" is a rebuild per refresh.
-        group.ApplyExpanded(showFolders && unifiedExpanded);
-        ReconcileUnified(group.Children, showFolders, unifiedUnread, labels, glyphs);
+        ReconcileUnified(group.Children, unifiedUnread, labels, glyphs);
+        expansion.Add((group, showFolders && unifiedExpanded));
         wanted.Add(group);
 
         foreach (var account in accounts)
@@ -167,11 +167,20 @@ public static class SidebarTree
             };
             item.Content = account.Email;
             item.ShowBadge = isUnreachable(account.Id);
-            // `ApplyExpanded`, not the setter: this is the core's own value coming back, and
-            // feeding it to the core again as a "user toggled it" is a rebuild per refresh.
-            item.ApplyExpanded(showFolders && account.Expanded);
+            // Its folders, on every destination, even the ones that draw no mail tree. A row
+            // that is emptied and refilled is a row the framework has already realised with
+            // nothing in it, and such a row can be told it is open but cannot then show anything
+            // (see ApplyExpansion). Shutting it instead is the same thing on screen and leaves
+            // the tree it reopens already attached.
             ReconcileFolders(
-                item.Children, account.Id, showFolders ? account.Folders : [], labels, glyphs);
+                item.Children,
+                account.Id,
+                account.Folders,
+                onExpandedChanged,
+                labels,
+                glyphs,
+                expansion);
+            expansion.Add((item, showFolders && account.Expanded));
             wanted.Add(item);
         }
 
@@ -186,6 +195,57 @@ public static class SidebarTree
         wanted.Add(add);
 
         Apply(target, wanted);
+        ApplyExpansion(expansion, defer);
+    }
+
+    /// <summary>
+    /// Mirrors the core's expansion onto every row, once the rows they open are attached.
+    /// </summary>
+    /// <remarks>
+    /// Opening a row is the framework's work rather than a flag we set: a `NavigationViewItem`
+    /// realises its children when `IsExpanded` turns true, and it can only realise the children it
+    /// has been given. Setting the flag on a row that is already on screen but still empty
+    /// therefore moves the chevron and nothing else, and the rows attached a moment later stay
+    /// hidden underneath it. Two ordinary things reach that state: a folder found by a sync that
+    /// is still running, and leaving mail for the calendar, which empties every account row and
+    /// hands it all of its folders back on the way in.
+    /// <para>
+    /// Attaching the children first is necessary and not sufficient: the item takes them in on its
+    /// next layout pass rather than on the collection event. So the host passes
+    /// <paramref name="defer"/>, which runs the expansion after that pass, and a caller with no
+    /// framework to wait for passes none and it applies inline.
+    /// </para>
+    /// <para>
+    /// `ApplyExpanded`, not the setter: this is the core's own value coming back, and feeding it
+    /// to the core again as a "user toggled it" is a rebuild per refresh.
+    /// </para>
+    /// </remarks>
+    private static void ApplyExpansion(
+        List<(SidebarItem Item, bool Expanded)> expansion,
+        Action<Action>? defer)
+    {
+        // Only the rows whose state actually moves: the reconcile runs on every refresh, and a
+        // deferred no-op per row per refresh is the cost this file exists to avoid.
+        var changed = expansion.FindAll(pair => pair.Item.IsExpanded != pair.Expanded);
+        if (changed.Count == 0)
+        {
+            return;
+        }
+        void Apply()
+        {
+            foreach (var (item, expanded) in changed)
+            {
+                item.ApplyExpanded(expanded);
+            }
+        }
+        if (defer is null)
+        {
+            Apply();
+        }
+        else
+        {
+            defer(Apply);
+        }
     }
 
     /// <summary>
@@ -202,7 +262,6 @@ public static class SidebarTree
     /// </remarks>
     private static void ReconcileUnified(
         ObservableCollection<SidebarItem> target,
-        bool showFolders,
         uint unifiedUnread,
         SidebarLabels labels,
         SidebarGlyphs glyphs)
@@ -214,18 +273,37 @@ public static class SidebarTree
         };
         inbox.Content = labels.UnifiedInbox;
         SetUnread(inbox, unifiedUnread, labels);
-        List<SidebarItem> wanted = showFolders ? [inbox] : [];
-        Apply(target, wanted);
+        Apply(target, [inbox]);
     }
 
+    /// <summary>
+    /// One account's folders, as the tree the provider files them in rather than as a flat list.
+    /// </summary>
+    /// <remarks>
+    /// A folder filed inside another becomes a child of that folder's entry, so the framework
+    /// draws the chevron, the indent and the hiding itself: this pane nests rows natively, where
+    /// the three that draw a flat list read <c>FolderRow.visible</c> and an indent step instead
+    /// (docs/folder-pane.md).
+    /// <para>
+    /// The rows arrive **depth-first**, each folder ahead of the folders inside it, which is what
+    /// lets one pass attach every child to a parent it has already built.
+    /// </para>
+    /// </remarks>
     private static void ReconcileFolders(
         ObservableCollection<SidebarItem> target,
         string accountId,
         IReadOnlyList<FolderItem> folders,
+        Action<SidebarItem> onExpandedChanged,
         SidebarLabels labels,
-        SidebarGlyphs glyphs)
+        SidebarGlyphs glyphs,
+        List<(SidebarItem Item, bool Expanded)> expansion)
     {
-        var wanted = new List<SidebarItem>(folders.Count);
+        var existing = new Dictionary<string, SidebarItem>();
+        CollectByTag(target, existing);
+        var built = new Dictionary<string, SidebarItem>();
+        var children = new Dictionary<string, List<SidebarItem>>();
+        var roots = new List<SidebarItem>();
+
         foreach (var folder in folders)
         {
             // The synthetic null-key "All Mail" head is skipped: the account row itself is that view.
@@ -236,18 +314,57 @@ public static class SidebarTree
             // Each folder carries the account it belongs to, because its key does not name a
             // mailbox on its own: the two travel together in one intent (docs/folder-pane.md,
             // rule 14).
-            var item = Existing(target, key)
-                ?? new SidebarItem
+            if (!existing.TryGetValue(key, out var item))
+            {
+                item = new SidebarItem
                 {
                     Tag = key,
                     OwnerAccountId = accountId,
                     Glyph = glyphs.ForRole(folder.Role),
+                    ExpandedChanged = onExpandedChanged,
                 };
+            }
             item.Content = folder.Name;
             SetUnread(item, folder.Unread, labels);
-            wanted.Add(item);
+            // Recorded rather than applied: every row in the pane is opened together once the
+            // whole tree is attached, by ApplyExpansion, which says why.
+            expansion.Add((item, folder.HasChildren && folder.Expanded));
+            built[key] = item;
+            // Every folder gets a list, so a folder that has emptied out has its old children
+            // removed rather than left on screen under a parent that no longer names them.
+            children[key] = [];
+            if (folder.Parent is { } parent && built.ContainsKey(parent))
+            {
+                children[parent].Add(item);
+            }
+            else
+            {
+                roots.Add(item);
+            }
         }
-        Apply(target, wanted);
+
+        foreach (var (key, nested) in children)
+        {
+            Apply(built[key].Children, nested);
+        }
+        Apply(target, roots);
+    }
+
+    /// <summary>Indexes a whole folder subtree by tag, so a refresh reuses the entries it has.</summary>
+    /// <remarks>
+    /// The flat <see cref="Existing"/> cannot do this: a folder that was nested last refresh is a
+    /// child of its parent's entry, not of the account's, and a lookup that missed it would mint a
+    /// second entry and cost the framework a container it had already realised.
+    /// </remarks>
+    private static void CollectByTag(
+        ObservableCollection<SidebarItem> items,
+        Dictionary<string, SidebarItem> into)
+    {
+        foreach (var item in items)
+        {
+            into[item.Tag] = item;
+            CollectByTag(item.Children, into);
+        }
     }
 
     /// <summary>Sets a row's unread count and the sentence a screen reader reads for it.</summary>

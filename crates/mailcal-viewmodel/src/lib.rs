@@ -30,7 +30,8 @@ pub use calendar::{CalendarSnapshot, EventRow};
 pub use connectivity::ConnectivitySnapshot;
 pub use contacts::{ContactCardRef, ContactDetail, ContactRow, ContactValue, ContactsSnapshot};
 pub use folders::{
-    AccountFolderRow, FolderRole, FolderRow, folder_role, inbox_unread, sorted_folder_rows,
+    AccountFolderRow, FolderRole, FolderRow, folder_paths, folder_role, inbox_unread,
+    sorted_folder_rows,
 };
 pub use invitation::{AttendeeTally, InvitationCard, InvitationKind, ResponseStatus};
 pub use outbox::{QueuedRow, QueuedState, queued_rows};

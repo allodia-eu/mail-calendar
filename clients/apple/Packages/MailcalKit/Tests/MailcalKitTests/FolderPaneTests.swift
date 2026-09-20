@@ -16,7 +16,17 @@ import Testing
 @Suite struct FolderPaneTests {
 
     private func folder(_ key: String, _ name: String, _ role: FolderRole?) -> FolderRow {
-        FolderRow(key: key, name: name, role: role, unread: 0)
+        FolderRow(
+            key: key,
+            name: name,
+            role: role,
+            unread: 0,
+            parent: nil,
+            depth: 0,
+            hasChildren: false,
+            expanded: false,
+            visible: true
+        )
     }
 
     // MARK: rule 12, a known folder is called what we call it

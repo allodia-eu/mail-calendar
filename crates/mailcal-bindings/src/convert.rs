@@ -161,6 +161,14 @@ impl TryFrom<Intent> for AppIntent {
                 Self::SetAccountExpanded { account, expanded }
             }
             Intent::SetUnifiedExpanded { expanded } => Self::SetUnifiedExpanded { expanded },
+            Intent::SetFolderExpanded {
+                account,
+                key,
+                expanded,
+            } => Self::SetFolderExpanded {
+                folder: folder(account, key)?,
+                expanded,
+            },
             Intent::SetAccountSenderName { account, name } => {
                 Self::SetAccountSenderName { account, name }
             }

@@ -257,10 +257,12 @@
                  the same refresh. Bound to a collection the shell reconciles in place
                  (ViewModels/SidebarTree.cs), the framework hears only what actually changed.
 
-                 Two templates, because only an account row may carry the "Remove account" menu:
-                 offering it on a folder would name the wrong thing and destroy an account. The
-                 selector keys off SidebarItem.AccountId. Both levels of the hierarchy draw through
-                 it, a folder is a child of its account's item via MenuItemsSource.
+                 Three templates, because only an account row may carry the "Remove account"
+                 menu: offering it on a folder would name the wrong thing and destroy an account.
+                 The selector keys off SidebarItem.AccountId, and off IsGroup for the All Accounts
+                 heading. Every level of the tree draws through it, an account's folders and a
+                 folder's own folders alike, each a child of its parent's item via
+                 MenuItemsSource.
 
                  {Binding}, NOT {x:Bind}, these are the only two in the app, so the reason has to
                  live here. x:Bind compiles a cast of the template's data root to its x:DataType, and
@@ -280,9 +282,17 @@
                                  without this the row has no name at all: invisible to a screen
                                  reader, and unfindable by every automation lookup, while looking
                                  exactly right on screen. The UI suite caught precisely that. -->
+                            <!-- A folder can hold folders, so the plain template nests too. An
+                                 item whose Children are empty draws no chevron, which is exactly
+                                 the rule: a disclosure control beside a folder holding nothing but
+                                 mail promises a tree that is not there. IsExpanded is TwoWay for
+                                 the reason the account template's is, the chevron the user clicks
+                                 writes back and reaches the core, which persists it. -->
                             <NavigationViewItem
                                 Tag="{Binding Tag}"
                                 SelectsOnInvoked="{Binding SelectsOnInvoked}"
+                                IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                MenuItemsSource="{Binding Children}"
                                 AutomationProperties.Name="{Binding Content}"
                                 AutomationProperties.AutomationId="{Binding AutomationId}">
                                 <NavigationViewItem.Icon>

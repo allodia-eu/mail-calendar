@@ -63,6 +63,25 @@ public sealed class FolderItem
     /// shows no badge, and deliberately covers both "nothing unread" and "this provider reports
     /// no count" (docs/folder-pane.md).</summary>
     public uint Unread { get; init; }
+
+    /// <summary>The <see cref="Key"/> of the folder this one is filed inside, or <c>null</c> at
+    /// the top of the account's tree.</summary>
+    /// <remarks>
+    /// What the pane nests by. The rows arrive depth-first, each folder ahead of the folders
+    /// inside it, so one pass can attach every child to a parent it has already built.
+    /// </remarks>
+    public string? Parent { get; init; }
+
+    /// <summary>Whether any other folder names this one as its <see cref="Parent"/>.</summary>
+    /// <remarks>
+    /// NavigationView draws a chevron for an item that has children and none for one that does
+    /// not, so this decides the disclosure control by deciding whether the item gets any.
+    /// </remarks>
+    public bool HasChildren { get; init; }
+
+    /// <summary>Whether the folders inside this one are showing. The core owns and persists it
+    /// (docs/folder-pane.md, rule 3).</summary>
+    public bool Expanded { get; init; }
 }
 
 /// <summary>One account in the sidebar switcher: its id, email (display label), and whether its

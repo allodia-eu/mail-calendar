@@ -1,10 +1,10 @@
-//! Which accounts have their folder tree shut in the sidebar, and the accessors that read
-//! and record it.
+//! Which trees are shut in the sidebar, and the accessors that read and record it: one per
+//! account, one per folder that holds folders, and the **All Accounts** group's.
 //!
 //! Its own module because the storage is inverted relative to the question everyone asks.
-//! Callers ask "is this account expanded?"; the file stores the accounts that are
-//! **collapsed**. Keeping the inversion in one place is what stops a caller reading the
-//! `BTreeSet` directly and getting the answer backwards.
+//! Callers ask "is this expanded?"; the file stores what is **collapsed**. Keeping the
+//! inversion in one place is what stops a caller reading the `BTreeSet` directly and getting
+//! the answer backwards.
 //!
 //! The pane behaviour this drives is `docs/folder-pane.md`.
 
@@ -50,6 +50,47 @@ impl Preferences {
     /// Records whether the **All Accounts** group is open.
     pub const fn set_unified_expanded(&mut self, expanded: bool) {
         self.unified_collapsed = !expanded;
+    }
+
+    /// Whether `folder`'s own sub-folders are showing, in `account`'s tree.
+    ///
+    /// **Expanded is the default**, as it is for an account. A folder nobody has touched shows
+    /// what is inside it, so nothing goes missing on the launch this ships in: a mailbox whose
+    /// folders were drawn as one flat list becomes a tree with every row still on screen, and
+    /// tidying it up is the user's to do rather than ours to do for them.
+    #[must_use]
+    pub fn folder_expanded(&self, account: &str, folder: &str) -> bool {
+        !self
+            .collapsed_folders
+            .get(account)
+            .is_some_and(|shut| shut.contains(folder))
+    }
+
+    /// Records whether `folder`'s sub-folders are showing. Expanding drops the entry, and the
+    /// account's last entry takes the account's own map row with it, so the file holds only
+    /// what the user actually shut rather than growing a row per folder they ever opened.
+    pub fn set_folder_expanded(&mut self, account: &str, folder: &str, expanded: bool) {
+        if expanded {
+            let Some(shut) = self.collapsed_folders.get_mut(account) else {
+                return;
+            };
+            shut.remove(folder);
+            if shut.is_empty() {
+                self.collapsed_folders.remove(account);
+            }
+        } else {
+            self.collapsed_folders
+                .entry(account.to_owned())
+                .or_default()
+                .insert(folder.to_owned());
+        }
+    }
+
+    /// Drops every folder's collapse state for an account; used when the account is removed,
+    /// for the reason [`Preferences::remove_account_expansion`] exists. Returns whether
+    /// anything was stored for it.
+    pub fn remove_folder_expansions(&mut self, account: &str) -> bool {
+        self.collapsed_folders.remove(account).is_some()
     }
 }
 
@@ -107,6 +148,49 @@ mod tests {
         prefs.set_account_expanded("acct-1", false);
         prefs.set_unified_expanded(true);
         assert!(!prefs.account_expanded("acct-1"));
+    }
+
+    #[test]
+    fn a_folder_nobody_has_touched_shows_what_is_inside_it() {
+        let mut prefs = Preferences::default();
+        assert!(prefs.folder_expanded("acct-1", "archive"));
+
+        prefs.set_folder_expanded("acct-1", "archive", false);
+        assert!(!prefs.folder_expanded("acct-1", "archive"));
+        // One folder shutting leaves its siblings, and the same key in another account, open.
+        assert!(prefs.folder_expanded("acct-1", "clients"));
+        assert!(prefs.folder_expanded("acct-2", "archive"));
+    }
+
+    #[test]
+    fn expanding_a_folder_leaves_nothing_behind_in_the_file() {
+        let mut prefs = Preferences::default();
+        prefs.set_folder_expanded("acct-1", "archive", false);
+        prefs.set_folder_expanded("acct-1", "clients", false);
+
+        prefs.set_folder_expanded("acct-1", "archive", true);
+        assert_eq!(prefs.collapsed_folders["acct-1"].len(), 1);
+
+        // The account's last shut folder takes the account's own row with it, so opening
+        // everything back up leaves the file exactly as it started.
+        prefs.set_folder_expanded("acct-1", "clients", true);
+        assert!(prefs.collapsed_folders.is_empty());
+        // And expanding something never shut writes nothing at all.
+        prefs.set_folder_expanded("acct-3", "archive", true);
+        assert!(prefs.collapsed_folders.is_empty());
+    }
+
+    #[test]
+    fn removing_an_account_forgets_its_folders_too() {
+        let mut prefs = Preferences::default();
+        prefs.set_folder_expanded("acct-1", "archive", false);
+        prefs.set_folder_expanded("acct-2", "archive", false);
+
+        assert!(prefs.remove_folder_expansions("acct-1"));
+        assert!(prefs.folder_expanded("acct-1", "archive"));
+        // The account beside it keeps what it had.
+        assert!(!prefs.folder_expanded("acct-2", "archive"));
+        assert!(!prefs.remove_folder_expansions("acct-1"));
     }
 
     #[test]

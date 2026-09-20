@@ -228,6 +228,12 @@ pub struct FolderOut {
     /// Its special role (`inbox`, `sent`, `archive`, `junk`, `trash`, …), or `null` for an
     /// ordinary folder.
     pub role: Option<String>,
+    /// The `key` of the folder this one is filed inside, or `null` at the top level.
+    ///
+    /// `name` is the folder's **own** name, so two accounts' `2024` folders and two `2024`
+    /// folders in one account read alike; this is what says which is which. The list is
+    /// already ordered depth-first, each folder followed by the ones inside it.
+    pub parent: Option<String>,
 }
 
 /// The `list_folders` result.

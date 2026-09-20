@@ -279,6 +279,9 @@ public sealed partial class MailboxModel
             Name = FolderLabel.For(role, folder.Name),
             Role = role,
             Unread = folder.Unread,
+            Parent = folder.Parent,
+            HasChildren = folder.HasChildren,
+            Expanded = folder.Expanded,
         };
     }
 

@@ -78,14 +78,19 @@ public sealed class SidebarItem : INotifyPropertyChanged
     /// </remarks>
     public bool IsGroup { get; set; }
 
-    /// <summary>This account's folders. Empty on every other kind. Populated for **every**
-    /// account, not just the selected one, the pane shows every tree at once, and each account's
-    /// own <see cref="IsExpanded"/> decides whether its folders are on screen.</summary>
+    /// <summary>The entries filed under this one: an account's folders, or a folder's own
+    /// folders. Empty on a row that holds neither.</summary>
+    /// <remarks>
+    /// Populated for **every** account, not just the selected one, the pane shows every tree at
+    /// once, and each row's own <see cref="IsExpanded"/> decides whether what is under it is on
+    /// screen. An empty collection is also what keeps the chevron off a row with nothing to open:
+    /// the framework draws one only for an item that has children.
+    /// </remarks>
     public ObservableCollection<SidebarItem> Children { get; } = [];
 
     /// <summary>
-    /// Called when the **user** opens or shuts this account's tree, so the change reaches the core
-    /// and is persisted. Not raised while <see cref="ApplyExpanded"/> is writing the core's own
+    /// Called when the **user** opens or shuts this row's tree, so the change reaches the core and
+    /// is persisted. Not raised while <see cref="ApplyExpanded"/> is writing the core's own
     /// value back in, which would otherwise echo every refresh back as a fresh user action.
     /// </summary>
     public Action<SidebarItem>? ExpandedChanged { get; set; }
@@ -103,10 +108,10 @@ public sealed class SidebarItem : INotifyPropertyChanged
     private bool _applyingCoreState;
 
     /// <summary>
-    /// Whether this account's folders are showing. Two-way bound, so the chevron the user clicks
-    /// writes back here, and from here, through <see cref="ExpandedChanged"/>, to the core, which
-    /// persists it. The core is the owner: this is a mirror of `AccountRow.expanded`, never the
-    /// authority (docs/folder-pane.md).
+    /// Whether what is filed under this row is showing. Two-way bound, so the chevron the user
+    /// clicks writes back here, and from here, through <see cref="ExpandedChanged"/>, to the core,
+    /// which persists it. The core is the owner: this mirrors `AccountRow.expanded` or
+    /// `FolderRow.expanded`, and is never the authority (docs/folder-pane.md).
     /// </summary>
     public bool IsExpanded
     {

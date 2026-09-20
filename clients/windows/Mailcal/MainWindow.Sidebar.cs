@@ -13,6 +13,7 @@ using System.Collections.ObjectModel;
 using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -165,7 +166,13 @@ public sealed partial class MainWindow
                 // int.MaxValue unread should read as "a lot", not wrap to a negative number.
                 count => L10n.A11yUnreadCount((int)Math.Min(count, int.MaxValue)),
                 count => L10n.A11yOutboxCount((int)Math.Min(count, int.MaxValue))),
-            Glyphs);
+            Glyphs,
+            // A row opens only what it already holds, and it takes in the rows attached above on
+            // its next layout pass, so the expansion runs after that pass rather than inside this
+            // one (SidebarTree.ApplyExpansion). Low priority is what puts it behind the layout;
+            // the reconcile hands over only the rows whose state actually moved, so a refresh that
+            // changes no tree queues nothing.
+            apply => DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => apply()));
         RestoreSelection();
     }
 
@@ -196,6 +203,12 @@ public sealed partial class MainWindow
         else if (item.AccountId is { } id)
         {
             Model.SetAccountExpanded(id, item.IsExpanded);
+        }
+        else if (item.OwnerAccountId is { } owner)
+        {
+            // A folder that holds folders. Its key is unique only within its account, so both
+            // halves travel together, exactly as they do when the folder is opened.
+            Model.SetFolderExpanded(owner, item.Tag, item.IsExpanded);
         }
     }
 

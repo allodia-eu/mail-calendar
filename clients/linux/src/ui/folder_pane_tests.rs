@@ -9,17 +9,25 @@ use mailcal_bindings::{
 };
 
 use super::{
-    FolderPaneRendering, FolderPaneSelection, SidebarTarget, render, role_icon,
-    select_snapshot_row, width,
+    FolderPaneRendering, FolderPaneSelection, SidebarTarget, render, select_snapshot_row, width,
 };
 use crate::{
     l10n,
-    ui::{AppInput, mailbox::tests::rendered_labels, model::empty_mailbox},
+    ui::{
+        AppInput, folder_pane_rows::role_icon, mailbox::tests::rendered_labels,
+        model::empty_mailbox,
+    },
 };
 
 #[path = "folder_pane_group_tests.rs"]
 mod group;
+#[path = "folder_pane_tree_tests.rs"]
+mod tree;
 pub(crate) use group::the_unified_scope_is_an_expandable_group_with_an_inbox_child;
+pub(crate) use tree::{
+    a_folder_chevron_toggles_without_navigating,
+    a_nested_folder_is_indented_and_a_shut_one_is_not_drawn,
+};
 
 fn folder(key: &str, name: &str, role: Option<FolderRole>, unread: u32) -> FolderRow {
     FolderRow {
@@ -27,6 +35,11 @@ fn folder(key: &str, name: &str, role: Option<FolderRole>, unread: u32) -> Folde
         name: name.to_owned(),
         role,
         unread,
+        parent: None,
+        depth: 0,
+        has_children: false,
+        expanded: false,
+        visible: true,
     }
 }
 
@@ -433,7 +446,7 @@ pub(crate) fn an_optimistic_click_is_not_undone_by_the_previous_snapshot() {
 
 pub(crate) fn folder_rows_expose_their_navigation_as_a_semantic_action() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let row = super::pane_row(
+    let row = crate::ui::folder_pane_rows::pane_row(
         "folder-symbolic",
         &sender,
         &SidebarTarget::Folder {

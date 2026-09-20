@@ -7,10 +7,12 @@ package eu.allodia.mailcal
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.DrawerState
@@ -23,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -52,6 +55,7 @@ internal fun FolderDrawerScaffold(
     onSelectAccount: (id: String?) -> Unit,
     onSelectFolder: (account: String, key: String) -> Unit,
     onSetExpanded: (id: String, expanded: Boolean) -> Unit,
+    onSetFolderExpanded: (account: String, key: String, expanded: Boolean) -> Unit,
     onShowOutbox: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -72,6 +76,7 @@ internal fun FolderDrawerScaffold(
                 onSelectAccount = onSelectAccount,
                 onSelectFolder = onSelectFolder,
                 onSetExpanded = onSetExpanded,
+                onSetFolderExpanded = onSetFolderExpanded,
                 onShowOutbox = onShowOutbox,
             )
         },
@@ -122,6 +127,7 @@ private fun FolderDrawerSheet(
     onSelectAccount: (id: String?) -> Unit,
     onSelectFolder: (account: String, key: String) -> Unit,
     onSetExpanded: (id: String, expanded: Boolean) -> Unit,
+    onSetFolderExpanded: (account: String, key: String, expanded: Boolean) -> Unit,
     onShowOutbox: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -196,14 +202,31 @@ private fun FolderDrawerSheet(
                     )
                 }
                 if (isExpanded) {
-                    items(folders, key = { "folder-${account.id}-${it.key}" }) { folder ->
+                    // A folder inside a folder the user shut is not drawn. The core has walked
+                    // the chain of parents already, so this is a flag rather than a climb back
+                    // up it here.
+                    val onScreen = folders.filter { it.visible }
+                    items(onScreen, key = { "folder-${account.id}-${it.key}" }) { folder ->
                         NavigationDrawerItem(
                             label = { Text(folderLabel(folder.role, folder.name, ctx)) },
                             icon = {
-                                Icon(
-                                    painter = painterResource(folderIcon(folder.role)),
-                                    contentDescription = null,
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    FolderDisclosure(
+                                        folder = folder,
+                                        onToggle = {
+                                            onSetFolderExpanded(
+                                                account.id,
+                                                folder.key,
+                                                !folder.expanded,
+                                            )
+                                        },
+                                        ctx = ctx,
+                                    )
+                                    Icon(
+                                        painter = painterResource(folderIcon(folder.role)),
+                                        contentDescription = null,
+                                    )
+                                }
                             },
                             badge = unreadBadge(folder.unread, ctx),
                             selected = account.id == selectedAccount && folder.key == selectedFolder,
@@ -211,13 +234,51 @@ private fun FolderDrawerSheet(
                                 scope.launch { drawerState.close() }
                                 onSelectFolder(account.id, folder.key)
                             },
-                            modifier = Modifier.padding(start = 24.dp, end = 12.dp),
+                            // One step per level below the account's own indent, so a branch
+                            // reads as a branch rather than as a longer list.
+                            modifier = Modifier.padding(
+                                start = 24.dp + (FOLDER_INDENT * folder.depth.toInt()),
+                                end = 12.dp,
+                            ),
                         )
                     }
                 }
             }
             item { Spacer(modifier = Modifier.height(12.dp)) }
         }
+    }
+}
+
+// One step of indent per level of folders inside folders.
+private val FOLDER_INDENT = 16.dp
+
+// The control that opens or shuts the folders inside a folder, or the blank of the same width
+// where it holds none.
+//
+// Its own target, never the row: opening a folder to see what is in it is not opening its mail,
+// the same separation the account header above has (docs/folder-pane.md). The blank is reserved
+// either way, so the folder icons line up down a branch instead of stepping left wherever a
+// folder happens to hold nothing.
+@Composable
+private fun FolderDisclosure(
+    folder: FolderRow,
+    onToggle: () -> Unit,
+    ctx: android.content.Context,
+) {
+    if (!folder.hasChildren) {
+        Spacer(modifier = Modifier.width(32.dp))
+        return
+    }
+    IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
+        Icon(
+            painter = painterResource(
+                if (folder.expanded) R.drawable.ic_keyboard_arrow_down
+                else R.drawable.ic_keyboard_arrow_right,
+            ),
+            contentDescription =
+                if (folder.expanded) L10n.a11y_collapse_folder(ctx) else L10n.a11y_expand_folder(ctx),
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 

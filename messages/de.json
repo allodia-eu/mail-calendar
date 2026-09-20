@@ -112,6 +112,8 @@
 	"a11y_close_folders": "Ordner schließen",
 	"a11y_expand_account": "Ordner einblenden",
 	"a11y_collapse_account": "Ordner ausblenden",
+	"a11y_expand_folder": "Unterordner einblenden",
+	"a11y_collapse_folder": "Unterordner ausblenden",
 	"a11y_unread_count": "{count} ungelesen",
 	"a11y_unread_count_one": "{count} ungelesen",
 	"a11y_outbox_count": "{count} warten auf den Versand",

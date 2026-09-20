@@ -166,13 +166,24 @@ extension MailboxModel {
         app?.dispatch(intent: .setUnifiedExpanded(expanded: expanded))
     }
 
+    /// Opens or shuts the folders filed inside one folder. The account travels with the key,
+    /// as it does for ``selectFolder(in:key:)``: a folder key is unique only within its
+    /// account. Not navigation either, so this does **not** open the folder's mail.
+    func setFolderExpanded(_ account: String, _ key: String, _ expanded: Bool) {
+        app?.dispatch(
+            intent: .setFolderExpanded(account: account, key: key, expanded: expanded)
+        )
+    }
+
     /// One account's folders, as rows for the sidebar tree, each carrying an identity unique
     /// across the **whole** pane rather than within its own account.
     ///
     /// Empty for an account the snapshot has no folders for yet (a first sync still running).
     func folderRows(for account: String) -> [SidebarFolder] {
         let folders = accountFolders.first { $0.accountId == account }?.folders ?? []
-        return folders.map { SidebarFolder(account: account, folder: $0) }
+        // A row inside a folder the user shut is not drawn. The core has already walked the
+        // chain of parents, so this is a flag rather than a climb back up it here.
+        return folders.filter(\.visible).map { SidebarFolder(account: account, folder: $0) }
     }
 
     /// The email of the account `id`, for display (falls back to the id itself).
