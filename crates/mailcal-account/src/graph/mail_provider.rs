@@ -54,11 +54,9 @@ impl Provider for RefreshingGraphProvider {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
-            let permit = self.tokens.acquire().await;
             match provider.sync_mailboxes(account, cursor).await {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
-                    drop(permit);
                     self.invalidate_delegate();
                     provider = self.delegate().await?;
                     reconnected = true;
@@ -82,8 +80,7 @@ impl Provider for RefreshingGraphProvider {
             let mut reconnected = false;
             loop {
                 let provider = self.delegate().await?;
-                let permit = self.tokens.acquire().await;
-                let mut chunks = Vec::new();
+                    let mut chunks = Vec::new();
                 let result = {
                     let mut stream = provider.stream_email(
                         &account,
@@ -106,14 +103,12 @@ impl Provider for RefreshingGraphProvider {
                 };
                 match result {
                     Ok(()) => {
-                        drop(permit);
                         for chunk in chunks {
                             yield chunk;
                         }
                         break;
                     }
                     Err(err) if !reconnected && should_reconnect(&err) => {
-                        drop(permit);
                         self.invalidate_delegate();
                         reconnected = true;
                     }
@@ -131,11 +126,9 @@ impl Provider for RefreshingGraphProvider {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
-            let permit = self.tokens.acquire().await;
             match provider.fetch_message_source(account, message).await {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
-                    drop(permit);
                     self.invalidate_delegate();
                     provider = self.delegate().await?;
                     reconnected = true;
@@ -159,11 +152,9 @@ impl Provider for RefreshingGraphProvider {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
-            let permit = self.tokens.acquire().await;
             match provider.edit_mail(account, edit).await {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
-                    drop(permit);
                     self.invalidate_delegate();
                     provider = self.delegate().await?;
                     reconnected = true;
@@ -198,7 +189,6 @@ impl Provider for RefreshingGraphProvider {
         draft: &Draft,
     ) -> ProviderResult<SubmissionReceipt> {
         let provider = self.delegate().await?;
-        let _permit = self.tokens.acquire().await;
         provider
             .submit_email(account, draft)
             .await
@@ -214,17 +204,16 @@ impl Provider for RefreshingGraphProvider {
     }
 
     /// Graph reports a message through `POST /messages/{id}/reportMessage`, forwarded on the same
-    /// token-refresh + reconnect loop as [`edit_mail`](Provider::edit_mail) and under the same
-    /// concurrency permit. A report is idempotent, so a retry after a stale socket is safe.
+    /// token-refresh + reconnect loop as [`edit_mail`](Provider::edit_mail), and counted against
+    /// the account's ceiling by the engine like every other request. A report is idempotent, so a
+    /// retry after a stale socket is safe.
     async fn sender_identities(&self, account: &AccountId) -> ProviderResult<Vec<SenderIdentity>> {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
-            let permit = self.tokens.acquire().await;
             match provider.sender_identities(account).await {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
-                    drop(permit);
                     self.invalidate_delegate();
                     provider = self.delegate().await?;
                     reconnected = true;
@@ -242,11 +231,9 @@ impl Provider for RefreshingGraphProvider {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
-            let permit = self.tokens.acquire().await;
             match provider.report_message(account, report).await {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
-                    drop(permit);
                     self.invalidate_delegate();
                     provider = self.delegate().await?;
                     reconnected = true;

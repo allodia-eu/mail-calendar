@@ -129,10 +129,14 @@ impl JmapAccountConfig {
 
     /// Builds the engine [`JmapConfig`] for this account (base URL + credentials);
     /// everything else is discovered from the session.
-    fn engine_config(&self, tls: engine_tls::TlsClientConfig) -> JmapConfig {
+    ///
+    /// `account` names whose ceiling these requests are counted against. Taken as an
+    /// argument rather than re-derived here so the caller, which already holds the id, cannot
+    /// end up with a *second* gate for the account it is connecting (`crate::throttle`).
+    fn engine_config(&self, tls: engine_tls::TlsClientConfig, account: &AccountId) -> JmapConfig {
         JmapConfig::new(self.base_url.clone(), self.credentials())
             .with_tls(tls)
-            .with_retry(account_retry())
+            .with_retry(account_retry(account))
             .with_connect_observer(connect_logger("jmap"))
     }
 

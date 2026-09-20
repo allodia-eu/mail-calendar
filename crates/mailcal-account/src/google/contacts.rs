@@ -48,7 +48,7 @@ use engine_provider::{
 use engine_tls::TlsClientConfig;
 use provider_google::{GoogleClient, GoogleContactProvider, GoogleContactSource};
 
-use crate::{AccountError, GraphTokenSource, throttle::account_retry, tls::account_tls};
+use crate::{AccountError, GraphTokenSource, tls::account_tls};
 
 /// The People sources an account binds, in the order they are bound. Groups is the one the
 /// engine also offers and this list leaves out; the module doc says why.
@@ -106,7 +106,7 @@ impl RefreshingGoogleContactProvider {
                 return Ok(Arc::clone(&cache.1));
             }
         }
-        let provider = Arc::new(build(self.source, &token, &self.tls)?);
+        let provider = Arc::new(build(self.source, &token, &self.tls, &self.tokens.retry())?);
         *self.cached.lock().expect("google contacts mutex poisoned") =
             (token, Arc::clone(&provider));
         Ok(provider)
@@ -126,13 +126,18 @@ impl RefreshingGoogleContactProvider {
 }
 
 /// Builds the People adapter for one source on a fresh access token.
+///
+/// `retry` comes from the account's own [`GraphTokenSource`], not from a global: these
+/// providers belong to the same account as its mail and calendar, and a server that limits
+/// concurrency counts all of them together (`crate::throttle`).
 fn build(
     source: GoogleContactSource,
     token: &str,
     tls: &TlsClientConfig,
+    retry: &engine_api::RetryConfig,
 ) -> Result<GoogleContactProvider, ProviderError> {
-    let client = GoogleClient::connect(token.to_owned(), tls, &account_retry())
-        .map_err(ProviderError::from)?;
+    let client =
+        GoogleClient::connect(token.to_owned(), tls, retry).map_err(ProviderError::from)?;
     Ok(match source {
         GoogleContactSource::Connections => GoogleContactProvider::connections(client),
         GoogleContactSource::OtherContacts => GoogleContactProvider::other_contacts(client),
@@ -251,7 +256,8 @@ pub async fn connect_google_contact_providers(
     let mut providers: Vec<Box<dyn ContactsProvider>> = Vec::with_capacity(BOUND_SOURCES.len());
     for source in BOUND_SOURCES {
         let delegate = Arc::new(
-            build(*source, &token, &tls).map_err(|err| AccountError::Google(err.to_string()))?,
+            build(*source, &token, &tls, &tokens.retry())
+                .map_err(|err| AccountError::Google(err.to_string()))?,
         );
         providers.push(Box::new(RefreshingGoogleContactProvider::new(
             *source,
@@ -289,7 +295,8 @@ mod tests {
 
     fn provider(source: GoogleContactSource) -> RefreshingGoogleContactProvider {
         let tls = account_tls().unwrap();
-        let delegate = Arc::new(build(source, "access-token", &tls).unwrap());
+        let delegate =
+            Arc::new(build(source, "access-token", &tls, &google_source().retry()).unwrap());
         RefreshingGoogleContactProvider::new(
             source,
             google_source(),
