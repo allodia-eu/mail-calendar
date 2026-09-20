@@ -21,6 +21,7 @@ import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
 import { indentSelection } from "./lists";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
 import { installImageResize } from "./resize";
+import { installRevisionCounter } from "./revision";
 import { focusComposerBody, setPlainText } from "./seeds";
 import {
   routeClickBelowSignature,
@@ -41,6 +42,7 @@ let labels: Labels = DEFAULT_LABELS;
 const toolbar = installToolbar(editor, toolbarRoot, () => labels);
 const chrome = installNativeChrome(editor, toolbarRoot);
 installImageResize(editor);
+const revision = installRevisionCounter(editor);
 
 // Paste. A picture on the clipboard goes into the body where the caret is, as an inline image the
 // core turns into a `cid:` part on send: what Outlook does with a pasted screenshot, and what the
@@ -134,6 +136,7 @@ declare global {
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
     composerDocument: () => string;
+    composerRevision: () => number;
   }
 }
 
@@ -189,6 +192,8 @@ window.insertSignatureImage = (image) => {
   focusEditor(editor);
   insertAtCaret(editor, node);
 };
+
+window.composerRevision = () => revision();
 
 window.composerDocument = () => {
   const blocks = documentBlocks(editor);

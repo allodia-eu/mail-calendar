@@ -6,26 +6,25 @@ extension MailboxModel {
     /// synchronously in Rust; attachment bytes are read by Rust from the host-selected file
     /// paths so they do not cross Swift FFI memory.
     ///
-    /// `from` is the account the user picked in the composer's From dropdown; it decides both
-    /// the `From:` identity and the outbox the draft goes out through. `nil` lets the core
-    /// derive it. An id naming an account that is no longer configured fails the send rather
+    /// `submission.from` is the account the user picked in the composer's From dropdown; it
+    /// decides both the `From:` identity and the outbox the draft goes out through. `nil` lets the
+    /// core derive it. An id naming an account that is no longer configured fails the send rather
     /// than substituting another sender.
+    ///
+    /// `submission.composition` names the composer this was written in, so an accepted send takes
+    /// its stored draft out of Drafts. Omitting it sends correctly and leaves a copy of the
+    /// message behind in the user's Drafts folder (`docs/drafts.md`).
     @discardableResult
-    func submitRich(
-        _ recipients: Recipients,
-        _ subject: String,
-        _ documentJson: String,
-        _ files: [ComposerFileAttachment],
-        from: String?
-    ) -> Bool {
+    func submitRich(_ submission: ComposerSubmission) -> Bool {
         guard let app else { return false }
         do {
             try app.submitRichMailWithFiles(
-                recipients: recipients,
-                subject: subject,
-                documentJson: documentJson,
-                files: files,
-                from: from
+                recipients: submission.recipients,
+                subject: submission.subject,
+                documentJson: submission.documentJson,
+                files: submission.files,
+                from: submission.from,
+                composition: submission.composition
             )
             return true
         } catch {
@@ -38,30 +37,27 @@ extension MailboxModel {
     /// shared composer document and submits to the user-confirmed `recipients`, letting the
     /// app derive the `Re:` subject and threading from the original.
     ///
-    /// `from` is the sending account (the composer's From dropdown), which may differ from
-    /// `account`: the core still resolves the original, and its `Re:` subject and
+    /// `submission.from` is the sending account (the composer's From dropdown), which may differ
+    /// from `account`: the core still resolves the original, and its `Re:` subject and
     /// `In-Reply-To`/`References` chain, in the account that holds it, so a cross-account
     /// reply still threads. `nil` replies from `account`.
     @discardableResult
     func submitRichReply(
         _ account: String,
         _ key: String,
-        _ recipients: Recipients,
-        _ subject: String,
-        _ documentJson: String,
-        _ files: [ComposerFileAttachment],
-        from: String?
+        _ submission: ComposerSubmission
     ) -> Bool {
         guard let app else { return false }
         do {
             try app.submitRichReplyWithFiles(
                 account: account,
                 key: key,
-                recipients: recipients,
-                documentJson: documentJson,
-                files: files,
-                from: from,
-                subject: subject
+                recipients: submission.recipients,
+                documentJson: submission.documentJson,
+                files: submission.files,
+                from: submission.from,
+                subject: submission.subject,
+                composition: submission.composition
             )
             return true
         } catch {
@@ -72,28 +68,25 @@ extension MailboxModel {
 
     /// Rich forward of a message (by key, on its owning `account`) to the entered
     /// `recipients`: renders the shared composer document and submits with a `Fwd:` subject.
-    /// `from` is the sending account (the composer's From dropdown); `nil` forwards from
-    /// `account`.
+    /// `submission.from` is the sending account (the composer's From dropdown); `nil` forwards
+    /// from `account`.
     @discardableResult
     func submitRichForward(
         _ account: String,
         _ key: String,
-        _ recipients: Recipients,
-        _ subject: String,
-        _ documentJson: String,
-        _ files: [ComposerFileAttachment],
-        from: String?
+        _ submission: ComposerSubmission
     ) -> Bool {
         guard let app else { return false }
         do {
             try app.submitRichForwardWithFiles(
                 account: account,
                 key: key,
-                recipients: recipients,
-                documentJson: documentJson,
-                files: files,
-                from: from,
-                subject: subject
+                recipients: submission.recipients,
+                documentJson: submission.documentJson,
+                files: submission.files,
+                from: submission.from,
+                subject: submission.subject,
+                composition: submission.composition
             )
             return true
         } catch {

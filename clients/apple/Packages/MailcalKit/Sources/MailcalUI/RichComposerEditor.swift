@@ -204,6 +204,21 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
         }
     }
 
+    /// How many times the message has changed since the bundle loaded.
+    ///
+    /// Sampled rather than pushed: the page has no channel back to this host, so the bundle counts
+    /// its own mutations and the host reads the count. What it is for is telling a composer still
+    /// being typed in from one that has gone quiet, which is what decides when a draft is saved
+    /// (`docs/drafts.md`). `0` while the bundle is still loading, which is also its starting
+    /// value, so nothing reads as an edit before there is one.
+    func revision() async -> Int {
+        await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript("window.composerRevision()") { value, _ in
+                continuation.resume(returning: (value as? NSNumber)?.intValue ?? 0)
+            }
+        }
+    }
+
     /// Puts the caret in the message body, so a reply opens ready to type rather than making the
     /// user click into it first. On iOS this is also what raises the keyboard, which needs the web
     /// view to be first responder, not just the DOM element focused, hence both calls.
