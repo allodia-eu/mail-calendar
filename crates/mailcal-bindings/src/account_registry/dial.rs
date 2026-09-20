@@ -291,8 +291,8 @@ impl AccountDial {
                         id: id.clone(),
                         providers,
                         calendar_providers,
-                        // Graph contacts need an OAuth scope this build does not request
-                        // (`docs/contacts.md`, Known gaps).
+                        // Graph's contact scopes are requested at sign-in, but no adapter is
+                        // bound yet (`docs/contacts.md`, Known gaps).
                         contact_providers: Vec::new(),
                         identity,
                     },

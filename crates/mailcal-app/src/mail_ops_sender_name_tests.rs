@@ -272,3 +272,21 @@ async fn a_name_the_user_already_set_is_never_replaced_by_the_provider_s() {
     assert!(!app.needs_sender_name(&account).await);
     assert_eq!(app.mailbox_list().accounts[0].name, "Ada Lovelace");
 }
+
+#[tokio::test]
+async fn a_suggestion_is_sanitised_before_it_reaches_the_field() {
+    // The provider's answer is offered, not only stored, so it passes the same rule: a field
+    // prefilled with control characters shows a name that sanitises back to nothing on save.
+    let app = app_with_identity(
+        Some("Ada\r\nBcc: eve@example.com"),
+        scratch_prefs("suggest"),
+    );
+    let account = AccountId::try_from("acct-1").unwrap();
+
+    let suggestion = app.suggested_sender_name(&account).await;
+
+    assert!(
+        !suggestion.contains('\r') && !suggestion.contains('\n'),
+        "{suggestion:?}"
+    );
+}

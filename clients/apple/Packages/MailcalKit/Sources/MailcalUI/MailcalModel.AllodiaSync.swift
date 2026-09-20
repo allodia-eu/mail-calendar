@@ -140,6 +140,9 @@ extension MailboxModel {
         setupError = nil
         needsSetup = false
         addingAccount = false
+        // Cleared first: the step for whatever was added before it may not stay up over this
+        // add, and the answer for this one arrives later, off the main actor.
+        senderNamePrompt = nil
         if let account { askForSenderNameIfNeeded(account.id) }
         syncAfterAccountChange()
     }

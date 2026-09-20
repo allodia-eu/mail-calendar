@@ -15,14 +15,25 @@ import uniffi.mailcal_bindings.beginMicrosoftLogin
 
 private const val TAG = "Mailcal"
 
-// The account to open the "your name" step for, or null when there is nothing to ask: a provider
-// that already holds a name has had it adopted by the core, so the step would arrive with a
-// pre-filled answer and nothing to decide (docs/sending.md).
+// Opens the "your name" step, but only where the core says the account still needs a name: a
+// provider that already holds one has had it adopted, so the step would arrive with a pre-filled
+// answer and nothing to decide (docs/sending.md).
 //
-// A provider round trip, so this is called from the worker each add route already runs on, never
-// from the main thread.
-private fun MailcalApp.senderNamePromptFor(accountId: String): String? =
-    if (needsSenderName(accountId)) accountId else null
+// A provider round trip, so it runs on the worker each add route already has, and only *after*
+// that route has released the UI: the account is connected either way, and the mailbox may not
+// wait on a settings read to appear. A provider that cannot be asked means ask, which is also
+// why a failure here never reports the add as failed.
+private fun MainActivity.askSenderNameIfNeeded(instance: MailcalApp, accountId: String) {
+    val needed = try {
+        instance.needsSenderName(accountId)
+    } catch (e: Exception) {
+        logUiWarn("sender name: the provider was not asked: ${e.message}")
+        true
+    }
+    if (needed) {
+        mainHandler.post { senderNamePrompt = accountId }
+    }
+}
 
 // Connect an added account off the main thread, then persist its config under the core id.
 // Detects a provider's settings from just the email address, off the main thread (the core
@@ -46,7 +57,6 @@ internal fun MainActivity.addAccount(configToml: String) {
             instance.calendarConnectError()?.let {
                 Log.w(TAG, "calendar (CalDAV) failed to connect: $it")
             }
-            val namePrompt = instance.senderNamePromptFor(row.id)
             activity.mainHandler.post {
                 activity.isConnecting = false
                 activity.addingAccount = false
@@ -56,8 +66,9 @@ internal fun MainActivity.addAccount(configToml: String) {
                 activity.readAccountsSynced()
                 activity.syncAllodiaAccounts()
                 activity.needsSetup = false
-                activity.senderNamePrompt = namePrompt
+                activity.senderNamePrompt = null
             }
+            activity.askSenderNameIfNeeded(instance, row.id)
         } catch (e: Exception) {
             Log.e(TAG, "add account failed: ${e.message}")
             activity.mainHandler.post {
@@ -119,9 +130,8 @@ internal fun MainActivity.completeMicrosoftLogin(callbackUrl: String) {
     thread(name = "mailcal-ms-complete") {
         try {
             val row = instance.completeMicrosoftLogin(pending, callbackUrl)
-            val namePrompt = instance.senderNamePromptFor(row.id)
             activity.mainHandler.post {
-                activity.senderNamePrompt = namePrompt
+                activity.senderNamePrompt = null
                 activity.signingInMicrosoft = false
                 activity.addingAccount = false
                 activity.needsSetup = false
@@ -134,6 +144,7 @@ internal fun MainActivity.completeMicrosoftLogin(callbackUrl: String) {
                 // re-pull so the "reconnect for calendar" banner disappears at once.
                 activity.refreshConnectivity()
             }
+            activity.askSenderNameIfNeeded(instance, row.id)
         } catch (e: Exception) {
             logUiWarn("microsoft complete failed: ${e.message}")
             activity.mainHandler.post {
@@ -182,9 +193,8 @@ internal fun MainActivity.completeGoogleLogin(callbackUrl: String) {
     thread(name = "mailcal-google-complete") {
         try {
             val row = instance.completeGoogleLogin(pending, callbackUrl)
-            val namePrompt = instance.senderNamePromptFor(row.id)
             activity.mainHandler.post {
-                activity.senderNamePrompt = namePrompt
+                activity.senderNamePrompt = null
                 activity.signingInGoogle = false
                 activity.addingAccount = false
                 activity.needsSetup = false
@@ -194,6 +204,7 @@ internal fun MainActivity.completeGoogleLogin(callbackUrl: String) {
                 activity.readAccountsSynced()
                 activity.syncAllodiaAccounts()
             }
+            activity.askSenderNameIfNeeded(instance, row.id)
         } catch (e: Exception) {
             logUiWarn("google complete failed: ${e.message}")
             activity.mainHandler.post {

@@ -260,7 +260,6 @@ pub async fn connect_google_contact_providers(
             (token.clone(), delegate),
         )));
     }
-    log::info!("google: bound {} contact source(s)", providers.len());
     Ok(providers)
 }
 

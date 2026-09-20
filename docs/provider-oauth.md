@@ -684,6 +684,16 @@ the doctrine's "provider sync" language for *account connection* specifically.)
   the account's `\All` mailbox (`resolve_move_target`) and the engine turns a move there into a
   label removal that adds nothing. Without both halves archive is a silent no-op: the row leaves
   the list optimistically and comes straight back.
+- **A Google account connected before `gmail.settings.basic` never asks for it.** Scopes are
+  granted by incremental consent, and a refresh re-uses the grant the account was connected
+  under, so an existing account keeps a token without the settings scope. Nothing detects that:
+  the re-consent prompt (rule 11) is Graph's, and Google's own reconnect banner is raised by a
+  **dead** grant, which this is not: the token still works for everything else. So that account's
+  sender-name push keeps failing its `sendAs.patch`, silently, since the push is best-effort and
+  the local name is what reaches the wire either way. It clears on the next reconnect for any
+  reason. Not worth a detector while the app is Early-Access only and every Google account is
+  days old; if one is wanted, the cheap probe is a `sendAs.list` at connect, which the scope
+  already grants.
 - **The mail write/send re-consent prompt is reactive, not proactive.** A Graph account missing
   `Mail.ReadWrite`/`Mail.Send` (connected before those scopes, or consent revoked server-side) is
   now caught and prompted (see rule 11) but, unlike the calendar scope's **boot-time probe**,
