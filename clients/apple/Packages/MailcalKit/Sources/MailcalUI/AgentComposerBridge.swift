@@ -82,8 +82,10 @@ enum McpEndpoint {
     /// same `connect()` fails `EPERM`. Two things that do NOT work and look like they should:
     /// `com.apple.security.temporary-exception.files.home-relative-path.read-write` over the real
     /// home (file exceptions do not cover a socket `connect()`), and
-    /// `com.apple.security.network.client` (`AF_INET`/`AF_INET6` only, the same reason no
-    /// `network.server` is needed to listen).
+    /// `com.apple.security.network.client` (`AF_INET`/`AF_INET6` only, which is the same reason
+    /// its `network.server` half does nothing for this socket either: that one is granted for
+    /// Google sign-in's loopback redirect, which is `AF_INET`, and a Unix socket is governed as a
+    /// file whether it is granted or not).
     ///
     /// The group path is **66 bytes before the user name**, so it holds up to a 37-byte user name.
     /// That is the tightest of the three (the real home is 37 before the name) and the reason the

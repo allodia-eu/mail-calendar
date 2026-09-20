@@ -204,7 +204,14 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
     private func handle(state: NWListener.State) {
         switch state {
         case .ready:
-            guard let assigned = listener?.port?.rawValue else { return }
+            // A listener that reports ready without a port has nothing to hand Google. Returning
+            // here would leave `redirectURI()` awaiting a continuation nobody resumes, so the
+            // setup sheet spins for the rest of the session with no error and no log line.
+            guard let assigned = listener?.port?.rawValue else {
+                logBrowserSignIn("google", "the redirect listener came up without an address")
+                fail(GoogleSignInError.couldNotStart)
+                return
+            }
             port = assigned
             logBrowserSignIn("google", "waiting for the redirect on 127.0.0.1:\(assigned)")
             readyContinuation?.resume(returning: "http://127.0.0.1:\(assigned)/")
