@@ -290,6 +290,13 @@ pub struct MailboxListSnapshot {
     /// [`Self::rows`] is empty. Not derivable from [`Self::selected_account`] and
     /// [`Self::selected`], which are both `None` here *and* on the unified inbox.
     pub showing_outbox: bool,
+    /// Whether the open folder is the account's **Drafts** folder.
+    ///
+    /// Switch a row's click on it: in Drafts a row opens a composer through
+    /// `MailcalApp::resume_draft`, everywhere else the reading view. The folder's **role**
+    /// decides it, never its name, and it is false in the all-mail, unified and search views,
+    /// which list drafts among received mail (`docs/drafts.md`).
+    pub showing_drafts: bool,
     /// Every account's unsent messages, oldest first: what the pane's **Outbox** row counts,
     /// and what the list shows when [`Self::showing_outbox`] is set.
     ///

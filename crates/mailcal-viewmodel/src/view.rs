@@ -15,7 +15,7 @@ use engine_api::{MailListRow, Mailbox};
 
 use crate::{
     avatar::Avatar,
-    folders::{AccountFolderRow, FolderRow, sorted_folder_rows},
+    folders::{AccountFolderRow, FolderRole, FolderRow, sorted_folder_rows},
     outbox::QueuedRow,
     view_rows::{build_flat, build_search, build_threaded},
 };
@@ -150,6 +150,18 @@ pub struct MailboxListSnapshot {
     /// are both `None` here *and* on the unified inbox; a client that could not tell the two
     /// apart would answer a click on the Outbox with everyone's inbox.
     pub showing_outbox: bool,
+    /// Whether the open folder is the account's **Drafts** folder.
+    ///
+    /// What a client switches a row's click on: a draft opens into a composer that saves over
+    /// it, ordinary mail opens into the reading view (`docs/drafts.md`). Answered here rather
+    /// than by each client matching the selected key against a folder role, so the four cannot
+    /// come to disagree about which folder that is.
+    ///
+    /// The **role** decides it, never the name: a folder the user called Drafts holds ordinary
+    /// mail, and a composer opened on one of those messages would rewrite it on its first save.
+    /// False in the all-mail and unified views, which list drafts among received mail, and in
+    /// search results, where the same is true.
+    pub showing_drafts: bool,
     /// Every account's queued sends, oldest first: what the pane's **Outbox** row counts
     /// and what the Outbox list shows.
     ///
@@ -331,6 +343,9 @@ pub fn build(
     snapshot.unified_unread = unified_unread(&account_folders);
     snapshot.account_folders = account_folders;
     snapshot.selected = selected_folder.map(str::to_owned);
+    snapshot.showing_drafts = snapshot.folders.iter().any(|folder| {
+        folder.role == Some(FolderRole::Drafts) && Some(folder.key.as_str()) == selected_folder
+    });
     snapshot.accounts = accounts.to_vec();
     snapshot.selected_account = selected_account.map(str::to_owned);
     snapshot
