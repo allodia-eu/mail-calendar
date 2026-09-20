@@ -45,6 +45,8 @@ struct ComposerDraftSavingModifier: ViewModifier {
     @Binding var status: DraftStatus
     let editor: RichComposerEditor
     let save: () -> Void
+    /// Whether the message went: then the send owns the composition and this leaves it alone.
+    @Binding var submitted: Bool
 
     func body(content: Content) -> some View {
         content
@@ -53,10 +55,15 @@ struct ComposerDraftSavingModifier: ViewModifier {
             .onChange(of: drafts?.version) { _, _ in
                 status = drafts.map { $0.status(composition) } ?? .idle
             }
-            // However the composer went, sent, cancelled or dismissed. Without it the core holds
-            // a record per composer for the life of the process, and the stored draft would be
-            // superseded by whatever the next composer to take this id wrote.
-            .onDisappear { drafts?.close(composition) }
+            // A composer that closed without sending. Without it the core holds a record per
+            // composer for the life of the process, and the stored draft would be superseded by
+            // whatever the next composer to take this id wrote. Never after a submit: the send
+            // finishes with the composition itself, and closing it here would race the cleanup
+            // that takes the stored draft away (`docs/drafts.md`).
+            .onDisappear {
+                guard !submitted else { return }
+                drafts?.close(composition)
+            }
     }
 
     /// Watches the editor for changes this host cannot otherwise see.
@@ -106,7 +113,8 @@ extension RichComposeView {
             changes: $draftChanges,
             status: $draftStatus,
             editor: editor,
-            save: saveDraftNow
+            save: saveDraftNow,
+            submitted: $draftSubmitted
         )
     }
 

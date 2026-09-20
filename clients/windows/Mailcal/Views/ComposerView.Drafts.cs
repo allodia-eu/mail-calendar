@@ -33,6 +33,15 @@ public sealed partial class ComposerView
     /// once it has been torn down, so a second teardown forgets nothing twice.</summary>
     private bool _keepsDraft;
 
+    /// <summary>Whether this composer's message was submitted.</summary>
+    /// <remarks>
+    /// From then on the send owns the composition and finishes with it when the message settles,
+    /// so forgetting it here as well would race the cleanup that takes the stored draft away: the
+    /// two are separate tasks, and this one landing first leaves the draft in Drafts for ever
+    /// (docs/drafts.md).
+    /// </remarks>
+    private bool _submitted;
+
     /// <summary>
     /// Binds the draft half: the composition this composer saves under, the Save control, the
     /// hint, and the two timers.
@@ -164,8 +173,9 @@ public sealed partial class ComposerView
     /// Forgets the composition, leaving the stored draft where it is.
     /// </summary>
     /// <remarks>
-    /// Called from <c>Teardown</c>, so it runs however the composer went, sent, discarded or
-    /// dismissed. Without it the core holds a record per composer for the life of the process.
+    /// Called from <c>Teardown</c>, so it runs however the composer went, and stops the timers
+    /// either way. The composition is forgotten only for a composer that closed <b>without</b>
+    /// sending: after a submit the send owns it (see <see cref="_submitted"/>).
     /// </remarks>
     private void TeardownDrafts()
     {
@@ -178,7 +188,10 @@ public sealed partial class ComposerView
         if (_model is not null)
         {
             _model.DraftStatusChanged -= OnDraftStatusChanged;
-            _model.CloseComposition(_composition);
+            if (!_submitted)
+            {
+                _model.CloseComposition(_composition);
+            }
         }
         _keepsDraft = false;
     }

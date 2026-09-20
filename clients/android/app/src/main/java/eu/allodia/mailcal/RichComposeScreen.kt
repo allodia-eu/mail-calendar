@@ -189,6 +189,10 @@ internal fun RichComposeMessageDialog(
     LaunchedEffect(draftHeaders) { draftChanges += 1 }
     // The most recent save's state, re-pulled whenever the core says some composition's moved.
     var draftStatus by remember { mutableStateOf(DraftStatus.IDLE) }
+    // Whether this composer's message was submitted. From then on the send owns the composition
+    // and finishes with it when the message settles, so forgetting it here as well would race the
+    // cleanup that takes the stored draft away (docs/drafts.md).
+    var draftSubmitted by remember { mutableStateOf(false) }
     // Resolved fresh on every read rather than held in state: the account's assignment can change
     // under an open composer (Settings is reachable from the notification shade), and this is a
     // cheap in-memory core lookup.
@@ -202,10 +206,13 @@ internal fun RichComposeMessageDialog(
         onDispose {
             webView?.destroy()
             webView = null
-            // However the composer went, sent, discarded or dismissed. Without it the core holds
-            // a record per composer for the life of the process, and the stored draft would be
-            // superseded by whatever the next composer to take this id wrote.
-            drafts?.close(compositionId)
+            // A composer that closed without sending. Without it the core holds a record per
+            // composer for the life of the process, and the stored draft would be superseded by
+            // whatever the next composer to take this id wrote. Never after a submit: the send
+            // finishes with the composition itself (docs/drafts.md).
+            if (!draftSubmitted) {
+                drafts?.close(compositionId)
+            }
         }
     }
 
@@ -266,6 +273,7 @@ internal fun RichComposeMessageDialog(
         webViewOrNull.evaluateJavascript("composerDocument()") { encoded ->
             val documentJson = decodeJsString(encoded)
             if (documentJson != null && onSubmitRich(contentOf(documentJson))) {
+                draftSubmitted = true
                 onDismiss()
             } else {
                 composerError = L10n.compose_prepare_error(ctx)

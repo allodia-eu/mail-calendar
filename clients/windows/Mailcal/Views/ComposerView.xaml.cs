@@ -252,6 +252,7 @@ public sealed partial class ComposerView : UserControl
                 return;
             }
             PrepareError.Visibility = Visibility.Collapsed;
+            _submitted = true;
             _onDone?.Invoke();
         }
         catch (Exception ex)

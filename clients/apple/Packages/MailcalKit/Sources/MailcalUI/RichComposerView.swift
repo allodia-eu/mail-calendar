@@ -94,6 +94,10 @@ struct RichComposeView: View {
     @State var draftStatus: DraftStatus = .idle
     /// How many changes the composer has seen. Each one restarts the idle interval.
     @State var draftChanges = 0
+    /// Whether this composer's message was submitted, so the send owns the composition from here
+    /// and closing it as well would race the cleanup that takes the stored draft away
+    /// (`docs/drafts.md`).
+    @State var draftSubmitted = false
     /// The one error line under the composer, which more than one failure writes to: a send that
     /// could not be prepared, a dropped picture that could not be shown, and a forward whose
     /// files could not be read. It carries the message rather than a flag, so each says which.
@@ -459,7 +463,9 @@ struct RichComposeView: View {
                     // message already on its way (`docs/drafts.md`).
                     composition: drafts == nil ? nil : composition
                 )
-                if !send(submission) {
+                if send(submission) {
+                    draftSubmitted = true
+                } else {
                     composerError = L10n.compose_prepare_error()
                 }
             case .failure:
