@@ -198,8 +198,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::mail_actions::tests::the_action_menus_dispatch_the_message_and_thread_the_user_chose(
     );
     crate::ui::mail_actions::tests::permanent_delete_is_confirmed_before_it_dispatches();
-    crate::ui::composer_draft::widget_tests::the_draft_question_discards_only_on_the_discard_button(
-    );
+    crate::ui::composer_discard::widget_tests::the_question_discards_only_on_its_discard_button();
     crate::ui::composer_draft::widget_tests::each_navigation_gets_its_own_answer();
     crate::ui::composer_attach::tests::the_drop_target_listens_ahead_of_the_web_view();
     crate::ui::composer_attach::tests::a_paste_shows_the_picture_and_a_drop_asks_about_it();

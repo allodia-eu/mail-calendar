@@ -1,55 +1,8 @@
-//! Widget assertions for the unsaved-draft question. The pure dirtiness rule is unit-tested
-//! beside it in [`super`]; this covers what the two buttons actually send.
+//! Widget assertions for the guard around the unsaved-draft question: that one navigation is
+//! asked about once. The pure dirtiness rule is unit-tested beside it in [`super`], and the
+//! question's own two buttons in [`super::super::composer_discard`].
 
-use gtk::prelude::{ButtonExt, Cast, GtkWindowExt};
-
-use super::super::{AppInput, composer_discard::DiscardDraftDialog};
-use crate::{
-    l10n,
-    ui::mail_actions::tests::{button, labels},
-};
-
-/// The destructive answer is only ever the button that says so; every other way out of the
-/// dialog, the keep button included, keeps the draft.
-pub(crate) fn the_draft_question_discards_only_on_the_discard_button() {
-    let parent = gtk::Window::new();
-    parent.present();
-
-    let (sender, receiver) = relm4::channel::<AppInput>();
-    let mut dialog = DiscardDraftDialog::default();
-    dialog.render(true, &parent, &sender);
-    let window = dialog.window.as_ref().expect("discard question").clone();
-    assert!(
-        labels(window.upcast_ref::<gtk::Widget>())
-            .iter()
-            .any(|label| label == l10n::compose_discard_message()),
-        "the question must say what is lost"
-    );
-    button(window.upcast_ref::<gtk::Widget>(), l10n::action_discard())
-        .expect("discard action")
-        .emit_clicked();
-    assert!(
-        matches!(receiver.recv_sync(), Some(AppInput::DiscardDraft)),
-        "the discard button must throw the draft away"
-    );
-
-    let (sender, receiver) = relm4::channel::<AppInput>();
-    let mut dialog = DiscardDraftDialog::default();
-    dialog.render(true, &parent, &sender);
-    let window = dialog.window.as_ref().expect("discard question").clone();
-    button(
-        window.upcast_ref::<gtk::Widget>(),
-        l10n::action_keep_editing(),
-    )
-    .expect("keep-editing action")
-    .emit_clicked();
-    assert!(
-        matches!(receiver.recv_sync(), Some(AppInput::KeepEditing)),
-        "keeping the draft must not discard it"
-    );
-
-    parent.close();
-}
+use super::super::AppInput;
 
 /// The pane answers a request once and ignores the re-renders that follow it, which is why each
 /// navigation away from a draft has to arrive with its own number. Give two of them the same one,

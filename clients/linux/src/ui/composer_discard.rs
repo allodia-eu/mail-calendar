@@ -83,3 +83,7 @@ fn discard_confirmation(
     });
     window
 }
+
+#[cfg(test)]
+#[path = "composer_discard_tests.rs"]
+pub(crate) mod widget_tests;
