@@ -365,8 +365,9 @@ Apple or Google to verify a purchase, which happens on Allodia's side and leaves
 `JurisdictionGate` governs what leaves the **app**, so the policy's account of that transfer
 neither supports this carve-out nor stands in its way.
 
-⚠️ **The carve-out is not the last gate.** A purchase surface still does not ship until the
-published policy matches the one in this tree (the known gap below).
+The published policy matches the one in this tree: `allodia.eu/privacy/mail-calendar` renders
+version 2.4 of 2026-09-18 in both locales, which is what
+[`../docs/privacy-policy.md`](../docs/privacy-policy.md) carries. That gate is met.
 
 ## What a client calls
 
@@ -446,8 +447,10 @@ draws the subscription: who is charging, until when, a retry that is not a lapse
 more than one is charging, the store's own manage page, and the two periods with the store's own
 prices behind a buy button, and a purchase has been made against the App Store **sandbox** end to
 end: taken, attached, granted, finished, and read back on a second platform that never saw it.
-What holds it at 🚧 is the unpublished policy mirror below, which alone forbids shipping it, and
-that no purchase has been made against the **production** store.
+What holds it at 🚧 is that no purchase has been made against the **production** store. That is
+now the only thing between this screen and ✅: the published policy has caught up, so a sandbox
+purchase proving the round trip is the last claim on this row still made from a test store rather
+than a real one.
 
 **What each mark means here, precisely, because a matrix that overstates is worse than none.** The
 core's rules are unit-tested against a canned transport and a supplied clock.
@@ -593,12 +596,6 @@ it is why the four writes are no longer the least proven half of this page.
 - **The invoice history is not modelled.** `GET /subscription` also returns each payment and what
   has been refunded of it; nothing draws that yet, and serde ignores what nothing asked for, so
   adding it later needs no service change.
-- ⚠️ **The privacy policy describes this, and the published mirror does not yet.**
-  [`docs/privacy-policy.md`](../docs/privacy-policy.md) §10 covers all three routes as of version
-  2.4, in both locales. The page at `allodia.eu/privacy/mail-calendar` renders a vendored mirror in
-  the website's own repository, which this repo cannot update: **publishing it precedes shipping a
-  purchase surface**, because until it is published the policy a user can read is the one that does
-  not describe this.
 - **Neither store's link-out has been applied for**, so the shape above is written against
   programmes this app is not enrolled in.
 - ⚠️ **A store the service has not sent before would read as the App Store.** `source` in the
