@@ -23,6 +23,7 @@ async fn an_edited_subject_replaces_the_derived_one_on_a_reply() {
         subject: Some("Budget, split off the quarterly thread".to_owned()),
         document,
         blobs,
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
@@ -48,6 +49,7 @@ async fn an_edited_subject_replaces_the_derived_one_on_a_forward() {
         subject: Some("For your files".to_owned()),
         document,
         blobs,
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
@@ -73,6 +75,7 @@ async fn a_cleared_subject_is_honoured_rather_than_refilled() {
         subject: Some(String::new()),
         document,
         blobs,
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 

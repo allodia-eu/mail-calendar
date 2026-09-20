@@ -120,8 +120,9 @@ impl<P: Provider> App<P> {
                 subject,
                 document,
                 blobs,
+                composition,
             } => {
-                self.submit_rich_mail(from, to, cc, bcc, subject, document, blobs)
+                self.submit_rich_mail(from, to, cc, bcc, subject, document, blobs, composition)
                     .await;
             }
             Intent::RefreshCalendar => self.refresh_calendar().await,
@@ -167,9 +168,20 @@ impl<P: Provider> App<P> {
                 subject,
                 document,
                 blobs,
+                composition,
             } => {
-                self.submit_rich_reply(message, from, to, cc, bcc, subject, document, blobs)
-                    .await;
+                self.submit_rich_reply(
+                    message,
+                    from,
+                    to,
+                    cc,
+                    bcc,
+                    subject,
+                    document,
+                    blobs,
+                    composition,
+                )
+                .await;
             }
             Intent::SubmitRichForward {
                 message,
@@ -180,9 +192,20 @@ impl<P: Provider> App<P> {
                 subject,
                 document,
                 blobs,
+                composition,
             } => {
-                self.submit_rich_forward(message, from, to, cc, bcc, subject, document, blobs)
-                    .await;
+                self.submit_rich_forward(
+                    message,
+                    from,
+                    to,
+                    cc,
+                    bcc,
+                    subject,
+                    document,
+                    blobs,
+                    composition,
+                )
+                .await;
             }
             Intent::CreateEvent {
                 title,

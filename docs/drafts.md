@@ -1,8 +1,8 @@
 # Drafts: cross-platform contract
 
 **Scope.** Keeping an unfinished message on the server so the user's other devices and their
-webmail see it, what triggers a save, and where the words live between one save and the next.
-Binding on every platform that ships a composer.
+webmail see it, what triggers a save, where the words live between one save and the next, and
+how one is picked back up. Binding on every platform that ships a composer.
 
 **Principle.** *A draft belongs on the server, and the copy there is named by a key the server
 chooses, not by anything the message carries.* Everything below follows from those two facts.
@@ -48,6 +48,16 @@ This is the opposite of [`sending.md`](sending.md)'s rule, and the two must not 
 send that reached the server is final and is never repeated. A save is repeated every time the
 user pauses.
 
+**A send that was accepted takes the stored draft away.** Once the message is somewhere that
+will deliver it, whether it has gone out or is in the Outbox, the copy in Drafts is a
+duplicate of a message already on its way, and the user would find it there weeks later
+unable to tell whether it went. The composer names its composition on the submit and the core
+removes the draft; a client that does not name it leaves one behind.
+
+**A send that failed keeps it.** That is the one outcome where the stored copy is the only one
+left: nothing will retry the message, and the composer that held the words has already
+closed. Removing it there would make sending a way to lose mail.
+
 ## When a save happens
 
 **Autosave fires when the composer has been idle for `DRAFT_AUTOSAVE_IDLE`, not on a fixed
@@ -73,6 +83,11 @@ composition share a resource key and an op leases it. That covers the round trip
 else: the stale read happens here, before the engine is asked anything, which is why this
 failure would have been quiet rather than an error.
 
+**A save carries the composer's files.** The write replaces the copy on the server, so a save
+that left an attachment out would take it off a draft the user is still writing. A composer
+holding files, whether the user picked them or a resume opened with them, saves through the
+path that reads their bytes.
+
 **Saving is never something the user waits for.** It has no modal, no blocking spinner and no
 error the composer refuses to be dismissed over. `DraftStatus` is a hint, on the same footing as
 the sending hint.
@@ -84,6 +99,46 @@ the state of the composer beside it. This is the rule the reading windows follow
 ([`reading-window.md`](reading-window.md)), and it binds for the same reason: a desktop opens a
 reply in a window of its own, so two composers saving different drafts is the ordinary case, not
 an edge.
+
+## Picking one back up
+
+A draft in the Drafts folder opens into a composer, not into the reading view, and the
+composer it opens saves **over** that copy rather than beside it. The core joins the two: the
+composition takes the stored draft's key, so its first save supersedes and a discard removes,
+and the draft's own `Message-ID`, so every save of it goes on naming the one message. A draft
+written elsewhere may carry no `Message-ID`, and a new one serves as well: what that header
+has to be is the same on every save of one composition, and it is the key that names the copy
+being replaced.
+
+**Everything the composer does not open with, its next save deletes.** That is what makes a
+resume stricter than a forward, which only shows less when it carries less. Three gates follow
+from it, and all three refuse rather than open a composer that would save over the draft:
+
+- **The message must be a draft.** Asked of the message, never of the folder it was opened
+  from: the engine normalises every transport's own tell onto one keyword, so the answer is
+  the same in a search result and inside a thread. A composition that adopted an ordinary
+  message's key would have its first save rewrite received mail and its discard delete it.
+- **Its content must be readable.** A composer opened on an error and saved anyway replaces
+  the draft with whatever was on screen.
+- **Its files must be staged first.** They are written into the host's staging directory
+  before the composer opens, exactly as a forward's are ([`sending.md`](sending.md)), and
+  staging is all or nothing. A composer that opened without the file the user attached
+  yesterday takes it out of their mailbox on the next save.
+
+**Opening one can take a moment.** A draft is opened from a list row, not from the reading
+view, so unlike a forward it cannot count on the message already being cached: the first open
+fetches it. A client does what it does for a slow reading open rather than freezing, and the
+composer appears when the answer does.
+
+**The body comes back as text.** The composer's document model is not HTML, so restoring
+formatting would mean a second markup parser in the editor; see the known gaps. The engine
+derives the text from the HTML when the draft carries no text part, so an HTML-only draft
+still opens with its words.
+
+**The first save after a resume always writes.** The unchanged check compares against what
+this app last put on the server, and a resumed body is text derived from the stored draft
+rather than the draft itself, so claiming the two match would skip a save the user can see is
+needed.
 
 ## The draft is never in three places
 
@@ -125,6 +180,7 @@ and the removal below runs on whatever key the composition had.
 | "Save as draft" | ❌ | ❌ | ❌ | ❌ |
 | Discard removes the server copy | ❌ | ❌ | ❌ | ❌ |
 | Resume from the Drafts folder | ❌ | ❌ | ❌ | ❌ |
+| Sending takes the draft away | ❌ | ❌ | ❌ | ❌ |
 
 ## Known gaps
 
@@ -141,8 +197,14 @@ and the removal below runs on whatever key the composition had.
   and the Outbox shows sends only ([`sending.md`](sending.md)), so a draft saved with no network
   is in neither list until the network returns. It is not lost, and the composer's hint says so,
   but a user who closes the composer has nowhere to look.
-- **Nothing removes the stored draft when the message is sent.** A draft that is composed, saved
-  and then sent leaves its copy in Drafts beside the sent message.
+- **A resumed draft opens as plain text.** The composer holds a block document, not HTML, so
+  bold, lists and inline pictures made in an earlier session are not restored; the words and
+  the files are. Closing it means teaching the editor to read a mail body back into its own
+  blocks, which is a markup parser and belongs with the editor rather than here.
+- **A client tells a draft by its folder, not by the row.** The core answers per message, but
+  the mailbox list does not carry it, so a draft met in a search result or inside a thread
+  opens read-only rather than in a composer. Nothing is lost by it; the row simply does not
+  offer what the Drafts folder's does.
 - **A discard racing a save that is mid-round-trip can leave a copy behind.** Withdrawing is
   refused for an op already in flight, and that op then stores the draft under a key minted
   after the removal has run, so the removal cannot have named it. The window is one round trip

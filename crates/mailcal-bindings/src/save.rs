@@ -99,7 +99,7 @@ impl MailcalApp {
         let app = Arc::clone(&self.app);
         self.runtime
             .block_on(async move {
-                app.stage_forwarded_attachments(message, &staging_directory)
+                app.stage_message_attachments(message, &staging_directory)
                     .await
             })
             .map(|staged| {

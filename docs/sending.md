@@ -192,6 +192,10 @@ someone their own file back is noise that repeats on every turn of a long thread
 4. **Disable the buttons while `retrying` is set** rather than letting the user queue attempts.
 5. **The provider detail is not user copy.** `UnfiledCopy::detail` is a failure class for the
    log and the diagnostics screen; the modal says what happened in plain language.
+6. **A composer that could have saved a draft names its composition on the submit**, so the
+   copy in Drafts goes when the message is accepted and stays when the send fails
+   ([`drafts.md`](drafts.md)). A submit that leaves it out sends correctly and files a
+   duplicate the user finds weeks later.
 
 ## Per-platform
 

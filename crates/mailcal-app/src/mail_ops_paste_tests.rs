@@ -55,6 +55,7 @@ async fn a_pasted_picture_leaves_as_a_cid_part_with_no_host_blob() {
         subject: "Screenshot".to_owned(),
         document: pasted_image_document(),
         blobs: Vec::new(),
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 

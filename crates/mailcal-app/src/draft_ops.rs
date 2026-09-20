@@ -12,12 +12,7 @@
 //! classes only (`docs/logging.md`).
 
 use core::time::Duration;
-use std::{
-    collections::HashMap,
-    hash::{DefaultHasher, Hasher},
-    io,
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use engine_api::{
     AccountId, Draft, DraftPut, DrainOutcome, DrainReport, EmailAddress, MessageIdHeader,
@@ -27,9 +22,13 @@ use mailcal_composer::ComposerDocument;
 
 use crate::{
     App, ComposerBlob, CompositionId, DraftStatus, DraftsIntent, Surface,
+    draft_ops::digest::digest,
     helpers::new_message_id,
     mail_compose::{parse_addresses, rich_draft},
 };
+
+mod digest;
+pub(crate) mod resume;
 
 /// How long a composer sits untouched before its draft is saved.
 ///
@@ -203,7 +202,10 @@ impl<P: Provider> App<P> {
     }
 
     /// Removes this composition's stored draft and forgets the composition.
-    async fn discard_draft(&self, composition: &CompositionId) {
+    ///
+    /// Also what an accepted send calls, because a sent message's draft is exactly a stored
+    /// copy nobody wants any more ([`send_draft`](Self::send_draft)).
+    pub(crate) async fn discard_draft(&self, composition: &CompositionId) {
         let Some(Composition {
             account,
             key,
@@ -464,35 +466,4 @@ fn build(
         blobs,
         &[],
     )
-}
-
-/// A digest of everything a save would put on the server.
-///
-/// Over the serialized draft rather than a chosen subset of its fields: a subset is a list
-/// that goes stale the moment the draft grows a field, and the failure is silent, an edit the
-/// user made that never leaves the device.
-///
-/// Streamed into the hasher rather than serialized to a buffer first. A draft carries its
-/// attachments' bytes, and JSON writes each byte as a decimal number, so buffering a message
-/// with a 20 MB file costs some 70 MB of allocation on every idle save.
-fn digest(draft: &Draft) -> u64 {
-    let mut sink = HashSink(DefaultHasher::new());
-    if serde_json::to_writer(&mut sink, draft).is_err() {
-        return 0;
-    }
-    sink.0.finish()
-}
-
-/// An [`io::Write`] that hashes what is written to it and keeps none of it.
-struct HashSink(DefaultHasher);
-
-impl io::Write for HashSink {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
 }

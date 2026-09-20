@@ -19,8 +19,12 @@ use super::{
 mod draft_ops_tests;
 #[path = "mail_ops_fake_provider.rs"]
 mod fake;
+#[path = "mail_ops_mail_provider.rs"]
+mod mail_fake;
 #[path = "outbox_tests.rs"]
 mod outbox_tests;
+#[path = "mail_ops_resume_tests.rs"]
+mod resume;
 
 use fake::SubmitProvider;
 
@@ -224,6 +228,7 @@ async fn rich_submit_renders_composer_and_resolves_blob_bytes() {
             ComposerBlob::new(inline_blob, vec![1, 2, 3]),
             ComposerBlob::new(file_blob, b"PDF!".to_vec()),
         ],
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 

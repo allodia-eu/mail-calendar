@@ -4,13 +4,16 @@
 //! Its own file rather than an addition to [`crate::composer`], which is at the 500-line
 //! limit. The rules these expose are in `docs/drafts.md`.
 
+use std::sync::Arc;
+
 use mailcal_app::{
     CompositionId, DraftStatus as AppDraftStatus, DraftsIntent, Intent as AppIntent,
 };
 
 use crate::{
     MailcalApp, MailcalError,
-    composer::{ComposerBlob, Recipients, prepare_rich, send_account},
+    composer::{ComposerBlob, Recipients, message_ref, prepare_rich, send_account},
+    composer_files::{ComposerFileAttachment, prepare_with_files},
 };
 
 /// The state of the most recent draft save (pulled after a `Surface::DraftStatus` signal).
@@ -72,6 +75,10 @@ impl MailcalApp {
     ///
     /// Unlike a send, empty recipients are fine: a draft is unfinished by definition.
     ///
+    /// **A composer holding picked or resumed files calls
+    /// [`MailcalApp::save_draft_with_files`] instead**, which reads their bytes; this one
+    /// carries only what the editor itself holds.
+    ///
     /// # Errors
     ///
     /// Returns [`MailcalError::Composer`] if `document_json` is invalid, validation fails, a
@@ -101,6 +108,50 @@ impl MailcalApp {
             document,
             blobs,
         }));
+        Ok(())
+    }
+
+    /// [`MailcalApp::save_draft`] for a composer holding **files**: the attachments the user
+    /// picked, and the ones a resumed draft opened with.
+    ///
+    /// The byte read happens here rather than in the host, exactly as on
+    /// [`MailcalApp::submit_rich_mail_with_files`], so file content does not cross the FFI.
+    ///
+    /// **A composer holding files saves through this one, never the other.** A save replaces
+    /// the copy on the server, so a save that left the files out would take them off it: the
+    /// user's attachment would be gone from a draft they are still writing, with nothing
+    /// said.
+    ///
+    /// # Errors
+    ///
+    /// As [`MailcalApp::save_draft`], plus [`MailcalError::Composer`] when a selected file
+    /// cannot be read.
+    #[uniffi::method(default(from = None))]
+    pub fn save_draft_with_files(
+        &self,
+        composition: String,
+        recipients: Recipients,
+        subject: String,
+        document_json: String,
+        files: Vec<ComposerFileAttachment>,
+        from: Option<String>,
+    ) -> Result<(), MailcalError> {
+        let composition = composition_id(composition)?;
+        let prepared = prepare_with_files(&document_json, files)?;
+        let from = send_account(from)?;
+        let Recipients { to, cc, bcc } = recipients;
+        self.spawn_with_files(prepared, move |document, blobs| {
+            AppIntent::Drafts(DraftsIntent::Save {
+                composition,
+                from,
+                to,
+                cc,
+                bcc,
+                subject,
+                document,
+                blobs,
+            })
+        });
         Ok(())
     }
 
@@ -148,6 +199,105 @@ impl MailcalApp {
     pub fn draft_status(&self, composition: String) -> Result<DraftStatus, MailcalError> {
         Ok(self.app.draft_status(&composition_id(composition)?).into())
     }
+
+    /// Opens the stored draft `key` (in `account`) into `composition`, so the composer the
+    /// host is about to show saves over that copy rather than beside it.
+    ///
+    /// `composition` is the host's own, minted for that composer exactly as for a reply, and
+    /// used from then on by `save_draft`, `discard_draft` and `close_composition`.
+    ///
+    /// **Open the composer with what this returns, not before it.** The draft's files are
+    /// staged into `staging_directory` before it answers, and the composer must hold them:
+    /// its next save replaces the stored copy, so a file it opened without is a file that
+    /// save takes out of the user's mailbox. `staging_directory` is the host's own private
+    /// area and the host owns what is left in it, as for a forward.
+    ///
+    /// **Call this off the UI thread.** It blocks on the internal runtime, and unlike
+    /// staging a forward's files it cannot count on a warm cache: a draft is opened from a
+    /// list row rather than from the reading view, so the first open of one fetches the
+    /// message from the server.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Engine`] if `composition` is blank, the `account`/`key`
+    /// reference is malformed, the draft cannot be resolved, **the message is not a draft**,
+    /// its body cannot be read, or a file cannot be staged. Nothing is adopted on an error:
+    /// show it rather than opening an empty composer, which would save over the draft.
+    pub fn resume_draft(
+        &self,
+        composition: String,
+        account: String,
+        key: String,
+        staging_directory: String,
+    ) -> Result<DraftResume, MailcalError> {
+        let composition = composition_id(composition)?;
+        let message = message_ref(&account, key)?;
+        let app = Arc::clone(&self.app);
+        self.runtime
+            .block_on(async move {
+                app.resume_draft(composition, message, &staging_directory)
+                    .await
+            })
+            .map(DraftResume::from)
+            .map_err(MailcalError::Engine)
+    }
+}
+
+/// A stored draft, as the composer resuming it opens.
+#[derive(uniffi::Record)]
+pub struct DraftResume {
+    /// The account whose Drafts folder held it, and which its saves go back to. Show it in
+    /// the From field: a later change there does not move the stored copy.
+    pub account: String,
+    /// The `To` field, comma-separated.
+    pub to: String,
+    /// The `Cc` field, comma-separated.
+    pub cc: String,
+    /// The `Bcc` field, comma-separated; usually empty for a draft saved elsewhere, since
+    /// most transports do not hand a `Bcc` back.
+    pub bcc: String,
+    /// The subject.
+    pub subject: String,
+    /// The body, as plain text. Seed the editor with it the way a `mailto:` body is seeded.
+    pub body_text: String,
+    /// The files the draft carries, already written into the staging directory and ready to
+    /// be attached exactly as a picked file is.
+    pub attachments: Vec<ComposerFileAttachment>,
+}
+
+impl From<mailcal_app::DraftResume> for DraftResume {
+    fn from(resumed: mailcal_app::DraftResume) -> Self {
+        Self {
+            account: resumed.account,
+            to: resumed.to,
+            cc: resumed.cc,
+            bcc: resumed.bcc,
+            subject: resumed.subject,
+            body_text: resumed.body_text,
+            attachments: resumed
+                .attachments
+                .into_iter()
+                .map(|file| ComposerFileAttachment {
+                    path: file.path,
+                    file_name: file.file_name,
+                    media_type: file.media_type,
+                })
+                .collect(),
+        }
+    }
+}
+
+/// Names the composition a message being **sent** was written in, when the host names one.
+///
+/// `None` (the default) means a send with no composer behind it, such as an assistant's. A
+/// blank id is refused rather than dropped to `None`, on the same terms as a malformed
+/// From-account ([`send_account`](crate::composer::send_account)): a send that quietly
+/// forgot its composition leaves the draft in the user's Drafts folder after the message
+/// has gone.
+pub(crate) fn sent_composition(
+    composition: Option<String>,
+) -> Result<Option<CompositionId>, MailcalError> {
+    composition.map(composition_id).transpose()
 }
 
 /// Names a composition, refusing a blank id.

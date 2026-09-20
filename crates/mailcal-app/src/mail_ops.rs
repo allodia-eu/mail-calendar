@@ -77,7 +77,7 @@ impl<P: Provider> App<P> {
         let Some(draft) = plain_draft(&identity, vec![EmailAddress::new(to)], subject, body) else {
             return;
         };
-        self.send_draft(&account, &draft).await;
+        self.send_draft(&account, &draft, None).await;
     }
 
     /// Marks `message` read (`read = true`) or unread, on its owning account. Returns whether
