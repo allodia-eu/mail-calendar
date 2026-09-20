@@ -401,7 +401,7 @@ The core decides; the client talks to the store it is running on, because no Rus
 | Talk to the platform's store: fetch, buy, collect, finish | n/a | 🚧 | 🚧 | n/a | ✅ | n/a |
 | That half tested against a **simulated** store | n/a | ✅ | n/a | n/a | n/a | n/a |
 | Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ✅ | ✅ | ✅ |
-| Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ✅ | ✅ | ✅ |
+| Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | 🚧 | 🚧 | ✅ | ✅ | ✅ |
 | Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ✅ | ✅ | ✅ |
 | Link out to that checkout from inside the app | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
 | Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -446,9 +446,11 @@ failure does ([`entitlement.md`](entitlement.md)). Both screens read it.
 
 **Apple's screen is 🚧 rather than ✅, and the distance is not code.** Settings → Allodia account
 draws the subscription: who is charging, until when, a retry that is not a lapse, every biller when
-more than one is charging, the store's own manage page, and the two periods with the store's own
-prices behind a buy button, and a purchase has been made against the App Store **sandbox** end to
-end: taken, attached, granted, finished, and read back on a second platform that never saw it.
+more than one is charging, the store's own manage page, the two periods with the store's own prices
+behind a buy button, and the three writes that change a subscription Allodia bills directly, each
+where `actions` permits and the two that cost money behind a confirmation. A purchase has been made
+against the App Store **sandbox** end to end: taken, attached, granted, finished, and read back on
+a second platform that never saw it.
 What holds it at 🚧 is that no purchase has been made against the **production** store. That is
 now the only thing between this screen and ✅: the published policy covers buying, so a sandbox
 purchase proving the round trip is the last claim on this row still made from a test store rather
@@ -516,12 +518,21 @@ it is why the four writes are no longer the least proven half of this page.
   a deliberate choice, but somebody who has read one of them will be surprised by the other, and
   the copy for either switch has to be the store's rather than one sentence reused. Play will have
   its own answer again.
-- **The four writes reach three screens.** Android draws all four: checkout is what the `foss` buy
-  buttons already call, and cancel, switch period and resubscribe sit under the paid state, each
-  drawn only where `actions` permits. Windows and Linux draw the same four, for the same reason and
-  off the same `actions`; on both, checkout is the buy buttons themselves, there being no store on
-  either to sell through. Apple's screen calls none of them, correctly for a store's subscription,
-  so macOS and iOS still owe the drawing.
+- **The four writes reach every screen, and Apple draws three of them on purpose.** Android draws
+  all four: checkout is what the `foss` buy buttons already call, and cancel, switch period and
+  resubscribe sit under the paid state, each drawn only where `actions` permits. Windows and Linux
+  draw the same four, for the same reason and off the same `actions`; on both, checkout is the buy
+  buttons themselves, there being no store on either to sell through. macOS and iOS draw the three
+  that change a subscription and **never the checkout**, because starting one sends somebody to a
+  payment page outside the app, which is the external purchase link this build carries no
+  entitlement for; buying on Apple is the App Store's. ⚠️ **None of the three has been run from an
+  Apple client against a real subscription**, where Android and Windows have each driven all four.
+- ⚠️ **A restart can answer with a payment page, and on Apple that answer has nowhere to go.**
+  `resubscribe` comes back either reactivated on the authorisation already held or with a URL, and
+  the button is drawn only on a cancellation still inside its period, which is the reactivating
+  shape. The other answer is not refused by anything, so if the service ever sends it there, the
+  Apple screen says nothing and re-reads rather than opening a link it may not draw. Windows and
+  Linux open it, correctly for platforms no store distributes.
 - **The Linux drawing has been run against both shapes** (2026-09-20, production). Against an
   account billed by **Google Play**, the half with no writes on it: the store's page offered, and
   cancel, switch and restart correctly absent. Against a subscription of **Allodia's own**:

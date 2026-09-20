@@ -143,6 +143,52 @@ extension MailboxModel {
         }
     }
 
+    /// Stops the recurring charge on Allodia's own subscription. Access runs to the date it
+    /// answers, and nothing is refunded.
+    func cancelAllodiaSubscription() async -> AllodiaWriteResult {
+        await allodiaWrite { app in
+            let cancellation = try app.cancelAllodiaSubscription()
+            return .cancelled(endDate: cancellation.endDate)
+        }
+    }
+
+    /// Moves Allodia's own subscription to the other period. Nothing is charged today.
+    func switchAllodiaInterval(to plan: AllodiaPlan) async -> AllodiaWriteResult {
+        await allodiaWrite { app in
+            .switched(try app.switchAllodiaInterval(plan: plan))
+        }
+    }
+
+    /// Starts a cancelled subscription of Allodia's own again.
+    ///
+    /// ⚠️ **A payment page is not opened here.** The service answers either a reactivation, which
+    /// is the shape the button is drawn for, or a page to pay on; opening the second would be the
+    /// external purchase link this platform may not draw. It is reported as nothing said at all,
+    /// and the re-read that follows says where the subscription actually stands.
+    func resubscribeToAllodia() async -> AllodiaWriteResult {
+        await allodiaWrite { app in
+            try app.resubscribeToAllodia().reactivated ? .reactivated : .silent
+        }
+    }
+
+    /// One write, off the main thread, with its refusal turned into something a screen can say.
+    ///
+    /// **Blocking in the core**, exactly as the read is, so it takes the same hop.
+    private func allodiaWrite(
+        _ call: @Sendable @escaping (MailcalApp) throws -> AllodiaWriteResult
+    ) async -> AllodiaWriteResult {
+        guard let app else { return .failed(.unexplained) }
+        return await Task.detached(priority: .userInitiated) {
+            do {
+                return try call(app)
+            } catch {
+                // The core's typed reason, never its text: a refusal and an unreachable service
+                // are different sentences and only the code tells them apart.
+                return .failed(allodiaWriteFailure(error))
+            }
+        }.value
+    }
+
     /// One redemption pass, reporting the two endings that owe somebody a sentence.
     ///
     /// A pass that could not reach the service is not a failure here: the purchase stays
