@@ -3,7 +3,7 @@
 
 use gtk::prelude::{ButtonExt, Cast, GtkWindowExt};
 
-use super::{super::AppInput, DiscardDraftDialog};
+use super::super::{AppInput, composer_discard::DiscardDraftDialog};
 use crate::{
     l10n,
     ui::mail_actions::tests::{button, labels},

@@ -15,7 +15,7 @@ use crate::ui::{
     AppInput,
     composer::ComposerPane,
     composer_header::tests as composer_header,
-    composer_model::{ComposeContext, ComposeKind},
+    composer_model::{ComposeContext, ComposeKind, new_composition},
     connectivity::tests as connectivity,
     contacts::pane::tests as contacts,
     destinations::tests as destinations,
@@ -239,7 +239,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         a_conversations_messages_open_in_windows_and_its_header_does_not();
     crate::ui::mailbox::window_tests::every_message_row_offers_the_window_by_name();
     crate::ui::detached::widget_tests::a_reading_window_is_the_mailbox_peer_and_not_a_second_app();
-    crate::ui::detached::widget_tests::closing_a_composer_window_discards_without_a_question();
+    crate::ui::detached::widget_tests::closing_a_composer_window_asks_no_question();
     crate::ui::reading::canvas::tests::the_drawn_canvas_paints_the_page_the_core_names();
     crate::ui::reading::canvas::tests::the_web_view_base_is_the_same_page();
     crate::ui::webview::tests::the_readers_zoom_gestures_listen_ahead_of_the_web_view();
@@ -452,6 +452,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         quote: None,
         initial_from: Some("fixture".to_owned()),
         seeds_signature: true,
+        composition: new_composition(),
         files: Vec::new(),
     };
     pane.show(

@@ -13,7 +13,7 @@ use std::{
 
 use super::{
     AppInput, AppModel,
-    composer_model::{ComposeContext, ComposeKind, PickedFile, initial_sender},
+    composer_model::{ComposeContext, ComposeKind, PickedFile, initial_sender, new_composition},
     composer_notice::ComposerNotice,
     composer_quote::quote_seed,
     reader::{ComposerHost, ReadingSource},
@@ -161,6 +161,7 @@ impl AppModel {
                 app.default_send_account(),
             ),
             seeds_signature: true,
+            composition: new_composition(),
             // Empty for every route but a share and a forward, which open holding files.
             files,
         };

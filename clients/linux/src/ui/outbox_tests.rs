@@ -42,6 +42,7 @@ fn with_outbox(outbox: Vec<QueuedRow>) -> MailboxListSnapshot {
             expanded: true,
         }],
         showing_outbox: true,
+        showing_drafts: false,
         outbox,
         ..empty_mailbox()
     }
@@ -189,6 +190,7 @@ pub(crate) fn the_pane_highlights_the_outbox_rather_than_everyones_inbox() {
     // inbox takes the highlight back.
     let unified = MailboxListSnapshot {
         showing_outbox: false,
+        showing_drafts: false,
         ..snapshot
     };
     let list = gtk::ListBox::new();
@@ -213,6 +215,7 @@ pub(crate) fn opening_the_outbox_moves_a_highlight_the_selection_cache_would_hav
     // The same pane, the same two null scalars, with the Outbox not showing.
     let unified = MailboxListSnapshot {
         showing_outbox: false,
+        showing_drafts: false,
         ..with_outbox(vec![queued_row()])
     };
     let list = gtk::ListBox::new();

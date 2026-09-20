@@ -74,9 +74,9 @@ impl AppModel {
             Surface::Connectivity => {
                 self.connectivity = ConnectivityState::pull(&app, &self.snapshot.accounts);
             }
-            // The composer's quiet "saved" hint. Nothing draws it yet; the composer has
-            // neither an idle timer nor a Save button (`docs/drafts.md`, Known gaps).
-            Surface::DraftStatus => {}
+            // A composition's save moved. The signal names none, so every open composer reads
+            // its own state back (`docs/drafts.md`).
+            Surface::DraftStatus => self.pull_draft_status(),
         }
     }
 }

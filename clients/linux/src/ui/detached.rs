@@ -20,7 +20,7 @@ use adw::prelude::*;
 use super::{
     AppInput, AppModel,
     composer::ComposerPane,
-    reader::ReadingSource,
+    reader::{ComposerHost, ReadingSource},
     reading::{InvitationClock, ReadingPane},
 };
 use crate::l10n;
@@ -148,6 +148,10 @@ impl DetachedWindows {
             if let Some(notice) = draft.error {
                 open.view.show_error(notice.text());
             }
+            // Each window reads its own composition's state back, never the pane's
+            // (`docs/drafts.md`).
+            open.view
+                .show_draft_hint(model, ComposerHost::Window(draft.id));
         }
     }
 

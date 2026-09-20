@@ -11,6 +11,9 @@
 //!
 //! The body half needs a round trip because the editor has no bridge back into the host (that is
 //! a security gate, not an oversight), so the host reads the document the same way Send does.
+//!
+//! The question itself, the window with Discard and Keep editing in it, is
+//! [`super::composer_discard`]; this file is the rule it turns on.
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -156,82 +159,6 @@ impl DraftGuard {
     }
 }
 
-/// The "Discard draft?" question, held open until it is answered.
-///
-/// Its shape is the permanent-delete confirmation's, and its wording the other clients': "Keep
-/// editing" rather than "Cancel", because beside "Discard" a button labelled Cancel reads as
-/// "cancel the draft".
-#[derive(Default)]
-pub(crate) struct DiscardDraftDialog {
-    open: bool,
-    window: Option<gtk::Window>,
-}
-
-impl DiscardDraftDialog {
-    pub(crate) fn render(
-        &mut self,
-        open: bool,
-        parent: &impl IsA<gtk::Window>,
-        sender: &relm4::Sender<AppInput>,
-    ) {
-        if self.open == open {
-            return;
-        }
-        if let Some(window) = self.window.take() {
-            window.close();
-        }
-        self.open = open;
-        if !open {
-            return;
-        }
-        let window = discard_confirmation(parent, sender);
-        window.present();
-        self.window = Some(window);
-    }
-}
-
-fn discard_confirmation(
-    parent: &impl IsA<gtk::Window>,
-    sender: &relm4::Sender<AppInput>,
-) -> gtk::Window {
-    let (window, _) = crate::ui::modal::new(parent, l10n::compose_discard_title(), 420, Some(190));
-    window.set_resizable(false);
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 18);
-    content.set_margin_top(24);
-    content.set_margin_bottom(24);
-    content.set_margin_start(24);
-    content.set_margin_end(24);
-    let message = gtk::Label::new(Some(l10n::compose_discard_message()));
-    message.set_wrap(true);
-    message.set_xalign(0.0);
-    content.append(&message);
-    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    actions.set_halign(gtk::Align::End);
-    let keep = gtk::Button::with_label(l10n::action_keep_editing());
-    let dialog = window.clone();
-    keep.connect_clicked(move |_| dialog.close());
-    actions.append(&keep);
-    let discard = gtk::Button::with_label(l10n::action_discard());
-    discard.add_css_class("destructive-action");
-    let input = sender.clone();
-    let dialog = window.clone();
-    discard.connect_clicked(move |_| {
-        input.emit(AppInput::DiscardDraft);
-        dialog.close();
-    });
-    actions.append(&discard);
-    content.append(&actions);
-    window.set_child(Some(&content));
-    // Closing the window by any route; the keep button, Escape, the titlebar; keeps the draft.
-    // The destructive answer is only ever the button that says so.
-    let input = sender.clone();
-    window.connect_close_request(move |_| {
-        input.emit(AppInput::KeepEditing);
-        gtk::glib::Propagation::Proceed
-    });
-    window
-}
-
 impl AppModel {
     /// Opens a message, asking first when a draft is open.
     ///
@@ -253,7 +180,7 @@ impl AppModel {
             key: message.key.clone(),
         });
         self.reading.open(message);
-        self.composer = None;
+        self.clear_pane_composer();
         self.primary = PrimaryView::Mail;
     }
 
@@ -313,7 +240,8 @@ impl AppModel {
     pub(super) fn commit_composer(&mut self, request: ComposeContext) {
         self.primary = PrimaryView::Mail;
         self.composer_generation = self.composer_generation.wrapping_add(1);
-        self.composer_error = None;
+        // The composer being replaced is gone, whatever takes its place.
+        self.clear_pane_composer();
         self.composer = Some(request);
     }
 
@@ -323,6 +251,22 @@ impl AppModel {
         if edited {
             self.discard_prompt = self.pending_navigation.is_some();
             return;
+        }
+        self.take_pending_navigation();
+    }
+
+    /// The user pressed Discard: the stored copy goes, and then the navigation happens.
+    ///
+    /// The one path that takes the draft off the server. A composer closed any other way leaves
+    /// it in Drafts, which is what a resumed draft the user only looked at needs
+    /// (`docs/drafts.md`).
+    pub(super) fn discard_draft(&mut self) {
+        let composition = self
+            .composer
+            .as_ref()
+            .map(|request| request.composition.clone());
+        if let Some(composition) = composition {
+            self.discard_stored_draft(&composition);
         }
         self.take_pending_navigation();
     }
