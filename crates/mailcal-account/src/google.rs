@@ -38,7 +38,7 @@ pub use calendar::connect_google_calendar_providers;
 pub use config::{GoogleConfig, fetch_google_primary_address, load_google_str};
 pub use contacts::connect_google_contact_providers;
 
-use crate::{AccountError, GraphTokenSource, TokenSink, throttle::account_retry, tls::account_tls};
+use crate::{AccountError, GraphTokenSource, TokenSink, tls::account_tls};
 
 /// Builds the shared, self-refreshing token source for a Google `config`: the Google parallel
 /// of [`GraphTokenSource::new`](crate::GraphTokenSource) (which takes a `MicrosoftConfig`). It
@@ -144,7 +144,7 @@ impl RefreshingGmailProvider {
                 return Ok(Arc::clone(provider));
             }
         }
-        let client = GoogleClient::connect(token.clone(), &self.tls, &account_retry())
+        let client = GoogleClient::connect(token.clone(), &self.tls, &self.tokens.retry())
             .map_err(ProviderError::from)?;
         let mut gmail = GmailProvider::new(client);
         if let Some(date) = self.since.and_then(calendar_date) {

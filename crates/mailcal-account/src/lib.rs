@@ -308,7 +308,9 @@ pub async fn connect_caldav(account: &AccountConfig) -> Result<Box<dyn Provider>
         },
     )
     .with_tls(tls)
-    .with_retry(throttle::account_retry())
+    // Ungated, for the reason `connect_carddav_contact_providers` gives: no DAV adapter
+    // states a ceiling yet.
+    .with_retry(throttle::ungated_retry())
     .with_connect_observer(connect_log::connect_logger("caldav"));
     let provider = match &caldav.calendar {
         Some(calendar) => CalDavProvider::connect(config.with_calendar(calendar.clone())).await?,

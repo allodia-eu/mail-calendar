@@ -23,7 +23,7 @@ use engine_provider::{ContactSourceSync, ContactsProvider, Provider};
 use provider_caldav::{CardDavConfig, CardDavProvider, Credentials};
 
 use crate::{
-    AccountConfig, AccountError, setup::normalize_caldav_base_url, throttle::account_retry,
+    AccountConfig, AccountError, setup::normalize_caldav_base_url, throttle::ungated_retry,
     tls::account_tls,
 };
 
@@ -60,7 +60,11 @@ pub async fn connect_carddav_contact_providers(
         },
     )
     .with_tls(tls)
-    .with_retry(account_retry());
+    // Ungated: no CalDAV/CardDAV adapter states a concurrency ceiling, because no RFC gives
+    // one and no server here has been measured (`docs/agent-guidance/http-throttling.md`).
+    // A gate with nothing to narrow it bounds nothing, so wiring one would be ceremony.
+    // When a DAV ceiling is measured, this needs the account id threading through.
+    .with_retry(ungated_retry());
 
     let discovery = CardDavProvider::connect(config.clone()).await?;
     // Ask the server before assuming: an account whose CalDAV origin serves no CardDAV
