@@ -12,7 +12,6 @@
 
 use async_trait::async_trait;
 use engine_api::{AccountId, Provider};
-use mailcal_account::SyncDepth;
 use mailcal_app::MailboxConnector;
 
 use crate::SharedRegistry;
@@ -29,7 +28,6 @@ impl MailboxConnector<Box<dyn Provider>> for HostConnector {
         &self,
         account: &AccountId,
         mailbox_key: &str,
-        _depth: SyncDepth,
     ) -> Option<Box<dyn Provider>> {
         // The dial is a snapshot, so no registry lock is held across the connect below.
         self.registry

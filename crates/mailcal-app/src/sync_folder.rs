@@ -9,7 +9,7 @@
 
 use std::time::Instant;
 
-use engine_api::{AccountId, MailboxRole, Provider};
+use engine_api::{AccountId, MailSyncReport, MailboxRole, Provider};
 
 use crate::App;
 
@@ -52,8 +52,7 @@ impl<P: Provider> App<P> {
         let Some(connector) = self.connector.as_ref() else {
             return false;
         };
-        let depth = self.effective_sync_depth(id.as_str());
-        let Some(provider) = connector.connect_folder(id, folder_key, depth).await else {
+        let Some(provider) = connector.connect_folder(id, folder_key).await else {
             return false;
         };
         let progress = self.begin_sync_labeled(false, true, 1, label);
@@ -67,33 +66,7 @@ impl<P: Provider> App<P> {
                 .engine
                 .refresh_folders(core::slice::from_ref(&provider), id, tuning, &progress)
                 .await;
-            // The push path is the one a user notices, so it says what it did and how long it
-            // took: a folder name would identify the user's mail, so it is the label that
-            // distinguishes a watch from an on-demand open (`docs/logging.md`).
-            match report.first_error() {
-                Some(err) => log::warn!(
-                    "refresh[a{acct}/{label}]: failed in {}ms: {err}",
-                    report.elapsed.as_millis()
-                ),
-                None => log::info!(
-                    "refresh[a{acct}/{label}]: +{} -{} in {}ms (fetch {}ms, derive {}ms, store {}ms)",
-                    report.upserted(),
-                    report.tombstoned(),
-                    report.elapsed.as_millis(),
-                    report
-                        .folders
-                        .first()
-                        .map_or(0, |f| f.timing.fetching.as_millis()),
-                    report
-                        .folders
-                        .first()
-                        .map_or(0, |f| f.timing.deriving.as_millis()),
-                    report
-                        .folders
-                        .first()
-                        .map_or(0, |f| f.timing.storing.as_millis()),
-                ),
-            }
+            log_refresh(acct, label, &report);
             report.upserted() + report.tombstoned() > 0
         };
         self.end_sync(&progress);
@@ -199,8 +172,7 @@ impl<P: Provider> App<P> {
             return false;
         }
         let connect_start = Instant::now();
-        let depth = self.effective_sync_depth(account.as_str());
-        let Some(provider) = connector.connect_folder(account, key, depth).await else {
+        let Some(provider) = connector.connect_folder(account, key).await else {
             // The connect failed (a network blip / login timeout). Forget the attempt so
             // re-opening the folder tries again: a *transient* failure must not leave the
             // folder showing empty for the rest of the session.
@@ -216,22 +188,26 @@ impl<P: Provider> App<P> {
         );
         // Opening an unsynced folder is an explicit, user-awaited download; show the bar.
         let progress = self.begin_sync_labeled(true, true, 1, "on-demand");
-        let sync_start = Instant::now();
         let tuning = self.sync_tuning_for(account);
-        {
-            // The user opened this folder and is waiting on it; the folder list is not what
-            // they asked for.
-            let _ = self
-                .engine
-                .refresh_folders(core::slice::from_ref(&provider), account, tuning, &progress)
-                .await;
-        }
+        let acct = self.account_ordinal(account).await;
+        // The user opened this folder and is waiting on it; the folder list is not what
+        // they asked for.
+        let report = self
+            .engine
+            .refresh_folders(core::slice::from_ref(&provider), account, tuning, &progress)
+            .await;
         self.end_sync(&progress);
         self.invalidate_list_cache();
-        log::info!(
-            "on-demand: folder synced in {}ms",
-            sync_start.elapsed().as_millis(),
-        );
+        log_refresh(acct, "on-demand", &report);
+        if report.first_error().is_some() {
+            // The same reasoning as the failed connect above: the folder was not downloaded,
+            // so remembering the attempt would leave it showing empty for the rest of the
+            // session over a failure the next open may not meet.
+            self.attempted_folders
+                .lock()
+                .expect("attempted-folders mutex poisoned")
+                .remove(&(account.as_str().to_owned(), key.to_owned()));
+        }
         // No body prefetch here: `SelectFolder` awaits this method *before* it rebuilds the
         // snapshot, so a warm pass would hold the just-opened folder's rows off screen. The
         // folder's messages are in the mail index now, so the next poll tick's prefetch warms
@@ -241,7 +217,7 @@ impl<P: Provider> App<P> {
         // [`refresh_open_folder`](Self::refresh_open_folder)'s job, which connects again for as
         // long as the folder is the one on screen.
         drop(provider);
-        true
+        report.upserted() + report.tombstoned() > 0
     }
 
     /// Forgets which folders have been on-demand synced this session, so they re-sync the next
@@ -252,5 +228,29 @@ impl<P: Provider> App<P> {
             .lock()
             .expect("attempted-folders mutex poisoned")
             .clear();
+    }
+}
+
+/// Writes one targeted refresh to the diagnostic log: the engine's own counts, or the error it
+/// reported.
+///
+/// Both refreshes in this module go through it, so a watch and an on-demand open cannot come to
+/// say different things about the same report, and neither can report a wall clock alone: a line
+/// that does not say what the engine returned cannot tell a folder that fetched two thousand
+/// messages from one that failed. A folder name would identify the user's mail, so `label` is
+/// what tells the two paths apart (`docs/logging.md`).
+fn log_refresh(acct: usize, label: &str, report: &MailSyncReport) {
+    let ms = report.elapsed.as_millis();
+    let folder = report.folders.first();
+    match report.first_error() {
+        Some(err) => log::warn!("refresh[a{acct}/{label}]: failed in {ms}ms: {err}"),
+        None => log::info!(
+            "refresh[a{acct}/{label}]: +{} -{} in {ms}ms (fetch {}ms, derive {}ms, store {}ms)",
+            report.upserted(),
+            report.tombstoned(),
+            folder.map_or(0, |f| f.timing.fetching.as_millis()),
+            folder.map_or(0, |f| f.timing.deriving.as_millis()),
+            folder.map_or(0, |f| f.timing.storing.as_millis()),
+        ),
     }
 }

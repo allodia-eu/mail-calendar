@@ -11,7 +11,6 @@
 
 use async_trait::async_trait;
 use engine_api::AccountId;
-use mailcal_account::SyncDepth;
 
 /// Connects a provider bound to a single mailbox of an account, on demand.
 ///
@@ -20,15 +19,12 @@ use mailcal_account::SyncDepth;
 /// multi-threaded runtime.
 #[async_trait]
 pub trait MailboxConnector<P>: Send + Sync {
-    /// Connects a provider bound to `mailbox_key` of `account`. `depth` is the account's
-    /// effective depth (its own override, else the app default); hosts that still need it for
-    /// provider construction may inspect it, but the app also passes the window per sync. Returns
-    /// `None` if it cannot (an unknown account, or a connection/login failure: the app then
-    /// leaves the folder empty rather than failing the navigation).
-    async fn connect_folder(
-        &self,
-        account: &AccountId,
-        mailbox_key: &str,
-        depth: SyncDepth,
-    ) -> Option<P>;
+    /// Connects a provider bound to `mailbox_key` of `account`. Returns `None` if it cannot (an
+    /// unknown account, or a connection/login failure: the app then leaves the folder empty
+    /// rather than failing the navigation).
+    ///
+    /// **No sync depth, deliberately.** The app passes the window per sync, so a depth honoured
+    /// at bind time would be overridden on the next call; a parameter for one reads as though the
+    /// bind applied it and is the first thing a reader suspects when a folder syncs empty.
+    async fn connect_folder(&self, account: &AccountId, mailbox_key: &str) -> Option<P>;
 }
