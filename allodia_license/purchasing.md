@@ -276,6 +276,21 @@ the same thing out locally would be a fourth copy of a rule that only the servic
 is how a cancellation quietly does not happen.** Cancelling, changing plan and refunding all belong
 to the store that took the money.
 
+⚠️ **One way in per store, never one per subscription.** An account can carry more than one live
+subscription at a single store, because resubscribing leaves the lapsed one inside the period it
+was paid for, and a store's own page belongs to the store rather than to any one subscription. A
+client therefore names each biller once and offers each store's `manage_url` once. Two questions
+decide it, and they part company exactly where it matters:
+
+| | Which states | What it drives |
+|---|---|---|
+| Who is billing you | active, grace, cancelled | the biller's name, and `duplicateBilling` |
+| Is there anything to do at the store | those three, plus on hold and paused | the manage route |
+
+On hold and paused grant nothing, so neither may claim the first; but a failed card is replaced at
+the store and a pause is lifted there, so withholding the second strands the person who most needs
+it.
+
 Three things a client has to say out loud, because each is money and none of them is visible from
 the button:
 
@@ -384,11 +399,10 @@ The core decides; the client talks to the store it is running on, because no Rus
 | That half tested against a **simulated** store | n/a | ✅ | n/a | n/a | n/a | n/a |
 | Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ✅ | ✅ | ✅ |
 | Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ✅ | ✅ | ✅ |
-| Open Allodia's own checkout | n/a | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
+| Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ✅ | ✅ | ✅ |
 | Link out to that checkout from inside the app | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
 | Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Build with no Google library in it at all | n/a | n/a | n/a | n/a | ✅ | n/a |
-| Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ✅ | ✅ | ✅ |
 
 Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 Windows and Linux ship no store purchase: the Microsoft Store's commerce is not used and Flatpak
@@ -569,6 +583,13 @@ it is why the four writes are no longer the least proven half of this page.
   the one this subscriber was charged in. The two differ only for somebody whose billing currency
   has since changed, which the service does not currently do, so it is a latent wrong rather than a
   present one.
+- ⚠️ **The account web page draws a store's heading and its manage link once per subscription
+  row**, which is the rule above going the other way outside this repository. An account with three
+  live Play rows, two cancelled and one renewing, drew three "Billed through Google Play" headings
+  and three manage links at the same page (2026-09-19). Three headings from one store also read as
+  being charged three times, which is what `duplicateBilling` is reserved for and would then be
+  believable and wrong. The page belongs to the account service's own repository, so it cannot be
+  fixed here; it is recorded because the rule it breaks is this contract's.
 - **The invoice history is not modelled.** `GET /subscription` also returns each payment and what
   has been refunded of it; nothing draws that yet, and serde ignores what nothing asked for, so
   adding it later needs no service change.

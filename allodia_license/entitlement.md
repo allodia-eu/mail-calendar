@@ -381,17 +381,16 @@ Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ pl
   published six accounts and adopted the one the service already held. It needs a person at a
   browser with real credentials, so it is asserted nowhere and the other four clients have not
   been driven through it.
-- **Nothing has been entitled yet.** The read is verified against the production service
-  (2026-09-11): a grant carrying all five `mailcal:*` scopes, and `plan: free` with
-  `capabilities: ["accounts_sync"]` parsed back through `Cache`. Billing is configured there, so
-  what is missing is a real paid plan rather than the machinery, and the grace and degrade rules
-  stay unobserved against one until somebody buys.
+- **Nothing has been entitled yet, though somebody has now paid.** The read is verified against
+  the production service (2026-09-11): a grant carrying all five `mailcal:*` scopes, and
+  `plan: free` with `capabilities: ["accounts_sync"]` parsed back through `Cache`. Paid accounts
+  now exist there, one attached from a Play purchase and one from a real charge through Allodia's
+  own checkout ([`purchasing.md`](purchasing.md)), and nothing has read `GET /entitlement` against
+  either: the subscription card reads `GET /subscription`, which gates nothing. So what is missing
+  is the read rather than the plan, and the grace and degrade rules stay unobserved against a paid
+  account.
 - **No client draws a paid capability**, so the grace and degrade rules are unit-tested in the core
   and unproven in a UI.
-- **Nothing refreshes the access token yet.** The grant is stored with its refresh token, and
-  `SignIn::refresh` exists, but no caller reaches for it, so a signed-in account is currently a
-  stored identity rather than a usable credential. Whatever asks for the first entitlement is what
-  will need it.
 - **Signing out is local.** It erases this install's copy of the grant, which is what removing a mail
   account does too; the grant itself stays alive at the service until it expires or the person
   revokes it there. The service advertises an RFC 7009 revocation endpoint and nothing calls it.
