@@ -192,8 +192,6 @@ pub(crate) struct AppModel {
     /// every open composer reads its own back (`docs/drafts.md`). Entries are dropped as each
     /// composer closes, so the map holds what is on screen and nothing else.
     draft_status: DraftStatuses,
-    /// Bumped on every draft-status pull, so a composer redraws its hint and nothing else does.
-    draft_status_generation: u64,
     /// The message or external draft waiting for the open composer to answer whether it is dirty.
     pending_navigation: Option<PendingNavigation>,
     /// A mail link received before an account exists. Account setup completing opens it.
@@ -388,7 +386,6 @@ impl SimpleComponent for AppModel {
             composer_window_seq: 0,
             composer_error: None,
             draft_status: DraftStatuses::new(),
-            draft_status_generation: 0,
             pending_navigation: None,
             pending_mailto: None,
             pending_share: None,

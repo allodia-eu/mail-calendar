@@ -133,7 +133,6 @@ impl AppModel {
                 .unwrap_or(DraftStatus::Idle);
             self.draft_status.insert(composition, status);
         }
-        self.draft_status_generation = self.draft_status_generation.wrapping_add(1);
     }
 
     /// Opens a Drafts-folder row back into its composer, and every other row for reading.
