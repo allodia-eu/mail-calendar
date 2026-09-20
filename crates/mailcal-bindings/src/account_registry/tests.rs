@@ -159,6 +159,7 @@ fn a_password_account_has_nothing_to_rotate() {
             caldav_base_url: None,
             imap_security: None,
             smtp_security: None,
+            accepted_certificate: None,
         })
         .expect("a valid account config"),
     )
@@ -197,6 +198,7 @@ fn replacement_credentials_are_built_for_password_and_secret_jmap_accounts_only(
             caldav_base_url: Some("https://dav.example.com".to_owned()),
             imap_security: None,
             smtp_security: None,
+            accepted_certificate: None,
         })
         .expect("a valid account config"),
     )

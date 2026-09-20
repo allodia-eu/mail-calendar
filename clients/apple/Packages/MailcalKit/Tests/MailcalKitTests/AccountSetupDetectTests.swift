@@ -80,6 +80,48 @@ struct AccountSetupDetectTests {
         #expect(form.canConnect)
     }
 
+    /// A refused certificate gates Connect the way an untrusted result does, and nothing is
+    /// handed back to store until somebody has accepted it (`docs/certificate-exceptions.md`).
+    @Test func aRefusedCertificateGatesConnectUntilItIsAccepted() {
+        var form = DetectedConnectForm(recommendation: imap(true))
+        form.password = "hunter2"
+        #expect(form.canConnect)
+
+        form.rejectedCertificate = refusedCertificate()
+        #expect(!form.canConnect)
+        #expect(form.acceptedCertificate == nil)
+
+        form.certificateAccepted = true
+        #expect(form.canConnect)
+        #expect(form.acceptedCertificate == form.refusedCertificate)
+    }
+
+    /// The two gates are independent: accepting the certificate does not also approve
+    /// settings that arrived over a connection that was not secure.
+    @Test func acceptingACertificateDoesNotApproveUntrustedSettings() {
+        var form = DetectedConnectForm(recommendation: imap(false))
+        form.password = "hunter2"
+        form.rejectedCertificate = refusedCertificate()
+        form.certificateAccepted = true
+        #expect(!form.canConnect)
+
+        form.approved = true
+        #expect(form.canConnect)
+    }
+
+    private func refusedCertificate() -> RejectedCertificate {
+        RejectedCertificate(
+            serverName: "imap.example.com",
+            sha256: "AB:CD",
+            subjectCommonName: "imap.example.com",
+            subjectOrganisation: "Example Ltd",
+            issuerCommonName: "imap.example.com",
+            issuerOrganisation: "Example Ltd",
+            notBefore: 0,
+            notAfter: 1
+        )
+    }
+
     @Test func oauthAndManualNeverConnectDirectly() {
         // OAuth providers (Microsoft, Google) sign in via the browser, not this connect form, so
         // the form never enables Connect for them, nor for a manual-fallback recommendation.

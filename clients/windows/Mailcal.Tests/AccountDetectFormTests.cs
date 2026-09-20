@@ -107,6 +107,43 @@ public class AccountDetectFormTests
     }
 
     [Fact]
+    public void A_refused_certificate_cannot_connect_until_it_is_accepted()
+    {
+        // The fields are complete and the settings are trusted, but the last connect was refused
+        // for a certificate: Connect stays closed until that certificate is accepted
+        // (docs/certificate-exceptions.md).
+        Assert.False(AccountDetectForm.CanConnect(
+            DetectTab.Imap, needsApproval: false, approved: false,
+            "imap.example.com", "alice@example.com", "secret", "",
+            certificateRefused: true, certificateAccepted: false));
+        Assert.True(AccountDetectForm.CanConnect(
+            DetectTab.Imap, needsApproval: false, approved: false,
+            "imap.example.com", "alice@example.com", "secret", "",
+            certificateRefused: true, certificateAccepted: true));
+    }
+
+    [Fact]
+    public void Accepting_a_certificate_does_not_approve_untrusted_settings()
+    {
+        // The two gates are independent; answering one does not answer the other.
+        Assert.False(AccountDetectForm.CanConnect(
+            DetectTab.Imap, needsApproval: true, approved: false,
+            "imap.example.com", "alice@example.com", "secret", "",
+            certificateRefused: true, certificateAccepted: true));
+    }
+
+    [Fact]
+    public void Only_the_imap_route_offers_to_accept_a_certificate()
+    {
+        // A JMAP account's stored config carries no exception, so a refusal there is reported and
+        // not offered (docs/certificate-exceptions.md, Known gaps).
+        Assert.True(AccountDetectForm.OffersCertificateException(DetectTab.Imap));
+        Assert.False(AccountDetectForm.OffersCertificateException(DetectTab.Jmap));
+        Assert.False(AccountDetectForm.OffersCertificateException(DetectTab.Microsoft));
+        Assert.False(AccountDetectForm.OffersCertificateException(DetectTab.Google));
+    }
+
+    [Fact]
     public void Imap_connect_needs_a_host_email_and_password()
     {
         Assert.False(AccountDetectForm.CanConnect(

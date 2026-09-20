@@ -204,6 +204,15 @@ final class MailboxModel {
     var accountsSyncMode: [String: AllodiaAccountSyncMode] = [:]
     /// A setup/connect error to surface on the form (invalid fields or a failed login).
     var setupError: String?
+    /// The certificate a server presented that could not be verified, when that is why the
+    /// last setup connect failed. The form shows it and offers to accept it; accepting
+    /// re-submits with it and the core stores it with the account
+    /// (`docs/certificate-exceptions.md`).
+    var setupRejectedCertificate: RejectedCertificate?
+    /// A certificate already accepted during this setup. Kept apart from
+    /// `setupRejectedCertificate`, which is a question: this is the answer, and it outlives a
+    /// retry that then fails on the password so nobody is asked the same thing twice.
+    var setupAcceptedCertificate: RejectedCertificate?
     /// `true` while a Microsoft sign-in is in flight (browser + token exchange + first
     /// sync), so the form shows progress instead of looking dead.
     var microsoftSigningIn = false

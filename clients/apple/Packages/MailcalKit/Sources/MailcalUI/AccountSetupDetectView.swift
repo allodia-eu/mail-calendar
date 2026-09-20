@@ -1,75 +1,25 @@
 // The email-first account-setup flow: the user types only their email, the shared core
 // detects their provider's settings, and we route them to a prefilled JMAP / IMAP / Microsoft
 // path, falling back to the manual AccountSetupView (with a reason) when nothing usable is
-// found. Mirrors the Android flow. The connect-gating (including the untrusted-settings
-// approval) lives in DetectedConnectForm, a plain struct the package test suite drives.
+// found. Mirrors the Android flow. The connect-gating (the untrusted-settings approval and the
+// refused-certificate acceptance) lives in DetectedConnectForm next door, a plain struct the
+// package test suite drives.
 
 import SwiftUI
 import MailcalBindings
 
-/// Connect-gating for a JMAP/IMAP detection result: tracks the entered secret and the
-/// untrusted-settings approval, and decides whether Connect is allowed. Pure, so the
-/// approval gate (a security contract) is unit-tested without SwiftUI.
-struct DetectedConnectForm {
-    let recommendation: SetupRecommendation
-    /// One secret for both routes: IMAP takes a password, and a JMAP server declares its auth
-    /// scheme in its own 401, so a password and an API token are interchangeable here.
-    var password = ""
-    var approved = false
-    /// Calendar (IMAP only). Defaults ON when detection discovered a CalDAV endpoint
-    /// (opt-out), OFF otherwise (opt-in); either way it reuses the IMAP credentials.
-    var calendarEnabled: Bool
-    var calendarURLEntry = ""
-
-    init(recommendation: SetupRecommendation) {
-        self.recommendation = recommendation
-        self.calendarEnabled = Self.discoveredCaldav(recommendation) != nil
-    }
-
-    var isTrusted: Bool {
-        switch recommendation {
-        case let .jmap(_, _, isTrusted, _): return isTrusted
-        case let .imap(_, _, _, _, _, _, _, _, isTrusted, _): return isTrusted
-        default: return true
-        }
-    }
-
-    var needsApproval: Bool { !isTrusted }
-    private var approvalOK: Bool { isTrusted || approved }
-
-    var canConnect: Bool {
-        switch recommendation {
-        case .jmap: return !password.isEmpty && approvalOK
-        case .imap: return !password.isEmpty && approvalOK
-        default: return false
-        }
-    }
-
-    /// The CalDAV endpoint detection discovered for this account, if any.
-    var discoveredCaldav: String? { Self.discoveredCaldav(recommendation) }
-
-    private static func discoveredCaldav(_ recommendation: SetupRecommendation) -> String? {
-        if case let .imap(_, _, _, _, _, _, _, caldavURL, _, _) = recommendation { return caldavURL }
-        return nil
-    }
-
-    /// The CalDAV URL to store: the discovered endpoint, else a manually entered one; nil
-    /// when calendar is switched off or nothing was entered.
-    var effectiveCaldavURL: String? {
-        guard calendarEnabled else { return nil }
-        return discoveredCaldav ?? (calendarURLEntry.isEmpty ? nil : calendarURLEntry)
-    }
-}
-
 struct AccountSetupDetectView: View {
     let error: String?
+    /// The certificate the last connect was refused for, when that is why it failed. Drawn
+    /// with the confirmation that unlocks Connect (`docs/certificate-exceptions.md`).
+    var rejectedCertificate: RejectedCertificate? = nil
     var cancel: (() -> Void)? = nil
     let signInMicrosoft: (String?) -> Void
     let signInGoogle: (String?) -> Void
     var signingIn: Bool = false
     var googleSigningIn: Bool = false
     var connecting: Bool = false
-    let submit: (String, String, String, String, String, ConnectionSecurity, ConnectionSecurity) -> Void
+    let submit: (String, String, String, String, String, ConnectionSecurity, ConnectionSecurity, RejectedCertificate?) -> Void
     let submitJmap: (String, String, String) -> Void
     /// Whether the detected JMAP server advertises OAuth sign-in (the blocking core pre-flight,
     /// run off the main thread), so the button is only offered where it works.
@@ -109,6 +59,10 @@ struct AccountSetupDetectView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var approved = false
+    /// Whether the person has accepted the certificate `rejectedCertificate` names. Reset
+    /// whenever a different certificate arrives, so an acceptance never carries over to one
+    /// nobody has looked at.
+    @State private var certificateAccepted = false
     // nil = follow the detected default (on when a CalDAV endpoint was found); once the user
     // toggles, their choice sticks.
     @State private var calendarChoice: Bool?
@@ -145,6 +99,9 @@ struct AccountSetupDetectView: View {
             if phase.isEmailStep, let startOffer { takeOffer(startOffer) }
         }
         .task { await driveShowcaseIfNeeded() }
+        // A different certificate is a different decision, so an acceptance never carries
+        // over to one nobody has been shown.
+        .onChange(of: rejectedCertificate) { certificateAccepted = false }
     }
 
     /// Sets an offered account up on the route its record names, rather than re-deriving one from
@@ -236,6 +193,8 @@ struct AccountSetupDetectView: View {
         let _ = {
             form.password = password
             form.approved = approved
+            form.rejectedCertificate = rejectedCertificate
+            form.certificateAccepted = certificateAccepted
             form.calendarEnabled = calendarOn
             form.calendarURLEntry = calendarURL
         }()
@@ -248,7 +207,7 @@ struct AccountSetupDetectView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 // A failed/declined sign-in surfaces as `error`; show it so the user isn't
                 // left on a silent dead-end and can retry or set up manually.
-                inlineError
+                inlineError()
                 footer {
                     if signingIn {
                         progress(L10n.setup_microsoft_signing_in())
@@ -263,7 +222,7 @@ struct AccountSetupDetectView: View {
                 // Same Early Access gate as the manual Google form: this path also reaches
                 // beginGoogleLogin, which Google blocks for anyone not yet allow-listed.
                 GoogleEarlyAccessGate(confirmed: $googleEarlyAccessConfirmed)
-                inlineError
+                inlineError()
                 footer {
                     if googleSigningIn {
                         progress(L10n.setup_google_signing_in())
@@ -297,7 +256,7 @@ struct AccountSetupDetectView: View {
                             offered: $jmapSignInOffered
                         )
                 }
-                inlineError
+                inlineError()
                 footer {
                     connectButton(enabled: form.canConnect) {
                         submitJmap(jmapEmail, serverURL, password)
@@ -311,12 +270,13 @@ struct AccountSetupDetectView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     approvalControls(form)
                     SecureField(L10n.setup_field_password(), text: $password).setupField(.password)
+                    certificateControls(form)
                 }
                 calendarSection(discovered: caldavURL)
-                inlineError
+                inlineError(suppressed: form.refusedCertificate != nil)
                 footer {
                     connectButton(enabled: form.canConnect) {
-                        submit(imapHost, imapEmail, password, smtpHost ?? "", form.effectiveCaldavURL ?? "", imapSecurity, smtpSecurity)
+                        submit(imapHost, imapEmail, password, smtpHost ?? "", form.effectiveCaldavURL ?? "", imapSecurity, smtpSecurity, form.acceptedCertificate)
                     }
                 }
             case .manual:
@@ -332,6 +292,7 @@ struct AccountSetupDetectView: View {
         let prefill = manualPrefill(edit, typedEmail: email)
         AccountSetupView(
             error: error,
+            rejectedCertificate: rejectedCertificate,
             cancel: cancel,
             signInMicrosoft: signInMicrosoft,
             signInGoogle: signInGoogle,
@@ -352,6 +313,15 @@ struct AccountSetupDetectView: View {
     }
 
     // MARK: - Small pieces
+
+    /// The refused certificate and the confirmation that unlocks Connect, shown only once a
+    /// connect has actually been refused for one.
+    @ViewBuilder
+    private func certificateControls(_ form: DetectedConnectForm) -> some View {
+        if let refused = form.refusedCertificate {
+            CertificateExceptionPanel(certificate: refused, accepted: $certificateAccepted)
+        }
+    }
 
     @ViewBuilder
     private func approvalControls(_ form: DetectedConnectForm) -> some View {
@@ -412,8 +382,14 @@ struct AccountSetupDetectView: View {
         URLComponents(string: url)?.host ?? url
     }
 
-    @ViewBuilder private var inlineError: some View {
-        if let error {
+    /// The failure, in the transport's own words. Suppressed while a certificate panel is
+    /// up: that panel says the same thing in the reader's language and with the certificate
+    /// beside it, and the raw text under it is a second, worse copy of the question.
+    /// The failure, in the transport's own words. Suppressed where a certificate panel is up:
+    /// that panel says the same thing in the reader's language and with the certificate beside
+    /// it, and the raw text under it is a second, worse copy of the question.
+    @ViewBuilder private func inlineError(suppressed: Bool = false) -> some View {
+        if let error, !suppressed {
             Text(error).font(.callout).foregroundStyle(.red)
         }
     }

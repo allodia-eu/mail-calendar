@@ -3,7 +3,7 @@
 
 use mailcal_bindings::{
     AccountSetup, ConnectionSecurity, DetectedServerRow, JmapSetup, MissReason,
-    SetupRecommendation, account_config_toml, jmap_account_config_toml,
+    RejectedCertificate, SetupRecommendation, account_config_toml, jmap_account_config_toml,
 };
 
 use crate::l10n;
@@ -200,6 +200,18 @@ pub(crate) struct ImapSubmission {
     pub(super) imap_security: ConnectionSecurity,
     pub(super) smtp_security: ConnectionSecurity,
     pub(super) password: String,
+    /// A certificate the person accepted after this pane was refused for it, passed back
+    /// exactly as it arrived (`docs/certificate-exceptions.md`). `None` on every setup that
+    /// never met one, which is nearly all of them.
+    pub(super) accepted_certificate: Option<RejectedCertificate>,
+}
+
+/// What a connect that did not succeed had to say. A refused certificate is its own outcome,
+/// because it is the one failure a pane can offer a way past.
+#[derive(Clone, Default)]
+pub(crate) struct ConnectFailure {
+    pub(super) message: Option<String>,
+    pub(super) certificate: Option<RejectedCertificate>,
 }
 
 #[derive(Clone)]
@@ -220,6 +232,7 @@ impl AccountSubmission {
                 caldav_base_url: non_empty(form.caldav_url),
                 imap_security: Some(form.imap_security),
                 smtp_security: Some(form.smtp_security),
+                accepted_certificate: form.accepted_certificate,
             })
             .map_err(|error| error.to_string()),
             Self::Jmap(form) => jmap_account_config_toml(JmapSetup {

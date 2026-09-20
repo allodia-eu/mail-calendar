@@ -220,6 +220,25 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
         private set { if (Set(ref _setupError, value)) { Raise(nameof(HasSetupError)); } }
     }
 
+    private RejectedCertificate? _setupRejectedCertificate;
+    /// <summary>
+    /// The certificate a server presented that could not be verified, when that is why the last
+    /// setup connect failed. The form shows it and offers to accept it; accepting re-submits with
+    /// it and the core stores it with the account (docs/certificate-exceptions.md).
+    /// </summary>
+    public RejectedCertificate? SetupRejectedCertificate
+    {
+        get => _setupRejectedCertificate;
+        private set => Set(ref _setupRejectedCertificate, value);
+    }
+
+    /// <summary>
+    /// A certificate already accepted during this setup. Kept apart from
+    /// <see cref="SetupRejectedCertificate"/>, which is a question: this is the answer, and it
+    /// outlives a retry that then fails on the password so nobody is asked the same thing twice.
+    /// </summary>
+    internal RejectedCertificate? SetupAcceptedCertificate { get; set; }
+
     private AppDestination _destination = AppDestination.Mail;
     /// <summary>
     /// Which top-level surface is on screen. An enum rather than a flag per screen: with three

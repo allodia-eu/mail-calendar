@@ -8,11 +8,12 @@
 //! so it stays out of logs (see [`Secret`]) and out of version control: a real host
 //! uses the OS keychain; the `probe` binary reads a gitignored file outside the repo.
 
-use std::{fmt, sync::Arc};
+use std::sync::Arc;
 
 mod autodetect;
 mod calendar;
 mod calendar_drag;
+mod certificate;
 mod config;
 mod connect_log;
 mod contacts;
@@ -22,6 +23,7 @@ mod delegate_info;
 /// in a debug build, or a release build with the `dev-harness` feature for the Android dev loop).
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 mod dev_tls;
+mod error;
 mod event_detail;
 mod google;
 mod graph;
@@ -45,6 +47,7 @@ pub use calendar_drag::{
     EventDrag, EventEdge, apply_event_drag, names_an_occurrence, occurrence_local,
     occurrence_wall_clock, stored_occurrence,
 };
+pub use certificate::{CertificateException, RejectedCertificate, format_fingerprint};
 pub use config::{
     AccountConfig, CalDavAccount, ConfigError, ConnectionSecurity, ImapAccount, Secret,
     SmtpAccount, default_path, load, load_str,
@@ -58,6 +61,7 @@ use engine_core::{
     sync::SyncUpdate,
 };
 use engine_provider::{Provider, ProviderError, Watch};
+pub use error::AccountError;
 pub use event_detail::{DetailOccurrence, EventDetail, project_event_detail};
 pub use google::{
     GoogleConfig, connect_google_calendar_providers, connect_google_contact_providers,
@@ -85,7 +89,7 @@ pub use preferences::{
     save_preferences, snap_poll_interval,
 };
 use provider_caldav::{CalDavConfig, CalDavProvider, Credentials};
-use provider_imap::{DEFAULT_IDLE_KEEPALIVE, ImapConfig, ImapError, ImapProvider, ImapWatcher};
+use provider_imap::{DEFAULT_IDLE_KEEPALIVE, ImapConfig, ImapProvider, ImapWatcher};
 use reconnect::{ReconnectingImapProvider, Redial};
 pub use recurrence_shape::{
     EventRecurrence, RecurrenceChange, RecurrenceDay, RecurrenceEnd, RecurrenceFrequency,
@@ -132,7 +136,7 @@ pub async fn connect_imap_mailbox(
     let mailbox =
         MailboxId::try_from(mailbox).map_err(|err| AccountError::Mailbox(err.to_string()))?;
     let config = windowed(account.imap_config(), since);
-    let tls = account_tls()?;
+    let tls = account_tls(account)?;
     let provider = ImapProvider::connect(&config, tls.connector(), mailbox.clone()).await?;
     let provider: Arc<dyn Provider> = Arc::new(provider);
     let redial = make_imap_redial(config, mailbox.clone(), tls);
@@ -187,7 +191,7 @@ pub async fn connect_imap_watcher(
     // A watch carries no mail, so it is never windowed: the sync it triggers applies the
     // sync-depth cutoff. The keep-alive is the engine's RFC 2177-safe default (clamped by
     // the adapter); a shorter mobile interval is a future per-platform refinement.
-    let tls = account_tls()?;
+    let tls = account_tls(account)?;
     let watcher = ImapWatcher::connect(
         &account.imap_config(),
         tls.connector(),
@@ -231,7 +235,7 @@ pub async fn connect_mail_providers(
     since: Option<time::Date>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
     let config = windowed(account.imap_config(), since);
-    let tls = account_tls()?;
+    let tls = account_tls(account)?;
     let inbox_id =
         MailboxId::try_from("INBOX").map_err(|err| AccountError::Mailbox(err.to_string()))?;
     // The account's first login, and the only one that can prove the stored password wrong: a
@@ -239,7 +243,7 @@ pub async fn connect_mail_providers(
     // success of this connect (see `from_first_imap_login`).
     let inbox = ImapProvider::connect(&config, tls.connector(), inbox_id.clone())
         .await
-        .map_err(AccountError::from_first_imap_login)?;
+        .map_err(|err| AccountError::from_first_imap_login(err).over_tls(&tls))?;
     let inbox: Arc<dyn Provider> = Arc::new(inbox);
 
     // Enumerate folders to find the role mailboxes (their names vary by server).
@@ -297,7 +301,7 @@ pub async fn connect_mail_providers(
 /// connection/discovery fails, or no calendar collection is discovered.
 pub async fn connect_caldav(account: &AccountConfig) -> Result<Box<dyn Provider>, AccountError> {
     let caldav = account.caldav.as_ref().ok_or(AccountError::NoCalDav)?;
-    let tls = account_tls()?;
+    let tls = account_tls(account)?;
     let config = CalDavConfig::new(
         // Tolerate a stored bare host (a scheme-less base URL from an earlier setup) by
         // defaulting it to https:// here too, so existing configs connect without re-entry.
@@ -339,118 +343,6 @@ async fn connect_primary_calendar(config: CalDavConfig) -> Result<CalDavProvider
     provider
         .rebind(calendar.id.as_str())
         .map_err(AccountError::from)
-}
-
-/// An error building or connecting an account's providers.
-#[derive(Debug, thiserror::Error)]
-pub enum AccountError {
-    /// The mailbox id was not valid.
-    #[error("invalid mailbox id: {0}")]
-    Mailbox(String),
-    /// Listing the account's folders failed (needed to find the Sent mailbox).
-    #[error("listing mailboxes: {0}")]
-    MailboxList(String),
-    /// The IMAP connection or login failed.
-    #[error("imap: {0}")]
-    Imap(#[from] provider_imap::ImapError),
-    /// Building the account's shared TLS policy failed.
-    #[error("tls: {0}")]
-    Tls(#[from] engine_tls::TlsError),
-    /// A Microsoft Graph call failed (the `/me` address lookup, a token refresh, or a
-    /// folder-list/connect error) while building a Microsoft account's providers.
-    #[error("graph: {0}")]
-    Graph(String),
-    /// The server refused the account's **stored credential** outright: an OAuth refresh token
-    /// that is revoked or expired (`invalid_grant`, `AADSTS700082`) and so mints no access token,
-    /// or a password/API token answered with `[AUTHENTICATIONFAILED]` / `401`. Distinct from every
-    /// per-family variant because it is the one failure a retry cannot fix and an outage badge
-    /// misdescribes (the server *was* reached) so a caller prompts "sign in again"
-    /// (`docs/provider-oauth.md` rule 12).
-    ///
-    /// Deliberately not named for a token: every family's refusal maps here, and which kind of
-    /// credential the server refused changes nothing a caller does about it.
-    #[error("sign-in rejected: {0}")]
-    SigninRejected(String),
-    /// A Google (Gmail/Calendar) call failed (the profile address lookup, a token refresh, or
-    /// a calendar-list/connect error) while building or driving a Google account's providers.
-    /// The Google parallel of [`AccountError::Graph`].
-    #[error("google: {0}")]
-    Google(String),
-    /// The Graph **calendar** probe (`GET /me/calendars`) was refused with a `403`; the
-    /// account's OAuth grant lacks the `Calendars.ReadWrite` scope (it was connected before
-    /// calendar support, or consent was revoked). Distinct from a transient
-    /// [`AccountError::Graph`] so a caller can prompt the user to **re-authenticate to grant
-    /// calendar access** rather than badge a generic outage: mail is unaffected.
-    #[error("calendar access denied (re-authentication needed): {0}")]
-    CalendarAccessDenied(String),
-    /// A JMAP call failed (session discovery, connect, or a sync/submission error)
-    /// while building or driving a JMAP account's provider.
-    #[error("jmap: {0}")]
-    Jmap(String),
-    /// Opening an IMAP `IDLE` watch failed (connect/login error, or the server does not
-    /// advertise `IDLE`: the host falls back to polling).
-    #[error("imap watch: {0}")]
-    Watch(String),
-    /// CalDAV was requested but the config has no `[caldav]` section.
-    #[error("no caldav endpoint configured")]
-    NoCalDav,
-    /// The CalDAV connection or discovery failed.
-    #[error("caldav: {0}")]
-    CalDav(#[from] provider_caldav::CalDavError),
-    /// Listing the account's calendars failed (no `calendar` was configured, so the
-    /// connection had to discover one).
-    #[error("caldav calendar discovery: {0}")]
-    CalDavDiscovery(String),
-    /// No calendar collection was discovered, and the config named none to bind to.
-    #[error("no caldav calendar discovered (configure `calendar` in [caldav])")]
-    NoCalendarDiscovered,
-    /// Building a calendar event-write failed (a bad uid, time, or href).
-    #[error("calendar write: {0}")]
-    CalendarWrite(String),
-    /// Building a contact write failed: the edit named nothing to file the card under, or
-    /// carried a value that is not an email address.
-    ///
-    /// The message states the *shape* that was wrong and never quotes the value: a contact's
-    /// values are content, and this reaches the diagnostic log (`docs/logging.md`).
-    #[error("contact write: {0}")]
-    ContactWrite(String),
-}
-
-impl AccountError {
-    /// Wraps a calendar-discovery failure, keeping its message (the source types
-    /// differ: a provider error or an invalid placeholder id).
-    fn caldav_discovery(err: impl fmt::Display) -> Self {
-        Self::CalDavDiscovery(err.to_string())
-    }
-
-    /// The verdict for the login that **first** presents an IMAP account's password in a dial;
-    /// the only one whose refusal can mean the password itself is no good. An
-    /// [authentication-class](FailureClass::Authentication) refusal becomes
-    /// [`Self::SigninRejected`]; anything else keeps [`Self::Imap`].
-    ///
-    /// A later connection of the same dial deliberately does **not** come through here. The same
-    /// password authenticated seconds earlier, so a refusal there is the server contradicting
-    /// itself, and prompting for a new sign-in over it is the false prompt
-    /// `docs/provider-oauth.md` rule 12 forbids; servers do refuse a valid credential.
-    fn from_first_imap_login(err: ImapError) -> Self {
-        if err.failure_class() == FailureClass::Authentication {
-            Self::SigninRejected(err.to_string())
-        } else {
-            Self::Imap(err)
-        }
-    }
-
-    /// The verdict for a JMAP connect, which presents the credential on **every** attempt (session
-    /// discovery authenticates, so there is no first-then-folders sequence to corroborate against):
-    /// an [authentication-class](FailureClass::Authentication) refusal: a `401` to a password, an
-    /// API token or a bearer; becomes [`Self::SigninRejected`], anything else [`Self::Jmap`].
-    pub(crate) fn from_jmap_connect(err: &provider_jmap::JmapError) -> Self {
-        if err.failure_class() == FailureClass::Authentication {
-            Self::SigninRejected(err.to_string())
-        } else {
-            Self::Jmap(err.to_string())
-        }
-    }
 }
 
 #[cfg(test)]

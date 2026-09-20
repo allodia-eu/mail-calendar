@@ -73,6 +73,11 @@ pub(crate) struct ConnectFailure {
     detail: String,
     /// Whether the server refused the stored sign-in, rather than being unreachable.
     signin_expired: bool,
+    /// The certificate a server presented that did not verify, when that is what failed.
+    /// Carried for the same reason `signin_expired` is: the distinction is decided at the
+    /// [`AccountError`] and would not survive the rendered string. A caller adding an
+    /// account interactively offers it to the user; every other caller ignores it.
+    certificate: Option<Box<mailcal_account::RejectedCertificate>>,
 }
 
 impl ConnectFailure {
@@ -87,7 +92,27 @@ impl From<AccountError> for ConnectFailure {
     fn from(err: AccountError) -> Self {
         Self {
             signin_expired: matches!(err, AccountError::SigninRejected(_)),
+            certificate: match &err {
+                AccountError::CertificateRejected { rejected, .. } => {
+                    Some(Box::new((**rejected).clone()))
+                }
+                _ => None,
+            },
             detail: err.to_string(),
+        }
+    }
+}
+
+/// The FFI error for a caller that was waiting on this dial. A refused certificate is its
+/// own outcome, because it is the one such a caller can put to the user and settle.
+impl From<ConnectFailure> for crate::MailcalError {
+    fn from(failure: ConnectFailure) -> Self {
+        match failure.certificate {
+            Some(certificate) => Self::CertificateRejected {
+                reason: failure.detail,
+                certificate: (*certificate).into(),
+            },
+            None => Self::Connect(failure.detail),
         }
     }
 }

@@ -35,7 +35,7 @@ mod token_source;
 pub use calendar::connect_graph_calendar_providers;
 pub use token_source::{CredentialOrigin, GraphTokenSource, TokenSink};
 
-use crate::{AccountError, log_handle::account_log_handle, tls::account_tls};
+use crate::{AccountError, log_handle::account_log_handle, tls::tls_with};
 
 /// The folder roles a Microsoft account eagerly binds a provider to at startup; the
 /// same set as IMAP plus the Inbox (Graph resolves the Inbox as a role, whereas IMAP
@@ -189,7 +189,7 @@ pub async fn connect_graph_mail_providers(
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     let folders = list_folders(&tokens, account_id, &tls).await?;
     let providers = folders
         .into_iter()
@@ -226,7 +226,7 @@ pub fn connect_graph_folder(
 ) -> Result<Box<dyn Provider>, AccountError> {
     let folder =
         MailboxId::try_from(mailbox_key).map_err(|err| AccountError::Mailbox(err.to_string()))?;
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     Ok(Box::new(RefreshingGraphProvider::new(
         folder, tokens, since, tls,
     )))

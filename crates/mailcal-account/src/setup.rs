@@ -5,7 +5,7 @@
 //! server name is derived from the host, so users never type ports or a separate "server
 //! name". Credentials go straight into the stored TOML; never a plaintext seed file.
 
-use crate::{ConfigError, ConnectionSecurity};
+use crate::{CertificateException, ConfigError, ConnectionSecurity};
 
 /// The fields a host collects in its account-setup UI, so it can build a config
 /// without a plaintext seed file: the host serializes this with [`build_config_toml`]
@@ -33,6 +33,10 @@ pub struct AccountSetup {
     /// How the SMTP submission connection is secured; picks the default port (465 vs 587).
     /// Defaults to implicit TLS.
     pub smtp_security: ConnectionSecurity,
+    /// A server certificate somebody accepted for this account after being shown it,
+    /// because it did not verify (`docs/certificate-exceptions.md`). `None` for every
+    /// setup that never met one, which is nearly all of them.
+    pub accepted_certificate: Option<CertificateException>,
 }
 
 /// The standard implicit-TLS IMAP port, assumed when a host gives none.
@@ -153,6 +157,12 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
         caldav.insert("password".into(), setup.password.clone().into());
         root.insert("caldav".into(), caldav.into());
     }
+    if let Some(accepted) = &setup.accepted_certificate {
+        root.insert(
+            "certificate_exception".into(),
+            vec![toml::Value::from(accepted.to_table())].into(),
+        );
+    }
     Ok(toml::to_string(&root)?)
 }
 
@@ -172,6 +182,7 @@ mod tests {
             caldav_base_url: Some("https://dav.example.net".to_owned()),
             imap_security: ConnectionSecurity::ImplicitTls,
             smtp_security: ConnectionSecurity::ImplicitTls,
+            accepted_certificate: None,
         }
     }
 
@@ -265,6 +276,39 @@ mod tests {
         let config = load_str(&build_config_toml(&setup).unwrap()).unwrap();
         assert!(config.smtp.is_none());
         assert!(config.caldav.is_none());
+    }
+
+    /// An accepted certificate rides into the stored config, so every later connect of
+    /// this account carries it and nobody is asked twice.
+    #[test]
+    fn build_config_toml_stores_an_accepted_certificate() {
+        let mut setup = full_setup();
+        let certificate = engine_tls::CertificateDer::from(b"a certificate".to_vec());
+        setup.accepted_certificate =
+            Some(CertificateException::new("imap.example.net", &certificate));
+
+        let config = load_str(&build_config_toml(&setup).unwrap()).unwrap();
+        assert_eq!(
+            config.certificate_exceptions,
+            vec![CertificateException::new("imap.example.net", &certificate)]
+        );
+        // And it reaches the engine as the one thing it admits.
+        let exceptions = config.tls_exceptions();
+        assert_eq!(exceptions.len(), 1);
+        assert_eq!(exceptions[0].server_name(), "imap.example.net");
+        assert_eq!(
+            exceptions[0].fingerprint(),
+            engine_tls::fingerprint(&certificate)
+        );
+    }
+
+    /// A setup that met no certificate problem writes no exception at all, so an ordinary
+    /// account's stored config is byte-for-byte what it was.
+    #[test]
+    fn build_config_toml_writes_no_exception_when_none_was_accepted() {
+        let toml = build_config_toml(&full_setup()).unwrap();
+        assert!(!toml.contains("certificate_exception"));
+        assert!(load_str(&toml).unwrap().certificate_exceptions.is_empty());
     }
 
     #[test]

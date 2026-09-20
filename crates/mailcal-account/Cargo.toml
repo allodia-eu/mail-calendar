@@ -69,6 +69,11 @@ time = { workspace = true }
 engine-core = { workspace = true }
 engine-provider = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+# `tests/certificate_exception.rs` stands up an in-process TLS server presenting a
+# certificate no trust anchor can rescue, and dials it through the real connect path.
+rcgen = { workspace = true }
+rustls = { workspace = true }
+tokio-rustls = { workspace = true }
 
 # The probe binary drives the full engine sync against a real account; the library is
 # reused by the bindings to build the same providers.

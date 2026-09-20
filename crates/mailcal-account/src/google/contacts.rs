@@ -48,7 +48,7 @@ use engine_provider::{
 use engine_tls::TlsClientConfig;
 use provider_google::{GoogleClient, GoogleContactProvider, GoogleContactSource};
 
-use crate::{AccountError, GraphTokenSource, tls::account_tls};
+use crate::{AccountError, GraphTokenSource, tls::tls_with};
 
 /// The People sources an account binds, in the order they are bound. Groups is the one the
 /// engine also offers and this list leaves out; the module doc says why.
@@ -251,7 +251,7 @@ impl ContactsProvider for RefreshingGoogleContactProvider {
 pub async fn connect_google_contact_providers(
     tokens: Arc<GraphTokenSource>,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     let token = tokens.access_token().await?;
     let mut providers: Vec<Box<dyn ContactsProvider>> = Vec::with_capacity(BOUND_SOURCES.len());
     for source in BOUND_SOURCES {
@@ -294,7 +294,7 @@ mod tests {
     }
 
     fn provider(source: GoogleContactSource) -> RefreshingGoogleContactProvider {
-        let tls = account_tls().unwrap();
+        let tls = tls_with(&[]).unwrap();
         let delegate =
             Arc::new(build(source, "access-token", &tls, &google_source().retry()).unwrap());
         RefreshingGoogleContactProvider::new(

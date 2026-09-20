@@ -17,7 +17,7 @@ use engine_core::ids::{AccountId, IdError};
 use mailcal_oauth::OAuthProviderConfig;
 use serde::Deserialize;
 
-use crate::{AccountError, ConfigError, Secret, tls::account_tls};
+use crate::{AccountError, ConfigError, Secret, tls::tls_with};
 
 /// The host sentinel appended to a Google account's address to form its stable [`AccountId`],
 /// mirroring [`MicrosoftConfig`](crate::MicrosoftConfig)'s `graph.microsoft.com`. Gmail
@@ -150,7 +150,7 @@ pub fn load_google_str(text: &str) -> Result<GoogleConfig, ConfigError> {
 ///
 /// Returns [`AccountError::Google`] if the request fails, is non-2xx, or returns no address.
 pub async fn fetch_google_primary_address(access_token: &str) -> Result<String, AccountError> {
-    let http = account_tls()?
+    let http = tls_with(&[])?
         .reqwest_builder()
         .build()
         .map_err(|err| AccountError::Google(format!("profile lookup client: {err}")))?;

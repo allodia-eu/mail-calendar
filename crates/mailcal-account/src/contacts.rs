@@ -49,7 +49,7 @@ pub async fn connect_carddav_contact_providers(
     account: &AccountConfig,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
     let caldav = account.caldav.as_ref().ok_or(AccountError::NoCalDav)?;
-    let tls = account_tls()?;
+    let tls = account_tls(account)?;
     let config = CardDavConfig::new(
         // Tolerate a stored bare host the same way `connect_caldav` does, so an account
         // set up before scheme normalisation still connects.

@@ -36,7 +36,7 @@ use provider_graph::{CalendarWindow, GraphCalendarProvider, GraphClient, Mailbox
 use time::{Duration, OffsetDateTime};
 
 use super::{GraphTokenSource, calendar_date, should_reconnect};
-use crate::{AccountError, tls::account_tls};
+use crate::{AccountError, tls::tls_with};
 
 /// What a Graph series edit costs the occurrences the user changed by hand: moving the
 /// series' time **or** changing its rule destroys every one of them.
@@ -290,7 +290,7 @@ pub async fn connect_graph_calendar_providers(
     tokens: Arc<GraphTokenSource>,
     display_zone: TimeZoneId,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     let window = rolling_window()?;
     let calendars = list_calendars(account_id, &tokens, &tls, window, display_zone.clone()).await?;
     let calendar = calendars
@@ -387,7 +387,7 @@ mod tests {
             source,
             rolling_window().unwrap(),
             TimeZoneId::utc(),
-            account_tls().unwrap(),
+            tls_with(&[]).unwrap(),
         );
         // Calendar capability with a server-enforced write guard, and no mail capability.
         let info = provider.connection_info();

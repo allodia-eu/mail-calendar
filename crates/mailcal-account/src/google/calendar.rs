@@ -37,7 +37,7 @@ use provider_google::{CalendarWindow, GoogleCalendarProvider, GoogleClient};
 use time::{Duration, OffsetDateTime};
 
 use super::{calendar_date, should_reconnect};
-use crate::{AccountError, GraphTokenSource, tls::account_tls};
+use crate::{AccountError, GraphTokenSource, tls::tls_with};
 
 /// What a Google series edit costs the occurrences the user changed by hand: moving the
 /// series' time destroys them, and renaming the series renames the one they had renamed.
@@ -267,7 +267,7 @@ pub async fn connect_google_calendar_providers(
     account_id: &AccountId,
     tokens: Arc<GraphTokenSource>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     let window = rolling_window()?;
     let calendars = list_calendars(account_id, &tokens, &tls, window).await?;
     let calendar = calendars
@@ -355,7 +355,7 @@ mod tests {
             calendar.clone(),
             google_source(),
             rolling_window().unwrap(),
-            account_tls().unwrap(),
+            tls_with(&[]).unwrap(),
         );
         let info = provider.connection_info();
         assert!(info.capabilities.calendars());

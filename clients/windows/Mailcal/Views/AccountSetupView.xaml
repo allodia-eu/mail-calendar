@@ -208,6 +208,26 @@
                               Checked="OnApprovalChanged" Unchecked="OnApprovalChanged" />
                 </StackPanel>
 
+                <!-- The certificate a server offered that could not be verified, and the
+                     confirmation that unlocks Connect. Shown only once a connect has actually been
+                     refused for one, and only on the IMAP route, whose stored config is the one
+                     that can carry an exception (docs/certificate-exceptions.md). -->
+                <StackPanel x:Name="CertificatePanel" Spacing="8" Visibility="Collapsed">
+                    <TextBlock
+                        x:Name="CertificateWarning"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                    <TextBlock
+                        x:Name="CertificateClaims"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        IsTextSelectionEnabled="True"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <CheckBox x:Name="CertificateCheck" Content="{x:Bind l10n:L10n.SetupCertificateConfirm()}"
+                              Checked="OnCertificateAcceptedChanged" Unchecked="OnCertificateAcceptedChanged" />
+                </StackPanel>
+
                 <InfoBar
                     IsOpen="{x:Bind Model.HasSetupError, Mode=OneWay}"
                     IsClosable="False"

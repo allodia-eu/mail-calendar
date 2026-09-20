@@ -55,7 +55,9 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
    whole run a hard deadline (10 s), redirects a 5-hop cap, and bodies a 256 KB cap. A
    TLS/cert/transport failure (a self-signed cert, an unreachable host) is a **silent skip**,
    logged at debug, never an error the user sees, never a long hang. "Nothing found" always
-   offers manual setup.
+   offers manual setup. The **connect** that follows is a different matter: a mail server whose
+   certificate does not verify is reported with the certificate, and can be accepted
+   ([`certificate-exceptions.md`](certificate-exceptions.md)).
 
 6. **DNS is the host's job.** The core ships no DNS resolver: the MX strategy calls a
    host-provided `MxResolver` (a UniFFI callback port) so each platform's native API answers,
@@ -237,6 +239,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Google native route (consumer fast-path + Workspace-host) | ✅ | 🚧 | 🚧 | 🚧 | ✅ consumer fast-path |
 | JMAP probe · autoconfig · ISPDB | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Untrusted-settings approval gate | ✅ | ✅ | 🚧 | ✅ | ✅ |
+| Refused-certificate acceptance ([`certificate-exceptions.md`](certificate-exceptions.md)) | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | "Set up manually" escape + reason line | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | MX fallback (host DNS) | ✅ | ✅ libresolv | 🚧 DnsQuery_W | ✅ DnsResolver | ✅ GIO Resolver |
 | JMAP-SRV autodiscovery (`_jmap._tcp`) | ✅ | ✅ | 🚧 | ✅ | ✅ |
