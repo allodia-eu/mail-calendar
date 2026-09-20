@@ -49,6 +49,7 @@ mod contacts_write;
 mod default_mail_app;
 mod dispatch;
 mod display_settings;
+mod draft_ops;
 mod folder_pane;
 mod folder_pane_snapshot;
 mod form_factor;
@@ -134,6 +135,8 @@ pub use connector::MailboxConnector;
 pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;
 use display_settings::DisplaySettingsState;
+pub use draft_ops::DRAFT_AUTOSAVE_IDLE;
+use draft_ops::DraftState;
 pub use helpers::{export_file_name, forward_subject, reply_subject};
 pub use html::{Canvas, MESSAGE_CANVAS, render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
@@ -143,8 +146,9 @@ pub use mailcal_account::EventDetail;
 use mcp_settings::McpSettingsState;
 pub use prefetch::default_prefetch_size_limit;
 pub use protocol::{
-    AppObserver, BulkAction, CalendarWriteStatus, ComposerBlob, ContactWriteStatus, ContactsIntent,
-    Intent, OutboxIntent, RecipientSuggestion, SearchScope, SendStatus, StagedAttachment, Surface,
+    AppObserver, BulkAction, CalendarWriteStatus, ComposerBlob, CompositionId, ContactWriteStatus,
+    ContactsIntent, DraftStatus, DraftsIntent, Intent, OutboxIntent, RecipientSuggestion,
+    SearchScope, SendStatus, StagedAttachment, Surface,
 };
 pub use query::{MessageDetail, MessagePage};
 use quote_settings::QuoteSettingsState;
@@ -227,6 +231,15 @@ pub struct App<P> {
     reply_prompt: Mutex<Option<invitations_fallback::ReplyPrompt>>,
     /// The standing "your copy is not in Sent" question, until it is retried or dismissed.
     unfiled_copy: Mutex<Option<unfiled_copy::UnfiledCopy>>,
+    /// The open compositions: what each composer's draft is stored under, so the next save
+    /// supersedes it rather than storing a second copy (`docs/drafts.md`). Session state,
+    /// deliberately: the saved draft is on the server and a queued save is in the outbox, so
+    /// nothing here needs to survive a restart.
+    drafts: Mutex<DraftState>,
+    /// How the most recent draft save ended, surfaced via [`Surface::DraftStatus`]. Unlike
+    /// the send hint it does not auto-clear: a composer stays open across many saves, and
+    /// "saved" is the standing truth about the draft in it.
+    draft_status: Mutex<DraftStatus>,
     /// A queued send the user asked to edit, waiting for the host to open its composer.
     /// Standing, like `unfiled_copy`: the outbox no longer holds the message, so nothing
     /// else does.

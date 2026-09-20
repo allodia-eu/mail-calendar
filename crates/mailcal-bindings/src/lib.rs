@@ -64,6 +64,7 @@ mod crash;
 mod credential_log;
 pub mod credential_store;
 mod demo;
+mod drafts;
 mod error;
 mod google;
 mod jmap_oauth;

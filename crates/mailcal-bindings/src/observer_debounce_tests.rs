@@ -31,6 +31,7 @@ fn to_app(surface: Surface) -> AppSurface {
         Surface::ContactsStatus => AppSurface::ContactsStatus,
         Surface::InvitationReply => AppSurface::InvitationReply,
         Surface::UnfiledCopy => AppSurface::UnfiledCopy,
+        Surface::DraftStatus => AppSurface::DraftStatus,
     }
 }
 
