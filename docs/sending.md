@@ -108,11 +108,19 @@ it. One value per account, held by the core, put in the `From` of every send.
 3. **Empty is a real answer, and it is the first-run state.** An account with no name sends as a
    bare address. No client may substitute the address, the login, or anything derived from
    either: inventing a name puts words in the sender's mouth.
-4. **It is asked for once the account connects, never on the first screen.** The screen that
-   adds an account is the address field and nothing else
-   ([`onboarding.md`](onboarding.md)), so the ask is a step after the connection succeeds,
-   prefilled from `suggested_sender_name`. Where the provider already knows the name the user
-   confirms it rather than typing it. Skipping is one action and leaves the account nameless.
+4. **It is asked for once the account connects, never on the first screen, and only where the
+   provider does not already know the answer.** The screen that adds an account is the address
+   field and nothing else ([`onboarding.md`](onboarding.md)), so the ask is a step after the
+   connection succeeds. Every add route puts one question to the core, `needs_sender_name`,
+   and draws the step only on `true`. A provider that holds a name is already answering what
+   the step asks, so the core **adopts** it and the step is not drawn: a field arriving filled
+   in, over a name that is already this mailbox's everywhere else, asks the user to confirm
+   something they never asked to revisit. Adopting is the half a client may not skip on its own; the
+   `From` header reads the stored name, so a client that merely hid the step would leave the
+   account sending as a bare address while the provider's own client shows a name. The
+   adoption is local: the name came from the provider, and pushing it back would be a write
+   that changes nothing. Where the step is drawn, skipping is one action and leaves the
+   account nameless.
 5. **The field is never validated by a client.** The core sanitises what it is given: control
    characters become spaces, runs of whitespace collapse, the value is trimmed and capped at
    128 characters. A pasted line out of a document is a `From` header with a second header in
@@ -209,7 +217,7 @@ composer window of its own rather than dropping it. Android has no second window
 its composer is a full-screen dialog over whichever list is behind it, so the withdrawn message
 opens there and nothing of the user's is displaced.
 
-| Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup | Name in Settings | `Name <address>` in From |
+| Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup, only where the provider holds none | Name in Settings | `Name <address>` in From |
 |---|---|---|---|---|---|---|---|
 | macOS / iOS / iPadOS | ✅ banner | ✅ sheet, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
 | Android | ✅ banner | ✅ `AlertDialog`, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ field and menu items |
@@ -225,6 +233,15 @@ opens there and nothing of the user's is displaced.
 
 ## Known gaps
 
+- **A newly added Microsoft mailbox can no longer be given a local sending name.** Rule 4's
+  adoption takes any name a provider holds, a read-only one included, and rule 2 already refuses
+  to offer Settings an editor for it, so the tenant directory's name is now the only answer for
+  that account. Before the step became conditional it was the one place a Graph user could type
+  a different one, which was an accident rather than an offer: the step never consulted
+  `sender_name_editable`. Accounts that already carry a name are unaffected, since a stored name
+  outranks the provider's. Narrowing the adoption to `IdentityControls::Writable` would restore
+  it, at the cost of showing that user a step whose field is filled in with the answer they are
+  about to be told they cannot change anywhere else.
 - **An Apple row names its account only when it has nothing else to say.** `docs/folder-pane.md`
   rule 18 has every row naming the account it will go out from, because this is the one list
   holding every account's mail at once; the Apple row puts the account on the first line as a

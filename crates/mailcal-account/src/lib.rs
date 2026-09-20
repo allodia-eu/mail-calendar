@@ -60,9 +60,9 @@ use engine_core::{
 use engine_provider::{Provider, ProviderError, Watch};
 pub use event_detail::{DetailOccurrence, EventDetail, project_event_detail};
 pub use google::{
-    GoogleConfig, connect_google_calendar_providers, connect_google_folder,
-    connect_google_mail_providers, fetch_google_primary_address, google_token_source,
-    load_google_str,
+    GoogleConfig, connect_google_calendar_providers, connect_google_contact_providers,
+    connect_google_folder, connect_google_mail_providers, fetch_google_primary_address,
+    google_token_source, load_google_str,
 };
 pub use graph::{
     CredentialOrigin, GraphTokenSource, TokenSink, connect_graph_calendar_providers,

@@ -185,6 +185,26 @@ fn google_requests_the_contact_scopes_so_saved_and_directory_people_resolve() {
     assert!(GOOGLE_SCOPES.contains(&"https://www.googleapis.com/auth/directory.readonly"));
 }
 
+/// `mail.google.com` reaches `users.settings.sendAs.list` but **not** its `patch`, which
+/// Google gates behind the settings scopes. A Google account advertises a writable sender
+/// identity, so without this the name a user sets would read the aliases, fail the update,
+/// and leave the server's copy saying something else.
+///
+/// Requested now rather than when a settings feature asks for it: it is a **restricted**
+/// scope, so adding it after verification costs a second security assessment.
+#[test]
+fn google_requests_the_settings_scope_that_sendas_patch_needs() {
+    assert!(GOOGLE_SCOPES.contains(&"https://www.googleapis.com/auth/gmail.settings.basic"));
+}
+
+/// Delegation and sending as another user are the two things `gmail.settings.sharing`
+/// grants, and the app offers neither. It is restricted as well, so asking for it would
+/// widen the assessment for a capability nothing calls.
+#[test]
+fn google_does_not_request_the_sharing_settings_scope_nothing_calls() {
+    assert!(!GOOGLE_SCOPES.contains(&"https://www.googleapis.com/auth/gmail.settings.sharing"));
+}
+
 #[test]
 fn google_requests_full_gmail_and_calendar_scopes() {
     // Permanent `messages.delete` needs the full mail scope; calendar writes need the

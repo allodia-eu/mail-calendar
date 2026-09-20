@@ -246,8 +246,10 @@ impl AppModel {
         }
     }
 
-    /// Asks the provider what it already calls this person, then raises the "your name" step
-    /// seeded with the answer (`docs/sending.md`).
+    /// Raises the "your name" step, but only where the core says the account still needs a
+    /// name (`docs/sending.md`): a provider that already holds one has had it adopted, so the
+    /// step would arrive with a pre-filled answer and nothing to decide. Nothing is emitted
+    /// then, and no window opens.
     ///
     /// Off the main loop, exactly like the connect above it: an account whose provider keeps
     /// identities costs a round trip here, and this is the moment a sign-in has just returned,
@@ -257,6 +259,9 @@ impl AppModel {
             return;
         };
         std::thread::spawn(move || {
+            if !app.needs_sender_name(account.clone()) {
+                return;
+            }
             let suggestion = super::setup_widgets::sender_name_suggestion(&app, &account);
             sender.emit(AppInput::SenderNameSuggested {
                 account,

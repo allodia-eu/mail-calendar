@@ -286,6 +286,8 @@ change updates in every catalog locale.
 | The caret opens in **To**, or in the body when already addressed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | CardDAV contact sources (one adapter per address book) | ✅ | — | — | — | — | — |
 | JMAP contact sources (account-global adapter) | ✅ | — | — | — | — | — |
+| Google People contact sources (one adapter per source: connections, Other Contacts, directory) | ✅ | — | — | — | — | — |
+| Microsoft Graph contact sources | — | — | — | — | — | — |
 
 ---
 
@@ -393,20 +395,24 @@ change updates in every catalog locale.
   individual carrying an organisation, which is what its `FN` reads as. Offering the kind is a
   picker nobody has asked for yet; the engine models every kind and preserves the one a card
   already has.
-- **Microsoft Graph and Google contacts do not sync yet: the scope half is done, the binding is
-  not.** Sign-in now requests the contact scopes for both families (`provider.rs`), but the core
-  still binds no contacts adapter for either (`contact_providers: Vec::new()` on every
-  Graph/Google connect path), so nothing is read yet. The engine side is *done*: `provider-graph`
-  and `provider-google` both implement `ContactsProvider`, so what remains is purely the binding.
-  A connected account says so in the log rather than looking broken:
-  `connection_info: … account_type=graph contacts_sources=0`.
-
-  **The Google scope tier was recorded wrongly here and is worth correcting**, because it changed
-  what the work costs: Google People is *not* a restricted scope. `mail.google.com` and `calendar`
-  are restricted, and those are what tie the app to the security assessment it is already waiting
-  on; `contacts`, `contacts.other.readonly` and `directory.readonly` are **sensitive**, which is a
-  declaration, a justification and a demo video, not a second assessment. Adding them does not
-  deepen the gate the app is already behind.
+- **Microsoft Graph contacts do not sync yet: the scope half is done, the binding is not.**
+  Sign-in requests `Contacts.ReadWrite` + `User.ReadBasic.All` (`provider.rs`), but the core
+  binds no contacts adapter for a Graph account (`contact_providers: Vec::new()` on its connect
+  path), so nothing is read yet. The engine side is *done*: `provider-graph` implements
+  `ContactsProvider`, so what remains is purely the binding, and the Google one
+  (`connect_google_contact_providers`) is the shape to copy. A connected account says so in the
+  log rather than looking broken: `connection_info: … account_type=graph contacts_sources=0`.
+- **A Google account's two Workspace-only sources cost one refused call per sync pass.** Other
+  Contacts and the directory do not exist for an account with no Workspace domain behind it, and
+  People answers `403` for both; the engine turns that into an unavailable source rather than an
+  error, so a personal Gmail account reads its own connections and reports the other two empty.
+  Deliberately not pre-empted: nothing in an address tells us whether it is a Workspace account,
+  so the alternative is guessing, and a wrong guess hides a corporate directory rather than
+  costing a request.
+- **Contact groups are the one People source the app does not bind.** `provider-google` can read
+  them, but the view-model filters group cards out of the people list (below), so binding them
+  would spend a sync pass per account producing rows nothing draws. Binding it is one entry in
+  `BOUND_SOURCES` once groups are shown.
 - **A JMAP account signed in with OAuth now asks for contacts too.** `WANTED_CAPABILITIES` used to
   omit the `contacts` scope, so the token was never granted it and the card sync was refused: a
   logged, tolerated skip, but one that left Fastmail-over-OAuth showing an empty Contacts list

@@ -165,3 +165,128 @@ async fn removing_an_account_forgets_the_name_it_sent_under() {
         None
     );
 }
+
+/// A provider that reports one send-as identity, so the setup flow's "does this account still
+/// need a name" question has a server answer to read. `name` is the display name the server
+/// holds; `None` is a provider that knows the address and no name for it.
+#[derive(Debug)]
+struct IdentityProvider {
+    name: Option<String>,
+}
+
+#[async_trait::async_trait]
+impl engine_provider::Provider for IdentityProvider {
+    fn connection_info(&self) -> engine_provider::ConnectionInfo {
+        engine_provider::ConnectionInfo::new(
+            engine_provider::Capabilities::none()
+                .with_mail()
+                .with_sender_identities(engine_provider::IdentityControls::Writable),
+        )
+    }
+
+    async fn sender_identities(
+        &self,
+        _account: &AccountId,
+    ) -> engine_provider::ProviderResult<Vec<engine_provider::SenderIdentity>> {
+        let mut address = EmailAddress::new("me@allodia.local");
+        address.name = self.name.clone();
+        Ok(vec![engine_provider::SenderIdentity::new(
+            engine_provider::SenderIdentityId::new("send-as-1"),
+            address,
+        )])
+    }
+}
+
+impl engine_provider::CalendarWrites for IdentityProvider {}
+
+/// A one-account app whose provider holds `name` as the server's own display name.
+fn app_with_identity(
+    name: Option<&str>,
+    prefs_path: std::path::PathBuf,
+) -> Arc<App<IdentityProvider>> {
+    Arc::new(App::new(
+        Engine::open_in_memory().unwrap(),
+        vec![Account {
+            id: AccountId::try_from("acct-1").unwrap(),
+            providers: vec![IdentityProvider {
+                name: name.map(str::to_owned),
+            }],
+            calendar_providers: Vec::new(),
+            contact_providers: Vec::new(),
+            identity: EmailAddress::new("me@allodia.local"),
+        }],
+        TimeZoneInit {
+            device_zone: TimeZoneId::utc(),
+            prefs_path: Some(prefs_path),
+        },
+        None,
+        Arc::new(SilentObserver),
+        Telemetry::off(None),
+    ))
+}
+
+#[tokio::test]
+async fn a_name_the_provider_already_holds_is_adopted_and_not_asked_for() {
+    // The step the user would have seen here has a pre-filled answer and nothing to decide.
+    // Adopting rather than merely skipping is the half that matters: the `From` reads the
+    // stored name, so a skip that stored nothing sends as a bare address while Gmail's own
+    // client shows a name.
+    let app = app_with_identity(Some("Ada Lovelace"), scratch_prefs("adopt"));
+    let account = AccountId::try_from("acct-1").unwrap();
+
+    assert!(!app.needs_sender_name(&account).await);
+    assert_eq!(app.mailbox_list().accounts[0].name, "Ada Lovelace");
+}
+
+#[tokio::test]
+async fn a_provider_holding_no_name_is_still_asked() {
+    // The ordinary IMAP case, and the one the step exists for.
+    let app = app_with_identity(None, scratch_prefs("ask"));
+    let account = AccountId::try_from("acct-1").unwrap();
+
+    assert!(app.needs_sender_name(&account).await);
+    assert_eq!(
+        app.sender_name("acct-1"),
+        None,
+        "asking is not the same as storing an empty name"
+    );
+}
+
+#[tokio::test]
+async fn a_provider_name_of_nothing_but_control_characters_is_not_a_name() {
+    // Sanitising decides what a name is, so a server answer that survives as empty leaves
+    // the account in the state that still needs asking rather than in a named one.
+    let app = app_with_identity(Some("\u{7}\u{7}"), scratch_prefs("blank"));
+    let account = AccountId::try_from("acct-1").unwrap();
+
+    assert!(app.needs_sender_name(&account).await);
+}
+
+#[tokio::test]
+async fn a_name_the_user_already_set_is_never_replaced_by_the_provider_s() {
+    // The user's own answer outranks the server's, and the question is not asked again.
+    let app = app_with_identity(Some("Directory Name"), scratch_prefs("prefer-stored"));
+    let account = AccountId::try_from("acct-1").unwrap();
+    app.set_account_sender_name("acct-1", "Ada Lovelace").await;
+
+    assert!(!app.needs_sender_name(&account).await);
+    assert_eq!(app.mailbox_list().accounts[0].name, "Ada Lovelace");
+}
+
+#[tokio::test]
+async fn a_suggestion_is_sanitised_before_it_reaches_the_field() {
+    // The provider's answer is offered, not only stored, so it passes the same rule: a field
+    // prefilled with control characters shows a name that sanitises back to nothing on save.
+    let app = app_with_identity(
+        Some("Ada\r\nBcc: eve@example.com"),
+        scratch_prefs("suggest"),
+    );
+    let account = AccountId::try_from("acct-1").unwrap();
+
+    let suggestion = app.suggested_sender_name(&account).await;
+
+    assert!(
+        !suggestion.contains('\r') && !suggestion.contains('\n'),
+        "{suggestion:?}"
+    );
+}

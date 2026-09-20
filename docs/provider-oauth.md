@@ -469,11 +469,18 @@ autodetection. It reuses the whole state machine above; the deltas are:
   refresh token only with `access_type=offline`, and re-prompting consent on every authorisation
   guarantees one comes back even for an already-consented account. The core still treats a
   completed sign-in with no refresh token as an error.
-- **Full scopes: `https://mail.google.com/` + `https://www.googleapis.com/auth/calendar`.** The
-  full-mail scope is required for send and permanent-delete; the calendar scope is granted **in
-  the same consent**, so there is **no calendar-reauth step** for Google: the reconnect-for-
-  calendar banner stays Microsoft-only. (Microsoft grants Mail and Calendars.ReadWrite together
-  too, but its calendar arrived later behind a scope-upgrade reconnect; Google ships both at once.)
+- **Six scopes, all granted in one consent** (`GOOGLE_SCOPES` in `provider.rs`, which carries the
+  reasoning per scope): `https://mail.google.com/` for mail, `gmail.settings.basic` for the
+  send-as alias a sender name is written to, `calendar` for the agenda, and `contacts` +
+  `contacts.other.readonly` + `directory.readonly` for the three People sources. Because the
+  calendar and contact scopes arrive **in the same consent** as mail, there is **no
+  calendar-reauth step** for Google: the reconnect-for-calendar banner stays Microsoft-only.
+  (Microsoft grants Mail and Calendars.ReadWrite together too, but its calendar arrived later
+  behind a scope-upgrade reconnect; Google ships both at once.) Two traps sit in that set. The
+  full-mail scope is what grants **permanent delete**, which no narrower `gmail.*` scope does.
+  And `mail.google.com` reaches `users.settings.sendAs.list` but **not** its `patch`, which is
+  why the settings scope is listed separately: without it the sender name a user sets would
+  read the account's aliases and then fail to update the one it found.
 - **Redirect differs by client type (rule 3).** **iOS/iPadOS and Android** register a Google
   **iOS/Android client**, whose redirect is the **reversed-client-id custom scheme**
   `com.googleusercontent.apps.<CLIENT_ID>:/oauth2redirect`, where `<CLIENT_ID>` is the **whole**
@@ -677,6 +684,16 @@ the doctrine's "provider sync" language for *account connection* specifically.)
   the account's `\All` mailbox (`resolve_move_target`) and the engine turns a move there into a
   label removal that adds nothing. Without both halves archive is a silent no-op: the row leaves
   the list optimistically and comes straight back.
+- **A Google account connected before `gmail.settings.basic` never asks for it.** Scopes are
+  granted by incremental consent, and a refresh re-uses the grant the account was connected
+  under, so an existing account keeps a token without the settings scope. Nothing detects that:
+  the re-consent prompt (rule 11) is Graph's, and Google's own reconnect banner is raised by a
+  **dead** grant, which this is not: the token still works for everything else. So that account's
+  sender-name push keeps failing its `sendAs.patch`, silently, since the push is best-effort and
+  the local name is what reaches the wire either way. It clears on the next reconnect for any
+  reason. Not worth a detector while the app is Early-Access only and every Google account is
+  days old; if one is wanted, the cheap probe is a `sendAs.list` at connect, which the scope
+  already grants.
 - **The mail write/send re-consent prompt is reactive, not proactive.** A Graph account missing
   `Mail.ReadWrite`/`Mail.Send` (connected before those scopes, or consent revoked server-side) is
   now caught and prompted (see rule 11) but, unlike the calendar scope's **boot-time probe**,

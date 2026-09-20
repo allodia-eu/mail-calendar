@@ -17,13 +17,20 @@ public sealed partial class MainWindow
     /// over the first: WinUI throws on that, and <see cref="DialogHelper"/> would swallow the
     /// show and leave the account unasked with nothing on screen to say so.
     ///
-    /// The suggestion is a provider round trip, awaited off the UI thread. A provider that is
+    /// Nothing is shown where the provider already holds a name: the core adopts it, so the
+    /// dialog would arrive with a pre-filled answer and nothing to decide.
+    ///
+    /// Both reads are provider round trips, awaited off the UI thread. A provider that is
     /// slow, unreachable, or short the scope its settings API needs answers empty, which is the
     /// ordinary IMAP case and means <em>ask</em>.
     /// </remarks>
     private async Task AskSenderNameAsync(string account)
     {
         Model.SenderNamePrompt = null;
+        if (!await Model.NeedsSenderNameAsync(account))
+        {
+            return;
+        }
         var suggestion = await Model.SuggestedSenderNameAsync(account);
         var name = await SenderNameDialog.AskAsync(Content.XamlRoot, suggestion);
         if (name is null)

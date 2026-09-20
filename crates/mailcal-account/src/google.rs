@@ -31,10 +31,12 @@ use time::Date;
 
 mod calendar;
 mod config;
+mod contacts;
 mod mail_provider;
 
 pub use calendar::connect_google_calendar_providers;
 pub use config::{GoogleConfig, fetch_google_primary_address, load_google_str};
+pub use contacts::connect_google_contact_providers;
 
 use crate::{AccountError, GraphTokenSource, TokenSink, throttle::account_retry, tls::account_tls};
 

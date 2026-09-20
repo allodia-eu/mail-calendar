@@ -39,6 +39,10 @@ impl<P: Provider> App<P> {
     /// Empty when neither exists, which is the ordinary IMAP case and means "ask". Asked
     /// for once, by the screen that offers the field, so a provider that is slow or
     /// unreachable costs that screen and nothing else.
+    ///
+    /// The provider's answer is **sanitised before it is offered**, by the same rule that
+    /// governs storing one: a server may hold anything, and a field prefilled with control
+    /// characters shows the user a name that sanitises back to nothing the moment they save it.
     pub async fn suggested_sender_name(&self, account: &AccountId) -> String {
         if let Some(stored) = self.sender_name(account.as_str()) {
             return stored;
@@ -46,7 +50,47 @@ impl<P: Provider> App<P> {
         self.provider_sender_identity(account)
             .await
             .and_then(|identity| identity.address.name)
+            .map(|name| mailcal_account::sanitize_sender_name(&name))
             .unwrap_or_default()
+    }
+
+    /// Whether the setup flow still has to ask for `account`'s sender name, **adopting** the
+    /// provider's own name first where there is one.
+    ///
+    /// A provider that already holds a name is already answering the question the step asks,
+    /// so the step would arrive with a pre-filled answer and nothing to decide. What the flow
+    /// may not do is skip it and store nothing, because the `From` header reads the stored
+    /// name and the account would then send as a bare address while the provider's own client
+    /// shows a name. So the answer is adopted here, on the one path that asks the question,
+    /// rather than left to four clients to remember.
+    ///
+    /// **A read-only name is adopted too**, and that is a decision rather than an oversight.
+    /// A Microsoft mailbox's name is the tenant directory's, not the account holder's, so it
+    /// is not a name they chose; but it *is* the one every other client of that mailbox shows,
+    /// and `sender_name_editable` already refuses to offer an editor for it. Adopting it keeps
+    /// one answer on screen instead of two. The cost is under "Known gaps" in
+    /// [`docs/sending.md`](../../../docs/sending.md).
+    ///
+    /// The adoption is **local only**: the name came from the provider, so pushing it back
+    /// would be a write that changes nothing, and on Gmail a settings write per account added.
+    ///
+    /// ⚠️ Talks to the provider, like [`App::suggested_sender_name`], and is asked once, by
+    /// the flow that adds an account.
+    pub async fn needs_sender_name(&self, account: &AccountId) -> bool {
+        if self.sender_name(account.as_str()).is_some() {
+            return false;
+        }
+        let provider_name = self
+            .provider_sender_identity(account)
+            .await
+            .and_then(|identity| identity.address.name);
+        let Some(name) = provider_name else {
+            return true;
+        };
+        // Sanitising decides whether that was a name, not a trim here: one of nothing but
+        // control characters stores as empty, and storing empty is the same state as never
+        // having asked.
+        !self.adopt_sender_name(account.as_str(), &name).await
     }
 
     /// Pushes `account`'s stored name to a provider that lets the account holder set it.
