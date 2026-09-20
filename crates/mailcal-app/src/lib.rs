@@ -232,14 +232,10 @@ pub struct App<P> {
     /// The standing "your copy is not in Sent" question, until it is retried or dismissed.
     unfiled_copy: Mutex<Option<unfiled_copy::UnfiledCopy>>,
     /// The open compositions: what each composer's draft is stored under, so the next save
-    /// supersedes it rather than storing a second copy (`docs/drafts.md`). Session state,
-    /// deliberately: the saved draft is on the server and a queued save is in the outbox, so
-    /// nothing here needs to survive a restart.
+    /// supersedes it rather than storing a second copy, plus each one's save hint
+    /// (`docs/drafts.md`). Session state, deliberately: the saved draft is on the server and
+    /// a queued save is in the outbox, so nothing here needs to survive a restart.
     drafts: Mutex<DraftState>,
-    /// How the most recent draft save ended, surfaced via [`Surface::DraftStatus`]. Unlike
-    /// the send hint it does not auto-clear: a composer stays open across many saves, and
-    /// "saved" is the standing truth about the draft in it.
-    draft_status: Mutex<DraftStatus>,
     /// A queued send the user asked to edit, waiting for the host to open its composer.
     /// Standing, like `unfiled_copy`: the outbox no longer holds the message, so nothing
     /// else does.

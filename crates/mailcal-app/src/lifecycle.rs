@@ -18,8 +18,8 @@ use mailcal_viewmodel::ContactsSnapshot;
 use tokio::sync::{RwLock, watch};
 
 use crate::{
-    Account, App, AppObserver, CalendarWriteStatus, ContactWriteStatus, DraftStatus,
-    MailboxConnector, PAGE, Surface, Telemetry, TimeZoneInit,
+    Account, App, AppObserver, CalendarWriteStatus, ContactWriteStatus, MailboxConnector, PAGE,
+    Surface, Telemetry, TimeZoneInit,
     background_sync::NotifyMarksState,
     calendar_cache,
     calendar_prefs::CalendarPrefsState,
@@ -93,7 +93,6 @@ impl<P: Provider> App<P> {
             contacts_generation: AtomicU64::new(0),
             reading: SurfacedMap::new(Surface::Reading, Arc::clone(&observer)),
             drafts: Mutex::new(DraftState::default()),
-            draft_status: Mutex::new(DraftStatus::default()),
             reply_prompt: Mutex::new(None),
             unfiled_copy: Mutex::new(None),
             compose_request: Mutex::new(None),

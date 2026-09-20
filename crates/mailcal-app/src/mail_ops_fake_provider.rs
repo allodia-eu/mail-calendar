@@ -43,6 +43,13 @@ pub(super) struct SubmitProvider {
     draft_deletes: Arc<Mutex<Vec<ProviderKey>>>,
     /// Draft saves left to refuse as retryable, as `offline_sends` does for sends.
     offline_saves: Arc<Mutex<u32>>,
+    /// How many saves succeed before the network goes, when it goes that way round. `None`
+    /// leaves the provider on whatever `offline_saves` says.
+    saves_before_outage: Arc<Mutex<Option<u32>>>,
+    /// When set, `put_draft` records that it was entered and then parks until it is
+    /// notified: the seam a test needs to hold one save open and start a second while it is
+    /// in flight, which is the only way to observe whether the two overlap.
+    save_gate: Option<Arc<Notify>>,
 }
 
 impl SubmitProvider {
@@ -59,6 +66,8 @@ impl SubmitProvider {
             draft_puts: Arc::new(Mutex::new(Vec::new())),
             draft_deletes: Arc::new(Mutex::new(Vec::new())),
             offline_saves: Arc::new(Mutex::new(0)),
+            saves_before_outage: Arc::new(Mutex::new(None)),
+            save_gate: None,
         }
     }
 
@@ -67,6 +76,25 @@ impl SubmitProvider {
         let provider = Self::new();
         *provider.offline_saves.lock().unwrap() = saves;
         provider
+    }
+
+    /// A provider whose first `saves` draft saves land and whose every save after that fails
+    /// retryably: a composer that saved, then lost the network. The other way round from
+    /// [`Self::saving_nothing_for`], and the only shape that can leave a composition holding
+    /// both a recorded digest and a queued op.
+    pub(super) fn saving_nothing_after(saves: u32) -> Self {
+        let provider = Self::new();
+        *provider.saves_before_outage.lock().unwrap() = Some(saves);
+        provider
+    }
+
+    /// A provider whose draft saves park in `put_draft` until `gate` is notified, after
+    /// recording that they got that far.
+    pub(super) fn saving_until(gate: &Arc<Notify>) -> Self {
+        Self {
+            save_gate: Some(Arc::clone(gate)),
+            ..Self::new()
+        }
     }
 
     /// A provider with no network at all: every send fails retryably, so every message
@@ -182,9 +210,27 @@ impl Provider for SubmitProvider {
                 return Err(ProviderError::retryable("no route to host"));
             }
         }
-        let mut puts = self.draft_puts.lock().unwrap();
-        puts.push((draft.clone(), replacing.cloned()));
-        Ok(ProviderKey::new(format!("draft-{}", puts.len())).unwrap())
+        {
+            let mut remaining = self.saves_before_outage.lock().unwrap();
+            if let Some(left) = remaining.as_mut() {
+                if *left == 0 {
+                    return Err(ProviderError::retryable("no route to host"));
+                }
+                *left -= 1;
+            }
+        }
+        // Recorded on the way in, not on the way out, so the log counts saves that *entered*
+        // the provider. That is what makes an overlap visible: two saves in flight at once
+        // show as two rows while both are still parked on the gate.
+        let key = {
+            let mut puts = self.draft_puts.lock().unwrap();
+            puts.push((draft.clone(), replacing.cloned()));
+            ProviderKey::new(format!("draft-{}", puts.len())).unwrap()
+        };
+        if let Some(gate) = &self.save_gate {
+            gate.notified().await;
+        }
+        Ok(key)
     }
 
     async fn delete_draft(&self, _account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {

@@ -14,12 +14,14 @@
 use core::time::Duration;
 use std::{
     collections::HashMap,
-    hash::{DefaultHasher, Hash, Hasher},
+    hash::{DefaultHasher, Hasher},
+    io,
+    sync::Arc,
 };
 
 use engine_api::{
     AccountId, Draft, DraftPut, DrainOutcome, DrainReport, EmailAddress, MessageIdHeader,
-    PendingOpId, PendingOpKind, Provider, ProviderKey,
+    OpRejection, PendingOpId, PendingOpKind, Provider, ProviderKey,
 };
 use mailcal_composer::ComposerDocument;
 
@@ -64,6 +66,29 @@ struct Composition {
 #[derive(Default)]
 pub(crate) struct DraftState {
     open: HashMap<CompositionId, Composition>,
+    /// How each composition's most recent save ended.
+    ///
+    /// Its own map rather than a field on [`Composition`], because a save can fail before
+    /// there is anything to record it against: no account to save to, or nothing to render.
+    ///
+    /// Per composition, not one slot for the app, on the rule the reading windows follow
+    /// (`docs/reading-window.md`): a desktop has several composers open and each is saving a
+    /// different draft, so one slot would have the composer nobody touched announce that the
+    /// one beside it had saved.
+    status: HashMap<CompositionId, DraftStatus>,
+    /// Held for the length of a save, so the read of the stored key and the write of the new
+    /// one cannot be split by another save.
+    ///
+    /// A composer has two triggers, the idle timer and the Save button, and nothing stops
+    /// both firing; each intent is its own task. The second reads `replacing` before the
+    /// first has recorded what it stored, so it supersedes nothing and the server is left
+    /// holding two copies of the message still being written.
+    ///
+    /// **The engine already stops the two provider calls overlapping**: both saves of one
+    /// composition share a resource key, and an op leases it. That is what makes the failure
+    /// quiet rather than a visible error. It does nothing for the stale read, which happens
+    /// here, before the engine is asked anything.
+    save: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl<P: Provider> App<P> {
@@ -88,13 +113,20 @@ impl<P: Provider> App<P> {
         }
     }
 
-    /// The most recent save's state, for the composer's quiet hint.
+    /// How `composition`'s most recent save ended, for its composer's quiet hint.
+    ///
+    /// A [`Surface::DraftStatus`] signal says that *some* composition's save moved, not
+    /// which, so every open composer re-pulls its own. One that has saved nothing yet, and
+    /// one that has closed, both read [`DraftStatus::Idle`]: never another composer's state.
     #[must_use]
-    pub fn draft_status(&self) -> DraftStatus {
-        *self
-            .draft_status
+    pub fn draft_status(&self, composition: &CompositionId) -> DraftStatus {
+        self.drafts
             .lock()
-            .expect("draft-status mutex poisoned")
+            .expect("drafts mutex poisoned")
+            .status
+            .get(composition)
+            .copied()
+            .unwrap_or_default()
     }
 
     /// Stores the composer's content in the account's Drafts folder, replacing what this
@@ -111,41 +143,44 @@ impl<P: Provider> App<P> {
         document: ComposerDocument,
         blobs: Vec<ComposerBlob>,
     ) {
+        // One save at a time: see `DraftState::save`.
+        let gate = Arc::clone(&self.drafts.lock().expect("drafts mutex poisoned").save);
+        let _saving = gate.lock().await;
         // An account already carrying this draft wins over the composer's dropdown: see
         // `Composition::account`.
         let account = match self.composition_account(&composition) {
             Some(account) => account,
             None => match from.or(self.compose_account().await) {
                 Some(account) => account,
-                None => return self.fail_draft("no account to save a draft to"),
+                None => return self.fail_draft(&composition, "no account to save a draft to"),
             },
         };
         let Some(identity) = self.account_identity(&account).await else {
-            return self.fail_draft("the account to save to is not configured");
+            return self.fail_draft(&composition, "the account to save to is not configured");
         };
         let message_id = self.composition_message_id(&composition, &account);
         let Some(message_id) = message_id else {
-            return self.fail_draft("could not mint a Message-ID for the draft");
+            return self.fail_draft(&composition, "could not mint a Message-ID for the draft");
         };
         let Some(draft) = build(
             message_id, &identity, &to, &cc, &bcc, subject, document, blobs,
         ) else {
-            return self.fail_draft("the draft could not be rendered");
+            return self.fail_draft(&composition, "the draft could not be rendered");
         };
 
         // Nothing changed since the last save, so there is nothing to write. Still "saved":
         // what the user asked to keep is on the server (`docs/drafts.md`).
         let digest = digest(&draft);
         if self.already_saved(&composition, digest) {
-            return self.set_draft_status(DraftStatus::Saved);
+            return self.set_draft_status(&composition, DraftStatus::Saved);
         }
 
-        self.set_draft_status(DraftStatus::Saving);
+        self.set_draft_status(&composition, DraftStatus::Saving);
         let replacing = self.composition_key(&composition);
         match self.put_draft(&account, &draft, replacing.as_ref()).await {
             Some(Ok(key)) => {
                 self.record_save(&composition, key, digest);
-                self.set_draft_status(DraftStatus::Saved);
+                self.set_draft_status(&composition, DraftStatus::Saved);
                 // So the Drafts folder shows what was just put in it.
                 self.refresh_after_write(&account).await;
             }
@@ -157,23 +192,50 @@ impl<P: Provider> App<P> {
                 if let Some(op) = self.queued_save(&account, &draft).await {
                     log::info!("drafts: the save is queued until there is a network: {err}");
                     self.record_queued(&composition, op);
-                    self.set_draft_status(DraftStatus::Queued);
+                    self.set_draft_status(&composition, DraftStatus::Queued);
                 } else {
                     log::warn!("drafts: the save failed: {err}");
-                    self.set_draft_status(DraftStatus::Failed);
+                    self.set_draft_status(&composition, DraftStatus::Failed);
                 }
             }
-            None => self.fail_draft("the account has no provider to save through"),
+            None => self.fail_draft(&composition, "the account has no provider to save through"),
         }
     }
 
     /// Removes this composition's stored draft and forgets the composition.
     async fn discard_draft(&self, composition: &CompositionId) {
-        let Some((account, key)) = self.forget(composition) else {
+        let Some(Composition {
+            account,
+            key,
+            queued,
+            ..
+        }) = self.forget(composition)
+        else {
             // Either an unknown composition or one never saved. Nothing is on the server,
             // so discarding it is already done.
             return;
         };
+        // A save still waiting for a network would otherwise store the discarded message
+        // after the composer is gone, leaving a draft nothing here can name any more.
+        // Withdrawing it can be refused (it may already be in flight); the delete below
+        // then has the key, or the next drain stores a copy nobody asked for.
+        if let Some(op) = queued {
+            match self.engine.cancel_pending_op(&account, op).await {
+                Ok(None) => log::info!("drafts: a queued save was withdrawn before it went out"),
+                Ok(Some(refusal)) => {
+                    // Said in words rather than as the rejection's own name: a log line is
+                    // product surface and carries no internal jargon (`docs/logging.md`).
+                    let reason = match refusal {
+                        OpRejection::Unknown => "it is no longer queued",
+                        OpRejection::Settled => "it has already been stored",
+                        OpRejection::InFlight => "it is being stored right now",
+                        OpRejection::AwaitingConfirmation => "it may already have been stored",
+                    };
+                    log::info!("drafts: could not withdraw the queued save: {reason}");
+                }
+                Err(err) => log::warn!("drafts: withdrawing the queued save failed: {err}"),
+            }
+        }
         let Some(key) = key else { return };
         let Some(acct) = self.account_handle(&account).await else {
             return;
@@ -301,13 +363,18 @@ impl<P: Provider> App<P> {
     }
 
     /// Whether the last save put exactly this content on the server.
+    ///
+    /// A composition with a save still queued never matches, whatever the digest says: the
+    /// queued op carries later words, so the content on the server is about to change under
+    /// this one. Answering "saved" there would leave the user told their edit is stored
+    /// while the drain is on its way to overwrite it with the version they undid.
     fn already_saved(&self, composition: &CompositionId, digest: u64) -> bool {
         self.drafts
             .lock()
             .expect("drafts mutex poisoned")
             .open
             .get(composition)
-            .is_some_and(|open| open.saved == Some(digest))
+            .is_some_and(|open| open.queued.is_none() && open.saved == Some(digest))
     }
 
     /// Records what the save stored, and under which key.
@@ -338,20 +405,20 @@ impl<P: Provider> App<P> {
         }
     }
 
-    /// Drops the composition, answering with the account and stored key it had.
-    fn forget(&self, composition: &CompositionId) -> Option<(AccountId, Option<ProviderKey>)> {
-        self.drafts
-            .lock()
-            .expect("drafts mutex poisoned")
-            .open
-            .remove(composition)
-            .map(|open| (open.account, open.key))
+    /// Drops the composition and its hint, answering with what was known about it.
+    ///
+    /// The hint goes with it: a host that reuses a composition id must not open a fresh
+    /// composer already saying the last one had saved.
+    fn forget(&self, composition: &CompositionId) -> Option<Composition> {
+        let mut state = self.drafts.lock().expect("drafts mutex poisoned");
+        state.status.remove(composition);
+        state.open.remove(composition)
     }
 
     /// Reports a save that never reached a provider call.
-    fn fail_draft(&self, reason: &str) {
+    fn fail_draft(&self, composition: &CompositionId, reason: &str) {
         log::warn!("drafts: {reason}");
-        self.set_draft_status(DraftStatus::Failed);
+        self.set_draft_status(composition, DraftStatus::Failed);
     }
 
     /// Publishes the draft-save hint.
@@ -360,11 +427,12 @@ impl<P: Provider> App<P> {
     /// saves, and "saved" is the standing truth about the draft in it until the next save
     /// changes it; blanking it after a couple of seconds would leave the composer saying
     /// nothing about a draft that is safely on the server.
-    fn set_draft_status(&self, status: DraftStatus) {
-        *self
-            .draft_status
+    fn set_draft_status(&self, composition: &CompositionId, status: DraftStatus) {
+        self.drafts
             .lock()
-            .expect("draft-status mutex poisoned") = status;
+            .expect("drafts mutex poisoned")
+            .status
+            .insert(composition.clone(), status);
         self.observer.surface_changed(Surface::DraftStatus);
     }
 }
@@ -403,10 +471,28 @@ fn build(
 /// Over the serialized draft rather than a chosen subset of its fields: a subset is a list
 /// that goes stale the moment the draft grows a field, and the failure is silent, an edit the
 /// user made that never leaves the device.
+///
+/// Streamed into the hasher rather than serialized to a buffer first. A draft carries its
+/// attachments' bytes, and JSON writes each byte as a decimal number, so buffering a message
+/// with a 20 MB file costs some 70 MB of allocation on every idle save.
 fn digest(draft: &Draft) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    serde_json::to_vec(draft)
-        .unwrap_or_default()
-        .hash(&mut hasher);
-    hasher.finish()
+    let mut sink = HashSink(DefaultHasher::new());
+    if serde_json::to_writer(&mut sink, draft).is_err() {
+        return 0;
+    }
+    sink.0.finish()
+}
+
+/// An [`io::Write`] that hashes what is written to it and keeps none of it.
+struct HashSink(DefaultHasher);
+
+impl io::Write for HashSink {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }

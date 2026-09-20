@@ -136,10 +136,17 @@ impl MailcalApp {
         Ok(())
     }
 
-    /// How the most recent draft save ended.
-    #[must_use]
-    pub fn draft_status(&self) -> DraftStatus {
-        self.app.draft_status().into()
+    /// How `composition`'s most recent save ended.
+    ///
+    /// A `Surface::DraftStatus` signal says that *some* composition's save moved, not which,
+    /// so every open composer re-pulls its own. One that has saved nothing yet, and one that
+    /// has closed, both read `Idle`: never another composer's state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Engine`] if `composition` is blank.
+    pub fn draft_status(&self, composition: String) -> Result<DraftStatus, MailcalError> {
+        Ok(self.app.draft_status(&composition_id(composition)?).into())
     }
 }
 

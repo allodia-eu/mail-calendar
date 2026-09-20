@@ -58,11 +58,32 @@ The interval is the core's constant, read by every client, so the four cannot di
 
 **An unchanged draft costs no write.** The core compares what it is given against what it last
 put on the server and returns without calling the provider when they match. Pressing "Save as
-draft" twice, or an idle timer firing on a composer nobody touched, reaches no server.
+draft" twice, or an idle timer firing on a composer nobody touched, reaches no server. A
+composition with a save still queued never matches: the drain is on its way to change what the
+server holds, so nothing there is settled enough to compare against.
+
+**Two saves of one composition never overlap.** A composer has two triggers, the idle timer and
+the Save button, and nothing stops both firing. Each save reads the stored key before it writes,
+so the second would read it before the first had recorded one, put with nothing to replace, and
+leave the server holding two copies of the message still being written. The core serialises
+them.
+
+The engine keeps the two provider calls themselves from overlapping, because both saves of one
+composition share a resource key and an op leases it. That covers the round trips and nothing
+else: the stale read happens here, before the engine is asked anything, which is why this
+failure would have been quiet rather than an error.
 
 **Saving is never something the user waits for.** It has no modal, no blocking spinner and no
 error the composer refuses to be dismissed over. `DraftStatus` is a hint, on the same footing as
 the sending hint.
+
+**The hint belongs to one composer, not to the app.** A `Surface::DraftStatus` signal says that
+some composition's save moved, not which, so every open composer re-pulls its own by naming its
+composition. One that has saved nothing yet, and one that has closed, both read `Idle`: never
+the state of the composer beside it. This is the rule the reading windows follow
+([`reading-window.md`](reading-window.md)), and it binds for the same reason: a desktop opens a
+reply in a window of its own, so two composers saving different drafts is the ordinary case, not
+an edge.
 
 ## The draft is never in three places
 
@@ -90,6 +111,12 @@ as done rather than failing, so a discard retried after a lost response does not
 Discarding a composition that was never saved reaches no server: there is nothing there to
 remove.
 
+**A discard withdraws a save still waiting for a network.** The queued op is a copy of the
+message too, and the composer it belonged to is gone: left in the outbox it drains after the
+discard and stores the draft the user threw away, under a key nothing holds any more. A
+withdrawal can be refused, because an op mid-round-trip cannot be called back; that is logged
+and the removal below runs on whatever key the composition had.
+
 ## Per-platform
 
 | | Apple | Windows | Android | Linux |
@@ -116,3 +143,8 @@ remove.
   but a user who closes the composer has nowhere to look.
 - **Nothing removes the stored draft when the message is sent.** A draft that is composed, saved
   and then sent leaves its copy in Drafts beside the sent message.
+- **A discard racing a save that is mid-round-trip can leave a copy behind.** Withdrawing is
+  refused for an op already in flight, and that op then stores the draft under a key minted
+  after the removal has run, so the removal cannot have named it. The window is one round trip
+  wide and the result is a stray draft rather than a lost one, which is why it is recorded here
+  rather than closed by holding the discard until the save lands.

@@ -8,8 +8,11 @@
 //! A child of [`super`] (the send tests), reusing its `SubmitProvider` and app builders; its
 //! own file to keep each test module under the 500-line limit.
 
+use std::sync::Arc;
+
 use engine_api::ProviderKey;
 use mailcal_composer::{Block, ComposerDocument, InlineContent, Paragraph, TextRun};
+use tokio::sync::Notify;
 
 use super::{SubmitProvider, app_over};
 use crate::{CompositionId, DraftStatus, DraftsIntent, Intent};
@@ -76,7 +79,10 @@ async fn a_re_save_names_the_copy_it_supersedes() {
         Some(ProviderKey::new("draft-1").unwrap()),
         "the second save must name what the first one stored, or the server keeps both"
     );
-    assert_eq!(app.draft_status(), DraftStatus::Saved);
+    assert_eq!(
+        app.draft_status(&composition("compose-1")),
+        DraftStatus::Saved
+    );
 }
 
 /// A save whose content is unchanged reaches no server, and is still honestly "saved".
@@ -95,7 +101,7 @@ async fn an_unchanged_save_reaches_no_server() {
         "an idle timer firing on a composer nobody touched must not write"
     );
     assert_eq!(
-        app.draft_status(),
+        app.draft_status(&composition("compose-1")),
         DraftStatus::Saved,
         "the words are on the server, which is what the composer should say"
     );
@@ -114,7 +120,10 @@ async fn a_save_with_no_network_is_queued_rather_than_failed() {
     app.dispatch(save("compose-1", "on a train")).await;
 
     assert!(puts.lock().unwrap().is_empty(), "the save had no network");
-    assert_eq!(app.draft_status(), DraftStatus::Queued);
+    assert_eq!(
+        app.draft_status(&composition("compose-1")),
+        DraftStatus::Queued
+    );
 }
 
 /// Two composers open at once save to their own stored copies.
@@ -163,6 +172,88 @@ async fn a_discard_removes_the_stored_copy() {
         *deletes.lock().unwrap(),
         vec![ProviderKey::new("draft-2").unwrap()],
         "the removal must name the copy that is actually there, which the last save moved"
+    );
+}
+
+/// Discarding withdraws a save that is still waiting for a network.
+///
+/// The queued op is the one copy of the message the composer is gone from. Left in the outbox
+/// it drains after the discard and stores the very draft the user threw away, under a key no
+/// composition holds any more, so nothing will ever remove it.
+#[tokio::test]
+async fn a_discard_withdraws_a_save_still_waiting_for_a_network() {
+    let provider = SubmitProvider::saving_nothing_for(1);
+    let puts = provider.draft_puts();
+    let app = app_over(provider);
+
+    app.dispatch(Intent::ReportNetworkReachable(false)).await;
+    app.dispatch(save("compose-1", "forget it")).await;
+    assert_eq!(
+        app.draft_status(&composition("compose-1")),
+        DraftStatus::Queued
+    );
+
+    app.dispatch(Intent::Drafts(DraftsIntent::Discard {
+        composition: composition("compose-1"),
+    }))
+    .await;
+    app.dispatch(Intent::ReportNetworkReachable(true)).await;
+
+    assert!(
+        puts.lock().unwrap().is_empty(),
+        "the drain must not store a draft the user discarded"
+    );
+}
+
+/// The second of two overlapping saves supersedes what the first one stored.
+///
+/// A composer has two triggers, the idle timer and the Save button, and nothing stops both
+/// firing; each is its own task. The second reads `replacing` before the first has recorded
+/// what it stored, so without the exclusion it puts with nothing to replace and the server is
+/// left holding two copies of the message still being written.
+///
+/// The engine keeps the two provider calls themselves from overlapping, since both saves of
+/// one composition share a resource key and an op leases it. That is precisely why this fails
+/// quietly rather than loudly, and why the assertion below is on `replacing` rather than on
+/// how many calls were in flight at once.
+#[tokio::test]
+async fn two_overlapping_saves_store_one_draft() {
+    // The provider parks in `put_draft`, so the first save is demonstrably still in flight
+    // when the second is dispatched. Without that seam the two run to completion one after
+    // the other whatever the code does, and the test proves nothing.
+    let gate = Arc::new(Notify::new());
+    let provider = SubmitProvider::saving_until(&gate);
+    let puts = provider.draft_puts();
+    let app = app_over(provider);
+
+    let first = tokio::spawn({
+        let app = Arc::clone(&app);
+        async move { app.dispatch(save("compose-1", "at once")).await }
+    });
+    while puts.lock().unwrap().is_empty() {
+        tokio::task::yield_now().await;
+    }
+    let second = tokio::spawn({
+        let app = Arc::clone(&app);
+        async move { app.dispatch(save("compose-1", "and again")).await }
+    });
+    // Let the second save get as far as it can while the first is still parked. Without
+    // this it would start only after the first had finished and recorded its key, which is
+    // the one ordering that cannot show the bug.
+    for _ in 0..2048 {
+        tokio::task::yield_now().await;
+    }
+    gate.notify_one();
+    first.await.unwrap();
+    gate.notify_one();
+    second.await.unwrap();
+
+    let puts = puts.lock().unwrap();
+    assert_eq!(puts.len(), 2);
+    assert_eq!(
+        puts[1].1,
+        Some(ProviderKey::new("draft-1").unwrap()),
+        "the second save must supersede the copy the first one stored"
     );
 }
 
@@ -258,7 +349,10 @@ async fn a_draft_with_no_recipient_is_still_saved() {
     .await;
 
     assert_eq!(puts.lock().unwrap().len(), 1);
-    assert_eq!(app.draft_status(), DraftStatus::Saved);
+    assert_eq!(
+        app.draft_status(&composition("compose-1")),
+        DraftStatus::Saved
+    );
 }
 
 /// **The hole a queued save opens.** A save made with no network is stored by a later drain,
@@ -279,7 +373,10 @@ async fn a_save_stored_by_a_drain_is_what_the_next_save_supersedes() {
     app.dispatch(Intent::ReportNetworkReachable(false)).await;
     app.dispatch(save("compose-1", "somewhere with no signal"))
         .await;
-    assert_eq!(app.draft_status(), DraftStatus::Queued);
+    assert_eq!(
+        app.draft_status(&composition("compose-1")),
+        DraftStatus::Queued
+    );
     assert!(puts.lock().unwrap().is_empty());
 
     // Coming back online is what drains the queue, and it is how this happens for real: the
@@ -299,5 +396,75 @@ async fn a_save_stored_by_a_drain_is_what_the_next_save_supersedes() {
         puts[1].1,
         Some(ProviderKey::new("draft-1").unwrap()),
         "the save after the drain must name the copy the drain stored"
+    );
+}
+
+/// A composer's hint is its own, and a closed one leaves none behind.
+///
+/// The rule the reading windows follow (`docs/reading-window.md`): a `DraftStatus` signal says
+/// some composition's save moved, not which, so a composer that has saved nothing reads `Idle`
+/// rather than the state of the one beside it. One slot for the app would have an untouched
+/// composer announce that its neighbour had saved.
+#[tokio::test]
+async fn a_composers_hint_is_its_own() {
+    let app = app_over(SubmitProvider::new());
+
+    app.dispatch(save("compose-1", "mine")).await;
+
+    assert_eq!(
+        app.draft_status(&composition("compose-1")),
+        DraftStatus::Saved
+    );
+    assert_eq!(
+        app.draft_status(&composition("compose-2")),
+        DraftStatus::Idle,
+        "a composer that has saved nothing must not render its neighbour's hint"
+    );
+
+    // And a host reusing the id must not open on the last composer's answer.
+    app.dispatch(Intent::Drafts(DraftsIntent::Close {
+        composition: composition("compose-1"),
+    }))
+    .await;
+    assert_eq!(
+        app.draft_status(&composition("compose-1")),
+        DraftStatus::Idle
+    );
+}
+
+/// A save whose text matches the last one that *landed* is still written while an earlier save
+/// is queued, because the queued one carries different words.
+///
+/// The sequence is an ordinary undo on a train. The draft is saved, the network goes, an edit
+/// queues, and the user undoes back to the text that is on the server. Comparing only against
+/// the last landed digest reports "saved" and writes nothing, while the queued op is on its way
+/// to replace the server's copy with the version the user just undid. The user is told their
+/// current text is stored at the moment it is about to stop being.
+#[tokio::test]
+async fn an_unchanged_save_still_writes_while_an_earlier_one_is_queued() {
+    // The first save lands; every one after it meets no network.
+    let provider = SubmitProvider::saving_nothing_after(1);
+    let app = app_over(provider);
+
+    app.dispatch(save("compose-1", "the text")).await;
+    assert_eq!(
+        app.draft_status(&composition("compose-1")),
+        DraftStatus::Saved
+    );
+
+    app.dispatch(save("compose-1", "an edit")).await;
+    assert_eq!(
+        app.draft_status(&composition("compose-1")),
+        DraftStatus::Queued
+    );
+
+    // Undone back to exactly what is on the server. The digest matches the last landed save,
+    // and it must not be believed: the queued op still carries "an edit".
+    app.dispatch(save("compose-1", "the text")).await;
+
+    assert_eq!(
+        app.draft_status(&composition("compose-1")),
+        DraftStatus::Queued,
+        "a composition with a queued save must not report the server as up to date"
     );
 }
