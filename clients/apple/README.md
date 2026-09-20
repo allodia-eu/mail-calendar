@@ -174,6 +174,45 @@ itself, inner bundles first, with an explicit persistent cert, and runs a **sign
 gate** (every nested item's cert must match the app's) before building the `.pkg`, the check that
 would have caught the rejection before upload.
 
+**Flow B's `.pkg` cannot be installed locally, and its app cannot be launched.** The installer is
+signed with the **Mac Installer Distribution** cert, which only the Store's submission pipeline
+consumes. Extracting the `.app` and running it does not get around that either: it is killed on
+launch with **SIGKILL (137)**, before `main()`, because its **Mac App Store** provisioning profile
+is a *production* profile and macOS honours those only for a copy the App Store delivered. The
+kernel says `load code signature error 4`, under `amfid: "No matching profile found"` (AMFI -413)
+and `taskgated-helper: "Only Development Provisioning Profiles can be installed in System
+Settings"` (CPProfileManager -215). This is the macOS counterpart of Flow C's device-list rule
+below, and like that one it is not a flag.
+
+**To run a sandboxed build locally, use the archive's app**, not the export's:
+`build/package/AllodiaMail.xcarchive/Products/Applications/AllodiaMail.app`. `--app-store` archives
+with `MACOS_ENTITLEMENTS=App/AllodiaMail.appstore.entitlements` under **Apple Development** signing,
+so that copy carries the Store's sandbox, keychain access group and container, and a *development*
+profile macOS does honour.
+
+⚠️ **As archived, its MCP server cannot start, and only MCP.** Automatic provisioning resolves the
+generic *Mac Team Provisioning Profile*, which grants **no**
+`com.apple.security.application-groups`, while the Mac App Store profile grants
+`group.eu.allodia.mailcal`. The app still *claims* the group, so the group container exists and is
+refused: `deny(1) file-write-create …/mcp.sock`, surfacing as `mcp: could not bind the socket
+(permission denied)`. Everything else in the sandbox is faithful, so read an MCP failure in this
+build as the profile rather than as the code.
+
+**The fix is a development profile that carries App Groups**, which the App ID already has enabled.
+Create a `MAC_APP_DEVELOPMENT` profile against the App ID itself (Developer portal ▸ Profiles, or
+the App Store Connect API) with this machine's Apple Development cert and its **Provisioning UDID**,
+then re-sign the archived app with it: replace `Contents/embedded.provisionprofile`, and `codesign
+--force --options runtime` the nested libraries, then the relay with
+`build/package/appstore.relay.entitlements`, then the app with
+`build/package/appstore.resolved.entitlements`, which `--app-store` leaves behind already resolved.
+Verified end to end (2026-09-19): the relay connects over the group container's socket and the app
+answers `initialize`. Re-signing beats re-archiving here, seconds against minutes, and it is the
+same order `package.sh` signs in.
+
+For a build that is Distribution-signed as well, install it through **TestFlight for macOS** after
+uploading the `.pkg`: that copy is Store-provisioned and carries a receipt, and is what a reviewer
+and a user run.
+
 **App Sandbox runtime, verified (2026-07-18).** The Store **mandates the App Sandbox**, whose one
 behaviour change is that `homeDirectoryForCurrentUser` (`MailcalModel.swift`, `FileLog.swift`)
 resolves to the app **container** instead of `~/.local/share/mailcal`. Confirmed with a sandboxed

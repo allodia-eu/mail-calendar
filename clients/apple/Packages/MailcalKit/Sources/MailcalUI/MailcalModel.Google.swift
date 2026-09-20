@@ -25,6 +25,7 @@ extension MailboxModel {
         // redirect, macOS a loopback listener. Both are driven identically through the protocol.
         let flow = makeGoogleBrowserFlow()
         googleBrowserFlow = flow
+        logBrowserSignIn("google", "started")
         self.googleSigningIn = true
         Task { @MainActor in
             defer {
@@ -51,10 +52,15 @@ extension MailboxModel {
                     try app.completeGoogleLogin(
                         pending: start.pending, callbackUrl: callbackURL)
                 }.value
+                logBrowserSignIn("google", "connected")
                 self.accountWasAdded(added)
             } catch GoogleSignInError.cancelled {
                 // The user dismissed the browser, not an error; the defer resets the spinner.
             } catch {
+                // The sheet shows this same text, so the log is what a support request carries
+                // once the sheet is gone. The core's messages name endpoints and error codes,
+                // never the address or a secret.
+                logBrowserSignIn("google", "did not complete (\(error))")
                 self.setupError = "\(error)"
             }
         }

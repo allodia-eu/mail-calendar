@@ -143,6 +143,19 @@ public func logAppleLifecycle(_ message: String) {
     FileLog.shared.append(level: "INFO", target: "apple-ui", message: message)
 }
 
+/// Records one stage of a sign-in that leaves the app for the browser, so a support log says how
+/// far it got rather than only whether it ended. `route` is the sign-in the user chose ("google",
+/// "microsoft", "jmap", "allodia"); `event` is what just happened, in the user's terms.
+///
+/// Neither URL may ever be an argument here. The authorization URL carries the address being
+/// connected as its login hint and the callback carries the authorization code, and the log is a
+/// file the user attaches to a support request (docs/logging.md: never content, never credentials).
+/// A local port is neither, and is what distinguishes a redirect that never arrived from one that
+/// arrived nowhere.
+func logBrowserSignIn(_ route: String, _ event: String) {
+    logAppleLifecycle("\(route) sign-in: \(event)")
+}
+
 /// What the Diagnostics settings' status rows state about the log store: where the current
 /// file lives, how big the store is across current + backups, and how many backups exist.
 struct LogStoreSnapshot: Equatable {

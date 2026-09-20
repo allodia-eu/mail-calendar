@@ -21,9 +21,27 @@
     <key>com.apple.security.app-sandbox</key>
     <true/>
 
-    <!-- Outbound connections: IMAP / SMTP / JMAP / CalDAV / HTTPS (incl. Microsoft OAuth). The app
-         never listens, so no network.server. -->
+    <!-- Outbound connections: IMAP / SMTP / JMAP / CalDAV / HTTPS (incl. Microsoft OAuth). -->
     <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Google sign-in, and nothing else. Google's Desktop client type redirects to
+         http://127.0.0.1:<port>/, so GoogleOAuth.swift binds a listener on loopback for the length
+         of one sign-in and drops it when the redirect lands. Under the sandbox that bind needs this
+         key: network.client covers outbound connections only, and without the server half the bind
+         returns EPERM, which the setup sheet showed to the user as
+         "POSIXErrorCode(rawValue: 1): Operation not permitted".
+
+         It is the one grant no build here can find for you. The Developer ID .dmg and the ad-hoc
+         dev build are not sandboxed, so both sign in correctly with this key absent, and every test
+         runs unsandboxed too; the Store build is the only shape that denies the bind, which is why
+         this reached a user. cargo xtask check-store-sandbox keeps the two sides together.
+
+         The grant is the sandbox's, the reach is the code's: the listener names 127.0.0.1 as its
+         required local endpoint, so it answers nothing off this machine whatever this key permits.
+         The MCP socket below listens too, and does not need this: it is an AF_UNIX socket in the
+         shared group container, which the sandbox governs as a file. -->
+    <key>com.apple.security.network.server</key>
     <true/>
 
     <!-- Attachments: save a received file to a user-chosen location; attach user-chosen files in

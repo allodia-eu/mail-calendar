@@ -319,11 +319,20 @@ there is no sandbox to inherit. Measured: the same SIGTRAP.
 Two things that look like they should work and do not: a
 `temporary-exception.files.home-relative-path.read-write` over the real home (a *file* exception
 does not cover a socket `connect()` (`EPERM`), and `com.apple.security.network.client`
-(`AF_INET`/`AF_INET6` only, the same reason no `network.server` is needed to listen). With
+(`AF_INET`/`AF_INET6` only, which is the same reason its `network.server` half does nothing for
+this socket either: that one is granted for Google sign-in's loopback redirect, which is `AF_INET`,
+and a Unix socket is governed as a file whether it is granted or not). With
 `com.apple.security.application-groups` on both the app and the relay bundle, and nothing else, the
 round trip completes; remove it and the identical binary gets `EPERM` on the same path. That this
 needs **no temporary exception** is what makes the Store build shippable without a review
 justification.
+
+**The container's own permissions are the system's to set, not ours.** The listener keeps the
+socket's parent directory owner-only, and here that parent *is* the container root, which macOS
+creates `0700` and owned by the user and then refuses a `chmod` on (`EPERM`). So the listener
+checks the property, that no group or other bit is set, rather than the `chmod`'s success:
+refusing on the refused call left assistant access silently off on the one build whose socket
+path is not the user's to move.
 
 The group identifier takes **no team-id prefix**: macOS accepts the `group.`-style form (measured),
 unlike `keychain-access-groups` beside it in the same file, which does take `$(AppIdentifierPrefix)`.
