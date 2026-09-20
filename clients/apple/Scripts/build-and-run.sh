@@ -11,6 +11,9 @@ ROOT="$(cd "$HERE/../.." && pwd)"        # repo root
 # traps rather than a second that drifts.
 # shellcheck source=scripts/dev/lib.sh
 source "$ROOT/scripts/dev/lib.sh"
+# The provisioning-profile resolver --sandboxed needs, shared with Scripts/package.sh.
+# shellcheck source=clients/apple/Scripts/provisioning.sh
+source "$HERE/Scripts/provisioning.sh"
 
 PROJECT="$HERE/AllodiaMail.xcodeproj"
 DERIVED_DATA="${DERIVED_DATA:-$HERE/build/DerivedData}"
@@ -24,6 +27,7 @@ DESTINATION="auto"
 DEVICE=""
 BUILD_CORE=1
 RUN_APP=1
+SANDBOXED=0
 LIST_SIMULATORS=0
 LIST_DEVICES=0
 
@@ -44,6 +48,9 @@ Options:
   --simulator [<name|udid>] Use a simulator (default: first booted match of the platform's family).
   --list-devices           List connected iPhones/iPads and exit.
   --list-simulators        List available simulators and exit.
+  --sandboxed               macOS only: build with the Mac App Store sandbox, signed against a
+                            development provisioning profile that grants the app group. Needs one
+                            installed; the error says how to make it if not.
   --no-core                 Skip rebuilding the Rust XCFramework and generated Swift bindings.
   --no-run                  Build only; do not launch/install the app.
   --configuration <name>    Xcode configuration to build (default: Debug).
@@ -99,6 +106,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --list-simulators)
       LIST_SIMULATORS=1
+      shift
+      ;;
+    --sandboxed)
+      SANDBOXED=1
       shift
       ;;
     --no-core)
@@ -279,6 +290,11 @@ MAILCAL_DEVELOPMENT_TEAM = $1"
   echo "==> Wrote signing.local.xcconfig (team $1), Xcode's own device builds sign with it too"
 }
 
+if [[ "$SANDBOXED" -eq 1 && "$PLATFORM" != "macos" ]]; then
+  echo "error: --sandboxed is macOS only; iOS is sandboxed on every build." >&2
+  exit 1
+fi
+
 resolve_destination
 
 if [[ "$BUILD_CORE" -eq 1 ]]; then
@@ -324,8 +340,70 @@ find_codesign_identity() {
   awk -F'"' '/Apple Development|Developer ID/ {print $2; exit}' <<<"$identities"
 }
 
+# --sandboxed: the same entitlements the Mac App Store build carries, on the dev loop. Two of
+# them, keychain-access-groups and application-groups, are RESTRICTED, so a profile has to grant
+# them; without one the build stops at '"AllodiaMail" requires a provisioning profile'. So this
+# resolves the profile FIRST and signs with the cert that profile authorises, and the build system
+# does the rest: it resolves $(AppIdentifierPrefix), injects the application-identifier and
+# team-identifier pair codesign would not, and embeds the profile in the bundle.
+#
+# Everything is passed as a build setting rather than baked into project.yml, because an ordinary
+# build must stay ad-hoc and profile-free (a fresh checkout has no team and no profile, and
+# AGENTS.md's rule that such a build is legitimate covers signing as much as it covers OAuth).
+SANDBOX_ARGS=()
+if [[ "$SANDBOXED" -eq 1 ]]; then
+  SANDBOX_TEAM="$(signing_team)"
+  [[ -n "$SANDBOX_TEAM" ]] || { echo "error: --sandboxed needs a signing team: install an Apple Development certificate, or set DEVELOPMENT_TEAM=<id>." >&2; exit 1; }
+  # The group is read out of the helper's entitlements rather than written again here, one literal,
+  # so what we demand of the profile cannot drift from what we actually sign (package.sh reads it
+  # from the same file for the same reason).
+  SANDBOX_GROUP="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups:0' \
+    "$HERE/App/AllodiaMailMcpHelper.appstore.entitlements" 2>/dev/null || true)"
+  SANDBOX_GROUP="${SANDBOX_GROUP//\$(PRODUCT_BUNDLE_IDENTIFIER)/$BUNDLE_ID}"
+  [[ -n "$SANDBOX_GROUP" ]] || { echo "error: could not read the app group from App/AllodiaMailMcpHelper.appstore.entitlements." >&2; exit 1; }
+  # EVERY cert with this name, not the first: a renewed certificate sits in the keychain beside its
+  # predecessor under the SAME common name, and only one of them is the one this profile lists.
+  SANDBOX_CANDIDATES="$(security find-identity -v -p codesigning \
+    | awk -F'"' '$2 ~ /^Apple Development: / { split($1, a, " "); print a[2] }')"
+  SANDBOX_MATCH="$(resolve_profile "$SANDBOX_TEAM.$BUNDLE_ID" "$SANDBOX_CANDIDATES" \
+                    "${MACOS_DEV_PROVISIONING_PROFILE:-}" "$SANDBOX_GROUP" OSX development)"
+  SANDBOX_PROFILE="$(printf '%s' "$SANDBOX_MATCH" | cut -f1)"
+  # Sign by FINGERPRINT, never by name: two valid certs can share a common name, `codesign --sign
+  # "<name>"` then fails "ambiguous", and if it did not it would be a coin toss between a cert this
+  # profile authorises and one it does not.
+  SIGNING_IDENTITY="$(printf '%s' "$SANDBOX_MATCH" | cut -f2)"
+  SANDBOX_UUID="$(printf '%s' "$SANDBOX_MATCH" | cut -f3)"
+  if [[ -z "$SANDBOX_PROFILE" ]]; then
+    echo "error: no macOS DEVELOPMENT provisioning profile for $SANDBOX_TEAM.$BUNDLE_ID grants the" >&2
+    echo "       app group '$SANDBOX_GROUP', lists this Mac, and authorizes an" >&2
+    echo "       'Apple Development' certificate in this keychain." >&2
+    echo "       Xcode's own 'Mac Team Provisioning Profile' will never do: it grants no app" >&2
+    echo "       group, which is the one thing this build is for. Make one in the developer" >&2
+    echo "       portal: Identifiers ▸ $BUNDLE_ID ▸ enable 'App Groups' ▸ assign" >&2
+    echo "       '$SANDBOX_GROUP' ▸ Save, then Profiles ▸ + ▸ macOS App Development ▸ that App" >&2
+    echo "       ID ▸ your Apple Development certificate ▸ this Mac. Download it and either" >&2
+    echo "       double-click it or copy it into" >&2
+    echo "       ~/Library/Developer/Xcode/UserData/Provisioning Profiles/, or point" >&2
+    echo "       MACOS_DEV_PROVISIONING_PROFILE=<path> at the download." >&2
+    echo "       This Mac's device id is the 'Provisioning UDID' in: system_profiler SPHardwareDataType" >&2
+    echo "       (More: clients/apple/README.md, docs/debugging.md.)" >&2
+    exit 1
+  fi
+  echo "==> Sandboxed build: profile $(basename "$SANDBOX_PROFILE") (grants $SANDBOX_GROUP)"
+  echo "    signing cert: $SIGNING_IDENTITY"
+  # CODE_SIGN_STYLE=Manual reaches every target, deliberately: the MailcalKit package targets are
+  # automatically signed by default and reject a manual identity ("has conflicting provisioning
+  # settings"). The PROFILE is the one setting that cannot be passed this way, which is why
+  # project.yml indirects it through MACOS_PROVISIONING_PROFILE, scoped to the app target.
+  SANDBOX_ARGS=("DEVELOPMENT_TEAM=$SANDBOX_TEAM"
+                "MACOS_ENTITLEMENTS=App/AllodiaMail.appstore.entitlements"
+                "MACOS_PROVISIONING_PROFILE=$SANDBOX_UUID"
+                "CODE_SIGN_STYLE=Manual"
+                "CODE_SIGN_IDENTITY=$SIGNING_IDENTITY")
+fi
+
 if [[ "$PLATFORM" == "macos" ]]; then
-  SIGNING_IDENTITY="$(find_codesign_identity)"
+  [[ "$SANDBOXED" -eq 1 ]] || SIGNING_IDENTITY="$(find_codesign_identity)"
 
   echo "==> Building AllodiaMail for macOS ($CONFIGURATION)"
   xcodebuild \
@@ -334,6 +412,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
     -destination "platform=macOS" \
     -configuration "$CONFIGURATION" \
     -derivedDataPath "$DERIVED_DATA" \
+    "${SANDBOX_ARGS[@]}" \
     build
 
   APP="$DERIVED_DATA/Build/Products/$CONFIGURATION/AllodiaMail.app"
@@ -354,6 +433,29 @@ if [[ "$PLATFORM" == "macos" ]]; then
       codesign --force --sign "$SIGNING_IDENTITY" --timestamp=none "$item"
     fi
   }
+  # The relay is the one piece the build leaves behind: its bundle is assembled by a build phase
+  # that ad-hoc signs it with no entitlements at all, so under --sandboxed it would be the only
+  # unsandboxed process in an otherwise faithful copy, and the socket it opens in the group
+  # container is exactly the kind of thing the sandbox decides. Give it the set the Store gives it.
+  # Its own, not the app's: the app's keychain group and file grants are the app's, and Apple's
+  # guidance for an embedded tool is that surplus entitlements cause launch failures.
+  #
+  # Deliberately NO application-identifier and no profile of its own, matching package.sh, which
+  # carries the measurement. `resign` below then reads this set straight back off the bundle, so
+  # the loop needs no special case and the app is re-sealed after it, in the same pass.
+  if [[ "$SANDBOXED" -eq 1 && -d "$APP/Contents/Library/Helpers/allodia-mcp.app" ]]; then
+    RELAY_ENTS="$DERIVED_DATA/sandboxed.relay.entitlements"
+    # codesign does not expand a build setting, so the token has to go before it gets there;
+    # Scripts/package.sh resolves the same file the same way, and says more about why.
+    sed -e "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/$BUNDLE_ID/g" \
+      "$HERE/App/AllodiaMailMcpHelper.appstore.entitlements" >"$RELAY_ENTS"
+    plutil -convert xml1 "$RELAY_ENTS"
+    plutil -lint "$RELAY_ENTS" >/dev/null \
+      || { echo "error: the resolved relay entitlements are not a valid plist ($RELAY_ENTS)" >&2; exit 1; }
+    codesign --force --sign "$SIGNING_IDENTITY" --entitlements "$RELAY_ENTS" --timestamp=none \
+      "$APP/Contents/Library/Helpers/allodia-mcp.app"
+  fi
+
   if [[ -n "$SIGNING_IDENTITY" ]]; then
     echo "==> Re-signing with a stable identity: $SIGNING_IDENTITY"
     while IFS= read -r item; do

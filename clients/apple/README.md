@@ -118,6 +118,13 @@ arm64 only** (Apple-silicon Mac, arm64 iPhone + iPad); a universal Mac binary wo
      `system_profiler SPHardwareDataType`), or the archive fails "no devices from which to generate a
      provisioning profile".)
 
+   - **A macOS App Development profile carrying the App Group**, kept alongside the Store one and
+     not a packaging prerequisite: it is what `build-and-run.sh --macos --sandboxed` signs with, and
+     the only way to exercise App Groups on a local build, since the auto-managed profile above
+     grants none and ad-hoc signing has no team to anchor one. One per machine, because it lists
+     that Mac. [`docs/debugging.md`](../../docs/debugging.md) section 8 has the steps and the two
+     ways it goes wrong quietly.
+
    - **Flow C, iOS/iPadOS: nothing extra to create.** The iOS App Store flow uses **automatic**
      signing end-to-end, so there are **no persistent certs to add to `signing.local.sh`**, just an
      Apple account signed into Xcode and `DEVELOPMENT_TEAM` set. `-allowProvisioningUpdates` fetches or
@@ -200,30 +207,30 @@ and `taskgated-helper: "Only Development Provisioning Profiles can be installed 
 Settings"` (CPProfileManager -215). This is the macOS counterpart of Flow C's device-list rule
 below, and like that one it is not a flag.
 
-**To run a sandboxed build locally, use the archive's app**, not the export's:
-`build/package/AllodiaMail.xcarchive/Products/Applications/AllodiaMail.app`. `--app-store` archives
-with `MACOS_ENTITLEMENTS=App/AllodiaMail.appstore.entitlements` under **Apple Development** signing,
-so that copy carries the Store's sandbox, keychain access group and container, and a *development*
-profile macOS does honour.
+**To run a sandboxed build locally, do not use this flow at all.**
+`Scripts/build-and-run.sh --macos --sandboxed` builds the same entitlement set on the dev loop, in
+seconds rather than an archive's minutes, signed against a development profile macOS honours. That
+is the supported route and [`docs/debugging.md`](../../docs/debugging.md) section 8 owns it,
+including the profile it needs and how to make one. Add `--configuration Release` to match this
+flow's optimisation settings as well.
 
-⚠️ **As archived, its MCP server cannot start, and only MCP.** Automatic provisioning resolves the
+The archive's app (`build/package/AllodiaMail.xcarchive/Products/Applications/AllodiaMail.app`) is
+sandboxed too, because `--app-store` archives with
+`MACOS_ENTITLEMENTS=App/AllodiaMail.appstore.entitlements` under Apple Development signing. But
+⚠️ **as archived its MCP server cannot start, and only MCP**: automatic provisioning resolves the
 generic *Mac Team Provisioning Profile*, which grants **no**
 `com.apple.security.application-groups`, while the Mac App Store profile grants
 `group.eu.allodia.mailcal`. The app still *claims* the group, so the group container exists and is
 refused: `deny(1) file-write-create …/mcp.sock`, surfacing as `mcp: could not bind the socket
-(permission denied)`. Everything else in the sandbox is faithful, so read an MCP failure in this
-build as the profile rather than as the code.
+(permission denied)`. Everything else in the sandbox is faithful, so read an MCP failure in **that**
+copy as the profile rather than as the code, and reach for `--sandboxed` instead of hand-signing it.
 
-**The fix is a development profile that carries App Groups**, which the App ID already has enabled.
-Create a `MAC_APP_DEVELOPMENT` profile against the App ID itself (Developer portal ▸ Profiles, or
-the App Store Connect API) with this machine's Apple Development cert and its **Provisioning UDID**,
-then re-sign the archived app with it: replace `Contents/embedded.provisionprofile`, and `codesign
---force --options runtime` the nested libraries, then the relay with
-`build/package/appstore.relay.entitlements`, then the app with
-`build/package/appstore.resolved.entitlements`, which `--app-store` leaves behind already resolved.
-Verified end to end (2026-09-19): the relay connects over the group container's socket and the app
-answers `initialize`. Re-signing beats re-archiving here, seconds against minutes, and it is the
-same order `package.sh` signs in.
+Steering the archive itself onto an App-Groups profile is not a flag we have, deliberately. An
+`xcodebuild` setting override is global, and `PROVISIONING_PROFILE_SPECIFIER` is one no override can
+scope: it reaches the MailcalKit package targets ("does not support provisioning profiles") and the
+Share Extension, whose bundle id is a different App ID. `--sandboxed` gets the app target alone
+through `MACOS_PROVISIONING_PROFILE` in `project.yml`, which is the same indirection
+`MACOS_ENTITLEMENTS` uses and for the same reason.
 
 For a build that is Distribution-signed as well, install it through **TestFlight for macOS** after
 uploading the `.pkg`: that copy is Store-provisioned and carries a receipt, and is what a reviewer

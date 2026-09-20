@@ -302,6 +302,20 @@ targets:
         # file the notarized build does, rather than against no file at all.
         MACOS_ENTITLEMENTS: App/AllodiaMail.macOS.entitlements
         CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: $(MACOS_ENTITLEMENTS)
+        # Indirected for the same reason, and it is the same override that makes the sandbox set
+        # above signable at all: every entitlement in it that macOS restricts
+        # (keychain-access-groups, application-groups) needs a profile granting it, and a build
+        # given the file without one stops at '"AllodiaMail" requires a provisioning profile'.
+        # Empty here, so every ordinary macOS build stays ad-hoc with no profile;
+        # Scripts/build-and-run.sh --sandboxed fills it with a development profile's UUID.
+        #
+        # PROVISIONING_PROFILE_SPECIFIER is the one setting that CANNOT go on the xcodebuild line
+        # even though CODE_SIGN_IDENTITY can: an override is global, and a profile reaches targets
+        # that have no use for one. Measured, both at once: "MailcalKit_MailcalUI does not support
+        # provisioning profiles", and, for the Share Extension, 'has app ID "eu.allodia.mailcal",
+        # which does not match the bundle ID "eu.allodia.mailcal.share"'.
+        MACOS_PROVISIONING_PROFILE: ""
+        PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]: $(MACOS_PROVISIONING_PROFILE)
       configs:
         # Release is the packaging config (Scripts/package.sh). Debug keeps the dev loop's shape
         # (build-and-run.sh: ad-hoc, no hardened runtime).

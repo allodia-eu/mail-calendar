@@ -29,9 +29,15 @@ ROOT = Path(__file__).resolve().parents[3]
 EXEMPT_PREFIXES = ("docker/",)
 
 # Sourced, never run, and only ever from a file that has already checked. A guard of their own
-# would be unreachable code. Both say so in their own headers; a third one joining them is a
+# would be unreachable code. Each says so in its own header; a further one joining them is a
 # decision, so it is named here rather than matched by a pattern.
-SOURCED_ONLY = frozenset({"scripts/dev/brand.sh", "scripts/dev/showcase-android.sh"})
+SOURCED_ONLY = frozenset(
+    {
+        "scripts/dev/brand.sh",
+        "scripts/dev/showcase-android.sh",
+        "clients/apple/Scripts/provisioning.sh",
+    }
+)
 
 GUARD = "${BASH_VERSION%%.*}"
 SOURCES_LIB = re.compile(r"^\s*(\.|source)\s+.*\blib\.sh", re.MULTILINE)

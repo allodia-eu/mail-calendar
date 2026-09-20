@@ -53,6 +53,9 @@ export MAILCAL_REQUIRE_INJECTED_CONFIG=1
 # shellcheck source=scripts/dev/brand.sh
 . "$ROOT/scripts/dev/brand.sh"
 brand_load
+# The provisioning-profile resolver, shared with Scripts/build-and-run.sh --sandboxed.
+# shellcheck source=clients/apple/Scripts/provisioning.sh
+. "$HERE/Scripts/provisioning.sh"
 
 PROJECT="$HERE/AllodiaMail.xcodeproj"
 SCHEME="AllodiaMail"
@@ -377,96 +380,6 @@ esac
 
 echo "==> Flow: $FLOW$([[ "$FLOW" == developer-id && "$NOTARIZE" -eq 0 ]] && echo ' (no notarization)')  ·  team: $DEVELOPMENT_TEAM"
 
-# Which installed provisioning profile signs this app, and with which of our certificates.
-# `resolve_profile <app-identifier> <cert-fingerprints> <explicit-path> <app-group-or-empty>`
-#                  `<platform>`
-# prints `path<tab>fingerprint<tab>uuid`, or nothing when none qualifies.
-#
-# One implementation for both Store flows. The predicate below is subtle enough that a second
-# copy would be the one nobody tested, and its comments record what each clause is load-bearing
-# for.
-resolve_profile() {
-  python3 - "$1" "$2" "$3" "$4" "$5" <<'PY'
-import glob, hashlib, os, plistlib, subprocess, sys
-appid, explicit, group, platform = sys.argv[1], sys.argv[3], sys.argv[4], sys.argv[5]
-candidates = {s.strip().upper() for s in sys.argv[2].split() if s.strip()}
-
-def decode(p):
-    try:
-        return plistlib.loads(subprocess.run(['security', 'cms', '-D', '-i', p],
-                                              capture_output=True).stdout)
-    except Exception:
-        return None
-
-# Which of our certs this profile authorises, if any. Returned so the caller signs with THAT one
-# rather than by name, the fingerprint is the only unique key when two certs share a name.
-def signing_cert(d):
-    listed = {hashlib.sha1(c).hexdigest().upper() for c in d.get('DeveloperCertificates', [])}
-    match = candidates & listed
-    return sorted(match)[0] if match else None
-
-# Every capability the signed app claims has to be in here, not just the app id and the cert.
-# Regenerating a profile mints a NEW file beside the old one, both match the app id, both list
-# the same cert, so a predicate that stops there is choosing between an outdated profile and a
-# current one on a coin toss it does not know it is flipping. (It was worse than a coin toss: the
-# scan was alphabetical, so `6186a9b6…` beat `a91000f9…` and the STALE profile won every time,
-# deterministically, no matter how many times you regenerated.)
-# The same entitlement under two names: macOS profiles carry
-# `com.apple.application-identifier`, iOS profiles carry a bare `application-identifier`. Reading
-# only one of them finds every profile on one platform and none on the other.
-def application_identifier(d):
-    ent = d.get('Entitlements', {})
-    return ent.get('com.apple.application-identifier') or ent.get('application-identifier')
-
-def authorizes(d):
-    if not d or application_identifier(d) != appid:
-        return False
-    # Both platforms' profiles carry the same application-identifier, so the app id alone chooses
-    # between a macOS profile and an iOS one by whichever the scan reached first. `Platform` is a
-    # list because one profile can serve several: an iOS profile reads ['iOS', 'xrOS', 'visionOS'].
-    if platform not in (d.get('Platform') or []):
-        return False
-    # A profile that lists devices is a development or ad-hoc one. Both callers here are Store
-    # flows, where such a profile is never the right answer and Xcode rejects it by name.
-    if d.get('ProvisionedDevices'):
-        return False
-    # Both Store flows sign manually, and `-exportArchive` refuses an Xcode-managed profile outright:
-    # "is Xcode managed, but signing settings require a manually managed profile". Xcode mints these
-    # for itself whenever it resolves signing, so a machine that has ever opened the project has
-    # several, and they sit beside the portal-created one matching everything it matches.
-    if d.get('IsXcodeManaged'):
-        return False
-    # The group is a macOS Store requirement: that app declares one and the profile has to grant it.
-    # An iOS App Store profile has no group to grant, so an empty argument means "do not ask", which
-    # is different from asking for '' and is why it is a separate branch rather than a default.
-    if group and group not in d.get('Entitlements', {}).get(
-            'com.apple.security.application-groups', []):
-        return False
-    return signing_cert(d) is not None
-
-if explicit:
-    ex = os.path.expanduser(explicit)
-    d = decode(ex)
-    if authorizes(d):
-        print(f"{ex}\t{signing_cert(d)}\t{d.get('UUID', '')}")
-    sys.exit(0)
-
-# Newest first among the qualifying ones: after a regeneration the freshest profile is the one
-# that reflects the App ID as it stands today, and the older ones are debris nobody prunes.
-found = []
-for base in ('~/Library/MobileDevice/Provisioning Profiles',
-             '~/Library/Developer/Xcode/UserData/Provisioning Profiles'):
-    for ext in ('*.provisionprofile', '*.mobileprovision'):
-        for p in glob.glob(os.path.join(os.path.expanduser(base), ext)):
-            d = decode(p)
-            if authorizes(d):
-                found.append((d.get('CreationDate'), p, signing_cert(d), d.get('UUID', '')))
-if found:
-    found.sort(key=lambda c: (c[0] is not None, c[0]), reverse=True)
-    print(f"{found[0][1]}\t{found[0][2]}\t{found[0][3]}")
-PY
-}
-
 # ---- Front half: release core + fresh project --------------------------------------------------
 if [[ "$BUILD_CORE" -eq 1 ]]; then
   # The macOS flows never link the iOS device slice, so they skip it (--no-device). Flows C and D
@@ -739,7 +652,7 @@ if [[ "$FLOW" == ios-app-store ]]; then
   IOS_BUNDLE_ID="$(brand_value MAILCAL_APP_ID)"
   # No app group: the iOS app declares none, so there is nothing for a profile to grant.
   IOS_PROFILE_MATCH="$(resolve_profile "$DEVELOPMENT_TEAM.$IOS_BUNDLE_ID" "$IOS_DIST_CANDIDATES" \
-                        "$IOS_PROVISIONING_PROFILE" "" iOS)"
+                        "$IOS_PROVISIONING_PROFILE" "" iOS distribution)"
   IOS_PROFILE_FILE="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f1)"
   IOS_PROFILE_UUID="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f3)"
   [[ -n "$IOS_PROFILE_FILE" && -n "$IOS_PROFILE_UUID" ]] || fail "no installed iOS App Store provisioning profile for
@@ -859,7 +772,7 @@ if [[ "$FLOW" == app-store ]]; then
   [[ -n "$DIST_CANDIDATES" ]] || fail "no valid codesigning identity named '$APPLE_DISTRIBUTION_IDENTITY' is in the keychain.
        Check the name in $CONFIG against: security find-identity -v -p codesigning"
   PROFILE_MATCH="$(resolve_profile "$DEVELOPMENT_TEAM.$BUNDLE_ID" "$DIST_CANDIDATES" \
-                    "$MAS_PROVISIONING_PROFILE" "$APP_GROUP" OSX)"
+                    "$MAS_PROVISIONING_PROFILE" "$APP_GROUP" OSX distribution)"
   PROFILE_FILE="$(printf '%s' "$PROFILE_MATCH" | cut -f1)"
   # Sign with the FINGERPRINT, never the name: two valid certs can share a common name, and
   # `codesign --sign "<name>"` then fails "ambiguous", and if it did not, it would be a coin toss
