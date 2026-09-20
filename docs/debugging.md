@@ -893,6 +893,56 @@ distinguishes them.
 Finally, quit the running app before starting another build against the same store: both open the
 same SQLite file, and `~/.local/share/mailcal` is the **real** one.
 
+## 8. Testing Apple the way the Mac App Store runs it
+
+An ordinary macOS build is **not sandboxed**. The Store's copy is, and that one difference hides a
+whole class of bug from every gate this repo has: the code compiles, the tests pass, the notarized
+`.dmg` from the same commit behaves, and the failure reaches a user. Two have, both in the same
+week. Google sign-in binds a loopback listener for the redirect, which the sandbox refused without
+`com.apple.security.network.server`, and the MCP server binds a socket in the App Group container,
+which it could not reach without the group.
+
+```sh
+clients/apple/Scripts/build-and-run.sh --macos --sandboxed
+```
+
+The app then carries exactly `App/AllodiaMail.appstore.entitlements`, the set the Store build
+carries, and the relay is sandboxed with the app group rather than ad-hoc signed with nothing.
+`--configuration Release` on top gets the optimisation settings too, though the sandbox is what
+decides the bugs above, not the optimiser.
+
+**It needs a development provisioning profile that grants the app group.** Two of the entitlements
+in that set, `keychain-access-groups` and `com.apple.security.application-groups`, are ones macOS
+**restricts**: a profile has to authorise them, ad-hoc signing has no team to anchor one, and the
+*Mac Team Provisioning Profile* Xcode resolves by itself grants no group at all. Without one the
+build stops at `"AllodiaMail" requires a provisioning profile`, and the script says how to make one
+before it gets that far. In the developer portal: Identifiers ▸ the app id ▸ enable **App Groups** ▸
+assign the group ▸ Save, then Profiles ▸ **+** ▸ **macOS App Development** ▸ that App ID ▸ your
+Apple Development certificate ▸ this Mac. Download it and double-click it, or copy it into
+`~/Library/Developer/Xcode/UserData/Provisioning Profiles/`, or point
+`MACOS_DEV_PROVISIONING_PROFILE=<path>` at the download.
+
+Two things about that profile are worth knowing before they surprise you.
+
+- **It names one Mac**, by the *Provisioning UDID* that `system_profiler SPHardwareDataType`
+  prints, which is not `IOPlatformUUID`. A profile that does not list the machine passes every
+  check the script makes and then the app is killed before `main()` with nothing on stdout (AMFI
+  -413, "No matching profile found"), so the resolver checks the device list and refuses first.
+- **It expires**, like every profile, and the failure at that point is the same silent kill. Renew
+  it before the date rather than after.
+
+**The store moves with the sandbox.** A sandboxed build reads and writes
+`~/Library/Containers/<app id>/Data/.local/share/mailcal` instead of `~/.local/share/mailcal`, so
+accounts, mail and the diagnostic log do not carry over from an ordinary build, in either
+direction. It is a different app as far as the Keychain is concerned too, for the reason section 7
+gives.
+
+**Known gap: the Share Extension keeps its own grant.** It stays on
+`App/AllodiaMailShare.macOS.entitlements`, sandboxed but reaching the hand-off through a
+home-relative path rather than the group, because its bundle id is a **different App ID** and a
+group for it would need a second profile. The Store archive is still the only macOS build where
+that extension uses the group ([`os-integration.md`](os-integration.md)).
+
 ## Build time and disk
 
 The repo's own defaults are already tuned, and the first subsection says how and why. What follows
