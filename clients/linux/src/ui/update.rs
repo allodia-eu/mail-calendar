@@ -396,6 +396,9 @@ impl AppModel {
                 self.allodia_sign_in_finished(attempt, outcome, sender.input_sender().clone());
             }
             AppInput::SignOutOfAllodia => self.sign_out_of_allodia(),
+            AppInput::AllodiaSubscription(input) => {
+                self.allodia_subscription_input(input, sender.input_sender().clone());
+            }
             AppInput::SyncAllodiaAccounts => {
                 self.sync_allodia_accounts(sender.input_sender().clone());
             }

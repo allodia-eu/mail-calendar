@@ -9,6 +9,7 @@ use mailcal_bindings::{
 
 use super::{
     allodia::AllodiaOutcome,
+    allodia_subscription::SubscriptionInput,
     allodia_sync::AllodiaSyncOutcome,
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
     composer_model::{ComposerSubmission, PickedFile},
@@ -277,6 +278,9 @@ pub(crate) enum AppInput {
     SignOutOfAllodia,
     /// Ask the account service what the person's other devices hold, and tell it what this one
     /// holds. Emitted at boot and after a sign-in; never by a timer.
+    /// Everything the subscription section asks for, in one variant: it is one screen's
+    /// traffic, and every piece of it ends in the same re-read.
+    AllodiaSubscription(SubscriptionInput),
     SyncAllodiaAccounts,
     AllodiaSyncFinished(AllodiaSyncOutcome),
     /// Move one account to a sync position.
@@ -426,6 +430,7 @@ impl fmt::Debug for AppInput {
             Self::AllodiaSignInSlow(_) => "AllodiaSignInSlow",
             Self::AllodiaSignInFinished(..) => "AllodiaSignInFinished",
             Self::SignOutOfAllodia => "SignOutOfAllodia",
+            Self::AllodiaSubscription(_) => "AllodiaSubscription",
             Self::SyncAllodiaAccounts => "SyncAllodiaAccounts",
             Self::AllodiaSyncFinished(_) => "AllodiaSyncFinished",
             Self::SetAllodiaAccountSyncMode(..) => "SetAllodiaAccountSyncMode",

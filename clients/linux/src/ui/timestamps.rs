@@ -85,6 +85,52 @@ pub(super) fn local_date_time(raw: &str, zone: &str) -> String {
     raw.get(..10).unwrap_or(raw).to_owned()
 }
 
+/// A date the **account service** sent, as a day a reader can check against a bank statement.
+///
+/// Day precision on purpose: a renewal is a date somebody's statement will agree with, and an hour
+/// and minute in that sentence would invite a comparison with a clock that means nothing there.
+///
+/// ⚠️ The account service is not the sync engine and does not send the engine's `Z`-suffixed
+/// instants alone: an offset like `+02:00`, and a plain calendar day for a period that ends on
+/// one, both arrive. An instant is read in UTC, which is the day the service means; a plain day is
+/// taken as it stands, because reading one as a local instant loses a day everywhere east of
+/// Greenwich. A shape this build cannot read at all still has the right day in its leading ten
+/// characters, so the sentence stays true and only stops being localised.
+///
+/// The shape is this client's own, the one every mail row older than a year already carries. The
+/// Apple, Android and Windows twins each use their platform's long date instead, which is what
+/// client-side formatting means: the sentence comes from the catalog and the date is the host's.
+pub(super) fn account_date(raw: &str, locale: &str) -> Option<String> {
+    if raw.is_empty() {
+        return None;
+    }
+    let Some(day) = instant_day(raw).or_else(|| civil_day(raw)) else {
+        return Some(raw.get(..10).unwrap_or(raw).to_owned());
+    };
+    let names = date_names(locale);
+    Some(format!(
+        "{} {} {}",
+        day.day(),
+        names.months[usize::from(u8::from(day.month()) - 1)],
+        day.year()
+    ))
+}
+
+/// The day of an instant that carries its own offset, read in UTC.
+fn instant_day(raw: &str) -> Option<Date> {
+    let instant = raw.parse::<Timestamp>().ok()?;
+    date_of(&instant.in_tz("UTC").ok()?)
+}
+
+/// The day of a plain `YYYY-MM-DD`, taken as it stands.
+fn civil_day(raw: &str) -> Option<Date> {
+    let mut parts = raw.get(..10)?.split('-');
+    let year = parts.next()?.parse().ok()?;
+    let month = Month::try_from(parts.next()?.parse::<u8>().ok()?).ok()?;
+    let day = parts.next()?.parse().ok()?;
+    Date::from_calendar_date(year, month, day).ok()
+}
+
 fn date_of(value: &jiff::Zoned) -> Option<Date> {
     Date::from_calendar_date(
         i32::from(value.year()),
@@ -166,7 +212,7 @@ mod tests {
     use jiff::Timestamp;
 
     use super::{
-        RelativeDatePattern, date_names_for, local_date_time, relative_date_at,
+        RelativeDatePattern, account_date, date_names_for, local_date_time, relative_date_at,
         relative_date_pattern,
     };
 
@@ -228,6 +274,36 @@ mod tests {
             );
         }
         assert!(date_names_for("not-a-locale").is_none());
+    }
+
+    /// ⚠️ A plain calendar day read as a local instant and rendered in UTC is the day before,
+    /// everywhere east of Greenwich, and the sentence it lands in says when somebody's access
+    /// stops. An instant carrying its own offset is the other way about: UTC is what the service
+    /// means by it.
+    #[test]
+    fn an_account_service_date_keeps_the_day_the_service_meant() {
+        assert_eq!(
+            account_date("2026-11-01", "nl").as_deref(),
+            Some("1 nov 2026")
+        );
+        assert_eq!(
+            account_date("2026-11-01T00:30:00+02:00", "nl").as_deref(),
+            Some("31 okt 2026")
+        );
+        assert_eq!(
+            account_date("2026-11-01T09:05:00Z", "en").as_deref(),
+            Some("1 Nov 2026")
+        );
+    }
+
+    /// An empty string is no date at all, and a shape nothing can read still has the right day.
+    #[test]
+    fn an_unreadable_account_date_keeps_its_day_and_only_stops_being_localised() {
+        assert_eq!(account_date("", "en"), None);
+        assert_eq!(
+            account_date("01/11/2026 ish", "en").as_deref(),
+            Some("01/11/2026")
+        );
     }
 
     #[test]

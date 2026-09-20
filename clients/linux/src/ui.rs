@@ -19,6 +19,8 @@ use crate::{
 };
 
 mod allodia;
+mod allodia_subscription;
+mod allodia_subscription_facts;
 mod allodia_sync;
 mod avatar;
 mod calendar;

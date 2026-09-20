@@ -38,6 +38,13 @@ pub(super) fn group(title: &str, description: &str) -> adw::PreferencesGroup {
         .build()
 }
 
+/// A settings group with a heading and nothing under it, escaped for the same reason.
+pub(super) fn group_titled(title: &str) -> adw::PreferencesGroup {
+    adw::PreferencesGroup::builder()
+        .title(gtk::glib::markup_escape_text(title).as_str())
+        .build()
+}
+
 pub(super) fn choice(
     title: &str,
     labels: &[&str],

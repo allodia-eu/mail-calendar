@@ -4,9 +4,13 @@ use std::sync::Arc;
 
 use adw::prelude::*;
 use mailcal_bindings::MailcalApp;
-use widgets::{choice, dialog_box, group, page_box};
+use widgets::{choice, dialog_box, group, group_titled, page_box};
 
-use super::{AppInput, allodia_sync::AllodiaSyncState};
+use super::{
+    AppInput,
+    allodia_subscription::{SubscriptionInput, SubscriptionState},
+    allodia_sync::AllodiaSyncState,
+};
 use crate::{l10n, preferences::HostPreferences};
 
 pub(super) mod about;
@@ -14,6 +18,7 @@ pub(super) mod account_sync_mode;
 pub(super) mod accounts;
 pub(super) mod allodia;
 pub(super) mod allodia_sync;
+pub(super) mod subscription;
 mod widgets;
 
 mod diagnostics;
@@ -54,6 +59,9 @@ pub(super) struct RenderState<'a> {
     pub(super) allodia_signing_in: bool,
     pub(super) allodia_failure: Option<&'a str>,
     pub(super) allodia_sync: &'a AllodiaSyncState,
+    /// What the subscription section has learned, for the same reason: a read and a write each
+    /// outlive several window rebuilds.
+    pub(super) allodia_subscription: &'a SubscriptionState,
     pub(super) allodia_accounts_synced:
         &'a std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// This generation is a **refresh** of an already-open window, not a request to open one.
@@ -108,6 +116,8 @@ struct PageContext {
     allodia_failure: Option<String>,
     /// What the person's other devices have to say, for the same reason.
     allodia_sync: AllodiaSyncState,
+    /// What the subscription section has learned, likewise.
+    allodia_subscription: SubscriptionState,
     /// Where each account stands. Empty in a build with no Allodia sign-in, and the block is then
     /// absent rather than dead.
     allodia_accounts_synced:
@@ -164,6 +174,22 @@ impl SettingsWindow {
             let closing = window.clone();
             done.connect_clicked(move |_| closing.close());
             header.pack_end(&done);
+            // ⚠️ **Coming back to this window is the only signal a checkout gives.** The payment
+            // finishes in a **browser** and this window stays open behind it, so without this the
+            // person returns to the very card that sent them, still offering to sell what they
+            // have just bought. The same staleness follows a subscription changing on a phone or
+            // on the website, which this app is not present for either.
+            //
+            // Connected where the window is built rather than on every render: a refresh reuses
+            // the window, and a handler added per refresh would fire once per redraw it has ever
+            // had. The section ignores a return until it has answered once, so this costs a round
+            // trip only on the page that draws one.
+            let returning = sender.clone();
+            window.connect_is_active_notify(move |window| {
+                if window.is_active() {
+                    returning.emit(AppInput::AllodiaSubscription(SubscriptionInput::Returned));
+                }
+            });
             (window, header)
         };
         let navigation = gtk::Stack::new();
@@ -179,6 +205,7 @@ impl SettingsWindow {
             allodia_signing_in: state.allodia_signing_in,
             allodia_failure: state.allodia_failure.map(str::to_owned),
             allodia_sync: state.allodia_sync.clone(),
+            allodia_subscription: state.allodia_subscription.clone(),
             allodia_accounts_synced: state.allodia_accounts_synced.clone(),
         };
         navigation.add_named(&window_content(state.category, &ctx), Some("settings"));

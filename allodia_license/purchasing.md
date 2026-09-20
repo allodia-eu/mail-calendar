@@ -382,19 +382,25 @@ The core decides; the client talks to the store it is running on, because no Rus
 | Its four writes: checkout, cancel, switch period, resubscribe | 🚧 | n/a | n/a | n/a | n/a | n/a |
 | Talk to the platform's store: fetch, buy, collect, finish | n/a | 🚧 | 🚧 | n/a | ✅ | n/a |
 | That half tested against a **simulated** store | n/a | ✅ | n/a | n/a | n/a | n/a |
-| Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ✅ | ✅ | ⬜ |
-| Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ✅ | ✅ | ⬜ |
-| Open Allodia's own checkout | n/a | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
+| Draw the account screen: state, prices, buy | n/a | 🚧 | 🚧 | ✅ | ✅ | ✅ |
+| Draw its four writes: checkout, cancel, switch period, resubscribe | n/a | ⬜ | ⬜ | ✅ | ✅ | ✅ |
+| Open Allodia's own checkout | n/a | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 | Link out to that checkout from inside the app | n/a | ⬜ | ⬜ | n/a | ⬜ | n/a |
-| Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | n/a | ✅ | n/a |
+| Reach the store's own manage-or-cancel page | n/a | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Build with no Google library in it at all | n/a | n/a | n/a | n/a | ✅ | n/a |
-| Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ✅ | ✅ | ⬜ |
+| Open Allodia's own checkout in a browser | n/a | ⬜ | ⬜ | ✅ | ✅ | ✅ |
 
 Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 Windows and Linux ship no store purchase: the Microsoft Store's commerce is not used and Flatpak
-has none, so on both the only route is Allodia's own checkout. **Android is two builds**: both are
-compiled and tested by `:app:test` in the gate, and the `foss` one already opens the checkout,
-which is why that row is ✅ for Android alone.
+has none, so on both the only route is Allodia's own checkout, which both now draw. **Android is
+two builds**: both are compiled and tested by `:app:test` in the gate, and the `foss` one opens the
+checkout, which is why that row is ✅ for the three builds that sell through it and nowhere else.
+
+⚠️ **The manage-or-cancel row is a store's obligation on a phone and the product's everywhere
+else.** No store distributes the desktop builds and none reviews them, but one account carries
+every device, so somebody whose subscription was bought on a phone opens this screen on a desktop
+and needs the same page. What each opens is `manage_url` from the read, never a page assembled by a
+client.
 
 **Android's `play` half has been driven end to end against the real store** (2026-09-18, physical
 device, production account service). The catalogue resolved, the sheet opened on a licence tester's
@@ -491,14 +497,26 @@ it is why the four writes are no longer the least proven half of this page.
   a deliberate choice, but somebody who has read one of them will be surprised by the other, and
   the copy for either switch has to be the store's rather than one sentence reused. Play will have
   its own answer again.
-- **The four writes reach two screens.** Android draws all four: checkout is what the `foss` buy
+- **The four writes reach three screens.** Android draws all four: checkout is what the `foss` buy
   buttons already call, and cancel, switch period and resubscribe sit under the paid state, each
-  drawn only where `actions` permits. Windows draws the same four, for the same reason and off the
-  same `actions`. Apple's screen calls none of them, correctly for a store's subscription, so
-  macOS, iOS and Linux still owe the drawing.
-- **Linux draws no purchase surface**, and it is not merely unwritten: it needs the checkout route
-  rather than the store one. The copy is in the catalog in all seven locales already, so what it
-  owes is the drawing.
+  drawn only where `actions` permits. Windows and Linux draw the same four, for the same reason and
+  off the same `actions`; on both, checkout is the buy buttons themselves, there being no store on
+  either to sell through. Apple's screen calls none of them, correctly for a store's subscription,
+  so macOS and iOS still owe the drawing.
+- **The Linux drawing has been run against both shapes** (2026-09-20, production). Against an
+  account billed by **Google Play**, the half with no writes on it: the store's page offered, and
+  cancel, switch and restart correctly absent. Against a subscription of **Allodia's own**:
+  cancelled and restarted, ending where it began, with the renewal date unmoved and the button set
+  following `actions` rather than the card, the restart button appearing on the cancellation and
+  going again on the restart. ⚠️ Starting a checkout and switching period are still unrun here, and
+  a refusal, reachable only by racing the service, remains the least proven line on the screen.
+- **A refusal now has words of its own.** `AllodiaSubscriptionRefusal` reaches a client as a code,
+  as this contract requires, and rendering the **exception** instead puts a generated field name on
+  screen: UniFFI builds one from the variant's own fields, so a refusal read `reason=NOT_SWITCHABLE`
+  and everything else, an unreachable service included, read as a sentence with nothing after its
+  colon or, on Windows, as the exception's own type name. All three clients that draw the writes now
+  switch on the code, with five sentences in all seven locales and one more for a reason none of
+  them can explain.
 - ⚠️ **A card reads once and nothing tells it the answer changed.** Every client asks when the
   card appears and not again, so it goes stale the moment the subscription moves anywhere else, and
   the checkout route makes that the ordinary case rather than an edge one: the payment finishes in a
@@ -506,22 +524,26 @@ it is why the four writes are no longer the least proven half of this page.
   bought. The same staleness follows buying on a phone, subscribing on the website, a store
   cancelling at renewal and a charge failing, none of which this app is present for, which is why
   the remedy is the app being looked at again rather than anything a checkout could hand back.
-  Windows re-reads when its window is activated while the card is open. Apple and Android start
-  their read once per composition, neither re-runs on resume, and both still owe it.
+  The two desktops re-read when their Settings window comes back to the front, which is what
+  returning from the payment page looks like on both, and each ignores it until the section has
+  answered once, so the round trip is spent on the page that draws one. Apple and Android start
+  their read once per screen, neither re-runs on resume, and both still owe it.
 - ⚠️ **The manage-at-the-store button is unreachable in the two states it was written for.**
   Every card draws the paid half only when `entitled` is true, and on hold and paused both grant
   nothing, so `entitled` is false and the button goes with the rest of that half. Those are exactly
   the two states the rule about which stores are manageable exists to keep it for: a card that
   failed is replaced at the store and a pause is lifted there, so the person who most needs the
-  route is the one who has none. It is the same shape on all three clients, which is why it is
+  route is the one who has none. It is the same shape on all four clients, which is why it is
   recorded here rather than fixed on whichever one noticed.
-- ⚠️ **The three clients that format a service date do not agree on which day it is.** The service
+- ⚠️ **The four clients that format a service date do not agree on which day it is.** The service
   sends an offset-bearing instant, and a period ending at midnight `+02:00` is the previous day in
   UTC. Android restates it in UTC and Apple in the reader's own zone, so the two already differ;
-  Windows repeats the day the service wrote, which is the only one of the three that cannot
-  disagree with its own fallback, since a string it fails to parse is drawn as its leading ten
-  characters. One rule should win, and the cheapest place to settle it is the service saying which
-  frame it means.
+  Windows repeats the day the service wrote, which is the only one that cannot disagree with its
+  own fallback, since a string it fails to parse is drawn as its leading ten characters. Linux
+  takes Android's frame for an instant and Windows's for the plain calendar day the service also
+  sends, because reading one of those as a local instant loses a day everywhere east of Greenwich.
+  One rule should win, and the cheapest place to settle it is the service saying which frame it
+  means.
 - **All four writes have now been run, and Allodia's own checkout has been paid through.** A
   Windows client started a monthly checkout (2026-09-19), the hosted page took **a real payment on a
   real card**, and the subscription came back active and renewing a month later: the first money to
