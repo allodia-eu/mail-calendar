@@ -599,13 +599,6 @@ it is why the four writes are no longer the least proven half of this page.
   the one this subscriber was charged in. The two differ only for somebody whose billing currency
   has since changed, which the service does not currently do, so it is a latent wrong rather than a
   present one.
-- ⚠️ **The account web page draws a store's heading and its manage link once per subscription
-  row**, which is the rule above going the other way outside this repository. An account with three
-  live Play rows, two cancelled and one renewing, drew three "Billed through Google Play" headings
-  and three manage links at the same page (2026-09-19). Three headings from one store also read as
-  being charged three times, which is what `duplicateBilling` is reserved for and would then be
-  believable and wrong. The page belongs to the account service's own repository, so it cannot be
-  fixed here; it is recorded because the rule it breaks is this contract's.
 - **The invoice history is not modelled.** `GET /subscription` also returns each payment and what
   has been refunded of it; nothing draws that yet, and serde ignores what nothing asked for, so
   adding it later needs no service change.
