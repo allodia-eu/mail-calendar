@@ -17,10 +17,7 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use gtk::{
-    gio,
-    prelude::{BoxExt, ButtonExt, EditableExt, GtkWindowExt, IsA, WidgetExt},
-};
+use gtk::{gio, prelude::EditableExt};
 use mailcal_bindings::{ComposeRequest as CoreComposeRequest, Intent};
 use webkit6::prelude::WebViewExt;
 
@@ -31,7 +28,6 @@ use super::{
     model::OpenedMessage,
     reader::ComposerHost,
 };
-use crate::l10n;
 
 /// The four header fields the guard compares, in one value so the comparison reads as one rule.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
