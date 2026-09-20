@@ -137,6 +137,13 @@ gesture needs a real mouse.
   the leading slot would make it read as one more account row. Rule 10 leaves the artwork to each
   platform, and this is that latitude used; if it ever reads as a missing icon rather than as a
   heading, the fix is a glyph, not a destination.
+- **A folder inside a folder sits beside it, not under it.** `FolderRow` carries no parent, so an
+  account's folders render as one flat list however the server nests them. What that reads like
+  depends on the provider: IMAP and Gmail name a folder by its whole path (`Archive/2024`), so the
+  flat list still says where each one lives, while JMAP and Graph name it by its last segment alone
+  (`2024`, under an Archive the row never mentions). Closing this is a core change (the parent
+  carried through `AccountFolderRow`) plus an indent and a disclosure control in four panes, not a
+  client tweak.
 - **The group has one child.** A unified Sent, Drafts and Archive are what rule 16's shape is for,
   and none of them exists: the core's unified scope reaches every account's **Inbox** only
   ([`scope.rs`](../crates/mailcal-app/src/scope.rs)), so a second child would need a scope to
