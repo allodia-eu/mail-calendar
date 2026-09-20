@@ -51,7 +51,7 @@ mode_test() {
   # before reaching yours.
   G_DEBUG=fatal-criticals GTK_A11Y=none RUST_BACKTRACE=1 in_session gdb --batch \
     -ex run -ex "bt 45" \
-    --args "$REPO_ROOT/$binary" --test-threads=1 --nocapture ${filter:+"$filter"}
+    --args "$binary" --test-threads=1 --nocapture ${filter:+"$filter"}
 }
 
 mode_dbus() {
