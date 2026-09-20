@@ -94,3 +94,29 @@ pub enum SendStatus {
     /// retry it.
     Failed,
 }
+
+/// The state of the most recent draft save, surfaced via [`Surface::DraftStatus`] so a
+/// composer can say quietly that the words are on the server.
+///
+/// **A hint, never a gate.** Saving a draft is not something a user waits for: no state here
+/// blocks a composer from being closed, and none is worth a modal. That is what separates it
+/// from [`SendStatus`], whose terminal states answer a question the user asked out loud.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DraftStatus {
+    /// Nothing has been saved this session.
+    #[default]
+    Idle,
+    /// A save is in flight.
+    Saving,
+    /// The draft is on the server. Also the answer to a save whose content was unchanged,
+    /// which reaches no server and is still honestly "saved" (`docs/drafts.md`).
+    Saved,
+    /// The save has **not** reached the server yet, and is waiting in the outbox for a
+    /// network.
+    ///
+    /// Not [`Self::Failed`]: the words are not lost, and the queued save goes out by itself.
+    /// The distinction is the one [`SendStatus::Queued`] draws, for the same reason.
+    Queued,
+    /// The save did not reach the server and nothing will retry it.
+    Failed,
+}

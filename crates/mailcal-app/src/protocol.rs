@@ -10,13 +10,15 @@ use mailcal_composer::DraftBlobHandle;
 // `lib.rs` re-exports every half, so the split is invisible to a host.
 mod intent;
 mod intent_contacts;
+mod intent_drafts;
 mod intent_outbox;
 mod status;
 
 pub use intent::Intent;
 pub use intent_contacts::ContactsIntent;
+pub use intent_drafts::{CompositionId, DraftsIntent};
 pub use intent_outbox::OutboxIntent;
-pub use status::{CalendarWriteStatus, ContactWriteStatus, SendStatus};
+pub use status::{CalendarWriteStatus, ContactWriteStatus, DraftStatus, SendStatus};
 
 /// A surface a host observes and pulls an immutable snapshot for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +66,13 @@ pub enum Surface {
     /// auto-clear: the message has already left the outbox, so this request is the only
     /// copy of it, and the host clears it once the composer holds it.
     ComposeRequest,
+    /// Draft save status: how the most recent save of the message being composed ended
+    /// (pulled via `App::draft_status`); drives the composer's quiet "saved" hint.
+    ///
+    /// Its own surface rather than a state of [`Self::Sending`], because the two are on
+    /// screen at the same time and mean opposite things: a composer can be saving a draft
+    /// while an earlier message is still going out.
+    DraftStatus,
 }
 
 /// A host implements this to learn a [`Surface`] changed, then pulls its snapshot.

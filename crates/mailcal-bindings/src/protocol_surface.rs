@@ -46,6 +46,9 @@ pub enum Surface {
     /// auto-clear: the message has already left the Outbox, so this is the only copy of it,
     /// and the host clears it once its composer holds it.
     ComposeRequest,
+    /// Draft save status: how the most recent save of the message being composed ended
+    /// (pulled via `MailcalApp::draft_status`); drives the composer's quiet "saved" hint.
+    DraftStatus,
 }
 
 /// A foreign (Kotlin/Swift) observer the app notifies when a surface changes; the

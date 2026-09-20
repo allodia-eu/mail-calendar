@@ -16,7 +16,7 @@ use mailcal_composer::{
 
 use crate::{
     App,
-    helpers::{forward_subject, generated_message_id, reply_subject},
+    helpers::{forward_subject, new_message_id, reply_subject},
     mail_compose_quote::{
         quotes_reference_inline_images, reattach_quote_cids, sanitize_quote_bodies,
     },
@@ -66,7 +66,19 @@ impl<P: Provider> App<P> {
             return;
         }
         // A brand-new message has no quoted original, so no inline parts to re-attach.
-        let Some(draft) = rich_draft(&identity, to, cc, bcc, subject, document, blobs, &[]) else {
+        let Some(draft) = new_message_id().and_then(|message_id| {
+            rich_draft(
+                message_id,
+                &identity,
+                to,
+                cc,
+                bcc,
+                subject,
+                document,
+                blobs,
+                &[],
+            )
+        }) else {
             self.fail_send().await;
             return;
         };
@@ -122,16 +134,19 @@ impl<P: Provider> App<P> {
         } else {
             Vec::new()
         };
-        let Some(mut draft) = rich_draft(
-            &identity,
-            to,
-            cc,
-            bcc,
-            subject,
-            document,
-            blobs,
-            &inline_parts,
-        ) else {
+        let Some(mut draft) = new_message_id().and_then(|message_id| {
+            rich_draft(
+                message_id,
+                &identity,
+                to,
+                cc,
+                bcc,
+                subject,
+                document,
+                blobs,
+                &inline_parts,
+            )
+        }) else {
             self.fail_send().await;
             return;
         };
@@ -194,16 +209,19 @@ impl<P: Provider> App<P> {
         } else {
             Vec::new()
         };
-        let Some(mut draft) = rich_draft(
-            &identity,
-            to,
-            cc,
-            bcc,
-            subject,
-            document,
-            blobs,
-            &inline_parts,
-        ) else {
+        let Some(mut draft) = new_message_id().and_then(|message_id| {
+            rich_draft(
+                message_id,
+                &identity,
+                to,
+                cc,
+                bcc,
+                subject,
+                document,
+                blobs,
+                &inline_parts,
+            )
+        }) else {
             self.fail_send().await;
             return;
         };
@@ -295,10 +313,16 @@ impl<P: Provider> App<P> {
 
 /// Renders a composer document into a rich (HTML + plain-text + attachments) draft from
 /// `identity` to the `to`/`cc`/`bcc` recipients, resolving inline/regular attachment bytes
-/// from the host `blobs`. The base builder shared by new-message, reply, and forward; reply
-/// layers its `In-Reply-To`/`References` threading onto the returned draft.
+/// from the host `blobs`. The base builder shared by new-message, reply, forward and a saved
+/// draft; reply layers its `In-Reply-To`/`References` threading onto the returned draft.
+///
+/// `message_id` is a parameter rather than minted here because a draft is built repeatedly:
+/// every save of one composition is the same message and carries the same header, which is
+/// what lets a queued save supersede the one before it (`crate::draft_ops`). A send mints a
+/// fresh one per call.
 #[allow(clippy::too_many_arguments)]
-fn rich_draft(
+pub(crate) fn rich_draft(
+    message_id: MessageIdHeader,
     identity: &EmailAddress,
     to: Vec<EmailAddress>,
     cc: Vec<EmailAddress>,
@@ -339,7 +363,6 @@ fn rich_draft(
                 .map(|url| (&attachment.id, url))
         })
         .collect();
-    let message_id = MessageIdHeader::new(generated_message_id()).ok()?;
     let mut blob_map = blob_map(blobs);
     let mut draft = Draft::new(message_id, identity.clone(), to, subject, output.plain_text)
         .with_html_body(output.html)
@@ -374,7 +397,7 @@ fn rich_draft(
 /// Splits a recipient field's comma-separated text into addresses, trimming whitespace and
 /// dropping empties. These fields carry bare addresses (no display-name-with-comma parsing),
 /// matching the plain composer; it is the inverse of [`join_emails`].
-fn parse_addresses(field: &str) -> Vec<EmailAddress> {
+pub(crate) fn parse_addresses(field: &str) -> Vec<EmailAddress> {
     field
         .split(',')
         .map(str::trim)

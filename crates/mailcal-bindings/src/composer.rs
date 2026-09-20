@@ -247,7 +247,7 @@ impl MailcalApp {
     /// Schedules a fire-and-forget rich dispatch on the internal runtime: the shared
     /// back half of the rich submit/reply/forward methods, after the document has
     /// validated and every blob handle has bytes.
-    fn spawn_dispatch(&self, intent: AppIntent) {
+    pub(crate) fn spawn_dispatch(&self, intent: AppIntent) {
         let app = Arc::clone(&self.app);
         self.runtime.spawn(async move {
             app.dispatch(intent).await;
@@ -258,7 +258,7 @@ impl MailcalApp {
 /// Parses `document_json` into a [`ComposerDocument`], renders it to validate, and
 /// resolves every blob handle to bytes: the shared front half of the rich submit/reply/
 /// forward methods, returning the document and app-typed blobs ready to dispatch.
-fn prepare_rich(
+pub(crate) fn prepare_rich(
     document_json: &str,
     blobs: Vec<ComposerBlob>,
 ) -> Result<(ComposerDocument, Vec<AppComposerBlob>), MailcalError> {

@@ -15,6 +15,8 @@ use super::{
 
 // The submitting fake every test here drives, in its own file so this one stays under the
 // 500-line limit. A child module, so it reaches the parent's imports through `super`.
+#[path = "draft_ops_tests.rs"]
+mod draft_ops_tests;
 #[path = "mail_ops_fake_provider.rs"]
 mod fake;
 #[path = "outbox_tests.rs"]

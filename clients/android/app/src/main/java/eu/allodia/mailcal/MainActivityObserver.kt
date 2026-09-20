@@ -57,5 +57,8 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // A connectivity signal updates the offline banner, the per-account outage
         // badges, and the friendly connection-issues banner (names + details).
         CoreSurface.CONNECTIVITY -> refreshConnectivity()
+        // The composer's quiet "saved" hint. Nothing draws it yet; the composer has
+        // neither an idle timer nor a Save button (docs/drafts.md, Known gaps).
+        CoreSurface.DRAFT_STATUS -> {}
     }
 }

@@ -2,6 +2,8 @@
 //! normalise reply/forward subjects and name an exported message. Split out of `lib.rs` to keep it
 //! under the 500-line limit. A production host would mint UUIDs instead of clock-derived ids.
 
+use engine_api::MessageIdHeader;
+
 /// The wall clock, as the engine's UTC type: the `DTSTAMP` a written or answered event carries.
 ///
 /// Engine time types deliberately cannot read the system clock (so expansion stays
@@ -33,6 +35,15 @@ fn wall_nanos() -> u128 {
 /// keys on it for idempotency; a production host would mint a UUID.
 pub(crate) fn generated_message_id() -> String {
     format!("{}@allodia.local", wall_nanos())
+}
+
+/// A fresh `Message-ID` header for a message being composed now.
+///
+/// `None` only if the minted value is not a valid header, which [`generated_message_id`]
+/// cannot produce; callers treat it as they treat any other build failure rather than
+/// asserting it away.
+pub(crate) fn new_message_id() -> Option<MessageIdHeader> {
+    MessageIdHeader::new(generated_message_id()).ok()
 }
 
 /// A unique `Content-ID` for an inline part the core mints itself: a signature's embedded image

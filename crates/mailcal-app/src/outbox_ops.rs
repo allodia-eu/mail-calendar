@@ -141,6 +141,9 @@ impl<P: Provider> App<P> {
                     report.attempted.len(),
                     report.delivered()
                 );
+                // A queued draft save that got through resolved to a key, and this report is
+                // the only place it is ever named (`docs/drafts.md`).
+                self.record_drained_drafts(&report);
                 self.refresh_after_write(account).await;
             }
             Err(err) => log::warn!("outbox: a drain pass failed: {err}"),
