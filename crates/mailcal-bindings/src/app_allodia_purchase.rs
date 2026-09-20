@@ -136,7 +136,7 @@ mod pass {
             &self,
             purchases: &[AllodiaStorePurchase],
         ) -> Result<AllodiaPurchaseReport, AllodiaPurchaseError> {
-            let token = self.allodia_access_token().map_err(|_| {
+            let token = self.allodia_access_token("a purchase").map_err(|_| {
                 if self.allodia.lock().expect("allodia account lock").is_none() {
                     AllodiaPurchaseError::NotSignedIn
                 } else {
@@ -205,6 +205,23 @@ mod pass {
                 .map(|entry| entry.purchase.clone())
                 .collect();
             report.anything_stuck = ledger.has_stuck(now);
+            // ⚠️ **How a pass ended, which the line above it never said.** "Attaching 2" with
+            // nothing after it reads as a pass that worked, and the three endings are not
+            // interchangeable: one granted, one belongs to somebody else's account, and one is
+            // coming round again. Counts only, because a purchase id is the store's and names the
+            // person's transaction.
+            if !report.finish.is_empty()
+                || !report.claimed_elsewhere.is_empty()
+                || !report.waiting.is_empty()
+            {
+                log::info!(
+                    "allodia: the pass settled {}, of which {} belong to another account, and \
+                     left {} to come round again",
+                    report.finish.len(),
+                    report.claimed_elsewhere.len(),
+                    report.waiting.len(),
+                );
+            }
             Ok(report)
         }
 

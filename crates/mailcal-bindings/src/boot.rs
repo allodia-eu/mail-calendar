@@ -115,7 +115,9 @@ pub(crate) fn build_accounts(
     // anything below tries to read it as a mailbox: a build with no Allodia sign-in does this too,
     // and simply drops what it takes, because the alternative is reporting an intact grant as a
     // corrupt account at every launch.
-    let allodia = crate::allodia::take_stored(&mut configs);
+    // ⚠️ Taken either way, so the mail parsers never see it, but **kept only by a core that can use
+    // it**: a second core holding the grant is a second refresh gate over one credential.
+    let allodia = crate::allodia::take_stored(&mut configs).filter(|_| start_live_sync);
 
     let registry = AccountRegistry::new();
     // The token sink every OAuth account's refresh shares, built over the host's store before

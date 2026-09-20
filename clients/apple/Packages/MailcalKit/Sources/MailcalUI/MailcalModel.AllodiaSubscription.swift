@@ -39,6 +39,11 @@ struct AllodiaSubscriptionView: Equatable {
     /// and nothing has been granted, and a screen that draws nothing here leaves the person with
     /// no way to find that out.
     let anythingStuck: Bool
+    /// Whether the pass just dropped a purchase because a **different** Allodia account already
+    /// owns it, which is what signing in to a second account on a device that has bought something
+    /// looks like. Nothing was granted here and nothing will be, so the person is told rather than
+    /// left to wonder why a subscription they paid for is not on this account.
+    let claimedElsewhere: Bool
 }
 
 /// How one trip through the purchase sheet ended, as a screen sees it.
@@ -85,7 +90,7 @@ extension MailboxModel {
     /// could not attach last time, is attached before the state it produces is read back.
     func allodiaSubscriptionState() async -> AllodiaSubscriptionState {
         guard let app else { return .unavailable }
-        let stuck = await runAllodiaRedemption()
+        let pass = await runAllodiaRedemption()
         // The read is a network round trip and the core call blocks on it, so it goes off the main
         // thread exactly as the sign-in and sync passes do.
         let answer = await Task.detached(priority: .userInitiated) {
@@ -95,7 +100,12 @@ extension MailboxModel {
         // Offers cost a StoreKit round trip, so they are fetched only when they can be drawn.
         let offers = answer.entitled ? [] : await allodiaPurchases?.offers() ?? []
         return .loaded(
-            AllodiaSubscriptionView(subscription: answer, offers: offers, anythingStuck: stuck)
+            AllodiaSubscriptionView(
+                subscription: answer,
+                offers: offers,
+                anythingStuck: pass.stuck,
+                claimedElsewhere: pass.claimedElsewhere
+            )
         )
     }
 
@@ -133,12 +143,16 @@ extension MailboxModel {
         }
     }
 
-    /// One redemption pass, reporting only whether something has been stuck long enough to say so.
+    /// One redemption pass, reporting the two endings that owe somebody a sentence.
     ///
     /// A pass that could not reach the service is not a failure here: the purchase stays
     /// outstanding and the next pass tries again, which is the whole of what keeps it safe.
-    private func runAllodiaRedemption() async -> Bool {
-        guard let purchases = allodiaPurchases else { return false }
-        return (try? await purchases.linkOutstanding())?.anythingStuck ?? false
+    ///
+    /// The ids are deliberately not carried out: a person cannot act on a store transaction id, so
+    /// only whether each happened reaches the screen.
+    private func runAllodiaRedemption() async -> (stuck: Bool, claimedElsewhere: Bool) {
+        guard let purchases = allodiaPurchases else { return (false, false) }
+        guard let report = try? await purchases.linkOutstanding() else { return (false, false) }
+        return (report.anythingStuck, !report.claimedElsewhere.isEmpty)
     }
 }

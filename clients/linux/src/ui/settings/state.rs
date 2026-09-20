@@ -31,6 +31,9 @@ pub(in crate::ui) struct SettingsState {
     /// What the person's other devices have to say about their mail accounts. Here for the same
     /// reason as the two above: a pass outlives several window rebuilds.
     pub(in crate::ui) allodia_sync: crate::ui::allodia_sync::AllodiaSyncState,
+    /// What the subscription section has learned, for the same reason: its read is a network
+    /// round trip and its writes are three more.
+    pub(in crate::ui) allodia_subscription: crate::ui::allodia_subscription::SubscriptionState,
 }
 
 impl Default for SettingsState {
@@ -44,6 +47,7 @@ impl Default for SettingsState {
             allodia_sign_in_slow: false,
             allodia_failure: None,
             allodia_sync: crate::ui::allodia_sync::AllodiaSyncState::default(),
+            allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
         }
     }
 }
@@ -112,6 +116,7 @@ impl SettingsState {
             allodia_signing_in: self.allodia_signing_in,
             allodia_failure: self.allodia_failure.as_deref(),
             allodia_sync: &self.allodia_sync,
+            allodia_subscription: &self.allodia_subscription,
             allodia_accounts_synced: accounts_synced,
             refresh_only: self.refresh_only,
         }

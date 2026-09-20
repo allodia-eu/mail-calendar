@@ -101,7 +101,7 @@ public sealed partial class MailboxModel
         {
             // The engine itself couldn't open at launch (ConnectAsync's own error is already
             // shown); restate it plainly rather than silently no-op. Mirrors macOS's wording.
-            SetupError = "Could not open the app. Please relaunch.";
+            SetupError = L10n.AppUnavailable();
             return;
         }
         string configToml;
@@ -141,7 +141,7 @@ public sealed partial class MailboxModel
         // only if the engine itself couldn't open at launch, surface that rather than no-op.
         if (_app is null)
         {
-            SetupError = "Could not open the app. Please relaunch.";
+            SetupError = L10n.AppUnavailable();
             return;
         }
         string configToml;
@@ -179,7 +179,7 @@ public sealed partial class MailboxModel
         }
         if (_app is null)
         {
-            SetupError = "Could not open the app. Please relaunch.";
+            SetupError = L10n.AppUnavailable();
             return;
         }
         _ = _signIn.RunAsync(cancel => SignInWithMicrosoftAsync(loginHint, cancel));

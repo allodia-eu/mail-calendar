@@ -262,6 +262,20 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::allodia::tests::a_signed_in_account_can_be_managed_deleted_and_left();
     crate::ui::settings::allodia::tests::neither_the_address_nor_the_failure_is_parsed_as_markup();
     crate::ui::settings::allodia::tests::every_card_row_is_reachable_from_the_keyboard();
+    crate::ui::settings::subscription::tests::a_paid_account_names_its_biller_and_says_when();
+    crate::ui::settings::subscription::tests::
+        a_stores_subscription_is_offered_its_page_and_no_write();
+    crate::ui::settings::subscription::tests::no_write_is_drawn_that_the_service_has_not_permitted(
+    );
+    crate::ui::settings::subscription::tests::
+        the_two_writes_that_change_a_charge_ask_before_they_act();
+    crate::ui::settings::subscription::tests::a_write_in_flight_stops_a_second_one();
+    crate::ui::settings::subscription::tests::the_buy_buttons_name_their_period_and_their_price();
+    crate::ui::settings::subscription::tests::an_account_that_cannot_buy_is_offered_nothing();
+    crate::ui::settings::subscription::tests::
+        a_grant_that_predates_the_read_offers_the_one_thing_that_fixes_it();
+    crate::ui::settings::subscription::tests::every_subscription_row_is_reachable_from_the_keyboard(
+    );
     crate::ui::settings::account_sync_mode::tests::
         the_control_offers_three_positions_and_holds_the_one_in_force();
     crate::ui::settings::account_sync_mode::tests::

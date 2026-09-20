@@ -362,6 +362,15 @@ Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ pl
 ## Known gaps
 
 
+- **One refresh at a time is held per core, and the grant is kept out of every other core.** Each
+  caller in a core waits on one gate and is served the token the winner minted, so a grant is
+  presented once however many subsystems ask at the same instant. Two cores would be two gates, each
+  reading the same refresh token from the host's store and presenting it, which is the replay the
+  gate closes within a core. Rather than share the state, as `mailcal-account` does per account for
+  mail, a core that cannot use the grant does not hold it: a headless background pass drops it at
+  boot, because nothing below `mailcal-bindings` knows an Allodia account exists and the worker
+  calls one method, which syncs mail. **So a background pass that ever needs the account has to
+  share the credential state first**, and will find it absent rather than silently replaying it.
 - **The grant-health prompt is built on all five clients and run on one.** Windows was built,
   driven and verified against the production service on a grant that really was narrower than the
   build wanted: the whole chain, from a refresh that now succeeds where it used to be refused, to

@@ -53,7 +53,11 @@ internal fun MainActivity.refreshAllodiaSubscription() {
     val instance = app ?: return
     val purchases = allodiaPurchases ?: return
     allodiaPurchaseScope.launch {
-        val stuck = purchases.linkOutstanding()?.anythingStuck == true
+        val report = purchases.linkOutstanding()
+        val stuck = report?.anythingStuck == true
+        // A list rather than a flag, because the core names which purchases; a person cannot act
+        // on a store transaction id, so only whether it happened reaches the screen.
+        val claimedElsewhere = report?.claimedElsewhere.orEmpty().isNotEmpty()
         // The read is a network round trip and the core call blocks on it, so it goes off the main
         // thread exactly as the sign-in and sync passes do.
         val answer =
@@ -85,6 +89,7 @@ internal fun MainActivity.refreshAllodiaSubscription() {
                     subscription = answer,
                     offers = offers,
                     anythingStuck = stuck,
+                    claimedElsewhere = claimedElsewhere,
                 )
             ),
             accountId = instance.allodiaAccount()?.id,
@@ -143,9 +148,13 @@ private fun MainActivity.noteFor(outcome: AllodiaPurchaseOutcome, plan: AllodiaP
 // days rather than lost. What this buys is the way back from a flow the shop never answers, which
 // would otherwise leave every button disabled behind a spinner that does not stop.
 internal fun MainActivity.forgetAllodiaPurchaseInFlight() {
-    if (allodiaSubscription.buying == null) return
-    logUiInfo("allodia: the subscription card was closed while a purchase was in flight")
-    allodiaSubscription = allodiaSubscription.copy(buying = null)
+    if (allodiaSubscription.buying != null) {
+        logUiInfo("allodia: the subscription card was closed while a purchase was in flight")
+    }
+    // The note goes with it. It answers an attempt somebody has just made, so it survives the
+    // re-read that follows one, and reading "your next payment becomes X" on opening Settings a
+    // week later is a statement about nothing that just happened.
+    allodiaSubscription = allodiaSubscription.copy(buying = null, note = null)
 }
 
 // Opens the store's own subscription page, which is the only thing that can change a subscription

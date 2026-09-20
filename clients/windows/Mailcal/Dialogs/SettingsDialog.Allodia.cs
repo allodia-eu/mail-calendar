@@ -48,6 +48,12 @@ public sealed partial class SettingsDialog
                 _brushes.Of(ThemePalette.Critical);
             panel.Children.Add(error);
         }
+        // The subscription sits under the account it belongs to, and is drawn only while somebody
+        // is signed in (SettingsDialog.Subscription.cs).
+        if (BuildAllodiaSubscription() is { } subscription)
+        {
+            panel.Children.Add(subscription);
+        }
         return panel;
     }
 
@@ -124,6 +130,10 @@ public sealed partial class SettingsDialog
         var failure = await _model.SignInToAllodiaAsync(create);
         _allodiaSigningIn = false;
         _allodiaFailure = failure;
+        // A sign-in is what the subscription card's reauth state offers as its remedy, and it is
+        // the same account afterwards, so nothing about the account would tell the card to ask
+        // again. Without this the prompt it just acted on stays on screen for ever.
+        ForgetAllodiaSubscriptionRead();
         // No state to pass: the card re-reads who is signed in from the core.
         Apply(() => { });
     }

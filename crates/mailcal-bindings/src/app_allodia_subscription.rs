@@ -174,7 +174,7 @@ mod calls {
         /// scope check before the first request, because that request cannot succeed and its
         /// refusal would read as the service being down.
         fn ready(&self, feature: Feature) -> Result<Ready, AllodiaPurchaseError> {
-            let token = self.allodia_access_token().map_err(|_| {
+            let token = self.allodia_access_token("the subscription").map_err(|_| {
                 if self.allodia.lock().expect("allodia account lock").is_none() {
                     AllodiaPurchaseError::NotSignedIn
                 } else {

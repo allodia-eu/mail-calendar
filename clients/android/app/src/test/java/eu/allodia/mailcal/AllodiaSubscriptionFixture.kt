@@ -26,10 +26,12 @@ internal fun subscription(
     own = own,
     stores = stores,
     duplicateBilling = duplicateBilling,
+    // Permissive by default: what a client may offer is the service's answer, so a test about
+    // anything else should not have to state it, and the tests that are about it say so.
     actions = AllodiaSubscriptionActions(
-        canCancel = false,
-        canResubscribe = false,
-        canSwitchInterval = false,
+        canCancel = true,
+        canResubscribe = true,
+        canSwitchInterval = true,
         canStartCheckout = !entitled,
     ),
     prices = AllodiaPrices(monthlyInCents = 299, yearlyInCents = 2990, currency = "EUR"),
@@ -58,11 +60,21 @@ internal fun storeSubscription(
 internal fun ownSubscription(
     status: AllodiaOwnStatus = AllodiaOwnStatus.Active,
     nextPaymentDate: String? = "2027-09-18T00:00:00+02:00",
+    interval: AllodiaPlan = AllodiaPlan.YEARLY,
 ) = AllodiaOwnSubscription(
     status = status,
-    interval = AllodiaPlan.YEARLY,
+    interval = interval,
     amountInCents = 2990,
     nextPaymentDate = nextPaymentDate,
     currentPeriodEnd = "2027-09-18T00:00:00+02:00",
     cancelledAt = null,
+)
+
+// A service that permits none of the writes, which is what it answers for somebody a store is
+// charging: they have a period and a plan, and neither is this API's to change.
+internal fun refusing() = AllodiaSubscriptionActions(
+    canCancel = false,
+    canResubscribe = false,
+    canSwitchInterval = false,
+    canStartCheckout = false,
 )

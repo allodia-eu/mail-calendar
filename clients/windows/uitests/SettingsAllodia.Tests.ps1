@@ -82,6 +82,26 @@ $Suite = @{
       }
     },
     @{
+      Name = 'signed out, the category says nothing about a subscription'
+      Body = {
+        $categories = Get-AllodiaSuiteCategories -Dialog (Get-SettingsDialog)
+        if (-not $AllodiaRegistered) {
+          Assert-True (-not ($categories -contains 'Allodia account')) (
+            'no registration means no category, so there is nothing to draw a subscription under')
+          return
+        }
+        # A subscription belongs to an account, so there is nothing to say about one that does not
+        # exist. The failure this catches is a card built unconditionally: it would sit there
+        # reading "Checking your subscription…" for ever, because the read it is waiting on needs a
+        # signed-in account to be about (`purchasing.md`, "Signing in comes first").
+        $panel = Open-SettingsCategory 'Allodia account'
+        $texts = @(Find-UiaElements -Type 'Text' -Root $panel | ForEach-Object { $_.Current.Name })
+        Assert-True (-not ($texts -contains 'Subscription')) (
+          'nobody is signed in, so the subscription heading must not be drawn at all. The panel ' +
+          "says: $($texts -join ' | ')")
+      }
+    },
+    @{
       Name = 'Accounts is mail accounts again, the Allodia card has left it'
       Body = {
         $buttons = Get-AllodiaSuiteButtons -Dialog (Open-SettingsCategory 'Accounts')

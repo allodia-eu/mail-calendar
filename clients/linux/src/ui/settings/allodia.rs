@@ -32,6 +32,11 @@ pub(super) fn page(ctx: &PageContext) -> gtk::Box {
     if let Some(section) = allodia(ctx) {
         content.append(&section);
     }
+    // The subscription sits under the account it belongs to, and is drawn only while somebody is
+    // signed in (`super::subscription`).
+    if let Some(section) = super::subscription::subscription(ctx) {
+        content.append(&section);
+    }
     content
 }
 

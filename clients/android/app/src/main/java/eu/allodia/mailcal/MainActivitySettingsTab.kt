@@ -114,6 +114,12 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onAllodiaBuy = { buyAllodiaSubscription(it) },
                             onAllodiaManageStore = { manageAllodiaStoreSubscription(it) },
                             onAllodiaSubscriptionClosed = { forgetAllodiaPurchaseInFlight() },
+                            // The three writes against Allodia's own subscription. Each blocks
+                            // on the network and re-reads afterwards
+                            // (MainActivityAllodiaWrites.kt).
+                            onAllodiaCancel = { cancelAllodiaSubscription() },
+                            onAllodiaResubscribe = { resubscribeToAllodia() },
+                            onAllodiaSwitch = { switchAllodiaInterval(it) },
                             // Accounts, what the person's other devices have to say, drawn above
                             // their own accounts because an offer becomes one of them.
                             allodiaSync = allodiaSync,

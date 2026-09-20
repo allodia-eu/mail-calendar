@@ -201,9 +201,10 @@ impl AppModel {
         match app.sign_out_of_allodia() {
             Ok(end_session) => {
                 self.settings.allodia_failure = None;
-                // Nothing left to say about other devices once this one leaves the account that
-                // linked them.
+                // Nothing left to say about other devices, or about what was being charged, once
+                // this one leaves the account that linked them.
                 self.forget_allodia_sync();
+                self.forget_allodia_subscription();
                 // Best-effort and deliberately unreported: this device is signed out whatever
                 // happens to the browser. What it buys is the next sign-in asking who you are
                 // rather than completing silently against a session someone thought they left.
