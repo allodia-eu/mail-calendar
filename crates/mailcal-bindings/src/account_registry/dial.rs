@@ -305,16 +305,21 @@ impl AccountDial {
                     mailcal_account::connect_google_mail_providers(Arc::clone(&tokens), None)
                         .await
                         .map_err(ConnectFailure::from)?;
-                // Google requests both scopes at sign-in, so there is no "connected before calendar
-                // support" case and never a calendar re-consent to report.
-                let calendar_providers = boot::connect_google_calendars(id, tokens).await;
+                // Google requests every scope at sign-in, so there is no "connected before
+                // calendar support" case and never a calendar re-consent to report. Calendar
+                // and contacts are optional side quests off the mail path and both spend the
+                // same token, so run them CONCURRENTLY rather than making the mailbox wait for
+                // one and then the other.
+                let (calendar_providers, contact_providers) = tokio::join!(
+                    boot::connect_google_calendars(id, Arc::clone(&tokens)),
+                    boot::connect_google_contacts(tokens),
+                );
                 Ok(DialOutcome {
                     account: Account {
                         id: id.clone(),
                         providers,
                         calendar_providers,
-                        // Google People needs a restricted scope this build does not request.
-                        contact_providers: Vec::new(),
+                        contact_providers,
                         identity,
                     },
                     calendar_error: None,

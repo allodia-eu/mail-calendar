@@ -7,12 +7,22 @@ import android.util.Log
 import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MissReason
 import uniffi.mailcal_bindings.SetupRecommendation
 import uniffi.mailcal_bindings.beginGoogleLogin
 import uniffi.mailcal_bindings.beginMicrosoftLogin
 
 private const val TAG = "Mailcal"
+
+// The account to open the "your name" step for, or null when there is nothing to ask: a provider
+// that already holds a name has had it adopted by the core, so the step would arrive with a
+// pre-filled answer and nothing to decide (docs/sending.md).
+//
+// A provider round trip, so this is called from the worker each add route already runs on, never
+// from the main thread.
+private fun MailcalApp.senderNamePromptFor(accountId: String): String? =
+    if (needsSenderName(accountId)) accountId else null
 
 // Connect an added account off the main thread, then persist its config under the core id.
 // Detects a provider's settings from just the email address, off the main thread (the core
@@ -36,6 +46,7 @@ internal fun MainActivity.addAccount(configToml: String) {
             instance.calendarConnectError()?.let {
                 Log.w(TAG, "calendar (CalDAV) failed to connect: $it")
             }
+            val namePrompt = instance.senderNamePromptFor(row.id)
             activity.mainHandler.post {
                 activity.isConnecting = false
                 activity.addingAccount = false
@@ -45,7 +56,7 @@ internal fun MainActivity.addAccount(configToml: String) {
                 activity.readAccountsSynced()
                 activity.syncAllodiaAccounts()
                 activity.needsSetup = false
-                activity.senderNamePrompt = row.id
+                activity.senderNamePrompt = namePrompt
             }
         } catch (e: Exception) {
             Log.e(TAG, "add account failed: ${e.message}")
@@ -108,8 +119,9 @@ internal fun MainActivity.completeMicrosoftLogin(callbackUrl: String) {
     thread(name = "mailcal-ms-complete") {
         try {
             val row = instance.completeMicrosoftLogin(pending, callbackUrl)
+            val namePrompt = instance.senderNamePromptFor(row.id)
             activity.mainHandler.post {
-                activity.senderNamePrompt = row.id
+                activity.senderNamePrompt = namePrompt
                 activity.signingInMicrosoft = false
                 activity.addingAccount = false
                 activity.needsSetup = false
@@ -170,8 +182,9 @@ internal fun MainActivity.completeGoogleLogin(callbackUrl: String) {
     thread(name = "mailcal-google-complete") {
         try {
             val row = instance.completeGoogleLogin(pending, callbackUrl)
+            val namePrompt = instance.senderNamePromptFor(row.id)
             activity.mainHandler.post {
-                activity.senderNamePrompt = row.id
+                activity.senderNamePrompt = namePrompt
                 activity.signingInGoogle = false
                 activity.addingAccount = false
                 activity.needsSetup = false

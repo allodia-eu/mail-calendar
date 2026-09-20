@@ -74,6 +74,20 @@ public sealed partial class MailboxModel
             ? Task.Run(() => app.SuggestedSenderName(account))
             : Task.FromResult(string.Empty);
 
+    /// <summary>Whether the "your name" step still has to be asked for an account that has just
+    /// connected.</summary>
+    /// <remarks>
+    /// <c>false</c> where the provider already holds a name: the core adopts it, so the step
+    /// would arrive with a pre-filled answer and nothing to decide (<c>docs/sending.md</c>).
+    /// Talks to the provider, so it is awaited off the UI thread exactly as the account add is.
+    /// With no core to ask, the step is shown: skipping it leaves the account sending as a bare
+    /// address, and dismissing it is one action.
+    /// </remarks>
+    public Task<bool> NeedsSenderNameAsync(string account) =>
+        _app is { } app
+            ? Task.Run(() => app.NeedsSenderName(account))
+            : Task.FromResult(true);
+
     /// <summary>Sets one account's fetch depth (a month count; <c>0</c> = all mail) and reconnects
     /// that account with the new window (widening fetches older mail, narrowing stops fetching it).</summary>
     public void SetAccountSyncDepthChoice(string account, ushort months) =>

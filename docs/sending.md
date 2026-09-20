@@ -108,11 +108,19 @@ it. One value per account, held by the core, put in the `From` of every send.
 3. **Empty is a real answer, and it is the first-run state.** An account with no name sends as a
    bare address. No client may substitute the address, the login, or anything derived from
    either: inventing a name puts words in the sender's mouth.
-4. **It is asked for once the account connects, never on the first screen.** The screen that
-   adds an account is the address field and nothing else
-   ([`onboarding.md`](onboarding.md)), so the ask is a step after the connection succeeds,
-   prefilled from `suggested_sender_name`. Where the provider already knows the name the user
-   confirms it rather than typing it. Skipping is one action and leaves the account nameless.
+4. **It is asked for once the account connects, never on the first screen, and only where the
+   provider does not already know the answer.** The screen that adds an account is the address
+   field and nothing else ([`onboarding.md`](onboarding.md)), so the ask is a step after the
+   connection succeeds. Every add route puts one question to the core, `needs_sender_name`,
+   and draws the step only on `true`. A provider that holds a name holds one the user chose in
+   that provider's own UI, so the core **adopts** it and the step is not drawn: a step whose
+   field arrives filled in, over a name the user already picked, asks them to confirm something
+   they never asked to revisit. Adopting is the half a client may not skip on its own; the
+   `From` header reads the stored name, so a client that merely hid the step would leave the
+   account sending as a bare address while the provider's own client shows a name. The
+   adoption is local: the name came from the provider, and pushing it back would be a write
+   that changes nothing. Where the step is drawn, skipping is one action and leaves the
+   account nameless.
 5. **The field is never validated by a client.** The core sanitises what it is given: control
    characters become spaces, runs of whitespace collapse, the value is trimmed and capped at
    128 characters. A pasted line out of a document is a `From` header with a second header in
@@ -209,7 +217,7 @@ composer window of its own rather than dropping it. Android has no second window
 its composer is a full-screen dialog over whichever list is behind it, so the withdrawn message
 opens there and nothing of the user's is displaced.
 
-| Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup | Name in Settings | `Name <address>` in From |
+| Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup, only where the provider holds none | Name in Settings | `Name <address>` in From |
 |---|---|---|---|---|---|---|---|
 | macOS / iOS / iPadOS | ✅ banner | ✅ sheet, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
 | Android | ✅ banner | ✅ `AlertDialog`, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ field and menu items |

@@ -1,6 +1,6 @@
 # Privacy Policy: Allodia Mail & Calendar
 
-**Version 2.4 · Effective: 2026-09-18**
+**Version 2.5 · Effective: 2026-09-20**
 
 Allodia Mail & Calendar is a mail and calendar app that runs on your device and connects to the
 mail provider **you** choose. This policy explains, in plain language, what that means for your
@@ -81,28 +81,32 @@ Never your contacts, and never anything else your server may offer. If your serv
 publish this, nothing is sent and you simply sign in with a password or an API token as before.
 
 **Your contacts.** If the account you connect has an address book, the app can read it (over
-CardDAV or JMAP, from the same provider, using the same credentials), so you can look your
-contacts up in the app and get suggestions while addressing a message. They are stored on your
-device like your mail, they are never uploaded to Allodia, and the app does not read your phone's
-own contacts. The app also remembers who you have **sent** mail to, from your own Sent folder on
-your own server, to make those suggestions useful before you have added anyone. Contacts are
-read-only in this version: the app does not create, change or delete anything in your address
-book.
+CardDAV, JMAP, or Google's own contacts service, from the same provider, using the same
+credentials), so you can look your contacts up in the app and get suggestions while addressing a
+message. They are stored on your device like your mail, they are never uploaded to Allodia, and
+the app does not read your phone's own contacts. The app also remembers who you have **sent**
+mail to, from your own Sent folder on your own server, to make those suggestions useful before
+you have added anyone.
+
+You can **add a contact and edit one**, and when you do, the app writes that card to the address
+book it came from, at your provider. It writes nothing you did not type, it writes only when you
+save, and it never deletes a contact: deleting is not something the app offers. Where an address
+book cannot be written to (a colleague from your organisation's directory, or an address your
+provider saved for you automatically), the app does not offer to change it.
 
 When you sign in with **Microsoft, Google, or a provider that uses a sign-in screen**, the app
-now asks for access to your contacts as part of that sign-in, and where the provider has one, to
+asks for access to your contacts as part of that sign-in, and where the provider has one, to
 your organisation's directory. You see exactly what is being asked on the consent screen before
 you agree. It uses them for the same things as any other address book (looking a contact up,
-and suggesting an address), plus the small picture shown next to a sender, which it downloads
-from your provider and keeps on your device. Nothing is uploaded to Allodia, and if you decline,
-the rest of the account still works; you simply see no contacts and no pictures.
+suggesting an address, and adding or editing one), plus the small picture shown next to a
+sender, which it downloads from your provider and keeps on your device. Nothing is uploaded to
+Allodia, and if you decline, the rest of the account still works; you simply see no contacts and
+no pictures.
 
-The consent screen will describe this as **full access to your contacts**, which includes
-permission to change them. That is deliberate, and it is more than the app does: contact editing
-is a feature we are building, and asking now means you consent once instead of being sent back
-through sign-in when it arrives. Until then the read-only promise above holds exactly as written:
-the app creates, changes and deletes nothing in your address book, and this policy will say so
-until the day that changes.
+**The name you send under.** If you set a sender name for an account in Settings, the app stores
+it on your device and, where your provider lets it, also saves it to that account's own settings,
+so your other apps send under the same name. That is the only account setting the app changes at
+your provider; it changes nothing else, and it reads no other setting.
 
 **Your signatures.** A signature you write (its text, and any image you embed in it, such as a
 logo) is stored in a file on your device alongside your other settings, and nowhere else. It is

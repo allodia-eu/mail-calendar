@@ -64,8 +64,8 @@ pub const MICROSOFT_GRAPH_SCOPES: &[&str] = &[
 const GOOGLE_AUTHORIZE_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 
-/// The delegated scopes a Google account requests: **full** Gmail (`mail.google.com`) and
-/// read/write Google Calendar.
+/// The delegated scopes a Google account requests: **full** Gmail (`mail.google.com`), Gmail's
+/// basic settings, read/write Google Calendar, and the three People sources.
 ///
 /// The engine's Gmail provider does the full range of mail writes; `messages.modify`/`trash`
 /// **and permanent `messages.delete`** plus `messages.send`, and permanent delete is only
@@ -73,25 +73,34 @@ const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 /// than composing narrower `gmail.*` scopes. The account's own address is read from the Gmail
 /// `users/me/profile` endpoint (covered by this scope), so no `openid`/`email` scope is needed.
 ///
+/// **`gmail.settings.basic` is a separate scope because `mail.google.com` does not reach the
+/// settings collection's writes.** It grants `users.settings.sendAs.list` but not `patch`, so
+/// an account whose sender name the user changes would read its send-as aliases and then fail
+/// to update the one it found; the account reports a writable sender identity, so that
+/// write is offered. `gmail.settings.sharing` is deliberately **not** requested: it covers
+/// delegation and send-as-another-address, neither of which this app offers.
+///
 /// The three contact scopes cover the same ground Microsoft's do: `contacts` for the user's own
 /// address book, `contacts.other.readonly` for the addresses Google collects from mail on their
-/// behalf, and `directory.readonly` for colleagues on a Workspace domain. As with Microsoft,
-/// `contacts` is requested read **and write** although this release only reads; widening later
-/// would force every Google account through a second consent, and the read-only promise lives in
-/// [`docs/privacy-policy.md`](../../../docs/privacy-policy.md) rather than in the scope.
+/// behalf, and `directory.readonly` for colleagues on a Workspace domain. `contacts` is
+/// requested read **and write** because contact editing ships
+/// ([`docs/contacts.md`](../../../docs/contacts.md)); the other two are read-only both in the
+/// scope and in what the app offers, because neither source accepts a write.
 ///
 /// Unlike Microsoft's `offline_access`, Google issues a refresh token from the request
 /// **parameters** `access_type=offline` + `prompt=consent` (see [`AuthStyle::Google`]), not a
 /// scope.
 ///
-/// **Two verification tiers are in play, and only the mail one is expensive.** `mail.google.com`
-/// and `calendar` are **restricted** scopes: the app stays unverified; usable only by
-/// allow-listed Early Access test users; until Google's security assessment clears. The three
-/// contact scopes are **sensitive**, not restricted, which is a declaration, a justification and
-/// a demo video rather than a second assessment, so they do not deepen the gate the app is
-/// already behind.
+/// **Every scope here but the contact three is restricted**, so all of them are covered by the
+/// one security assessment the app is already waiting on: until it clears, the app is usable
+/// only by allow-listed Early Access test users. That is why `gmail.settings.basic` is
+/// requested now rather than when a second settings feature wants it: a restricted scope added
+/// after verification is a **new assessment**, not an amendment. The three contact scopes are
+/// **sensitive**, which is a declaration, a justification and a demo video, so they do not
+/// deepen the gate either.
 pub const GOOGLE_SCOPES: &[&str] = &[
     "https://mail.google.com/",
+    "https://www.googleapis.com/auth/gmail.settings.basic",
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/contacts",
     "https://www.googleapis.com/auth/contacts.other.readonly",

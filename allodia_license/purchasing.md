@@ -365,9 +365,11 @@ Apple or Google to verify a purchase, which happens on Allodia's side and leaves
 `JurisdictionGate` governs what leaves the **app**, so the policy's account of that transfer
 neither supports this carve-out nor stands in its way.
 
-The published policy matches the one in this tree: `allodia.eu/privacy/mail-calendar` renders
-version 2.4 of 2026-09-18 in both locales, which is what
-[`../docs/privacy-policy.md`](../docs/privacy-policy.md) carries. That gate is met.
+The published policy describes this: `allodia.eu/privacy/mail-calendar` renders version 2.4 of
+2026-09-18 in both locales, whose §10 covers all three routes. That gate is met.
+[`../docs/privacy-policy.md`](../docs/privacy-policy.md) has since moved to 2.5, which rewrites
+what the app does with contacts and the sender name and leaves §10 as it stood, so the page a
+buyer reads is still the one that describes buying.
 
 ## What a client calls
 
@@ -448,7 +450,7 @@ more than one is charging, the store's own manage page, and the two periods with
 prices behind a buy button, and a purchase has been made against the App Store **sandbox** end to
 end: taken, attached, granted, finished, and read back on a second platform that never saw it.
 What holds it at 🚧 is that no purchase has been made against the **production** store. That is
-now the only thing between this screen and ✅: the published policy has caught up, so a sandbox
+now the only thing between this screen and ✅: the published policy covers buying, so a sandbox
 purchase proving the round trip is the last claim on this row still made from a test store rather
 than a real one.
 

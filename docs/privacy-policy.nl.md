@@ -1,6 +1,6 @@
 # Privacybeleid: Allodia Mail & Calendar
 
-**Versie 2.4 · Van kracht: 2026-09-18**
+**Versie 2.5 · Van kracht: 2026-09-20**
 
 Allodia Mail & Calendar is een e-mail- en agenda-app die op je eigen apparaat draait en verbinding
 maakt met de e-mailprovider die **jij** kiest. Dit beleid legt in gewone taal uit wat dat betekent
@@ -88,29 +88,34 @@ ook aanbiedt. Publiceert je server dit niet, dan wordt er niets verstuurd en log
 met een wachtwoord of een API-token, zoals voorheen.
 
 **Je contacten.** Heeft het account dat je koppelt een adresboek, dan kan de app dat lezen (via
-CardDAV of JMAP, bij dezelfde provider, met dezelfde inloggegevens), zodat je je contacten in de
-app kunt opzoeken en suggesties krijgt terwijl je een bericht adresseert. Ze worden net als je
-e-mail op je apparaat bewaard, ze gaan nooit naar Allodia, en de app leest de contacten van je
-telefoon zelf niet. De app onthoudt daarnaast aan wie je e-mail hebt **verzonden**, uit je eigen
-map Verzonden op je eigen server, zodat die suggesties al bruikbaar zijn voordat je iemand hebt
-toegevoegd. Contacten zijn in deze versie alleen-lezen: de app maakt, wijzigt of verwijdert niets
-in je adresboek.
+CardDAV, JMAP of de contactendienst van Google zelf, bij dezelfde provider, met dezelfde
+inloggegevens), zodat je je contacten in de app kunt opzoeken en suggesties krijgt terwijl je een
+bericht adresseert. Ze worden net als je e-mail op je apparaat bewaard, ze gaan nooit naar
+Allodia, en de app leest de contacten van je telefoon zelf niet. De app onthoudt daarnaast aan wie
+je e-mail hebt **verzonden**, uit je eigen map Verzonden op je eigen server, zodat die suggesties
+al bruikbaar zijn voordat je iemand hebt toegevoegd.
+
+Je kunt een **contact toevoegen en er een bewerken**. Doe je dat, dan schrijft de app die kaart
+naar het adresboek waar ze vandaan komt, bij je provider. De app schrijft niets wat je niet zelf
+hebt getypt, schrijft pas wanneer je opslaat, en verwijdert nooit een contact: verwijderen biedt
+de app niet aan. Waar een adresboek niet beschrijfbaar is (een collega uit de adreslijst van je
+organisatie, of een adres dat je provider automatisch voor je bewaarde) biedt de app het wijzigen
+niet aan.
 
 Log je in bij **Microsoft, Google of een provider met een inlogscherm**, dan vraagt de app als
 onderdeel van dat inloggen toegang tot je contacten, en waar de provider die heeft ook tot de
 adreslijst van je organisatie. Op het toestemmingsscherm zie je precies wat er gevraagd wordt
 voordat je akkoord gaat. Ze worden voor dezelfde dingen gebruikt als elk ander adresboek (een
-contact opzoeken en een adres voorstellen), plus het kleine plaatje naast een afzender, dat de
-app bij je provider ophaalt en op je apparaat bewaart. Er gaat niets naar Allodia, en weiger je,
-dan blijft de rest van het account gewoon werken; je ziet dan alleen geen contacten en geen
-plaatjes.
+contact opzoeken, een adres voorstellen, en er een toevoegen of bewerken), plus het kleine plaatje
+naast een afzender, dat de app bij je provider ophaalt en op je apparaat bewaart. Er gaat niets
+naar Allodia, en weiger je, dan blijft de rest van het account gewoon werken; je ziet dan alleen
+geen contacten en geen plaatjes.
 
-Het toestemmingsscherm noemt dit **volledige toegang tot je contacten**, inclusief het recht om
-ze te wijzigen. Dat is bewust, en het is meer dan de app doet: contacten bewerken is een functie
-die we bouwen, en door er nu om te vragen geef je één keer toestemming in plaats van opnieuw door
-het inlogscherm te moeten wanneer die functie er is. Tot dan geldt de belofte hierboven precies
-zoals ze er staat: de app maakt, wijzigt en verwijdert niets in je adresboek, en dit beleid zal
-dat blijven zeggen tot de dag dat het verandert.
+**De naam waaronder je verstuurt.** Stel je bij Instellingen een afzendernaam in voor een account,
+dan bewaart de app die op je apparaat en, waar je provider dat toestaat, ook in de instellingen van
+dat account zelf, zodat je andere apps onder dezelfde naam versturen. Dat is de enige
+accountinstelling die de app bij je provider wijzigt; verder wijzigt ze er niets en leest ze er
+geen andere instelling.
 
 **Je handtekeningen.** Een handtekening die je schrijft (de tekst, en elke afbeelding die je
 erin zet, zoals een logo) staat in een bestand op je apparaat, naast je andere instellingen, en

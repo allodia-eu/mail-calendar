@@ -49,6 +49,38 @@ impl<P: Provider> App<P> {
             .unwrap_or_default()
     }
 
+    /// Whether the setup flow still has to ask for `account`'s sender name, **adopting** the
+    /// provider's own name first where there is one.
+    ///
+    /// A provider that already holds a name holds one the user chose, in that provider's own
+    /// UI. Asking them to confirm it is a step with a pre-filled answer and nothing to decide,
+    /// so the flow skips it; what it may not do is skip it and store nothing, because the
+    /// `From` header reads the stored name and the account would then send as a bare address
+    /// while the provider's own client shows a name. So the answer is adopted here, on the one
+    /// path that asks the question, rather than left to four clients to remember.
+    ///
+    /// The adoption is **local only**: the name came from the provider, so pushing it back
+    /// would be a write that changes nothing, and on Gmail a settings write per account added.
+    ///
+    /// ⚠️ Talks to the provider, like [`App::suggested_sender_name`], and is asked once, by
+    /// the flow that adds an account.
+    pub async fn needs_sender_name(&self, account: &AccountId) -> bool {
+        if self.sender_name(account.as_str()).is_some() {
+            return false;
+        }
+        let provider_name = self
+            .provider_sender_identity(account)
+            .await
+            .and_then(|identity| identity.address.name);
+        let Some(name) = provider_name else {
+            return true;
+        };
+        // Sanitising decides whether that was a name, not a trim here: one of nothing but
+        // control characters stores as empty, and storing empty is the same state as never
+        // having asked.
+        !self.adopt_sender_name(account.as_str(), &name).await
+    }
+
     /// Pushes `account`'s stored name to a provider that lets the account holder set it.
     ///
     /// Best-effort by design: the local value is what this app puts in the `From` header,

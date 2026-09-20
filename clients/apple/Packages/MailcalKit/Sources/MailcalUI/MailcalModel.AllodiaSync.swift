@@ -140,8 +140,28 @@ extension MailboxModel {
         setupError = nil
         needsSetup = false
         addingAccount = false
-        senderNamePrompt = account.map { SenderNamePrompt(id: $0.id) }
+        if let account { askForSenderNameIfNeeded(account.id) }
         syncAfterAccountChange()
+    }
+
+    /// Opens the "your name" step only where the core says the account still needs a name.
+    /// A provider that already holds one has had it adopted, so the step would arrive with a
+    /// pre-filled answer and nothing to decide (docs/sending.md).
+    ///
+    /// Off the main actor, because the question is a provider round trip. With no core to ask
+    /// the step opens: skipping it is the answer that cannot be taken back, since it leaves the
+    /// account sending as a bare address, and the step itself is one action to dismiss.
+    private func askForSenderNameIfNeeded(_ account: String) {
+        guard let app else {
+            senderNamePrompt = SenderNamePrompt(id: account)
+            return
+        }
+        Task {
+            let needed = await Task.detached(priority: .userInitiated) { [account] in
+                app.needsSenderName(account: account)
+            }.value
+            if needed { senderNamePrompt = SenderNamePrompt(id: account) }
+        }
     }
 
     /// The account list changed, so the person's other devices should hear about it now rather

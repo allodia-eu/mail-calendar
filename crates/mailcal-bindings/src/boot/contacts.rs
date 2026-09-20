@@ -1,15 +1,14 @@
 //! Binding an account's contact-source adapters at boot, add, and reconnect.
 //!
-//! Both helpers follow the same rule the calendar ones do: **a contacts failure is never fatal
+//! Every helper follows the same rule the calendar ones do: **a contacts failure is never fatal
 //! to the account.** Mail is why the user opened the app; an unreachable address book costs
 //! them an empty Contacts list, not their inbox. So every path here logs and yields an empty
 //! vector rather than propagating.
 //!
-//! Only CardDAV and JMAP are wired. Microsoft Graph and Google People both need OAuth scopes
-//! this build does not request; adding them would force a re-consent prompt on every already
-//! connected account: so those accounts sync no contacts yet (`docs/contacts.md`, Known gaps).
+//! CardDAV, JMAP and Google are wired. Microsoft Graph is not: its contact scopes are requested
+//! at sign-in but no adapter is bound yet (`docs/contacts.md`, Known gaps).
 //!
-//! # Why both helpers carry a deadline
+//! # Why every helper carries a deadline
 //!
 //! Discovery runs on the path that produces the user's **mailbox**, so its worst case is the
 //! mailbox's worst case. Without a bound, a CalDAV host that accepts the connection and then
@@ -78,6 +77,48 @@ pub(crate) async fn connect_caldav_contacts(
         Err(_) => {
             log::warn!(
                 "carddav: contacts discovery timed out after {}s, mail only",
+                DISCOVERY_DEADLINE.as_secs(),
+            );
+            Vec::new()
+        }
+    }
+}
+
+/// Binds a Google account's People contact adapters, one per source the app reads.
+///
+/// There is nothing to discover first, unlike the two helpers either side of this one: the
+/// source set is fixed and the token is already in hand, so this connects unconditionally and
+/// lets a source the account does not have (the two Workspace-only ones, on a personal
+/// account) report itself unavailable on its first sync. The deadline still applies, because
+/// the token refresh it begins with is a network call on the mailbox's path.
+pub(crate) async fn connect_google_contacts(
+    tokens: Arc<GraphTokenSource>,
+) -> Vec<Box<dyn ContactsProvider>> {
+    let started = Instant::now();
+    match tokio::time::timeout(
+        DISCOVERY_DEADLINE,
+        mailcal_account::connect_google_contact_providers(tokens),
+    )
+    .await
+    {
+        Ok(Ok(providers)) => {
+            log::info!(
+                "google: bound {} contact source(s) in {}ms",
+                providers.len(),
+                started.elapsed().as_millis(),
+            );
+            providers
+        }
+        Ok(Err(err)) => {
+            log::warn!(
+                "google: contacts connect failed after {}ms, mail only: {err}",
+                started.elapsed().as_millis(),
+            );
+            Vec::new()
+        }
+        Err(_) => {
+            log::warn!(
+                "google: contacts connect timed out after {}s, mail only",
                 DISCOVERY_DEADLINE.as_secs(),
             );
             Vec::new()

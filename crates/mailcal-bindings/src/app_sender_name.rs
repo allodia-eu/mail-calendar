@@ -56,6 +56,25 @@ impl MailcalApp {
         self.runtime.block_on(self.app.suggested_sender_name(&id))
     }
 
+    /// Whether the flow that just added `account` should still ask for a sender name.
+    ///
+    /// `false` where the provider already holds one: the core **adopts** that name, so the
+    /// account is named and there is nothing left to ask. A client shows its "your name" step
+    /// only on `true`, and never decides this from the account's kind: which providers keep a
+    /// name is the engine's answer, and Gmail, JMAP and Graph each give a different one.
+    ///
+    /// ⚠️ **Talks to the provider**, so call it off the main thread, exactly like
+    /// [`MailcalApp::add_account`]. A provider that is slow, unreachable, or missing the scope
+    /// its settings API needs answers `true`: not knowing the name is the ordinary state, and
+    /// the user can resolve it by typing.
+    #[must_use]
+    pub fn needs_sender_name(&self, account: String) -> bool {
+        let Ok(id) = AccountId::try_from(account.as_str()) else {
+            return false;
+        };
+        self.runtime.block_on(self.app.needs_sender_name(&id))
+    }
+
     /// Whether a client may offer to change `account`'s sender name.
     ///
     /// `false` only where a provider holds the name and the account holder cannot change it:

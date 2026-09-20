@@ -97,6 +97,28 @@ impl<P: Provider> App<P> {
         })
     }
 
+    /// Stores a name the **provider** already held, without pushing it back.
+    ///
+    /// Returns whether anything was stored: a name that is empty once sanitised is not a name,
+    /// and the caller must still ask. Distinct from [`Self::set_account_sender_name`] in the
+    /// one way that matters: nothing is pushed, because the value came from the provider whose
+    /// copy that push would write.
+    pub(crate) async fn adopt_sender_name(&self, account: &str, name: &str) -> bool {
+        let (changed, stored) = {
+            let mut names = self
+                .sender_names
+                .lock()
+                .expect("sender-name mutex poisoned");
+            let changed = names.set(account, name);
+            (changed, names.name(account).is_some())
+        };
+        if changed {
+            self.rebuild_snapshot().await;
+            self.observer.surface_changed(Surface::Settings);
+        }
+        stored
+    }
+
     /// Forgets an account's sender name (account removal).
     pub(crate) fn remove_account_sender_name(&self, account: &str) {
         self.sender_names
