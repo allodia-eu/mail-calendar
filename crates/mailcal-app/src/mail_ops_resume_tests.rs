@@ -306,7 +306,13 @@ async fn an_accepted_send_takes_the_stored_draft_away() {
         blobs: Vec::new(),
         composition: Some(composition("c1")),
     };
-    let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
+    // Awaited to completion, not merely until the hint moves: the draft is taken away
+    // **after** the status says the message went, so asserting on the hint alone would race
+    // the removal, and the negative cases below would pass while it was still to come.
+    dispatch_until(&app, intent, SendStatus::Sent)
+        .await
+        .await
+        .expect("the send finishes");
 
     let deletes = logs.draft_deletes.lock().unwrap();
     assert_eq!(
@@ -339,7 +345,13 @@ async fn a_failed_send_leaves_the_draft_where_the_words_are() {
         blobs: Vec::new(),
         composition: Some(composition("c1")),
     };
-    let _task = dispatch_until(&app, intent, SendStatus::Failed).await;
+    // Awaited to completion, not merely until the hint moves: the draft is taken away
+    // **after** the status says the message went, so asserting on the hint alone would race
+    // the removal, and the negative cases below would pass while it was still to come.
+    dispatch_until(&app, intent, SendStatus::Failed)
+        .await
+        .await
+        .expect("the send finishes");
 
     assert!(
         logs.draft_deletes.lock().unwrap().is_empty(),
@@ -366,7 +378,13 @@ async fn a_send_from_a_composer_that_never_saved_removes_nothing() {
         blobs: Vec::new(),
         composition: Some(composition("c1")),
     };
-    let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
+    // Awaited to completion, not merely until the hint moves: the draft is taken away
+    // **after** the status says the message went, so asserting on the hint alone would race
+    // the removal, and the negative cases below would pass while it was still to come.
+    dispatch_until(&app, intent, SendStatus::Sent)
+        .await
+        .await
+        .expect("the send finishes");
 
     assert!(logs.draft_deletes.lock().unwrap().is_empty());
 }
@@ -395,7 +413,13 @@ async fn a_queued_send_takes_the_stored_draft_away_as_well() {
         blobs: Vec::new(),
         composition: Some(composition("c1")),
     };
-    let _task = dispatch_until(&app, intent, SendStatus::Queued).await;
+    // Awaited to completion, not merely until the hint moves: the draft is taken away
+    // **after** the status says the message went, so asserting on the hint alone would race
+    // the removal, and the negative cases below would pass while it was still to come.
+    dispatch_until(&app, intent, SendStatus::Queued)
+        .await
+        .await
+        .expect("the send finishes");
 
     let deletes = logs.draft_deletes.lock().unwrap();
     assert_eq!(deletes.as_slice(), &[ProviderKey::new("d1").unwrap()]);
