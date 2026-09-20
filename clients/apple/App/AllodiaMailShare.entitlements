@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  The Share Extension's App Group set: what every PROVISIONED build applies
+  (clients/apple/ShareExtension, docs/os-integration.md). That is iOS, and the Mac App Store
+  archive, which swaps this in over MACOS_SHARE_ENTITLEMENTS.
+
+  Every other macOS build takes AllodiaMailShare.macOS.entitlements beside this file, which reaches
+  a directory under the user's home instead, and carries the measurement that forced the split: a
+  sandboxed process cannot use an App Group its profile did not grant, and a macOS build outside
+  the Store has no profile.
+
+  Two keys, and no third. Apple's guidance for an embedded executable is that surplus entitlements
+  cause launch failures, and this one reads item providers and writes into one directory.
+-->
+<dict>
+    <!-- macOS will not load an app extension that is not sandboxed, and the Store rejects any
+         executable in a submission that is not (ITMS-90296). Both are satisfied here. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- The container the drop box lives in, and the only place this process and the app can both
+         write (MailcalShareBox/ShareBox.swift). It must name the group the APP carries, so it is
+         built from $(MAILCAL_HOST_APP_ID), a build setting project.yml gives this target from the
+         brand. $(PRODUCT_BUNDLE_IDENTIFIER), which the app's own entitlements use, would resolve
+         here to the EXTENSION's id and name a group nobody else is in: the extension would launch,
+         write, and be the only reader of what it wrote.
+
+         No team-id prefix, matching the app (measured 2026-08-03). `ShareBox.entitledGroup` reads
+         the running signature rather than trusting a constant, so a build given a different form
+         still finds its own group, and a build given none falls back rather than failing. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.$(MAILCAL_HOST_APP_ID)</string>
+    </array>
+</dict>
+</plist>

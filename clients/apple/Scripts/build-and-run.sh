@@ -337,9 +337,30 @@ if [[ "$PLATFORM" == "macos" ]]; then
     build
 
   APP="$DERIVED_DATA/Build/Products/$CONFIGURATION/AllodiaMail.app"
+  # Each item is re-signed carrying the entitlements the BUILD applied to it, read back off the
+  # item itself, which is also the more correct source: it is what was actually applied, already
+  # resolved, with no build-setting indirection to drift from (Scripts/package.sh reads the app's
+  # the same way, for the same reason). Inner first and the app last, because the app's signature
+  # seals its own directory and anything re-signed afterwards invalidates it.
+  #
+  # ⚠️ NOT `--deep`, which is what this was and what silently broke the Share Extension: `--deep`
+  # signs nested code with NO entitlements, so the .appex came back unsandboxed, and an unsandboxed
+  # app extension is one macOS will not load at all (docs/os-integration.md).
+  resign() {
+    local item="$1" ents="$DERIVED_DATA/$(basename "$item").entitlements"
+    if codesign -d --entitlements - --xml "$item" >"$ents" 2>/dev/null && [[ -s "$ents" ]]; then
+      codesign --force --sign "$SIGNING_IDENTITY" --entitlements "$ents" --timestamp=none "$item"
+    else
+      codesign --force --sign "$SIGNING_IDENTITY" --timestamp=none "$item"
+    fi
+  }
   if [[ -n "$SIGNING_IDENTITY" ]]; then
-    echo "==> Re-signing app with stable identity: $SIGNING_IDENTITY"
-    codesign --force --deep --sign "$SIGNING_IDENTITY" --timestamp=none "$APP"
+    echo "==> Re-signing with a stable identity: $SIGNING_IDENTITY"
+    while IFS= read -r item; do
+      resign "$item"
+    done < <(find "$APP" -depth \( -name '*.appex' -o -name '*.app' -o -name '*.framework' \
+                                   -o -name '*.bundle' -o -name '*.dylib' \) ! -path "$APP")
+    resign "$APP"
   else
     echo "warning: no persistent signing identity found; keeping Xcode's ad-hoc signature." >&2
     echo "         Its code requirement changes every rebuild, so macOS will re-prompt for" >&2

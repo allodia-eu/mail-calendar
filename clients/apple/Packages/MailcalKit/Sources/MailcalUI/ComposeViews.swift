@@ -52,6 +52,7 @@ enum ComposeContext: Identifiable {
     case forward(account: String, key: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind, attachments: ForwardAttachments)
     case agentDraft(AgentDraftRequest)
     case mailLink(MailLinkRequest)
+    case share(ShareOpenRequest)
 
     var id: String {
         switch self {
@@ -61,6 +62,7 @@ enum ComposeContext: Identifiable {
         case .forward(_, let key, _, _, _, _): return "forward:\(key)"
         case .agentDraft(let request): return "agent:\(request.id)"
         case .mailLink(let request): return "mailLink:\(request.id)"
+        case .share(let request): return "share:\(request.id)"
         }
     }
 
@@ -73,7 +75,7 @@ enum ComposeContext: Identifiable {
              let .replyAll(_, _, _, _, subject, _, _),
              let .forward(_, _, subject, _, _, _):
             return subject.isEmpty ? L10n.compose_title_new() : subject
-        case .new, .agentDraft, .mailLink:
+        case .new, .agentDraft, .mailLink, .share:
             return L10n.compose_title_new()
         }
     }

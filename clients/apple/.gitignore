@@ -17,6 +17,7 @@ build/
 .build/
 DerivedData/
 App/Info.plist
+ShareExtension/Info.plist
 
 # Local signing config for Scripts/package.sh (Team ID + cert/notary names). The committed
 # signing.local.sh.example is the template; the filled-in copy stays per-machine and out of git.

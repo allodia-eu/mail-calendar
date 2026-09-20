@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  What a macOS build outside the Mac App Store applies to the Share Extension: the dev loop, CI,
+  and the notarized Developer ID .dmg. The Store archive swaps in AllodiaMailShare.entitlements
+  instead (MACOS_SHARE_ENTITLEMENTS in project.yml), which is the App Group set.
+
+  ⚠️ The App Group is deliberately absent here, and this is a measurement rather than a
+  preference (2026-09-20, macOS 27):
+
+    * A macOS target whose entitlements name com.apple.security.application-groups is refused by
+      the build system outright, "AllodiaMailShare requires a provisioning profile", whatever
+      CODE_SIGN_IDENTITY says. PROVISIONING_PROFILE_REQUIRED=NO does not suppress it.
+    * Applying it with `codesign` afterwards gets past the build and fails at runtime instead: the
+      signature carries the group, `containerURL` answers with a path, and every write to it
+      returns EPERM. Measured with both `group.<id>` and `<team>.group.<id>`, on a directory that
+      had never been touched, so it is neither the prefix nor a poisoned container. A sandboxed
+      process simply cannot use an App Group a provisioning profile did not grant.
+
+  A build here has no profile, and neither CI nor a checkout without an Apple account can get one,
+  so the box is a directory under the user's home instead, and this grant is what reaches it. The
+  app is not sandboxed in these builds and reads that path with no entitlement at all.
+
+  The path is the whole grant, so it is as narrow as the box: not the engine store, not the
+  credential index, not the diagnostic log. It must stay in step with
+  `ShareBox.homeRelativePath`.
+-->
+<dict>
+    <!-- macOS will not load an app extension that is not sandboxed, and the Store rejects any
+         executable in a submission that is not (ITMS-90296). -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- The drop box, and nothing else under the user's home. Leading and trailing slash are both
+         load-bearing: the path is home-relative, and the trailing one makes it a directory grant
+         rather than a single file. -->
+    <key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+    <array>
+        <string>/.local/share/mailcal-share/</string>
+    </array>
+</dict>
+</plist>

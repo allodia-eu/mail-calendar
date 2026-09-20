@@ -14,5 +14,15 @@
              group of the build it is not. -->
         <string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     </array>
+
+    <!-- The container a share is handed over in (docs/os-integration.md). The Share Extension
+         stages the shared bytes here and leaves a note; this app reads it on every activation.
+         Byte-identical to the extension's own entitlement, which builds the same string from
+         $(MAILCAL_HOST_APP_ID) because its PRODUCT_BUNDLE_IDENTIFIER is the extension's, not the
+         app's. No team-id prefix, matching the group the Mac App Store build already carries. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    </array>
 </dict>
 </plist>
