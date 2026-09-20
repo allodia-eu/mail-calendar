@@ -637,6 +637,12 @@
 	"settings_subscription_switch_title": "Modifier votre prochain paiement ?",
 	"settings_subscription_switch_body": "Rien n’est prélevé aujourd’hui, et tout ce que vous avez payé continue jusqu’au {date}. Seul le paiement suivant change.",
 	"settings_subscription_switched": "Votre prochain paiement le {date} sera de {amount}.",
+	"settings_subscription_write_failed": "Cela n’a pas fonctionné. Rien n’a changé et vous pouvez réessayer.",
+	"settings_subscription_refused_already_cancelled": "Votre abonnement est déjà résilié.",
+	"settings_subscription_refused_already_active": "Un abonnement est déjà facturé pour ce compte.",
+	"settings_subscription_refused_already_on_interval": "Vous êtes déjà sur cette formule.",
+	"settings_subscription_refused_not_switchable": "Un paiement est encore en cours de nouvelle tentative, la formule ne peut donc pas encore changer. Vous pourrez en changer une fois ce paiement abouti.",
+	"settings_subscription_refused_not_found": "Il n’y a aucun abonnement à modifier.",
 
 	"settings_advanced_reset_description": "Effacer les messages enregistrés localement et tout retélécharger depuis le serveur. Les envois en attente sont conservés.",
 

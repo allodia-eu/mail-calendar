@@ -24,10 +24,12 @@ import java.util.Locale
 import uniffi.mailcal_bindings.AllodiaBiller
 import uniffi.mailcal_bindings.AllodiaOffer
 import uniffi.mailcal_bindings.AllodiaOwnStatus
+import uniffi.mailcal_bindings.AllodiaPurchaseException
 import uniffi.mailcal_bindings.AllodiaStore
 import uniffi.mailcal_bindings.AllodiaStoreStatus
 import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.AllodiaSubscription
+import uniffi.mailcal_bindings.AllodiaSubscriptionRefusal
 
 // What the subscription section has to draw.
 internal sealed interface AllodiaSubscriptionState {
@@ -235,3 +237,40 @@ private fun allodiaDay(raw: String): LocalDate? =
     runCatching { OffsetDateTime.parse(raw).withOffsetSameInstant(ZoneOffset.UTC).toLocalDate() }
         .recoverCatching { LocalDate.parse(raw.take(10)) }
         .getOrNull()
+
+// Why a write did not happen, as the sentence to put in front of the person.
+//
+// ⚠️ **A code, never a message from anywhere else.** UniFFI builds an exception's message out of
+// the variant's own fields, so a refusal arrives carrying the literal text `reason=NOT_SWITCHABLE`
+// and every other failure carries an empty string: rendering either puts a generated field name,
+// or a sentence with nothing after its colon, in front of somebody being told about their money.
+// `purchasing.md` asks for the code anyway, because "you have already cancelled" and "that cannot
+// change while a charge is being retried" are different things to say and only the code tells them
+// apart. Its Windows twin is AllodiaSubscriptionFacts.cs; keep the wording in step.
+internal enum class AllodiaWriteFailure {
+    // Nothing more can be said: an outage, a refused token, a reason this build has never heard
+    // of. The sentence says only that nothing changed.
+    UNEXPLAINED,
+    ALREADY_CANCELLED,
+    ALREADY_ACTIVE,
+    ALREADY_ON_INTERVAL,
+    NOT_SWITCHABLE,
+    NOT_FOUND,
+}
+
+// The sentence [error] earns.
+//
+// Everything that is not a refusal is [AllodiaWriteFailure.UNEXPLAINED], including a service that
+// could not be reached: nothing was learned, so there is nothing to explain, and the one thing
+// worth saying is that nothing changed.
+internal fun allodiaWriteFailure(error: Throwable): AllodiaWriteFailure =
+    when ((error as? AllodiaPurchaseException.Refused)?.reason) {
+        AllodiaSubscriptionRefusal.ALREADY_CANCELLED -> AllodiaWriteFailure.ALREADY_CANCELLED
+        AllodiaSubscriptionRefusal.ALREADY_ACTIVE -> AllodiaWriteFailure.ALREADY_ACTIVE
+        AllodiaSubscriptionRefusal.ALREADY_ON_INTERVAL -> AllodiaWriteFailure.ALREADY_ON_INTERVAL
+        AllodiaSubscriptionRefusal.NOT_SWITCHABLE -> AllodiaWriteFailure.NOT_SWITCHABLE
+        AllodiaSubscriptionRefusal.NOT_FOUND -> AllodiaWriteFailure.NOT_FOUND
+        // Unavailable (no billing on this deployment), a reason a later service invented, and
+        // everything that was not a refusal at all.
+        else -> AllodiaWriteFailure.UNEXPLAINED
+    }

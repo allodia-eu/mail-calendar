@@ -637,6 +637,12 @@
 	"settings_subscription_switch_title": "Je volgende betaling wijzigen?",
 	"settings_subscription_switch_body": "Er wordt vandaag niets afgeschreven, en alles waarvoor je hebt betaald loopt door tot {date}. Alleen de betaling daarna verandert.",
 	"settings_subscription_switched": "Je volgende betaling op {date} wordt {amount}.",
+	"settings_subscription_write_failed": "Dat is niet gelukt. Er is niets veranderd en je kunt het opnieuw proberen.",
+	"settings_subscription_refused_already_cancelled": "Je abonnement is al opgezegd.",
+	"settings_subscription_refused_already_active": "Er wordt al een abonnement in rekening gebracht voor dit account.",
+	"settings_subscription_refused_already_on_interval": "Je hebt dit abonnement al.",
+	"settings_subscription_refused_not_switchable": "Een betaling wordt nog opnieuw geprobeerd, dus het abonnement kan nog niet wijzigen. Zodra die betaling is gelukt, kun je wisselen.",
+	"settings_subscription_refused_not_found": "Er is geen abonnement om te wijzigen.",
 
 	"settings_advanced_reset_description": "Wis de lokaal opgeslagen e-mail en download alles opnieuw van de server. Berichten in de wachtrij blijven behouden.",
 

@@ -143,7 +143,7 @@ public sealed partial class SettingsDialog
         _subscription = _subscription with
         {
             Buying = null,
-            Note = failure is null ? null : L10n.SettingsSubscriptionFailed(failure),
+            Note = failure is null ? null : RefusalText(failure.Value),
         };
         await ReadSubscriptionAsync();
     }
@@ -177,8 +177,24 @@ public sealed partial class SettingsDialog
             AllodiaSubscriptionFormat.Date(result.EndDate, Culture) ?? result.EndDate ?? string.Empty),
         AllodiaWriteOutcome.Reactivated => L10n.SettingsSubscriptionResubscribed(),
         AllodiaWriteOutcome.Switched => SwitchedNote(result.Change!),
-        AllodiaWriteOutcome.Failed => L10n.SettingsSubscriptionFailed(result.Failure ?? string.Empty),
+        AllodiaWriteOutcome.Failed =>
+            RefusalText(result.Failure ?? AllodiaWriteFailure.Unexplained),
         _ => null,
+    };
+
+    // A refusal's own words, never the core's: UniFFI builds an exception's message out of the
+    // variant's fields, so what is available there is the literal text `reason=NotSwitchable`, and
+    // an unreachable service carries no message at all. The twins are AllodiaSubscriptionModel.kt
+    // and allodia_subscription_facts.rs; keep the wording in step.
+    private static string RefusalText(AllodiaWriteFailure failure) => failure switch
+    {
+        AllodiaWriteFailure.AlreadyCancelled => L10n.SettingsSubscriptionRefusedAlreadyCancelled(),
+        AllodiaWriteFailure.AlreadyActive => L10n.SettingsSubscriptionRefusedAlreadyActive(),
+        AllodiaWriteFailure.AlreadyOnInterval =>
+            L10n.SettingsSubscriptionRefusedAlreadyOnInterval(),
+        AllodiaWriteFailure.NotSwitchable => L10n.SettingsSubscriptionRefusedNotSwitchable(),
+        AllodiaWriteFailure.NotFound => L10n.SettingsSubscriptionRefusedNotFound(),
+        _ => L10n.SettingsSubscriptionWriteFailed(),
     };
 
     // What the next charge becomes, in the service's own figures.

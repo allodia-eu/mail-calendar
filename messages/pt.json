@@ -637,6 +637,12 @@
 	"settings_subscription_switch_title": "Alterar o seu próximo pagamento?",
 	"settings_subscription_switch_body": "Hoje não é cobrado nada, e tudo o que pagou continua até {date}. Só muda o pagamento seguinte.",
 	"settings_subscription_switched": "O seu próximo pagamento em {date} será de {amount}.",
+	"settings_subscription_write_failed": "Não resultou. Nada foi alterado e pode tentar novamente.",
+	"settings_subscription_refused_already_cancelled": "A sua subscrição já está cancelada.",
+	"settings_subscription_refused_already_active": "Já está a ser cobrada uma subscrição nesta conta.",
+	"settings_subscription_refused_already_on_interval": "Já tem esse plano.",
+	"settings_subscription_refused_not_switchable": "Um pagamento ainda está a ser tentado de novo, por isso o plano ainda não pode mudar. Poderá mudá-lo assim que esse pagamento for concluído.",
+	"settings_subscription_refused_not_found": "Não há nenhuma subscrição para alterar.",
 
 	"settings_advanced_reset_description": "Apagar o correio guardado localmente e transferir tudo de novo a partir do servidor. Os envios em fila são mantidos.",
 

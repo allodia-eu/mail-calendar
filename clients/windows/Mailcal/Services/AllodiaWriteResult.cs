@@ -7,6 +7,7 @@
 // WinUI-free and L10n-free on purpose, like the card's decisions next door: which sentence follows
 // which ending is then a test rather than something only a live subscription can show.
 
+using System;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
@@ -32,8 +33,42 @@ internal enum AllodiaWriteOutcome
     /// </summary>
     Silent,
 
-    /// <summary>It did not go through, and the text says what the core called it.</summary>
+    /// <summary>It did not go through, and the reason says which sentence the card owes.</summary>
     Failed,
+}
+
+/// <summary>Why a write did not happen, as the sentence to put in front of the person.</summary>
+/// <remarks>
+/// ⚠️ **A code, never a message from anywhere else.** The core reports a refusal as an
+/// <see cref="AllodiaSubscriptionRefusal"/>, and the purchasing contract asks a client to switch on
+/// it, because "you have already cancelled" and "that cannot change while a charge is being
+/// retried" are different things to say and only the code tells them apart. Describing the
+/// exception instead puts a generated field name on screen: UniFFI builds one out of the variant's
+/// own fields, so a refusal reads <c>reason=NotSwitchable</c>, and an unreachable service carries
+/// no message at all, which <see cref="CoreError"/> then falls back to the type name for.
+/// </remarks>
+internal enum AllodiaWriteFailure
+{
+    /// <summary>
+    /// Nothing more can be said: an outage, a refused token, an app that is not running, a reason
+    /// this build has never heard of. The sentence says only that nothing changed.
+    /// </summary>
+    Unexplained,
+
+    /// <summary>Cancelling something already cancelled.</summary>
+    AlreadyCancelled,
+
+    /// <summary>Some source is already charging for this account.</summary>
+    AlreadyActive,
+
+    /// <summary>Already on the period they asked to move to.</summary>
+    AlreadyOnInterval,
+
+    /// <summary>A charge is mid-retry, so the period cannot move underneath it.</summary>
+    NotSwitchable,
+
+    /// <summary>There is no such subscription.</summary>
+    NotFound,
 }
 
 /// <summary>One write's ending, with whichever of the service's figures belongs to it.</summary>
@@ -47,12 +82,12 @@ internal enum AllodiaWriteOutcome
 /// amount arrives as minor units with no currency beside it, so the card prices it from the
 /// subscription's own <c>Prices.Currency</c>.
 /// </param>
-/// <param name="Failure">For <see cref="AllodiaWriteOutcome.Failed"/>: what the core called it.</param>
+/// <param name="Failure">For <see cref="AllodiaWriteOutcome.Failed"/>: which sentence it earns.</param>
 internal sealed record AllodiaWriteResult(
     AllodiaWriteOutcome Outcome,
     string? EndDate = null,
     AllodiaIntervalChange? Change = null,
-    string? Failure = null)
+    AllodiaWriteFailure? Failure = null)
 {
     internal static AllodiaWriteResult Cancelled(string endDate) =>
         new(AllodiaWriteOutcome.Cancelled, EndDate: endDate);
@@ -64,6 +99,28 @@ internal sealed record AllodiaWriteResult(
 
     internal static AllodiaWriteResult Silent() => new(AllodiaWriteOutcome.Silent);
 
-    internal static AllodiaWriteResult Failed(string failure) =>
+    internal static AllodiaWriteResult Failed(AllodiaWriteFailure failure) =>
         new(AllodiaWriteOutcome.Failed, Failure: failure);
+
+    /// <summary>The sentence <paramref name="error"/> earns.</summary>
+    /// <remarks>
+    /// Everything that is not a refusal is <see cref="AllodiaWriteFailure.Unexplained"/>, including
+    /// a service that could not be reached: nothing was learned, so there is nothing to explain,
+    /// and the one thing worth saying is that nothing changed.
+    /// </remarks>
+    internal static AllodiaWriteFailure FailureFor(Exception error) => error switch
+    {
+        AllodiaPurchaseException.Refused refused => refused.reason switch
+        {
+            AllodiaSubscriptionRefusal.AlreadyCancelled => AllodiaWriteFailure.AlreadyCancelled,
+            AllodiaSubscriptionRefusal.AlreadyActive => AllodiaWriteFailure.AlreadyActive,
+            AllodiaSubscriptionRefusal.AlreadyOnInterval => AllodiaWriteFailure.AlreadyOnInterval,
+            AllodiaSubscriptionRefusal.NotSwitchable => AllodiaWriteFailure.NotSwitchable,
+            AllodiaSubscriptionRefusal.NotFound => AllodiaWriteFailure.NotFound,
+            // Unavailable (no billing on this deployment) and a reason a later service invents both
+            // leave a client with nothing specific it could truthfully say.
+            _ => AllodiaWriteFailure.Unexplained,
+        },
+        _ => AllodiaWriteFailure.Unexplained,
+    };
 }

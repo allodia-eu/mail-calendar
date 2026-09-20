@@ -637,6 +637,12 @@
 	"settings_subscription_switch_title": "Modificare il prossimo pagamento?",
 	"settings_subscription_switch_body": "Oggi non viene addebitato nulla, e tutto ciò che hai pagato prosegue fino al {date}. Cambia solo il pagamento successivo.",
 	"settings_subscription_switched": "Il tuo prossimo pagamento del {date} sarà di {amount}.",
+	"settings_subscription_write_failed": "Non ha funzionato. Non è cambiato nulla e puoi riprovare.",
+	"settings_subscription_refused_already_cancelled": "Il tuo abbonamento è già stato disdetto.",
+	"settings_subscription_refused_already_active": "Per questo account viene già addebitato un abbonamento.",
+	"settings_subscription_refused_already_on_interval": "Hai già questo piano.",
+	"settings_subscription_refused_not_switchable": "Un pagamento è ancora in fase di nuovo tentativo, quindi il piano non può ancora cambiare. Potrai cambiarlo una volta che il pagamento sarà andato a buon fine.",
+	"settings_subscription_refused_not_found": "Non c’è nessun abbonamento da cambiare.",
 
 	"settings_advanced_reset_description": "Cancella la posta salvata in locale e scarica di nuovo tutto dal server. Gli invii in coda vengono mantenuti.",
 

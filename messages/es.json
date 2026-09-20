@@ -637,6 +637,12 @@
 	"settings_subscription_switch_title": "¿Cambiar tu próximo pago?",
 	"settings_subscription_switch_body": "Hoy no se cobra nada, y todo lo que has pagado sigue hasta el {date}. Solo cambia el pago posterior.",
 	"settings_subscription_switched": "Tu próximo pago el {date} será de {amount}.",
+	"settings_subscription_write_failed": "No ha funcionado. No ha cambiado nada y puedes volver a intentarlo.",
+	"settings_subscription_refused_already_cancelled": "Tu suscripción ya está cancelada.",
+	"settings_subscription_refused_already_active": "Ya se está cobrando una suscripción por esta cuenta.",
+	"settings_subscription_refused_already_on_interval": "Ya tienes ese plan.",
+	"settings_subscription_refused_not_switchable": "Todavía se está reintentando un pago, así que el plan aún no puede cambiar. Podrás cambiarlo cuando ese pago se complete.",
+	"settings_subscription_refused_not_found": "No hay ninguna suscripción que cambiar.",
 
 	"settings_advanced_reset_description": "Borra el correo guardado en el dispositivo y descárgalo todo de nuevo del servidor. Los envíos en cola se conservan.",
 

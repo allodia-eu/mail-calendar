@@ -98,11 +98,11 @@ public sealed partial class MailboxModel
     /// it happened is reading the subscription again, not anything handed back here.
     /// </para>
     /// </remarks>
-    internal async Task<string?> StartAllodiaCheckoutAsync(AllodiaPlan plan)
+    internal async Task<AllodiaWriteFailure?> StartAllodiaCheckoutAsync(AllodiaPlan plan)
     {
         if (_app is null)
         {
-            return "Could not open the app. Please relaunch.";
+            return AllodiaWriteFailure.Unexplained;
         }
         try
         {
@@ -121,7 +121,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"allodia: a checkout could not be started ({CoreError.Describe(ex)})");
-            return CoreError.Describe(ex);
+            return AllodiaWriteResult.FailureFor(ex);
         }
     }
 
@@ -136,7 +136,7 @@ public sealed partial class MailboxModel
     {
         if (_app is null)
         {
-            return AllodiaWriteResult.Failed("Could not open the app. Please relaunch.");
+            return AllodiaWriteResult.Failed(AllodiaWriteFailure.Unexplained);
         }
         try
         {
@@ -147,7 +147,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Warn($"allodia: cancel did not go through ({CoreError.Describe(ex)})");
-            return AllodiaWriteResult.Failed(CoreError.Describe(ex));
+            return AllodiaWriteResult.Failed(AllodiaWriteResult.FailureFor(ex));
         }
     }
 
@@ -163,7 +163,7 @@ public sealed partial class MailboxModel
     {
         if (_app is null)
         {
-            return AllodiaWriteResult.Failed("Could not open the app. Please relaunch.");
+            return AllodiaWriteResult.Failed(AllodiaWriteFailure.Unexplained);
         }
         try
         {
@@ -174,7 +174,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Warn($"allodia: the period change did not go through ({CoreError.Describe(ex)})");
-            return AllodiaWriteResult.Failed(CoreError.Describe(ex));
+            return AllodiaWriteResult.Failed(AllodiaWriteResult.FailureFor(ex));
         }
     }
 
@@ -191,7 +191,7 @@ public sealed partial class MailboxModel
     {
         if (_app is null)
         {
-            return AllodiaWriteResult.Failed("Could not open the app. Please relaunch.");
+            return AllodiaWriteResult.Failed(AllodiaWriteFailure.Unexplained);
         }
         try
         {
@@ -202,12 +202,14 @@ public sealed partial class MailboxModel
                 return AllodiaWriteResult.Reactivated();
             }
             var failure = await OpenAllodiaCheckoutAsync(checkout);
-            return failure is null ? AllodiaWriteResult.Silent() : AllodiaWriteResult.Failed(failure);
+            return failure is null
+                ? AllodiaWriteResult.Silent()
+                : AllodiaWriteResult.Failed(failure.Value);
         }
         catch (Exception ex)
         {
             Log.Warn($"allodia: the restart did not go through ({CoreError.Describe(ex)})");
-            return AllodiaWriteResult.Failed(CoreError.Describe(ex));
+            return AllodiaWriteResult.Failed(AllodiaWriteResult.FailureFor(ex));
         }
     }
 
@@ -230,12 +232,12 @@ public sealed partial class MailboxModel
     // The one browser hop both checkout routes share. Returns null once the page is open, and the
     // failure text when the service answered without one, which is an ending neither caller can
     // draw as success.
-    private static async Task<string?> OpenAllodiaCheckoutAsync(AllodiaCheckout checkout)
+    private static async Task<AllodiaWriteFailure?> OpenAllodiaCheckoutAsync(AllodiaCheckout checkout)
     {
         if (checkout.CheckoutUrl is not { } raw
             || !Uri.TryCreate(raw, UriKind.Absolute, out var url))
         {
-            return "The payment page could not be opened.";
+            return AllodiaWriteFailure.Unexplained;
         }
         await Windows.System.Launcher.LaunchUriAsync(url);
         return null;

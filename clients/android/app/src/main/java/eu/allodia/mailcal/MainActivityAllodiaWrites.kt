@@ -87,18 +87,34 @@ private fun MainActivity.runAllodiaWrite(what: String, write: (uniffi.mailcal_bi
     allodiaPurchaseScope.launch {
         val note =
             runCatching { withContext(Dispatchers.IO) { write(instance) } }
+                .onSuccess { logUiInfo("allodia: $what was accepted") }
                 .onFailure { failure ->
                     // The service's refusals name plans and dates, never an address or a secret.
                     logUiWarn("allodia: $what did not go through (${failure.message})")
                 }
-                .getOrElse { failure -> L10n.settings_subscription_failed(this@runAllodiaWrite, failure.message.orEmpty()) }
-        logUiInfo("allodia: $what was accepted")
+                .getOrElse { failure -> allodiaRefusalText(allodiaWriteFailure(failure)) }
         allodiaSubscription = allodiaSubscription.copy(note = note)
         // What the write actually did is the next read's answer, never this one's: the service
         // recomputes every biller, and a screen that edited its own copy would disagree with it.
         refreshAllodiaSubscription()
     }
 }
+
+// A refusal's own words. Never the exception's text, which is a generated field name
+// (AllodiaSubscriptionModel.kt).
+private fun MainActivity.allodiaRefusalText(failure: AllodiaWriteFailure): String =
+    when (failure) {
+        AllodiaWriteFailure.ALREADY_CANCELLED ->
+            L10n.settings_subscription_refused_already_cancelled(this)
+        AllodiaWriteFailure.ALREADY_ACTIVE ->
+            L10n.settings_subscription_refused_already_active(this)
+        AllodiaWriteFailure.ALREADY_ON_INTERVAL ->
+            L10n.settings_subscription_refused_already_on_interval(this)
+        AllodiaWriteFailure.NOT_SWITCHABLE ->
+            L10n.settings_subscription_refused_not_switchable(this)
+        AllodiaWriteFailure.NOT_FOUND -> L10n.settings_subscription_refused_not_found(this)
+        AllodiaWriteFailure.UNEXPLAINED -> L10n.settings_subscription_write_failed(this)
+    }
 
 // A date from a write, formatted for the reader, or the wire when this build cannot read it.
 private fun MainActivity.allodiaWrittenDate(raw: String): String =

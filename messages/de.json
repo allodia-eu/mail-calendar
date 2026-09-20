@@ -637,6 +637,12 @@
 	"settings_subscription_switch_title": "Ihre nächste Zahlung ändern?",
 	"settings_subscription_switch_body": "Heute wird nichts abgebucht, und alles, wofür Sie bezahlt haben, läuft bis {date} weiter. Nur die Zahlung danach ändert sich.",
 	"settings_subscription_switched": "Ihre nächste Zahlung am {date} beträgt dann {amount}.",
+	"settings_subscription_write_failed": "Das hat nicht funktioniert. Es wurde nichts geändert, und Sie können es erneut versuchen.",
+	"settings_subscription_refused_already_cancelled": "Ihr Abonnement ist bereits gekündigt.",
+	"settings_subscription_refused_already_active": "Für dieses Konto wird bereits ein Abonnement berechnet.",
+	"settings_subscription_refused_already_on_interval": "Sie nutzen dieses Abonnement bereits.",
+	"settings_subscription_refused_not_switchable": "Eine Zahlung wird noch einmal versucht, deshalb lässt sich das Abonnement noch nicht ändern. Sobald die Zahlung durchgegangen ist, können Sie wechseln.",
+	"settings_subscription_refused_not_found": "Es gibt kein Abonnement, das geändert werden kann.",
 
 	"settings_advanced_reset_description": "Die lokal gespeicherten E-Mails löschen und alles neu vom Server laden. Nachrichten in der Warteschlange bleiben erhalten.",
 

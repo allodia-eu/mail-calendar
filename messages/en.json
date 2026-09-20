@@ -637,6 +637,12 @@
 	"settings_subscription_switch_title": "Change your next payment?",
 	"settings_subscription_switch_body": "Nothing is charged today, and everything you have paid for runs on until {date}. Only the payment after that changes.",
 	"settings_subscription_switched": "Your next payment on {date} becomes {amount}.",
+	"settings_subscription_write_failed": "That didn’t work. Nothing has changed, and you can try again.",
+	"settings_subscription_refused_already_cancelled": "Your subscription is already cancelled.",
+	"settings_subscription_refused_already_active": "A subscription is already being charged for this account.",
+	"settings_subscription_refused_already_on_interval": "You’re already on that plan.",
+	"settings_subscription_refused_not_switchable": "A payment is still being retried, so the plan can’t change yet. You can change it once that payment has gone through.",
+	"settings_subscription_refused_not_found": "There’s no subscription to change.",
 
 	"settings_advanced_reset_description": "Clear the locally cached mail and download everything again from the server. Queued sends are kept.",
 
