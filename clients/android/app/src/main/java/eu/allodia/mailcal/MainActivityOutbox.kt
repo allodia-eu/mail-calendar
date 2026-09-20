@@ -83,15 +83,7 @@ internal fun MainActivity.WithdrawnMessagePane(instance: MailcalApp, library: Li
             }
         },
         signatures = composerSignatures(instance, library),
-        onSubmitRich = { from, recipients, subject, documentJson, files ->
-            try {
-                instance.submitRichMailWithFiles(recipients, subject, documentJson, files, from)
-                true
-            } catch (e: MailcalException) {
-                Log.w(TAG, "rich composer submit failed: ${e.javaClass.simpleName}")
-                false
-            }
-        },
+        onSubmitRich = { submission -> submitMail(instance, submission) },
         onDismiss = {
             withdrawnMessage = null
             instance.dispatch(Intent.DismissComposeRequest)

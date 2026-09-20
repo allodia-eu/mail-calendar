@@ -70,25 +70,12 @@ internal fun FlatMessageRow(
     onPermanentlyDelete: (account: String, key: String) -> Unit,
     onMarkAsSpam: (account: String, key: String) -> Unit,
     onMarkAsNotSpam: (account: String, key: String) -> Unit,
-    onReply: (
-        account: String,
-        key: String,
-        from: String?,
-        recipients: Recipients,
-        subject: String,
-        documentJson: String,
-        files: List<ComposerFileAttachment>,
-    ) -> Boolean,
-    onForward: (
-        account: String,
-        key: String,
-        from: String?,
-        recipients: Recipients,
-        subject: String,
-        documentJson: String,
-        files: List<ComposerFileAttachment>,
-    ) -> Boolean,
+    onReply: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
+    onForward: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
     replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
+    // The core verbs a composer raised from here keeps its message on the server with
+    // (`docs/drafts.md`); null turns draft saving off (a screenshot run, a test).
+    drafts: ComposerDrafts? = null,
     // Writes the files a message carries into the given directory, for a forward to carry them
     // on. Blocking, so it is called off the main thread; throws when they cannot be read.
     stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
@@ -261,11 +248,12 @@ internal fun FlatMessageRow(
             initialAttachments = seed.files,
             initialError = if (seed.failed) L10n.compose_forward_attachments_failed(ctx) else null,
             onDismiss = { composing = null },
-            onSubmitRich = { from, recipients, subject, documentJson, files ->
+            drafts = drafts,
+            onSubmitRich = { submission ->
                 val sent = if (mode == RichComposeMode.Forward) {
-                    onForward(message.account, message.key, from, recipients, subject, documentJson, files)
+                    onForward(message.account, message.key, submission)
                 } else {
-                    onReply(message.account, message.key, from, recipients, subject, documentJson, files)
+                    onReply(message.account, message.key, submission)
                 }
                 if (sent) {
                     composing = null

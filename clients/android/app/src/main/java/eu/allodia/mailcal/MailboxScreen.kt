@@ -98,37 +98,18 @@ internal fun MailboxScreen(
     // One action over every selected row, as a single batch in the core: one optimistic hide and
     // one sync per account, rather than one of each per row (docs/list-selection.md, rule 8).
     onActOnSelection: (rows: List<SelectedRow>, action: BulkAction) -> Unit,
-    onReply: (
-        account: String,
-        key: String,
-        from: String?,
-        recipients: Recipients,
-        subject: String,
-        documentJson: String,
-        files: List<ComposerFileAttachment>,
-    ) -> Boolean,
-    onForward: (
-        account: String,
-        key: String,
-        from: String?,
-        recipients: Recipients,
-        subject: String,
-        documentJson: String,
-        files: List<ComposerFileAttachment>,
-    ) -> Boolean,
+    onReply: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
+    onForward: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
     replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
+    // The core verbs a composer raised from here keeps its message on the server with
+    // (`docs/drafts.md`); null turns draft saving off (a screenshot run, a test).
+    drafts: ComposerDrafts? = null,
     stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
     suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
     // The signature library + lookups for the reply/forward composer, or null to leave signatures
     // out (a screenshot run, a test).
     signatures: ComposerSignatures? = null,
-    onSubmitRich: (
-        from: String?,
-        recipients: Recipients,
-        subject: String,
-        documentJson: String,
-        files: List<ComposerFileAttachment>,
-    ) -> Boolean,
+    onSubmitRich: (submission: ComposerSubmission) -> Boolean,
     // The persisted per-direction swipe actions, and the app-level default send account (the
     // composer's From opens on it in the unified inbox). Both live in the Rust core.
     swipe: SwipeSettings,
@@ -356,6 +337,7 @@ internal fun MailboxScreen(
                                 onMarkAsNotSpam = onMarkAsNotSpam,
                                 onReply = onReply,
                                 onForward = onForward,
+                                drafts = drafts,
                                 replyRecipients = replyRecipients,
                                 stageForwardFiles = stageForwardFiles,
                                 suggestionsFor = suggestionsFor,
@@ -458,6 +440,7 @@ internal fun MailboxScreen(
                     onShareConsumed()
                 }
             },
+            drafts = drafts,
             onSubmitRich = onSubmitRich,
         )
     }

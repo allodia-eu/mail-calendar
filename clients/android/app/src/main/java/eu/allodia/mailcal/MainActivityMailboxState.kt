@@ -51,6 +51,7 @@ internal fun MainActivity.reload() {
     unifiedUnread = snapshot.unifiedUnread
     outbox = snapshot.outbox
     showingOutbox = snapshot.showingOutbox
+    showingDrafts = snapshot.showingDrafts
     selectedFolder = snapshot.selected
     searchHorizon = snapshot.searchHorizon
     // Re-resolve the connection-issues emails now the switcher list is (re)populated, so an outaged

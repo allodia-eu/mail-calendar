@@ -336,10 +336,10 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             onShowMore = { showMore() },
                             // Tapping a message opens its reading view (body fetched + sanitised
                             // by the core).
-                            onOpen = { opened -> openMessage(instance, opened) },
+                            onOpen = { opened -> openOrResume(instance, opened) },
                             // Tapping a conversation opens its latest message; the reading screen
                             // shows the older messages as a strip that opens each on tap.
-                            onOpenThread = { thread -> openThread(instance, thread) },
+                            onOpenThread = { thread -> openOrResumeThread(instance, thread) },
                             // Per-message mail actions, dispatched as intents through the FFI.
                             onSetRead = { account, key, read -> instance.dispatch(Intent.MarkRead(account, key, read)) },
                             onSetFlagged = { account, key, flagged ->
@@ -368,24 +368,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // Reply/reply-all/forward go through the SAME shared rich composer as
                             // new mail: the user-confirmed recipients ride the submit, and the
                             // Rust core derives the Re:/Fwd: subject + threading from the original.
-                            onReply = { account, key, from, recipients, subject, documentJson, files ->
-                                try {
-                                    instance.submitRichReplyWithFiles(account, key, recipients, documentJson, files, from, subject)
-                                    true
-                                } catch (e: MailcalException) {
-                                    Log.w(TAG, "rich reply submit failed: ${e.javaClass.simpleName}")
-                                    false
-                                }
-                            },
-                            onForward = { account, key, from, recipients, subject, documentJson, files ->
-                                try {
-                                    instance.submitRichForwardWithFiles(account, key, recipients, documentJson, files, from, subject)
-                                    true
-                                } catch (e: MailcalException) {
-                                    Log.w(TAG, "rich forward submit failed: ${e.javaClass.simpleName}")
-                                    false
-                                }
-                            },
+                            onReply = { account, key, submission -> submitReply(instance, account, key, submission) },
+                            onForward = { account, key, submission -> submitForward(instance, account, key, submission) },
                             // Pre-fill a reply/reply-all's To/Cc from the core (empty on failure).
                             // Composer autosuggest: ranked addresses for a partially-typed
                             // recipient, drawn from synced contacts AND from people the user has
@@ -402,6 +386,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // The composer's signature: seeded from the From account's slot for
                             // this mode, re-resolved when From changes, overridable per message.
                             signatures = composerSignatures(instance, signatures?.signatures.orEmpty()),
+                            drafts = composerDrafts(instance),
                             replyRecipients = { account, key, replyAll ->
                                 try {
                                     instance.replyRecipients(account, key, replyAll)
@@ -415,15 +400,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             stageForwardFiles = { account, key, directory ->
                                 instance.stageForwardedAttachments(account, key, directory)
                             },
-                            onSubmitRich = { from, recipients, subject, documentJson, files ->
-                                try {
-                                    instance.submitRichMailWithFiles(recipients, subject, documentJson, files, from)
-                                    true
-                                } catch (e: MailcalException) {
-                                    Log.w(TAG, "rich composer submit failed: ${e.javaClass.simpleName}")
-                                    false
-                                }
-                            },
+                            onSubmitRich = { submission -> submitMail(instance, submission) },
                             // Swipe actions (per direction) + the archive intent a swipe may run;
                             // both come from the core, which persists the choice.
                             swipe = swipeSettings,
@@ -486,6 +463,15 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // it is the mailbox's: the message belongs to neither list once it
                             // has left the queue.
                             WithdrawnMessagePane(instance, signatures?.signatures.orEmpty())
+                            // A draft opened back up from the Drafts folder, over the same list,
+                            // and for the same reason: the message belongs to the composer now,
+                            // not to the row that was tapped.
+                            ResumedDraftPane(instance)
+                            // A draft that could not be opened. The message opens for reading
+                            // behind this, so nothing is lost; what it cannot do is be edited.
+                            if (draftOpenFailed) {
+                                DraftOpenFailedDialog(onDismiss = { draftOpenFailed = false })
+                            }
                             } // FolderDrawerScaffold
                           }
                           }

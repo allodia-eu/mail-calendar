@@ -64,25 +64,12 @@ internal fun SwipeableFlatMessageRow(
     onPermanentlyDelete: (account: String, key: String) -> Unit,
     onMarkAsSpam: (account: String, key: String) -> Unit,
     onMarkAsNotSpam: (account: String, key: String) -> Unit,
-    onReply: (
-        account: String,
-        key: String,
-        from: String?,
-        recipients: Recipients,
-        subject: String,
-        documentJson: String,
-        files: List<ComposerFileAttachment>,
-    ) -> Boolean,
-    onForward: (
-        account: String,
-        key: String,
-        from: String?,
-        recipients: Recipients,
-        subject: String,
-        documentJson: String,
-        files: List<ComposerFileAttachment>,
-    ) -> Boolean,
+    onReply: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
+    onForward: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
     replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
+    // The core verbs a composer raised from here keeps its message on the server with
+    // (`docs/drafts.md`); null turns draft saving off (a screenshot run, a test).
+    drafts: ComposerDrafts? = null,
     stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
     suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
     // The signature library + lookups for the reply/forward composer, or null to leave signatures
@@ -164,6 +151,7 @@ internal fun SwipeableFlatMessageRow(
             onMarkAsNotSpam = onMarkAsNotSpam,
             onReply = onReply,
             onForward = onForward,
+            drafts = drafts,
             replyRecipients = replyRecipients,
             stageForwardFiles = stageForwardFiles,
             suggestionsFor = suggestionsFor,
