@@ -75,6 +75,19 @@ struct ComposeHost: View {
                 to: request.prefill.to, cc: request.prefill.cc, bcc: request.prefill.bcc,
                 subject: request.prefill.subject, bodyText: request.prefill.body
             )
+        case let .share(request):
+            // Another app asked to send these files. The composer opens holding them, and every
+            // field stays editable; nothing is sent until the user presses Send. `to` is non-blank
+            // only when the shared text was itself a mail link, which the core decoded through the
+            // same allowlist a tapped link goes through: a sharing app cannot address a message
+            // (docs/os-integration.md).
+            prefilled(
+                from: nil,
+                to: request.prefill.to, cc: request.prefill.cc, bcc: request.prefill.bcc,
+                subject: request.prefill.subject, bodyText: request.prefill.body,
+                attachments: request.prefill.attachments,
+                error: shareRefusalNotice(request.prefill.rejected)
+            )
         case let .forward(account, key, subject, quote, quoteStyle, attachments):
             forwardMessage(
                 account: account, key: key, subject: subject,
@@ -97,10 +110,15 @@ struct ComposeHost: View {
         } cancel: { dismiss() }
     }
 
-    /// A new message someone else addressed: an assistant's draft, or a `mailto:` link.
+    /// A new message someone else addressed: an assistant's draft, a `mailto:` link, or a share.
+    ///
+    /// A share is the only one of the three that arrives with files, and the only one that can
+    /// arrive with something to say about what it could not bring.
     private func prefilled(
         from: String?,
-        to: String, cc: String, bcc: String, subject: String, bodyText: String
+        to: String, cc: String, bcc: String, subject: String, bodyText: String,
+        attachments: [ComposerFileAttachment] = [],
+        error: String? = nil
     ) -> some View {
         RichComposeView(
             title: L10n.compose_title_new(),
@@ -112,6 +130,8 @@ struct ComposeHost: View {
             initialBcc: bcc,
             initialSubject: subject,
             initialBody: bodyText,
+            initialAttachments: attachments,
+            initialError: error,
             probe: probe,
             suggestionsFor: recipientSuggestions,
             signatures: signatures

@@ -62,6 +62,31 @@ indistinguishable by the time either is sent.
 `SharePrefill::rejected` with its reason, because a file the user watched go into a share sheet and
 never saw again is one they will assume was attached. A client shows what it could not take.
 
+## On Apple, a share arrives in a second process
+
+A Share Extension is a process of its own, and it cannot open the composer: that needs the
+accounts, the signatures and the send path, which belong to the one core with the one open store
+([`reading-window.md`](reading-window.md)). So the extension does the one thing only it can do. It
+copies the shared bytes into a **drop box**, leaves a note saying what arrived, and asks the system
+to open the app; the app drains the box every time it is activated, hands the note to the core, and
+opens a composer with the answer.
+
+Three consequences are worth knowing before they surprise someone:
+
+- **The doorbell carries nothing.** The URL the extension opens is only a request to bring the app
+  up. The share is already in the box, the app acts on *being activated* rather than on the URL,
+  and a page that guesses the scheme can therefore do no more than make the app look in its own
+  box. It is also a scheme of its own rather than the app id's, which sign-in redirects use.
+- **Opening the app is best effort.** A share whose doorbell went unanswered is still in the box,
+  and is picked up the next time the user brings the app forward, rather than lost.
+- **Where the box is depends on what the build was signed with.** iOS and the Mac App Store build
+  use an **App Group**, the only place a sandboxed app and a sandboxed extension can both write.
+  Every other macOS build uses a **directory under the user's home**, reached by a sandbox
+  exception scoped to that one directory: ⚠️ a sandboxed process cannot use an App Group a
+  provisioning profile did not grant, a macOS build outside the Store has no profile, and neither
+  CI nor a checkout without an Apple account can get one. The grant is deliberately not the engine
+  store's directory: an extension should not be able to open the user's mail.
+
 ## Offering to become the default mail app
 
 The core owns *whether to ask*; each platform owns only its own call. `should_offer_default_mail_app`
@@ -96,16 +121,27 @@ must meet are Gate 12 and Gate 15 in [`composer-security.md`](composer-security.
 
 | Platform | `mailto:` registration | Share ingress | Can it ask to be the default? |
 |---|---|---|---|
-| **macOS** | ✅ `CFBundleURLTypes` + `LSHandlerRank: Alternate` | ⬜ Share Extension (`com.apple.share-services`) | **Developer ID only.** `NSWorkspace.setDefaultApplication(at:toOpenURLsWithScheme:)`, which shows a system consent alert. The **App Store build cannot**: the sandbox refuses it, and there is no replacement for `LSSetDefaultHandlerForURLScheme`. |
-| **iOS / iPadOS** | 🚧 `CFBundleURLTypes` declared, and inert until the entitlement lands | ⬜ Share Extension | **Only with Apple's grant.** The `com.apple.developer.mail-client` entitlement is requested by email and excludes the browser entitlement. There is no prompt API; the app deep-links to Settings → Apps → Default Apps. |
+| **macOS** | ✅ `CFBundleURLTypes` + `LSHandlerRank: Alternate` | ✅ Share Extension (`com.apple.share-services`), any file plus text and a web link | **Developer ID only.** `NSWorkspace.setDefaultApplication(at:toOpenURLsWithScheme:)`, which shows a system consent alert. The **App Store build cannot**: the sandbox refuses it, and there is no replacement for `LSSetDefaultHandlerForURLScheme`. |
+| **iOS / iPadOS** | 🚧 `CFBundleURLTypes` declared, and inert until the entitlement lands | ✅ Share Extension, the same one | **Only with Apple's grant.** The `com.apple.developer.mail-client` entitlement is requested by email and excludes the browser entitlement. There is no prompt API; the app deep-links to Settings → Apps → Default Apps. |
 | **Windows** | ✅ MSIX `windows.protocol` `mailto` | ✅ `windows.shareTarget` (any file type, plus Text and WebLink) | **Deep link only**, by design since Windows 10: open `ms-settings:defaultapps?registeredAUMID=…`, the parameter for a packaged app. (`registeredApp` / `registeredAppUser` name an installer's own `RegisteredApplications` key, which this app does not write.) An AUMID is absent in an unpackaged build, and the plain page opens instead. |
 | **Android** | ✅ `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` | ✅ `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` | **No, and nothing to add.** There is no `ROLE_EMAIL` in `RoleManager`; the chooser is the mechanism, and it already works. |
 | **Linux** | ✅ desktop `MimeType=x-scheme-handler/mailto` | ✅ curated `MimeType=` ("Open With") + a local `--attach`, both through `Exec=mailcal %U` | **No, and it cannot even tell.** No default-apps portal was ever shipped, and inside a Flatpak `GAppInfo` has no host application database to ask, which is why [`cargo xtask check-desktop-handoff`](../xtask/src/desktop_handoff.rs) already bans those calls. The desktop entry declares the handler; the user chooses it in their desktop's settings. |
 
 ## Known gaps
 
-- **Share ships everywhere but Apple**, which still needs a Share Extension target. The composer
-  half is done: it opens holding files a forward staged, and a share's would arrive the same way.
+- **Only Apple names what it could not take.** The refusal rule above binds every client, and
+  Windows, Android and Linux each count refusals into the log and stop there, so a file the core
+  would not attach leaves that user's share sheet and is never mentioned again. The Apple clients
+  open the composer showing the names.
+- **A macOS share extension is off until the user turns it on.** Nothing in a build can change
+  that: macOS ships every third-party sharing extension disabled, and it is enabled in
+  System Settings ▸ General ▸ Login Items & Extensions ▸ Sharing. So the app appearing in the
+  share sheet is a step the *user* takes, and no copy may promise it happens on install.
+- **The Mac App Store build's App Groups are a portal registration, not a build setting.** The
+  Store archive is the one macOS build that can carry the group, and its provisioning profile has
+  to grant it to the **extension's** App ID as well as to the app's. `package.sh` checks only the
+  app's, so a profile missing the extension's half signs cleanly and hands the user a share that
+  goes nowhere.
 - **A `MimeType=` entry is a claim to *open* that type, and Linux has no way to say otherwise.**
   There is no key for "I will attach this but not display it", so appearing in "Open With" for a
   PDF also makes this app selectable as a PDF handler. The list is therefore kept to what a person

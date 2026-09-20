@@ -27,6 +27,14 @@ provisioning profile"*, since it cannot run the script's team detection itself. 
 be on (device ▸ Settings ▸ Privacy & Security), and the Stalwart harness is loopback-only, so a
 device session runs against a real account added in the app.
 
+**The Share Extension has to be switched on before it appears anywhere**, in the dev loop and on a
+user's Mac alike: macOS ships every third-party sharing extension disabled
+(`docs/os-integration.md`). System Settings ▸ General ▸ Login Items & Extensions ▸ Sharing, or, for
+a dev build, `pluginkit -e use -i eu.allodia.mailcal.share`. `pluginkit -mvv -p
+com.apple.share-services` lists what the system has registered and which bundle each one came from,
+which is the first thing to check when a build of yours is not the one being offered: two checkouts
+share a bundle id.
+
 Debugging against the local Stalwart harness (accounts, seed data, logs) is covered by the repo
 skills, see [`docs/debugging.md`](../../docs/debugging.md); background sync and notifications need
 real hardware and a loop of their own ([`scripts/dev/device.sh`](../../scripts/dev/device.sh)).
@@ -95,6 +103,14 @@ arm64 only** (Apple-silicon Mac, arm64 iPhone + iPad); a universal Mac binary wo
      either standard profile folder (or set `MAS_PROVISIONING_PROFILE=<path>` in `signing.local.sh`).
      A distribution profile has no device list, so, unlike a *development* profile, it needs no
      registered Mac.
+
+     ⚠️ **The Share Extension is a second App ID, and it needs the App Group too.** Flow B ships
+     `eu.allodia.mailcal.share` inside the app, and the App Group is the entire hand-off a share
+     travels through (`docs/os-integration.md`): the profile must grant it to **both** ids, or the
+     build signs cleanly, installs, appears in the share sheet and then quietly attaches nothing.
+     In the portal: Identifiers ▸ **+** ▸ App ID `eu.allodia.mailcal.share` ▸ enable *App Groups* ▸
+     assign `group.eu.allodia.mailcal`, then a **Mac App Store** profile for that id as well.
+     `package.sh` checks the app's half only, so the extension's is on you.
 
      (The **development** profile the archive itself uses stays auto-managed via
      `-allowProvisioningUpdates`, and *that* one embeds a device list, so the team still needs **at
@@ -338,9 +354,15 @@ in [`docs/store-listing.md`](../../docs/store-listing.md) and apply to iOS uncha
 - `project.yml`, the XcodeGen manifest (targets, signing, Info.plist, Release production settings).
 - `App/`, the multiplatform entry point (`AllodiaApp.swift`), the asset catalog with the generated
   `AppIcon` (macOS per-size images + a single-size 1024 iOS icon), and the entitlements:
-  `AllodiaMail.entitlements` (iOS keychain), `*.macOS.entitlements` (Flow A), `*.appstore.entitlements`
-  (Flow B sandbox).
-- `Packages/MailcalKit/`, the shared Swift package (`MailcalUI` + the generated `MailcalBindings`).
+  `AllodiaMail.entitlements` (iOS keychain + App Group), `*.macOS.entitlements` (Flow A),
+  `*.appstore.entitlements` (Flow B sandbox), and the Share Extension's pair,
+  `AllodiaMailShare.entitlements` (App Group: iOS and Flow B) and
+  `AllodiaMailShare.macOS.entitlements` (a home-relative grant: every other macOS build, and it
+  carries the measurement that forced the split).
+- `ShareExtension/`, the Share Extension: what puts the app in the OS's own share sheet
+  ([`docs/os-integration.md`](../../docs/os-integration.md)). It draws nothing and links no core.
+- `Packages/MailcalKit/`, the shared Swift package (`MailcalUI` + `MailcalShareBox`, the drop box a
+  share is handed over in, + the generated `MailcalBindings`).
 - `Scripts/`
   - `build-and-run.sh`, the debug dev loop.
   - `build-core.sh [--release] [--no-device] [--slices device,sim,macos]`, cross-compiles the Rust

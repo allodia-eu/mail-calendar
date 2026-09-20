@@ -382,6 +382,17 @@ that same file.
   name `Allodia Mail  Calendar`, with the two spaces left behind. Comparing a UIA `Name` against the
   real title therefore never matches, silently: the lookup falls through to whatever it does when it
   finds nothing. Normalise both sides before comparing, or match on the window handle.
+- **`NSExtensionContext.open` asks the HOST to open the URL, and Finder does not.** The name reads
+  like `NSWorkspace.open`, and the header says "Asks the host to open a URL on the extension's
+  behalf", which is the whole trap: the *host application* is the one that has to implement it.
+  Sharing from Finder therefore ran the Share Extension to completion, staged the file, reported
+  success, and left the app unlaunched, so the user saw nothing happen at all
+  ([`os-integration.md`](os-integration.md)). It fails silently by construction, since the drop is
+  already written by then and its completion handler is best effort anyway. The same URL passed to
+  `open(1)` brought the app straight up, which is how to tell this apart from a scheme that is not
+  registered. macOS therefore calls `NSWorkspace.shared.open` from inside the extension, which a
+  sandboxed process may do for a URL; iOS keeps the context call, where the host is UIKit's own
+  share sheet and it works.
 
 ## Interaction quality is not testable from a chair
 

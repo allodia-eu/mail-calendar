@@ -318,6 +318,9 @@ public struct ContentView: View {
         // are attached here rather than to the `WindowGroup` because the model is this view's own
         // state, and a link has nowhere to go without it. See Mailcal.ComposeDraft.swift.
         .modifier(MailLinkRouting(model: model, open: openMailLink))
+        // Another app sharing files into a new message. The Share Extension has already staged
+        // them; this looks in the box whenever the app is activated. See Mailcal.Share.swift.
+        .modifier(ShareRouting(model: model, open: openShare))
         // The one-time offer to become the default mail app: when to raise it and the alert
         // itself, both in the modifier (docs/os-integration.md).
         .modifier(DefaultMailAppOfferDialog(model: model))

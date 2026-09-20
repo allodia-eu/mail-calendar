@@ -131,15 +131,16 @@ nested_library_items() {
   find "$1" -depth \( -name '*.bundle' -o -name '*.framework' -o -name '*.dylib' \)
 }
 
-# Things that RUN: a nested helper .app (the MCP relay, docs/mcp.md) and any bare Mach-O under
-# Contents/MacOS or Contents/Helpers, minus the app's own main executable (signing the app signs
-# that, and re-signing it separately would be undone a moment later anyway). `! -path "$app"`
-# matters: the app we are signing is itself a *.app and would otherwise match its own predicate.
+# Things that RUN: a nested helper .app (the MCP relay, docs/mcp.md), the Share Extension's .appex
+# (docs/os-integration.md) and any bare Mach-O under Contents/MacOS or Contents/Helpers, minus the
+# app's own main executable (signing the app signs that, and re-signing it separately would be
+# undone a moment later anyway). `! -path "$app"` matters: the app we are signing is itself a *.app
+# and would otherwise match its own predicate.
 nested_executable_items() {
   local app="$1"
   local main_exe
   main_exe="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist" 2>/dev/null || true)"
-  find "$app" -depth -name '*.app' ! -path "$app"
+  find "$app" -depth \( -name '*.app' -o -name '*.appex' \) ! -path "$app"
   for dir in "$app/Contents/MacOS" "$app/Contents/Helpers"; do
     [[ -d "$dir" ]] || continue
     find "$dir" -type f -perm -111 ! -name '*.dSYM' | while IFS= read -r exe; do
@@ -549,8 +550,13 @@ app-store)
   # profile, create it explicitly; see the resolver below + README). MACOS_ENTITLEMENTS swaps the
   # app target onto the sandbox set (see project.yml) without leaking a global CODE_SIGN_ENTITLEMENTS
   # onto the package targets.
+  # MACOS_SHARE_ENTITLEMENTS does for the Share Extension what MACOS_ENTITLEMENTS does for the
+  # app: this is the one macOS build signed against a provisioning profile, so it is the one that
+  # can carry the App Group, and every other macOS build takes the home-relative grant instead
+  # (App/AllodiaMailShare.macOS.entitlements carries the measurement).
   SIGN_ARGS+=("CODE_SIGN_STYLE=Automatic" "CODE_SIGN_IDENTITY=Apple Development" \
-              "MACOS_ENTITLEMENTS=App/AllodiaMail.appstore.entitlements")
+              "MACOS_ENTITLEMENTS=App/AllodiaMail.appstore.entitlements" \
+              "MACOS_SHARE_ENTITLEMENTS=App/AllodiaMailShare.entitlements")
   EXPORT_EXTRA=(-allowProvisioningUpdates)   # resolve/create the dev profile for the archive
   DESTINATION='generic/platform=macOS'
   ;;
@@ -930,6 +936,29 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   plutil -convert xml1 "$RELAY_ENTS"
   plutil -lint "$RELAY_ENTS" >/dev/null \
     || fail "the resolved relay entitlements are not a valid plist ($RELAY_ENTS)."
+
+  # The Share Extension's, resolved the same way. Its own set, not the relay's and not the app's:
+  # it needs the App Group (this is the whole hand-off, docs/os-integration.md) and nothing else,
+  # and its file names the group through $(MAILCAL_HOST_APP_ID) because its own bundle id is the
+  # extension's rather than the app's.
+  #
+  # ⚠️ The Store archive is the ONE macOS build that can carry this group, because it is the one
+  # signed against a provisioning profile; every other macOS build takes
+  # App/AllodiaMailShare.macOS.entitlements and a home-relative grant instead (that file carries
+  # the measurement). So the Mac App Store profile must grant the group to the EXTENSION's App ID
+  # as well as to the app's, and the resolver below only checks the app's.
+  #
+  # Deliberately no com.apple.application-identifier / team-identifier, matching the relay: the
+  # archive's own automatic signing embedded a profile in the .appex and this pass leaves it
+  # there. If App Store validation turns out to want the pair as well, that is the point to add
+  # both, together, and re-measure.
+  SHARE_ENTS="$BUILD/appstore.share.entitlements"
+  sed -e "s/\$(MAILCAL_HOST_APP_ID)/${BUNDLE_ID}/g" \
+    "$HERE/App/AllodiaMailShare.entitlements" >"$SHARE_ENTS"
+  plutil -convert xml1 "$SHARE_ENTS"
+  plutil -lint "$SHARE_ENTS" >/dev/null \
+    || fail "the resolved Share Extension entitlements are not a valid plist ($SHARE_ENTS)."
+  assert_entitlements_resolved "$SHARE_ENTS"
   assert_entitlements_resolved "$RELAY_ENTS"
   assert_entitlements_resolved "$RESOLVED_ENTS"
 
@@ -943,7 +972,14 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   done < <(nested_library_items "$APP")
   while IFS= read -r item; do
     echo "    signing nested executable: ${item#"$APP"/}"
-    codesign --force --options runtime --entitlements "$RELAY_ENTS" \
+    # Each executable takes ITS OWN set. Apple's guidance for an embedded executable is that
+    # surplus entitlements cause launch failures, and these two need different things: the relay
+    # needs the socket's group, the extension needs the drop box's.
+    case "$item" in
+      *.appex) ENTS="$SHARE_ENTS" ;;
+      *) ENTS="$RELAY_ENTS" ;;
+    esac
+    codesign --force --options runtime --entitlements "$ENTS" \
       --sign "$SIGN_ID" "$item"
   done < <(nested_executable_items "$APP")
   codesign --force --options runtime --entitlements "$RESOLVED_ENTS" \
@@ -1047,7 +1083,19 @@ echo "==> Signing nested code with $DEVELOPER_ID_IDENTITY"
 NESTED_SIGNED=0
 while IFS= read -r item; do
   echo "    signing nested: ${item#"$APP"/}"
-  codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID_IDENTITY" "$item"
+  # Each item keeps the entitlements the BUILD applied to it, read back off the item for the same
+  # reason the app's are read back off the app. Signing nested code with none was fine while the
+  # only nested executable was the ad-hoc relay, which has none; the Share Extension has two, and
+  # an app extension that comes out of here unsandboxed is one macOS will not load at all.
+  ITEM_ENTS="$BUILD/devid.$(basename "$item").entitlements"
+  ITEM_ARGS=()
+  if codesign -d --entitlements - --xml "$item" >"$ITEM_ENTS" 2>/dev/null && [[ -s "$ITEM_ENTS" ]]; then
+    plutil -lint "$ITEM_ENTS" >/dev/null \
+      || fail "the entitlements read back from ${item#"$APP"/} are not a valid plist ($ITEM_ENTS)."
+    ITEM_ARGS=(--entitlements "$ITEM_ENTS")
+  fi
+  codesign --force --options runtime --timestamp "${ITEM_ARGS[@]}" \
+    --sign "$DEVELOPER_ID_IDENTITY" "$item"
   NESTED_SIGNED=1
 done < <(nested_code_items "$APP")
 if [[ "$NESTED_SIGNED" -eq 1 ]]; then

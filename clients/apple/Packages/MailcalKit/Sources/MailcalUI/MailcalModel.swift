@@ -243,6 +243,13 @@ final class MailboxModel {
     /// once accounts exist, which is what Windows's `MailLinkInbox` and Linux's `pending_mailto`
     /// each do for the same reason.
     var pendingMailLink: MailLinkRequest?
+    /// A share the Share Extension left for us, waiting for an account to send it from.
+    ///
+    /// Only that case: an ordinary share opens its composer as it is drained, so this is non-nil
+    /// exactly while someone has shared a file into a build that has no account yet. `openShare`
+    /// puts it here and the shell drains it once accounts exist, which is what Windows's
+    /// `_pendingShare` and Linux's `pending_share` each do for the same reason.
+    var pendingShare: ShareOpenRequest?
     /// Whether the usage-statistics question is settled, pulled once at connect. `asked == false`
     /// puts the welcome screen up, it is the first thing a new user sees, ahead of setup. Nil
     /// until the core answers, so the screen is never shown on a guess.

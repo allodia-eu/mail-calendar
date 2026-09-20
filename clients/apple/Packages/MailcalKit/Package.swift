@@ -14,6 +14,8 @@ let package = Package(
         .library(name: "MailcalUI", targets: ["MailcalUI"]),
         // Exposed so the headless MailcalVerify tool can drive the FFI without the UI layer.
         .library(name: "MailcalBindings", targets: ["MailcalBindings"]),
+        // Exposed so the Share Extension can reach the drop box without linking the core.
+        .library(name: "MailcalShareBox", targets: ["MailcalShareBox"]),
     ],
     targets: [
         // The Rust core, all Apple slices. Vends the `mailcal_bindingsFFI` C module.
@@ -27,12 +29,23 @@ let package = Package(
         // libresolv, wrapped so SystemMxResolver can send an MX query via the system resolver
         // for the autodetect MX fallback (the raw answer is parsed in Swift by DnsMessage).
         .systemLibrary(name: "CResolv", path: "Sources/CResolv"),
+        // Where a share waits between the Share Extension staging it and the app opening a
+        // composer for it (docs/os-integration.md). It has NO dependencies, and that is the
+        // point: an iOS Share Extension has a far smaller memory budget than an app, so it links
+        // this and not the core.
+        .target(
+            name: "MailcalShareBox",
+            swiftSettings: [
+                .enableUpcomingFeature("MemberImportVisibility"),
+                .treatAllWarnings(as: .error),
+            ]
+        ),
         // The shared client: view models + SwiftUI views + the Platform* shims (this is where
         // the `#if os()` divergences live). Model and views stay in one module, they are
         // tightly coupled through observable state, so a Core/UI split would only add churn.
         .target(
             name: "MailcalUI",
-            dependencies: ["MailcalBindings", "CResolv"],
+            dependencies: ["MailcalBindings", "CResolv", "MailcalShareBox"],
             resources: [
                 // The rich-composer editor bundle (copied from clients/composer by
                 // build-core.sh), loaded via Bundle.module.

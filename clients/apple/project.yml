@@ -28,6 +28,18 @@ settings:
     # target, so a target added later inherits it instead of having to opt in. It does not reach the
     # MailcalKit package, whose targets state it themselves (Packages/MailcalKit/Package.swift).
     SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    # MARKETING_VERSION mirrors the top-level /VERSION single source of truth (docs/versioning.md)
+    # so the dev loop (build-and-run.sh) reports the real version. Scripts/package.sh re-stamps it
+    # from /VERSION at release, and the version-sync check fails if this drifts.
+    # CURRENT_PROJECT_VERSION is the dev default only, package.sh overrides it with a fresh dotted
+    # timestamp per Store upload.
+    #
+    # At project level because the app and the Share Extension MUST agree: App Store validation
+    # rejects a bundle whose extension carries a different version from its host, and a second copy
+    # of this line is a second copy `cargo xtask check-version-sync` reads past, since it stops at
+    # the first match.
+    MARKETING_VERSION: "0.9.0"
+    CURRENT_PROJECT_VERSION: "1"
 
 targets:
   AllodiaMail:
@@ -61,6 +73,9 @@ targets:
     dependencies:
       - package: MailcalKit
         product: MailcalUI
+      # The Share Extension, embedded into PlugIns/ so the OS can find it. It is what puts this app
+      # in the share sheet at all (docs/os-integration.md); it draws nothing and sends nothing.
+      - target: AllodiaMailShare
     # Ship the MCP stdio relay inside the app, so an assistant can spawn it by an absolute path
     # (docs/mcp.md). A script phase rather than a `copyFiles` entry because the file is BUILT (by
     # Scripts/build-core.sh) and git-ignored, so it does not exist when xcodegen generates the
@@ -196,10 +211,21 @@ targets:
         #
         # No `CFBundleURLName`: it names a *custom* scheme's owner, and `mailto` is a registered
         # scheme nobody owns.
+        #
+        # The second scheme is the Share Extension's doorbell (docs/os-integration.md): the
+        # extension has already staged the share into the drop box by the time it opens this, so the
+        # URL carries nothing and the app acts on being *activated* rather than on the URL. A page
+        # that guesses the scheme can make the app look in its own box and no more.
+        # Its own scheme rather than the app id's, which sign-in redirects already use: claiming
+        # that one would route an OAuth redirect to the app's URL hook, where today each is
+        # captured inside its own ASWebAuthenticationSession and none can arrive.
         CFBundleURLTypes:
           - CFBundleURLSchemes: [mailto]
             CFBundleTypeRole: Editor
             LSHandlerRank: Alternate
+          - CFBundleURLSchemes: ["${MAILCAL_APP_ID}.share"]
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
         NSHumanReadableCopyright: "© 2026 Allodia"
         # The app's only cryptography is standard TLS (IMAP/SMTP/JMAP/CalDAV/HTTPS over the OS
         # stack), which is exempt, so this is `false` ("no NON-exempt encryption"). It answers the
@@ -224,12 +250,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ${MAILCAL_APP_ID}
-        # MARKETING_VERSION mirrors the top-level /VERSION single source of truth (docs/versioning.md)
-        # so the dev loop (build-and-run.sh) reports the real version. Scripts/package.sh re-stamps it
-        # from /VERSION at release, and the version-sync check fails if this drifts. CURRENT_PROJECT_VERSION
-        # is the dev default only, package.sh overrides it with a fresh dotted timestamp per Store upload.
-        MARKETING_VERSION: "0.9.0"
-        CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"   # iPhone + iPad
         # Where the relay copy phase declares its output, per SDK, because Xcode materializes an
         # output's directories whether or not the phase produces anything. On macOS that is the
@@ -271,20 +291,23 @@ targets:
         DEVELOPMENT_TEAM[sdk=iphoneos*]: $(MAILCAL_DEVELOPMENT_TEAM)
         CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]: App/AllodiaMail.entitlements
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: App/AllodiaMail.entitlements
+        # macOS entitlements, indirected through MACOS_ENTITLEMENTS so the --app-store flow can
+        # swap in the sandbox set (App/AllodiaMail.appstore.entitlements) by overriding this ONE
+        # build setting on the xcodebuild line. Passing CODE_SIGN_ENTITLEMENTS directly can't
+        # work: an xcodebuild setting override is global, so the MailcalKit package targets would
+        # inherit it and fail trying to open the (app-relative) path. Only the app target
+        # references $(MACOS_ENTITLEMENTS), so overriding the variable stays scoped to it.
+        #
+        # At base rather than under Release only, so the dev loop and CI sign against the same
+        # file the notarized build does, rather than against no file at all.
+        MACOS_ENTITLEMENTS: App/AllodiaMail.macOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: $(MACOS_ENTITLEMENTS)
       configs:
-        # Release is the packaging config (Scripts/package.sh). Debug is untouched, so the dev loop
-        # (build-and-run.sh: ad-hoc, no hardened runtime) behaves exactly as before.
+        # Release is the packaging config (Scripts/package.sh). Debug keeps the dev loop's shape
+        # (build-and-run.sh: ad-hoc, no hardened runtime).
         Release:
           # Hardened Runtime is a notarization prerequisite (macOS only; iOS ignores it).
           ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
-          # macOS entitlements, indirected through MACOS_ENTITLEMENTS so the --app-store flow can
-          # swap in the sandbox set (App/AllodiaMail.appstore.entitlements) by overriding this ONE
-          # build setting on the xcodebuild line. Passing CODE_SIGN_ENTITLEMENTS directly can't
-          # work: an xcodebuild setting override is global, so the MailcalKit package targets would
-          # inherit it and fail trying to open the (app-relative) path. Only the app target
-          # references $(MACOS_ENTITLEMENTS), so overriding the variable stays scoped to it.
-          MACOS_ENTITLEMENTS: App/AllodiaMail.macOS.entitlements
-          CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: $(MACOS_ENTITLEMENTS)
           # Keep the symbol table in the shipped binary, so a crash stack in the user's diagnostic
           # log names functions instead of offsets. Xcode's default here is `all`, which leaves
           # 2,282 symbols of 140,259 and turns every frame of `backtrace_symbols_fd`, the Apple
@@ -301,6 +324,88 @@ targets:
           # came back confidently named as the public function two frames up. A support log that
           # names the wrong function costs more than one that names none.
           STRIP_STYLE: debugging
+
+  # The Share Extension: what puts this app in the OS's own share sheet, on macOS, iPhone and iPad
+  # (docs/os-integration.md). Sources and the reasoning are in clients/apple/ShareExtension/.
+  #
+  # One multiplatform target, like the app: the work is identical on both, and the only divergence
+  # is that a macOS share extension is an NSViewController where iOS wants a UIViewController.
+  #
+  # It draws nothing and links no core. A composer needs the accounts, the signatures and the send
+  # path, so it belongs to the running app and its one open store (docs/reading-window.md); the
+  # extension stages the shared bytes into a drop box and asks for the app.
+  AllodiaMailShare:
+    type: app-extension
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - ShareExtension
+    dependencies:
+      # The drop box, and NOT MailcalUI or MailcalBindings: linking those pulls the Rust core into
+      # a process whose whole job is to copy a file, and iOS holds an extension to a far smaller
+      # memory budget than an app.
+      - package: MailcalKit
+        product: MailcalShareBox
+    info:
+      path: ShareExtension/Info.plist
+      properties:
+        # The share sheet labels the item with the EXTENSION's display name, so this is the
+        # product's name in full, injected exactly as the app's is (docs/branding.md).
+        CFBundleDisplayName: ${MAILCAL_APP_NAME}
+        CFBundleName: ${MAILCAL_APP_NAME}
+        # Both must match the host app's, or App Store delivery rejects the bundle. They resolve
+        # from the project-level settings, which is why those are at project level.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # What the operating system knows the app by, which the extension needs to find the drop
+        # box and to build the doorbell URL. Read here rather than from MailcalBindings'
+        # generated `Brand`, which would drag the core in behind it.
+        MailcalAppID: ${MAILCAL_APP_ID}
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            # What the app will appear for. A mail client can attach anything, so this is as wide
+            # as the rule set goes, and the file count is MAX_SHARED_ITEMS: over it the extension
+            # is not offered at all, which is a worse answer than the core's (it takes the first 20
+            # and reports the rest), but the only one Apple's activation rule can give.
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsFileWithMaxCount: 20
+              NSExtensionActivationSupportsImageWithMaxCount: 20
+              NSExtensionActivationSupportsMovieWithMaxCount: 20
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ${MAILCAL_APP_ID}.share
+        # The app's id, for the entitlements file: its own $(PRODUCT_BUNDLE_IDENTIFIER) is the
+        # extension's and would name an App Group nobody else is in.
+        MAILCAL_HOST_APP_ID: ${MAILCAL_APP_ID}
+        # iOS takes the App Group set: a device build provisions automatically and the simulator
+        # does not check. macOS outside the Store has no provisioning profile, and a sandboxed
+        # process cannot use an App Group a profile did not grant, so it takes a home-relative
+        # grant instead; App/AllodiaMailShare.macOS.entitlements carries the measurement.
+        # Indirected through MACOS_SHARE_ENTITLEMENTS for the reason MACOS_ENTITLEMENTS is: the
+        # --app-store flow swaps the group set back in on the xcodebuild line, where its automatic
+        # provisioning can resolve a profile that grants one.
+        CODE_SIGN_ENTITLEMENTS: App/AllodiaMailShare.entitlements
+        MACOS_SHARE_ENTITLEMENTS: App/AllodiaMailShare.macOS.entitlements
+        CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: $(MACOS_SHARE_ENTITLEMENTS)
+        SWIFT_VERSION: "6.0"
+        # As the app does. Left on, a Debug build puts two more Mach-Os inside the .appex (the
+        # target's own debug dylib and __preview.dylib), which is three signatures where one
+        # belongs and three more things a release pass would have to get right.
+        ENABLE_DEBUG_DYLIB: NO
+        # Apple-silicon only, matching the app: the two are signed as one tree, and a slice the app
+        # does not have is a slice the extension cannot be loaded into.
+        EXCLUDED_ARCHS[sdk=macosx*]: x86_64
+        EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+        # The app's arrangement exactly (see its own block): ad-hoc for macOS and the simulator, a
+        # real profile for a physical iPhone, which refuses an ad-hoc signed bundle.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE[sdk=iphoneos*]: Automatic
+        CODE_SIGN_IDENTITY[sdk=iphoneos*]: Apple Development
+        DEVELOPMENT_TEAM[sdk=iphoneos*]: $(MAILCAL_DEVELOPMENT_TEAM)
 
   # The empty application the StoreKit tests run inside; see StoreKitTestHost/ for why one is
   # needed and why it is not the mail app. Built only by those tests, and shipped nowhere.

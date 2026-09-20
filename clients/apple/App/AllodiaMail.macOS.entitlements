@@ -18,6 +18,15 @@
     keychain; only the Mac App Store build (which DOES get a profile-granted group) switches to the
     iOS-style data-protection keychain. See AllodiaMail.appstore.entitlements.
 
+  * No `com.apple.security.application-groups`, and it needs none. A share is handed over through
+    a drop box (docs/os-integration.md), which in THIS build is a directory under the user's home
+    that an unsandboxed app reads as an ordinary path. The App Group is the Store build's answer,
+    where both processes are sandboxed and have a profile that grants one; here there is no
+    profile, and MEASURED 2026-09-20, a macOS target naming that entitlement is refused by the
+    build system outright ("requires a provisioning profile"), while applying it with `codesign`
+    afterwards gets a container URL whose every write returns EPERM. The extension's grant is in
+    App/AllodiaMailShare.macOS.entitlements.
+
   Only Hardened-Runtime EXCEPTIONS belong in this file, and only if a runtime need forces one.
   WKWebView (the rich composer + the reading view) runs its JIT in a separate, system-provided
   WebContent process with its own entitlements, so the host app needs no `com.apple.security.cs.*`
