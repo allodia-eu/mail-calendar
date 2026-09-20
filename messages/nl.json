@@ -2,6 +2,7 @@
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 
 	"app_title": "{app_name}",
+	"app_unavailable": "Kan de app niet openen. Start de app opnieuw.",
 
 	"nav_mail": "E-mail",
 	"nav_calendar": "Agenda",

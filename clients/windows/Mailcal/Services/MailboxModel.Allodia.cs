@@ -36,7 +36,7 @@ public sealed partial class MailboxModel
     {
         if (_app is null)
         {
-            return "Could not open the app. Please relaunch.";
+            return L10n.AppUnavailable();
         }
         using var cancel = new CancellationTokenSource();
         _allodiaSignIn = cancel;

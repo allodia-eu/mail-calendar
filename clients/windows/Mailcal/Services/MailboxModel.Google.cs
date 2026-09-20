@@ -38,7 +38,7 @@ public sealed partial class MailboxModel
         }
         if (_app is null)
         {
-            SetupError = "Could not open the app. Please relaunch.";
+            SetupError = L10n.AppUnavailable();
             return;
         }
         _ = _signIn.RunAsync(cancel => SignInWithGoogleAsync(loginHint, cancel));
