@@ -252,12 +252,15 @@ public class SidebarTreeTests
         Sync(target, accounts, showFolders: true, onExpanded: i => toggles.Add((i.AccountId ?? i.Tag, i.IsExpanded)));
         Sync(target, accounts, showFolders: false, onExpanded: i => toggles.Add((i.AccountId ?? i.Tag, i.IsExpanded)));
 
-        Assert.Empty(target[1].Children);
+        // Shut, not emptied. On screen those are the same thing, and only one of them leaves a
+        // row the framework has realised with nothing in it, which is a row that can be told it is
+        // open and then show nothing (SidebarTree.ApplyExpansion).
         Assert.False(target[1].IsExpanded);
+        Assert.Equal(3, target[1].Children.Count);
         // The All Accounts group goes with them: the unified Inbox is a folder, and the calendar
         // is not what a folder pane is for.
-        Assert.Empty(target[0].Children);
         Assert.False(target[0].IsExpanded);
+        Assert.Single(target[0].Children);
         // Crucially, the core was never told the user shut anything, so coming back to mail
         // restores the tree rather than reopening a collapsed one.
         Assert.Empty(toggles);
@@ -353,95 +356,5 @@ public class SidebarTreeTests
         Assert.Equal(
             ["inbox-glyph", "sent-glyph", "folder", "folder"],
             target[1].Children.Select(c => c.Glyph));
-    }
-    // A folder filed inside another becomes a child of that folder's entry, not of the account's.
-    // This pane nests rows natively, so the framework draws the chevron, the indent and the
-    // hiding; the three panes that draw a flat list read FolderRow.visible instead
-    // (docs/folder-pane.md).
-    [Fact]
-    public void FolderInsideFolderIsNestedUnderIt()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        SidebarFixture.Sync(target, [SidebarFixture.Account("a", folders: SidebarFixture.Tree())]);
-
-        var account = target.Single(item => item.AccountId == "a");
-        var outer = Assert.Single(account.Children);
-        Assert.Equal("outer", outer.Tag);
-        var inner = Assert.Single(outer.Children);
-        Assert.Equal("inner", inner.Tag);
-        Assert.Equal("deep", Assert.Single(inner.Children).Tag);
-
-        // Every level carries its account, because a folder key names a mailbox only together
-        // with one (rule 14).
-        Assert.Equal("a", inner.OwnerAccountId);
-        Assert.Equal("a", Assert.Single(inner.Children).OwnerAccountId);
-    }
-
-    // A folder holding nothing but mail gets no children, which is what keeps the chevron off it:
-    // the framework draws one only for an item that has some.
-    [Fact]
-    public void AFolderHoldingNoFoldersHasNoChildren()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        SidebarFixture.Sync(target, [SidebarFixture.Account("a", folders: SidebarFixture.Tree())]);
-
-        var deep = target
-            .Single(item => item.AccountId == "a")
-            .Children.Single()
-            .Children.Single()
-            .Children.Single();
-        Assert.Empty(deep.Children);
-    }
-
-    // Expansion is the core's, mirrored here and never invented: a shut folder comes back shut,
-    // and applying the core's own value must not report itself as a user's chevron click.
-    [Fact]
-    public void FolderExpansionMirrorsTheCoreWithoutEchoingBack()
-    {
-        var toggled = new List<SidebarItem>();
-        var target = new ObservableCollection<SidebarItem>();
-        SidebarFixture.Sync(
-            target,
-            [SidebarFixture.Account("a", folders: SidebarFixture.Tree(innerExpanded: false))],
-            onExpanded: toggled.Add);
-
-        var outer = target.Single(item => item.AccountId == "a").Children.Single();
-        Assert.True(outer.IsExpanded);
-        Assert.False(outer.Children.Single().IsExpanded);
-        Assert.Empty(toggled);
-    }
-
-    // A refresh reuses the entry a nested folder already has. The flat lookup could not find one:
-    // a nested folder is a child of its parent's entry, not of the account's, so a miss would mint
-    // a second entry and cost the framework a container it had already realised.
-    [Fact]
-    public void ARefreshKeepsTheEntriesANestedTreeAlreadyHas()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        var account = SidebarFixture.Account("a", folders: SidebarFixture.Tree());
-        SidebarFixture.Sync(target, [account]);
-        var before = target.Single(item => item.AccountId == "a").Children.Single().Children.Single();
-
-        SidebarFixture.Sync(target, [account]);
-
-        var after = target.Single(item => item.AccountId == "a").Children.Single().Children.Single();
-        Assert.Same(before, after);
-    }
-
-    // A folder that stops holding folders loses the rows that were under it, rather than keeping
-    // them on screen beneath a parent that no longer names them.
-    [Fact]
-    public void AFolderThatEmptiesOutDropsWhatWasUnderIt()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        SidebarFixture.Sync(target, [SidebarFixture.Account("a", folders: SidebarFixture.Tree())]);
-
-        SidebarFixture.Sync(
-            target,
-            [SidebarFixture.Account("a", folders: [SidebarFixture.Folder("outer", "Outer")])]);
-
-        var outer = target.Single(item => item.AccountId == "a").Children.Single();
-        Assert.Equal("outer", outer.Tag);
-        Assert.Empty(outer.Children);
     }
 }

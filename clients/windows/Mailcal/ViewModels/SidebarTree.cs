@@ -116,9 +116,11 @@ public static class SidebarTree
         Func<string, bool> isUnreachable,
         Action<SidebarItem> onExpandedChanged,
         SidebarLabels labels,
-        SidebarGlyphs glyphs)
+        SidebarGlyphs glyphs,
+        Action<Action>? defer = null)
     {
         var wanted = new List<SidebarItem>(accounts.Count + 3);
+        var expansion = new List<(SidebarItem Item, bool Expanded)>();
 
         // The Outbox, above everything, and **only while something is in it** (rule 18). Not
         // inside a tree, because it is not a folder on anybody's server, and not per account,
@@ -149,10 +151,8 @@ public static class SidebarTree
             ExpandedChanged = onExpandedChanged,
         };
         group.Content = labels.AllAccounts;
-        // `ApplyExpanded`, not the setter: this is the core's own value coming back, and feeding
-        // it to the core again as a "user toggled it" is a rebuild per refresh.
-        group.ApplyExpanded(showFolders && unifiedExpanded);
-        ReconcileUnified(group.Children, showFolders, unifiedUnread, labels, glyphs);
+        ReconcileUnified(group.Children, unifiedUnread, labels, glyphs);
+        expansion.Add((group, showFolders && unifiedExpanded));
         wanted.Add(group);
 
         foreach (var account in accounts)
@@ -167,16 +167,20 @@ public static class SidebarTree
             };
             item.Content = account.Email;
             item.ShowBadge = isUnreachable(account.Id);
-            // `ApplyExpanded`, not the setter: this is the core's own value coming back, and
-            // feeding it to the core again as a "user toggled it" is a rebuild per refresh.
-            item.ApplyExpanded(showFolders && account.Expanded);
+            // Its folders, on every destination, even the ones that draw no mail tree. A row
+            // that is emptied and refilled is a row the framework has already realised with
+            // nothing in it, and such a row can be told it is open but cannot then show anything
+            // (see ApplyExpansion). Shutting it instead is the same thing on screen and leaves
+            // the tree it reopens already attached.
             ReconcileFolders(
                 item.Children,
                 account.Id,
-                showFolders ? account.Folders : [],
+                account.Folders,
                 onExpandedChanged,
                 labels,
-                glyphs);
+                glyphs,
+                expansion);
+            expansion.Add((item, showFolders && account.Expanded));
             wanted.Add(item);
         }
 
@@ -191,6 +195,57 @@ public static class SidebarTree
         wanted.Add(add);
 
         Apply(target, wanted);
+        ApplyExpansion(expansion, defer);
+    }
+
+    /// <summary>
+    /// Mirrors the core's expansion onto every row, once the rows they open are attached.
+    /// </summary>
+    /// <remarks>
+    /// Opening a row is the framework's work rather than a flag we set: a `NavigationViewItem`
+    /// realises its children when `IsExpanded` turns true, and it can only realise the children it
+    /// has been given. Setting the flag on a row that is already on screen but still empty
+    /// therefore moves the chevron and nothing else, and the rows attached a moment later stay
+    /// hidden underneath it. Two ordinary things reach that state: a folder found by a sync that
+    /// is still running, and leaving mail for the calendar, which empties every account row and
+    /// hands it all of its folders back on the way in.
+    /// <para>
+    /// Attaching the children first is necessary and not sufficient: the item takes them in on its
+    /// next layout pass rather than on the collection event. So the host passes
+    /// <paramref name="defer"/>, which runs the expansion after that pass, and a caller with no
+    /// framework to wait for passes none and it applies inline.
+    /// </para>
+    /// <para>
+    /// `ApplyExpanded`, not the setter: this is the core's own value coming back, and feeding it
+    /// to the core again as a "user toggled it" is a rebuild per refresh.
+    /// </para>
+    /// </remarks>
+    private static void ApplyExpansion(
+        List<(SidebarItem Item, bool Expanded)> expansion,
+        Action<Action>? defer)
+    {
+        // Only the rows whose state actually moves: the reconcile runs on every refresh, and a
+        // deferred no-op per row per refresh is the cost this file exists to avoid.
+        var changed = expansion.FindAll(pair => pair.Item.IsExpanded != pair.Expanded);
+        if (changed.Count == 0)
+        {
+            return;
+        }
+        void Apply()
+        {
+            foreach (var (item, expanded) in changed)
+            {
+                item.ApplyExpanded(expanded);
+            }
+        }
+        if (defer is null)
+        {
+            Apply();
+        }
+        else
+        {
+            defer(Apply);
+        }
     }
 
     /// <summary>
@@ -207,7 +262,6 @@ public static class SidebarTree
     /// </remarks>
     private static void ReconcileUnified(
         ObservableCollection<SidebarItem> target,
-        bool showFolders,
         uint unifiedUnread,
         SidebarLabels labels,
         SidebarGlyphs glyphs)
@@ -219,8 +273,7 @@ public static class SidebarTree
         };
         inbox.Content = labels.UnifiedInbox;
         SetUnread(inbox, unifiedUnread, labels);
-        List<SidebarItem> wanted = showFolders ? [inbox] : [];
-        Apply(target, wanted);
+        Apply(target, [inbox]);
     }
 
     /// <summary>
@@ -242,7 +295,8 @@ public static class SidebarTree
         IReadOnlyList<FolderItem> folders,
         Action<SidebarItem> onExpandedChanged,
         SidebarLabels labels,
-        SidebarGlyphs glyphs)
+        SidebarGlyphs glyphs,
+        List<(SidebarItem Item, bool Expanded)> expansion)
     {
         var existing = new Dictionary<string, SidebarItem>();
         CollectByTag(target, existing);
@@ -272,9 +326,9 @@ public static class SidebarTree
             }
             item.Content = folder.Name;
             SetUnread(item, folder.Unread, labels);
-            // `ApplyExpanded`, not the setter: the core's own value coming back, which fed to the
-            // core again would be a rebuild per refresh.
-            item.ApplyExpanded(folder.HasChildren && folder.Expanded);
+            // Recorded rather than applied: every row in the pane is opened together once the
+            // whole tree is attached, by ApplyExpansion, which says why.
+            expansion.Add((item, folder.HasChildren && folder.Expanded));
             built[key] = item;
             // Every folder gets a list, so a folder that has emptied out has its old children
             // removed rather than left on screen under a parent that no longer names them.

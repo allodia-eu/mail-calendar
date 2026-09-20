@@ -383,6 +383,30 @@ that same file.
   real title therefore never matches, silently: the lookup falls through to whatever it does when it
   finds nothing. Normalise both sides before comparing, or match on the window handle.
 
+- **A `NavigationViewItem` opens only what it already holds, and cannot be told twice.** It
+  realises its children when `IsExpanded` turns true, so a row already on screen that is told it is
+  open while still empty moves its chevron and nothing else: the rows attached a moment later stay
+  hidden underneath an open chevron, and the user has to shut the row and reopen it. Assigning the
+  same `true` again re-runs nothing, because the value has not moved, and re-driving it through the
+  binding (shut then open in one turn) does not help either. Two ordinary things reach that state
+  on the folder pane: a folder found by a sync that is still running, and leaving mail for the
+  calendar.
+
+  Two things together hold the first two levels, and both are load-bearing. **Attach a row's
+  children before opening it, and open it on the layout pass after that** (a low-priority
+  `DispatcherQueue` turn), because the item takes its children in on that pass rather than on the
+  collection event. And **never empty a row that is already on screen**: leaving mail shuts each
+  account row instead of clearing it, so the tree it reopens was attached the whole time. A third
+  level is still open and empty until its parent is shut and reopened, recorded under
+  [`folder-pane.md`](folder-pane.md) → Known gaps.
+
+  ⚠️ **The oracle is tree containment, not the picture and not the row's own state.** The row
+  reports `ExpandCollapseState = Expanded` throughout, the chevron is drawn throughout, and a
+  container's bounding box does not carry the indent (WinUI indents inside the presenter), so
+  geometry reports every row at the same level even when nesting is perfect. Walk the row's
+  descendants for `ControlType.ListItem`, and scroll first: the pane virtualises, so an off-screen
+  row has no children for reasons that are not this bug.
+
 ## Interaction quality is not testable from a chair
 
 - **A synthetic swipe cannot reproduce the bugs that matter.** `adb input swipe`, and any test that

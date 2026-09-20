@@ -129,6 +129,19 @@ gesture needs a real mouse.
 
 ## Known gaps
 
+- **On Windows, a folder two levels below its account does not appear until its parent is shut and
+  reopened.** A `NavigationViewItem` realises the rows inside it at the moment it is told it is
+  open, and it can only realise the ones it is already holding, so a row opened before its own
+  children are attached keeps them hidden under a chevron that already points open. The pane now
+  attaches each tree before opening the row and opens it on the layout pass after that, and it
+  shuts an account row rather than emptying it when mail is not the destination, which between them
+  cover the first two levels and the return from the calendar. A third level, a subfolder's own
+  subfolder, is realised by the pass its parent's opening triggers and so is still absent when that
+  pass runs. Everything is there and reachable, one click on the parent away; nothing is lost and
+  no count is wrong. The other four panes draw a flat list from `visible` and cannot meet this.
+  [`docs/client-traps.md`](client-traps.md) carries the mechanism and the oracle, and
+  [issue 132](https://github.com/allodia-eu/mail-calendar/issues/132) the two routes not yet taken.
+
 - **Gmail folders report no count.** `users.labels.list` (the call the folder sync makes) does not
   return one; only `users.labels.get` does, which would be one request per label on every
   folder-list sync. The engine reads the field where the API supplies it, so the day that fan-out
