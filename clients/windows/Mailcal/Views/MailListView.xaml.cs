@@ -200,8 +200,25 @@ public sealed partial class MailListView : UserControl
         }
         else
         {
-            Model?.OpenMessage(row);
+            await OpenOrResumeAsync(row);
         }
+    }
+
+    // In the Drafts folder a row opens the composer it was written in; everywhere else it opens
+    // the reading view (docs/drafts.md). The shell decides, because it is the shell that owns the
+    // composer the draft goes into.
+    private async Task OpenOrResumeAsync(MailRow row)
+    {
+        if (Model is not { } model)
+        {
+            return;
+        }
+        if (App.Shell is not { } shell)
+        {
+            model.OpenMessage(row);
+            return;
+        }
+        await shell.OpenOrResumeAsync(row.Account, row.Key, () => model.OpenMessage(row));
     }
 
     private async void OnOpen(object sender, RoutedEventArgs e)
@@ -210,7 +227,7 @@ public sealed partial class MailListView : UserControl
         {
             return;
         }
-        Model?.OpenMessage(row);
+        await OpenOrResumeAsync(row);
     }
 
     // A tap on a conversation sub-row opens that specific message in the reading pane. On the same
@@ -224,7 +241,11 @@ public sealed partial class MailListView : UserControl
         {
             return;
         }
-        Model?.OpenThreadMessage(message);
+        if (Model is { } model && App.Shell is { } shell)
+        {
+            await shell.OpenOrResumeAsync(
+                message.Account, message.Key, () => model.OpenThreadMessage(message));
+        }
     }
 
     // Right-click a conversation → Archive conversation (the core archives the received side and

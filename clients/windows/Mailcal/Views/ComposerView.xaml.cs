@@ -177,6 +177,9 @@ public sealed partial class ComposerView : UserControl
         // Pre-filled recipients are the request's doing, not the user's, arm the dirty tracking
         // only once they are in place, so a reply doesn't open already "dirty".
         _headersDirty = false;
+        // Likewise the draft half, so the pre-fill does not read as an edit and start the interval
+        // (ComposerView.Drafts.cs).
+        InitDrafts(model, request);
         _ = LoadEditorAsync();
     }
 
@@ -219,7 +222,13 @@ public sealed partial class ComposerView : UserControl
     /// <summary>Tears the editor down. The composer is built fresh per draft rather than reused, so
     /// nothing, a document, a quote, an attachment list, can leak from one message into the next;
     /// this releases the WebView2 that backed it.</summary>
-    internal void Teardown() => _editor.Close();
+    internal void Teardown()
+    {
+        // Before the editor goes: the composition is forgotten however the composer went, sent,
+        // discarded or dismissed, and leaves the stored draft in Drafts (docs/drafts.md).
+        TeardownDrafts();
+        _editor.Close();
+    }
 
     private async void OnSend(object sender, RoutedEventArgs e)
     {
@@ -268,15 +277,21 @@ public sealed partial class ComposerView : UserControl
     // different account, and the core still resolves the original in the one that holds it, so a
     // cross-account reply still threads. The Subject rides every call: the field is editable, so
     // what it holds is what goes out, and the core's derivation is only what it opened with.
-    private bool Submit(Recipients recipients, string documentJson, ComposerFileAttachment[] files, string? from) =>
-        _request! switch
+    // `composition` names the composer this was written in whenever it keeps a draft, so an
+    // accepted send takes the stored copy away; a send that omitted it would leave a duplicate in
+    // Drafts of a message already on its way (docs/drafts.md).
+    private bool Submit(Recipients recipients, string documentJson, ComposerFileAttachment[] files, string? from)
+    {
+        var composition = _keepsDraft ? _composition : null;
+        return _request! switch
         {
             { Kind: RichComposeKind.Forward, Account: { } account, Key: { } key } =>
-                _model!.SubmitRichForward(account, key, recipients, SubjectBox.Text, documentJson, files, from),
+                _model!.SubmitRichForward(account, key, recipients, SubjectBox.Text, documentJson, files, from, composition),
             { Kind: RichComposeKind.Reply or RichComposeKind.ReplyAll, Account: { } account, Key: { } key } =>
-                _model!.SubmitRichReply(account, key, recipients, SubjectBox.Text, documentJson, files, from),
-            _ => _model!.SubmitRich(recipients, SubjectBox.Text, documentJson, files, from),
+                _model!.SubmitRichReply(account, key, recipients, SubjectBox.Text, documentJson, files, from, composition),
+            _ => _model!.SubmitRich(recipients, SubjectBox.Text, documentJson, files, from, composition),
         };
+    }
 
     private void OnCancel(object sender, RoutedEventArgs e) => _onDone?.Invoke();
 
@@ -293,6 +308,7 @@ public sealed partial class ComposerView : UserControl
     private void OnHeaderChanged(object sender, TextChangedEventArgs e)
     {
         _headersDirty = true;
+        NoteDraftChange();
         SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);
     }
 
@@ -301,6 +317,7 @@ public sealed partial class ComposerView : UserControl
     private void OnRecipientsChanged(object? sender, EventArgs e)
     {
         _headersDirty = true;
+        NoteDraftChange();
         SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);
     }
 

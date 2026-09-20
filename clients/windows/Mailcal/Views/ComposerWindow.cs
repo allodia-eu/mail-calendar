@@ -53,11 +53,13 @@ internal sealed class ComposerWindow : Window
         }
     }
 
-    // CLOSING DISCARDS THE DRAFT, exactly as Cancel does, and asks no more than Cancel does. The
-    // two are the same act, a person deliberately abandoning what they were writing, and a client
-    // that questioned one but not the other would be teaching two rules for one thing. The prompt
-    // that does exist, Discard / Keep editing, belongs to something else: the app taking a draft
-    // away that the user did not ask it to.
+    // CLOSING LEAVES THE DRAFT WHERE IT IS, exactly as Cancel does, and asks no more than Cancel
+    // does. The two are the same act, a person finishing with what they were writing, and a client
+    // that questioned one but not the other would be teaching two rules for one thing. What the
+    // window had been saving stays in Drafts; the composition is forgotten, not the message
+    // (docs/drafts.md). The prompt that does exist, Discard / Keep editing, belongs to something
+    // else: the app taking a draft away that the user did not ask it to, and Discard there is the
+    // one path that removes the stored copy.
     private void OnClosed(object sender, WindowEventArgs args)
     {
         App.Shell?.ForgetComposerWindow(this);

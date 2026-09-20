@@ -73,6 +73,16 @@ internal sealed class EditorWebViewHost
         return JsonSerializer.Deserialize<string>(encoded);
     }
 
+    /// <summary>Runs <paramref name="script"/> and decodes its result as a number, which is what
+    /// <c>composerRevision()</c> answers. <c>-1</c> when the bundle has not parsed yet, so a host
+    /// sampling it cannot mistake a page that is still loading for one nobody has typed in.</summary>
+    internal async Task<int> ReadNumberAsync(string script)
+    {
+        await EnsureAsync();
+        var encoded = await _view.CoreWebView2!.ExecuteScriptAsync(script);
+        return int.TryParse(encoded, out var value) ? value : -1;
+    }
+
     /// <summary>Releases the WebView2 backing this host. Safe to call on one that never
     /// initialised.</summary>
     internal void Close()

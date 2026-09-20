@@ -251,6 +251,15 @@ public sealed partial class MainWindow
             L10n.ComposeDiscardMessage(),
             L10n.ActionDiscard(),
             L10n.ActionKeepEditing());
-        return result == ContentDialogResult.Primary;
+        if (result != ContentDialogResult.Primary)
+        {
+            return false;
+        }
+        // Discard is the one path that takes the stored copy off the server. Reaching here means
+        // the user pressed it over a draft they had written in; a composer nobody touched returned
+        // above without asking, so a resumed draft the user only looked at keeps its copy
+        // (docs/drafts.md).
+        _composer.DiscardStoredDraft();
+        return true;
     }
 }

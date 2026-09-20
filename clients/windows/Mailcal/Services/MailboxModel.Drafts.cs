@@ -14,6 +14,34 @@ namespace Allodia.Mailcal.Services;
 public sealed partial class MailboxModel
 {
     /// <summary>
+    /// Raised when some composition's save has moved.
+    /// </summary>
+    /// <remarks>
+    /// An event rather than a bindable property, because the signal names no composition: every
+    /// open composer re-pulls its own by naming it, and a desktop can have several up at once
+    /// (<c>docs/reading-window.md</c>). There is nothing here to bind to but the fact that
+    /// something changed.
+    /// </remarks>
+    internal event Action? DraftStatusChanged;
+
+    /// <summary>Tells every open composer to ask for its own composition's state.</summary>
+    internal void RaiseDraftStatusChanged() => DraftStatusChanged?.Invoke();
+
+    /// <summary>
+    /// Whether the list is showing the account's Drafts folder, so a row opens into a composer
+    /// that saves over it rather than into the reading view (<c>docs/drafts.md</c>).
+    /// </summary>
+    /// <remarks>
+    /// The core's own answer, from the folder's <b>role</b> and never its name: a folder the user
+    /// called Drafts holds ordinary mail, and a composer opened on one of those messages would
+    /// rewrite it on its first save.
+    /// </remarks>
+    internal bool ShowingDrafts { get; private set; }
+
+    /// <summary>Records what the snapshot says about the open folder.</summary>
+    internal void ApplyShowingDrafts(bool showing) => ShowingDrafts = showing;
+
+    /// <summary>
     /// Stores what the composer holds in the Drafts folder, replacing what this
     /// <paramref name="composition"/>'s previous save left there.
     /// </summary>

@@ -83,6 +83,11 @@ internal fun MainActivity.WithdrawnMessagePane(instance: MailcalApp, library: Li
             }
         },
         signatures = composerSignatures(instance, library),
+        // It keeps a draft like any other composer, and this is the composer with the most to
+        // lose: the core has taken the message out of the queue, so what is on screen is the only
+        // copy of it. An idle save puts a second one in Drafts, and sending takes that away again
+        // (docs/drafts.md).
+        drafts = composerDrafts(instance),
         onSubmitRich = { submission -> submitMail(instance, submission) },
         onDismiss = {
             withdrawnMessage = null
