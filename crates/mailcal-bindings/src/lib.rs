@@ -53,6 +53,7 @@ mod background_sync;
 mod boot;
 mod composer;
 mod composer_files;
+mod composer_reply;
 mod connected_account;
 mod connection_log;
 mod connector;

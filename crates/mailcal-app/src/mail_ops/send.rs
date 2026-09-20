@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering;
 use engine_api::{AccountId, Draft, Provider};
 
 use super::AUTO_CLEAR_DELAY;
-use crate::{App, SendStatus};
+use crate::{App, CompositionId, SendStatus};
 
 /// How a submission ended, in the three states a caller can act on differently.
 ///
@@ -48,15 +48,25 @@ impl<P: Provider> App<P> {
     /// trail rather than only a host-visible hint; e.g. a Graph `403 ErrorAccessDenied` when
     /// the OAuth grant lacks `Mail.Send`. The logged error is a class + protocol detail, never
     /// draft content or addresses.
-    pub(crate) async fn send_draft(&self, account: &AccountId, draft: &Draft) {
-        let _ = self.send_draft_result(account, draft).await;
+    pub(crate) async fn send_draft(
+        &self,
+        account: &AccountId,
+        draft: &Draft,
+        composition: Option<&CompositionId>,
+    ) {
+        let _ = self.send_draft_result(account, draft, composition).await;
     }
 
     /// The body of [`send_draft`](Self::send_draft), returning **whether the draft went out**.
     /// Split so the agent adapter can report a failed send to its caller instead of leaving the
     /// outcome only in the host-visible `Failed` hint (which an assistant cannot see). The
     /// interactive path wraps it and discards the bool, so its behaviour is byte-identical.
-    pub(crate) async fn send_draft_result(&self, account: &AccountId, draft: &Draft) -> bool {
+    pub(crate) async fn send_draft_result(
+        &self,
+        account: &AccountId,
+        draft: &Draft,
+        composition: Option<&CompositionId>,
+    ) -> bool {
         self.set_send_status(SendStatus::Sending);
         let outcome = self.submit_through_outbox(account, draft).await;
         let generation = self.set_send_status(match outcome {
@@ -65,6 +75,13 @@ impl<P: Provider> App<P> {
             SendOutcome::Queued => SendStatus::Queued,
             SendOutcome::Failed => SendStatus::Failed,
         });
+        // The message the composer held now lives somewhere that will deliver it, so the
+        // draft beside it is a copy of a message already on its way, and a copy the user
+        // would find in Drafts long after they sent it. Only a **failed** send keeps it:
+        // the composer is gone by then and those words are nowhere else (`docs/drafts.md`).
+        if let Some(composition) = composition.filter(|_| outcome != SendOutcome::Failed) {
+            self.discard_draft(composition).await;
+        }
         self.refresh_after_write(account).await;
         self.clear_send_status_after_delay(generation).await;
         outcome.went_out()

@@ -177,7 +177,7 @@ impl<P: Provider> App<P> {
             .ok_or(SendActionError::DraftFailed)?
             .with_cc(cc)
             .with_bcc(bcc);
-        if self.send_draft_result(&account, &draft).await {
+        if self.send_draft_result(&account, &draft, None).await {
             Ok(())
         } else {
             Err(SendActionError::Rejected)

@@ -45,6 +45,7 @@ async fn rich_reply_re_sanitizes_a_quoted_original_before_sending() {
         subject: None,
         document,
         blobs: Vec::new(),
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
     assert_eq!(app.send_status(), SendStatus::Sent);
@@ -101,6 +102,7 @@ async fn rich_reply_reattaches_quoted_inline_images_as_cid_keeping_the_original_
         subject: None,
         document,
         blobs: Vec::new(),
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
     assert_eq!(app.send_status(), SendStatus::Sent);
@@ -174,6 +176,7 @@ async fn rich_reply_keeps_the_line_breaks_of_a_quoted_plain_text_original() {
         subject: None,
         document,
         blobs: Vec::new(),
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 

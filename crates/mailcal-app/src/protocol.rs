@@ -101,9 +101,10 @@ impl ComposerBlob {
     }
 }
 
-/// One of a forwarded message's files, written to disk and ready for a composer to carry.
+/// One of a message's files, written to disk and ready for a composer to carry: what a
+/// forward passes on, and what a resumed draft opens holding again.
 ///
-/// Produced by [`crate::App::stage_forwarded_attachments`]. A host puts these in its composer's
+/// Produced by [`crate::App::stage_message_attachments`]. A host puts these in its composer's
 /// attachment list, where they are removable like any file the user picked, and hands them back
 /// at submit as the file attachments they are.
 #[derive(Debug, Clone, PartialEq, Eq)]

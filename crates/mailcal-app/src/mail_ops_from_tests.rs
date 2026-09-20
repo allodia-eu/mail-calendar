@@ -97,6 +97,7 @@ pub(super) fn new_mail(from: Option<&str>) -> Intent {
         subject: "Hello".to_owned(),
         document,
         blobs,
+        composition: None,
     }
 }
 
@@ -185,6 +186,7 @@ async fn a_reply_from_another_account_still_threads_off_the_original() {
         subject: None,
         document,
         blobs,
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
@@ -223,6 +225,7 @@ async fn a_reply_without_a_from_still_sends_from_the_receiving_account() {
         subject: None,
         document,
         blobs,
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
@@ -245,6 +248,7 @@ async fn a_forward_from_another_account_sends_through_that_accounts_outbox() {
         subject: None,
         document,
         blobs,
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 

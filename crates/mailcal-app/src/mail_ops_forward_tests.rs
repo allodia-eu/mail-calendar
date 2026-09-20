@@ -38,6 +38,7 @@ async fn rich_forward_sets_fwd_subject_and_threads_on_references() {
         subject: None,
         document,
         blobs,
+        composition: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
     assert_eq!(app.send_status(), SendStatus::Sent);
@@ -81,7 +82,7 @@ async fn staging_writes_the_files_the_original_carries() {
 
     let directory = staging_dir("carries");
     let staged = app
-        .stage_forwarded_attachments(
+        .stage_message_attachments(
             MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
             &directory,
         )
@@ -112,7 +113,7 @@ async fn staging_a_message_that_is_not_there_is_an_error() {
     app.dispatch(Intent::RefreshMail).await;
 
     let staged = app
-        .stage_forwarded_attachments(
+        .stage_message_attachments(
             MessageRef::from_parts("acct-1", "absent".to_owned()).unwrap(),
             &staging_dir("absent"),
         )
@@ -132,7 +133,7 @@ async fn staging_reports_files_it_cannot_read() {
     app.dispatch(Intent::RefreshMail).await;
 
     let staged = app
-        .stage_forwarded_attachments(
+        .stage_message_attachments(
             MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
             &staging_dir("unreadable"),
         )

@@ -15,7 +15,7 @@ use mailcal_composer::{
 };
 
 use crate::{
-    App,
+    App, CompositionId,
     helpers::{forward_subject, new_message_id, reply_subject},
     mail_compose_quote::{
         quotes_reference_inline_images, reattach_quote_cids, sanitize_quote_bodies,
@@ -23,8 +23,6 @@ use crate::{
     protocol::{ComposerBlob, RecipientSuggestion},
     reference::MessageRef,
 };
-
-pub(crate) mod forward;
 
 impl<P: Provider> App<P> {
     /// Renders a shared composer document, resolves host blob bytes, and submits the
@@ -43,6 +41,7 @@ impl<P: Provider> App<P> {
         subject: String,
         document: ComposerDocument,
         blobs: Vec<ComposerBlob>,
+        composition: Option<CompositionId>,
     ) {
         let account = match from {
             Some(account) => account,
@@ -82,7 +81,8 @@ impl<P: Provider> App<P> {
             self.fail_send().await;
             return;
         };
-        self.send_draft(&account, &draft).await;
+        self.send_draft(&account, &draft, composition.as_ref())
+            .await;
     }
 
     /// Replies to `message` with a rich composer `document`, by default **from the account that
@@ -105,6 +105,7 @@ impl<P: Provider> App<P> {
         subject: Option<String>,
         document: ComposerDocument,
         blobs: Vec<ComposerBlob>,
+        composition: Option<CompositionId>,
     ) {
         let Some(original) = self.find_message_in(&message).await else {
             return;
@@ -156,7 +157,8 @@ impl<P: Provider> App<P> {
             references.push(parent.clone());
             draft = draft.in_reply_to(parent.clone(), references);
         }
-        self.send_draft(&account, &draft).await;
+        self.send_draft(&account, &draft, composition.as_ref())
+            .await;
     }
 
     /// Forwards `message` with a rich composer `document` to the host-supplied `to`/`cc`/`bcc`
@@ -185,6 +187,7 @@ impl<P: Provider> App<P> {
         subject: Option<String>,
         document: ComposerDocument,
         blobs: Vec<ComposerBlob>,
+        composition: Option<CompositionId>,
     ) {
         let Some(original) = self.find_message_in(&message).await else {
             return;
@@ -231,7 +234,8 @@ impl<P: Provider> App<P> {
             references.push(parent.clone());
             draft = draft.with_references(references);
         }
-        self.send_draft(&account, &draft).await;
+        self.send_draft(&account, &draft, composition.as_ref())
+            .await;
     }
 
     /// Computes the suggested recipients for a reply (or reply-all) to `message`, for a
@@ -417,7 +421,7 @@ fn push_unique(seen: &mut HashSet<String>, addr: &EmailAddress, into: &mut Vec<E
 
 /// Joins addresses into the comma-separated text a host shows in a recipient field; the
 /// bare email of each (the composer's plain-text fields round-trip bare addresses).
-fn join_emails(addresses: &[EmailAddress]) -> String {
+pub(crate) fn join_emails(addresses: &[EmailAddress]) -> String {
     addresses
         .iter()
         .map(|addr| addr.email.as_str())

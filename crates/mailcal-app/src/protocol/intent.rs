@@ -13,7 +13,7 @@ use mailcal_viewmodel::{QuoteStyleKind, SwipeActionKind, SwipeDirection, ViewMod
 use super::Surface;
 use super::{BulkAction, ComposerBlob, ContactsIntent, DraftsIntent, OutboxIntent, SearchScope};
 use crate::{
-    ReaderId,
+    CompositionId, ReaderId,
     invitations_rsvp::InvitationResponse,
     reference::{EventRef, FolderRef, MessageRef, RowRef, ThreadRef},
 };
@@ -118,6 +118,9 @@ pub enum Intent {
         document: ComposerDocument,
         /// Host-resolved bytes for every attachment handle referenced by `document`.
         blobs: Vec<ComposerBlob>,
+        /// The composer this was written in, when it had one that may have saved a draft
+        /// (`docs/drafts.md`): an accepted send takes that stored copy out of Drafts.
+        composition: Option<CompositionId>,
     },
     /// Sync the account's calendar(s) and refresh the agenda snapshot.
     RefreshCalendar,
@@ -233,6 +236,8 @@ pub enum Intent {
         document: ComposerDocument,
         /// Host-resolved bytes for every attachment handle referenced by `document`.
         blobs: Vec<ComposerBlob>,
+        /// The composer this was written in, as on [`Intent::SubmitRichMail`].
+        composition: Option<CompositionId>,
     },
     /// Forward a message (by key) with a rich composer document (a `Fwd:` subject; the
     /// original's `References` chain and no `In-Reply-To`, so the forward stays on the
@@ -261,6 +266,8 @@ pub enum Intent {
         document: ComposerDocument,
         /// Host-resolved bytes for every attachment handle referenced by `document`.
         blobs: Vec<ComposerBlob>,
+        /// The composer this was written in, as on [`Intent::SubmitRichMail`].
+        composition: Option<CompositionId>,
     },
     /// Create a calendar event, then refresh the agenda.
     ///

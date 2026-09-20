@@ -325,7 +325,7 @@ impl<P: Provider> App<P> {
             .ok_or_else(|| "the reply could not be addressed".to_owned())?;
 
         if self
-            .send_draft_result(&answer.message.account, &draft)
+            .send_draft_result(&answer.message.account, &draft, None)
             .await
         {
             log::info!("respond_to_invitation: the iTIP reply was submitted");

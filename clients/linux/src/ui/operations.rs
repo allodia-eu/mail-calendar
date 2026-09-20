@@ -215,6 +215,9 @@ fn submit(
             submission.document_json.clone(),
             files,
             submission.from.clone(),
+            // No composition: this composer does not save drafts yet, so there is no stored
+            // copy for the send to take away (`docs/drafts.md`).
+            None,
         ),
         ComposeKind::Reply | ComposeKind::ReplyAll => app.submit_rich_reply_with_files(
             submission.request.account.clone().unwrap_or_default(),
@@ -226,6 +229,8 @@ fn submit(
             // The Subject field is editable here too, so what it holds is what goes out; the
             // core's derived `Re:`/`Fwd:` is only the value it opened with.
             Some(submission.subject.clone()),
+            // No composition, as above.
+            None,
         ),
         ComposeKind::Forward => app.submit_rich_forward_with_files(
             submission.request.account.clone().unwrap_or_default(),
@@ -237,6 +242,8 @@ fn submit(
             // The Subject field is editable here too, so what it holds is what goes out; the
             // core's derived `Re:`/`Fwd:` is only the value it opened with.
             Some(submission.subject.clone()),
+            // No composition, as above.
+            None,
         ),
     }
 }
