@@ -60,11 +60,7 @@ enum ShareInbox {
         logAppleLifecycle(
             "share received: \(prefill.attachments.count) file(s), \(prefill.rejected.count) refused"
         )
-        guard !prefill.isEmpty else {
-            // The user asked to send *those files*, so a blank composer over whatever they were
-            // doing is a worse answer than none. Windows and Linux drop an empty share too.
-            return nil
-        }
+        guard opensComposer(prefill) else { return nil }
         return ShareOpenRequest(prefill: prefill)
     }
 }
@@ -124,6 +120,19 @@ extension ContentView {
         }
         openGuardingDraft { compose = .share(request) }
     }
+}
+
+/// Whether a decoded share is worth opening a composer for.
+///
+/// A share that carried nothing usable is dropped: the user asked to send *those files*, so a
+/// blank composer over whatever they were doing is a worse answer than none, and Windows and
+/// Linux drop an empty share too. A share whose files were **all refused** is a different
+/// question, and it opens: `SharePrefill::is_empty` answers "nothing to seed", not "nothing to
+/// say", the app has already been brought forward by the extension's doorbell, and a file the
+/// user watched go into a share sheet must be named rather than left to be noticed
+/// (docs/os-integration.md).
+func opensComposer(_ prefill: SharePrefill) -> Bool {
+    !prefill.isEmpty || !prefill.rejected.isEmpty
 }
 
 /// What the composer says it could not take.

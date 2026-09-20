@@ -194,6 +194,11 @@ enum ShareIntake {
     nonisolated private static func copy(_ source: URL, into staging: URL) -> URL? {
         let scoped = source.startAccessingSecurityScopedResource()
         defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+        // A folder is shareable from Finder, and it copies perfectly well: what it leaves behind
+        // is a path the composer lists as an attachment and cannot read at Send. Refused here, so
+        // it comes back as a named refusal instead; Linux's `readable_file` draws the same line.
+        guard (try? source.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+        else { return nil }
         let destination = unique(stagedName(source.lastPathComponent), in: staging)
         do {
             try FileManager.default.copyItem(at: source, to: destination)
