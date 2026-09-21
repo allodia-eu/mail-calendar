@@ -10,8 +10,8 @@ use std::sync::{Arc, Mutex};
 
 use engine_api::AccountId;
 use fakes::{
-    FakeConnector, FakeProvider, FlakyConnector, ObservingConnector, account, app,
-    app_with_connector, flat_subjects, message, open_folder,
+    FakeConnector, FakeProvider, FlakyConnector, ObservingConnector, SyncFailingConnector, account,
+    app, app_with_connector, flat_subjects, message, open_folder,
 };
 use mailcal_viewmodel::{SnapshotRow, ViewMode};
 
@@ -152,6 +152,81 @@ async fn a_transient_folder_connect_failure_retries_on_the_next_open() {
         *attempts.lock().unwrap(),
         2,
         "the folder connect was retried rather than blocked for the session"
+    );
+}
+
+#[tokio::test]
+async fn a_folder_whose_download_failed_retries_on_the_next_open() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    // The folder connects both times; its first sync is the one that fails, which is what a
+    // throttled server does to a provider that is already bound.
+    let connector = SyncFailingConnector::new(
+        "archive",
+        vec![message("c1", "archive", "Archived report")],
+        1,
+    );
+    let app = app_with_connector(
+        vec![account("acct-1", FakeProvider::new())],
+        connector,
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(Intent::SelectAccount(Some("acct-1".to_owned())))
+        .await;
+
+    // First open: the download fails, so the folder shows empty for now…
+    app.dispatch(open_folder("acct-1", "archive")).await;
+    assert!(
+        !flat_subjects(&app.mailbox_list())
+            .iter()
+            .any(|s| s == "Archived report"),
+        "a failed download leaves the folder empty for now"
+    );
+
+    // …and because the open read the engine's report instead of discarding it, the attempt was
+    // not remembered: re-opening downloads the folder. The bug was that a sync failure was
+    // invisible here, so the folder counted as attempted and stayed empty until a restart.
+    app.dispatch(Intent::SelectAccount(Some("acct-1".to_owned())))
+        .await;
+    app.dispatch(open_folder("acct-1", "archive")).await;
+    assert!(
+        flat_subjects(&app.mailbox_list())
+            .iter()
+            .any(|s| s == "Archived report"),
+        "re-opening after a failed download re-attempts it: {:?}",
+        flat_subjects(&app.mailbox_list())
+    );
+}
+
+#[tokio::test]
+async fn an_open_that_downloads_nothing_does_not_republish_the_list() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    // A folder the server holds nothing in: the open succeeds and stores nothing.
+    let connector = FakeConnector::new(vec![("archive".to_owned(), Vec::new())]);
+    let app = app_with_connector(
+        vec![account("acct-1", FakeProvider::new())],
+        connector,
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(Intent::SelectAccount(Some("acct-1".to_owned())))
+        .await;
+    surfaces.lock().unwrap().clear();
+
+    app.dispatch(open_folder("acct-1", "archive")).await;
+
+    // One publish: the folder going on screen. Discarding the engine's report left the open
+    // unable to say whether anything had landed, so it claimed it had and the list was rebuilt
+    // and republished a second time for an identical snapshot, on every first open.
+    assert_eq!(
+        surfaces
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|surface| **surface == Surface::MailboxList)
+            .count(),
+        1,
+        "an open that downloaded nothing must not repaint the list"
     );
 }
 

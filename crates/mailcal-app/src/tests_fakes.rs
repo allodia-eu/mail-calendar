@@ -60,7 +60,9 @@ pub(super) use calendar_builders::{
     calendar_account, calendar_app, calendar_app_on, event_from_today, occurrence_wall_clock_of,
     stored_event, weekly_event_from_today, weekly_event_with_a_moved_occurrence,
 };
-pub(super) use connectors::{FakeConnector, FlakyConnector, ObservingConnector};
+pub(super) use connectors::{
+    FakeConnector, FlakyConnector, ObservingConnector, SyncFailingConnector,
+};
 pub(super) use fixtures::{evt, message, msg, open_folder, thread_ref, threaded, unthreaded};
 pub(super) use invitation::{
     ALIAS, EVENT_KEY, InvitationFake, MEETING_UID, MESSAGE_KEY, RecordedPuts,
