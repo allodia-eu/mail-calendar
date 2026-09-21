@@ -107,6 +107,11 @@ extension ContentView {
                             }
                     }
                 }
+                // Over the rows, so the list keeps its size and the surfaces around it (the
+                // header, the selection bar, the footer) do not move as a folder fills.
+                .overlay {
+                    EmptyMailboxView(reason: model.emptyReason) { settingsCategory = .accounts }
+                }
             )
             }
             Divider()

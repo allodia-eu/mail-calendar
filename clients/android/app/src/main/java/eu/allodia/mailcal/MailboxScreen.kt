@@ -43,6 +43,7 @@ import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.BulkAction
 import uniffi.mailcal_bindings.ComposerFileAttachment
+import uniffi.mailcal_bindings.EmptyReason
 import uniffi.mailcal_bindings.MailtoPrefill
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.RecipientSuggestion
@@ -138,6 +139,8 @@ internal fun MailboxScreen(
     onAcceptTimeZoneChange: () -> Unit,
     onDismissTimeZoneChange: () -> Unit,
     syncProgress: SyncProgressSnapshot?,
+    // Why the list has no rows, or null whenever it has some (`docs/folder-pane.md`, rule 20).
+    emptyReason: EmptyReason? = null,
     offline: Boolean,
     unreachableAccounts: List<String>,
     connectionIssues: List<ConnectionIssue>,
@@ -374,6 +377,9 @@ internal fun MailboxScreen(
                         }
                     }
                 }
+                // Over the rows rather than in place of the list, so the pull-to-sync gesture
+                // survives: an empty folder is one a pull is a reasonable answer to.
+                MailboxEmpty(reason = emptyReason, onOpenSettings = onOpenSettings)
                 // A floating "new mail" pill at the top of the list: appears when mail arrives
                 // while the user is scrolled down, and pulls the list to the top on tap
                 // (Gmail-style). It dismisses itself once the top is reached, so it never

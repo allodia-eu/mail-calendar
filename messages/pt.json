@@ -40,6 +40,10 @@
 	"mailbox_count_conversations_one": "{count} conversa",
 	"mailbox_count_results": "{count} resultados",
 	"mailbox_count_results_one": "{count} resultado",
+	"mailbox_empty_no_mail": "Ainda não há mensagens nesta pasta.",
+	"mailbox_empty_windowed": "Não há mensagens dos últimos {count} meses.",
+	"mailbox_empty_windowed_body": "As mensagens mais antigas continuam no servidor. Alargue a profundidade de sincronização para as transferir para este dispositivo.",
+	"mailbox_empty_change": "Alterar a profundidade de sincronização",
 
 	"selection_count": "{count} selecionadas",
 	"selection_selected_messages": "{count} mensagens selecionadas",
@@ -497,7 +501,7 @@
 	"settings_language_restart_later": "Mais tarde",
 
 	"settings_sync_depth_heading": "Profundidade de sincronização",
-	"settings_sync_depth_description": "Até que ponto o correio é transferido. As mensagens mais antigas ficam no servidor e são transferidas quando abre uma caixa de correio.",
+	"settings_sync_depth_description": "Até que ponto o correio é transferido. As mensagens mais antigas ficam no servidor até alargar este período.",
 	"settings_sync_depth_label": "Transferir",
 	"sync_depth_months": "Últimos {count} meses",
 	"sync_depth_all": "Todo o histórico",

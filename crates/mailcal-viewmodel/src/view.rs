@@ -110,6 +110,27 @@ pub enum SearchHorizon {
     Months(u16),
 }
 
+/// Why a mailbox list holds no rows.
+///
+/// An unqualified empty list says the folder is empty, and rule 5 of `docs/folder-pane.md` is
+/// what makes that claim wrong often enough to matter: the badge beside the folder is the
+/// **server's** count over all time, while the list can only show what sync depth kept. A
+/// folder whose mail predates the depth then badges its unread above no rows at all, and
+/// nothing on screen reconciles the two numbers.
+///
+/// So an empty list says which of the two it is. The same distinction [`SearchHorizon`] draws
+/// for a search, for the same reason, and it is one the user can act on in only one of the two
+/// cases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmptyReason {
+    /// Nothing was held back: sync depth is all-time, so this device has the whole folder and
+    /// the folder genuinely has no mail in it.
+    NoMail,
+    /// Only the last N months were ever downloaded, so the server may hold older mail this
+    /// device never asked for. What a client offers the sync-depth setting against.
+    OutsideSyncDepth(u16),
+}
+
 /// An immutable mailbox-list snapshot for a host to render.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MailboxListSnapshot {
@@ -178,6 +199,12 @@ pub struct MailboxListSnapshot {
     /// (`docs/search.md`). It is `None` for every non-search list, so a client can key the
     /// whole line off this one field.
     pub search_horizon: Option<SearchHorizon>,
+    /// Why the list has no rows, or `None` whenever it has some.
+    ///
+    /// `None` for a search too, however empty: [`search_horizon`](Self::search_horizon)
+    /// already says how far that one looked, and two lines answering the same question would
+    /// disagree the moment one of them moves.
+    pub empty_reason: Option<EmptyReason>,
 }
 
 /// One mailbox-list row: a single message (flat) or a conversation (threaded).

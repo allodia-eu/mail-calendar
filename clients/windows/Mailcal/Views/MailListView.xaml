@@ -419,6 +419,31 @@
             </ListView.ItemContainerStyle>
         </ListView>
 
+        <!-- Why the list has no rows, in the list's own row and over it, so nothing around it
+             moves as a folder fills. The badge beside the folder counts what the server holds
+             over all time while the list shows what sync depth kept, so an empty list that does
+             not say which of the two it is contradicts the badge (docs/folder-pane.md, rule 5).
+             The button appears only where widening the depth would actually find something. -->
+        <StackPanel Grid.Row="2" Spacing="8" Padding="32,0"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    AutomationProperties.AutomationId="EmptyMailbox"
+                    Visibility="{x:Bind Model.HasEmptyReason, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                       Style="{StaticResource BodyStrongTextBlockStyle}"
+                       AutomationProperties.AutomationId="EmptyMailboxText"
+                       Text="{x:Bind Model.EmptyMailboxText, Mode=OneWay}" />
+            <TextBlock HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="{x:Bind Model.EmptyMailboxBody, Mode=OneWay}"
+                       Visibility="{x:Bind Model.EmptyMailboxOffersSyncDepth, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+            <HyperlinkButton HorizontalAlignment="Center" Padding="0"
+                             AutomationProperties.AutomationId="EmptyMailboxChange"
+                             Content="{x:Bind l10n:L10n.MailboxEmptyChange()}"
+                             Click="OnChangeSyncDepth"
+                             Visibility="{x:Bind Model.EmptyMailboxOffersSyncDepth, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+        </StackPanel>
+
         <!-- The Outbox: every account's unsent messages, in the list's own row, in place of the
              mail rather than over it (docs/sending.md). Selection is Single and click does
              nothing: there is no body to read, so the only thing a row offers is its menu.

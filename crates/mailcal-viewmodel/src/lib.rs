@@ -46,6 +46,6 @@ pub use settings::{
 pub use sync_progress::{AccountSyncProgress, SyncProgressSnapshot};
 pub use text::plain_text;
 pub use view::{
-    AccountMessage, AccountRow, FlatRow, MailboxListSnapshot, SearchHorizon, SnapshotRow,
-    ThreadMessage, ThreadRow, ViewMode, unified_unread,
+    AccountMessage, AccountRow, EmptyReason, FlatRow, MailboxListSnapshot, SearchHorizon,
+    SnapshotRow, ThreadMessage, ThreadRow, ViewMode, unified_unread,
 };

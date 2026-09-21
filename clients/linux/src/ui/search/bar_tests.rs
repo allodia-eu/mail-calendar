@@ -41,6 +41,7 @@ fn snapshot(horizon: Option<SearchHorizon>) -> MailboxListSnapshot {
             }],
         }],
         search_horizon: horizon,
+        empty_reason: None,
         ..empty_mailbox()
     }
 }

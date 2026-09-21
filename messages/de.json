@@ -40,6 +40,10 @@
 	"mailbox_count_conversations_one": "{count} Unterhaltung",
 	"mailbox_count_results": "{count} Ergebnisse",
 	"mailbox_count_results_one": "{count} Ergebnis",
+	"mailbox_empty_no_mail": "Noch keine E-Mails in diesem Ordner.",
+	"mailbox_empty_windowed": "Keine E-Mails aus den letzten {count} Monaten.",
+	"mailbox_empty_windowed_body": "Ältere E-Mails liegen weiterhin auf dem Server. Erweitern Sie die Synchronisationstiefe, um sie auf dieses Gerät zu laden.",
+	"mailbox_empty_change": "Synchronisationstiefe ändern",
 
 	"selection_count": "{count} ausgewählt",
 	"selection_selected_messages": "{count} Nachrichten ausgewählt",
@@ -497,7 +501,7 @@
 	"settings_language_restart_later": "Später",
 
 	"settings_sync_depth_heading": "Synchronisationstiefe",
-	"settings_sync_depth_description": "Wie weit zurück E-Mails geladen werden. Ältere Nachrichten bleiben auf dem Server und werden geladen, sobald Sie einen Ordner öffnen.",
+	"settings_sync_depth_description": "Wie weit zurück E-Mails geladen werden. Ältere Nachrichten bleiben auf dem Server, bis Sie diesen Zeitraum erweitern.",
 	"settings_sync_depth_label": "Laden",
 	"sync_depth_months": "Letzte {count} Monate",
 	"sync_depth_all": "Gesamter Zeitraum",

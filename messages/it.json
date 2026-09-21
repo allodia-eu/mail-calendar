@@ -40,6 +40,10 @@
 	"mailbox_count_conversations_one": "{count} conversazione",
 	"mailbox_count_results": "{count} risultati",
 	"mailbox_count_results_one": "{count} risultato",
+	"mailbox_empty_no_mail": "Nessun messaggio in questa cartella.",
+	"mailbox_empty_windowed": "Nessun messaggio degli ultimi {count} mesi.",
+	"mailbox_empty_windowed_body": "I messaggi più vecchi sono ancora sul server. Amplia la profondità di sincronizzazione per scaricarli su questo dispositivo.",
+	"mailbox_empty_change": "Modifica la profondità di sincronizzazione",
 
 	"selection_count": "{count} selezionati",
 	"selection_selected_messages": "{count} messaggi selezionati",
@@ -497,7 +501,7 @@
 	"settings_language_restart_later": "Più tardi",
 
 	"settings_sync_depth_heading": "Profondità di sincronizzazione",
-	"settings_sync_depth_description": "Quanto indietro nel tempo scaricare la posta. I messaggi più vecchi restano sul server e vengono scaricati quando apri una casella.",
+	"settings_sync_depth_description": "Quanto indietro nel tempo scaricare la posta. I messaggi più vecchi restano sul server finché non amplii questo periodo.",
 	"settings_sync_depth_label": "Scarica",
 	"sync_depth_months": "Ultimi {count} mesi",
 	"sync_depth_all": "Tutto lo storico",

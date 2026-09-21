@@ -131,6 +131,7 @@
          a quiet one, an "all mail" horizon rendered with the months sentence would read as a
          confident, wrong claim about what the device holds. -->
     <Compile Include="..\Mailcal\Services\SearchHorizonLine.cs" Link="Services\SearchHorizonLine.cs" />
+    <Compile Include="..\Mailcal\Services\EmptyMailboxLine.cs" Link="Services\EmptyMailboxLine.cs" />
     <!-- The unwrapping of UniFFI's generated "@v1=" exception-message prefix, which otherwise
          reaches user-facing setup errors verbatim. The generated bindings are built and never
          committed, so a test is the only thing that can catch it coming back. Pure BCL. -->

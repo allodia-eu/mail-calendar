@@ -90,6 +90,9 @@ final class MailboxModel {
     /// How far back the active search looked, or `nil` when the list is not a search, the sync
     /// depth of the accounts its scope covered (`docs/search.md`).
     var searchHorizon: SearchHorizon?
+    /// Why the mail list has no rows, or `nil` whenever it has some. A search says how far it
+    /// looked through `searchHorizon` instead, so the two are never both up.
+    var emptyReason: EmptyReason?
     var events: [EventRow] = []
     /// The contacts list, one row per unified **person**, not per provider card: the engine has
     /// already merged the cards that share an address, across accounts. Pulled on a

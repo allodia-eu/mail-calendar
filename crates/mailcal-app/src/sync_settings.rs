@@ -21,8 +21,8 @@ use mailcal_account::{
     load_preferences, save_preferences, snap_poll_interval,
 };
 use mailcal_viewmodel::{
-    AccountSyncRow, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind, folder_paths,
-    sorted_folder_rows,
+    AccountSyncRow, EmptyReason, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
+    folder_paths, sorted_folder_rows,
 };
 
 use crate::{App, Surface, message_size::default_size_limit_mb, sync::sync_window};
@@ -389,6 +389,31 @@ impl<P: Provider> App<P> {
             .lock()
             .expect("sync-settings mutex poisoned")
             .effective_depth(id)
+    }
+
+    /// Why an empty mail list is empty, across the accounts in view: sync depth kept older
+    /// mail back, or there is none to keep.
+    ///
+    /// The **narrowest** depth decides, as a search horizon's does: the unified inbox draws on
+    /// several accounts, and one of them bounded at six months is enough for the server to hold
+    /// mail this device never asked for. `None` when no account is in view, where the list is
+    /// empty because nothing is configured yet and either claim would be about a folder nobody
+    /// is looking at.
+    pub(crate) fn empty_reason(&self, accounts: &[AccountId]) -> Option<EmptyReason> {
+        accounts
+            .iter()
+            .map(
+                |account| match self.effective_sync_depth(account.as_str()) {
+                    SyncDepth::AllTime => EmptyReason::NoMail,
+                    SyncDepth::Months(months) => EmptyReason::OutsideSyncDepth(months),
+                },
+            )
+            .reduce(|left, right| match (left, right) {
+                (EmptyReason::NoMail, other) | (other, EmptyReason::NoMail) => other,
+                (EmptyReason::OutsideSyncDepth(a), EmptyReason::OutsideSyncDepth(b)) => {
+                    EmptyReason::OutsideSyncDepth(a.min(b))
+                }
+            })
     }
 
     /// Drops one account's persisted sync settings. Called when the account is removed so a

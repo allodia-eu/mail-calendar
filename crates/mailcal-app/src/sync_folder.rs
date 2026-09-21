@@ -117,6 +117,41 @@ impl<P: Provider> App<P> {
         self.resync_folder(&account, &key, label).await;
     }
 
+    /// Whether the **shown list** is one folder still waiting for its first download.
+    ///
+    /// The unified view and an account's all-mail view draw on folders that are already bound, so
+    /// neither waits on anything.
+    pub(crate) async fn list_download_pending(
+        &self,
+        account: Option<&AccountId>,
+        folder: Option<&str>,
+    ) -> bool {
+        let (Some(account), Some(key)) = (account, folder) else {
+            return false;
+        };
+        self.folder_download_pending(account, key).await
+    }
+
+    /// Whether the folder on screen is still waiting for its first download.
+    ///
+    /// The list is published before [`ensure_folder_synced`](Self::ensure_folder_synced) runs, so
+    /// for the length of a network round trip a folder that is about to fill holds no rows. Saying
+    /// it is empty there is a claim we have not checked yet, and it would be wrong for exactly the
+    /// folders that do have mail (`docs/folder-pane.md`, rule 20).
+    ///
+    /// A folder the account bound at sign-in is never pending: it syncs with the account, so it
+    /// has already been looked at.
+    pub(crate) async fn folder_download_pending(&self, account: &AccountId, key: &str) -> bool {
+        if self.connector.is_none() || self.is_eagerly_bound(account, key).await {
+            return false;
+        }
+        !self
+            .attempted_folders
+            .lock()
+            .expect("attempted-folders mutex poisoned")
+            .contains(&(account.as_str().to_owned(), key.to_owned()))
+    }
+
     /// Whether the account bound a provider to `key` when it connected: INBOX and the folders
     /// the server tagged with SPECIAL-USE (Sent/Drafts/Trash/Archive/Junk). Those sync with
     /// every account pass; every other folder is this module's business.
@@ -217,7 +252,11 @@ impl<P: Provider> App<P> {
         // [`refresh_open_folder`](Self::refresh_open_folder)'s job, which connects again for as
         // long as the folder is the one on screen.
         drop(provider);
-        report.upserted() + report.tombstoned() > 0
+        // A completed download changes the list whether or not it carried mail: either rows
+        // arrived, or the folder is now known to hold none in the window, which the list says in
+        // place of them (`docs/folder-pane.md`, rule 20). It said neither while the download was
+        // still pending. A failure changes nothing, because the attempt is forgotten above.
+        report.first_error().is_none()
     }
 
     /// Forgets which folders have been on-demand synced this session, so they re-sync the next

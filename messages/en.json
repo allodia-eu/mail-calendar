@@ -40,6 +40,10 @@
 	"mailbox_count_conversations_one": "{count} conversation",
 	"mailbox_count_results": "{count} results",
 	"mailbox_count_results_one": "{count} result",
+	"mailbox_empty_no_mail": "No mail in this folder yet.",
+	"mailbox_empty_windowed": "No mail from the last {count} months.",
+	"mailbox_empty_windowed_body": "Older mail is still on the server. Widen the sync depth to bring it to this device.",
+	"mailbox_empty_change": "Change sync depth",
 
 	"selection_count": "{count} selected",
 	"selection_selected_messages": "{count} messages selected",
@@ -497,7 +501,7 @@
 	"settings_language_restart_later": "Later",
 
 	"settings_sync_depth_heading": "Sync depth",
-	"settings_sync_depth_description": "How far back to download mail. Older messages stay on the server and download when you open a folder.",
+	"settings_sync_depth_description": "How far back to download mail. Older messages stay on the server until you widen this.",
 	"settings_sync_depth_label": "Download",
 	"sync_depth_months": "Last {count} months",
 	"sync_depth_all": "All time",

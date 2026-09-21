@@ -134,6 +134,9 @@ extension ContentView {
                 }
             }
             .listStyle(.plain)
+            // Over the rows rather than in place of the list, so the pull-to-sync gesture
+            // survives: an empty folder is one a pull is a reasonable answer to.
+            .overlay { EmptyMailboxView(reason: model.emptyReason) { settingsCategory = .accounts } }
             // Sync, on a platform with no room for a button that says so.
             .refreshable { await pullToSync() }
             .searchable(text: $searchText, prompt: Text(L10n.search_placeholder()))

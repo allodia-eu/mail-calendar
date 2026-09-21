@@ -126,6 +126,7 @@ public sealed partial class MailboxModel
         SelectedAccount = snapshot.SelectedAccount;
         SelectedFolder = snapshot.Selected;
         SearchHorizon = snapshot.SearchHorizon;
+        EmptyReason = snapshot.EmptyReason;
 
         var rows = snapshot.Rows.Select(row =>
         {
