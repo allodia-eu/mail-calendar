@@ -40,6 +40,10 @@
 	"mailbox_count_conversations_one": "{count} conversation",
 	"mailbox_count_results": "{count} résultats",
 	"mailbox_count_results_one": "{count} résultat",
+	"mailbox_empty_no_mail": "Aucun message dans ce dossier pour le moment.",
+	"mailbox_empty_windowed": "Aucun message des {count} derniers mois.",
+	"mailbox_empty_windowed_body": "Les messages plus anciens sont toujours sur le serveur. Élargissez la profondeur de synchronisation pour les télécharger sur cet appareil.",
+	"mailbox_empty_change": "Modifier la profondeur de synchronisation",
 
 	"selection_count": "{count} sélectionnés",
 	"selection_selected_messages": "{count} messages sélectionnés",
@@ -497,7 +501,7 @@
 	"settings_language_restart_later": "Plus tard",
 
 	"settings_sync_depth_heading": "Profondeur de synchronisation",
-	"settings_sync_depth_description": "Jusqu’où remonter dans le téléchargement des messages. Les messages plus anciens restent sur le serveur et sont téléchargés à l’ouverture d’une boîte aux lettres.",
+	"settings_sync_depth_description": "Jusqu’où remonter dans le téléchargement des messages. Les messages plus anciens restent sur le serveur tant que vous n’élargissez pas cette période.",
 	"settings_sync_depth_label": "Télécharger",
 	"sync_depth_months": "{count} derniers mois",
 	"sync_depth_all": "Tous les messages",

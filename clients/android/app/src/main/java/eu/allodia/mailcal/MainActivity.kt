@@ -36,6 +36,7 @@ import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.CalendarWriteStatus
 import uniffi.mailcal_bindings.ContactRow
 import uniffi.mailcal_bindings.DisplaySettings
+import uniffi.mailcal_bindings.EmptyReason
 import uniffi.mailcal_bindings.EventRow
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
@@ -101,6 +102,9 @@ class MainActivity : AppCompatActivity() {
     internal var selectedFolder by mutableStateOf<String?>(null)
     // How far back the active search looked, or null when the list is not a search.
     internal var searchHorizon by mutableStateOf<SearchHorizon?>(null)
+    // Why the mail list has no rows, or null whenever it has some. A search explains itself
+    // through searchHorizon instead, so the two are never both up.
+    internal var emptyReason by mutableStateOf<EmptyReason?>(null)
     // The display-timezone setting (active zone + any pending device-zone change). Owned by
     // the Rust core; null until the first settings pull after construction.
     internal var timeZone by mutableStateOf<TimeZoneSnapshot?>(null)

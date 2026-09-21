@@ -19,6 +19,7 @@ use super::{
     mail_actions::{self, PermanentDeleteDialog},
     mail_toolbar::MailToolbar,
     mailbox::MailboxRendering,
+    mailbox_empty,
     mailbox_progressive::ProgressiveRenderer,
     outbox,
     reader::ReadingSource,
@@ -327,6 +328,13 @@ impl AppWidgets {
                 self.mailbox_renderer = ProgressiveRenderer::default();
                 outbox::render(&self.messages, &model.snapshot, &self.sender);
             } else {
+                // Before the rows, so the placeholder is in place by the time GTK decides
+                // whether the box is empty; the renderer below never has to ask.
+                mailbox_empty::render(
+                    &self.messages,
+                    model.snapshot.empty_reason.as_ref(),
+                    &self.sender,
+                );
                 self.mailbox_renderer.render(
                     &self.messages,
                     &model.snapshot,

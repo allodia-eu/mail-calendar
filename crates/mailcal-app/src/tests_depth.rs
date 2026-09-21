@@ -12,6 +12,7 @@ use engine_provider::{
     Capabilities, ConnectionInfo, EmailChunk, EmailStream, Provider, ProviderResult, ScopeSync,
 };
 use mailcal_account::SyncDepth;
+use mailcal_viewmodel::EmptyReason;
 
 use super::{Account, App, AppObserver, Surface, Telemetry, TimeZoneInit};
 
@@ -209,6 +210,71 @@ async fn removing_an_account_forgets_engine_data_and_sync_settings() {
     app.add_account(account("acct", window_provider())).await;
     assert_eq!(account_depth(&app, "acct").await, expected_default_depth());
     assert_eq!(stored_keys(&app, "acct").await, expected_default_keys());
+}
+
+#[tokio::test]
+async fn an_empty_folder_under_a_bounded_depth_says_the_server_may_hold_more() {
+    // Every message this folder holds is older than the depth, so the list is empty while the
+    // folder is not: the shape a years-old archive folder takes, and the one the unread badge
+    // beside it contradicts (`docs/folder-pane.md`, rule 5).
+    let archive = WindowProvider::new(vec![dated_message("old", "Old mail", 7)]);
+    let app = test_app(vec![account("acct", archive)]);
+    app.set_account_sync_depth("acct", 3).await;
+    app.dispatch(super::Intent::RefreshMail).await;
+    open_only_folder(&app, "acct").await;
+
+    let snapshot = app.mailbox_list();
+
+    assert_eq!(snapshot.total, 0, "nothing in the window to list");
+    assert_eq!(
+        snapshot.empty_reason,
+        Some(EmptyReason::OutsideSyncDepth(3)),
+        "an empty list under a bounded depth must offer the setting that would fill it",
+    );
+}
+
+#[tokio::test]
+async fn an_empty_folder_at_all_time_depth_says_the_folder_is_empty() {
+    // Nothing was held back, so the folder really is empty and there is no setting to offer.
+    let app = test_app(vec![account("empty", WindowProvider::new(Vec::new()))]);
+    app.set_account_sync_depth("empty", 0).await;
+    app.dispatch(super::Intent::RefreshMail).await;
+    open_only_folder(&app, "empty").await;
+
+    let snapshot = app.mailbox_list();
+
+    assert_eq!(snapshot.total, 0);
+    assert_eq!(snapshot.empty_reason, Some(EmptyReason::NoMail));
+}
+
+#[tokio::test]
+async fn a_list_with_rows_gives_no_empty_reason() {
+    let app = test_app(vec![account("acct", window_provider())]);
+    app.set_account_sync_depth("acct", 6).await;
+    app.dispatch(super::Intent::RefreshMail).await;
+    open_only_folder(&app, "acct").await;
+
+    let snapshot = app.mailbox_list();
+
+    assert!(snapshot.total > 0, "the six-month window holds mail");
+    assert_eq!(
+        snapshot.empty_reason, None,
+        "a list that has rows explains nothing",
+    );
+}
+
+/// Selects the account and its only folder, which is what puts a single folder's mail on
+/// screen; the unified view answers for every account at once and is not what these assert on.
+async fn open_only_folder(app: &App<WindowProvider>, account: &str) {
+    app.dispatch(super::Intent::SelectAccount(Some(account.to_owned())))
+        .await;
+    app.dispatch(super::Intent::SelectFolder {
+        folder: super::FolderRef {
+            account: AccountId::try_from(account).unwrap(),
+            key: "inbox".to_owned(),
+        },
+    })
+    .await;
 }
 
 fn test_app(accounts: Vec<Account<WindowProvider>>) -> App<WindowProvider> {

@@ -35,7 +35,7 @@ mod token_source;
 pub use calendar::connect_graph_calendar_providers;
 pub use token_source::{CredentialOrigin, GraphTokenSource, TokenSink};
 
-use crate::{AccountError, tls::account_tls};
+use crate::{AccountError, log_handle::account_log_handle, tls::account_tls};
 
 /// The folder roles a Microsoft account eagerly binds a provider to at startup; the
 /// same set as IMAP plus the Inbox (Graph resolves the Inbox as a role, whereas IMAP
@@ -245,7 +245,12 @@ async fn list_folders(
         .map_err(|err| AccountError::Graph(err.to_string()))?;
     let inbox =
         MailboxId::try_from("inbox").map_err(|err| AccountError::Mailbox(err.to_string()))?;
-    log::debug!("graph: fetching mail folder list");
+    // Both lines carry the account's handle. One device holds several Microsoft accounts, this
+    // runs once per account, and two counts minutes apart read as one mailbox's list shrinking
+    // unless each says whose it was (`docs/logging.md`). The handle, never the id: an account
+    // id is an address and a host.
+    let handle = account_log_handle(account_id.as_str());
+    log::debug!("graph[{handle}]: fetching mail folder list");
     let listing = GraphProvider::new(client, inbox)
         .sync_mailboxes(account_id, None)
         .await
@@ -254,7 +259,10 @@ async fn list_folders(
         SyncUpdate::Snapshot { objects, .. } => objects,
         SyncUpdate::Delta { changed, .. } => changed,
     };
-    log::debug!("graph: folder list returned {} folder(s)", folders.len());
+    log::debug!(
+        "graph[{handle}]: folder list returned {} folder(s)",
+        folders.len()
+    );
     Ok(folders)
 }
 

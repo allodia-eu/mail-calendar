@@ -437,6 +437,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             onDismissTimeZoneChange = { instance.dispatch(Intent.DismissTimeZoneChange) },
                             // Background-download progress bar.
                             syncProgress = syncProgress,
+                            emptyReason = emptyReason,
                             // Connectivity: the offline banner + per-account outage badges + the
                             // friendly connection-issues banner (names affected accounts, with a
                             // Details action and Try again). Retry re-dials via a refresh.

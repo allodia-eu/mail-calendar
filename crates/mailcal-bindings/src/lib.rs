@@ -157,7 +157,7 @@ pub use protocol::{
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
-    AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, FlatRow,
+    AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, EmptyReason, FlatRow,
     MailboxListSnapshot, ReadingSnapshot, RecipientSuggestion, SearchHorizon, SendStatus,
     SnapshotRow, SyncProgressSnapshot, ThreadMessage, ThreadRow, TimeZoneSnapshot, UnfiledCopy,
     ViewMode,

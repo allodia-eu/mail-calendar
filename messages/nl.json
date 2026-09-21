@@ -40,6 +40,10 @@
 	"mailbox_count_conversations_one": "{count} gesprek",
 	"mailbox_count_results": "{count} resultaten",
 	"mailbox_count_results_one": "{count} resultaat",
+	"mailbox_empty_no_mail": "Nog geen berichten in deze map.",
+	"mailbox_empty_windowed": "Geen berichten uit de afgelopen {count} maanden.",
+	"mailbox_empty_windowed_body": "Oudere berichten staan nog op de server. Verruim de synchronisatiediepte om ze naar dit apparaat te halen.",
+	"mailbox_empty_change": "Synchronisatiediepte wijzigen",
 
 	"selection_count": "{count} geselecteerd",
 	"selection_selected_messages": "{count} berichten geselecteerd",
@@ -497,7 +501,7 @@
 	"settings_language_restart_later": "Later",
 
 	"settings_sync_depth_heading": "Synchronisatiediepte",
-	"settings_sync_depth_description": "Hoe ver terug e-mail wordt gedownload. Oudere berichten blijven op de server en worden gedownload wanneer je een map opent.",
+	"settings_sync_depth_description": "Hoe ver terug e-mail wordt gedownload. Oudere berichten blijven op de server totdat je dit verruimt.",
 	"settings_sync_depth_label": "Downloaden",
 	"sync_depth_months": "Laatste {count} maanden",
 	"sync_depth_all": "Alle berichten",

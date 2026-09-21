@@ -31,6 +31,7 @@ go away.
 | 17 | **The group's own row navigates nowhere; activating it opens or shuts its tree.** The whole row is that control, unlike an account's, which is a destination and so needs a chevron of its own (rule 2). A shut group therefore takes the unified Inbox off screen, exactly as a shut account takes its folders. | Outlook's behaviour, and the honest one: the group heading would otherwise claim an "all mail, every account" scope the core does not have (`Scope` reaches every account's Inbox, not every account's everything). A row that navigates *and* discloses needs two targets in one row, which is what the chevron is for where the row really is a destination. |
 | 19 | **A folder inside a folder is drawn inside it**, one indent step per level, with a disclosure control on the folders that hold folders and on no others. A folder's tree follows the account trees' rules (2, 3, 4): shutting one is not navigating, the state is the core's and is persisted per account **and** folder key, and a folder nobody has touched shows what is inside it. Two folders go to the top whatever the server says: a **role-bearing** one, and one whose parent this account does not list. | A mailbox is a tree on three of the four transports, and the fourth (Gmail) spells one in its label names. Drawn flat, the rows are in an order nothing on screen explains: every adapter now names a folder by its own name alone, so `2024` appears twice with nothing saying which Archive each is in. The two exceptions are what stops the tree hiding things: Gmail files Sent, Drafts and Trash inside a `[Gmail]` container over IMAP, and an unsubscribed intermediate would otherwise take its children off screen with it. |
 | 18 | **The Outbox is one row above the account trees, and it exists only when something is in it.** It holds every account's unsent messages together, each row naming its own account, and its badge is that count (`MailboxListSnapshot::outbox`). At zero it is not on screen at all. | Unsent mail is the one thing a person goes looking for across *all* their accounts at once: "did that go?" is not a question about a particular mailbox. Hiding it at zero is rule 6's reasoning taken to the row itself, and it is what Outlook does; a permanent Outbox saying nothing trains people to stop reading it, which is the opposite of what an unsent message needs. It sits outside the trees because it is not a folder on anybody's server. |
+| 20 | **An empty mail list says why it is empty**, from `MailboxListSnapshot::empty_reason`, and offers the sync-depth setting on `OutsideSyncDepth` and only there. `None` (the list has rows, or it is a search, which states its own horizon) draws nothing. | Rule 5 is what makes this necessary: the badge is the server's count over all time and the list holds only the synced window, so a folder whose mail predates the depth badges its unread above no rows at all. Unqualified, that empty list claims the folder is empty, which contradicts the number beside it and is the one reading the user cannot act on. On `NoMail` there is nothing to offer: the device already holds the whole folder, and a button there would promise mail that widening cannot find. |
 
 ## Where each rule lives
 
@@ -88,6 +89,17 @@ The count reaches the core from the engine, which asks the server for it: JMAP `
 Graph `unreadItemCount` ride along on the folder object; IMAP has no such field, so the folder-list
 sync also asks: one round trip via `LIST … RETURN (STATUS (UNSEEN))` (RFC 5819) where the server
 advertises LIST-STATUS, else one `STATUS` per mailbox.
+
+**Rule 20 is decided in the core and only worded by the clients.** Which of the two cases a list
+is in comes from `App::empty_reason`, over the **narrowest** sync depth of the accounts in view, so
+the unified inbox answers the way a search horizon does: one account bounded at six months is
+enough for the server to hold mail this device has not. Each client maps the enum to its own
+catalog copy and draws it over the rows rather than in place of the list, so the surfaces around it
+do not move as a folder fills: `EmptyMailboxView` (Apple), `MailboxEmpty` (Android),
+`mailbox_empty::render` into the `GtkListBox` placeholder (Linux), and `EmptyMailboxLine` behind
+the `EmptyMailbox` panel (Windows). The two pure mappings that can be reached without a window are
+tested as such: `EmptyMailboxLineTests.cs` and `an_empty_folder_under_a_bounded_depth_says_the_server_may_hold_more`
+(`mailcal-app`), which is also what holds the depth arithmetic.
 
 ## Per-platform
 

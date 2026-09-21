@@ -175,6 +175,12 @@ impl<P: Provider> App<P> {
         // pane, not to the list `view::build` shapes, and that call already carries eight
         // arguments of list.
         snapshot.outbox = self.all_queued_sends(account_rows).await;
+        // Only once the folder has actually been looked at: a list published while its first
+        // download is still to come has no rows yet either, and "this folder is empty" is not
+        // something we know there (`docs/folder-pane.md`, rule 20).
+        if snapshot.total == 0 && !self.list_download_pending(selected, folder).await {
+            snapshot.empty_reason = self.empty_reason(&accounts);
+        }
         snapshot
     }
 

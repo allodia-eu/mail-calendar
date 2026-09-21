@@ -322,6 +322,28 @@ pub struct MailboxListSnapshot {
     /// Render it beside the results, with a route to the sync-depth setting: an empty search
     /// that does not say how far it looked reads as "no such message" (`docs/search.md`).
     pub search_horizon: Option<SearchHorizon>,
+    /// Why the list has no rows, or `None` whenever it has some (and on a search, which says
+    /// how far it looked through `search_horizon` instead).
+    ///
+    /// Render it in place of the rows, and offer the sync-depth setting on
+    /// `OutsideSyncDepth`: the badge beside the folder is the server's count over all time,
+    /// so an empty list that does not say why contradicts it (`docs/folder-pane.md`).
+    pub empty_reason: Option<EmptyReason>,
+}
+
+/// Why a mailbox list holds no rows.
+///
+/// The folder's badge counts what the **server** holds, the list shows what sync depth kept, and
+/// these are the two ways those can differ (`docs/folder-pane.md`).
+#[derive(uniffi::Enum)]
+pub enum EmptyReason {
+    /// Sync depth is all-time, so this device has the whole folder: it really is empty.
+    NoMail,
+    /// Only the last `months` months were ever downloaded; the server may hold older mail.
+    OutsideSyncDepth {
+        /// The depth in months, as the sync-depth setting names it.
+        months: u32,
+    },
 }
 
 /// How far back a search looked: the sync depth of the accounts it covered, narrowest first.

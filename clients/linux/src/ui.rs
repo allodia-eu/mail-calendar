@@ -57,6 +57,7 @@ mod mail_actions_menu;
 mod mail_toolbar;
 mod mailbox;
 mod mailbox_display;
+mod mailbox_empty;
 mod mailbox_progressive;
 mod mailbox_reconcile;
 mod mcp;

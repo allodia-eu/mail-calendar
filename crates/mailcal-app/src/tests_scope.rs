@@ -13,7 +13,7 @@ use fakes::{
     FakeConnector, FakeProvider, FlakyConnector, ObservingConnector, SyncFailingConnector, account,
     app, app_with_connector, flat_subjects, message, open_folder,
 };
-use mailcal_viewmodel::{SnapshotRow, ViewMode};
+use mailcal_viewmodel::{EmptyReason, SnapshotRow, ViewMode};
 
 use super::{Intent, OutboxIntent, Surface};
 
@@ -182,6 +182,14 @@ async fn a_folder_whose_download_failed_retries_on_the_next_open() {
             .any(|s| s == "Archived report"),
         "a failed download leaves the folder empty for now"
     );
+    // …and says nothing about why. The two things the list can say are "this folder is empty" and
+    // "your depth is keeping mail out", and a download that failed establishes neither: the
+    // folder was never looked at (`docs/folder-pane.md`, rule 20).
+    assert_eq!(
+        app.mailbox_list().empty_reason,
+        None,
+        "a folder nobody managed to download must not be called empty"
+    );
 
     // …and because the open read the engine's report instead of discarding it, the attempt was
     // not remembered: re-opening downloads the folder. The bug was that a sync failure was
@@ -199,7 +207,7 @@ async fn a_folder_whose_download_failed_retries_on_the_next_open() {
 }
 
 #[tokio::test]
-async fn an_open_that_downloads_nothing_does_not_republish_the_list() {
+async fn an_open_that_downloads_nothing_republishes_the_list_once_to_explain_itself() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     // A folder the server holds nothing in: the open succeeds and stores nothing.
     let connector = FakeConnector::new(vec![("archive".to_owned(), Vec::new())]);
@@ -215,9 +223,11 @@ async fn an_open_that_downloads_nothing_does_not_republish_the_list() {
 
     app.dispatch(open_folder("acct-1", "archive")).await;
 
-    // One publish: the folder going on screen. Discarding the engine's report left the open
-    // unable to say whether anything had landed, so it claimed it had and the list was rebuilt
-    // and republished a second time for an identical snapshot, on every first open.
+    // Two publishes, and the second earns its place: the first puts the folder on screen while
+    // its download is still to come, where the list says nothing about being empty because
+    // nothing has looked yet; the second carries the answer the download produced
+    // (`docs/folder-pane.md`, rule 20). Bounded at two: the open must not repaint beyond the one
+    // snapshot that changed, which is what it did when it claimed every open had landed mail.
     assert_eq!(
         surfaces
             .lock()
@@ -225,8 +235,17 @@ async fn an_open_that_downloads_nothing_does_not_republish_the_list() {
             .iter()
             .filter(|surface| **surface == Surface::MailboxList)
             .count(),
-        1,
-        "an open that downloaded nothing must not repaint the list"
+        2,
+        "an open that downloaded nothing repaints once, to say so"
+    );
+    // The variant, not the month count: which depth an account starts at is the form factor's
+    // decision and is asserted where it is made (`tests_depth`).
+    assert!(
+        matches!(
+            app.mailbox_list().empty_reason,
+            Some(EmptyReason::OutsideSyncDepth(_))
+        ),
+        "and what it says is why the folder is empty"
     );
 }
 
