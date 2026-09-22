@@ -5,20 +5,12 @@ use adw::prelude::*;
 
 use super::{
     AppInput, setup_google, setup_imap, setup_jmap, setup_manual, setup_microsoft,
-    setup_model::{DetectedForm, ManualForm, SetupForm},
+    setup_model::{DetectedForm, SetupForm},
     setup_onboarding,
     setup_state::{Phase, SetupState},
     setup_widgets::{actions, body, entry, heading, page, progress},
 };
 use crate::l10n;
-
-/// The pre-flight a freshly shown manual form owes, if any.
-fn manual_probe(form: &SetupForm) -> Option<ManualForm> {
-    match form {
-        SetupForm::Manual(manual) if manual.probes_jmap_sign_in() => Some(manual.clone()),
-        _ => None,
-    }
-}
 
 #[derive(Debug, Default)]
 pub(super) struct SetupWindow {

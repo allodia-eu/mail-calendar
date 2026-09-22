@@ -8,6 +8,14 @@ use super::{
     setup_onboarding::Onboarding,
 };
 
+/// The pre-flight a freshly shown manual form owes, if any.
+fn manual_probe(form: &SetupForm) -> Option<ManualForm> {
+    match form {
+        SetupForm::Manual(manual) if manual.probes_jmap_sign_in() => Some(manual.clone()),
+        _ => None,
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Phase {
     Email,
