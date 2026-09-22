@@ -214,6 +214,10 @@ public sealed partial class MailboxModel
         if (changed == Surface.MailboxList)
         {
             CollectNewMail();
+            // And the one place a message a notification named can be looked for: the rows are
+            // reconciled by now, so this sees the whole list rather than a half-filled one
+            // (MailboxModel.NotificationOpen.cs).
+            RetryNotificationOpen();
         }
 
         Log.Info($"reload: rows={Rows.Count} ({Mode}), folders={Folders.Count}, "

@@ -3,8 +3,12 @@
 // NotificationCompat channel and iOS's UNUserNotificationCenter.
 //
 // Thin on purpose: what a pass SAYS is NewMailNotices, which is WinUI-free and unit-tested. What
-// is left here is the two things only the running desktop can answer, whether this process may
-// raise a toast at all, and putting one on screen.
+// is left here is the three things only the running desktop can answer, whether this process may
+// raise a toast at all, putting one on screen, and reading back the message a click named.
+//
+// The message travels in the toast's own arguments, which is the Windows shape of what macOS puts
+// in `userInfo` and Android in its intent extras (docs/background-sync.md). It has to: a click can
+// start the app, and then nothing this process remembers is left to look the message up in.
 //
 // Registration is needed in BOTH build shapes and takes a different call in each. A packaged
 // build registers against its MSIX identity, which is where the shell reads the name and icon it
@@ -15,6 +19,7 @@
 // Skipping registration altogether does not fail either: Show() simply puts nothing on screen,
 // which is indistinguishable from a mailbox with no new mail.
 
+using System.Collections.Generic;
 using System.IO;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
@@ -31,10 +36,11 @@ internal static class NewMailNotifier
     /// before the core can report any mail.
     /// </summary>
     /// <param name="onInvoked">
-    /// Runs when the user clicks a toast. It arrives on a background thread, so the handler
-    /// marshals its own work onto the UI thread.
+    /// Runs when the user clicks a toast, with the message it named or <c>null</c> where it named
+    /// none. It arrives on a background thread, so the handler marshals its own work onto the UI
+    /// thread.
     /// </param>
-    public static void Arm(Action onInvoked)
+    public static void Arm(Action<NotificationTarget?> onInvoked)
     {
         if (_armed)
         {
@@ -45,7 +51,8 @@ internal static class NewMailNotifier
             var manager = AppNotificationManager.Default;
             // Subscribed before Register, so a click on a toast raised by a previous run of this
             // app cannot arrive at a handler that is not there yet.
-            manager.NotificationInvoked += (_, _) => onInvoked();
+            manager.NotificationInvoked += (_, args) =>
+                onInvoked(NotificationTarget.From(args.Arguments));
             if (AppIdentity.IsPackaged)
             {
                 manager.Register();
@@ -117,6 +124,16 @@ internal static class NewMailNotifier
                 var builder = new AppNotificationBuilder()
                     .AddText(notice.Title)
                     .AddText(notice.Body);
+                // What a click opens. Left off the summary, which names no message: a toast with
+                // no arguments of ours activates the app and nothing more, which is exactly what
+                // a summary should do.
+                if (!string.IsNullOrEmpty(notice.MessageKey))
+                {
+                    var (account, message) =
+                        new NotificationTarget(notice.Group, notice.MessageKey).Arguments;
+                    builder.AddArgument(NotificationTarget.AccountArgument, account)
+                        .AddArgument(NotificationTarget.MessageArgument, message);
+                }
                 // The toast template's three text elements are exactly sender, subject and
                 // snippet. Added only when there is one: an account whose body sync has not run
                 // yet has none, and a third element holding nothing draws as a blank line.

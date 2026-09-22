@@ -22,8 +22,13 @@ namespace Allodia.Mailcal.Services;
 /// </param>
 /// <param name="Tag">The notification's own identity, unique per message.</param>
 /// <param name="Group">The account the notification belongs to, so a group can be cleared.</param>
+/// <param name="MessageKey">
+/// The message a click opens, by the stable key the core keys mail on; <see cref="Group"/> is the
+/// account half of the pair. Empty on the overflow summary, which stands for messages it does not
+/// name, so it has none to open and brings the app forward alone (docs/background-sync.md).
+/// </param>
 internal readonly record struct NewMailNotice(
-    string Title, string Body, string Preview, string Tag, string Group);
+    string Title, string Body, string Preview, string Tag, string Group, string MessageKey);
 
 /// <summary>Projects a background-sync outcome into the toasts to raise for it.</summary>
 internal static class NewMailNotices
@@ -63,7 +68,8 @@ internal static class NewMailNotices
                 message.Subject,
                 message.Preview,
                 "mailcal-" + message.MessageKey,
-                account.AccountId);
+                account.AccountId,
+                message.MessageKey);
         }
         // NewCount is the pass's true total; Messages is capped by the core. Only the difference
         // gets a summary, so a pass that fitted says nothing extra.
@@ -77,7 +83,8 @@ internal static class NewMailNotices
                 // quote and says nothing rather than quoting an arbitrary one.
                 string.Empty,
                 "mailcal-account-" + account.AccountId,
-                account.AccountId);
+                account.AccountId,
+                string.Empty);
         }
     }
 
