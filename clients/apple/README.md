@@ -112,8 +112,11 @@ arm64 only** (Apple-silicon Mac, arm64 iPhone + iPad); a universal Mac binary wo
      travels through (`docs/os-integration.md`): the profile must grant it to **both** ids, or the
      build signs cleanly, installs, appears in the share sheet and then quietly attaches nothing.
      In the portal: Identifiers ▸ **+** ▸ App ID `eu.allodia.mailcal.share` ▸ enable *App Groups* ▸
-     assign `group.eu.allodia.mailcal`, then a **Mac App Store** profile for that id as well.
-     `package.sh` checks the app's half only, so the extension's is on you.
+     assign `group.eu.allodia.mailcal`, then a **Mac App Store** profile for that id as well,
+     authorising the same Apple Distribution cert. `package.sh` embeds it in the `.appex` and fails
+     before signing when there is none; `MAS_SHARE_PROVISIONING_PROFILE=<path>` points at one kept
+     elsewhere. Without it the upload is refused with ITMS-90283 (*Missing code-signing
+     certificate*), because the extension would carry the archive's development profile.
 
      (The **development** profile the archive itself uses stays auto-managed via
      `-allowProvisioningUpdates`, and *that* one embeds a device list, so the team still needs **at
@@ -223,8 +226,9 @@ Macs the profile lists and keeps its data in the sandbox's container.
 
 ⚠️ **The Share Extension keeps the profile the archive embedded**, Xcode's wildcard *Mac Team
 Provisioning Profile*, which grants no group, while it is signed claiming
-`group.eu.allodia.mailcal`. This flow's pass leaves it the same way, so Flow E is faithful to the
-Store build here too. Whether a share still reaches the app under it has not been measured.
+`group.eu.allodia.mailcal`. This flow's pass leaves it there, and here Flow E and the Store build
+differ: Flow B embeds the extension's own Mac App Store profile. Whether a share still reaches the
+app under Flow E's has not been measured.
 
 For the dev loop, `Scripts/build-and-run.sh --macos --sandboxed` gives the app the same
 entitlements in seconds rather than an archive's minutes, with a debug core.

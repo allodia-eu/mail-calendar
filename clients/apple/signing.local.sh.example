@@ -37,10 +37,13 @@ NOTARY_KEYCHAIN_PROFILE="AllodiaNotary"
 # Profiles ▸ + ▸ "Mac App Store" ▸ your App ID ▸ pick that cert ▸ Generate ▸ Download,
 # then double-click to install. package.sh auto-finds it (both standard profile folders). If it's
 # somewhere non-standard, point at it explicitly by uncommenting MAS_PROVISIONING_PROFILE below.
+# The Share Extension (App ID <your app id>.share) needs a Mac App Store profile of its own, made
+# the same way against the same cert; MAS_SHARE_PROVISIONING_PROFILE points at one kept elsewhere.
 # See clients/apple/README.md for the full account setup.
 APPLE_DISTRIBUTION_IDENTITY="Apple Distribution: REPLACE (REPLACE_WITH_TEAM_ID)"
 MAC_INSTALLER_IDENTITY="3rd Party Mac Developer Installer: REPLACE (REPLACE_WITH_TEAM_ID)"
 # MAS_PROVISIONING_PROFILE="$HOME/Downloads/Allodia_Mail_Mac_App_Store.provisionprofile"
+# MAS_SHARE_PROVISIONING_PROFILE="$HOME/Downloads/Allodia_Mail_Share_Mac_App_Store.provisionprofile"
 
 # ---- Flow E only (--sandboxed: the Store's app, run on this Mac) --------------------------------
 # Signs with your Apple Development cert against a macOS App Development profile that grants the

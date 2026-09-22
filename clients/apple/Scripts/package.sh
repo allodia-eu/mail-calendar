@@ -280,6 +280,7 @@ source "$CONFIG"
 : "${APPLE_DISTRIBUTION_IDENTITY:=}"
 : "${MAC_INSTALLER_IDENTITY:=}"
 : "${MAS_PROVISIONING_PROFILE:=}"
+: "${MAS_SHARE_PROVISIONING_PROFILE:=}"
 : "${MACOS_DEV_PROVISIONING_PROFILE:=}"
 : "${IOS_PROVISIONING_PROFILE:=}"
 : "${IOS_SHARE_PROVISIONING_PROFILE:=}"
@@ -866,6 +867,30 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   echo "    profile: $(basename "$PROFILE_FILE") (grants $APP_GROUP)"
   echo "    signing cert: $SIGN_ID"
   /bin/cp "$PROFILE_FILE" "$APP/Contents/embedded.provisionprofile"
+  xattr -c "$APP/Contents/embedded.provisionprofile"
+
+  # The Share Extension is an App ID of its own, so the Store wants a profile of its own in it, and
+  # checks the extension's signing cert against that profile's list just as it does the app's. The
+  # archive embeds Xcode's development profile, which lists no distribution cert, and App Store
+  # Connect refuses the upload: ITMS-90283 "Invalid Provisioning Profile … Missing code-signing
+  # certificate". Resolved against SIGN_ID alone, because every nested item is signed with the
+  # app's cert. Flow E keeps the archive's profile (clients/apple/README.md, Flow E).
+  SHARE_APPEX="$APP/Contents/PlugIns/AllodiaMailShare.appex"
+  SHARE_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SHARE_APPEX/Contents/Info.plist")"
+  if [[ "$FLOW" == app-store ]]; then
+    SHARE_PROFILE_FILE="$(resolve_profile "$DEVELOPMENT_TEAM.$SHARE_BUNDLE_ID" "$SIGN_ID" \
+                           "$MAS_SHARE_PROVISIONING_PROFILE" "$APP_GROUP" OSX distribution | cut -f1)"
+    [[ -n "$SHARE_PROFILE_FILE" ]] || fail "no Mac App Store provisioning profile for $DEVELOPMENT_TEAM.$SHARE_BUNDLE_ID
+       authorises the cert the app signs with ($SIGN_ID) AND grants the app group '$APP_GROUP'.
+       In the developer portal: Identifiers ▸ $SHARE_BUNDLE_ID ▸ App Groups ▸ assign '$APP_GROUP' ▸
+       Save, then Profiles ▸ + ▸ 'Mac App Store Connect' ▸ App ID $SHARE_BUNDLE_ID ▸ pick that cert ▸
+       Generate ▸ Download, then copy it into place:
+         cp ~/Downloads/<name>.provisionprofile ~/Library/MobileDevice/Provisioning\\ Profiles/
+       (or point MAS_SHARE_PROVISIONING_PROFILE=<path> at the download in $CONFIG). Then re-run."
+    echo "    share extension profile: $(basename "$SHARE_PROFILE_FILE")"
+    /bin/cp "$SHARE_PROFILE_FILE" "$SHARE_APPEX/Contents/embedded.provisionprofile"
+    xattr -c "$SHARE_APPEX/Contents/embedded.provisionprofile"
+  fi
 
   # Reconstruct the distribution entitlements that xcodebuild would inject: the sandbox set from
   # App/AllodiaMail.appstore.entitlements, with $(AppIdentifierPrefix) resolved to the team id and
@@ -925,16 +950,20 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   # ⚠️ The Store archive is the ONE macOS build that can carry this group, because it is the one
   # signed against a provisioning profile; every other macOS build takes
   # App/AllodiaMailShare.macOS.entitlements and a home-relative grant instead (that file carries
-  # the measurement). So the Mac App Store profile must grant the group to the EXTENSION's App ID
-  # as well as to the app's, and the resolver below only checks the app's.
+  # the measurement). So the extension's Mac App Store profile must grant the group as well as the
+  # app's, and the resolver above checks both.
   #
-  # Deliberately no com.apple.application-identifier / team-identifier, matching the relay: the
-  # archive's own automatic signing embedded a profile in the .appex and this pass leaves it
-  # there. If App Store validation turns out to want the pair as well, that is the point to add
-  # both, together, and re-measure.
+  # On the Store it carries its own profile (above), so it takes the pair the app takes,
+  # application-identifier and team-identifier, naming its own App ID: that pair is what ties a
+  # signature to the profile embedded beside it, and codesign does not inject it. Flow E keeps the
+  # archive's profile and signs without the pair, as it always has.
   SHARE_ENTS="$BUILD/appstore.share.entitlements"
   sed -e "s/\$(MAILCAL_HOST_APP_ID)/${BUNDLE_ID}/g" \
     "$HERE/App/AllodiaMailShare.entitlements" >"$SHARE_ENTS"
+  if [[ "$FLOW" == app-store ]]; then
+    /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string ${DEVELOPMENT_TEAM}.${SHARE_BUNDLE_ID}" "$SHARE_ENTS"
+    /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string ${DEVELOPMENT_TEAM}" "$SHARE_ENTS"
+  fi
   plutil -convert xml1 "$SHARE_ENTS"
   plutil -lint "$SHARE_ENTS" >/dev/null \
     || fail "the resolved Share Extension entitlements are not a valid plist ($SHARE_ENTS)."
@@ -1010,6 +1039,15 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
     echo "    apart from the .dmg build's (docs/debugging.md, section 8)."
     exit 0
   fi
+
+  # The Store refuses a payload carrying com.apple.quarantine anywhere (ITMS-91109), and reports it
+  # only after the upload, while processing. A profile downloaded in a browser carries it, and `cp`
+  # keeps it even with -X (measured), which is why both profile copies above are followed by
+  # `xattr -c`; this catches any other way in.
+  QUARANTINED="$(xattr -r "$APP" 2>/dev/null \
+    | awk -F': ' '$2 == "com.apple.quarantine" { print "         " $1 }')"
+  [[ -z "$QUARANTINED" ]] || fail "the app carries com.apple.quarantine, which App Store Connect refuses (ITMS-91109):
+$QUARANTINED"
 
   # Build + sign the Store installer.
   PKG="$EXPORT/AllodiaMail.pkg"
