@@ -281,6 +281,12 @@ class MainActivity : AppCompatActivity() {
     // `connectError`).
     internal var addError by mutableStateOf<String?>(null)
 
+    // A connect that was refused for a certificate, kept whole rather than as its message: the
+    // form offers to accept it, and the generated message dumps the certificate into one line
+    // (docs/certificate-exceptions.md rule 3). `addAccount` connects on a thread of its own, so
+    // this is the only way back from it.
+    internal var addFailure by mutableStateOf<ConnectFailure?>(null)
+
     // A certificate already accepted during this setup. The refusal itself lives in the form,
     // which is a question; this is the answer, and it outlives a retry that then fails on the
     // password so nobody is asked the same thing twice (docs/certificate-exceptions.md).

@@ -95,6 +95,10 @@ internal const val JMAP_SIGNIN_PROBE_DEBOUNCE_MS = 600L
 @androidx.compose.runtime.Composable
 internal fun AccountSetupScreen(
     externalError: String? = null,
+    // A connect that ran somewhere else and came back refused. `addAccount` connects on its own
+    // thread, so its answer cannot be the return of `onConnect`; it arrives here instead, and is
+    // answered on this form exactly as one of its own would be.
+    externalFailure: ConnectFailure? = null,
     onCancel: (() -> Unit)? = null,
     signingIn: Boolean = false,
     signingInGoogle: Boolean = false,
@@ -147,7 +151,10 @@ internal fun AccountSetupScreen(
     // Gates the Google sign-in button: the user must confirm they've signed up for Early Access
     // before we open the browser (Google hard-blocks anyone not on the allow-list).
     var googleEarlyAccessConfirmed by remember { mutableStateOf(false) }
-    var failure by remember { mutableStateOf<ConnectFailure?>(null) }
+    var ownFailure by remember { mutableStateOf<ConnectFailure?>(null) }
+    // Whichever connect answered last. The two cannot both be live: a submit clears its own
+    // before it starts, and the activity clears the outside one when the form closes.
+    val failure = ownFailure ?: externalFailure
     // A different certificate is a different decision, so an acceptance never carries over to
     // one nobody has been shown.
     var certificateAccepted by remember(failure?.certificate) { mutableStateOf(false) }
@@ -319,7 +326,7 @@ internal fun AccountSetupScreen(
                 connecting = connecting,
                 label = L10n.action_connect(ctx),
                 onClick = {
-                    failure = onConnectJmap(
+                    ownFailure = onConnectJmap(
                         JmapSetup(
                             email = username,
                             serverUrl = jmapServer.ifBlank { null },
@@ -333,7 +340,7 @@ internal fun AccountSetupScreen(
                 connecting = connecting,
                 label = L10n.action_connect(ctx),
                 onClick = {
-                    failure = onConnect(
+                    ownFailure = onConnect(
                         AccountSetup(
                             imapHost = servers.imap.dial(imapHost),
                             username = username,
