@@ -6,9 +6,14 @@
 //! this layer can give: whether the account reached its server ([`Reach`], for the outage badge)
 //! and whether its sign-in was refused. It also writes the pass to the diagnostic log.
 
+use std::time::Duration;
+
 use engine_api::{Engine, MailSyncReport, Provider, StreamTuning, SyncError, SyncObserver};
 
-use crate::{Account, connectivity::is_signin_expired};
+use crate::{
+    Account,
+    connectivity::{is_signin_expired, is_throttled, throttled_for},
+};
 
 /// The result of one per-account sync pass.
 #[derive(Debug, Clone, Copy)]
@@ -21,6 +26,14 @@ pub(crate) struct SyncAccountOutcome {
     pub(crate) signin_expired: Option<bool>,
     /// How many scopes were skipped because another sync already held them.
     pub(crate) busy_scopes: usize,
+    /// The longest wait any scope's provider **named** this pass, where one did.
+    ///
+    /// The longest, because coming back before the furthest-out instant just meets the same
+    /// refusal again; and only where the server named one, since the engine reports an instant
+    /// exactly when it declined to absorb the wait itself (`http-throttling.md`). `None` means
+    /// nothing was throttled, or nothing said when. Either way the caller keeps its own
+    /// schedule.
+    pub(crate) throttled_for: Option<Duration>,
 }
 
 /// Syncs one account's mail **concurrently**: sync the folder list **once**, then stream
@@ -49,6 +62,7 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
             reachable: None,
             signin_expired: None,
             busy_scopes: 0,
+            throttled_for: None,
         };
     }
 
@@ -71,6 +85,7 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
         signin_expired: signin_expired(list_reach, folder_reaches.iter().copied()),
         busy_scopes: usize::from(list_reach == Reach::Busy)
             + folder_reaches.iter().filter(|r| **r == Reach::Busy).count(),
+        throttled_for: longest_stated_wait(&report),
     }
 }
 
@@ -175,9 +190,29 @@ enum Reach {
     /// ([`is_signin_expired`]): an expired or revoked OAuth grant. The server answered, so this
     /// is not an outage; it needs a fresh sign-in, which is a different prompt.
     Expired,
+    /// The op was refused by a rate limit: the server answered, promptly, and declined to do
+    /// the work yet. **Reached, not an outage**: the badge that says "can't reach the server"
+    /// would send someone to check a network that is working perfectly.
+    Throttled,
     /// The op was skipped because a concurrent sync held the scope ([`ApiError::Busy`]); no
     /// bearing on reachability.
     Busy,
+}
+
+/// The furthest-out instant any scope in this pass was given.
+///
+/// A pass fans out, so several scopes can be refused at once and each may name its own window;
+/// the caller wants the one that clears last, because returning before it meets the same
+/// refusal again and spends a round trip proving it.
+fn longest_stated_wait(report: &MailSyncReport) -> Option<Duration> {
+    let folders = report.folders.iter().map(|folder| &folder.result);
+    report
+        .mailboxes
+        .iter()
+        .chain(folders)
+        .filter_map(|result| result.as_ref().err())
+        .filter_map(|err| throttled_for(err))
+        .max()
 }
 
 /// Classifies one sync result: success reached the server, a [`ApiError::Busy`] is a
@@ -190,6 +225,7 @@ fn reach_of<T>(result: &Result<T, SyncError>) -> Reach {
         // `&ApiError` coerces to `&dyn Error`; the classifier walks its `source()` chain to the
         // typed provider failure and reads the engine's own class.
         Err(err) if is_signin_expired(err) => Reach::Expired,
+        Err(err) if is_throttled(err) => Reach::Throttled,
         Err(_) => Reach::Unreachable,
     }
 }
@@ -209,7 +245,9 @@ fn reachability(list: Reach, folders: impl Iterator<Item = Reach>) -> Option<boo
     let mut any_unreachable = false;
     for reach in std::iter::once(list).chain(folders) {
         match reach {
-            Reach::Reached => any_reached = true,
+            // A throttle is the server answering, so it settles reachability exactly as a
+            // success does.
+            Reach::Reached | Reach::Throttled => any_reached = true,
             Reach::Expired => any_expired = true,
             Reach::Unreachable => any_unreachable = true,
             Reach::Busy => {}
@@ -246,7 +284,10 @@ fn signin_expired(list: Reach, folders: impl Iterator<Item = Reach>) -> Option<b
         match reach {
             Reach::Reached => any_reached = true,
             Reach::Expired => any_expired = true,
-            Reach::Unreachable | Reach::Busy => {}
+            // A throttle proves the server answered, but says nothing about the
+            // *credential*, which is refused before it is examined. So it neither raises the
+            // prompt nor retracts one the user still has to act on.
+            Reach::Throttled | Reach::Unreachable | Reach::Busy => {}
         }
     }
     match (any_reached, any_expired) {
@@ -259,6 +300,29 @@ fn signin_expired(list: Reach, folders: impl Iterator<Item = Reach>) -> Option<b
 #[cfg(test)]
 mod reachability_tests {
     use super::{Reach, reachability, signin_expired};
+
+    #[test]
+    fn a_rate_limited_account_is_reachable_not_offline() {
+        // A throttle is the server answering promptly and declining the work. Reading it as
+        // an outage puts "can't reach the server" over an account whose network is fine, and
+        // sends the user to check their wifi.
+        let throttled = || [Reach::Throttled, Reach::Throttled].into_iter();
+        assert_eq!(reachability(Reach::Throttled, throttled()), Some(true));
+        // And it says nothing about the credential either way: the request was refused
+        // before it was examined.
+        assert_eq!(signin_expired(Reach::Throttled, throttled()), None);
+    }
+
+    #[test]
+    fn a_throttle_does_not_retract_a_prompt_the_user_still_has_to_act_on() {
+        // The dangerous direction: a pass that is refused for rate and refused for credential
+        // must keep the reconnect prompt up, because the throttled scopes never proved the
+        // credential works.
+        assert_eq!(
+            signin_expired(Reach::Expired, [Reach::Throttled].into_iter()),
+            Some(true),
+        );
+    }
 
     #[test]
     fn a_refused_credential_raises_the_prompt_and_is_not_an_outage() {

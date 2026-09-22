@@ -87,25 +87,41 @@ impl ThrottleObserver for LogThrottles {
 fn describe(event: &ThrottleEvent<'_>) -> (log::Level, String) {
     let provider = event.provider;
     let millis = event.delay.as_millis();
+    let tries = event.attempt.saturating_add(1);
     if event.gave_up {
         // The one a slow sync is explained by, so it is a warning: the pass stopped early
         // and the rest waits for the next one.
-        return (
-            log::Level::Warn,
-            format!(
-                "{provider}: still limiting us after {} tries and {millis}ms of waiting; \
-                 the rest waits for the next sync",
-                event.attempt.saturating_add(1),
+        //
+        // Where the server named an instant, say it. That is the whole difference between a
+        // line a reader can act on and one that only reports a stall: the engine declines a
+        // long wait rather than sleeping a task through it, so on this path `delay` is
+        // usually nothing and the instant is the only number worth printing.
+        let line = match event.stated {
+            Some(stated) => format!(
+                "{provider}: still limiting us after {tries} tries; it says {}s before it \
+                 will take more, so the rest waits for the next sync",
+                stated.as_secs(),
             ),
-        );
+            None => format!(
+                "{provider}: still limiting us after {tries} tries and {millis}ms of \
+                 waiting; the rest waits for the next sync"
+            ),
+        };
+        return (log::Level::Warn, line);
     }
     let next = event.attempt.saturating_add(2);
-    let line = if event.server_asked {
-        format!(
-            "{provider}: limiting how fast we can fetch; it asked for {millis}ms before try {next}"
-        )
-    } else {
-        format!("{provider}: limiting how fast we can fetch; waiting {millis}ms before try {next}")
+    let line = match event.stated {
+        // `delay` is the server's figure plus jitter, so the two differ by a little and
+        // printing the one it asked for is the honest half.
+        Some(stated) => format!(
+            "{provider}: limiting how fast we can fetch; it asked for {}ms before try {next}",
+            stated.as_millis(),
+        ),
+        None => {
+            format!(
+                "{provider}: limiting how fast we can fetch; waiting {millis}ms before try {next}"
+            )
+        }
     };
     (log::Level::Info, line)
 }
@@ -124,7 +140,7 @@ mod tests {
             status: 429,
             attempt: 0,
             delay: Duration::from_millis(750),
-            server_asked: false,
+            stated: None,
             gave_up: false,
         }
     }
@@ -140,12 +156,32 @@ mod tests {
 
     #[test]
     fn a_server_that_named_its_own_delay_says_so() {
+        // The figure printed is the server's, not the one the engine will sleep. Those
+        // differ by the jitter the engine adds above it, and quoting the server back to
+        // itself is what makes the line checkable against the provider's own docs.
         let (_, line) = describe(&ThrottleEvent {
-            server_asked: true,
-            delay: Duration::from_secs(30),
+            stated: Some(Duration::from_secs(30)),
+            delay: Duration::from_millis(30_400),
             ..event()
         });
         assert!(line.contains("it asked for 30000ms"), "{line}");
+    }
+
+    #[test]
+    fn giving_up_on_a_named_instant_says_when_rather_than_how_little_it_waited() {
+        // The line this whole change exists for. The engine declines a long wait instead of
+        // sleeping a task through it, so `delay` here is nothing at all; a line reporting
+        // that would say "0ms of waiting" and leave a reader none the wiser.
+        let (level, line) = describe(&ThrottleEvent {
+            gave_up: true,
+            attempt: 0,
+            delay: Duration::ZERO,
+            stated: Some(Duration::from_secs(47)),
+            ..event()
+        });
+        assert_eq!(level, log::Level::Warn);
+        assert!(line.contains("47s"), "{line}");
+        assert!(!line.contains("0ms"), "{line}");
     }
 
     #[test]
@@ -206,10 +242,10 @@ mod tests {
         // The event carries no URL by construction; this locks the log line to the same rule
         // (`docs/logging.md`), since a request path names a mailbox or a message.
         for gave_up in [false, true] {
-            for server_asked in [false, true] {
+            for stated in [None, Some(Duration::from_secs(30))] {
                 let (_, line) = describe(&ThrottleEvent {
                     gave_up,
-                    server_asked,
+                    stated,
                     ..event()
                 });
                 assert!(!line.contains("http"), "{line}");

@@ -12,7 +12,9 @@ use engine_provider::ProviderError;
 use fakes::{FakeProvider, account, account_with, app};
 
 use super::{Intent, Surface};
-use crate::connectivity::{is_graph_permission_denied, is_signin_expired};
+use crate::connectivity::{
+    is_graph_permission_denied, is_signin_expired, is_throttled, throttled_for,
+};
 
 // The shared fixtures are also included by `tests.rs`; each test file compiles them into its
 // own module tree, which is intentional (they share no state); silence the duplicate-load lint.
@@ -290,4 +292,49 @@ async fn a_successful_sync_retracts_the_expired_signin_prompt() {
         app.connectivity().signin_expired_accounts.is_empty(),
         "a sync that reached the server proves the credential works; retract the prompt",
     );
+}
+
+/// An ISO-8601-shaped duration of `seconds`, as a provider hands one to the engine.
+fn seconds(seconds: u64) -> engine_core::time::Duration {
+    engine_core::time::Duration::from_parts(0, 0, 0, 0, seconds, 0).expect("in range")
+}
+
+#[test]
+fn a_rate_limit_is_read_off_the_class_not_the_wording() {
+    // Same rule as the sign-in prompt: every adapter already maps its own flavour of "not so
+    // fast" onto one class, so a new provider is covered the day it is added. And the walk
+    // has to reach it through the wrapper the engine actually nests it in.
+    assert!(is_throttled(&ProviderError::rate_limited(
+        "slow down",
+        None
+    )));
+    assert!(is_throttled(&Wrapped(ProviderError::rate_limited(
+        "quota exceeded",
+        Some(seconds(47)),
+    ))));
+    assert!(!is_throttled(&ProviderError::retryable("connection reset")));
+    assert!(!is_throttled(&ProviderError::authentication("token dead")));
+}
+
+#[test]
+fn the_instant_survives_the_walk_to_the_provider_failure() {
+    assert_eq!(
+        throttled_for(&Wrapped(ProviderError::rate_limited(
+            "quota exceeded",
+            Some(seconds(47)),
+        ))),
+        Some(std::time::Duration::from_secs(47)),
+    );
+}
+
+#[test]
+fn a_throttle_that_named_nothing_asks_for_no_particular_wait() {
+    // Two Gmail refusals in three state the quota and not its window, so this is the common
+    // case and must read as "keep your own schedule", never as zero.
+    assert_eq!(
+        throttled_for(&ProviderError::rate_limited("quota exceeded", None)),
+        None,
+    );
+    // And a failure that is not a throttle at all names nothing either, whatever else it is.
+    assert_eq!(throttled_for(&ProviderError::retryable("blip")), None);
 }

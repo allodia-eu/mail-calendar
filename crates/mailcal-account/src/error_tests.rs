@@ -25,6 +25,9 @@ fn jmap_status(status: u16) -> JmapError {
     JmapError::Status {
         status,
         body: "{}".to_owned(),
+        // The engine carries a server's own instant here now; nothing this fake stands in
+        // for names one.
+        retry_after: None,
     }
 }
 
