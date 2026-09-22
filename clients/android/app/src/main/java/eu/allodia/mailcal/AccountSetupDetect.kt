@@ -37,7 +37,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.AccountSetup
+import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.JmapSetup
+import uniffi.mailcal_bindings.MailServerKind
 import uniffi.mailcal_bindings.MissReason
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.SetupRecommendation
@@ -64,6 +66,9 @@ internal fun AccountSetupFlow(
     onCheckJmapSignIn: (suspend (String, String) -> Boolean)? = null,
     onSignInJmap: (String, String) -> Unit = { _, _ -> },
     signingInJmap: Boolean = false,
+    // The core's standard port for a server kind and security, threaded through to the manual
+    // form. Null suggests no port, which is what a preview and a JVM test get.
+    standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,
     // Which account types the manual form's picker shows; threaded straight through.
     offeredKinds: List<AccountKind> = AccountKind.entries,
     // Documentation screenshots only (docs/user-docs.md); null on every real launch.
@@ -233,6 +238,7 @@ internal fun AccountSetupFlow(
                 onSignInGoogle = onSignInGoogle,
                 onConnect = onConnect,
                 onConnectJmap = onConnectJmap,
+                standardPort = standardPort,
                 onCheckJmapSignIn = onCheckJmapSignIn,
                 onSignInJmap = onSignInJmap,
                 signingInJmap = signingInJmap,

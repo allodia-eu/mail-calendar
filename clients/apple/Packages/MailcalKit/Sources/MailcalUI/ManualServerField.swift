@@ -1,3 +1,4 @@
+import Foundation
 import MailcalBindings
 
 /// One server's connection security and port on the manual setup form.

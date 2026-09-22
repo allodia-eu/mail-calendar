@@ -2,7 +2,6 @@ package eu.allodia.mailcal
 
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.MailServerKind
-import uniffi.mailcal_bindings.standardPort
 
 /**
  * One server's connection security and port on the manual setup form.
@@ -16,19 +15,24 @@ import uniffi.mailcal_bindings.standardPort
  * copy of it, Compose-free so it can be tested without composing a screen.
  *
  * The standard port is passed in rather than fetched, because the JVM suite that tests this loads
- * no cdylib: a call across the FFI here would be a rule no test could reach. [forKind] is what the
- * screen uses; the numbers themselves are pinned against the core in `mailcal-bindings`.
+ * no cdylib: a call across the FFI here would crash every test that composes the screen, and the
+ * rule would be one no test could reach. [ManualServerPair.fromCore] is what the app uses;
+ * the numbers themselves are pinned against the core in `mailcal-bindings`.
+ *
+ * A null lookup means no port is suggested. That is what a preview or a test gets, and it is
+ * still correct: a blank port submits a bare host, which the core resolves to the same standard
+ * port it would have offered.
  */
 class ManualServerField private constructor(
-    private val standard: (ConnectionSecurity) -> Int,
+    private val standard: ((ConnectionSecurity) -> Int)?,
     val security: ConnectionSecurity,
     val port: String,
     private val typedByHand: Boolean,
 ) {
-    constructor(standard: (ConnectionSecurity) -> Int) : this(
+    constructor(standard: ((ConnectionSecurity) -> Int)?) : this(
         standard,
         ConnectionSecurity.IMPLICIT_TLS,
-        standard(ConnectionSecurity.IMPLICIT_TLS).toString(),
+        standard.suggest(ConnectionSecurity.IMPLICIT_TLS),
         false,
     )
 
@@ -39,7 +43,7 @@ class ManualServerField private constructor(
     fun choose(chosen: ConnectionSecurity): ManualServerField = ManualServerField(
         standard,
         chosen,
-        if (typedByHand) port else standard(chosen).toString(),
+        if (typedByHand) port else standard.suggest(chosen),
         typedByHand,
     )
 
@@ -53,7 +57,7 @@ class ManualServerField private constructor(
         return ManualServerField(
             standard,
             security,
-            if (byHand) typed else standard(security).toString(),
+            if (byHand) typed else standard.suggest(security),
             byHand,
         )
     }
@@ -67,7 +71,7 @@ class ManualServerField private constructor(
         return ManualServerField(
             standard,
             detected,
-            found.ifEmpty { standard(detected).toString() },
+            found.ifEmpty { standard.suggest(detected) },
             found.isNotEmpty(),
         )
     }
@@ -83,10 +87,6 @@ class ManualServerField private constructor(
     }
 
     companion object {
-        /** The field for one of an account's two servers, its ports answered by the core. */
-        fun forKind(kind: MailServerKind) =
-            ManualServerField { security -> standardPort(kind, security).toInt() }
-
         /**
          * Splits a typed server into host and port.
          *
@@ -105,8 +105,25 @@ class ManualServerField private constructor(
     }
 }
 
-/** An account's two servers, so the form carries one value rather than four. */
+/** The port this lookup offers for [security], or none when there is no lookup. */
+private fun ((ConnectionSecurity) -> Int)?.suggest(security: ConnectionSecurity): String =
+    this?.invoke(security)?.toString() ?: ""
+
+/**
+ * An account's two servers, so the form carries one value rather than four.
+ *
+ * Built from a lookup the caller supplies, so nothing here reaches the core on its own; the
+ * default suggests no port, which is what a preview and a JVM test get.
+ */
 data class ManualServerPair(
-    val imap: ManualServerField = ManualServerField.forKind(MailServerKind.IMAP),
-    val smtp: ManualServerField = ManualServerField.forKind(MailServerKind.SMTP),
-)
+    val imap: ManualServerField = ManualServerField(null),
+    val smtp: ManualServerField = ManualServerField(null),
+) {
+    companion object {
+        /** The pair the running app uses, its ports answered by the core. */
+        fun fromCore(standardPort: (MailServerKind, ConnectionSecurity) -> Int) = ManualServerPair(
+            imap = ManualServerField { security -> standardPort(MailServerKind.IMAP, security) },
+            smtp = ManualServerField { security -> standardPort(MailServerKind.SMTP, security) },
+        )
+    }
+}

@@ -11,7 +11,7 @@ use super::{
     setup_manual::FormSnapshot,
     setup_model::{AccountSubmission, DetectedServer, ImapForm, ImapSubmission, ManualForm},
     setup_server_field::ServerPair,
-    setup_server_row::server_row,
+    setup_server_row::manual_server_row,
     setup_widgets::{
         actions, caption, certificate_accepted, certificate_gate, detected_row,
         edit_manually_button, entry, gate_connect, primary, section, show_error, trust_approved,
@@ -94,7 +94,7 @@ pub(super) fn manual_fields(
     content.append(&caption(l10n::setup_credentials_note()));
     let email = entry(l10n::setup_field_email(), &form.email, false);
     content.append(&email);
-    let imap = server_row(
+    let imap = manual_server_row(
         content,
         l10n::setup_field_mail_server(),
         &form.imap_host,
@@ -102,7 +102,7 @@ pub(super) fn manual_fields(
     );
     let password = entry(l10n::setup_field_password(), "", true);
     content.append(&password);
-    let smtp = server_row(
+    let smtp = manual_server_row(
         content,
         l10n::setup_field_smtp_optional(),
         &form.smtp_host,

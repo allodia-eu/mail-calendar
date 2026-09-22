@@ -15,13 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -36,10 +34,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountSetup
+import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.JmapSetup
+import uniffi.mailcal_bindings.MailServerKind
 import uniffi.mailcal_bindings.OAuthRoutes
 
 // The account kinds the setup form can offer (the two OAuth providers, Microsoft and Google, sit
@@ -108,6 +107,11 @@ internal fun AccountSetupScreen(
     // caller runs it off-main; null (the default) means "never offer it", which keeps every
     // existing preview and test rendering the plain form.
     onCheckJmapSignIn: (suspend (String, String) -> Boolean)? = null,
+    // The port a server of each kind conventionally uses, answered by the core. Null (the
+    // default) suggests no port, which keeps every preview and JVM test rendering the plain form
+    // without reaching the cdylib; a blank port submits a bare host, and the core resolves it to
+    // the same number this would have offered.
+    standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,
     // Starts the JMAP browser sign-in for the typed email + server.
     onSignInJmap: (String, String) -> Unit = { _, _ -> },
     signingInJmap: Boolean = false,
@@ -129,7 +133,9 @@ internal fun AccountSetupScreen(
     var smtpHost by remember { mutableStateOf(prefillSmtpHost) }
     // Each server's port and connection security. The host fields hold the name alone; the port
     // sits beside it, where the user can see and change it.
-    var servers by remember { mutableStateOf(ManualServerPair()) }
+    var servers by remember(standardPort) {
+        mutableStateOf(standardPort?.let(ManualServerPair::fromCore) ?: ManualServerPair())
+    }
     var caldavBaseUrl by remember { mutableStateOf("") }
     // JMAP reuses the shared username/password state (only one kind is active at a time), the
     // secret is one field, whether the server issued a password or an API token.
@@ -451,43 +457,4 @@ internal fun ConnectButton(
             Text(label)
         }
     }
-}
-
-// A single-line text field for the setup form; [placeholder] is shown when empty and
-// [keyboardType] tailors the soft keyboard (email/password vs. plain text).
-@androidx.compose.runtime.Composable
-internal fun SetupField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    placeholder: String? = null,
-    keyboardType: KeyboardType = KeyboardType.Text,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        label = { Text(label) },
-        placeholder = placeholder?.let { text -> { Text(text) } },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-    )
-}
-
-// A single-line, masked field for a password or API token in the setup form.
-@androidx.compose.runtime.Composable
-internal fun PasswordField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        label = { Text(label) },
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-    )
 }

@@ -24,7 +24,7 @@ pub(super) struct ServerRow {
 }
 
 /// Builds the row and appends it to `content`.
-pub(super) fn server_row(
+pub(super) fn manual_server_row(
     content: &gtk::Box,
     label: &str,
     host_value: &str,

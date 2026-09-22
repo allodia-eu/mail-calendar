@@ -45,6 +45,11 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
                                     setupStartOffer = null
                                 }
                             },
+                            // The running app answers from the core, so the manual form's port
+                            // box and the address the core dials are the same number.
+                            standardPort = { kind, security ->
+                                uniffi.mailcal_bindings.standardPort(kind, security).toInt()
+                            },
                             startEmail = setupStartEmail,
                             startOffer = setupStartOffer,
                             // The recommendation is first-run only; the offers are not, because
