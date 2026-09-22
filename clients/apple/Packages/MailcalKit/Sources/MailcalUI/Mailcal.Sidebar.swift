@@ -126,14 +126,7 @@ extension ContentView {
                         Button {
                             model.setAccountExpanded(account.id, !account.expanded)
                         } label: {
-                            Image(systemName: account.expanded ? "chevron.down" : "chevron.right")
-                                .font(.caption)
-                                // A pointer hits the glyph; a finger needs the area around it, and
-                                // a near miss here is not a no-op, it lands on the account row and
-                                // navigates. The height stays inside the row so the target grows
-                                // without the row growing with it.
-                                .frame(width: chevronTargetWidth, height: 28)
-                                .contentShape(Rectangle())
+                            sidebarChevron(expanded: account.expanded)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(
@@ -258,18 +251,32 @@ extension ContentView {
     /// The badge is on the child, not here, for the reason an account row carries none: a roll-up
     /// would sit directly above an identical number on the row beneath it.
     @ViewBuilder private var allAccountsGroup: some View {
-        sidebarRow(
-            title: L10n.sidebar_all_accounts(),
-            icon: model.unifiedExpanded ? "chevron.down" : "chevron.right",
-            selected: false
-        ) { model.setUnifiedExpanded(!model.unifiedExpanded) }
-            // The glyph is a state, not a name, so the row is spoken as "All Accounts" and the
-            // hint is what says which way activating it goes.
-            .accessibilityHint(
-                model.unifiedExpanded
-                    ? L10n.a11y_collapse_account()
-                    : L10n.a11y_expand_account()
-            )
+        Button {
+            model.setUnifiedExpanded(!model.unifiedExpanded)
+        } label: {
+            HStack(spacing: 0) {
+                // The same chevron the accounts below carry, in the same slot: it says the same
+                // thing about the same kind of tree, so it is not the row's *icon*. Drawn as one
+                // it took the tint and the size a `Label`'s symbol gets in a sidebar, which put a
+                // large blue chevron directly above the small quiet ones.
+                sidebarChevron(expanded: model.unifiedExpanded)
+                Text(L10n.sidebar_all_accounts())
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // The whole row is the control (rule 17), so the whole row is the target.
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // The glyph is a state, not a name, so the row is spoken as "All Accounts" and the
+        // hint is what says which way activating it goes.
+        .accessibilityHint(
+            model.unifiedExpanded
+                ? L10n.a11y_collapse_account()
+                : L10n.a11y_expand_account()
+        )
         if model.unifiedExpanded {
             HStack(spacing: 0) {
                 disclosureSlot
@@ -297,10 +304,7 @@ extension ContentView {
             Button {
                 model.setFolderExpanded(account, folder.key, !folder.expanded)
             } label: {
-                Image(systemName: folder.expanded ? "chevron.down" : "chevron.right")
-                    .font(.caption)
-                    .frame(width: chevronTargetWidth, height: 28)
-                    .contentShape(Rectangle())
+                sidebarChevron(expanded: folder.expanded)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(
@@ -309,6 +313,22 @@ extension ContentView {
         } else {
             disclosureSlot
         }
+    }
+
+    /// The glyph that says whether a tree is open, wherever the pane draws one: an account's, a
+    /// folder's, and the All Accounts group's.
+    ///
+    /// One function because three chevrons a few points apart, in two different colours, read as
+    /// three different controls. Small and quiet on purpose: it reports a state, where the row
+    /// beside it goes somewhere.
+    func sidebarChevron(expanded: Bool) -> some View {
+        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+            .font(.caption)
+            // A pointer hits the glyph; a finger needs the area around it, and a near miss on an
+            // account is not a no-op, it lands on the row and navigates. The height stays inside
+            // the row so the target grows without the row growing with it.
+            .frame(width: chevronTargetWidth, height: 28)
+            .contentShape(Rectangle())
     }
 
     /// The space a disclosure control would take, for a row that has none to draw.

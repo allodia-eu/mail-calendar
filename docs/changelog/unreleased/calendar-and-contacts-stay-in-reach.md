@@ -9,7 +9,9 @@ Bump: patch
 > `NavigationView` footer and the `AdwToolbarView` bottom bar already give those two. And every
 > tree was drawn only while mail was the destination, so opening the calendar emptied the pane and
 > left no route back to the unified Inbox: the trees now follow their own expansion alone (rule 2),
-> and the destination decides which row is **lit**, not which rows exist.
+> and the destination decides which row is **lit**, not which rows exist. One chevron now serves
+> all three trees: the group's was drawn as its row's *icon*, so it took the tint and the size a
+> `Label`'s symbol gets in a sidebar and stood large and blue above the small quiet ones.
 
 **English**
 
