@@ -256,8 +256,9 @@ impl<P: Provider> App<P> {
     /// select what it just created without re-pulling the whole snapshot. Signals
     /// [`Surface::Settings`].
     // `async` with no inner `await` is intentional: every command method shares one async shape
-    // so `dispatch` and the FFI adapter drive them uniformly.
-    #[allow(clippy::unused_async)]
+    // so `dispatch` and the FFI adapter drive them uniformly. `unused_async_trait_impl` fires on
+    // inherent methods too, whenever the body ends in a value.
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn create_signature(
         &self,
         name: String,
@@ -279,7 +280,7 @@ impl<P: Provider> App<P> {
 
     /// Replaces a signature's name and body. Returns whether the id named one; an unknown id is
     /// a no-op rather than a silent create. Signals [`Surface::Settings`].
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn update_signature(
         &self,
         id: &str,
@@ -303,7 +304,7 @@ impl<P: Provider> App<P> {
 
     /// Deletes a signature and clears it from every account that used it. Returns whether the id
     /// named one. Signals [`Surface::Settings`].
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn delete_signature(&self, id: &str) -> bool {
         let Some(id) = SignatureId::new(id) else {
             return false;
