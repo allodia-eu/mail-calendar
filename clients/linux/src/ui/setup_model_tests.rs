@@ -112,8 +112,25 @@ fn setting_up_a_detected_account_by_hand_opens_its_own_type_prefilled() {
     };
 
     assert_eq!(manual.kind, AccountKind::Imap);
-    assert_eq!(manual.imap_host, "imap.example.test:143");
-    assert_eq!(manual.smtp_host, "smtp.example.test:587");
+    // The host field holds the name alone: the manual form shows the port beside it, so what
+    // detection found stays visible and editable rather than hiding inside the server name.
+    assert_eq!(manual.imap_host, "imap.example.test");
+    assert_eq!(manual.smtp_host, "smtp.example.test");
+    assert_eq!(manual.servers.imap.port(), "143");
+    assert_eq!(manual.servers.smtp.port(), "587");
+    assert_eq!(
+        manual.servers.imap.security(),
+        mailcal_bindings::ConnectionSecurity::StartTls,
+        "a detected STARTTLS server stays STARTTLS when it is edited by hand"
+    );
+    assert_eq!(
+        manual.servers.smtp.security(),
+        mailcal_bindings::ConnectionSecurity::StartTls
+    );
+    assert!(
+        !manual.servers.imap.follows_security(),
+        "the detected port is the user's to keep, so the picker must not move it"
+    );
     assert_eq!(manual.caldav_url, "https://calendar.example.test");
 
     let SetupForm::Detected(detected) = jmap_form() else {
