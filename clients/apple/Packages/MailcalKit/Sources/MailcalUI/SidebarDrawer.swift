@@ -106,7 +106,9 @@ struct SidebarDrawer<Sidebar: View, Content: View>: View {
     private func panel(width: CGFloat, offset: CGFloat, progress: CGFloat) -> some View {
         sidebar
             .frame(width: width)
-            .background(.background)
+            // The grouped background the sidebar list draws itself on, so what sits under the list
+            // (the pinned rows, the home indicator's strip) is the same surface as the list.
+            .background(Color(uiColor: .systemGroupedBackground))
             .compositingGroup()
             // Faded with the drag, because the shadow is cast to the trailing side: a shut panel
             // sits at `-width`, off-screen, and a shadow drawn at full strength there still spilled
