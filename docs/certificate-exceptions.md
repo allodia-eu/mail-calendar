@@ -104,9 +104,9 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Refusal carries the certificate, not just a message | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Certificate shown before it can be accepted | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
-| Connect inert until accepted | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
-| Acceptance stored with the account, asked once | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Certificate shown before it can be accepted | ✅ | ✅ | ✅ | 🚧 | 🚧 |
+| Connect inert until accepted | ✅ | ✅ | ✅ | 🚧 | 🚧 |
+| Acceptance stored with the account, asked once | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Detected card **and** manual form | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | Exception applies to IMAP, SMTP and CalDAV of that account | ✅ | ✅ | ✅ | ✅ | ✅ |
 
@@ -117,8 +117,16 @@ and SMTP listeners under the same name, so one acceptance connects both.
 macOS/iOS is verified end to end: a connect to a local listener serving a `CA:TRUE` self-signed
 certificate was refused and reported it, the panel drew the subject, issuer, validity window and
 fingerprint, Connect stayed disabled until the box was ticked, and the retry completed the TLS
-handshake and failed on the login instead. The other three are written against the same core
-surface and covered by their own unit suites, and are owed a run on their platform.
+handshake and failed on the login instead.
+
+Windows is verified against a running Proton Mail Bridge: the connect was refused and named the
+server, the panel's subject, issuer, validity window and SHA-256 matched what `openssl` read off
+the listener, Connect stayed inert until the box was ticked, the account then connected and
+synced, and a later launch did not ask again. Only its detected card has been driven, so the
+manual form keeps its 🚧.
+
+Android and Linux are written against the same core surface and covered by their own unit suites,
+and are owed a run on their platform.
 
 ## Known gaps
 
