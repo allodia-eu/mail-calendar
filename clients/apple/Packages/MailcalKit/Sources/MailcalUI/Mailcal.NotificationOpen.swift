@@ -110,9 +110,13 @@ extension ContentView {
     /// already had that chance is dropped rather than retried for the rest of the session.
     func openNotificationOpen(_ waiting: PendingNotificationOpen) {
         let target = waiting.target
+        // The reading pane lives in the mail surface, so a click arriving over the calendar or
+        // Contacts would open the message behind them and read as a click that did nothing.
+        // Not on the retry: that lands a snapshot later, by which time the person may have moved
+        // on deliberately.
+        if !waiting.navigated { showMail() }
         if openMessageInList(account: target.account, key: target.key) { return }
         guard !waiting.navigated else { return }
-        showMail()
         selectAccount(target.account)
         NotificationOpenInbox.waitForSnapshot(target)
     }

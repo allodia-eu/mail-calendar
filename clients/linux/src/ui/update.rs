@@ -7,7 +7,8 @@ use relm4::ComponentSender;
 
 use super::{
     AppInput, AppModel, AppWindow, PrimaryView, composer_model::ComposeKind,
-    mail_actions::DeleteTarget, reader::ReadingSource, setup_model,
+    mail_actions::DeleteTarget, notification_open::present_main_window, reader::ReadingSource,
+    setup_model,
 };
 use crate::l10n;
 
@@ -34,6 +35,8 @@ impl AppModel {
                 self.pull(&surface);
                 if collect_new_mail {
                     sender.input_sender().emit(AppInput::CollectNewMail);
+                    // After the pull, so the rows this snapshot brought are the ones searched.
+                    self.retry_notified_message();
                 }
                 // The list is a snapshot and the detail is a pull, so refreshing the rows leaves
                 // the pane beside them showing what the person held before the save that
@@ -489,6 +492,8 @@ impl AppModel {
             AppInput::BackgroundFinished => {
                 self.background_finished(sender.input_sender());
             }
+            AppInput::OpenNotifiedMessage(target) => self.open_notified_message(*target),
+            AppInput::ShowFromNotification => present_main_window(),
         }
     }
 }

@@ -84,6 +84,7 @@ mod message_move;
 mod microsoft;
 mod modal;
 mod model;
+mod notification_open;
 mod notifications;
 mod oauth_actions;
 mod oauth_loopback;
@@ -236,6 +237,9 @@ pub(crate) struct AppModel {
     pending_mailto: Option<mailcal_bindings::MailtoPrefill>,
     /// A share received before an account exists, held on the same terms as a mail link.
     pending_share: Option<mailcal_bindings::SharePrefill>,
+    /// The message a clicked notification named that the list did not hold, waiting for the one
+    /// snapshot the account switch it caused is worth ([`notification_open`]).
+    notification_wait: Option<notifications::NotificationTarget>,
     /// The navigation the open composer must be left for, and the counter it is drawn from. Its
     /// own sequence, not the composer's: two navigations away from one draft must each get an
     /// answer, and reusing the composer's generation would make the pane treat the second as

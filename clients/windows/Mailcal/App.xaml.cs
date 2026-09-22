@@ -65,12 +65,12 @@ public partial class App : Application
         // laid out, so nothing it pumps is too early. Nothing is lost by waiting either: a new-mail
         // scan reaches the UI thread through this same queue.
         //
-        // A click on a notification brings the app forward rather than opening the message; the
-        // deep link is a follow-up (docs/background-sync.md).
+        // The click arrives on a background thread, so what it does to the window is queued back
+        // onto this one (MainWindow.Notification.cs).
         _window.DispatcherQueue.TryEnqueue(
             Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
-            () => Services.NewMailNotifier.Arm(() =>
-                _window.DispatcherQueue.TryEnqueue(() => Shell?.BringToForeground())));
+            () => Services.NewMailNotifier.Arm(target =>
+                _window.DispatcherQueue.TryEnqueue(() => Shell?.OpenNotification(target))));
         // A mail link that arrived mid-startup: the window drains the inbox as it is built, and
         // Program parks a link there whenever the shell is not reachable yet, so the two can cross
         //, the window taking an empty inbox a moment before the link lands in it. Draining once

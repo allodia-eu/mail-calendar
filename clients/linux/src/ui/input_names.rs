@@ -176,6 +176,8 @@ impl fmt::Debug for AppInput {
             Self::AnalyticsDecided(_) => "AnalyticsDecided",
             Self::CollectNewMail => "CollectNewMail",
             Self::BackgroundFinished => "BackgroundFinished",
+            Self::OpenNotifiedMessage(_) => "OpenNotifiedMessage",
+            Self::ShowFromNotification => "ShowFromNotification",
         })
     }
 }
