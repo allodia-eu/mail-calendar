@@ -110,8 +110,8 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Refusal carries the certificate, not just a message | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Certificate shown before it can be accepted | ✅ | ✅ | ✅ | 🚧 | ✅ |
-| Connect inert until accepted | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| Certificate shown before it can be accepted | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Connect inert until accepted | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Acceptance stored with the account, asked once | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Detected card **and** manual form | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Exception applies to IMAP, SMTP and CalDAV of that account | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -141,8 +141,18 @@ has been checked, so those two rows keep their 🚧.
 ⚠️ Its subject read `localhost` where the certificate's `CN` is `rcgen self signed cert`, which
 is rule 4 holding: the `subjectAltName` is what a verifier matches and what the panel shows.
 
-Android is written against the same core surface and covered by its own unit suite, and is owed a
-run on its platform.
+Android is verified against a running Proton Mail Bridge over STARTTLS: the connect was refused
+and named the server, the panel drew the subject, issuer, validity window and SHA-256 that
+`openssl` read off the listener, and Connect stayed inert until the acceptance was turned on.
+Only its **manual form** has been driven, and no second launch has been checked, so those two
+rows keep their 🚧.
+
+⚠️ **A 🚧 is worth as little as an unrun check.** Android's panel was written, wired into both
+surfaces and unit-tested, and was nonetheless unreachable: the connect runs on a thread of its
+own, so the refusal never returned to the caller that would have carried the certificate to the
+form, and what the reader got was the generated message with the certificate dumped into it. The
+suite covered the form's handling of a refusal it was handed, and nothing covered it being
+handed one. Read a 🚧 on this page as *unknown*.
 
 ## Known gaps
 
