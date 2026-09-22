@@ -185,6 +185,11 @@ impl ManualForm {
 
 /// What a pane hands the core to connect. Built by whichever pane collected the fields, so the
 /// detected and manual routes converge on one conversion.
+///
+/// The IMAP variant is the wider one because it carries a whole server pair plus an accepted
+/// certificate. Boxing it would buy nothing: every route to the core puts the enum in a `Box`
+/// already (`AppInput::SubmitAccount`), so the value never travels at its own width.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub(crate) enum AccountSubmission {
     Imap(ImapSubmission),

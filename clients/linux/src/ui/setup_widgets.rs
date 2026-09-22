@@ -184,7 +184,7 @@ fn claim_row(label: &str, value: &str) -> gtk::Box {
 /// Whether the certificate half of the gate is answered: nothing was refused, or the person
 /// has accepted what was.
 pub(super) fn certificate_accepted(gate: Option<&gtk::CheckButton>) -> bool {
-    gate.is_none_or(|choice| choice.is_active())
+    gate.is_none_or(gtk::prelude::CheckButtonExt::is_active)
 }
 
 /// Holds Connect closed until every question this pane asked has an answer: the
