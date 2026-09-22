@@ -1,23 +1,56 @@
 # Sync progress: cross-platform contract
 
 **Scope.** What every Allodia Mail & Calendar client is allowed to say, on screen, about mail
-arriving. There are exactly **two** things it may say, and which one it says is decided by who
-started the sync, never by how much it is downloading.
+arriving, and about it not arriving. There are exactly **three** things it may say, and which one
+it says is decided by who started the sync and whether the server is accepting it, never by how
+much it is downloading.
 
 **Principle.** *A pass the user started may take space. A pass they did not may not.* The whole
 contract follows from that one line.
 
-## The two surfaces
+## The three surfaces
 
 | Surface | Belongs to | May take layout | What it says |
 |---|---|:---:|---|
 | **The bar** | A download the user **awaits**: adding an account, opening an unsynced folder, an explicit refetch, a cold first paint | ✅ its own row, **below** the message list | "Downloading 1,200 of 3,387…" |
 | **The hint** | A pass **nobody asked for**: a poll tick, an `IDLE`/push notification, a boot catch-up, and the body warm that follows a sync | ❌ never: it goes inside a status line the client already draws | "Syncing eva@example.com: 3 of 12 folders" |
+| **The pause** | An account whose **server asked to be left alone** for a while: a rate limit, not a fault | ❌ never: the same status line, in the hint's place | "Sync paused", with the wait behind a hover |
 
 They do not overlap. The core reports an awaited download in
 [`SyncProgressSnapshot::active`](../crates/mailcal-viewmodel/src/sync_progress.rs) and its counts;
-a background pass appears only in `accounts`, and an account is never in both at once. A client
-that rendered both for one pass would be saying the same thing twice, in two places.
+a background pass appears only in `accounts`, a refused one only in `throttled`, and an account is
+never in two at once. A client that rendered two of them for one account would be saying the same
+thing twice, in two places.
+
+### The pause is not an outage
+
+A throttled account **reached its server**, which answered promptly and asked for less traffic.
+Nothing is wrong with the network, the credential or the mailbox, and the user has nothing to do.
+That is the one state neither of the other two can express: the hint says mail is arriving and the
+outage badge says the server cannot be reached, and putting either over a rate limit sends someone
+to check a network that is working perfectly. The engine's own half of this is
+[`http-throttling.md`](https://github.com/allodia-eu/email-calendar-sync-engine/blob/main/docs/agent-guidance/http-throttling.md):
+it absorbs a short wait silently and hands a long one back rather than sleeping a task through it,
+which is what leaves a wait for this surface to explain.
+
+**It takes the line ahead of the hint.** A pass that is downloading is already evident from the
+list filling; a pass that is waiting is evident from nothing at all, which is the question the
+line answers. The core keeps the two sets disjoint (`SyncProgressState::hint` drops an account
+whose notice is up) so that ordering is decided once rather than in five clients.
+
+**The wait is the server's own, and often absent.** About two Gmail refusals in three state the
+quota without stating its window, so `resumes_in_minutes` is an `Option` and a client that has
+none says "shortly" rather than inventing a figure. Where there is one it is **whole minutes,
+rounded up, never zero**: the figure is read off a snapshot no client re-pulls on a clock, so a
+second-by-second countdown would be visibly wrong within a second of being drawn, while "about a
+minute" stays true for as long as it is up. Rounding up means the wait is overstated rather than
+promised early.
+
+**A hover, except where there is no hover.** The status line is shared with the message count and
+the connection status, so on a desktop the line is a short label and the sentence is the tooltip.
+A phone has neither a pointer nor room for a tooltip, and its strip is full width, so there the
+line says the sentence. Either way the sentence is what assistive technology reads: "Sync paused"
+alone never says when.
 
 ### Below the list, never above it
 
@@ -79,16 +112,20 @@ that the mail ran out.
 
 ## Per-platform
 
-| Platform | Bar | Hint | Where |
-|---|:---:|:---:|---|
-| macOS / iPadOS | ✅ under the list, above the footer | ✅ in the footer, beside the message count | `Mailcal.Detail.swift` |
-| iPhone / iPadOS | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip (there is no footer); the bar wins when both are up | `Mailcal.Layout.swift` |
-| Windows | ✅ its own `Auto` row under the list | ✅ in the footer status line, between the message count and "Connected" | `Views/MailListView.xaml`, `Services/MailboxModel.SyncProgress.cs` |
-| Android | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip | `MailboxScreenParts.kt` |
-| Linux | ✅ a strip under the list; the bar wins over the hint | ✅ the mail list's bottom bar | `ui/shell.rs`, `ui/model.rs` |
+| Platform | Bar | Hint and pause | The pause's detail | Where |
+|---|:---:|:---:|---|---|
+| macOS | ✅ under the list, above the footer | ✅ in the footer, beside the message count | hover (`.help`) | `Mailcal.Detail.swift` |
+| iPadOS | ✅ under the list, above the footer | ✅ the same footer | inline: no hover, so the line says the sentence | `Mailcal.Detail.swift` |
+| iPhone | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip (there is no footer); the bar wins when both are up | inline | `Mailcal.Layout.swift` |
+| Windows | ✅ its own `Auto` row under the list | ✅ in the footer status line, between the message count and "Connected" | hover (`ToolTipService.ToolTip`) | `Views/MailListView.xaml`, `Services/MailboxModel.SyncProgress.cs` |
+| Android | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip | inline | `SyncStatusParts.kt` |
+| Linux | ✅ a strip under the list; the bar wins over the hint | ✅ the mail list's bottom bar | hover (`set_tooltip_text`) | `ui/shell.rs`, `ui/sync_line.rs` |
 
-Copy for both comes from the shared catalog (`sync_downloading*`, `sync_hint_*`) and is assembled
-client-side like every other string ([`../AGENTS.md`](../AGENTS.md) → Client conventions).
+Copy for all three comes from the shared catalog (`sync_downloading*`, `sync_hint_*`,
+`sync_paused*`) and is assembled client-side like every other string
+([`../AGENTS.md`](../AGENTS.md) → Client conventions). On every platform the sentence is also the
+element's accessibility name, including the three that show it inline, so a screen reader never
+hears the short label alone.
 
 ## Proving it
 
@@ -103,7 +140,15 @@ MAILCAL_FAKE_SYNC_PROGRESS=1200/3387          # the bar: 1,200 of 3,387 (omit "/
 MAILCAL_FAKE_SYNC_HINT=eva@example.com:3/12   # the hint, folders: 3 of that account's 12
 MAILCAL_FAKE_SYNC_HINT=eva@example.com:2022   # the hint, bodies: 2,022 warmed so far
 MAILCAL_FAKE_SYNC_HINT=a@x.test:3/12,b@y.test:0/5
+MAILCAL_FAKE_SYNC_PAUSED=eva@example.com:5    # the pause: syncing continues in about 5 minutes
+MAILCAL_FAKE_SYNC_PAUSED=eva@example.com      # the pause, untimed: the server named no window
 ```
+
+The pause is the one of the three that cannot be caught without staging: it needs a real server to
+refuse a real account under load, which no suite can arrange. It is also the one where the label
+and the detail are bound to **different** properties, only one of which is on screen, so a client
+that bound the caption and forgot the tooltip renders a plausible "Sync paused" that never says
+when, and nothing headless notices.
 
 They are compiled out of a release build
 ([`sync_progress_staged.rs`](../crates/mailcal-app/src/sync_progress_staged.rs)), so no shipped
@@ -205,6 +250,10 @@ it dropped to 16.
 | Android | `.background` + `LocalContentColor` and the light scheme's `primary` on the body `Box` | `body == null -> Unit` | `CircularProgressIndicator` |
 | Linux | the `mailcal-message-canvas` class on the body stack | the `blank` stack page | the `loading` stack page |
 
+The pause's own policy (raising, clearing, the rounding, and keeping it disjoint from the hint) is
+covered by `sync_progress_tests.rs` → `pauses`, and which pass verdicts raise it by
+`sync_account_tests.rs`.
+
 `a_fast_open_never_announces_a_wait` and
 `an_open_that_outlasts_the_threshold_announces_the_wait_first` (`mailcal-app`) hold both halves:
 one publish for a fast open, and a `pending` one ahead of the body for a slow one.
@@ -227,5 +276,19 @@ one publish for a fast open, and a `pending` one ahead of the body for a slow on
   the grace window does not: an open that outruns it, an error, a body-less message), but a client
   that adopted the grace would be showing the previous message's header over actions that already
   act on the new one, which is why it has not been made the rule.
-- **The hint is mail-only.** A calendar or contacts sync in the background says nothing, on any
-  platform. Nothing reports per-account progress for those passes yet.
+- **The hint and the pause are mail-only.** A calendar or contacts sync in the background says
+  nothing, on any platform: nothing reports per-account progress for those passes yet, and a
+  calendar refused for rate is silent for the same reason. One account's mail and calendar often
+  share a provider and therefore a quota, so the line can be up for the mail half while the
+  calendar half is being refused just as hard.
+- **A pause is not badged on the account itself.** The status line explains that mail has stopped
+  arriving, but the account switcher shows a throttled account exactly as it shows a healthy one,
+  so a user looking at the sidebar rather than the footer learns nothing. The badge beside an
+  account is currently reserved for states that need the user to act (an outage, an expired
+  sign-in, a missing scope) and a pause needs nothing from them, which is why it has not been
+  given one.
+- **Nothing re-reads the clock.** The wait is recomputed whenever a client pulls the snapshot, and
+  the surface is signalled when the notice is raised, when it changes by a whole minute and when
+  the pass that resumes runs. Between those the figure ages: a five-minute notice still reads
+  "about 5 minutes" four minutes in. Rounding up bounds the error at the honest side, and the
+  notice clears itself the moment its instant passes.

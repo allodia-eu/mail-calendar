@@ -15,7 +15,7 @@ use super::{
     AppInput, AppModel, PrimaryView, SetupState, allodia_sync, calendar::CalendarModel,
     calendar_actions, connectivity, contacts::ContactsModel, host_tasks::HostTasks, mcp, model,
     model::ReadingState, preferences, runtime_timers, search::SearchState, selection::Selection,
-    settings, setup_onboarding, shell::AppWidgets, time_zone, welcome,
+    settings, setup_onboarding, shell::AppWidgets, sync_line, time_zone, welcome,
 };
 use crate::{appearance, boot, crash, logger, observer::SurfaceObserver};
 
@@ -111,11 +111,11 @@ impl SimpleComponent for AppModel {
         // The core can begin an awaited download before the observer is subscribed. Pull the
         // current progress for the first frame so that opening an unsynced folder never depends on
         // a later progress edge to make its already-active wait visible.
-        let (sync_bar, sync_hint) = app.as_deref().map_or((None, None), |app| {
+        let (sync_bar, sync_status) = app.as_deref().map_or((None, None), |app| {
             let progress = app.sync_progress();
             (
-                model::sync_bar(&progress),
-                model::sync_hint(&progress, &snapshot.accounts),
+                sync_line::sync_bar(&progress),
+                sync_line::sync_status(&progress, &snapshot.accounts),
             )
         });
         // Pull once: a boot outage's signal fired before this model existed.
@@ -174,7 +174,7 @@ impl SimpleComponent for AppModel {
             draft_check_seq: 0,
             discard_prompt: false,
             notice: None,
-            sync_hint,
+            sync_status,
             sync_bar,
             unfiled_copy: None,
             reply_prompt: None,

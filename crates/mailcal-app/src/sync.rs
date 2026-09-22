@@ -118,6 +118,7 @@ impl<P: Provider> App<P> {
                 self.track_sync(&account.id, reachable, elapsed_ms);
             }
             self.apply_signin_expired(&account.id, outcome.signin_expired);
+            self.apply_throttle(&account.id, outcome.throttled, outcome.throttled_for);
             self.invalidate_list_cache();
         }
         // Anything queued whose backoff has elapsed goes out on the same pass. The
@@ -170,6 +171,7 @@ impl<P: Provider> App<P> {
             self.set_account_reachable(id, reachable);
         }
         self.apply_signin_expired(id, outcome.signin_expired);
+        self.apply_throttle(id, outcome.throttled, outcome.throttled_for);
         self.invalidate_list_cache();
     }
 
@@ -350,6 +352,7 @@ impl<P: Provider> App<P> {
             self.set_account_reachable(id, reachable);
         }
         self.apply_signin_expired(id, outcome.signin_expired);
+        self.apply_throttle(id, outcome.throttled, outcome.throttled_for);
         self.invalidate_list_cache();
         self.rebuild_snapshot().await;
         Some(outcome)

@@ -114,6 +114,7 @@ mod shell_sidebar;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 mod showcase_hooks;
 mod signature_image;
+mod sync_line;
 mod time_zone;
 mod timestamps;
 mod unfiled_copy;
@@ -211,11 +212,12 @@ pub(crate) struct AppModel {
     /// Whether the "Discard draft?" question is on screen.
     discard_prompt: bool,
     notice: Option<String>,
-    /// The mail list's bottom-bar caption while a background sync is downloading mail. `None`
-    /// whenever nothing is arriving unasked, which is almost always.
-    sync_hint: Option<String>,
+    /// The mail list's bottom-bar caption: an account a server has asked to wait, or a
+    /// background sync downloading mail. `None` whenever there is nothing to say, which is
+    /// almost always.
+    sync_status: Option<sync_line::SyncStatus>,
     /// The separate foreground-download row. It wins the shared bottom strip while active.
-    sync_bar: Option<model::SyncBar>,
+    sync_bar: Option<sync_line::SyncBar>,
     unfiled_copy: Option<UnfiledCopyNotice>,
     /// The standing "the organiser wasn't told" question, mirrored from the core. `None` is also
     /// how the core says *close the modal*; it clears the question the moment it is answered.

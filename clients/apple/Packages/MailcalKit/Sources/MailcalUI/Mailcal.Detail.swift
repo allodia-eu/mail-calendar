@@ -138,11 +138,12 @@ extension ContentView {
             // footer is the one place on the window neither of them is looked for.
             HStack {
                 Text(footer).font(.caption).foregroundStyle(.secondary)
-                // The background-sync hint: a pass nobody started, named in the status line the
-                // footer already draws rather than in a bar. It takes no row of its own, so an
-                // account catching up in the background never moves the list.
-                if let hint = syncHintText(model.syncProgress) {
-                    Text(hint).font(.caption).foregroundStyle(.secondary)
+                // What the core has to say about mail arriving, or not: a pass nobody started,
+                // or an account whose server asked us to wait. Named in the status line the
+                // footer already draws rather than in a bar, so it takes no row of its own and
+                // an account catching up in the background never moves the list.
+                if let status = syncStatusText(model.syncProgress) {
+                    syncStatusLabel(status)
                 }
                 Spacer()
             }
@@ -182,13 +183,73 @@ extension ContentView {
         }
     }
 
+    /// The status line's one caption, and the sentence behind it where it is a short label
+    /// standing in for one. `nil` whenever there is nothing to say, which is almost always.
+    ///
+    /// **A pause takes the line ahead of the hint.** A pass that is downloading is already
+    /// evident from the list filling; a pass that is waiting is evident from nothing at all,
+    /// which is the question it answers. The core keeps the two sets disjoint, so this only has
+    /// to order them.
+    func syncStatusText(_ progress: SyncProgressSnapshot?) -> (label: String, detail: String?)? {
+        if let paused = syncPauseText(progress) {
+            return paused
+        }
+        guard let hint = syncHintText(progress) else { return nil }
+        return (label: hint, detail: nil)
+    }
+
+    /// The caption itself. On a Mac the paused notice is a short label with the whole sentence
+    /// behind a hover; everywhere else there is no hover to put it behind, so the line says the
+    /// sentence. Either way the sentence is what assistive technology reads, on every platform.
+    @ViewBuilder func syncStatusLabel(_ status: (label: String, detail: String?)) -> some View {
+        #if os(macOS)
+        Text(status.label)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .help(status.detail ?? status.label)
+            .accessibilityLabel(status.detail ?? status.label)
+        #else
+        Text(status.detail ?? status.label)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        #endif
+    }
+
+    /// The paused notice: a server answered promptly and asked to be left alone for a while.
+    /// Not an outage; the account keeps its mail, its credential and its badge.
+    ///
+    /// The wait is stated as an approximation. It was rounded up before it got here, and nothing
+    /// re-reads the clock while the line is up.
+    func syncPauseText(_ progress: SyncProgressSnapshot?) -> (label: String, detail: String?)? {
+        guard let paused = progress?.throttled, let only = paused.first else { return nil }
+        // Several at once are not named, exactly as with the hint: a status line cannot name
+        // them all, and their waits have no shared end to state.
+        guard paused.count == 1 else {
+            return (L10n.sync_paused(), L10n.sync_paused_detail_accounts(count: paused.count))
+        }
+        let name = accountName(only.accountId)
+        guard let minutes = only.resumesInMinutes else {
+            // Two refusals in three name no instant. "Shortly" is the honest answer; a figure
+            // here would be one we made up.
+            return (L10n.sync_paused(), L10n.sync_paused_detail_soon(account: name))
+        }
+        return (
+            L10n.sync_paused(),
+            L10n.sync_paused_detail(account: name, count: Int(minutes))
+        )
+    }
+
+    /// Names an account from the app's own account list, which is where every other surface gets
+    /// the address; the id is the fallback for one removed mid-pass.
+    func accountName(_ id: String) -> String {
+        model.accounts.first { $0.id == id }?.email ?? id
+    }
+
     /// The background-sync hint: which accounts are pulling mail down right now, and how far
     /// through their folders they are. `nil` whenever nothing is arriving unasked, which is
     /// almost always, the core admits an account only once its background pass has actually
     /// committed mail, so a poll that finds nothing renders nothing.
-    ///
-    /// Named from the app's own account list, which is where every other surface gets the
-    /// address; the id is a fallback for an account that has since been removed mid-pass.
     func syncHintText(_ progress: SyncProgressSnapshot?) -> String? {
         guard let accounts = progress?.accounts, !accounts.isEmpty else { return nil }
         // Several at once carry no counts: one account in its folders and another in its bodies
@@ -196,7 +257,7 @@ extension ContentView {
         guard let only = accounts.first, accounts.count == 1 else {
             return L10n.sync_hint_accounts(count: accounts.count)
         }
-        let name = model.accounts.first { $0.id == only.accountId }?.email ?? only.accountId
+        let name = accountName(only.accountId)
         if only.warmingBodies {
             return L10n.sync_hint_bodies(account: name, done: syncCount(UInt64(only.bodiesDone)))
         }
