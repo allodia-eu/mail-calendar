@@ -99,13 +99,19 @@ let chevronTargetWidth: CGFloat = 32
 let indentWidth: CGFloat = 16
 
 extension ContentView {
-    /// The accounts / folders / settings sidebar.
+    /// Whether the mailbox is the surface on screen, which is what decides whether a **mail** row
+    /// carries the highlight.
     ///
-    /// `showsCalendarAndContacts` is what a platform answers with where its other surfaces live.
-    /// The desktop and the iPad columns reach them from here, because the pane is the only
-    /// navigation they have; the iPhone reaches them from its tab bar, so listing them here too
-    /// would offer the same two destinations twice. Settings is on the pane either way, it has no
-    /// tab, and it must not be something the user has to remember a gesture to find.
+    /// Only the highlight: which rows are drawn is the trees' own expansion and nothing else
+    /// (`docs/folder-pane.md`, rule 2). Without this the pane would light a folder while the
+    /// calendar is showing, next to the lit Calendar row beneath it.
+    var showingMail: Bool { model.destination == .mail }
+
+    /// The accounts / folders / settings sidebar: every account's tree scrolling under the
+    /// **Accounts** heading, with the other destinations pinned beneath it.
+    ///
+    /// `showsCalendarAndContacts` belongs to those, and
+    /// ``sidebarDestinations(showsCalendarAndContacts:)`` says what it answers.
     func sidebarList(showsCalendarAndContacts: Bool) -> some View {
         List {
             Section(L10n.sidebar_accounts()) {
@@ -138,8 +144,7 @@ extension ContentView {
                         sidebarRow(
                             title: account.email,
                             icon: "person.crop.circle",
-                            selected: model.destination == .mail
-                                && model.selectedAccount == account.id
+                            selected: showingMail && model.selectedAccount == account.id
                         ) { selectAccount(account.id) }
                     }
                     // Right-click an account to remove it (with a confirmation).
@@ -160,15 +165,18 @@ extension ContentView {
                         }
                     }
                     // Every expanded account's folders show indented beneath it, not just the
-                    // selected one's, which is why the tree no longer empties when the user picks
-                    // another account.
-                    if model.destination == .mail && account.expanded {
+                    // selected one's, and whatever surface is on screen: the pane is furniture,
+                    // so looking at the calendar is not a reason for a tree to empty
+                    // (`docs/folder-pane.md`, rule 2). The rows only stop being *highlighted*,
+                    // because what the user is in is the calendar, not a folder.
+                    if account.expanded {
                         HStack(spacing: 0) {
                             disclosureSlot
                             sidebarRow(
                                 title: L10n.sidebar_all_mail(),
                                 icon: "tray.full",
-                                selected: model.selectedAccount == account.id
+                                selected: showingMail
+                                    && model.selectedAccount == account.id
                                     && model.selected == nil
                             ) { selectAccount(account.id) }
                         }
@@ -180,7 +188,8 @@ extension ContentView {
                                 sidebarRow(
                                     title: folderLabel(role: folder.role, name: folder.name),
                                     icon: folderIcon(folder.role),
-                                    selected: model.selectedAccount == account.id
+                                    selected: showingMail
+                                        && model.selectedAccount == account.id
                                         && model.selected == folder.key,
                                     unread: folder.unread
                                 ) { selectFolder(in: account.id, key: folder.key) }
@@ -197,36 +206,16 @@ extension ContentView {
                     model.addingAccount = true
                 }
             }
-            if showsCalendarAndContacts {
-                Section(L10n.nav_calendar()) {
-                    sidebarRow(
-                        title: L10n.nav_calendar(),
-                        icon: "calendar",
-                        selected: model.destination == .calendar
-                    ) { showCalendar() }
-                }
-                Section(L10n.nav_contacts()) {
-                    sidebarRow(
-                        title: L10n.nav_contacts(),
-                        icon: "person.2",
-                        selected: model.destination == .contacts
-                    ) { showContacts() }
-                }
-            }
-            Section(L10n.settings_title()) {
-                // ⌘, lives here, on the app's one Settings affordance. It used to hang off a second
-                // gear in the message-list header; that button is gone, so the shortcut moved rather
-                // than leaving the standard macOS key with nothing to open.
-                sidebarRow(title: L10n.nav_settings(), icon: "gearshape", selected: false) {
-                    settingsCategory = .general
-                }
-                #if os(macOS)
-                .keyboardShortcut(",", modifiers: .command)
-                #endif
-            }
         }
         .listStyle(.sidebar)
         .frame(minWidth: 180)
+        // The other destinations sit under the tree and out of its scroll, never as one more
+        // section at the end of the list: an account with a few dozen folders fills the pane, and
+        // a row that scrolls away with them is a destination the user has to scroll back up the
+        // whole folder list to reach.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            sidebarDestinations(showsCalendarAndContacts: showsCalendarAndContacts)
+        }
         // The window title. The product is "Allodia Mail & Calendar", never bare "Allodia"
         // (AGENTS.md → "Brand & voice"), and this overrides the WindowGroup's own title.
         .navigationTitle(L10n.app_title())
@@ -252,7 +241,7 @@ extension ContentView {
             sidebarRow(
                 title: L10n.folder_outbox(),
                 icon: "tray.and.arrow.up",
-                selected: model.destination == .mail && model.showingOutbox,
+                selected: showingMail && model.showingOutbox,
                 unread: UInt32(model.outbox.count)
             ) { model.showOutbox() }
         }
@@ -281,13 +270,13 @@ extension ContentView {
                     ? L10n.a11y_collapse_account()
                     : L10n.a11y_expand_account()
             )
-        if model.destination == .mail && model.unifiedExpanded {
+        if model.unifiedExpanded {
             HStack(spacing: 0) {
                 disclosureSlot
                 sidebarRow(
                     title: L10n.folder_inbox(),
                     icon: folderIcon(.inbox),
-                    selected: model.selectedAccount == nil,
+                    selected: showingMail && model.selectedAccount == nil,
                     unread: model.unifiedUnread
                 ) { selectAccount(nil) }
             }
@@ -336,30 +325,7 @@ extension ContentView {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack {
-                // One line, truncated at the end. An account address is as long as it is, and a
-                // pane narrow enough to wrap one (every iPad column) turns each account into a
-                // two-line row with its domain orphaned underneath, `eva.jansen@example.c` over
-                // `om`. Rule 11 already says the row says in full what it shortened.
-                Label(title, systemImage: icon)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer()
-                // Never at zero, which deliberately also covers "this provider reports no
-                // count" (Gmail today): both mean there is nothing truthful to show, and a 0
-                // would claim we had looked (`docs/folder-pane.md`). The number alone reads as a
-                // list position aloud, so VoiceOver gets the sentence instead.
-                if unread > 0 {
-                    Text("\(unread)")
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityLabel(L10n.a11y_unread_count(count: Int(unread)))
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // The whole row is the target, not just the words on it. A `Spacer` is not
-            // hit-testable, so the gap the count sits beside swallowed every click landing in
-            // the middle of a row, the wider the pane, the more of the row was dead.
-            .contentShape(Rectangle())
+            sidebarRowLabel(title: title, icon: icon, unread: unread)
         }
         .buttonStyle(.plain)
         .listRowBackground(selected ? Color.accentColor.opacity(0.2) : Color.clear)
@@ -369,5 +335,38 @@ extension ContentView {
         // (`docs/folder-pane.md` rule 11, as the Windows pane does on every row).
         .help(title)
         #endif
+    }
+
+    /// What a row says: its name and, at the trailing edge, its unread count.
+    ///
+    /// Apart from the button and its background, which differ between a row **in** the list and
+    /// one of the destinations pinned under it: `listRowBackground` reaches only a row inside a
+    /// `List`, so the pinned rows draw their own.
+    @ViewBuilder
+    func sidebarRowLabel(title: String, icon: String, unread: UInt32) -> some View {
+        HStack {
+            // One line, truncated at the end. An account address is as long as it is, and a
+            // pane narrow enough to wrap one (every iPad column) turns each account into a
+            // two-line row with its domain orphaned underneath, `eva.jansen@example.c` over
+            // `om`. Rule 11 already says the row says in full what it shortened.
+            Label(title, systemImage: icon)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer()
+            // Never at zero, which deliberately also covers "this provider reports no
+            // count" (Gmail today): both mean there is nothing truthful to show, and a 0
+            // would claim we had looked (`docs/folder-pane.md`). The number alone reads as a
+            // list position aloud, so VoiceOver gets the sentence instead.
+            if unread > 0 {
+                Text("\(unread)")
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityLabel(L10n.a11y_unread_count(count: Int(unread)))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // The whole row is the target, not just the words on it. A `Spacer` is not
+        // hit-testable, so the gap the count sits beside swallowed every click landing in
+        // the middle of a row, the wider the pane, the more of the row was dead.
+        .contentShape(Rectangle())
     }
 }
