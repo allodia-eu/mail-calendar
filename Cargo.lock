@@ -252,6 +252,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
+name = "base64ct"
+version = "1.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
+
+[[package]]
 name = "basic-toml"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -510,6 +516,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "const-oid"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
+
+[[package]]
 name = "core-foundation"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -612,6 +624,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "der"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a878c850e9e421b20262e9b41f9c860e4785fa07541c266b62ff9d1ef998a80a"
+dependencies = [
+ "const-oid",
+ "der_derive",
+ "flagset",
+ "zeroize",
+]
+
+[[package]]
+name = "der_derive"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59600e2c2d636fde9b65e99cc6445ac770c63d3628195ff39932b8d6d7409903"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
+]
+
+[[package]]
 name = "deranged"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -688,7 +723,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 [[package]]
 name = "engine-api"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "engine-core",
  "engine-http",
@@ -708,7 +743,7 @@ dependencies = [
 [[package]]
 name = "engine-core"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "idna",
  "serde",
@@ -720,7 +755,7 @@ dependencies = [
 [[package]]
 name = "engine-http"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "engine-provider",
  "httpdate",
@@ -731,7 +766,7 @@ dependencies = [
 [[package]]
 name = "engine-ical"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "engine-core",
  "engine-provider",
@@ -742,7 +777,7 @@ dependencies = [
 [[package]]
 name = "engine-mime"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "engine-core",
  "mail-parser",
@@ -751,7 +786,7 @@ dependencies = [
 [[package]]
 name = "engine-provider"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "async-trait",
  "engine-core",
@@ -765,7 +800,7 @@ dependencies = [
 [[package]]
 name = "engine-recurrence"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "engine-core",
  "engine-store",
@@ -778,7 +813,7 @@ dependencies = [
 [[package]]
 name = "engine-rfc5322"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "engine-core",
  "engine-provider",
@@ -788,7 +823,7 @@ dependencies = [
 [[package]]
 name = "engine-search"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "engine-core",
  "serde",
@@ -798,7 +833,7 @@ dependencies = [
 [[package]]
 name = "engine-store"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "async-trait",
  "engine-core",
@@ -810,7 +845,7 @@ dependencies = [
 [[package]]
 name = "engine-sync"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "async-trait",
  "engine-core",
@@ -829,14 +864,16 @@ dependencies = [
 [[package]]
 name = "engine-tls"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "reqwest",
  "rustls",
  "rustls-native-certs",
+ "sha2 0.11.0",
  "thiserror",
  "tokio-rustls",
  "webpki-roots",
+ "x509-cert",
 ]
 
 [[package]]
@@ -944,6 +981,12 @@ name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
+
+[[package]]
+name = "flagset"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7ac824320a75a52197e8f2d787f6a38b6718bb6897a35142d749af3c0e8f4fe"
 
 [[package]]
 name = "flume"
@@ -2743,7 +2786,7 @@ dependencies = [
 [[package]]
 name = "provider-caldav"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "async-trait",
  "engine-core",
@@ -2761,7 +2804,7 @@ dependencies = [
 [[package]]
 name = "provider-google"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2783,7 +2826,7 @@ dependencies = [
 [[package]]
 name = "provider-graph"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2803,7 +2846,7 @@ dependencies = [
 [[package]]
 name = "provider-imap"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2821,7 +2864,7 @@ dependencies = [
 [[package]]
 name = "provider-jmap"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -3483,6 +3526,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "spki"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d9efca8738c78ee9484207732f728b1ef517bbb1833d6fc0879ca898a522f6f"
+dependencies = [
+ "base64ct",
+ "der",
+]
+
+[[package]]
 name = "sqlite-wasm-rs"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3509,7 +3562,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "store-sqlite"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=ad74670f816550e103bbf677b6a21c6070c39e05#ad74670f816550e103bbf677b6a21c6070c39e05"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=63fe25ac8c7807297a9966e57381a0b139122b41#63fe25ac8c7807297a9966e57381a0b139122b41"
 dependencies = [
  "async-trait",
  "engine-core",
@@ -3748,6 +3801,27 @@ checksum = "c8323304221c2a851516f22236c5722a72eaa19749016521d6dff0824447d96d"
 dependencies = [
  "displaydoc",
  "zerovec",
+]
+
+[[package]]
+name = "tls_codec"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0de2e01245e2bb89d6f05801c564fa27624dbd7b1846859876c7dad82e90bf6b"
+dependencies = [
+ "tls_codec_derive",
+ "zeroize",
+]
+
+[[package]]
+name = "tls_codec_derive"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d2e76690929402faae40aebdda620a2c0e25dd6d3b9afe48867dfd95991f4bd"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -4561,6 +4635,18 @@ name = "writeable"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
+
+[[package]]
+name = "x509-cert"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "105ef4642d9cb137ef83d623d0e4bf08b8adf69e9918ca904a174adb6d3d038b"
+dependencies = [
+ "const-oid",
+ "der",
+ "spki",
+ "tls_codec",
+]
 
 [[package]]
 name = "xtask"

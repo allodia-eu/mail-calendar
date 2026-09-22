@@ -189,8 +189,17 @@ impl<P: Provider> App<P> {
     /// per-account polling timer's per-tick work. Unlike `sync_account` (which shows the bar for
     /// an explicit add), this starts hidden; a periodic poll over already-rendered mail does not
     /// flash a bar unless it actually downloads messages. A no-op for an unknown account id.
-    pub async fn refresh_account(&self, id: &AccountId) {
-        let _ = self.refresh_account_once(id, "account-refresh", true).await;
+    /// Returns how long the account's provider asked to be left alone, where one asked.
+    ///
+    /// A poll caller adds it to its own interval. The engine hands a long refusal back rather
+    /// than sleeping a task through it (`http-throttling.md`), so this is the other half of
+    /// that bargain: without it the next tick walks into the same wall and spends a round trip
+    /// being told so. `None` is the ordinary case and means "keep your own schedule".
+    pub async fn refresh_account(&self, id: &AccountId) -> Option<Duration> {
+        let throttled_for = self
+            .refresh_account_once(id, "account-refresh", true)
+            .await
+            .and_then(|outcome| outcome.throttled_for);
         // A folder this account binds no provider to is in no pass and is watched by nothing,
         // so the tick is what keeps it current while the user is standing in it.
         self.refresh_open_folder(Some(id), "account-refresh").await;
@@ -198,6 +207,7 @@ impl<P: Provider> App<P> {
         // interrupted pass left), so the synced window converges on fully-warm. A cheap no-op
         // once it is (one key scan), and single-flight if a pass is already draining.
         self.prefetch_account_bodies(id).await;
+        throttled_for
     }
 
     /// The follow-up to the user's **own** mail action, on the one account the edit reached.

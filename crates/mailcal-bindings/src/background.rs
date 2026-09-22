@@ -254,9 +254,31 @@ async fn poll_loop(app: SharedApp, account_id: String, minutes: u16) {
         // returns, the app's own reachability handler refreshes every account, so the poll
         // needs no offline gate of its own.
         if let Ok(id) = AccountId::try_from(account_id.as_str()) {
-            app.refresh_account(&id).await;
+            // Where the provider named a window, sit out the rest of it before the next tick.
+            // The engine reports a long refusal instead of sleeping a task through it, so
+            // honouring the number is this loop's job; ignoring it would walk the next tick
+            // into the same refusal and spend a round trip learning nothing. Shorter than the
+            // poll period is already covered by the interval, so only the excess is waited.
+            if let Some(asked) = app.refresh_account(&id).await
+                && let Some(excess) = asked.checked_sub(period)
+            {
+                log::info!(
+                    "{}: rate limited; holding the poll a further {}s the server asked for",
+                    poll_log_scope(&account_id),
+                    excess.as_secs(),
+                );
+                tokio::time::sleep(excess).await;
+                // The interval kept ticking while we slept; drop the backlog so returning
+                // does not immediately fire the tick this wait exists to postpone.
+                interval.reset();
+            }
         }
     }
+}
+
+/// A poll loop's log scope: the account, hashed, never its address (`docs/logging.md`).
+fn poll_log_scope(account_id: &str) -> String {
+    format!("poll:{}", mailcal_account::account_log_handle(account_id))
 }
 
 #[cfg(test)]

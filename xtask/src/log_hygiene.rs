@@ -107,11 +107,26 @@ pub(crate) fn run(root: &Path) -> Result<bool, String> {
     Ok(false)
 }
 
+/// Where a call's argument window ends, rounded **down to a character boundary**.
+///
+/// [`ARGUMENT_WINDOW`] is a byte count, and a source file is UTF-8: a window that happens to
+/// end inside a multi-byte character panics the slice. Source here is ordinary Rust, so the
+/// character is usually in a comment (an `⇒` in a doc comment is what found this), and
+/// whether the window ends a byte or two earlier cannot change a verdict, because a literal
+/// straddling the boundary was already being cut in half.
+fn window_end(text: &str, from: usize) -> usize {
+    let mut end = text.len().min(from.saturating_add(ARGUMENT_WINDOW));
+    while end > from && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    end
+}
+
 /// Every forbidden thing inside a logged string literal in one file.
 fn hits(name: &str, text: &str) -> Vec<Hit> {
     let mut found = Vec::new();
     for (at, call) in calls(text) {
-        let tail = &text[call..text.len().min(call + ARGUMENT_WINDOW)];
+        let tail = &text[call..window_end(text, call)];
         let args = &tail[..args_end(tail).unwrap_or(tail.len())];
         for literal in string_literals(args) {
             for (reason, matched) in forbidden(literal) {
@@ -332,6 +347,25 @@ fn run_back(text: &str, keep: impl Fn(char) -> bool) -> usize {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_window_that_lands_inside_a_character_is_pulled_back_to_its_start() {
+        // The checker slices by byte count over UTF-8 source, so a window ending mid-character
+        // used to panic the whole gate. Found by an `⇒` in a doc comment landing exactly on the
+        // boundary: a real run, not a contrived one.
+        let text = format!("{}⇒ tail", "x".repeat(super::ARGUMENT_WINDOW - 1));
+        let end = super::window_end(&text, 0);
+        assert!(text.is_char_boundary(end), "sliced inside a character");
+        assert_eq!(
+            end,
+            super::ARGUMENT_WINDOW - 1,
+            "pulled back to the char's start"
+        );
+        // A window that already ends on a boundary is left alone, and one past the end is
+        // clamped rather than wrapped.
+        assert_eq!(super::window_end("abc", 0), 3);
+        assert_eq!(super::window_end("abc", 2), 3);
+    }
+
     use super::{forbidden, hits, string_literals};
 
     #[test]
