@@ -53,6 +53,17 @@ that same file.
   glyph's own box
   ([`ReadingView.swift`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/ReadingView.swift)'s
   `iconBox`), never in a frame that is a no-op on the platform that does not want it.
+- **A SwiftUI `listRowBackground` on anything but the row is dropped in silence.** The modifier is
+  read off the `List`'s own child, so one applied inside an `HStack` that *is* that child reaches
+  nothing: it compiles, it reads correctly beside the row it is meant to light, and it draws
+  nothing at all. The folder pane put it on the row's button, and every row there is a stack, a
+  chevron beside that button, so the folder the user had open was the one row in the pane with no
+  highlight on it, for months. What made it survive review is that the two rows which are *not*
+  stacks, the Outbox and the pinned destinations, lit perfectly, so the modifier was demonstrably
+  working. Apply it to the row
+  ([`sidebarRowHighlight`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/Mailcal.Sidebar.swift)),
+  and check a nested row on screen rather than a flat one: no suite sees this, `swift build` and
+  the XCUITest classes included.
 - **A WinUI button with no label stands at its glyph's height, not its row's**, because the default
   button style *centres* its content rather than stretching it. So the one icon-only control in a
   row of labelled ones comes up short and vertically centred: 54px against 64px on a 200% display.

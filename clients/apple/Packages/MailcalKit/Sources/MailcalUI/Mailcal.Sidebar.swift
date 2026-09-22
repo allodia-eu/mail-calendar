@@ -99,13 +99,19 @@ let chevronTargetWidth: CGFloat = 32
 let indentWidth: CGFloat = 16
 
 extension ContentView {
-    /// The accounts / folders / settings sidebar.
+    /// Whether the mailbox is the surface on screen, which is what decides whether a **mail** row
+    /// carries the highlight.
     ///
-    /// `showsCalendarAndContacts` is what a platform answers with where its other surfaces live.
-    /// The desktop and the iPad columns reach them from here, because the pane is the only
-    /// navigation they have; the iPhone reaches them from its tab bar, so listing them here too
-    /// would offer the same two destinations twice. Settings is on the pane either way, it has no
-    /// tab, and it must not be something the user has to remember a gesture to find.
+    /// Only the highlight: which rows are drawn is the trees' own expansion and nothing else
+    /// (`docs/folder-pane.md`, rule 2). Without this the pane would light a folder while the
+    /// calendar is showing, next to the lit Calendar row beneath it.
+    var showingMail: Bool { model.destination == .mail }
+
+    /// The accounts / folders / settings sidebar: every account's tree scrolling under the
+    /// **Accounts** heading, with the other destinations pinned beneath it.
+    ///
+    /// `showsCalendarAndContacts` belongs to those, and
+    /// ``sidebarDestinations(showsCalendarAndContacts:)`` says what it answers.
     func sidebarList(showsCalendarAndContacts: Bool) -> some View {
         List {
             Section(L10n.sidebar_accounts()) {
@@ -120,14 +126,7 @@ extension ContentView {
                         Button {
                             model.setAccountExpanded(account.id, !account.expanded)
                         } label: {
-                            Image(systemName: account.expanded ? "chevron.down" : "chevron.right")
-                                .font(.caption)
-                                // A pointer hits the glyph; a finger needs the area around it, and
-                                // a near miss here is not a no-op, it lands on the account row and
-                                // navigates. The height stays inside the row so the target grows
-                                // without the row growing with it.
-                                .frame(width: chevronTargetWidth, height: 28)
-                                .contentShape(Rectangle())
+                            sidebarChevron(expanded: account.expanded)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(
@@ -137,11 +136,13 @@ extension ContentView {
                         )
                         sidebarRow(
                             title: account.email,
-                            icon: "person.crop.circle",
-                            selected: model.destination == .mail
-                                && model.selectedAccount == account.id
+                            icon: "person.crop.circle"
                         ) { selectAccount(account.id) }
                     }
+                    // No highlight on the account row itself, exactly as the All Accounts group
+                    // above carries none: what it opens is its **All Mail** row, and that row is
+                    // the one lit. A tree shut over it takes the highlight off screen with it,
+                    // which is what a shut group does to the unified Inbox.
                     // Right-click an account to remove it (with a confirmation).
                     .contextMenu {
                         Button(L10n.action_remove_account(), role: .destructive) {
@@ -160,19 +161,24 @@ extension ContentView {
                         }
                     }
                     // Every expanded account's folders show indented beneath it, not just the
-                    // selected one's, which is why the tree no longer empties when the user picks
-                    // another account.
-                    if model.destination == .mail && account.expanded {
+                    // selected one's, and whatever surface is on screen: the pane is furniture,
+                    // so looking at the calendar is not a reason for a tree to empty
+                    // (`docs/folder-pane.md`, rule 2). The rows only stop being *highlighted*,
+                    // because what the user is in is the calendar, not a folder.
+                    if account.expanded {
                         HStack(spacing: 0) {
                             disclosureSlot
                             sidebarRow(
                                 title: L10n.sidebar_all_mail(),
-                                icon: "tray.full",
-                                selected: model.selectedAccount == account.id
-                                    && model.selected == nil
+                                icon: "tray.full"
                             ) { selectAccount(account.id) }
                         }
                         .padding(.leading, indentWidth)
+                        .sidebarRowHighlight(
+                            showingMail
+                                && model.selectedAccount == account.id
+                                && model.selected == nil
+                        )
                         ForEach(model.folderRows(for: account.id)) { row in
                             let folder = row.folder
                             HStack(spacing: 0) {
@@ -180,8 +186,6 @@ extension ContentView {
                                 sidebarRow(
                                     title: folderLabel(role: folder.role, name: folder.name),
                                     icon: folderIcon(folder.role),
-                                    selected: model.selectedAccount == account.id
-                                        && model.selected == folder.key,
                                     unread: folder.unread
                                 ) { selectFolder(in: account.id, key: folder.key) }
                             }
@@ -189,44 +193,29 @@ extension ContentView {
                             // stack rather than inside the row so the chevrons line up down a
                             // branch, the way the account chevrons line up down the pane.
                             .padding(.leading, indentWidth * CGFloat(folder.depth + 1))
+                            .sidebarRowHighlight(
+                                showingMail
+                                    && model.selectedAccount == account.id
+                                    && model.selected == folder.key
+                            )
                         }
                     }
                 }
-                sidebarRow(title: L10n.action_add_account(), icon: "plus.circle", selected: false) {
+                sidebarRow(title: L10n.action_add_account(), icon: "plus.circle") {
                     model.setupError = nil
                     model.addingAccount = true
                 }
             }
-            if showsCalendarAndContacts {
-                Section(L10n.nav_calendar()) {
-                    sidebarRow(
-                        title: L10n.nav_calendar(),
-                        icon: "calendar",
-                        selected: model.destination == .calendar
-                    ) { showCalendar() }
-                }
-                Section(L10n.nav_contacts()) {
-                    sidebarRow(
-                        title: L10n.nav_contacts(),
-                        icon: "person.2",
-                        selected: model.destination == .contacts
-                    ) { showContacts() }
-                }
-            }
-            Section(L10n.settings_title()) {
-                // ⌘, lives here, on the app's one Settings affordance. It used to hang off a second
-                // gear in the message-list header; that button is gone, so the shortcut moved rather
-                // than leaving the standard macOS key with nothing to open.
-                sidebarRow(title: L10n.nav_settings(), icon: "gearshape", selected: false) {
-                    settingsCategory = .general
-                }
-                #if os(macOS)
-                .keyboardShortcut(",", modifiers: .command)
-                #endif
-            }
         }
         .listStyle(.sidebar)
         .frame(minWidth: 180)
+        // The other destinations sit under the tree and out of its scroll, never as one more
+        // section at the end of the list: an account with a few dozen folders fills the pane, and
+        // a row that scrolls away with them is a destination the user has to scroll back up the
+        // whole folder list to reach.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            sidebarDestinations(showsCalendarAndContacts: showsCalendarAndContacts)
+        }
         // The window title. The product is "Allodia Mail & Calendar", never bare "Allodia"
         // (AGENTS.md → "Brand & voice"), and this overrides the WindowGroup's own title.
         .navigationTitle(L10n.app_title())
@@ -252,9 +241,9 @@ extension ContentView {
             sidebarRow(
                 title: L10n.folder_outbox(),
                 icon: "tray.and.arrow.up",
-                selected: model.destination == .mail && model.showingOutbox,
                 unread: UInt32(model.outbox.count)
             ) { model.showOutbox() }
+                .sidebarRowHighlight(showingMail && model.showingOutbox)
         }
     }
 
@@ -269,29 +258,43 @@ extension ContentView {
     /// The badge is on the child, not here, for the reason an account row carries none: a roll-up
     /// would sit directly above an identical number on the row beneath it.
     @ViewBuilder private var allAccountsGroup: some View {
-        sidebarRow(
-            title: L10n.sidebar_all_accounts(),
-            icon: model.unifiedExpanded ? "chevron.down" : "chevron.right",
-            selected: false
-        ) { model.setUnifiedExpanded(!model.unifiedExpanded) }
-            // The glyph is a state, not a name, so the row is spoken as "All Accounts" and the
-            // hint is what says which way activating it goes.
-            .accessibilityHint(
-                model.unifiedExpanded
-                    ? L10n.a11y_collapse_account()
-                    : L10n.a11y_expand_account()
-            )
-        if model.destination == .mail && model.unifiedExpanded {
+        Button {
+            model.setUnifiedExpanded(!model.unifiedExpanded)
+        } label: {
+            HStack(spacing: 0) {
+                // The same chevron the accounts below carry, in the same slot: it says the same
+                // thing about the same kind of tree, so it is not the row's *icon*. Drawn as one
+                // it took the tint and the size a `Label`'s symbol gets in a sidebar, which put a
+                // large blue chevron directly above the small quiet ones.
+                sidebarChevron(expanded: model.unifiedExpanded)
+                Text(L10n.sidebar_all_accounts())
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // The whole row is the control (rule 17), so the whole row is the target.
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // The glyph is a state, not a name, so the row is spoken as "All Accounts" and the
+        // hint is what says which way activating it goes.
+        .accessibilityHint(
+            model.unifiedExpanded
+                ? L10n.a11y_collapse_account()
+                : L10n.a11y_expand_account()
+        )
+        if model.unifiedExpanded {
             HStack(spacing: 0) {
                 disclosureSlot
                 sidebarRow(
                     title: L10n.folder_inbox(),
                     icon: folderIcon(.inbox),
-                    selected: model.selectedAccount == nil,
                     unread: model.unifiedUnread
                 ) { selectAccount(nil) }
             }
             .padding(.leading, indentWidth)
+            .sidebarRowHighlight(showingMail && model.selectedAccount == nil)
         }
     }
 
@@ -308,10 +311,7 @@ extension ContentView {
             Button {
                 model.setFolderExpanded(account, folder.key, !folder.expanded)
             } label: {
-                Image(systemName: folder.expanded ? "chevron.down" : "chevron.right")
-                    .font(.caption)
-                    .frame(width: chevronTargetWidth, height: 28)
-                    .contentShape(Rectangle())
+                sidebarChevron(expanded: folder.expanded)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(
@@ -322,52 +322,99 @@ extension ContentView {
         }
     }
 
+    /// The glyph that says whether a tree is open, wherever the pane draws one: an account's, a
+    /// folder's, and the All Accounts group's.
+    ///
+    /// One function because three chevrons a few points apart, in two different colours, read as
+    /// three different controls. Small and quiet on purpose: it reports a state, where the row
+    /// beside it goes somewhere.
+    func sidebarChevron(expanded: Bool) -> some View {
+        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+            .font(.caption)
+            // A pointer hits the glyph; a finger needs the area around it, and a near miss on an
+            // account is not a no-op, it lands on the row and navigates. The height stays inside
+            // the row so the target grows without the row growing with it.
+            .frame(width: chevronTargetWidth, height: 28)
+            .contentShape(Rectangle())
+    }
+
     /// The space a disclosure control would take, for a row that has none to draw.
     private var disclosureSlot: some View {
         Color.clear.frame(width: chevronTargetWidth, height: 28)
     }
 
+    /// One row's control: its name, its count, and the whole row as the target.
+    ///
+    /// It does **not** carry the highlight, because most of these rows are not the row: they sit
+    /// in an `HStack` beside a chevron, and only the `List`'s own child can be highlighted. That
+    /// is `sidebarRowHighlight(_:)`, on the stack.
     @ViewBuilder
     func sidebarRow(
         title: String,
         icon: String,
-        selected: Bool,
         unread: UInt32 = 0,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack {
-                // One line, truncated at the end. An account address is as long as it is, and a
-                // pane narrow enough to wrap one (every iPad column) turns each account into a
-                // two-line row with its domain orphaned underneath, `eva.jansen@example.c` over
-                // `om`. Rule 11 already says the row says in full what it shortened.
-                Label(title, systemImage: icon)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer()
-                // Never at zero, which deliberately also covers "this provider reports no
-                // count" (Gmail today): both mean there is nothing truthful to show, and a 0
-                // would claim we had looked (`docs/folder-pane.md`). The number alone reads as a
-                // list position aloud, so VoiceOver gets the sentence instead.
-                if unread > 0 {
-                    Text("\(unread)")
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityLabel(L10n.a11y_unread_count(count: Int(unread)))
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // The whole row is the target, not just the words on it. A `Spacer` is not
-            // hit-testable, so the gap the count sits beside swallowed every click landing in
-            // the middle of a row, the wider the pane, the more of the row was dead.
-            .contentShape(Rectangle())
+            sidebarRowLabel(title: title, icon: icon, unread: unread)
         }
         .buttonStyle(.plain)
-        .listRowBackground(selected ? Color.accentColor.opacity(0.2) : Color.clear)
         #if os(macOS)
         // Truncation is unavoidable at some pane width, so the row says in full what it had to
         // shorten, an address clipped mid-domain is precisely the row the user needed to read
         // (`docs/folder-pane.md` rule 11, as the Windows pane does on every row).
         .help(title)
         #endif
+    }
+
+    /// What a row says: its name and, at the trailing edge, its unread count.
+    ///
+    /// Apart from the button and the highlight, which differ between a row **in** the list and one
+    /// of the destinations pinned under it: `listRowBackground` reaches only a row inside a
+    /// `List`, so the pinned rows draw their own.
+    @ViewBuilder
+    func sidebarRowLabel(title: String, icon: String, unread: UInt32) -> some View {
+        HStack {
+            // One line, truncated at the end. An account address is as long as it is, and a
+            // pane narrow enough to wrap one (every iPad column) turns each account into a
+            // two-line row with its domain orphaned underneath, `eva.jansen@example.c` over
+            // `om`. Rule 11 already says the row says in full what it shortened.
+            Label(title, systemImage: icon)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer()
+            // Never at zero, which deliberately also covers "this provider reports no
+            // count" (Gmail today): both mean there is nothing truthful to show, and a 0
+            // would claim we had looked (`docs/folder-pane.md`). The number alone reads as a
+            // list position aloud, so VoiceOver gets the sentence instead.
+            if unread > 0 {
+                Text("\(unread)")
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityLabel(L10n.a11y_unread_count(count: Int(unread)))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // The whole row is the target, not just the words on it. A `Spacer` is not
+        // hit-testable, so the gap the count sits beside swallowed every click landing in
+        // the middle of a row, the wider the pane, the more of the row was dead.
+        .contentShape(Rectangle())
+    }
+}
+
+extension View {
+    /// Lights the row the user is in.
+    ///
+    /// ⚠️ **On the `List`'s own child, never on something inside it.** `listRowBackground` is
+    /// carried up to the row by SwiftUI, and from a view nested in an `HStack` it is carried
+    /// nowhere: it compiles, it reads correctly, and it draws nothing. Every row in this pane but
+    /// two is such a stack, a chevron beside the control, so the folder the user had open was the
+    /// one row with no highlight on it.
+    ///
+    /// Exactly one row carries it, and it is the row that **is** the scope, never the tree that
+    /// row sits in: the unified Inbox rather than All Accounts, a folder or All Mail rather than
+    /// the account over them. It fills the row's whole width, the indent included, which is what a
+    /// selected row does in every native sidebar.
+    func sidebarRowHighlight(_ selected: Bool) -> some View {
+        listRowBackground(selected ? Color.accentColor.opacity(0.2) : Color.clear)
     }
 }
