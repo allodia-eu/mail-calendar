@@ -38,7 +38,7 @@ settings:
     # rejects a bundle whose extension carries a different version from its host, and a second copy
     # of this line is a second copy `cargo xtask check-version-sync` reads past, since it stops at
     # the first match.
-    MARKETING_VERSION: "0.9.0"
+    MARKETING_VERSION: "0.10.0"
     CURRENT_PROJECT_VERSION: "1"
 
 targets:
