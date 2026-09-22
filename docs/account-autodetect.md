@@ -251,11 +251,11 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Email-first prompt → routed prefill | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Detected servers shown to confirm, not retype (password is the only field) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Manual account-type picker (IMAP · JMAP · Microsoft · Google) | n/a | ✅ | ✅ | ✅ | ✅ |
-| Manual port **and** connection-security selector (rule 11) | ✅ | 🚧 | ✅ | 🚧 | 🚧 |
+| Manual port **and** connection-security selector (rule 11) | ✅ | 🚧 | ✅ | 🚧 | ✅ |
 | Google native route (consumer fast-path + Workspace-host) | ✅ | 🚧 | 🚧 | 🚧 | ✅ consumer fast-path |
 | JMAP probe · autoconfig · ISPDB | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Untrusted-settings approval gate | ✅ | ✅ | 🚧 | ✅ | ✅ |
-| Refused-certificate acceptance ([`certificate-exceptions.md`](certificate-exceptions.md)) | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Refused-certificate acceptance ([`certificate-exceptions.md`](certificate-exceptions.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | "Set up manually" escape + reason line | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | MX fallback (host DNS) | ✅ | ✅ libresolv | 🚧 DnsQuery_W | ✅ DnsResolver | ✅ GIO Resolver |
 | JMAP-SRV autodiscovery (`_jmap._tcp`) | ✅ | ✅ | 🚧 | ✅ | ✅ |
@@ -296,9 +296,9 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
 
 ## Known gaps
 
-- **The manual form's port and security row is driven on Windows only.** The rule is rule 11 and
-  every client implements it, but only the WinUI one has been driven against a real STARTTLS
-  server. The other three carry 🚧 in the matrix until someone runs them.
+- **The manual form's port and security row is driven on Windows and Linux only.** The rule is
+  rule 11 and every client implements it, but only those two have been driven against a real
+  STARTTLS server. Apple and Android carry 🚧 in the matrix until someone runs them.
 - **Google routing depends on host recognition for Workspace domains.** A consumer
   `gmail.com` / `googlemail.com` address is routed to native Google with certainty (rule 10),
   but a **custom Workspace domain** is only recognised when a strategy returns a Google-family

@@ -59,6 +59,12 @@ appliances do the same. It applies to any certificate the verifier refuses, what
    password, and re-asking the certificate question over a typo would make the answer look like
    it had not been heard.
 
+   The question is also **answered where it was asked**: the refusal is drawn into the form the
+   person filled in, which stays on screen with every field as they left it, the secret
+   included. A client that rebuilds the form to report the refusal asks for the whole server
+   again in order to answer a question about the server just given, and for a secret it never
+   stored.
+
 7. **The panel replaces the error, it does not sit under it.** While the certificate is on screen
    the transport's own message is not: the panel says the same thing in the reader's language, with
    the certificate beside it, and the raw text would be a second, worse copy of the question.
@@ -104,8 +110,8 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Refusal carries the certificate, not just a message | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Certificate shown before it can be accepted | ✅ | ✅ | ✅ | 🚧 | 🚧 |
-| Connect inert until accepted | ✅ | ✅ | ✅ | 🚧 | 🚧 |
+| Certificate shown before it can be accepted | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| Connect inert until accepted | ✅ | ✅ | ✅ | 🚧 | ✅ |
 | Acceptance stored with the account, asked once | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Detected card **and** manual form | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Exception applies to IMAP, SMTP and CalDAV of that account | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -125,8 +131,18 @@ the listener, Connect stayed inert until the box was ticked, the account then co
 synced, and a later launch did not ask again. Its manual form was driven too, against the same
 server over STARTTLS, and drew the same panel under the same gate.
 
-Android and Linux are written against the same core surface and covered by their own unit suites,
-and are owed a run on their platform.
+Linux is verified against a running Proton Mail Bridge and against the harness's self-signed
+IMAP listener: the connect was refused and named the server, the panel's subject, issuer,
+validity window and SHA-256 matched what `openssl` read off the listener, the form kept every
+field including the secret while the panel was on screen, and Connect stayed inert until the box
+was ticked and then connected. Only its **manual form** has been driven, and no second launch
+has been checked, so those two rows keep their 🚧.
+
+⚠️ Its subject read `localhost` where the certificate's `CN` is `rcgen self signed cert`, which
+is rule 4 holding: the `subjectAltName` is what a verifier matches and what the panel shows.
+
+Android is written against the same core surface and covered by its own unit suite, and is owed a
+run on its platform.
 
 ## Known gaps
 
