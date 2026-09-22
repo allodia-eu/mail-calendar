@@ -282,6 +282,7 @@ source "$CONFIG"
 : "${MAS_PROVISIONING_PROFILE:=}"
 : "${MACOS_DEV_PROVISIONING_PROFILE:=}"
 : "${IOS_PROVISIONING_PROFILE:=}"
+: "${IOS_SHARE_PROVISIONING_PROFILE:=}"
 : "${ASC_API_KEY_ID:=}"
 : "${ASC_API_ISSUER_ID:=}"
 
@@ -391,6 +392,53 @@ ios-device | ios-app-store)
        The iOS App Store export signs against an installed profile and needs the certificate name.
        (Full steps: clients/apple/README.md.)" ;;
     esac
+    # Both profiles are resolved here, before the core and the archive: the export is the first
+    # step that would otherwise look for them, and it runs last. The Share Extension is an App ID
+    # of its own and needs a profile of its own; without one the export ends in '"AllodiaMailShare.appex"
+    # requires a provisioning profile with the App Groups feature'.
+    #
+    # Manual signing, against installed profiles, for the reason the template records: automatic
+    # signing asks App Store Connect to manage the distribution assets and is refused outright by a
+    # key without permission for that, while the profile it needs sits installed and unread.
+    #
+    # The profile decides the certificate, exactly as in Flow B: two certificates can share a common
+    # name, and only one of them is on the profile's list.
+    IOS_DIST_CANDIDATES="$(security find-identity -v -p codesigning \
+      | awk -F'"' -v name="$APPLE_DISTRIBUTION_IDENTITY" '$2 == name { split($1, a, " "); print a[2] }')"
+    [[ -n "$IOS_DIST_CANDIDATES" ]] || fail "no valid codesigning identity named '$APPLE_DISTRIBUTION_IDENTITY' is in the keychain.
+       Check the name in $CONFIG against: security find-identity -v -p codesigning"
+    # The brand's app id, not `BUNDLE_ID`: that one is read from the built macOS app's Info.plist,
+    # several steps further down and on a path this flow never takes.
+    IOS_BUNDLE_ID="$(brand_value MAILCAL_APP_ID)"
+    IOS_SHARE_BUNDLE_ID="$IOS_BUNDLE_ID.share"
+    # Both the app and the extension claim the group the share hand-off travels through
+    # (App/AllodiaMail.entitlements, App/AllodiaMailShare.entitlements), so both profiles grant it.
+    IOS_APP_GROUP="group.$IOS_BUNDLE_ID"
+    ios_profile_or_fail() {
+      local bundle_id="$1" explicit="$2" setting="$3" match
+      match="$(resolve_profile "$DEVELOPMENT_TEAM.$bundle_id" "$IOS_DIST_CANDIDATES" \
+                 "$explicit" "$IOS_APP_GROUP" iOS distribution)"
+      [[ -n "$(printf '%s' "$match" | cut -f3)" ]] || fail "no installed iOS App Store provisioning profile for
+       $DEVELOPMENT_TEAM.$bundle_id authorises a valid '$APPLE_DISTRIBUTION_IDENTITY' cert AND
+       grants the app group '$IOS_APP_GROUP'.
+       Candidate certs in the keychain:
+$(echo "$IOS_DIST_CANDIDATES" | sed 's/^/         /')
+       It has to be one you created yourself: manual signing refuses an Xcode-managed profile, and
+       Xcode mints those for itself, so having one already is not the same as having this.
+       In the developer portal: Identifiers ▸ $bundle_id ▸ App Groups ▸ assign '$IOS_APP_GROUP' ▸
+       Save, then Profiles ▸ + ▸ 'App Store Connect' ▸ App ID $bundle_id ▸ pick that cert ▸
+       Generate ▸ Download, then copy it into place:
+         cp ~/Downloads/<name>.mobileprovision ~/Library/MobileDevice/Provisioning\\ Profiles/
+       (or point $setting=<path> at the download in $CONFIG). A profile generated before the group
+       was assigned never carries it: re-issue it (Edit ▸ Save) and download it again."
+      printf '%s' "$match"
+    }
+    IOS_PROFILE_MATCH="$(ios_profile_or_fail "$IOS_BUNDLE_ID" "$IOS_PROVISIONING_PROFILE" IOS_PROVISIONING_PROFILE)"
+    IOS_SHARE_PROFILE_MATCH="$(ios_profile_or_fail "$IOS_SHARE_BUNDLE_ID" "$IOS_SHARE_PROVISIONING_PROFILE" IOS_SHARE_PROVISIONING_PROFILE)"
+    IOS_PROFILE_FILE="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f1)"
+    IOS_PROFILE_UUID="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f3)"
+    IOS_SHARE_PROFILE_FILE="$(printf '%s' "$IOS_SHARE_PROFILE_MATCH" | cut -f1)"
+    IOS_SHARE_PROFILE_UUID="$(printf '%s' "$IOS_SHARE_PROFILE_MATCH" | cut -f3)"
   fi
   ;;
 esac
@@ -656,45 +704,18 @@ fi
 # Store) profile, and the full signature verifies deep. A rejection at delivery costs a build number
 # and a slow round-trip, so the gate must be able to fail here first.
 if [[ "$FLOW" == ios-app-store ]]; then
-  # Manual signing, against an installed profile, for the reason the template records: automatic
-  # signing asks App Store Connect to manage the distribution assets and is refused outright by a
-  # key without permission for that, while the profile it needs sits installed and unread.
-  #
-  # The profile decides the certificate, exactly as in Flow B: two certificates can share a common
-  # name, and only one of them is on the profile's list.
-  IOS_DIST_CANDIDATES="$(security find-identity -v -p codesigning \
-    | awk -F'"' -v name="$APPLE_DISTRIBUTION_IDENTITY" '$2 == name { split($1, a, " "); print a[2] }')"
-  [[ -n "$IOS_DIST_CANDIDATES" ]] || fail "no valid codesigning identity named '$APPLE_DISTRIBUTION_IDENTITY' is in the keychain.
-       Check the name in $CONFIG against: security find-identity -v -p codesigning"
-  # The brand's app id, not `BUNDLE_ID`: that one is read from the built macOS app's Info.plist,
-  # several steps further down and on a path this flow never takes.
-  IOS_BUNDLE_ID="$(brand_value MAILCAL_APP_ID)"
-  # No app group: the iOS app declares none, so there is nothing for a profile to grant.
-  IOS_PROFILE_MATCH="$(resolve_profile "$DEVELOPMENT_TEAM.$IOS_BUNDLE_ID" "$IOS_DIST_CANDIDATES" \
-                        "$IOS_PROVISIONING_PROFILE" "" iOS distribution)"
-  IOS_PROFILE_FILE="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f1)"
-  IOS_PROFILE_UUID="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f3)"
-  [[ -n "$IOS_PROFILE_FILE" && -n "$IOS_PROFILE_UUID" ]] || fail "no installed iOS App Store provisioning profile for
-       $DEVELOPMENT_TEAM.$IOS_BUNDLE_ID authorises a valid '$APPLE_DISTRIBUTION_IDENTITY' cert.
-       Candidate certs in the keychain:
-$(echo "$IOS_DIST_CANDIDATES" | sed 's/^/         /')
-       It has to be one you created yourself: manual signing refuses an Xcode-managed profile, and
-       Xcode mints those for itself, so having one already is not the same as having this.
-       In the developer portal: Profiles ▸ + ▸ 'App Store Connect' ▸ App ID $IOS_BUNDLE_ID ▸ pick that
-       cert ▸ Generate ▸ Download, then copy it into place:
-         cp ~/Downloads/<name>.mobileprovision ~/Library/MobileDevice/Provisioning\\ Profiles/
-       (or point IOS_PROVISIONING_PROFILE=<path> at the download in $CONFIG). If the cert was
-       recently renewed, re-issue the profile so it lists the current one."
-
   EXPORT_PLIST="$BUILD/ExportOptions.plist"
   sed -e "s/__TEAM_ID__/$DEVELOPMENT_TEAM/g" \
       -e "s/__BUNDLE_ID__/$IOS_BUNDLE_ID/g" \
       -e "s/__PROFILE_UUID__/$IOS_PROFILE_UUID/g" \
+      -e "s/__SHARE_BUNDLE_ID__/$IOS_SHARE_BUNDLE_ID/g" \
+      -e "s/__SHARE_PROFILE_UUID__/$IOS_SHARE_PROFILE_UUID/g" \
       -e "s/__SIGNING_CERTIFICATE__/$APPLE_DISTRIBUTION_IDENTITY/g" \
       "$HERE/Scripts/ExportOptions-AppStore-iOS.plist" >"$EXPORT_PLIST"
 
   echo "==> iOS App Store: exporting the archive (app-store-connect, manual distribution signing)"
   echo "    profile: $(basename "$IOS_PROFILE_FILE") ($IOS_PROFILE_UUID)"
+  echo "    share extension profile: $(basename "$IOS_SHARE_PROFILE_FILE") ($IOS_SHARE_PROFILE_UUID)"
   rm -rf "$EXPORT"; mkdir -p "$EXPORT"
   xcodebuild -exportArchive \
     -archivePath "$ARCHIVE" \

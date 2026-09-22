@@ -316,6 +316,13 @@ app for `generic/platform=iOS` (development-signed, automatic provisioning), the
 --upload-app -f <ipa> -t ios --apiKey <KEY_ID> --apiIssuer <ISSUER_UUID>` (set the two ids **once**
 in `signing.local.sh` and the script prints that line filled in, see "Uploading a build" below).
 
+The export signs manually, against **two** installed App Store profiles you create in the portal:
+one for `eu.allodia.mailcal` and one for the Share Extension's own App ID,
+`eu.allodia.mailcal.share`. Both App IDs claim `group.eu.allodia.mailcal`, so the group has to be
+assigned to each **before** its profile is generated. `package.sh` resolves both before it builds
+anything and names the one that is missing; `IOS_PROVISIONING_PROFILE` and
+`IOS_SHARE_PROVISIONING_PROFILE` in `signing.local.sh` point at a download kept elsewhere.
+
 ### Flow D, iOS/iPadOS on your own device (`.ipa` you can install)
 
 **Flow C's `.ipa` cannot be installed on a device, and no flag changes that.** An App Store
