@@ -162,10 +162,6 @@ run on its platform.
 - **An acceptance does not survive leaving the flow.** It is carried across the attempts of one
   setup and dropped when the form closes, because until the account exists there is nothing to
   store it against. Somebody who cancels and starts again is asked once more.
-- **The manual form is implicit-TLS only.** Inherited from
-  [`account-autodetect.md`](account-autodetect.md) → Known gaps, and it bites here: Proton Mail
-  Bridge is STARTTLS on 1143/1025, so a Bridge account is reachable through the **detected** card
-  (Proton publishes autoconfig naming those ports) and not by typing the host by hand.
 
 ## Testing
 

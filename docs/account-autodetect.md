@@ -404,7 +404,11 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   target), the connect-gating, and the calendar opt-out/opt-in → effective-CalDAV-URL logic
   are unit-tested on Android (JVM), Apple (package `Testing`), and Windows (net10.0). Linux uses
   GIO's typed MX/SRV records and unit-tests trailing-dot/root-target normalisation plus the detected
-  security/CalDAV conversion. End-to-end,
+  security/CalDAV conversion. Rule 11's field has a suite of its own per client
+  (`ManualServerFieldTests` on Apple and Windows, `setup_server_field_tests` on Linux,
+  `ManualServerFieldTest` on Android): the port follows the security until it is typed, a cleared
+  field hands it back, a port inside the host name wins, and a detected server is adopted split.
+  The standard ports themselves are the core's, asserted in `mailcal-bindings`. End-to-end,
   detection was driven on a device against real public domains (gmail → Google sign-in, outlook →
   Microsoft) and against the local Stalwart harness (JMAP → connect → inbox sync) via the
   dev-only `MAILCAL_AUTODETECT_WELL_KNOWN_BASE` override (see [`debugging.md`](debugging.md)).
