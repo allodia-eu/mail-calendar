@@ -136,10 +136,13 @@ extension ContentView {
                         )
                         sidebarRow(
                             title: account.email,
-                            icon: "person.crop.circle",
-                            selected: showingMail && model.selectedAccount == account.id
+                            icon: "person.crop.circle"
                         ) { selectAccount(account.id) }
                     }
+                    // No highlight on the account row itself, exactly as the All Accounts group
+                    // above carries none: what it opens is its **All Mail** row, and that row is
+                    // the one lit. A tree shut over it takes the highlight off screen with it,
+                    // which is what a shut group does to the unified Inbox.
                     // Right-click an account to remove it (with a confirmation).
                     .contextMenu {
                         Button(L10n.action_remove_account(), role: .destructive) {
@@ -167,13 +170,15 @@ extension ContentView {
                             disclosureSlot
                             sidebarRow(
                                 title: L10n.sidebar_all_mail(),
-                                icon: "tray.full",
-                                selected: showingMail
-                                    && model.selectedAccount == account.id
-                                    && model.selected == nil
+                                icon: "tray.full"
                             ) { selectAccount(account.id) }
                         }
                         .padding(.leading, indentWidth)
+                        .sidebarRowHighlight(
+                            showingMail
+                                && model.selectedAccount == account.id
+                                && model.selected == nil
+                        )
                         ForEach(model.folderRows(for: account.id)) { row in
                             let folder = row.folder
                             HStack(spacing: 0) {
@@ -181,9 +186,6 @@ extension ContentView {
                                 sidebarRow(
                                     title: folderLabel(role: folder.role, name: folder.name),
                                     icon: folderIcon(folder.role),
-                                    selected: showingMail
-                                        && model.selectedAccount == account.id
-                                        && model.selected == folder.key,
                                     unread: folder.unread
                                 ) { selectFolder(in: account.id, key: folder.key) }
                             }
@@ -191,10 +193,15 @@ extension ContentView {
                             // stack rather than inside the row so the chevrons line up down a
                             // branch, the way the account chevrons line up down the pane.
                             .padding(.leading, indentWidth * CGFloat(folder.depth + 1))
+                            .sidebarRowHighlight(
+                                showingMail
+                                    && model.selectedAccount == account.id
+                                    && model.selected == folder.key
+                            )
                         }
                     }
                 }
-                sidebarRow(title: L10n.action_add_account(), icon: "plus.circle", selected: false) {
+                sidebarRow(title: L10n.action_add_account(), icon: "plus.circle") {
                     model.setupError = nil
                     model.addingAccount = true
                 }
@@ -234,9 +241,9 @@ extension ContentView {
             sidebarRow(
                 title: L10n.folder_outbox(),
                 icon: "tray.and.arrow.up",
-                selected: showingMail && model.showingOutbox,
                 unread: UInt32(model.outbox.count)
             ) { model.showOutbox() }
+                .sidebarRowHighlight(showingMail && model.showingOutbox)
         }
     }
 
@@ -283,11 +290,11 @@ extension ContentView {
                 sidebarRow(
                     title: L10n.folder_inbox(),
                     icon: folderIcon(.inbox),
-                    selected: showingMail && model.selectedAccount == nil,
                     unread: model.unifiedUnread
                 ) { selectAccount(nil) }
             }
             .padding(.leading, indentWidth)
+            .sidebarRowHighlight(showingMail && model.selectedAccount == nil)
         }
     }
 
@@ -336,11 +343,15 @@ extension ContentView {
         Color.clear.frame(width: chevronTargetWidth, height: 28)
     }
 
+    /// One row's control: its name, its count, and the whole row as the target.
+    ///
+    /// It does **not** carry the highlight, because most of these rows are not the row: they sit
+    /// in an `HStack` beside a chevron, and only the `List`'s own child can be highlighted. That
+    /// is `sidebarRowHighlight(_:)`, on the stack.
     @ViewBuilder
     func sidebarRow(
         title: String,
         icon: String,
-        selected: Bool,
         unread: UInt32 = 0,
         action: @escaping () -> Void
     ) -> some View {
@@ -348,7 +359,6 @@ extension ContentView {
             sidebarRowLabel(title: title, icon: icon, unread: unread)
         }
         .buttonStyle(.plain)
-        .listRowBackground(selected ? Color.accentColor.opacity(0.2) : Color.clear)
         #if os(macOS)
         // Truncation is unavoidable at some pane width, so the row says in full what it had to
         // shorten, an address clipped mid-domain is precisely the row the user needed to read
@@ -359,8 +369,8 @@ extension ContentView {
 
     /// What a row says: its name and, at the trailing edge, its unread count.
     ///
-    /// Apart from the button and its background, which differ between a row **in** the list and
-    /// one of the destinations pinned under it: `listRowBackground` reaches only a row inside a
+    /// Apart from the button and the highlight, which differ between a row **in** the list and one
+    /// of the destinations pinned under it: `listRowBackground` reaches only a row inside a
     /// `List`, so the pinned rows draw their own.
     @ViewBuilder
     func sidebarRowLabel(title: String, icon: String, unread: UInt32) -> some View {
@@ -388,5 +398,23 @@ extension ContentView {
         // hit-testable, so the gap the count sits beside swallowed every click landing in
         // the middle of a row, the wider the pane, the more of the row was dead.
         .contentShape(Rectangle())
+    }
+}
+
+extension View {
+    /// Lights the row the user is in.
+    ///
+    /// ⚠️ **On the `List`'s own child, never on something inside it.** `listRowBackground` is
+    /// carried up to the row by SwiftUI, and from a view nested in an `HStack` it is carried
+    /// nowhere: it compiles, it reads correctly, and it draws nothing. Every row in this pane but
+    /// two is such a stack, a chevron beside the control, so the folder the user had open was the
+    /// one row with no highlight on it.
+    ///
+    /// Exactly one row carries it, and it is the row that **is** the scope, never the tree that
+    /// row sits in: the unified Inbox rather than All Accounts, a folder or All Mail rather than
+    /// the account over them. It fills the row's whole width, the indent included, which is what a
+    /// selected row does in every native sidebar.
+    func sidebarRowHighlight(_ selected: Bool) -> some View {
+        listRowBackground(selected ? Color.accentColor.opacity(0.2) : Color.clear)
     }
 }
