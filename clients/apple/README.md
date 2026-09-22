@@ -53,6 +53,7 @@ Scripts/package.sh --no-notarize    # Flow A, skip the notary round-trip (fast p
 Scripts/package.sh --app-store      # Flow B: Apple-Distribution .pkg for the macOS App Store
 Scripts/package.sh --ios-app-store  # Flow C: App Store .ipa for iOS/iPadOS
 Scripts/package.sh --ios-device     # Flow D: installable Release .ipa for your own iPhone/iPad
+Scripts/package.sh --sandboxed      # Flow E: Flow B's app, development-signed to run on this Mac
 Scripts/package.sh --version 1.0.1  # stamp the marketing version
 ```
 
@@ -209,12 +210,24 @@ and `taskgated-helper: "Only Development Provisioning Profiles can be installed 
 Settings"` (CPProfileManager -215). This is the macOS counterpart of Flow C's device-list rule
 below, and like that one it is not a flag.
 
-**To run a sandboxed build locally, do not use this flow at all.**
-`Scripts/build-and-run.sh --macos --sandboxed` builds the same entitlement set on the dev loop, in
-seconds rather than an archive's minutes, signed against a development profile macOS honours. That
-is the supported route and [`docs/debugging.md`](../../docs/debugging.md) section 8 owns it,
-including the profile it needs and how to make one. Add `--configuration Release` to match this
-flow's optimisation settings as well.
+**To run the Store's app on this Mac, use Flow E: `Scripts/package.sh --sandboxed`.** It archives
+exactly as this flow does and signs through this flow's own pass, swapping only the certificate and
+the profile: an Apple Development certificate, and a **macOS App Development** profile that grants
+the App Group and lists this Mac, in place of the Store's pair. Entitlements, signing order and every
+gate are the Store's, so an entitlement the sandbox needs and the Store build lacks fails here
+first, on a Release build with the release core. The profile is the one the dev loop's
+`--sandboxed` signs with, and [`docs/debugging.md`](../../docs/debugging.md) section 8 says how to
+make one; `MACOS_DEV_PROVISIONING_PROFILE` in `signing.local.sh` points at one kept elsewhere. The
+result is `build/release-<VERSION>/AllodiaMail-<VERSION>-Sandboxed.zip`, which runs only on the
+Macs the profile lists and keeps its data in the sandbox's container.
+
+⚠️ **The Share Extension keeps the profile the archive embedded**, Xcode's wildcard *Mac Team
+Provisioning Profile*, which grants no group, while it is signed claiming
+`group.eu.allodia.mailcal`. This flow's pass leaves it the same way, so Flow E is faithful to the
+Store build here too. Whether a share still reaches the app under it has not been measured.
+
+For the dev loop, `Scripts/build-and-run.sh --macos --sandboxed` gives the app the same
+entitlements in seconds rather than an archive's minutes, with a debug core.
 
 The archive's app (`build/package/AllodiaMail.xcarchive/Products/Applications/AllodiaMail.app`) is
 sandboxed too, because `--app-store` archives with
@@ -225,7 +238,7 @@ generic *Mac Team Provisioning Profile*, which grants **no**
 `group.eu.allodia.mailcal`. The app still *claims* the group, so the group container exists and is
 refused: `deny(1) file-write-create …/mcp.sock`, surfacing as `mcp: could not bind the socket
 (permission denied)`. Everything else in the sandbox is faithful, so read an MCP failure in **that**
-copy as the profile rather than as the code, and reach for `--sandboxed` instead of hand-signing it.
+copy as the profile rather than as the code, and reach for Flow E instead of hand-signing it.
 
 Steering the archive itself onto an App-Groups profile is not a flag we have, deliberately. An
 `xcodebuild` setting override is global, and `PROVISIONING_PROFILE_SPECIFIER` is one no override can

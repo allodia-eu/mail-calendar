@@ -42,6 +42,12 @@ APPLE_DISTRIBUTION_IDENTITY="Apple Distribution: REPLACE (REPLACE_WITH_TEAM_ID)"
 MAC_INSTALLER_IDENTITY="3rd Party Mac Developer Installer: REPLACE (REPLACE_WITH_TEAM_ID)"
 # MAS_PROVISIONING_PROFILE="$HOME/Downloads/Allodia_Mail_Mac_App_Store.provisionprofile"
 
+# ---- Flow E only (--sandboxed: the Store's app, run on this Mac) --------------------------------
+# Signs with your Apple Development cert against a macOS App Development profile that grants the
+# App Group and lists this Mac (docs/debugging.md, section 8). Found automatically like the one
+# above; uncomment to point at one kept elsewhere.
+# MACOS_DEV_PROVISIONING_PROFILE="$HOME/Downloads/Allodia_Mail_macOS_Development.provisionprofile"
+
 # ---- Uploading a finished build (optional; Flow B and Flow C) ----------------------------------
 # App Store Connect API credentials for `xcrun altool --upload-app`. Set both and package.sh prints
 # its upload line ready to paste; leave them out and it prints <KEY_ID>/<ISSUER_UUID> placeholders

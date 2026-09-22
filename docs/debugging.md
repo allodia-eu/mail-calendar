@@ -919,7 +919,9 @@ clients/apple/Scripts/build-and-run.sh --macos --sandboxed
 The app then carries exactly `App/AllodiaMail.appstore.entitlements`, the set the Store build
 carries, and the relay is sandboxed with the app group rather than ad-hoc signed with nothing.
 `--configuration Release` on top gets the optimisation settings too, though the sandbox is what
-decides the bugs above, not the optimiser.
+decides the bugs above, not the optimiser. For the Store's own archive and signing pass, release
+core included, `clients/apple/Scripts/package.sh --sandboxed` signs with the same profile
+([`clients/apple/README.md`](../clients/apple/README.md), Flow B).
 
 **It needs a development provisioning profile that grants the app group.** Two of the entitlements
 in that set, `keychain-access-groups` and `com.apple.security.application-groups`, are ones macOS
