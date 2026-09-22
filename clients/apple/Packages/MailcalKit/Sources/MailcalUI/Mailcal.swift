@@ -155,17 +155,23 @@ public struct ContentView: View {
             }
             model.start()
             restoreSceneIfPossible()
-            #if os(iOS)
-            // Schedule the background sync at every launch (invisible). The notification permission
-            // is asked for separately, see `requestNotificationsIfSettled`.
-            //
-            // A showcase run does neither: the background pass would sync the developer's *stored*
-            // accounts (the showcase connects none), and the permission alert would pop a system
-            // dialog over the screenshot being taken.
+            // A showcase run never asks: the permission alert would pop a system dialog over the
+            // screenshot being taken, and on iOS the background pass would sync the developer's
+            // *stored* accounts, which the showcase connects none of.
             if !ShowcaseMode.isOn {
+                #if os(iOS)
+                // Schedule the background sync at every launch (invisible). macOS keeps its
+                // always-on live runtime and schedules nothing (docs/background-sync.md).
                 scheduleBackgroundRefresh()
+                #endif
                 requestNotificationsIfSettled()
             }
+            // Answers a click on a notification by opening the message it names, and in a DEBUG
+            // build also presents the banner while the app is frontmost, which the OS otherwise
+            // suppresses (MailNotifier.swift). Every launch, release included: without a delegate
+            // the OS default action only brings the app forward.
+            MailNotifier.installDelegate()
+            #if os(iOS)
             #if DEBUG
             installDebugBackgroundTrigger()
             // On-device on-demand trigger (a `BGAppRefreshTask` can't be driven from the CLI and the
@@ -206,18 +212,14 @@ public struct ContentView: View {
         .onChange(of: model.selected) { _, _ in restoreSceneIfPossible() }
         .onChange(of: model.needsSetup) { _, _ in
             restoreSceneIfPossible()
-            #if os(iOS)
             // The user just onboarded their first account, now it makes sense to ask.
             requestNotificationsIfSettled()
-            #endif
         }
-        #if os(iOS)
         // A returning user upgrading into this version has accounts already, so `needsSetup` never
         // changes and the line above never fires, but they still get the welcome screen, and the
         // system alert must not open on top of it. Waiting on the consent question here is what
         // sequences the two asks in that case.
         .onChange(of: model.analyticsConsent?.asked) { _, _ in requestNotificationsIfSettled() }
-        #endif
         .onChange(of: model.reading?.key) { _, key in
             autoReplyIfRequested(readingKey: key)
             showcaseReplyIfNeeded(readingKey: key)
@@ -321,6 +323,9 @@ public struct ContentView: View {
         // Another app sharing files into a new message. The Share Extension has already staged
         // them; this looks in the box whenever the app is activated. See Mailcal.Share.swift.
         .modifier(ShareRouting(model: model, open: openShare))
+        // A clicked new-mail notification, which names a message the process-wide delegate cannot
+        // open itself. See Mailcal.NotificationOpen.swift.
+        .modifier(NotificationOpenRouting(model: model, open: openNotificationOpen))
         // The one-time offer to become the default mail app: when to raise it and the alert
         // itself, both in the modifier (docs/os-integration.md).
         .modifier(DefaultMailAppOfferDialog(model: model))

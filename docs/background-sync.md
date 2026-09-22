@@ -71,7 +71,7 @@ pass exists precisely to report mail that arrived while nobody was looking.
   no single message, so it quotes none.
 - **One notification per message, keyed by the message key.** Each client raises **one notification
   per `NewMailPreview`**, identified by its **stable message key**, grouped per account (Android
-  group + summary; iOS `threadIdentifier`). Keying by message, not by account, is a contract
+  group + summary; macOS and iOS `threadIdentifier`). Keying by message, not by account, is a contract
   requirement: because the mark advances past reported mail, a per-account notification would be
   **replaced** by the next pass's, silently losing an earlier still-unseen message. The app-icon
   badge (iOS) carries the whole pass's total, not one account's.
@@ -105,15 +105,15 @@ pass exists precisely to report mail that arrived while nobody was looking.
 
 | Aspect | macOS | Windows | Linux | Android · WorkManager | iOS/iPadOS · BGTaskScheduler |
 |---|---|---|---|---|---|
-| Mechanism | The always-on **foreground live runtime** (IMAP `IDLE` + poll) delivers while the app runs | Same live runtime; a mailbox change triggers a cache-only new-mail scan | Same live runtime; a mailbox change triggers a cache-only new-mail scan | A `PeriodicWorkRequest` (`~15 min`, `CONNECTED`) running a `CoroutineWorker` | A `BGAppRefreshTask` (`UIBackgroundModes: fetch`, id `eu.allodia.mailcal.refresh`) driven by the SwiftUI `.backgroundTask(.appRefresh:)` handler |
-| Core call | n/a (live runtime) | `collect_cached_new_mail` after the live runtime publishes `MailboxList` | `collect_cached_new_mail` after the live runtime publishes `MailboxList` | `run_background_sync`: **reuses the live core** while the process is alive (weak `MailcalApplication.liveCore`), else a headless core built for the run | `run_background_sync`: **reuses the live core** while the app is resident (weak `LiveCore.shared`), else a headless core built for the run |
-| Budget | n/a | n/a (no network pass) | n/a (no network pass) | `120 s` (worker), well under the ~10-min cap | `25 s`, under iOS's ~30 s grant |
-| Skips when foregrounded | n/a | n/a (desktop live runtime) | n/a (desktop live runtime) | Yes: defers to the live runtime (`MailcalApplication.isForeground`) | Naturally (iOS won't run it while active) |
-| Notifications | **not yet** (follow-up) | ✅ `AppNotificationManager` (Windows App SDK), one per message by stable key (`Tag`), grouped per account (`Group`); a summary covers previews beyond the cap | ✅ desktop portal (`ashpd`), one per message by stable key; a summary covers previews beyond the cap | `NotificationCompat` "New mail" channel, one **per message** (grouped per account + summary), `POST_NOTIFICATIONS` | `UNUserNotificationCenter`, one **per message** (grouped per account via `threadIdentifier`), `requestAuthorization` |
-| Content | n/a | sender · subject · snippet, as the toast's three text elements | sender · subject and snippet sharing the portal's one body, on one line | sender · subject collapsed, the snippet on the expanded `BigTextStyle` | sender · account subtitle · subject and snippet sharing the body |
-| User toggle | n/a | Settings → Notifications (`NotificationPrefs`, a one-line file beside the language and log-level choices) | Settings → Notifications (`HostPreferences`) | Settings → "New-mail notifications" (`NotificationPrefs`, SharedPreferences) | Settings → "New-mail notifications" (`NotificationPrefs`, UserDefaults) |
+| Mechanism | The always-on **foreground live runtime** (IMAP `IDLE` + poll) delivers while the app runs; a mailbox change triggers a cache-only new-mail scan | Same live runtime; a mailbox change triggers a cache-only new-mail scan | Same live runtime; a mailbox change triggers a cache-only new-mail scan | A `PeriodicWorkRequest` (`~15 min`, `CONNECTED`) running a `CoroutineWorker` | A `BGAppRefreshTask` (`UIBackgroundModes: fetch`, id `eu.allodia.mailcal.refresh`) driven by the SwiftUI `.backgroundTask(.appRefresh:)` handler |
+| Core call | `collect_cached_new_mail` after the live runtime publishes `MailboxList` | `collect_cached_new_mail` after the live runtime publishes `MailboxList` | `collect_cached_new_mail` after the live runtime publishes `MailboxList` | `run_background_sync`: **reuses the live core** while the process is alive (weak `MailcalApplication.liveCore`), else a headless core built for the run | `run_background_sync`: **reuses the live core** while the app is resident (weak `LiveCore.shared`), else a headless core built for the run |
+| Budget | n/a (no network pass) | n/a (no network pass) | n/a (no network pass) | `120 s` (worker), well under the ~10-min cap | `25 s`, under iOS's ~30 s grant |
+| Skips when foregrounded | n/a (desktop live runtime) | n/a (desktop live runtime) | n/a (desktop live runtime) | Yes: defers to the live runtime (`MailcalApplication.isForeground`) | Naturally (iOS won't run it while active) |
+| Notifications | ✅ `UNUserNotificationCenter`, one per message by stable key (`identifier`), grouped per account (`threadIdentifier`); a summary covers previews beyond the cap; a click **opens the message** | ✅ `AppNotificationManager` (Windows App SDK), one per message by stable key (`Tag`), grouped per account (`Group`); a summary covers previews beyond the cap | ✅ desktop portal (`ashpd`), one per message by stable key; a summary covers previews beyond the cap | `NotificationCompat` "New mail" channel, one **per message** (grouped per account + summary), `POST_NOTIFICATIONS` | ✅ `UNUserNotificationCenter`, one **per message** (grouped per account via `threadIdentifier`), `requestAuthorization`; a summary covers previews beyond the cap; a tap **opens the message** |
+| Content | sender · subject · snippet, as the notification's title, subtitle and body | sender · subject · snippet, as the toast's three text elements | sender · subject and snippet sharing the portal's one body, on one line | sender · subject collapsed, the snippet on the expanded `BigTextStyle` | sender · account subtitle · subject and snippet sharing the body |
+| User toggle | Settings → Notifications (`NotificationPrefs`, UserDefaults) | Settings → Notifications (`NotificationPrefs`, a one-line file beside the language and log-level choices) | Settings → Notifications (`HostPreferences`) | Settings → "New-mail notifications" (`NotificationPrefs`, SharedPreferences) | Settings → "New-mail notifications" (`NotificationPrefs`, UserDefaults) |
 | Keeping its schedule | n/a (the process is always running) | n/a (the process is always running) | n/a (the process is always running) | Settings → "Background mail delivery" → **Allow** (`BatteryOptimization.kt`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`); shown only while not exempt. Without it Doze/OEM sleeping defer the pass by **hours** | Nothing to ask for: `BGTaskScheduler`'s cadence is entirely iOS's call |
-| Files | (live runtime, `crates/mailcal-bindings/src/background.rs`) | `MailboxModel.Notifications.cs`, `NewMailNotices.cs`, `NewMailNotifier.cs`, `NotificationPrefs.cs` | `ui/host_tasks.rs`, `ui/notifications.rs`, `preferences.rs` | `MailcalApplication.kt`, `MailSyncWorker.kt`, `MailNotifier.kt`, `NotificationPrefs.kt`, `BackgroundSupport.kt` | `BackgroundSync.swift`, `MailNotifier.swift`, `NotificationPrefs.swift` |
+| Files | `MailcalModel.Notifications.swift`, `NewMailNotices.swift`, `MailNotifier.swift`, `Mailcal.NotificationOpen.swift`, `NotificationPrefs.swift` (live runtime: `crates/mailcal-bindings/src/background.rs`) | `MailboxModel.Notifications.cs`, `NewMailNotices.cs`, `NewMailNotifier.cs`, `NotificationPrefs.cs` | `ui/host_tasks.rs`, `ui/notifications.rs`, `preferences.rs` | `MailcalApplication.kt`, `MailSyncWorker.kt`, `MailNotifier.kt`, `NotificationPrefs.kt`, `BackgroundSupport.kt` | `BackgroundSync.swift`, `MailNotifier.swift`, `NewMailNotices.swift`, `Mailcal.NotificationOpen.swift`, `NotificationPrefs.swift` |
 
 The **toggle only gates posting**: the pass still runs and advances the marks when off, so turning
 notifications off then on never floods with a backlog.
@@ -199,17 +199,31 @@ port:
 
 ## Known gaps / follow-ups
 
-- **macOS new-mail notifications aren't built.** It delivers in real time while running but does
-  not raise a system notification yet; wiring its live runtime's new-mail signal to
-  `UNUserNotificationCenter` is a follow-up. Windows and Linux both exercise the shared cache-only
-  detection seam: Linux through its desktop portal adapter, whose GNOME-runtime AT-SPI run posts on
-  the shipped default first and only then turns the toggle off, so the silence it asserts
-  afterwards is measured against a notification that provably crossed the portal. Asserted the
-  other way round it was a gate that could not fail, and did not, for as long as the portal call
-  hung ([`client-traps.md`](client-traps.md)).
-- **Clicking a notification brings the app forward; it does not open the message.** True on Windows
-  and Linux alike. The preview carries the stable message key a deep link would need, so this is
-  wiring rather than a missing contract. Windows registers for activation either way
+- **Only Linux gates the notification itself.** All three desktops share the cache-only detection
+  seam and each posts through its own host, but what a gate can watch differs. Linux's
+  GNOME-runtime AT-SPI run posts on the shipped default first and only then turns the toggle off,
+  so the silence it asserts afterwards is measured against a notification that provably crossed
+  the portal. Asserted the other way round it was a gate that could not fail, and did not, for as
+  long as the portal call hung ([`client-traps.md`](client-traps.md)).
+- **Nothing drives an Apple notification from a test, and the iOS half is not even unit-tested.**
+  `NewMailNoticesTests` (MailcalKitTests) pins what a pass *says*, but that suite is plain
+  `swift test` on the **host**, so it compiles and exercises the projection's **macOS** branch
+  only; the iOS slot layout, its summary and its tap target compile for a platform the suite never
+  runs on. Neither platform's banner is reachable either way: `UNUserNotificationCenter` posts
+  outside the app's accessibility tree, so XCUITest cannot see it, and the OS suppresses one
+  raised while the app that posted it is frontmost. The `DEBUG` foreground presenter exists so a
+  dev run can see it at all, which makes the banner a **hand** check on both, on the same footing
+  as Windows's ([`debugging.md`](debugging.md)). Verified that way: a delivery into the watched
+  Inbox raised one notification carrying the sender, the subject and the snippet, advanced the
+  mark to it, and opened that message when clicked.
+- **Clicking a notification does not yet open the message on Windows and Linux**, which bring the
+  app forward and leave the reading pane where it was. macOS, iOS/iPadOS and Android open it. The
+  preview carries the stable message key the other two need, so this is wiring rather than a
+  missing contract, and the three that have it agree on the semantics: the message is named by the
+  `(account, message key)` pair the core keys it on, a **summary** names no message and so opens
+  the app alone, and a message the list does not hold yet is waited for over one account switch
+  rather than opened against whatever is on screen, then dropped rather than dragging the view
+  back to the mailbox on every later snapshot. Windows registers for activation either way
   (`NewMailNotifier.Arm`), so the click already reaches the running app rather than doing nothing.
 - **Nothing drives the Windows notification from a test, and the ordinary dev build cannot raise
   one.** `Mailcal.Tests` pins what a pass *says* (`NewMailNoticesTests`) and the UI suite pins the

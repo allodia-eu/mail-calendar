@@ -16,18 +16,13 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// The categories to show on this platform, in taxonomy order. Notifications is mobile-only:
-    /// the desktops have no new-mail notifications yet (docs/background-sync.md known gap), so macOS
-    /// leaves that slot out (it keeps its position for when a desktop gains the feature).
+    /// The categories to show on this platform, in taxonomy order.
     ///
-    /// Allodia goes for a different reason and at runtime: a build carrying no registration has no
+    /// Allodia is the one that goes, and at runtime: a build carrying no registration has no
     /// Allodia sign-in at all, and the whole category goes rather than its contents, a row that
     /// opens an empty pane reads as a broken pane, and it is what every build from source shows.
     static var displayed: [SettingsCategory] {
         var shown = allCases
-        #if os(macOS)
-        shown.removeAll { $0 == .notifications }
-        #endif
         if !allodiaSignInAvailable() {
             shown.removeAll { $0 == .allodia }
         }

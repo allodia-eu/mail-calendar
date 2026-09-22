@@ -273,6 +273,11 @@ final class MailboxModel {
     @ObservationIgnored var searchDebounce: Task<Void, Never>?
     // Not `private`: MailcalModel.Connect.swift's `connect()` reads it.
     @ObservationIgnored var observer: SurfaceObserver?
+    #if os(macOS)
+    /// Where the new-mail scan behind the desktop's notifications stands. An extension cannot add
+    /// a stored property, so it lives here and MailcalModel.Notifications.swift drives it.
+    @ObservationIgnored var newMailScan = NewMailScan.idle
+    #endif
     /// Watches device network reachability; retained for the app's lifetime. Not `private`, see
     /// `observer`: MailcalModel.Connect.swift's `observeNetworkReachability()` sets it.
     @ObservationIgnored var pathMonitor: NWPathMonitor?
