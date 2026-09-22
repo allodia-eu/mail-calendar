@@ -816,6 +816,16 @@ known state (the app is single-instanced, so a hook needs a fresh process). `hom
 the INBOX on reconnect, so on the JMAP account it's how you pick up mail added with
 `harness.sh deliver`; on `stalwart-imap` the IDLE push delivers it to the running app instead.
 
+**Seeing a macOS new-mail notification.** It is raised off the live runtime, so the ordinary loop
+shows it: boot on `--account stalwart-imap` (IDLE delivers into the running app), let the launch
+sync settle, then `harness.sh deliver`. Two things otherwise read as a broken feature. The core
+withholds everything that arrived **before** the core was built, so mail already in the Inbox at
+launch is marked seen and announced by nothing; and macOS suppresses a banner raised while the app
+that posted it is frontmost, which a debug build works around with
+`DebugForegroundNotificationPresenter`. The permission is asked for only once an account exists and
+the usage-statistics question has been answered, so a namespace where neither has happened never
+prompts and never posts ([`background-sync.md`](background-sync.md)).
+
 ## 6. Physical iOS device: background sync + notifications
 
 Background delivery **cannot be tested on a simulator**: `BGTaskScheduler` never runs there and

@@ -36,8 +36,10 @@ which is the first thing to check when a build of yours is not the one being off
 share a bundle id.
 
 Debugging against the local Stalwart harness (accounts, seed data, logs) is covered by the repo
-skills, see [`docs/debugging.md`](../../docs/debugging.md); background sync and notifications need
-real hardware and a loop of their own ([`scripts/dev/device.sh`](../../scripts/dev/device.sh)).
+skills, see [`docs/debugging.md`](../../docs/debugging.md); macOS notifications are raised off the
+live runtime and so are reachable from that loop, while **iOS** background sync and its
+notifications need real hardware and a loop of their own
+([`scripts/dev/device.sh`](../../scripts/dev/device.sh)).
 
 ## Packaging (production)
 

@@ -157,12 +157,11 @@ struct SettingsCategoryDetail: View {
         }
     }
 
-    // MARK: Notifications (mobile-only), the new-mail notification toggle
+    // MARK: Notifications, the new-mail notification toggle
 
-    #if os(iOS)
-    /// The app-level "new-mail notifications" toggle. A client-side preference, the background sync
-    /// still runs and advances the core's marks when off, so re-enabling never floods with a
-    /// backlog. Copy comes from the shared catalog, like its Android twin (SettingsNotifications.kt).
+    /// The app-level "new-mail notifications" toggle. A client-side preference, the scan still runs
+    /// and advances the core's marks when off, so re-enabling never floods with a backlog. Copy
+    /// comes from the shared catalog, like its Android twin (SettingsNotifications.kt).
     @ViewBuilder
     private var notificationsDetail: some View {
         settingsGroup(
@@ -177,11 +176,6 @@ struct SettingsCategoryDetail: View {
     private var notificationsBinding: Binding<Bool> {
         Binding(get: { NotificationPrefs.enabled }, set: { NotificationPrefs.enabled = $0 })
     }
-    #else
-    // macOS has no new-mail notifications yet, so this category is never displayed there
-    // (SettingsCategory.displayed omits it); the branch exists only for switch exhaustiveness.
-    private var notificationsDetail: some View { EmptyView() }
-    #endif
 
     // MARK: Privacy, the usage-statistics opt-in, withdrawable in one click (GDPR Art. 7(3))
 
