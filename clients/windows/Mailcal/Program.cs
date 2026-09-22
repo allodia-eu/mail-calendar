@@ -47,6 +47,13 @@ public static class Program
         // Package.appxmanifest instead, skip there.
         RegisterProtocolForUnpackaged();
 
+        // Above the line below, and that is the whole reason it is here rather than in the window.
+        // Reading the activation arguments of a launch that IS a notification click means building
+        // an AppNotificationActivatedEventArgs, which the runtime fails fast on, taking the process
+        // with it, unless the notification platform is registered first (Services/NewMailNotifier.cs).
+        // What the click then DOES is installed later, once there is a window (App.OnLaunched).
+        NewMailNotifier.Arm();
+
         // A secondary activation (e.g. the OAuth redirect) is handed to the primary instance, which
         // then exits; only the primary starts the UI.
         var activation = AppInstance.GetCurrent().GetActivatedEventArgs();
@@ -65,6 +72,9 @@ public static class Program
         // activation over and exit, and a session marker from it would read as a launch that never
         // happened.
         Log.Init(AppPaths.Root, AppIdentity.PackageVersion);
+        // Now that there is somewhere to write it: how the registration above went, which had no
+        // log to report into at the point it ran.
+        NewMailNotifier.LogRegistration();
         CrashLog.WatchProcess();
         if (Log.FilePath is string logPath)
         {

@@ -223,6 +223,18 @@ port:
   Windows, `notifications.rs` on Linux), and, on Linux alone, the resolving of that pair against
   the list (`notification_open.rs`). What no test sees is the wiring between the two halves, which
   is the part that fails by doing nothing at all.
+- **Windows pins the launch, which is not the click but is where it died.** A click that STARTS the
+  app reads its activation before anything else, and the Windows App SDK fails the process fast if
+  the notification platform is not registered first, so the feature was silent on exactly the
+  launch it exists for ([`client-traps.md`](client-traps.md)). Two gates hold it, because neither
+  alone can: `cargo xtask check-notification-registration` pins the ordering in the source, on
+  every host and in every CI job, and `uitests/NotificationLaunch.Tests.ps1` runs the real binary
+  through a notification activation. ⚠️ The suite has to **close the app first**, since a running
+  instance has already registered the platform and a second process then reads its activation
+  happily on a broken build as well as a fixed one, and it has to wait out the full **7 to 8
+  seconds** the failfast takes. It went green against the bug it exists for on both counts while
+  being written. What neither gate reaches is still the click itself, and so what the app does once
+  the launch survives.
 - **Nothing drives an Apple notification from a test, and the iOS half is not even unit-tested.**
   `NewMailNoticesTests` (MailcalKitTests) pins what a pass *says*, but that suite is plain
   `swift test` on the **host**, so it compiles and exercises the projection's **macOS** branch

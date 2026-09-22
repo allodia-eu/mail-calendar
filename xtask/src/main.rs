@@ -39,6 +39,7 @@ mod gate_steps;
 mod git;
 mod license_dir;
 mod log_hygiene;
+mod notification_registration;
 mod portal_runtime;
 mod prose;
 mod prune;
@@ -101,6 +102,11 @@ pub(crate) const TASKS: &[Task] = &[
         name: "check-desktop-handoff",
         label: "desktop handoff (portal launchers)",
         run: desktop_handoff::run,
+    },
+    Task {
+        name: "check-notification-registration",
+        label: "notification registration (before the activation is read)",
+        run: notification_registration::run,
     },
     Task {
         name: "check-portal-runtime",

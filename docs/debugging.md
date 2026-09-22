@@ -835,6 +835,18 @@ after an account switch. On Windows the dev build must be the **framework-depend
 ([`client-traps.md`](client-traps.md)); on Linux the app has to still be running, since the portal
 delivers the click to this process rather than starting it.
 
+⚠️ **A click that STARTS the Windows app cannot reach the harness account**, so that half is
+verified against a real one. `MAILCAL_DEV_ACCOUNT` selects the store, `boot.sh` exports it, and a
+cold start is launched by the shell rather than by `boot.sh`: the new process opens the **ordinary**
+store instead, where the message the notification names does not exist. Setting the variable for the
+user does not fix it either, because the notification platform launches from an environment block
+that was built before it was set. What that looks like is the feature failing, the app comes up on
+the right account list and opens nothing, which is exactly the shape of the bug someone is looking
+for. So exercise the warm click against the harness and the cold one against a real IMAP account,
+where the store the shell opens is the store the message is in. The log tells the two apart without
+a screenshot: `notification click: opening the message it named`, then either silence, meaning it
+opened, or `the message it named is not in the list, nothing opened`.
+
 ## 6. Physical iOS device: background sync + notifications
 
 Background delivery **cannot be tested on a simulator**: `BGTaskScheduler` never runs there and
