@@ -127,6 +127,9 @@ internal fun AccountSetupScreen(
     var username by remember { mutableStateOf(prefillEmail) }
     var password by remember { mutableStateOf("") }
     var smtpHost by remember { mutableStateOf(prefillSmtpHost) }
+    // Each server's port and connection security. The host fields hold the name alone; the port
+    // sits beside it, where the user can see and change it.
+    var servers by remember { mutableStateOf(ManualServerPair()) }
     var caldavBaseUrl by remember { mutableStateOf("") }
     // JMAP reuses the shared username/password state (only one kind is active at a time), the
     // secret is one field, whether the server issued a password or an API token.
@@ -245,10 +248,26 @@ internal fun AccountSetupScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                SetupField(imapHost, { imapHost = it }, L10n.setup_field_mail_server(ctx), L10n.setup_hint_imap(ctx))
+                ServerRow(
+                    host = imapHost,
+                    onHostChange = { imapHost = it },
+                    label = L10n.setup_field_mail_server(ctx),
+                    placeholder = L10n.setup_hint_imap(ctx),
+                    field = servers.imap,
+                    onFieldChange = { servers = servers.copy(imap = it) },
+                    ctx = ctx,
+                )
                 SetupField(username, { username = it }, L10n.setup_field_email(ctx), keyboardType = KeyboardType.Email)
                 PasswordField(password, { password = it }, L10n.setup_field_password(ctx))
-                SetupField(smtpHost, { smtpHost = it }, L10n.setup_field_smtp_optional(ctx), L10n.setup_hint_smtp(ctx))
+                ServerRow(
+                    host = smtpHost,
+                    onHostChange = { smtpHost = it },
+                    label = L10n.setup_field_smtp_optional(ctx),
+                    placeholder = L10n.setup_hint_smtp(ctx),
+                    field = servers.smtp,
+                    onFieldChange = { servers = servers.copy(smtp = it) },
+                    ctx = ctx,
+                )
                 SetupField(caldavBaseUrl, { caldavBaseUrl = it }, L10n.setup_field_caldav_optional(ctx))
             }
         }
@@ -310,11 +329,14 @@ internal fun AccountSetupScreen(
                 onClick = {
                     failure = onConnect(
                         AccountSetup(
-                            imapHost = imapHost,
+                            imapHost = servers.imap.dial(imapHost),
                             username = username,
                             password = password,
-                            smtpHost = smtpHost.ifBlank { null },
+                            smtpHost = smtpHost.ifBlank { null }
+                                ?.let { servers.smtp.dial(it) },
                             caldavBaseUrl = caldavBaseUrl.ifBlank { null },
+                            imapSecurity = servers.imap.security,
+                            smtpSecurity = servers.smtp.security,
                             // Set only on a re-submit somebody asked for after being shown the
                             // certificate; it is stored with the account, so no later connect
                             // asks again.

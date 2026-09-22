@@ -3,13 +3,15 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
-use mailcal_bindings::{ConnectionSecurity, RejectedCertificate};
+use mailcal_bindings::RejectedCertificate;
 use url::Url;
 
 use super::{
     AppInput,
     setup_manual::FormSnapshot,
     setup_model::{AccountSubmission, DetectedServer, ImapForm, ImapSubmission, ManualForm},
+    setup_server_field::ServerPair,
+    setup_server_row::server_row,
     setup_widgets::{
         actions, caption, certificate_accepted, certificate_gate, detected_row,
         edit_manually_button, entry, gate_connect, primary, section, show_error, trust_approved,
@@ -91,26 +93,40 @@ pub(super) fn manual_fields(
 ) -> FormSnapshot {
     content.append(&caption(l10n::setup_credentials_note()));
     let email = entry(l10n::setup_field_email(), &form.email, false);
-    let imap = entry(l10n::setup_field_mail_server(), &form.imap_host, false);
+    content.append(&email);
+    let imap = server_row(
+        content,
+        l10n::setup_field_mail_server(),
+        &form.imap_host,
+        &form.servers.imap,
+    );
     let password = entry(l10n::setup_field_password(), "", true);
-    let smtp = entry(l10n::setup_field_smtp_optional(), &form.smtp_host, false);
+    content.append(&password);
+    let smtp = server_row(
+        content,
+        l10n::setup_field_smtp_optional(),
+        &form.smtp_host,
+        &form.servers.smtp,
+    );
     let caldav = entry(l10n::setup_field_caldav_optional(), &form.caldav_url, false);
-    for field in [&email, &imap, &password, &smtp, &caldav] {
-        content.append(field);
-    }
+    content.append(&caldav);
     content.append(&caption(l10n::setup_port_note()));
     let accepted = certificate_gate(content, certificate);
     show_error(content, error.filter(|_| certificate.is_none()));
 
     let snapshot: FormSnapshot = {
         let base = form.clone();
-        let (email, imap, smtp, caldav) =
-            (email.clone(), imap.clone(), smtp.clone(), caldav.clone());
+        let (email, caldav) = (email.clone(), caldav.clone());
+        let (imap_row, smtp_row) = (imap.clone(), smtp.clone());
         Rc::new(move || ManualForm {
             email: email.text().trim().to_owned(),
-            imap_host: imap.text().trim().to_owned(),
-            smtp_host: smtp.text().trim().to_owned(),
+            imap_host: imap_row.host_text(),
+            smtp_host: smtp_row.host_text(),
             caldav_url: caldav.text().trim().to_owned(),
+            servers: ServerPair {
+                imap: imap_row.read(),
+                smtp: smtp_row.read(),
+            },
             ..base.clone()
         })
     };
@@ -124,13 +140,11 @@ pub(super) fn manual_fields(
     connect.connect_clicked(move |_| {
         let submission = ImapSubmission {
             email: email.text().trim().to_owned(),
-            imap_host: imap.text().trim().to_owned(),
-            smtp_host: smtp.text().trim().to_owned(),
+            imap_host: imap.dial(),
+            smtp_host: smtp.dial(),
             caldav_url: caldav.text().trim().to_owned(),
-            // The manual form is implicit-TLS only; a STARTTLS server arrives through
-            // autodetection (docs/account-autodetect.md → Known gaps).
-            imap_security: ConnectionSecurity::ImplicitTls,
-            smtp_security: ConnectionSecurity::ImplicitTls,
+            imap_security: imap.read().security(),
+            smtp_security: smtp.read().security(),
             password: password.text().to_string(),
             accepted_certificate: refused.clone(),
         };

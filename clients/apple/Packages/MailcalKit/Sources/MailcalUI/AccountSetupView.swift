@@ -91,6 +91,9 @@ struct AccountSetupView: View {
     @State private var password = ""
     @State private var smtpHost: String
     @State private var caldavURL = ""
+    /// Each server's port and connection security. The host fields hold the name alone; the port
+    /// sits beside it, where the user can see and change it.
+    @State private var servers = ManualServerPair()
     @State private var jmapServer: String
     /// The mandatory Early Access confirmation for Google; the "Sign in with Google" button stays
     /// disabled until it is on (Gmail is allow-listed while Google verifies the app).
@@ -232,7 +235,10 @@ struct AccountSetupView: View {
                 Button(L10n.action_connect()) {
                     // The manual form only offers implicit-TLS setup today (STARTTLS
                     // arrives via autodetection).
-                    submit(imapHost, username, password, smtpHost, caldavURL, .implicitTls, .implicitTls, acceptedCertificate)
+                    submit(
+                        servers.imap.dial(imapHost), username, password,
+                        servers.smtp.dial(smtpHost), caldavURL,
+                        servers.imap.security, servers.smtp.security, acceptedCertificate)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canConnect || !certificateOK)
@@ -280,16 +286,18 @@ struct AccountSetupView: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             SetupCard(title: L10n.setup_section_account(), systemImage: "envelope") {
-                TextField(L10n.setup_imap_placeholder(), text: $imapHost)
-                    .setupField(.host)
+                serverRow(
+                    placeholder: L10n.setup_imap_placeholder(), host: $imapHost,
+                    field: $servers.imap)
                 TextField(L10n.setup_field_email(), text: $username)
                     .setupField(.email)
                 SecureField(L10n.setup_field_password(), text: $password)
                     .setupField(.password)
             }
             SetupCard(title: L10n.setup_section_advanced(), systemImage: "slider.horizontal.3") {
-                TextField(L10n.setup_smtp_placeholder(), text: $smtpHost)
-                    .setupField(.host)
+                serverRow(
+                    placeholder: L10n.setup_smtp_placeholder(), host: $smtpHost,
+                    field: $servers.smtp)
                 TextField(L10n.setup_caldav_placeholder(), text: $caldavURL)
                     .setupField(.host)
                 // Directly under the fields it explains. It used to sit after the whole `Form`,

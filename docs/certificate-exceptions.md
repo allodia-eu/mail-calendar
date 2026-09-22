@@ -107,7 +107,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Certificate shown before it can be accepted | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Connect inert until accepted | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Acceptance stored with the account, asked once | ✅ | ✅ | ✅ | 🚧 | 🚧 |
-| Detected card **and** manual form | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Detected card **and** manual form | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Exception applies to IMAP, SMTP and CalDAV of that account | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The **shared TLS config is per account**, so an accepted certificate covers every provider of that
@@ -122,8 +122,8 @@ handshake and failed on the login instead.
 Windows is verified against a running Proton Mail Bridge: the connect was refused and named the
 server, the panel's subject, issuer, validity window and SHA-256 matched what `openssl` read off
 the listener, Connect stayed inert until the box was ticked, the account then connected and
-synced, and a later launch did not ask again. Only its detected card has been driven, so the
-manual form keeps its 🚧.
+synced, and a later launch did not ask again. Its manual form was driven too, against the same
+server over STARTTLS, and drew the same panel under the same gate.
 
 Android and Linux are written against the same core surface and covered by their own unit suites,
 and are owed a run on their platform.

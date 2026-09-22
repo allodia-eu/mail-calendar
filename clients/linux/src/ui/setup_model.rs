@@ -6,6 +6,7 @@ use mailcal_bindings::{
     RejectedCertificate, SetupRecommendation, account_config_toml, jmap_account_config_toml,
 };
 
+use super::setup_server_field::{ServerPair, split_host};
 use crate::l10n;
 
 /// What the setup window is showing: a recommendation the user is confirming, or the manual
@@ -170,6 +171,9 @@ pub(crate) struct ManualForm {
     pub(super) caldav_url: String,
     pub(super) jmap_server: String,
     pub(super) sign_in: JmapSignIn,
+    /// Each server's port and connection security. The host fields above hold the name alone;
+    /// the port sits beside it, where the user can see and change it.
+    pub(super) servers: ServerPair,
     /// Why detection sent the user here, when it did.
     pub(super) note: Option<String>,
 }
@@ -312,14 +316,26 @@ pub(super) fn manual_form(email: String, note: Option<String>) -> SetupForm {
 /// what detection found, so the user edits a discovered config instead of retyping it.
 pub(super) fn edit_manually(form: &DetectedForm) -> SetupForm {
     let manual = match form {
-        DetectedForm::Imap(imap) => ManualForm {
-            kind: AccountKind::Imap,
-            email: imap.email.clone(),
-            imap_host: imap.imap_host.clone(),
-            smtp_host: imap.smtp_host.clone(),
-            caldav_url: imap.caldav_url.clone(),
-            ..ManualForm::default()
-        },
+        DetectedForm::Imap(imap) => {
+            // The detected hosts carry their port inside them; the manual form shows the two
+            // apart, so what detection found stays visible rather than turning into a default.
+            let mut servers = ServerPair::default();
+            servers
+                .imap
+                .adopt_detected(&imap.imap_host, imap.imap_security);
+            servers
+                .smtp
+                .adopt_detected(&imap.smtp_host, imap.smtp_security);
+            ManualForm {
+                kind: AccountKind::Imap,
+                email: imap.email.clone(),
+                imap_host: split_host(&imap.imap_host).0.to_owned(),
+                smtp_host: split_host(&imap.smtp_host).0.to_owned(),
+                caldav_url: imap.caldav_url.clone(),
+                servers,
+                ..ManualForm::default()
+            }
+        }
         DetectedForm::Jmap(jmap) => ManualForm {
             kind: AccountKind::Jmap,
             email: jmap.email.clone(),

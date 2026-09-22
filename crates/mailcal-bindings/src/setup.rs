@@ -113,6 +113,30 @@ pub struct AccountSetup {
     pub accepted_certificate: Option<RejectedCertificate>,
 }
 
+/// Which of an account's two mail servers a port belongs to.
+#[derive(uniffi::Enum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MailServerKind {
+    /// The incoming server the mailbox is read from.
+    Imap,
+    /// The submission server mail is sent through.
+    Smtp,
+}
+
+/// The port a server of this kind conventionally listens on for this connection security:
+/// 993/143 for IMAP, 465/587 for submission.
+///
+/// The setup forms show it, so it is answered here rather than written into each client: the
+/// number a form starts at and the number the core assumes when a host carries no port are the
+/// same number, and a client holding its own copy is a way for them to stop being.
+#[must_use]
+#[uniffi::export]
+pub fn standard_port(kind: MailServerKind, security: ConnectionSecurity) -> u16 {
+    match kind {
+        MailServerKind::Imap => mailcal_account::imap_default_port(security.into()),
+        MailServerKind::Smtp => mailcal_account::smtp_default_port(security.into()),
+    }
+}
+
 /// Serializes an [`AccountSetup`] (collected in the host's setup form) into the
 /// account-config TOML the host stores in its OS secure store and passes to
 /// [`MailcalApp::new_accounts`](crate::MailcalApp::new_accounts). CalDAV reuses the IMAP

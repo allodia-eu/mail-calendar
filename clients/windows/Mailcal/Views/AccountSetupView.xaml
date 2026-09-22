@@ -76,14 +76,45 @@
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
                     <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
-                    <TextBox x:Name="ImapHost" Header="{x:Bind l10n:L10n.SetupFieldMailServer()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintImap()}"
-                             TextChanged="OnFieldChanged" />
+                    <!-- Server, port and security on one row: the port is the field a user must be
+                         able to see and change, not a colon inside the server name. -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="ImapHost" Grid.Column="0" Header="{x:Bind l10n:L10n.SetupFieldMailServer()}"
+                                 PlaceholderText="{x:Bind l10n:L10n.SetupHintImap()}" TextChanged="OnFieldChanged" />
+                        <TextBox x:Name="ImapPort" Grid.Column="1" Width="88" Header="{x:Bind l10n:L10n.SetupFieldPort()}"
+                                 InputScope="Number" TextChanged="OnImapPortChanged" />
+                        <ComboBox x:Name="ImapSecurityPicker" Grid.Column="2" Width="132" Header="{x:Bind l10n:L10n.SetupFieldSecurity()}"
+                                  SelectionChanged="OnImapSecurityChanged">
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityImplicitTls()}" />
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityStarttls()}" />
+                        </ComboBox>
+                    </Grid>
                     <TextBox x:Name="Username" Header="{x:Bind l10n:L10n.SetupFieldEmail()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail()}"
                              TextChanged="OnFieldChanged" />
                     <PasswordBox x:Name="Password" Header="{x:Bind l10n:L10n.SetupFieldPassword()}" PasswordChanged="OnPasswordChanged" />
 
                     <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAdvanced()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
-                    <TextBox x:Name="SmtpHost" Header="{x:Bind l10n:L10n.SetupFieldSmtp()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintSmtp()}" />
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="SmtpHost" Grid.Column="0" Header="{x:Bind l10n:L10n.SetupFieldSmtp()}"
+                                 PlaceholderText="{x:Bind l10n:L10n.SetupHintSmtp()}" />
+                        <TextBox x:Name="SmtpPort" Grid.Column="1" Width="88" Header="{x:Bind l10n:L10n.SetupFieldPort()}"
+                                 InputScope="Number" TextChanged="OnSmtpPortChanged" />
+                        <ComboBox x:Name="SmtpSecurityPicker" Grid.Column="2" Width="132" Header="{x:Bind l10n:L10n.SetupFieldSecurity()}"
+                                  SelectionChanged="OnSmtpSecurityChanged">
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityImplicitTls()}" />
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityStarttls()}" />
+                        </ComboBox>
+                    </Grid>
                     <TextBox x:Name="CaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldav()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav()}" />
 
                     <TextBlock
