@@ -226,7 +226,7 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
     /// setup connect failed. The form shows it and offers to accept it; accepting re-submits with
     /// it and the core stores it with the account (docs/certificate-exceptions.md).
     /// </summary>
-    public RejectedCertificate? SetupRejectedCertificate
+    internal RejectedCertificate? SetupRejectedCertificate
     {
         get => _setupRejectedCertificate;
         private set => Set(ref _setupRejectedCertificate, value);
