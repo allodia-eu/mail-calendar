@@ -135,6 +135,21 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
     routes to the same native Google flow rather than to IMAP. Google is native-API only: see
     [`provider-oauth.md`](provider-oauth.md) → "## Google".
 
+11. **The manual form offers the port and the connection security, and never takes back a port
+    the user typed.** A server autodetection cannot find is the manual form's whole purpose, and
+    such a server is often on a port nobody standardised, so the form shows **name, port and
+    security side by side**: a port is a field, never a colon the user is expected to know to
+    type inside the server name. The port starts at the standard one for the chosen security and
+    **follows the picker while it is still the form's own**; the first port the user types is
+    theirs, and no later change of security moves it. Clearing the field hands it back, because
+    an empty port submits a bare host and the core resolves it to that same standard port, so
+    there is nothing else a cleared field could mean. The numbers are the core's
+    (`standard_port`, 993/143 and 465/587) rather than each client's, so the port a form offers
+    and the port the core dials cannot drift apart. A port already typed **inside** the host
+    field wins over the port box: two ports on one server would be a contradiction, and the one
+    beside the name is the one the user can see. A client splits `host:port` exactly as the core
+    does, so what is shown and what is dialled are the same.
+
 ## Strategy order
 
 The whole flow has three stages: **(1)** the five discovery strategies below, raced in priority
@@ -236,10 +251,11 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Email-first prompt → routed prefill | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Detected servers shown to confirm, not retype (password is the only field) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Manual account-type picker (IMAP · JMAP · Microsoft · Google) | n/a | ✅ | ✅ | ✅ | ✅ |
+| Manual port **and** connection-security selector (rule 11) | ✅ | 🚧 | ✅ | ✅ | ✅ |
 | Google native route (consumer fast-path + Workspace-host) | ✅ | 🚧 | 🚧 | 🚧 | ✅ consumer fast-path |
 | JMAP probe · autoconfig · ISPDB | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Untrusted-settings approval gate | ✅ | ✅ | 🚧 | ✅ | ✅ |
-| Refused-certificate acceptance ([`certificate-exceptions.md`](certificate-exceptions.md)) | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Refused-certificate acceptance ([`certificate-exceptions.md`](certificate-exceptions.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | "Set up manually" escape + reason line | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | MX fallback (host DNS) | ✅ | ✅ libresolv | 🚧 DnsQuery_W | ✅ DnsResolver | ✅ GIO Resolver |
 | JMAP-SRV autodiscovery (`_jmap._tcp`) | ✅ | ✅ | 🚧 | ✅ | ✅ |
@@ -280,11 +296,9 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
 
 ## Known gaps
 
-- **The manual setup form is implicit-TLS only.** Autodetection now routes STARTTLS servers
-  (143/587) end-to-end: a detected STARTTLS provider connects. But the manual tabs, for a
-  self-hosted server autodetection doesn't find, still assume implicit TLS (no security
-  picker); a hand-typed STARTTLS-only server can't be set up. A manual connection-security
-  selector across the clients is future work.
+- **The manual form's port and security row is undriven on Apple only.** The rule is rule 11 and
+  every client implements it; Windows, Linux and Android have each been driven against a real
+  STARTTLS server. Apple carries 🚧 in the matrix until someone runs it.
 - **Google routing depends on host recognition for Workspace domains.** A consumer
   `gmail.com` / `googlemail.com` address is routed to native Google with certainty (rule 10),
   but a **custom Workspace domain** is only recognised when a strategy returns a Google-family
@@ -390,7 +404,11 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   target), the connect-gating, and the calendar opt-out/opt-in → effective-CalDAV-URL logic
   are unit-tested on Android (JVM), Apple (package `Testing`), and Windows (net10.0). Linux uses
   GIO's typed MX/SRV records and unit-tests trailing-dot/root-target normalisation plus the detected
-  security/CalDAV conversion. End-to-end,
+  security/CalDAV conversion. Rule 11's field has a suite of its own per client
+  (`ManualServerFieldTests` on Apple and Windows, `setup_server_field_tests` on Linux,
+  `ManualServerFieldTest` on Android): the port follows the security until it is typed, a cleared
+  field hands it back, a port inside the host name wins, and a detected server is adopted split.
+  The standard ports themselves are the core's, asserted in `mailcal-bindings`. End-to-end,
   detection was driven on a device against real public domains (gmail → Google sign-in, outlook →
   Microsoft) and against the local Stalwart harness (JMAP → connect → inbox sync) via the
   dev-only `MAILCAL_AUTODETECT_WELL_KNOWN_BASE` override (see [`debugging.md`](debugging.md)).

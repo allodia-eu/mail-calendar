@@ -31,6 +31,11 @@ pub(super) struct SetupState {
     pub(super) visible: bool,
     pub(super) required: bool,
     pub(super) generation: u64,
+    /// Bumped only when the pane on screen must be *rebuilt*: a different form, a different
+    /// account type, a different phase. A connect and its answer leave it alone, because the
+    /// person's fields live in that pane's widgets and rebuilding it would throw them away
+    /// (`super::setup_pane`).
+    pub(super) form_generation: u64,
     pub(super) phase: Phase,
     pub(super) form: Option<SetupForm>,
     pub(super) error: Option<String>,
@@ -60,6 +65,7 @@ impl SetupState {
             phase: Phase::Email,
             form: None,
             error: None,
+            form_generation: 0,
             certificate: None,
             accepted_certificate: None,
             start_email: String::new(),
@@ -164,7 +170,7 @@ impl SetupState {
         self.phase = Phase::Connecting;
         self.error = None;
         self.certificate = None;
-        self.bump();
+        self.report();
     }
 
     pub(super) fn google_signing_in(&mut self) {
@@ -290,7 +296,7 @@ impl SetupState {
         self.phase = Phase::Form;
         self.error = failure.message;
         self.certificate = failure.certificate;
-        self.bump();
+        self.report();
     }
 
     pub(super) fn complete(&mut self) {
@@ -307,6 +313,13 @@ impl SetupState {
     }
 
     fn bump(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+        self.form_generation = self.form_generation.wrapping_add(1);
+    }
+
+    /// A connect answered. The window re-reads the state without rebuilding the pane, so what
+    /// was typed into it stands.
+    fn report(&mut self) {
         self.generation = self.generation.wrapping_add(1);
     }
 }

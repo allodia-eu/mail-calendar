@@ -23,10 +23,13 @@ public sealed partial class AccountSetupView : UserControl
     // Whether the currently-shown settings were obtained untrustably and so need the user's
     // explicit approval before Connect (a non-HTTPS hop, e.g. an http autoconfig).
     private bool _needsApproval;
-    // The connection security detection found, remembered across the connect click (there is no
-    // security field in the form, the manual form is implicit-TLS only). Defaults to implicit TLS.
-    private ConnectionSecurity _imapSecurity = ConnectionSecurity.ImplicitTls;
-    private ConnectionSecurity _smtpSecurity = ConnectionSecurity.ImplicitTls;
+    // Each server's port and connection security. A detected route fills them in; on the manual
+    // form the user picks, and the port follows the picker until they type one of their own.
+    private readonly ManualServerField _imap = ManualServerField.For(MailServerKind.Imap);
+    private readonly ManualServerField _smtp = ManualServerField.For(MailServerKind.Smtp);
+    // Set while the code is writing the fields, so echoing a value back does not read as the user
+    // typing it and take the port away from the picker.
+    private bool _fillingServerFields;
 
     /// <summary>Initialises the control.</summary>
     public AccountSetupView()
@@ -126,8 +129,8 @@ public sealed partial class AccountSetupView : UserControl
     private void ApplyRoute(DetectRoute route)
     {
         _needsApproval = route.NeedsApproval;
-        _imapSecurity = route.ImapSecurity;
-        _smtpSecurity = route.SmtpSecurity;
+        _imap.AdoptDetected(route.ImapHost, route.ImapSecurity);
+        _smtp.AdoptDetected(route.SmtpHost, route.SmtpSecurity);
         // Whether the JMAP fields are a detected result or the manual form decides whether an
         // offered sign-in stands beside the secret field or replaces it. Set before the tab is
         // selected below, since selecting one lays the section out immediately.
@@ -170,8 +173,9 @@ public sealed partial class AccountSetupView : UserControl
                     ShowNote(L10n.SetupDetectGoogleHint());
                     break;
                 default:
-                    ImapHost.Text = route.ImapHost;
-                    SmtpHost.Text = route.SmtpHost;
+                    ShowServerFields(
+                        ManualServerField.SplitHost(route.ImapHost).Host,
+                        ManualServerField.SplitHost(route.SmtpHost).Host);
                     // A discovered CalDAV endpoint is prefilled (opt-out, clear it to skip calendar);
                     // it reuses the IMAP credentials at connect.
                     CaldavUrl.Text = route.CaldavUrl;
@@ -367,13 +371,13 @@ public sealed partial class AccountSetupView : UserControl
         else
         {
             Model?.SubmitSetup(
-                ImapHost.Text,
+                _imap.Dial(ImapHost.Text),
                 Username.Text,
                 Password.Password,
-                SmtpHost.Text,
+                _smtp.Dial(SmtpHost.Text),
                 CaldavUrl.Text,
-                _imapSecurity,
-                _smtpSecurity,
+                _imap.Security,
+                _smtp.Security,
                 CertificateCheck.IsChecked == true ? RefusedCertificate() : null);
         }
     }
@@ -474,6 +478,7 @@ public sealed partial class AccountSetupView : UserControl
         Username.Text = string.Empty;
         Password.Password = string.Empty;
         SmtpHost.Text = string.Empty;
+        ShowServerFields(string.Empty, string.Empty);
         CaldavUrl.Text = string.Empty;
         JmapEmail.Text = string.Empty;
         JmapPassword.Password = string.Empty;

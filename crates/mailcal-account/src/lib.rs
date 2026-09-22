@@ -101,7 +101,7 @@ pub use repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary, summarize_repe
 pub use series_warning::{
     SeriesEditTouches, SeriesEditWarning, series_edit_touches, series_edit_warning,
 };
-pub use setup::{AccountSetup, build_config_toml};
+pub use setup::{AccountSetup, build_config_toml, imap_default_port, smtp_default_port};
 pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,

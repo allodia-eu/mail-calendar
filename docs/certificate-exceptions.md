@@ -59,6 +59,12 @@ appliances do the same. It applies to any certificate the verifier refuses, what
    password, and re-asking the certificate question over a typo would make the answer look like
    it had not been heard.
 
+   The question is also **answered where it was asked**: the refusal is drawn into the form the
+   person filled in, which stays on screen with every field as they left it, the secret
+   included. A client that rebuilds the form to report the refusal asks for the whole server
+   again in order to answer a question about the server just given, and for a secret it never
+   stored.
+
 7. **The panel replaces the error, it does not sit under it.** While the certificate is on screen
    the transport's own message is not: the panel says the same thing in the reader's language, with
    the certificate beside it, and the raw text would be a second, worse copy of the question.
@@ -104,10 +110,10 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Refusal carries the certificate, not just a message | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Certificate shown before it can be accepted | ✅ | ✅ | ✅ | 🚧 | 🚧 |
-| Connect inert until accepted | ✅ | ✅ | ✅ | 🚧 | 🚧 |
+| Certificate shown before it can be accepted | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Connect inert until accepted | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Acceptance stored with the account, asked once | ✅ | ✅ | ✅ | 🚧 | 🚧 |
-| Detected card **and** manual form | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Detected card **and** manual form | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Exception applies to IMAP, SMTP and CalDAV of that account | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The **shared TLS config is per account**, so an accepted certificate covers every provider of that
@@ -122,11 +128,31 @@ handshake and failed on the login instead.
 Windows is verified against a running Proton Mail Bridge: the connect was refused and named the
 server, the panel's subject, issuer, validity window and SHA-256 matched what `openssl` read off
 the listener, Connect stayed inert until the box was ticked, the account then connected and
-synced, and a later launch did not ask again. Only its detected card has been driven, so the
-manual form keeps its 🚧.
+synced, and a later launch did not ask again. Its manual form was driven too, against the same
+server over STARTTLS, and drew the same panel under the same gate.
 
-Android and Linux are written against the same core surface and covered by their own unit suites,
-and are owed a run on their platform.
+Linux is verified against a running Proton Mail Bridge and against the harness's self-signed
+IMAP listener: the connect was refused and named the server, the panel's subject, issuer,
+validity window and SHA-256 matched what `openssl` read off the listener, the form kept every
+field including the secret while the panel was on screen, and Connect stayed inert until the box
+was ticked and then connected. Only its **manual form** has been driven, and no second launch
+has been checked, so those two rows keep their 🚧.
+
+⚠️ Its subject read `localhost` where the certificate's `CN` is `rcgen self signed cert`, which
+is rule 4 holding: the `subjectAltName` is what a verifier matches and what the panel shows.
+
+Android is verified against a running Proton Mail Bridge over STARTTLS: the connect was refused
+and named the server, the panel drew the subject, issuer, validity window and SHA-256 that
+`openssl` read off the listener, and Connect stayed inert until the acceptance was turned on.
+Only its **manual form** has been driven, and no second launch has been checked, so those two
+rows keep their 🚧.
+
+⚠️ **A 🚧 is worth as little as an unrun check.** Android's panel was written, wired into both
+surfaces and unit-tested, and was nonetheless unreachable: the connect runs on a thread of its
+own, so the refusal never returned to the caller that would have carried the certificate to the
+form, and what the reader got was the generated message with the certificate dumped into it. The
+suite covered the form's handling of a refusal it was handed, and nothing covered it being
+handed one. Read a 🚧 on this page as *unknown*.
 
 ## Known gaps
 
@@ -146,10 +172,6 @@ and are owed a run on their platform.
 - **An acceptance does not survive leaving the flow.** It is carried across the attempts of one
   setup and dropped when the form closes, because until the account exists there is nothing to
   store it against. Somebody who cancels and starts again is asked once more.
-- **The manual form is implicit-TLS only.** Inherited from
-  [`account-autodetect.md`](account-autodetect.md) → Known gaps, and it bites here: Proton Mail
-  Bridge is STARTTLS on 1143/1025, so a Bridge account is reachable through the **detected** card
-  (Proton publishes autoconfig naming those ports) and not by typing the host by hand.
 
 ## Testing
 

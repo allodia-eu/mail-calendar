@@ -33,6 +33,7 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     a_refused_certificate_holds_connect_until_it_is_accepted(&window);
     super::setup_manual_tests::the_manual_form_switches_account_type(&window);
     super::setup_manual_tests::a_miss_explains_itself_on_the_manual_form(&window);
+    super::setup_manual_tests::a_refusal_is_answered_in_the_form_it_came_from(&window);
     super::setup_manual_tests::a_dismissible_window_cancels_the_flow(&window);
 }
 
@@ -286,8 +287,19 @@ fn an_untrusted_card_holds_connect_until_it_is_approved(window: &adw::Applicatio
     let approval = check_button(&child, l10n::setup_detect_trust_confirm())
         .expect("the approval must be on screen");
     assert!(approval.is_visible() && !approval.is_active());
+    // The password is a question of its own, so answering it alone opens nothing.
+    password_box(&child).set_text("a-password");
+    assert!(!connect.is_sensitive(), "an unapproved card cannot connect");
     approval.set_active(true);
     assert!(connect.is_sensitive(), "approving it opens Connect");
+}
+
+/// The secret box of a pane that asks for one: the entry that masks what is typed.
+fn password_box(root: &gtk::Widget) -> gtk::Entry {
+    entries(root)
+        .into_iter()
+        .find(|entry| !gtk::prelude::EntryExt::is_visible(entry))
+        .expect("a pane that asks for a secret has a masked entry")
 }
 
 /// A connect refused for a certificate says which certificate, and may not be tried again
@@ -342,6 +354,12 @@ fn a_refused_certificate_holds_connect_until_it_is_accepted(window: &adw::Applic
     let accept = check_button(&child, l10n::setup_certificate_confirm())
         .expect("the acceptance must be on screen");
     assert!(accept.is_visible() && !accept.is_active());
+    // The card comes back with an empty secret box, so accepting is not the last answer owed.
+    password_box(&child).set_text("a-password");
+    assert!(
+        !connect.is_sensitive(),
+        "a certificate nobody has accepted cannot connect"
+    );
     accept.set_active(true);
     assert!(connect.is_sensitive(), "accepting it opens Connect");
 }
@@ -400,6 +418,13 @@ pub(super) fn check_button(root: &gtk::Widget, label: &str) -> Option<gtk::Check
     descendants::<gtk::CheckButton>(root)
         .into_iter()
         .find(|button| button.label().as_deref() == Some(label))
+}
+
+pub(super) fn descendant_button(root: &gtk::Widget, label: &str) -> gtk::Button {
+    descendants::<gtk::Button>(root)
+        .into_iter()
+        .find(|button| button.label().as_deref() == Some(label))
+        .unwrap_or_else(|| panic!("a {label} button"))
 }
 
 pub(super) fn descendant_has_button(root: &gtk::Widget, label: &str) -> bool {

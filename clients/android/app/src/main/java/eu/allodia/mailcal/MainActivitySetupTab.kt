@@ -32,6 +32,7 @@ internal fun connectFailure(error: MailcalException, ctx: Context): ConnectFailu
 internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Context) {
     AccountSetupFlow(
                             externalError = addError?.let { L10n.status_connect_failed(ctx, it) },
+                            externalFailure = addFailure,
                             // The first account can't be cancelled (nothing to return to);
                             // adding another can back out to the running app.
                             onCancel = if (needsSetup) {
@@ -40,10 +41,16 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
                                 {
                                     addingAccount = false
                                     addError = null
+                                    addFailure = null
                                     setupAcceptedCertificate = null
                                     setupStartEmail = ""
                                     setupStartOffer = null
                                 }
+                            },
+                            // The running app answers from the core, so the manual form's port
+                            // box and the address the core dials are the same number.
+                            standardPort = { kind, security ->
+                                uniffi.mailcal_bindings.standardPort(kind, security).toInt()
                             },
                             startEmail = setupStartEmail,
                             startOffer = setupStartOffer,

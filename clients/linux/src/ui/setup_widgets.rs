@@ -6,6 +6,8 @@
 //! the name is asked once the account exists and its provider can be asked what it already calls
 //! this person.
 
+use std::{cell::RefCell, rc::Rc};
+
 use adw::prelude::*;
 use mailcal_bindings::{MailcalApp, RejectedCertificate};
 
@@ -188,54 +190,90 @@ pub(super) fn certificate_accepted(gate: Option<&gtk::CheckButton>) -> bool {
 }
 
 /// Holds Connect closed until every question this pane asked has an answer: the
-/// untrusted-settings approval, and a refused certificate's acceptance. One function rather
-/// than two, because two would each decide the button's sensitivity and whichever fired last
-/// would win. The submit path re-checks both: this is the affordance, not the gate, because a
-/// button that silently does nothing reads as a broken app rather than as a question waiting
-/// for an answer.
+/// untrusted-settings approval, a refused certificate's acceptance, and the secret, which is
+/// the one thing no pane can fill in for the person. One function of all three rather than one
+/// per question, because separate handlers would each decide the button's sensitivity and
+/// whichever fired last would win.
+///
+/// Every question the submit path refuses on belongs here. The submit path re-checks them: this
+/// is the affordance, not the gate, because a button that silently does nothing reads as a
+/// broken app rather than as a question waiting for an answer.
+///
+/// The gate outlives any one certificate, because the pane does: a refusal arrives into a form
+/// that stays on screen, so the acceptance box it draws is handed to [`ConnectGate::offers`]
+/// rather than gated for by a second `gate_connect` whose handlers would stack on the first's.
 pub(super) fn gate_connect(
     button: &gtk::Button,
     trust: Option<&gtk::CheckButton>,
     trusted: bool,
-    certificate: Option<&gtk::CheckButton>,
-) {
-    let asks_trust = trust.is_some() && !trusted;
-    if !asks_trust && certificate.is_none() {
-        return;
-    }
-    button.set_sensitive(false);
+    secret: &gtk::Entry,
+) -> ConnectGate {
+    let accepted: Rc<RefCell<Option<gtk::CheckButton>>> = Rc::new(RefCell::new(None));
+    let refresh: Rc<dyn Fn()> = {
+        let (button, trust, secret, accepted) = (
+            button.clone(),
+            trust.cloned(),
+            secret.clone(),
+            Rc::clone(&accepted),
+        );
+        Rc::new(move || {
+            button.set_sensitive(answered(
+                trusted,
+                trust.as_ref(),
+                accepted.borrow().as_ref(),
+                &secret,
+            ));
+        })
+    };
     if let Some(trust) = trust {
-        let (button, trust_box, certificate_box) =
-            (button.clone(), trust.clone(), certificate.cloned());
-        trust.connect_toggled(move |_| {
-            button.set_sensitive(answered(
-                trusted,
-                Some(&trust_box),
-                certificate_box.as_ref(),
-            ));
-        });
+        let refresh = Rc::clone(&refresh);
+        trust.connect_toggled(move |_| refresh());
     }
-    if let Some(certificate) = certificate {
-        let (button, trust_box, certificate_box) =
-            (button.clone(), trust.cloned(), certificate.clone());
-        certificate.connect_toggled(move |_| {
-            button.set_sensitive(answered(
-                trusted,
-                trust_box.as_ref(),
-                Some(&certificate_box),
-            ));
-        });
+    let typed = Rc::clone(&refresh);
+    secret.connect_changed(move |_| typed());
+    let gate = ConnectGate { refresh, accepted };
+    gate.offers(None);
+    gate
+}
+
+/// Connect's gate, kept so a pane that stays on screen can re-point it at the acceptance box a
+/// later refusal draws.
+#[derive(Clone)]
+pub(super) struct ConnectGate {
+    refresh: Rc<dyn Fn()>,
+    accepted: Rc<RefCell<Option<gtk::CheckButton>>>,
+}
+
+impl std::fmt::Debug for ConnectGate {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ConnectGate")
+            .finish_non_exhaustive()
     }
 }
 
-/// Whether both questions a pane can ask have an answer.
+impl ConnectGate {
+    /// The acceptance box now on screen, or `None` when nothing was refused. Re-gates Connect
+    /// against it at once, so the button never outlives the question it was opened for.
+    pub(super) fn offers(&self, certificate: Option<&gtk::CheckButton>) {
+        self.accepted.replace(certificate.cloned());
+        if let Some(certificate) = certificate {
+            let refresh = Rc::clone(&self.refresh);
+            certificate.connect_toggled(move |_| refresh());
+        }
+        (self.refresh)();
+    }
+}
+
+/// Whether every question a pane can ask has an answer.
 fn answered(
     trusted: bool,
     trust: Option<&gtk::CheckButton>,
     certificate: Option<&gtk::CheckButton>,
+    secret: &gtk::Entry,
 ) -> bool {
     let approved = trust.is_none_or(|choice| trust_approved(trusted, choice.is_active()));
-    approved && certificate_accepted(certificate)
+    approved && certificate_accepted(certificate) && !secret.text().is_empty()
 }
 
 /// The trailing button row every pane ends with. Cancel (when the flow is dismissable) and Back

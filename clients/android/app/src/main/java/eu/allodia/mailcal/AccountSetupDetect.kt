@@ -37,7 +37,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.AccountSetup
+import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.JmapSetup
+import uniffi.mailcal_bindings.MailServerKind
 import uniffi.mailcal_bindings.MissReason
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.SetupRecommendation
@@ -50,6 +52,7 @@ import uniffi.mailcal_bindings.setupFromOffer
 @Composable
 internal fun AccountSetupFlow(
     externalError: String?,
+    externalFailure: ConnectFailure? = null,
     onCancel: (() -> Unit)?,
     signingIn: Boolean,
     signingInGoogle: Boolean = false,
@@ -64,6 +67,9 @@ internal fun AccountSetupFlow(
     onCheckJmapSignIn: (suspend (String, String) -> Boolean)? = null,
     onSignInJmap: (String, String) -> Unit = { _, _ -> },
     signingInJmap: Boolean = false,
+    // The core's standard port for a server kind and security, threaded through to the manual
+    // form. Null suggests no port, which is what a preview and a JVM test get.
+    standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,
     // Which account types the manual form's picker shows; threaded straight through.
     offeredKinds: List<AccountKind> = AccountKind.entries,
     // Documentation screenshots only (docs/user-docs.md); null on every real launch.
@@ -212,6 +218,7 @@ internal fun AccountSetupFlow(
             signingIn = signingIn,
             signingInGoogle = signingInGoogle,
             externalError = externalError,
+            externalFailure = externalFailure,
             onSignInMicrosoft = onSignInMicrosoft,
             onSignInGoogle = onSignInGoogle,
             onConnect = onConnect,
@@ -225,6 +232,7 @@ internal fun AccountSetupFlow(
             val prefill = manualPrefill(current.edit)
             AccountSetupScreen(
                 externalError = externalError,
+                externalFailure = externalFailure,
                 onCancel = onCancel,
                 signingIn = signingIn,
                 signingInGoogle = signingInGoogle,
@@ -233,6 +241,7 @@ internal fun AccountSetupFlow(
                 onSignInGoogle = onSignInGoogle,
                 onConnect = onConnect,
                 onConnectJmap = onConnectJmap,
+                standardPort = standardPort,
                 onCheckJmapSignIn = onCheckJmapSignIn,
                 onSignInJmap = onSignInJmap,
                 signingInJmap = signingInJmap,
@@ -256,6 +265,7 @@ private fun FoundView(
     signingIn: Boolean,
     signingInGoogle: Boolean,
     externalError: String?,
+    externalFailure: ConnectFailure? = null,
     onSignInMicrosoft: (String?) -> Unit,
     onSignInGoogle: (String?) -> Unit,
     onConnect: (AccountSetup) -> ConnectFailure?,
@@ -276,7 +286,10 @@ private fun FoundView(
         mutableStateOf((recommendation as? SetupRecommendation.Imap)?.caldavUrl != null)
     }
     var calendarUrl by remember(recommendation) { mutableStateOf("") }
-    var failure by remember(recommendation) { mutableStateOf<ConnectFailure?>(null) }
+    var ownFailure by remember(recommendation) { mutableStateOf<ConnectFailure?>(null) }
+    // Whichever connect answered last. `addAccount` runs on a thread of its own, so its answer
+    // arrives as `externalFailure` rather than as the return of `onConnect`.
+    val failure = ownFailure ?: externalFailure
     // A different certificate is a different decision, so an acceptance never carries over to
     // one nobody has been shown.
     var certificateAccepted by remember(failure?.certificate) { mutableStateOf(false) }
@@ -363,7 +376,7 @@ private fun FoundView(
                 InlineError(error ?: externalError)
                 if (showManualSecret) {
                     ConnectButton(form.canConnect && !connecting, connecting, L10n.action_connect(ctx)) {
-                        failure = onConnectJmap(form.jmapSetup())
+                        ownFailure = onConnectJmap(form.jmapSetup())
                     }
                 }
             }
@@ -386,7 +399,7 @@ private fun FoundView(
                     CertificateExceptionPanel(it, certificateAccepted) { on -> certificateAccepted = on }
                 }
                 ConnectButton(form.canConnect && !connecting, connecting, L10n.action_connect(ctx)) {
-                    failure = onConnect(form.imapSetup())
+                    ownFailure = onConnect(form.imapSetup())
                 }
             }
             is SetupRecommendation.Manual -> Unit // never routed here

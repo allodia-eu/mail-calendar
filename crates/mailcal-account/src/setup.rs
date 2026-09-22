@@ -49,15 +49,22 @@ const DEFAULT_SMTP_TLS_PORT: u16 = 465;
 const DEFAULT_SMTP_STARTTLS_PORT: u16 = 587;
 
 /// The standard IMAP port for a given connection security.
-const fn imap_default_port(security: ConnectionSecurity) -> u16 {
+///
+/// Public because the setup forms show it: a manual form starts at the standard port for the
+/// security the user picked, and four clients each carrying their own copy of 993 would be four
+/// places for it to go stale.
+#[must_use]
+pub const fn imap_default_port(security: ConnectionSecurity) -> u16 {
     match security {
         ConnectionSecurity::ImplicitTls => DEFAULT_IMAP_TLS_PORT,
         ConnectionSecurity::StartTls => DEFAULT_IMAP_STARTTLS_PORT,
     }
 }
 
-/// The standard SMTP submission port for a given connection security.
-const fn smtp_default_port(security: ConnectionSecurity) -> u16 {
+/// The standard SMTP submission port for a given connection security. Public for the reason
+/// [`imap_default_port`] is.
+#[must_use]
+pub const fn smtp_default_port(security: ConnectionSecurity) -> u16 {
     match security {
         ConnectionSecurity::ImplicitTls => DEFAULT_SMTP_TLS_PORT,
         ConnectionSecurity::StartTls => DEFAULT_SMTP_STARTTLS_PORT,

@@ -196,8 +196,8 @@ pub use rendering::{
 };
 pub use repeat_editor::repeat_change_of;
 pub use setup::{
-    AccountSetup, ConnectionSecurity, JmapSetup, RejectedCertificate, account_config_toml,
-    jmap_account_config_toml,
+    AccountSetup, ConnectionSecurity, JmapSetup, MailServerKind, RejectedCertificate,
+    account_config_toml, jmap_account_config_toml, standard_port,
 };
 pub use share::{
     RejectedShare, SharePrefill, ShareRejectionReason, ShareRequest, SharedFile, prefill_from_share,
@@ -411,3 +411,6 @@ mod tests_credential_ordering;
 
 #[cfg(test)]
 mod tests_calendar;
+
+#[cfg(test)]
+mod tests_setup;

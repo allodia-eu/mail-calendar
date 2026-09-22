@@ -7,6 +7,7 @@ use super::{
     AppInput, setup_google, setup_imap, setup_jmap, setup_manual, setup_microsoft,
     setup_model::{DetectedForm, SetupForm},
     setup_onboarding,
+    setup_pane::ConnectPane,
     setup_state::{Phase, SetupState},
     setup_widgets::{actions, body, entry, heading, page, progress},
 };
@@ -17,6 +18,11 @@ pub(super) struct SetupWindow {
     window: Option<gtk::Window>,
     rendered_generation: u64,
     rendered_required: bool,
+    /// The form generation the pane on screen was built for, and the pane itself while one is
+    /// mounted. Together they are what lets a connect and its answer be drawn *into* the form
+    /// the person is typing in rather than replacing it (`super::setup_pane`).
+    rendered_form_generation: u64,
+    pane: Option<ConnectPane>,
 }
 
 impl SetupWindow {
@@ -44,6 +50,22 @@ impl SetupWindow {
                     self.window = Some(window);
                     return;
                 }
+                // A connect, or its answer, against the same form: the pane stays and takes the
+                // result. Rebuilding it here is what used to empty the fields under the
+                // certificate panel, the secret box included.
+                if let Some(pane) = self
+                    .pane
+                    .as_ref()
+                    .filter(|_| self.rendered_form_generation == state.form_generation)
+                {
+                    pane.set_connecting(state.phase == Phase::Connecting);
+                    if state.phase == Phase::Form {
+                        pane.show_result(state.error.as_deref(), state.certificate.as_ref());
+                    }
+                    self.rendered_generation = state.generation;
+                    self.window = Some(window);
+                    return;
+                }
                 window
             }
             Some(previous) => {
@@ -55,18 +77,28 @@ impl SetupWindow {
         // A default action belongs to one phase's child. Clear it before building the next phase,
         // whose builder may install a different default while the old child still exists.
         window.set_default_widget(None::<&gtk::Widget>);
+        self.pane = None;
         let content = match state.phase {
             Phase::Email => email_step(&window, state, sender),
             Phase::Detecting => progress(l10n::setup_detect_looking()),
-            Phase::Form => form_step(&window, state, sender),
+            // A connect whose form is gone (the window was rebuilt under it) has nothing to
+            // draw into, so it falls back to the phase spinner.
+            Phase::Form | Phase::Connecting => {
+                let (content, pane) = form_step(&window, state, sender);
+                if let Some(pane) = &pane {
+                    pane.set_connecting(state.phase == Phase::Connecting);
+                }
+                self.pane = pane;
+                content
+            }
             Phase::GoogleSigningIn => setup_google::signing_in(sender),
             Phase::MicrosoftSigningIn => setup_microsoft::signing_in(sender),
             Phase::JmapSigningIn => setup_jmap::signing_in(sender),
-            Phase::Connecting => progress(l10n::status_connecting()),
         };
         window.set_child(Some(&content));
         window.present();
         self.rendered_generation = state.generation;
+        self.rendered_form_generation = state.form_generation;
         self.rendered_required = state.required;
         self.window = Some(window);
     }
@@ -161,7 +193,7 @@ fn form_step(
     window: &gtk::Window,
     state: &SetupState,
     sender: &relm4::Sender<AppInput>,
-) -> gtk::Box {
+) -> (gtk::Box, Option<ConnectPane>) {
     let content = page();
     let error = state.error.as_deref();
     // Only an IMAP pane can act on a refused certificate: a JMAP account's stored config
@@ -173,42 +205,42 @@ fn form_step(
         content.append(&heading(l10n::setup_detect_found_title()));
         content.append(&body(l10n::setup_detect_reason_nothing()));
         content.append(&actions(window, required, sender));
-        return content;
+        return (content, None);
     };
-    match form {
+    let pane = match form {
         SetupForm::Detected(detected) => {
             content.append(&heading(l10n::setup_detect_found_title()));
             match detected {
-                DetectedForm::Imap(form) => {
-                    setup_imap::detected_fields(
-                        &content,
-                        window,
-                        form,
-                        error,
-                        certificate,
-                        required,
-                        sender,
-                    );
-                }
+                DetectedForm::Imap(form) => Some(setup_imap::detected_fields(
+                    &content,
+                    window,
+                    form,
+                    error,
+                    certificate,
+                    required,
+                    sender,
+                )),
                 DetectedForm::Jmap(form) => {
-                    setup_jmap::detected_fields(&content, window, form, error, required, sender);
+                    setup_jmap::detected_fields(&content, window, form, error, required, sender)
                 }
                 DetectedForm::Microsoft(form) => {
                     setup_microsoft::detected_fields(
                         &content, window, form, error, required, sender,
                     );
+                    None
                 }
                 DetectedForm::Google(form) => {
                     setup_google::detected_fields(&content, window, form, error, required, sender);
+                    None
                 }
             }
         }
         SetupForm::Manual(form) => {
             content.append(&heading(l10n::setup_title()));
-            setup_manual::fields(&content, window, form, error, certificate, required, sender);
+            setup_manual::fields(&content, window, form, error, certificate, required, sender)
         }
-    }
-    content
+    };
+    (content, pane)
 }
 
 #[cfg(test)]

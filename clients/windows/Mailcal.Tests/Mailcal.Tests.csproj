@@ -187,6 +187,11 @@
     <!-- The email-first detection routing + connect-gating, likewise WinUI-free (the view's WinUI
          half stays in Views/), and it maps the generated SetupRecommendation, so it needs the bindings. -->
     <Compile Include="..\Mailcal\Services\AccountDetectForm.cs" Link="Services\AccountDetectForm.cs" />
+    <!-- The manual form's port and connection security: which port the picker offers, and that a
+         port the user typed is never taken back off them. WinUI-free on purpose, because a
+         server on a non-standard port is the reason the manual form exists and nothing else
+         here can fail when that breaks. -->
+    <Compile Include="..\Mailcal\Services\ManualServerField.cs" Link="Services\ManualServerField.cs" />
     <!-- The composer recipient field's string work: which part of a To/Cc/Bcc field is being typed,
          which recipients are finished, and what the field becomes when one is accepted or removed.
          Both failure modes here are SILENT (a whole-field query matches nothing once a first
