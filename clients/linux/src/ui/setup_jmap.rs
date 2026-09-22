@@ -9,9 +9,10 @@ use super::{
     AppInput,
     setup_manual::FormSnapshot,
     setup_model::{AccountSubmission, JmapForm, JmapSignIn, JmapSubmission, ManualForm},
+    setup_pane::{ConnectPane, connecting_readout},
     setup_widgets::{
         actions, body, caption, detected_row, edit_manually_button, entry, gate_connect, primary,
-        section, show_error, trust_approved, trust_gate,
+        section, trust_approved, trust_gate,
     },
 };
 use crate::l10n;
@@ -26,7 +27,7 @@ pub(super) fn detected_fields(
     error: Option<&str>,
     required: bool,
     sender: &relm4::Sender<AppInput>,
-) {
+) -> Option<ConnectPane> {
     content.append(&section(l10n::setup_detect_section_email()));
     if !form.server_url.trim().is_empty() {
         content.append(&detected_row("JMAP", &host_of(&form.server_url)));
@@ -52,8 +53,10 @@ pub(super) fn detected_fields(
         content.append(&caption(l10n::setup_jmap_secret_note()));
         (trust, password)
     });
-    show_error(content, error);
+    let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    content.append(&feedback);
 
+    let mut pane: Option<ConnectPane> = None;
     let actions = actions(window, required, sender);
     actions.append(&edit_manually_button(sender));
     if form.sign_in.show_offer() {
@@ -73,10 +76,15 @@ pub(super) fn detected_fields(
         } else {
             primary(l10n::action_connect(), window)
         };
-        gate_connect(&connect, Some(&trust), form.trusted, None);
+        let readout = connecting_readout(l10n::status_connecting());
+        actions.append(&readout);
+        let gate = gate_connect(&connect, Some(&trust), form.trusted, &password);
+        // A JMAP account's stored config carries no exception, so a refusal is reported as
+        // plain text rather than offered for acceptance (`docs/certificate-exceptions.md`
+        // rule 8).
+        pane = Some(ConnectPane::new(&feedback, gate, &connect, &readout, false));
         let base = form.clone();
         let input = sender.clone();
-        let dialog = window.clone();
         connect.connect_clicked(move |_| {
             if !trust_approved(base.trusted, trust.is_active()) || password.text().is_empty() {
                 return;
@@ -88,11 +96,14 @@ pub(super) fn detected_fields(
                     password: password.text().to_string(),
                 },
             ))));
-            dialog.set_visible(false);
         });
         actions.append(&connect);
     }
     content.append(&actions);
+    if let Some(pane) = &pane {
+        pane.show_result(error, None);
+    }
+    pane
 }
 
 /// The manual form. The secret always stays: the user came here to type one, and the
@@ -104,7 +115,7 @@ pub(super) fn manual_fields(
     error: Option<&str>,
     required: bool,
     sender: &relm4::Sender<AppInput>,
-) -> FormSnapshot {
+) -> (FormSnapshot, ConnectPane) {
     content.append(&body(l10n::setup_jmap_note()));
     let email = entry(l10n::setup_field_email(), &form.email, false);
     let server = entry(
@@ -125,7 +136,8 @@ pub(super) fn manual_fields(
     let password = entry(l10n::setup_jmap_secret_placeholder(), "", true);
     content.append(&password);
     content.append(&caption(l10n::setup_jmap_secret_note()));
-    show_error(content, error);
+    let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    content.append(&feedback);
 
     let snapshot: FormSnapshot = {
         let base = form.clone();
@@ -165,8 +177,12 @@ pub(super) fn manual_fields(
     } else {
         primary(l10n::action_connect(), window)
     };
+    let readout = connecting_readout(l10n::status_connecting());
+    actions.append(&readout);
+    let gate = gate_connect(&connect, None, true, &password);
+    let pane = ConnectPane::new(&feedback, gate, &connect, &readout, false);
+    pane.show_result(error, None);
     let input = sender.clone();
-    let dialog = window.clone();
     connect.connect_clicked(move |_| {
         let submission = JmapSubmission {
             email: email.text().trim().to_owned(),
@@ -179,11 +195,10 @@ pub(super) fn manual_fields(
         input.emit(AppInput::SubmitAccount(Box::new(AccountSubmission::Jmap(
             submission,
         ))));
-        dialog.set_visible(false);
     });
     actions.append(&connect);
     content.append(&actions);
-    snapshot
+    (snapshot, pane)
 }
 
 pub(super) fn signing_in(sender: &relm4::Sender<AppInput>) -> gtk::Box {

@@ -93,6 +93,7 @@ mod setup_model;
 mod setup_onboarding;
 #[cfg(test)]
 mod setup_onboarding_tests;
+mod setup_pane;
 mod setup_server_field;
 #[cfg(test)]
 mod setup_server_field_tests;

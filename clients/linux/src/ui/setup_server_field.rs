@@ -5,7 +5,7 @@
 //! server on a port nobody standardised is the whole reason the manual form exists, so the form
 //! must never take back what was typed for it.
 //!
-//! The rule is [`docs/account-autodetect.md`]'s and binds every client; this is the GTK client's
+//! The rule is `docs/account-autodetect.md`'s and binds every client; this is the GTK client's
 //! copy of it, renderer-free so it can be tested without a widget tree.
 
 use mailcal_bindings::{ConnectionSecurity, MailServerKind, standard_port};

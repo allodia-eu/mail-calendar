@@ -10,6 +10,7 @@ use adw::prelude::*;
 use super::{
     AppInput, setup_google, setup_imap, setup_jmap, setup_microsoft,
     setup_model::{AccountKind, ManualForm},
+    setup_pane::ConnectPane,
     setup_widgets::body,
 };
 use crate::l10n;
@@ -26,24 +27,39 @@ pub(super) fn fields(
     certificate: Option<&mailcal_bindings::RejectedCertificate>,
     required: bool,
     sender: &relm4::Sender<AppInput>,
-) {
+) -> Option<ConnectPane> {
     if let Some(note) = &form.note {
         content.append(&body(note));
     }
     let picker = account_type_picker(content, form.kind);
-    let snapshot = match form.kind {
+    // The two credential routes connect from here, so they keep a pane a result can be drawn
+    // into; the OAuth routes hand off to a browser and have nothing to report in place.
+    let (snapshot, pane) = match form.kind {
         AccountKind::Imap => {
-            setup_imap::manual_fields(content, window, form, error, certificate, required, sender)
+            let (snapshot, pane) = setup_imap::manual_fields(
+                content,
+                window,
+                form,
+                error,
+                certificate,
+                required,
+                sender,
+            );
+            (snapshot, Some(pane))
         }
         AccountKind::Jmap => {
-            setup_jmap::manual_fields(content, window, form, error, required, sender)
+            let (snapshot, pane) =
+                setup_jmap::manual_fields(content, window, form, error, required, sender);
+            (snapshot, Some(pane))
         }
-        AccountKind::Microsoft => {
-            setup_microsoft::manual_fields(content, window, form, error, required, sender)
-        }
-        AccountKind::Google => {
-            setup_google::manual_fields(content, window, form, error, required, sender)
-        }
+        AccountKind::Microsoft => (
+            setup_microsoft::manual_fields(content, window, form, error, required, sender),
+            None,
+        ),
+        AccountKind::Google => (
+            setup_google::manual_fields(content, window, form, error, required, sender),
+            None,
+        ),
     };
     // Connected after the pane exists, so setting the initial selection above cannot fire it.
     let input = sender.clone();
@@ -52,6 +68,7 @@ pub(super) fn fields(
         carried.kind = AccountKind::from_position(chosen.selected());
         input.emit(AppInput::SelectAccountKind(Box::new(carried)));
     });
+    pane
 }
 
 fn account_type_picker(content: &gtk::Box, kind: AccountKind) -> gtk::DropDown {

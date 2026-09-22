@@ -10,12 +10,12 @@ use super::{
     AppInput,
     setup_manual::FormSnapshot,
     setup_model::{AccountSubmission, DetectedServer, ImapForm, ImapSubmission, ManualForm},
+    setup_pane::{ConnectPane, connecting_readout},
     setup_server_field::ServerPair,
     setup_server_row::manual_server_row,
     setup_widgets::{
-        actions, caption, certificate_accepted, certificate_gate, detected_row,
-        edit_manually_button, entry, gate_connect, primary, section, show_error, trust_approved,
-        trust_gate,
+        actions, caption, detected_row, edit_manually_button, entry, gate_connect, primary,
+        section, trust_approved, trust_gate,
     },
 };
 use crate::l10n;
@@ -30,7 +30,7 @@ pub(super) fn detected_fields(
     certificate: Option<&RejectedCertificate>,
     required: bool,
     sender: &relm4::Sender<AppInput>,
-) {
+) -> ConnectPane {
     content.append(&section(l10n::setup_detect_section_email()));
     content.append(&server_row(&form.incoming));
     if let Some(outgoing) = &form.outgoing {
@@ -43,24 +43,23 @@ pub(super) fn detected_fields(
     content.append(&password);
 
     let calendar = calendar_section(content, &form.caldav_url);
-    // The panel says what the transport said, in the reader's language and with the certificate
-    // beside it, so the raw message is not shown as well.
-    let accepted = certificate_gate(content, certificate);
-    show_error(content, error.filter(|_| certificate.is_none()));
+    // Where a refusal draws itself, into the pane that asked; filled by `ConnectPane`.
+    let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    content.append(&feedback);
 
     let actions = actions(window, required, sender);
     actions.append(&edit_manually_button(sender));
     let connect = primary(l10n::action_connect(), window);
-    gate_connect(&connect, Some(&trust), form.trusted, accepted.as_ref());
+    let readout = connecting_readout(l10n::status_connecting());
+    actions.append(&readout);
+    let gate = gate_connect(&connect, Some(&trust), form.trusted, &password);
+    let pane = ConnectPane::new(&feedback, gate, &connect, &readout, true);
+    pane.show_result(error, certificate);
     let base = form.clone();
-    let refused = certificate.cloned();
+    let refused = pane.accepted();
     let input = sender.clone();
-    let dialog = window.clone();
     connect.connect_clicked(move |_| {
-        if !trust_approved(base.trusted, trust.is_active())
-            || !certificate_accepted(accepted.as_ref())
-            || password.text().is_empty()
-        {
+        if !trust_approved(base.trusted, trust.is_active()) || password.text().is_empty() {
             return;
         }
         input.emit(AppInput::SubmitAccount(Box::new(AccountSubmission::Imap(
@@ -72,13 +71,15 @@ pub(super) fn detected_fields(
                 imap_security: base.imap_security,
                 smtp_security: base.smtp_security,
                 password: password.text().to_string(),
-                accepted_certificate: refused.clone(),
+                // Read now rather than captured when the pane was built: the pane outlives
+                // the refusal it is answering.
+                accepted_certificate: refused.borrow().clone(),
             },
         ))));
-        dialog.set_visible(false);
     });
     actions.append(&connect);
     content.append(&actions);
+    pane
 }
 
 /// The manual form: every field typed by hand, for a server autodetection could not find.
@@ -90,7 +91,7 @@ pub(super) fn manual_fields(
     certificate: Option<&RejectedCertificate>,
     required: bool,
     sender: &relm4::Sender<AppInput>,
-) -> FormSnapshot {
+) -> (FormSnapshot, ConnectPane) {
     content.append(&caption(l10n::setup_credentials_note()));
     let email = entry(l10n::setup_field_email(), &form.email, false);
     content.append(&email);
@@ -111,8 +112,8 @@ pub(super) fn manual_fields(
     let caldav = entry(l10n::setup_field_caldav_optional(), &form.caldav_url, false);
     content.append(&caldav);
     content.append(&caption(l10n::setup_port_note()));
-    let accepted = certificate_gate(content, certificate);
-    show_error(content, error.filter(|_| certificate.is_none()));
+    let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    content.append(&feedback);
 
     let snapshot: FormSnapshot = {
         let base = form.clone();
@@ -133,10 +134,13 @@ pub(super) fn manual_fields(
 
     let actions = actions(window, required, sender);
     let connect = primary(l10n::action_connect(), window);
-    gate_connect(&connect, None, true, accepted.as_ref());
-    let refused = certificate.cloned();
+    let readout = connecting_readout(l10n::status_connecting());
+    actions.append(&readout);
+    let gate = gate_connect(&connect, None, true, &password);
+    let pane = ConnectPane::new(&feedback, gate, &connect, &readout, true);
+    pane.show_result(error, certificate);
+    let refused = pane.accepted();
     let input = sender.clone();
-    let dialog = window.clone();
     connect.connect_clicked(move |_| {
         let submission = ImapSubmission {
             email: email.text().trim().to_owned(),
@@ -146,23 +150,21 @@ pub(super) fn manual_fields(
             imap_security: imap.read().security(),
             smtp_security: smtp.read().security(),
             password: password.text().to_string(),
-            accepted_certificate: refused.clone(),
+            accepted_certificate: refused.borrow().clone(),
         };
         if submission.email.is_empty()
             || submission.imap_host.is_empty()
             || submission.password.is_empty()
-            || !certificate_accepted(accepted.as_ref())
         {
             return;
         }
         input.emit(AppInput::SubmitAccount(Box::new(AccountSubmission::Imap(
             submission,
         ))));
-        dialog.set_visible(false);
     });
     actions.append(&connect);
     content.append(&actions);
-    snapshot
+    (snapshot, pane)
 }
 
 /// The calendar half of a detected card: pre-checked when the CalDAV follow-on probe found an
