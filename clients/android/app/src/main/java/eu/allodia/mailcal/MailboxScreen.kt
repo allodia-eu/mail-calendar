@@ -408,7 +408,7 @@ internal fun MailboxScreen(
             // The background-sync hint shares that strip: a pass nobody started says so in a
             // caption rather than a bar. The two are mutually exclusive in the core, an awaited
             // download is already explained by the bar, so they never stack.
-            SyncHint(syncProgress, accounts, ctx)
+            SyncStatus(syncProgress, accounts, ctx)
         }
         // The familiar bottom-right floating action button for composing a new message.
         FloatingActionButton(

@@ -161,6 +161,9 @@ extension ContentView {
     /// The phone has no footer to put the background hint in, so it shares this strip: the same
     /// edge, without the bar. Both can be true at once (an awaited download while a poll tick
     /// catches another account up); the bar is the one the user is waiting on, so it wins.
+    ///
+    /// A phone has no hover either, so the paused notice says its whole sentence here rather
+    /// than the short label a Mac puts a tooltip behind. The strip is full width; there is room.
     @ViewBuilder private var syncStrip: some View {
         if let progress = model.syncProgress, progress.active {
             Divider()
@@ -171,10 +174,10 @@ extension ContentView {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-        } else if let hint = syncHintText(model.syncProgress) {
+        } else if let status = syncStatusText(model.syncProgress) {
             Divider()
             HStack {
-                Text(hint).font(.caption).foregroundStyle(.secondary)
+                syncStatusLabel(status)
                 Spacer()
             }
             .padding(.horizontal, 16)

@@ -115,6 +115,7 @@ mod sync_account;
 mod sync_folder;
 mod sync_progress;
 mod sync_progress_staged;
+mod sync_progress_state;
 mod sync_settings;
 mod telemetry;
 mod timezone;
@@ -163,7 +164,7 @@ pub use signatures::SignatureBody;
 use signatures::SignatureState;
 use surfaced::{Surfaced, SurfacedMap};
 use swipe_settings::SwipeSettingsState;
-use sync_progress::SyncProgressState;
+use sync_progress_state::SyncProgressState;
 use sync_settings::SyncSettingsState;
 pub use telemetry::{
     AnalyticsConsent, Batch, Context, DeviceClass, DeviceInfo, DurationBucket, Event, Feature,

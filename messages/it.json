@@ -516,6 +516,11 @@
 	"sync_hint_account": "Sincronizzazione di {account}: {done} di {total} cartelle",
 	"sync_hint_accounts": "Sincronizzazione di {count} account",
 	"sync_hint_bodies": "Sincronizzazione di {account}: {done} messaggi finora",
+	"sync_paused": "Sincronizzazione in pausa",
+	"sync_paused_detail": "Il server di posta di {account} ci ha chiesto di rallentare. La sincronizzazione riprende tra circa {count} minuti.",
+	"sync_paused_detail_one": "Il server di posta di {account} ci ha chiesto di rallentare. La sincronizzazione riprende tra circa {count} minuto.",
+	"sync_paused_detail_soon": "Il server di posta di {account} ci ha chiesto di rallentare. La sincronizzazione riprende a breve.",
+	"sync_paused_detail_accounts": "I server di posta di {count} account ci hanno chiesto di rallentare. La sincronizzazione riprende a breve.",
 
 	"settings_sync_heading": "Nuova posta",
 	"settings_sync_description": "Scegli come ogni account controlla la presenza di nuovi messaggi.",

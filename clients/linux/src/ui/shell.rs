@@ -62,7 +62,7 @@ pub(crate) struct AppWidgets {
     sync_progress: gtk::ProgressBar,
     sync_caption: gtk::Label,
     sync_indeterminate: Rc<Cell<bool>>,
-    sync_hint: gtk::Label,
+    sync_status: gtk::Label,
     settings: SettingsWindow,
     setup: SetupWindow,
     welcome: WelcomeWindow,
@@ -155,17 +155,17 @@ impl AppWidgets {
 
         // Plain text because the caption carries an account address; an ampersand in one must
         // render, not fail a markup parse.
-        let sync_hint = gtk::Label::new(None);
-        sync_hint.set_xalign(0.0);
-        sync_hint.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        sync_hint.set_margin_top(6);
-        sync_hint.set_margin_bottom(6);
-        sync_hint.set_margin_start(12);
-        sync_hint.set_margin_end(12);
-        sync_hint.add_css_class("dim-label");
-        sync_hint.add_css_class("caption");
-        sync_hint.set_visible(false);
-        sync_strip.append(&sync_hint);
+        let sync_status = gtk::Label::new(None);
+        sync_status.set_xalign(0.0);
+        sync_status.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        sync_status.set_margin_top(6);
+        sync_status.set_margin_bottom(6);
+        sync_status.set_margin_start(12);
+        sync_status.set_margin_end(12);
+        sync_status.add_css_class("dim-label");
+        sync_status.add_css_class("caption");
+        sync_status.set_visible(false);
+        sync_strip.append(&sync_status);
         sync_strip.set_visible(false);
         list_toolbar.add_bottom_bar(&sync_strip);
         let sync_indeterminate = Rc::new(Cell::new(false));
@@ -257,7 +257,7 @@ impl AppWidgets {
             sync_progress,
             sync_caption,
             sync_indeterminate,
-            sync_hint,
+            sync_status,
             settings: SettingsWindow::default(),
             setup: SetupWindow::default(),
             welcome: WelcomeWindow::default(),
@@ -400,16 +400,26 @@ impl AppWidgets {
             self.sync_indeterminate.set(bar.fraction.is_none());
             self.sync_progress.set_fraction(bar.fraction.unwrap_or(0.0));
             self.sync_bar_row.set_visible(true);
-            self.sync_hint.set_visible(false);
+            self.sync_status.set_visible(false);
         } else {
             self.sync_indeterminate.set(false);
             self.sync_bar_row.set_visible(false);
-            self.sync_hint
-                .set_text(model.sync_hint.as_deref().unwrap_or_default());
-            self.sync_hint.set_visible(model.sync_hint.is_some());
+            let status = model.sync_status.as_ref();
+            let text = status.map_or("", |status| status.text.as_str());
+            self.sync_status.set_text(text);
+            // The whole sentence behind a hover, for the paused notice whose caption is a short
+            // label standing in for one. Cleared, not left behind, when the caption changes to
+            // one that says everything already.
+            let detail = status.and_then(|status| status.detail.as_deref());
+            self.sync_status.set_tooltip_text(detail);
+            // And spoken as well as hovered: "Sync paused" on its own never says how long, and
+            // a screen reader gets no tooltip.
+            self.sync_status
+                .update_property(&[AccessibleProperty::Label(detail.unwrap_or(text))]);
+            self.sync_status.set_visible(status.is_some());
         }
         self.sync_strip
-            .set_visible(model.sync_bar.is_some() || model.sync_hint.is_some());
+            .set_visible(model.sync_bar.is_some() || model.sync_status.is_some());
         if model.draft_check.is_some() {
             self.settings.close();
         }

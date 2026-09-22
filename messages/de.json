@@ -516,6 +516,11 @@
 	"sync_hint_account": "{account} wird synchronisiert: {done} von {total} Ordnern",
 	"sync_hint_accounts": "{count} Konten werden synchronisiert",
 	"sync_hint_bodies": "{account} wird synchronisiert: bisher {done} Nachrichten",
+	"sync_paused": "Synchronisierung pausiert",
+	"sync_paused_detail": "Der Mailserver von {account} hat uns gebeten, langsamer zu machen. Die Synchronisierung wird in etwa {count} Minuten fortgesetzt.",
+	"sync_paused_detail_one": "Der Mailserver von {account} hat uns gebeten, langsamer zu machen. Die Synchronisierung wird in etwa {count} Minute fortgesetzt.",
+	"sync_paused_detail_soon": "Der Mailserver von {account} hat uns gebeten, langsamer zu machen. Die Synchronisierung wird in Kürze fortgesetzt.",
+	"sync_paused_detail_accounts": "Die Mailserver von {count} Konten haben uns gebeten, langsamer zu machen. Die Synchronisierung wird in Kürze fortgesetzt.",
 
 	"settings_sync_heading": "Neue E-Mails",
 	"settings_sync_description": "Legen Sie fest, wie jedes Konto nach neuen Nachrichten sucht.",

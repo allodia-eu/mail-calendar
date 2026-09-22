@@ -18,7 +18,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.SendStatus
-import uniffi.mailcal_bindings.SyncProgressSnapshot
 
 // A transient banner above the list: a spinner while a send is in flight, then a brief
 // "Message sent" / "Couldn't send" confirmation.
@@ -116,88 +114,6 @@ internal fun ConnectionIssuesBanner(
             text = { Text(issues.joinToString("\n\n") { it.detail }) },
         )
     }
-}
-
-@androidx.compose.runtime.Composable
-internal fun SyncProgressBar(progress: SyncProgressSnapshot?, ctx: Context) {
-    if (progress == null || !progress.active) return
-    val total = progress.total
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (total != null && total > 0uL) {
-            LinearProgressIndicator(
-                progress = { progress.fetched.toFloat() / total.toFloat() },
-                modifier = Modifier.weight(1f),
-            )
-        } else {
-            LinearProgressIndicator(modifier = Modifier.weight(1f))
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        val caption = if (total != null) {
-            L10n.sync_downloading(ctx, syncCount(progress.fetched), syncCount(total))
-        } else {
-            L10n.sync_downloading_indeterminate(ctx, syncCount(progress.fetched))
-        }
-        Text(
-            text = caption,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-private fun syncCount(value: ULong): String = "%,d".format(value.toLong())
-
-// The background-sync hint: which accounts are pulling mail down right now, and how far through
-// their folders they are. Renders nothing whenever nothing is arriving unasked, which is almost
-// always, the core admits an account only once its background pass has actually committed mail,
-// so a poll that finds nothing draws nothing.
-//
-// A caption, never a bar: a pass the user did not start may not take a row of layout. It shares
-// the strip under the list with the bar, which wins it when both are up, that is the download
-// the user is waiting on.
-@androidx.compose.runtime.Composable
-internal fun SyncHint(progress: SyncProgressSnapshot?, accounts: List<AccountRow>, ctx: Context) {
-    val caption = syncHintCaption(ctx, progress, accounts) ?: return
-    Text(
-        text = caption,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-// The caption itself, apart from the composable so the JVM suite can read it, the account naming
-// and the folder sums are the part that can be wrong, and neither needs a renderer to prove.
-internal fun syncHintCaption(
-    ctx: Context,
-    progress: SyncProgressSnapshot?,
-    accounts: List<AccountRow>,
-): String? {
-    val syncing = progress?.accounts.orEmpty()
-    if (syncing.isEmpty()) return null
-    // Several at once carry no counts: one account in its folders and another in its bodies have
-    // no shared unit to add up, and a status line cannot name them all anyway.
-    if (syncing.size > 1) {
-        return L10n.sync_hint_accounts(ctx, syncing.size)
-    }
-    val only = syncing[0]
-    // Named from the app's own account list, which is where every other surface gets the address;
-    // the id is a fallback for an account removed mid-pass.
-    val name = accounts.firstOrNull { it.id == only.accountId }?.email ?: only.accountId
-    if (only.warmingBodies) {
-        return L10n.sync_hint_bodies(ctx, name, syncCount(only.bodiesDone.toULong()))
-    }
-    return L10n.sync_hint_account(
-        ctx,
-        name,
-        only.foldersDone.toString(),
-        only.foldersTotal.toString(),
-    )
 }
 
 // Shown on the calendar when a Microsoft account's calendar is withheld for lack of the calendar

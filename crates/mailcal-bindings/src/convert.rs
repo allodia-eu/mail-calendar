@@ -1,16 +1,13 @@
 //! `From` conversions between the FFI mirror types (defined in [`crate`]) and the pure
-//! `mailcal-app` / `mailcal-viewmodel` types: intents, and the calendar, reading, sync-progress
-//! and connectivity surfaces. Two sibling modules carry the rest: the **mailbox list** and its
-//! rows in `convert_mailbox`, and the **settings surface** (timezone, grouping, quote style,
-//! swipe actions, per-account sync rows) in `convert_settings`. Split out of `lib.rs` to keep
-//! each file under the 500-line limit; no FFI macros live here, so the generated bindings are
-//! unaffected. The observer adapters ([`ObserverBridge`], [`DebouncedObserver`]) live in
-//! [`crate::observer`].
+//! `mailcal-app` / `mailcal-viewmodel` types: intents, and the calendar and reading surfaces.
+//! Three sibling modules carry the rest: the **mailbox list** and its rows in `convert_mailbox`,
+//! the **settings surface** (timezone, grouping, quote style, swipe actions, per-account sync
+//! rows) in `convert_settings`, and an account's **standing** (sync progress, connectivity) in
+//! `convert_status`. Split out of `lib.rs` to keep each file under the 500-line limit; no FFI
+//! macros live here, so the generated bindings are unaffected. The observer adapters
+//! ([`ObserverBridge`], [`DebouncedObserver`]) live in [`crate::observer`].
 
 use engine_api::LocalDateTime;
-use engine_provider::{
-    ConnectionInfo as AppConnectionInfo, HttpVersion as AppHttpVersion, TlsVersion as AppTlsVersion,
-};
 use mailcal_account::{EventDrag, EventEdge as AppEventEdge, EventEdit};
 use mailcal_app::{
     BulkAction as AppBulkAction, CalendarWriteStatus as AppCalendarWriteStatus,
@@ -20,17 +17,12 @@ use mailcal_app::{
     RecipientSuggestion as AppRecipientSuggestion, RowRef, SearchScope as AppSearchScope,
     SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
 };
-use mailcal_viewmodel::{
-    AccountSyncProgress as AppAccountSyncProgress, CalendarSnapshot as AppCalendarSnapshot,
-    ConnectivitySnapshot as AppConnectivity, EventRow as AppEventRow,
-    SyncProgressSnapshot as AppSyncProgress,
-};
+use mailcal_viewmodel::{CalendarSnapshot as AppCalendarSnapshot, EventRow as AppEventRow};
 
 use crate::{
-    AccountSyncProgress, BulkAction, CalendarSnapshot, CalendarWriteStatus, ConnectionInfo,
-    ConnectivitySnapshot, ContactWriteStatus, EventEdge, EventRow, HttpVersion, Intent,
-    InvitationResponse, OutboxIntent, RecipientSuggestion, SearchScope, SelectedRow, SendStatus,
-    Surface, SyncProgressSnapshot, TlsVersion,
+    BulkAction, CalendarSnapshot, CalendarWriteStatus, ContactWriteStatus, EventEdge, EventRow,
+    Intent, InvitationResponse, OutboxIntent, RecipientSuggestion, SearchScope, SelectedRow,
+    SendStatus, Surface,
 };
 
 impl From<AppSurface> for Surface {
@@ -411,72 +403,6 @@ impl From<AppRecipientSuggestion> for RecipientSuggestion {
         Self {
             to: suggestion.to,
             cc: suggestion.cc,
-        }
-    }
-}
-
-impl From<AppSyncProgress> for SyncProgressSnapshot {
-    fn from(snapshot: AppSyncProgress) -> Self {
-        Self {
-            active: snapshot.active,
-            fetched: snapshot.fetched,
-            total: snapshot.total,
-            accounts: snapshot
-                .accounts
-                .into_iter()
-                .map(AccountSyncProgress::from)
-                .collect(),
-        }
-    }
-}
-
-impl From<AppAccountSyncProgress> for AccountSyncProgress {
-    fn from(account: AppAccountSyncProgress) -> Self {
-        Self {
-            account_id: account.account_id,
-            folders_done: account.folders_done,
-            folders_total: account.folders_total,
-            warming_bodies: account.warming_bodies,
-            bodies_done: account.bodies_done,
-        }
-    }
-}
-
-impl From<AppConnectivity> for ConnectivitySnapshot {
-    fn from(snapshot: AppConnectivity) -> Self {
-        Self {
-            offline: snapshot.offline,
-            unreachable_accounts: snapshot.unreachable_accounts,
-            calendar_reauth_accounts: snapshot.calendar_reauth_accounts,
-            mail_reauth_accounts: snapshot.mail_reauth_accounts,
-            signin_expired_accounts: snapshot.signin_expired_accounts,
-        }
-    }
-}
-
-impl From<AppTlsVersion> for TlsVersion {
-    fn from(version: AppTlsVersion) -> Self {
-        match version {
-            AppTlsVersion::Tls1_2 => Self::Tls1_2,
-            AppTlsVersion::Tls1_3 => Self::Tls1_3,
-        }
-    }
-}
-
-impl From<AppHttpVersion> for HttpVersion {
-    fn from(version: AppHttpVersion) -> Self {
-        match version {
-            AppHttpVersion::Http1_1 => Self::Http1_1,
-            AppHttpVersion::Http2 => Self::Http2,
-        }
-    }
-}
-
-impl From<AppConnectionInfo> for ConnectionInfo {
-    fn from(info: AppConnectionInfo) -> Self {
-        Self {
-            tls_version: info.tls_version.map(TlsVersion::from),
-            http_version: info.http_version.map(HttpVersion::from),
         }
     }
 }

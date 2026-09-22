@@ -516,6 +516,11 @@
 	"sync_hint_account": "Syncing {account}: {done} of {total} folders",
 	"sync_hint_accounts": "Syncing {count} accounts",
 	"sync_hint_bodies": "Syncing {account}: {done} messages so far",
+	"sync_paused": "Sync paused",
+	"sync_paused_detail": "The mail server for {account} asked us to slow down. Syncing continues in about {count} minutes.",
+	"sync_paused_detail_one": "The mail server for {account} asked us to slow down. Syncing continues in about {count} minute.",
+	"sync_paused_detail_soon": "The mail server for {account} asked us to slow down. Syncing continues shortly.",
+	"sync_paused_detail_accounts": "The mail servers for {count} accounts asked us to slow down. Syncing continues shortly.",
 
 	"settings_sync_heading": "New mail",
 	"settings_sync_description": "Choose how each account checks for new messages.",

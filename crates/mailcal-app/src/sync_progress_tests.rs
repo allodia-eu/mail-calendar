@@ -227,3 +227,120 @@ fn two_accounts_can_be_in_different_phases_at_once() {
     assert!(hint[1].warming_bodies, "acct-2 has moved on to its bodies");
     assert_eq!(hint[1].bodies_done, 120);
 }
+
+/// The pause: an account whose server answered promptly and asked to be left alone. Nothing is
+/// arriving for it and nothing is wrong, which is the one thing the bar and the hint between
+/// them cannot say.
+mod pauses {
+    use std::time::Duration;
+
+    use super::super::{Pause, SyncProgressState};
+
+    #[test]
+    fn a_refusal_that_named_an_instant_says_when_syncing_continues() {
+        let mut state = SyncProgressState::default();
+        assert!(state.paused("acct-1", Pause::Until(Duration::from_mins(5))));
+        let paused = state.snapshot().throttled;
+        assert_eq!(paused.len(), 1);
+        assert_eq!(paused[0].account_id, "acct-1");
+        assert_eq!(paused[0].resumes_in_minutes, Some(5));
+    }
+
+    #[test]
+    fn a_refusal_that_named_nothing_is_still_a_pause() {
+        // The commoner shape by two to one: the server states the quota but not its window.
+        // A host says so rather than inventing a figure, so the notice has to survive the
+        // absence of one.
+        let mut state = SyncProgressState::default();
+        assert!(state.paused("acct-1", Pause::Untimed));
+        let paused = state.snapshot().throttled;
+        assert_eq!(paused.len(), 1);
+        assert_eq!(paused[0].resumes_in_minutes, None);
+    }
+
+    #[test]
+    fn the_wait_is_rounded_up_and_never_to_zero() {
+        // Overstating it means a sync that arrives early; understating it is a promise the next
+        // pass breaks. And "in about 0 minutes" is not a sentence.
+        let mut state = SyncProgressState::default();
+        state.paused("acct-1", Pause::Until(Duration::from_secs(61)));
+        assert_eq!(state.snapshot().throttled[0].resumes_in_minutes, Some(2));
+        state.paused("acct-2", Pause::Until(Duration::from_secs(11)));
+        assert_eq!(state.snapshot().throttled[1].resumes_in_minutes, Some(1));
+    }
+
+    #[test]
+    fn an_instant_that_has_passed_takes_the_notice_down_on_its_own() {
+        // The wait is stored as a deadline, not as a figure that ages in place, so the notice
+        // expires without anything having to come back and retract it. The pass that resumes
+        // re-raises it if the server is still refusing.
+        let mut state = SyncProgressState::default();
+        state.paused("acct-1", Pause::Until(Duration::ZERO));
+        assert!(state.snapshot().throttled.is_empty());
+    }
+
+    #[test]
+    fn a_pass_that_got_through_clears_it() {
+        let mut state = SyncProgressState::default();
+        state.paused("acct-1", Pause::Until(Duration::from_mins(5)));
+        assert!(state.paused("acct-1", Pause::Over));
+        assert!(state.snapshot().throttled.is_empty());
+    }
+
+    #[test]
+    fn meeting_the_same_window_again_does_not_redraw_the_status_line() {
+        // A throttled account polls into the same refusal every tick. Signalling on each one
+        // would redraw the footer for a sentence that has not changed a word.
+        let mut state = SyncProgressState::default();
+        assert!(state.paused("acct-1", Pause::Until(Duration::from_mins(5))));
+        assert!(!state.paused("acct-1", Pause::Until(Duration::from_secs(299))));
+        assert!(
+            state.paused("acct-1", Pause::Until(Duration::from_mins(10))),
+            "a longer window is a different sentence, and does move it",
+        );
+    }
+
+    #[test]
+    fn a_paused_account_never_also_reads_as_syncing() {
+        // The two surfaces share one status line and must not contend for it. Resolving that
+        // in five clients rather than here is how they come to disagree; the overlap is real,
+        // because the pass that resumes a refusal which named no instant is downloading while
+        // the notice beside it is still up.
+        let mut state = SyncProgressState::default();
+        let (id, _progress) = state.begin(false, true, 1);
+        super::downloading(&mut state, id, "acct-1", 12);
+        assert_eq!(state.snapshot().accounts.len(), 1, "it is in the hint");
+        state.paused("acct-1", Pause::Untimed);
+        let snapshot = state.snapshot();
+        assert!(snapshot.accounts.is_empty(), "and out of it once paused");
+        assert_eq!(snapshot.throttled.len(), 1);
+    }
+
+    #[test]
+    fn another_accounts_download_is_unaffected() {
+        let mut state = SyncProgressState::default();
+        let (id, _progress) = state.begin(false, true, 2);
+        super::downloading(&mut state, id, "acct-1", 12);
+        super::downloading(&mut state, id, "acct-2", 5);
+        state.paused("acct-2", Pause::Until(Duration::from_mins(2)));
+        let snapshot = state.snapshot();
+        assert_eq!(snapshot.accounts.len(), 1);
+        assert_eq!(snapshot.accounts[0].account_id, "acct-1");
+        assert_eq!(snapshot.throttled.len(), 1);
+        assert_eq!(snapshot.throttled[0].account_id, "acct-2");
+    }
+
+    #[test]
+    fn an_expired_notice_stops_suppressing_the_hint() {
+        // The notice comes down on its own when its instant passes, and the pass that resumes is
+        // downloading before anything clears the entry. Reading membership rather than expiry
+        // here would leave that account silent for the whole of its own catch-up.
+        let mut state = SyncProgressState::default();
+        state.paused("acct-1", Pause::Until(Duration::ZERO));
+        let (id, _progress) = state.begin(false, true, 1);
+        super::downloading(&mut state, id, "acct-1", 12);
+        let snapshot = state.snapshot();
+        assert!(snapshot.throttled.is_empty(), "the wait is over");
+        assert_eq!(snapshot.accounts.len(), 1, "so the hint is free to speak");
+    }
+}

@@ -113,7 +113,10 @@ pub struct RecipientSuggestion {
 /// on*: adding an account, opening an unsynced folder, an explicit refetch. The **hint**
 /// ([`accounts`](Self::accounts)) is for a pass nobody asked for: a poll tick, a push, a boot
 /// catch-up, which never opens a bar and instead names the accounts currently pulling mail down.
-/// Pulled via [`crate::MailcalApp::sync_progress`].
+/// The **pause** ([`throttled`](Self::throttled)) is for an account whose server asked to be
+/// left alone for a while: nothing is arriving for it and nothing is wrong, which is the one
+/// combination neither of the other two can express. It takes the status line in the hint's
+/// place. Pulled via [`crate::MailcalApp::sync_progress`].
 #[derive(uniffi::Record)]
 pub struct SyncProgressSnapshot {
     /// Whether a **user-awaited** download is running: a host shows the bar while true and
@@ -129,6 +132,25 @@ pub struct SyncProgressSnapshot {
     /// only once its pass has actually committed mail, so a poll that finds nothing stays
     /// silent. Never overlaps the bar.
     pub accounts: Vec<AccountSyncProgress>,
+    /// The accounts whose server has asked us to **slow down**, in a stable order. Empty
+    /// whenever nothing is being made to wait, which is almost always. Takes the status line
+    /// ahead of [`accounts`](Self::accounts), and never overlaps it.
+    pub throttled: Vec<ThrottledAccount>,
+}
+
+/// One account a server has asked to wait, and when syncing continues.
+///
+/// Not an outage and not a failure: the server was reached, answered quickly, and asked for
+/// less traffic. The account keeps its mail, its credential and its badge.
+#[derive(uniffi::Record)]
+pub struct ThrottledAccount {
+    /// The account, to be named from the host's own account list, exactly as the hint is.
+    pub account_id: String,
+    /// Whole minutes until syncing continues, rounded up and never zero, where the server named
+    /// an instant. `None` means it refused without saying when; say so rather than invent a
+    /// figure. Minutes, not seconds, because a host reads this off a snapshot it does not
+    /// re-pull on a clock.
+    pub resumes_in_minutes: Option<u32>,
 }
 
 /// One account catching up in the background, as far as a status line needs it.

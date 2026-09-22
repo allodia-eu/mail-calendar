@@ -516,6 +516,11 @@
 	"sync_hint_account": "A sincronizar {account}: {done} de {total} pastas",
 	"sync_hint_accounts": "A sincronizar {count} contas",
 	"sync_hint_bodies": "A sincronizar {account}: {done} mensagens até agora",
+	"sync_paused": "Sincronização em pausa",
+	"sync_paused_detail": "O servidor de correio de {account} pediu-nos para abrandar. A sincronização continua dentro de cerca de {count} minutos.",
+	"sync_paused_detail_one": "O servidor de correio de {account} pediu-nos para abrandar. A sincronização continua dentro de cerca de {count} minuto.",
+	"sync_paused_detail_soon": "O servidor de correio de {account} pediu-nos para abrandar. A sincronização continua dentro de momentos.",
+	"sync_paused_detail_accounts": "Os servidores de correio de {count} contas pediram-nos para abrandar. A sincronização continua dentro de momentos.",
 
 	"settings_sync_heading": "Correio novo",
 	"settings_sync_description": "Escolha como cada conta verifica se há mensagens novas.",

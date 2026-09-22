@@ -34,6 +34,13 @@ pub(crate) struct SyncAccountOutcome {
     /// nothing was throttled, or nothing said when. Either way the caller keeps its own
     /// schedule.
     pub(crate) throttled_for: Option<Duration>,
+    /// Whether the account's server **refused this pass for now**: `Some(true)` raises the
+    /// paused notice, `Some(false)` clears it, `None` leaves it alone ([`throttled`]).
+    ///
+    /// Separate from [`throttled_for`](Self::throttled_for) because the two answer different
+    /// questions and neither implies the other: about two Gmail refusals in three state no
+    /// instant at all, so a pause with no figure is the common case, not an edge one.
+    pub(crate) throttled: Option<bool>,
 }
 
 /// Syncs one account's mail **concurrently**: sync the folder list **once**, then stream
@@ -63,6 +70,7 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
             signin_expired: None,
             busy_scopes: 0,
             throttled_for: None,
+            throttled: None,
         };
     }
 
@@ -86,6 +94,7 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
         busy_scopes: usize::from(list_reach == Reach::Busy)
             + folder_reaches.iter().filter(|r| **r == Reach::Busy).count(),
         throttled_for: longest_stated_wait(&report),
+        throttled: throttled(list_reach, folder_reaches.iter().copied()),
     }
 }
 
@@ -297,142 +306,34 @@ fn signin_expired(list: Reach, folders: impl Iterator<Item = Reach>) -> Option<b
     }
 }
 
-#[cfg(test)]
-mod reachability_tests {
-    use super::{Reach, reachability, signin_expired};
-
-    #[test]
-    fn a_rate_limited_account_is_reachable_not_offline() {
-        // A throttle is the server answering promptly and declining the work. Reading it as
-        // an outage puts "can't reach the server" over an account whose network is fine, and
-        // sends the user to check their wifi.
-        let throttled = || [Reach::Throttled, Reach::Throttled].into_iter();
-        assert_eq!(reachability(Reach::Throttled, throttled()), Some(true));
-        // And it says nothing about the credential either way: the request was refused
-        // before it was examined.
-        assert_eq!(signin_expired(Reach::Throttled, throttled()), None);
+/// Whether this pass was **refused for now** by the account's server: the caller raises
+/// (`Some(true)`), clears (`Some(false)`) or leaves alone (`None`) the account's paused notice.
+///
+/// One refused scope is enough to raise it. A rate limit is an account-wide ceiling, not a
+/// folder's, so the folders that did get through this pass got through by being ahead in the
+/// queue; saying nothing until every one of them is refused would hide the pause for exactly as
+/// long as it takes the account to stop syncing altogether.
+///
+/// Clearing needs only a pass that was not refused, unlike [`signin_expired`]: the notice states
+/// a wait that has since either elapsed or been re-stated, it asks nothing of the user, and
+/// leaving a stale one up says mail is not arriving when it is. An all-[`Reach::Busy`] pass
+/// proves nothing either way and leaves it alone.
+fn throttled(list: Reach, folders: impl Iterator<Item = Reach>) -> Option<bool> {
+    let mut any_throttled = false;
+    let mut any_verdict = false;
+    for reach in std::iter::once(list).chain(folders) {
+        match reach {
+            Reach::Throttled => {
+                any_throttled = true;
+                any_verdict = true;
+            }
+            Reach::Reached | Reach::Expired | Reach::Unreachable => any_verdict = true,
+            Reach::Busy => {}
+        }
     }
-
-    #[test]
-    fn a_throttle_does_not_retract_a_prompt_the_user_still_has_to_act_on() {
-        // The dangerous direction: a pass that is refused for rate and refused for credential
-        // must keep the reconnect prompt up, because the throttled scopes never proved the
-        // credential works.
-        assert_eq!(
-            signin_expired(Reach::Expired, [Reach::Throttled].into_iter()),
-            Some(true),
-        );
-    }
-
-    #[test]
-    fn a_refused_credential_raises_the_prompt_and_is_not_an_outage() {
-        // A dead OAuth grant fails every op. The account is *reachable* (the server answered and
-        // said no), so the outage badge stays off and the reconnect prompt carries the story.
-        let expired = || [Reach::Expired, Reach::Expired].into_iter();
-        assert_eq!(reachability(Reach::Expired, expired()), Some(true));
-        assert_eq!(signin_expired(Reach::Expired, expired()), Some(true));
-    }
-
-    #[test]
-    fn a_refused_credential_outranks_a_transport_failure() {
-        // A blip on one folder alongside a dead grant must not downgrade the account to a
-        // generic outage, that would hide the one message naming the actual remedy.
-        assert_eq!(
-            reachability(Reach::Expired, [Reach::Unreachable].into_iter()),
-            Some(true),
-        );
-        assert_eq!(
-            signin_expired(Reach::Unreachable, [Reach::Expired].into_iter()),
-            Some(true),
-        );
-    }
-
-    #[test]
-    fn a_refusal_beside_a_success_neither_raises_nor_retracts() {
-        // One credential serves every scope on an account, so a scope that authenticated in this
-        // pass proves the stored credential is still accepted: the refusal is the server's, and
-        // must not cost the user a sign-in they do not need.
-        assert_eq!(
-            signin_expired(Reach::Reached, [Reach::Expired].into_iter()),
-            None,
-        );
-        assert_eq!(
-            signin_expired(Reach::Expired, [Reach::Reached].into_iter()),
-            None,
-        );
-        // Nor is a mixed pass evidence to retract a prompt already standing: it proves nothing
-        // about the credential the user was asked to renew.
-        //
-        // A concurrent-sync skip is not a success, so a refusal alongside one still raises; we
-        // cannot see whether the sync holding that scope is succeeding.
-        assert_eq!(
-            signin_expired(Reach::Busy, [Reach::Expired].into_iter()),
-            Some(true),
-        );
-    }
-
-    #[test]
-    fn only_a_success_retracts_the_prompt() {
-        // Signing in again (or the grant simply working) clears it…
-        assert_eq!(
-            signin_expired(Reach::Reached, [Reach::Reached].into_iter()),
-            Some(false),
-        );
-        // …but a transport failure or a concurrent-sync skip is no evidence the credential
-        // works, so neither may retract a prompt the user still has to act on.
-        assert_eq!(signin_expired(Reach::Unreachable, [].into_iter()), None);
-        assert_eq!(signin_expired(Reach::Busy, [Reach::Busy].into_iter()), None);
-        // A pass with nothing to say about credentials leaves the prompt alone even when it
-        // does have something to say about reachability.
-        assert_eq!(
-            reachability(Reach::Unreachable, [].into_iter()),
-            Some(false),
-        );
-    }
-
-    #[test]
-    fn any_success_means_reachable_even_with_a_failed_folder() {
-        // The list reached; a folder failing doesn't make the whole account unreachable.
-        assert_eq!(
-            reachability(Reach::Reached, [Reach::Unreachable].into_iter()),
-            Some(true),
-        );
-        // Or the list failed but a folder reached.
-        assert_eq!(
-            reachability(Reach::Unreachable, [Reach::Reached].into_iter()),
-            Some(true),
-        );
-    }
-
-    #[test]
-    fn every_op_failing_reads_unreachable() {
-        assert_eq!(
-            reachability(
-                Reach::Unreachable,
-                [Reach::Unreachable, Reach::Unreachable].into_iter(),
-            ),
-            Some(false),
-        );
-    }
-
-    #[test]
-    fn all_busy_is_indeterminate() {
-        // A concurrent sync held every scope: no reachability signal, so leave the badge
-        // as-is (a concurrent poll + refresh must not falsely mark an account unreachable).
-        assert_eq!(reachability(Reach::Busy, [Reach::Busy].into_iter()), None);
-    }
-
-    #[test]
-    fn busy_never_overrides_a_real_signal() {
-        // Busy is ignored, so a real failure alongside busy still reads unreachable…
-        assert_eq!(
-            reachability(Reach::Busy, [Reach::Unreachable].into_iter()),
-            Some(false),
-        );
-        // …and a success alongside busy still reads reachable.
-        assert_eq!(
-            reachability(Reach::Busy, [Reach::Reached].into_iter()),
-            Some(true),
-        );
-    }
+    any_verdict.then_some(any_throttled)
 }
+
+#[cfg(test)]
+#[path = "sync_account_tests.rs"]
+mod reachability_tests;

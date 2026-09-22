@@ -3,20 +3,10 @@
 use std::collections::HashSet;
 
 use mailcal_bindings::{
-    AccountRow, Avatar, MailboxListSnapshot, ReadingSnapshot, SnapshotRow, Swatch,
-    SyncProgressSnapshot, ThreadRow, ViewMode,
+    Avatar, MailboxListSnapshot, ReadingSnapshot, SnapshotRow, Swatch, ThreadRow, ViewMode,
 };
 
 use super::{avatar::AvatarData, mailbox::ThreadKey};
-use crate::l10n;
-
-/// One awaited mail download, ready for the strip under the message list.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct SyncBar {
-    pub(crate) caption: String,
-    /// `None` keeps the bar indeterminate until the provider reports a total.
-    pub(crate) fraction: Option<f64>,
-}
 
 pub(super) fn empty_mailbox() -> MailboxListSnapshot {
     MailboxListSnapshot {
@@ -218,89 +208,11 @@ pub(crate) fn message_after_removing(
         .cloned()
 }
 
-/// The background-sync hint for the mail list's bottom bar: which accounts are pulling mail down
-/// right now, and how far through their folders they are.
-///
-/// `None` whenever nothing is arriving unasked, which is almost always: the core admits an
-/// account only once its background pass has actually committed mail, so a poll that finds
-/// nothing renders nothing. A caption, never a bar: a pass the user did not start may not take a
-/// row of layout and move the list.
-pub(crate) fn sync_hint(
-    progress: &SyncProgressSnapshot,
-    accounts: &[AccountRow],
-) -> Option<String> {
-    let only = progress.accounts.first()?;
-    // Several at once carry no counts: one account in its folders and another in its bodies have
-    // no shared unit to add up, and a status line cannot name them all anyway.
-    if progress.accounts.len() > 1 {
-        let count = i64::try_from(progress.accounts.len()).unwrap_or(i64::MAX);
-        return Some(l10n::sync_hint_accounts(count));
-    }
-    // Named from the app's own account list, which is where every other surface gets the address;
-    // the id is a fallback for an account removed mid-pass.
-    let name = accounts
-        .iter()
-        .find(|row| row.id == only.account_id)
-        .map_or(only.account_id.as_str(), |row| row.email.as_str());
-    if only.warming_bodies {
-        return Some(l10n::sync_hint_bodies(name, &only.bodies_done.to_string()));
-    }
-    Some(l10n::sync_hint_account(
-        name,
-        &only.folders_done.to_string(),
-        &only.folders_total.to_string(),
-    ))
-}
-
-/// The foreground-download bar. A background pass never reaches this projection.
-#[allow(clippy::cast_precision_loss)]
-// GTK accepts only `f64` progress fractions. Message counts above f64's exact integer range are
-// already far beyond a usable progress total; the caption keeps the original integer values.
-pub(crate) fn sync_bar(progress: &SyncProgressSnapshot) -> Option<SyncBar> {
-    if !progress.active {
-        return None;
-    }
-    let fetched = sync_count(progress.fetched);
-    let (caption, fraction) = progress.total.map_or_else(
-        || (l10n::sync_downloading_indeterminate(&fetched), None),
-        |total| {
-            let fraction =
-                (total > 0).then(|| (progress.fetched as f64 / total as f64).clamp(0.0, 1.0));
-            (
-                l10n::sync_downloading(&fetched, &sync_count(total)),
-                fraction,
-            )
-        },
-    );
-    Some(SyncBar { caption, fraction })
-}
-
-fn sync_count(value: u64) -> String {
-    let separator = match l10n::active_locale() {
-        "fr" => '\u{202f}',
-        "de" | "es" | "it" | "nl" | "pt" => '.',
-        _ => ',',
-    };
-    let digits = value.to_string();
-    let mut grouped = String::with_capacity(digits.len() + digits.len() / 3);
-    for (index, digit) in digits.chars().enumerate() {
-        if index > 0 && (digits.len() - index).is_multiple_of(3) {
-            grouped.push(separator);
-        }
-        grouped.push(digit);
-    }
-    grouped
-}
-
 #[cfg(test)]
 mod tests {
-    use mailcal_bindings::{
-        FlatRow, ReadingSnapshot, SnapshotRow, SyncProgressSnapshot, ThreadRow,
-    };
+    use mailcal_bindings::{FlatRow, ReadingSnapshot, SnapshotRow, ThreadRow};
 
-    use super::{
-        AvatarData, OpenedMessage, ReadingState, blank_avatar, message_after_removing, sync_bar,
-    };
+    use super::{AvatarData, OpenedMessage, ReadingState, blank_avatar, message_after_removing};
 
     fn opened(account: &str, key: &str) -> OpenedMessage {
         OpenedMessage {
@@ -329,43 +241,6 @@ mod tests {
             invitation: None,
             pending: false,
         }
-    }
-
-    #[test]
-    fn an_awaited_download_projects_a_determinate_bar_and_localized_counts() {
-        let bar = sync_bar(&SyncProgressSnapshot {
-            active: true,
-            fetched: 1_200,
-            total: Some(3_387),
-            accounts: Vec::new(),
-        })
-        .expect("an active awaited download has a bar");
-
-        assert_eq!(bar.caption, "Downloading 1,200 of 3,387…");
-        assert_eq!(bar.fraction, Some(1_200.0 / 3_387.0));
-    }
-
-    #[test]
-    fn an_unknown_total_is_indeterminate_and_an_idle_download_has_no_bar() {
-        let bar = sync_bar(&SyncProgressSnapshot {
-            active: true,
-            fetched: 1_200,
-            total: None,
-            accounts: Vec::new(),
-        })
-        .expect("an active download without a total still has a bar");
-        assert_eq!(bar.caption, "Downloading 1,200…");
-        assert_eq!(bar.fraction, None);
-
-        assert!(
-            sync_bar(&SyncProgressSnapshot {
-                active: false,
-                fetched: 0,
-                total: None,
-                accounts: Vec::new(),
-            })
-            .is_none()
-        );
     }
 
     #[test]

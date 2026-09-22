@@ -6,7 +6,9 @@
 
 use mailcal_bindings::{SendStatus, Surface};
 
-use super::{AppModel, connectivity::ConnectivityState, model, unfiled_copy::UnfiledCopyNotice};
+use super::{
+    AppModel, connectivity::ConnectivityState, sync_line, unfiled_copy::UnfiledCopyNotice,
+};
 use crate::l10n;
 
 impl AppModel {
@@ -59,12 +61,13 @@ impl AppModel {
                     retrying: copy.retrying,
                 });
             }
-            // Both progress surfaces share one snapshot and one strip. The foreground bar wins
-            // while active; the hint is the quiet caption for a pass nobody started.
+            // All three progress surfaces share one snapshot and one strip. The foreground bar
+            // wins while active; below it the caption is either an account being made to wait
+            // or a pass nobody started.
             Surface::SyncProgress => {
                 let progress = app.sync_progress();
-                self.sync_bar = model::sync_bar(&progress);
-                self.sync_hint = model::sync_hint(&progress, &self.snapshot.accounts);
+                self.sync_bar = sync_line::sync_bar(&progress);
+                self.sync_status = sync_line::sync_status(&progress, &self.snapshot.accounts);
             }
             Surface::Calendar => self.calendar.refresh(&app),
             Surface::Contacts => self.contacts.refresh(&app),

@@ -516,6 +516,11 @@
 	"sync_hint_account": "{account} synchroniseren: {done} van {total} mappen",
 	"sync_hint_accounts": "{count} accounts synchroniseren",
 	"sync_hint_bodies": "{account} synchroniseren: {done} berichten tot nu toe",
+	"sync_paused": "Synchronisatie gepauzeerd",
+	"sync_paused_detail": "De mailserver van {account} heeft ons gevraagd het rustiger aan te doen. De synchronisatie gaat over ongeveer {count} minuten verder.",
+	"sync_paused_detail_one": "De mailserver van {account} heeft ons gevraagd het rustiger aan te doen. De synchronisatie gaat over ongeveer {count} minuut verder.",
+	"sync_paused_detail_soon": "De mailserver van {account} heeft ons gevraagd het rustiger aan te doen. De synchronisatie gaat binnenkort verder.",
+	"sync_paused_detail_accounts": "De mailservers van {count} accounts hebben ons gevraagd het rustiger aan te doen. De synchronisatie gaat binnenkort verder.",
 
 	"settings_sync_heading": "Nieuwe e-mail",
 	"settings_sync_description": "Kies hoe elk account op nieuwe berichten controleert.",

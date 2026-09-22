@@ -536,25 +536,35 @@
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="{x:Bind Model.SyncHintColumnWidth, Mode=OneWay}" />
+                    <ColumnDefinition Width="{x:Bind Model.SyncStatusColumnWidth, Mode=OneWay}" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0"
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            Text="{x:Bind Model.MailCountText, Mode=OneWay}" />
-                <!-- The background-sync hint: which accounts are pulling mail down right now,
+                <!-- What the core has to say about mail arriving, or not: an account whose
+                     server asked us to wait, or which accounts are pulling mail down right now
                      and how far through their folders. A caption inside this status line, never
                      a bar, a pass the user did not start may not take a row of layout and move
-                     the list. Collapsed whenever nothing is arriving unasked, which is almost
-                     always. -->
+                     the list. Collapsed whenever there is nothing to say, which is almost
+                     always.
+
+                     The paused notice is a short label with the whole sentence behind the
+                     hover, so it cannot crowd the message count out of a narrow window. The
+                     spoken name falls back to the sentence where there is one: without that a
+                     screen reader would hear "Sync paused" and never the wait. The tooltip is
+                     null for the hint, which says everything in the line itself, and a null
+                     tooltip is no tooltip. -->
                 <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0"
-                           AutomationProperties.AutomationId="SyncHint"
+                           AutomationProperties.AutomationId="SyncStatus"
+                           AutomationProperties.Name="{x:Bind Model.SyncStatusSpoken, Mode=OneWay}"
+                           ToolTipService.ToolTip="{x:Bind Model.SyncStatusDetail, Mode=OneWay}"
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                           Visibility="{x:Bind Model.SyncHintVisible, Mode=OneWay}"
-                           Text="{x:Bind Model.SyncHintText, Mode=OneWay}" />
+                           Visibility="{x:Bind Model.SyncStatusVisible, Mode=OneWay}"
+                           Text="{x:Bind Model.SyncStatusText, Mode=OneWay}" />
                 <!-- Connection status for the current scope (the selected account, or all in the
                      unified inbox): a subtle "Verbonden" when reachable, a caution "Niet verbonden"
                      with a warning glyph otherwise. Click it for the details + a retry. -->
