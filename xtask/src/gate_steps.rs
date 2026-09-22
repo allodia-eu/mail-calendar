@@ -53,6 +53,7 @@ const EARLY_CHECKS: &[&str] = &[
     "check-branding",
     "check-public-hygiene",
     "check-desktop-handoff",
+    "check-notification-registration",
     "check-portal-runtime",
     "check-store-sandbox",
     "check-license-dir",

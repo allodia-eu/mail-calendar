@@ -26,7 +26,7 @@ public sealed partial class MailboxModel
     private bool _notificationNavigated;
 
     /// <summary>Opens the message a clicked notification named, once the list holds it.</summary>
-    public void OpenNotification(NotificationTarget target)
+    internal void OpenNotification(NotificationTarget target)
     {
         // The reading pane lives in the mail surface, so a click arriving over the calendar or
         // Contacts would otherwise open the message behind them and read as a click that did
@@ -61,9 +61,19 @@ public sealed partial class MailboxModel
         {
             return;
         }
-        if (OpenFromList(target) || _notificationNavigated)
+        if (OpenFromList(target))
         {
             _pendingNotification = null;
+            return;
+        }
+        if (_notificationNavigated)
+        {
+            // The retry is spent and the message was not there: deleted, outside the loaded
+            // window, or in a store this build is not looking at. The click ends here, and this is
+            // the only thing that distinguishes that from one that opened the message, since both
+            // leave the app forward with the mailbox on that account.
+            _pendingNotification = null;
+            Log.Info("notification click: the message it named is not in the list, nothing opened");
             return;
         }
         // Not in the list on screen: point the mailbox at the account that received it, and let

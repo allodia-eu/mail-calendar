@@ -28,6 +28,13 @@ public sealed partial class MainWindow
     internal async void OpenNotification(NotificationTarget? target)
     {
         BringToForeground();
+        // The only record that a click arrived at all. Everything this feature does after here is
+        // silent when it goes wrong, so without this line a click that opened nothing and a click
+        // that never reached the app read identically in a support log. Whether one was named, not
+        // which: an account id and a provider key are the message (docs/logging.md).
+        Log.Info(target is null
+            ? "notification click: named no message, bringing the app forward"
+            : "notification click: opening the message it named");
         if (target is not { } message || _openingNotification)
         {
             return;
