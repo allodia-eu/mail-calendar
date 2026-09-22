@@ -24,7 +24,7 @@ use engine_provider::{ContactSourceSync, ContactsProvider, Provider};
 use provider_jmap::{Credentials, JmapConfig, JmapProvider};
 
 use super::{JmapAccountConfig, refreshing::RefreshingJmapProvider};
-use crate::{AccountError, GraphTokenSource, connect_log::connect_logger, tls::account_tls};
+use crate::{AccountError, GraphTokenSource, connect_log::connect_logger, tls::tls_with};
 
 /// The credentials to connect a JMAP account with: either the secret stored in its config, or
 /// a live access token minted from its OAuth grant.
@@ -185,7 +185,7 @@ async fn connect_one(
     tokens: JmapTokens<'_>,
     contact_book: Option<AddressBookId>,
 ) -> Result<Box<dyn ContactsProvider>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     let Some(tokens) = tokens.filter(|_| config.is_oauth()) else {
         let account = config
             .account_id()

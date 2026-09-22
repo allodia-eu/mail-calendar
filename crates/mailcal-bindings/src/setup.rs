@@ -4,6 +4,50 @@
 
 use crate::MailcalError;
 
+/// A server certificate that did not verify, as a client shows it and hands it back.
+///
+/// Every field is the certificate's own claim, which is exactly what failed to verify:
+/// it is here so a person can recognise a server they meant to reach, and nothing else
+/// may rest on it. A client that offers to accept it passes this record back unchanged
+/// on [`AccountSetup::accepted_certificate`].
+#[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
+pub struct RejectedCertificate {
+    /// The TLS server name that was asked for; the exception is scoped to it.
+    pub server_name: String,
+    /// The certificate's SHA-256, uppercase and colon-separated, as every tool shows a
+    /// fingerprint and as somebody would compare it against their own server.
+    pub sha256: String,
+    /// The name the certificate claims to be (`CN`).
+    pub subject_common_name: Option<String>,
+    /// The organisation it claims to belong to (`O`).
+    pub subject_organisation: Option<String>,
+    /// Who issued it (`CN`). Equal to the subject when it signed itself.
+    pub issuer_common_name: Option<String>,
+    /// The organisation that issued it (`O`).
+    pub issuer_organisation: Option<String>,
+    /// When it claims to become valid, in seconds since the Unix epoch; `None` when the
+    /// certificate could not be read at all. Formatted by the client, which knows the
+    /// reader's locale and zone (`docs/timestamps.md`).
+    pub not_before: Option<i64>,
+    /// When it claims to expire, in seconds since the Unix epoch.
+    pub not_after: Option<i64>,
+}
+
+impl From<mailcal_account::RejectedCertificate> for RejectedCertificate {
+    fn from(rejected: mailcal_account::RejectedCertificate) -> Self {
+        Self {
+            server_name: rejected.server_name,
+            sha256: rejected.sha256,
+            subject_common_name: rejected.subject_common_name,
+            subject_organisation: rejected.subject_organisation,
+            issuer_common_name: rejected.issuer_common_name,
+            issuer_organisation: rejected.issuer_organisation,
+            not_before: rejected.not_before,
+            not_after: rejected.not_after,
+        }
+    }
+}
+
 /// How a mail connection is secured, mirrored across the FFI. A client passes the value it
 /// received from [`SetupRecommendation::Imap`](crate::SetupRecommendation) straight back in
 /// [`AccountSetup`] so the engine dials the same way detection found.
@@ -60,6 +104,13 @@ pub struct AccountSetup {
     /// the recommendation's `smtp_security`.
     #[uniffi(default = None)]
     pub smtp_security: Option<ConnectionSecurity>,
+    /// The certificate this account's owner accepted after a connect was refused for it:
+    /// the [`RejectedCertificate`] from a
+    /// [`MailcalError::CertificateRejected`](crate::MailcalError::CertificateRejected),
+    /// passed back unchanged. It is stored with the account, so every later connect
+    /// carries it and nobody is asked twice.
+    #[uniffi(default = None)]
+    pub accepted_certificate: Option<RejectedCertificate>,
 }
 
 /// Serializes an [`AccountSetup`] (collected in the host's setup form) into the
@@ -72,6 +123,21 @@ pub struct AccountSetup {
 /// Returns [`MailcalError::Config`] if a required field is empty or serialization fails.
 #[uniffi::export]
 pub fn account_config_toml(setup: AccountSetup) -> Result<String, MailcalError> {
+    // An acceptance that cannot be read is refused here rather than dropped: dropping it
+    // would connect again, be refused for the same certificate again, and ask the same
+    // question again, which reads as the app ignoring the answer.
+    let accepted_certificate = match &setup.accepted_certificate {
+        Some(certificate) => Some(
+            mailcal_account::CertificateException::accepted(
+                &certificate.server_name,
+                &certificate.sha256,
+            )
+            .ok_or_else(|| {
+                MailcalError::Config("the accepted certificate is not a fingerprint".to_owned())
+            })?,
+        ),
+        None => None,
+    };
     let input = mailcal_account::AccountSetup {
         imap_host: setup.imap_host,
         username: setup.username,
@@ -80,6 +146,7 @@ pub fn account_config_toml(setup: AccountSetup) -> Result<String, MailcalError> 
         caldav_base_url: setup.caldav_base_url,
         imap_security: setup.imap_security.map(Into::into).unwrap_or_default(),
         smtp_security: setup.smtp_security.map(Into::into).unwrap_or_default(),
+        accepted_certificate,
     };
     mailcal_account::build_config_toml(&input).map_err(|err| MailcalError::Config(err.to_string()))
 }

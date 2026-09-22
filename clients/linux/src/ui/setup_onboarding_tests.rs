@@ -12,8 +12,9 @@ use mailcal_bindings::{AllodiaAccountKind, AllodiaAccountOffer};
 use super::{
     AppInput,
     mailbox::tests::{every_row_belongs_to_a_list, rendered_labels},
-    setup::{SetupState, SetupWindow},
+    setup::SetupWindow,
     setup_onboarding::{Onboarding, Progress},
+    setup_state::SetupState,
     setup_widget_tests::{descendant_has_button, visible_entries},
 };
 use crate::l10n;

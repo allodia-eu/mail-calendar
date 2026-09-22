@@ -14,7 +14,7 @@ use engine_core::ids::{AccountId, IdError};
 use provider_imap::ImapConfig;
 use serde::Deserialize;
 
-use crate::connect_log::connect_logger;
+use crate::{CertificateException, connect_log::connect_logger};
 
 /// A secret string (password/token) that redacts itself in `Debug`, so a config
 /// holding it can still derive `Debug` without leaking the secret into logs.
@@ -73,6 +73,11 @@ pub struct AccountConfig {
     /// The CalDAV calendar endpoint, if calendar sync is configured.
     #[serde(default)]
     pub caldav: Option<CalDavAccount>,
+    /// Server certificates this account's owner accepted although they did not verify
+    /// (`docs/certificate-exceptions.md`). Empty for every account that never met one,
+    /// which is nearly all of them.
+    #[serde(default, rename = "certificate_exception")]
+    pub certificate_exceptions: Vec<CertificateException>,
 }
 
 /// An IMAP endpoint: the `host:port` to dial, the TLS server name, and credentials.
@@ -168,7 +173,26 @@ impl AccountConfig {
             }
             root.insert("caldav".into(), table.into());
         }
+        if !self.certificate_exceptions.is_empty() {
+            let exceptions: Vec<toml::Value> = self
+                .certificate_exceptions
+                .iter()
+                .map(|exception| exception.to_table().into())
+                .collect();
+            root.insert("certificate_exception".into(), exceptions.into());
+        }
         Ok(toml::to_string(&root)?)
+    }
+
+    /// The accepted certificates in the engine's form, dropping any whose stored
+    /// fingerprint cannot be read: an exception nobody can read is dropped rather than taking
+    /// the account down with it.
+    #[must_use]
+    pub fn tls_exceptions(&self) -> Vec<engine_tls::CertificateException> {
+        self.certificate_exceptions
+            .iter()
+            .filter_map(CertificateException::to_engine)
+            .collect()
     }
 
     /// Builds the engine [`ImapConfig`] for this account, wiring SMTP submission when

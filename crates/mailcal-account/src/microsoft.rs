@@ -16,7 +16,7 @@ use engine_core::ids::{AccountId, IdError};
 use mailcal_oauth::OAuthProviderConfig;
 use serde::Deserialize;
 
-use crate::{AccountError, ConfigError, Secret, tls::account_tls};
+use crate::{AccountError, ConfigError, Secret, tls::tls_with};
 
 /// The host sentinel appended to a Microsoft account's address to form its stable
 /// [`AccountId`], mirroring how an IMAP account's id is `username@server_name`. Graph
@@ -134,7 +134,7 @@ pub fn load_microsoft_str(text: &str) -> Result<MicrosoftConfig, ConfigError> {
 /// Returns [`AccountError::Graph`] if the request fails, is non-2xx, or returns no
 /// usable address.
 pub async fn fetch_primary_address(access_token: &str) -> Result<String, AccountError> {
-    let http = account_tls()?
+    let http = tls_with(&[])?
         .reqwest_builder()
         .build()
         .map_err(|err| AccountError::Graph(format!("me lookup client: {err}")))?;

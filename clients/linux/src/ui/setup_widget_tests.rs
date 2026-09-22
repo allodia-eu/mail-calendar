@@ -11,10 +11,8 @@ use mailcal_bindings::{ConnectionSecurity, DetectedServerRow, SetupRecommendatio
 use crate::{
     l10n,
     ui::{
-        AppInput,
-        mailbox::tests::rendered_labels,
-        setup::{SetupState, SetupWindow},
-        setup_model::recommendation_form,
+        AppInput, mailbox::tests::rendered_labels, setup::SetupWindow,
+        setup_model::recommendation_form, setup_state::SetupState,
     },
 };
 
@@ -32,6 +30,7 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     an_oauth_route_never_asks_for_a_password(&window);
     a_detected_imap_card_confirms_servers_rather_than_asking_for_them(&window);
     an_untrusted_card_holds_connect_until_it_is_approved(&window);
+    a_refused_certificate_holds_connect_until_it_is_accepted(&window);
     super::setup_manual_tests::the_manual_form_switches_account_type(&window);
     super::setup_manual_tests::a_miss_explains_itself_on_the_manual_form(&window);
     super::setup_manual_tests::a_dismissible_window_cancels_the_flow(&window);
@@ -289,6 +288,62 @@ fn an_untrusted_card_holds_connect_until_it_is_approved(window: &adw::Applicatio
     assert!(approval.is_visible() && !approval.is_active());
     approval.set_active(true);
     assert!(connect.is_sensitive(), "approving it opens Connect");
+}
+
+/// A connect refused for a certificate says which certificate, and may not be tried again
+/// until the person has accepted that one (`docs/certificate-exceptions.md`).
+fn a_refused_certificate_holds_connect_until_it_is_accepted(window: &adw::ApplicationWindow) {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    state.show_form(recommendation_form(
+        SetupRecommendation::Imap {
+            email: "alice@example.test".to_owned(),
+            imap_host: "imap.example.test:993".to_owned(),
+            smtp_host: None,
+            imap_security: ConnectionSecurity::ImplicitTls,
+            smtp_security: ConnectionSecurity::ImplicitTls,
+            incoming: server_row("IMAP", "imap.example.test", 993),
+            outgoing: None,
+            caldav_url: None,
+            is_trusted: true,
+            source: "fixture".to_owned(),
+        },
+        String::new(),
+    ));
+    state.connect_failed(super::setup_model::ConnectFailure {
+        message: Some("certificate not verified".to_owned()),
+        certificate: Some(mailcal_bindings::RejectedCertificate {
+            server_name: "imap.example.test".to_owned(),
+            sha256: "AB:CD:EF".to_owned(),
+            subject_common_name: Some("imap.example.test".to_owned()),
+            subject_organisation: Some("Example Ltd".to_owned()),
+            issuer_common_name: Some("imap.example.test".to_owned()),
+            issuer_organisation: Some("Example Ltd".to_owned()),
+            not_before: None,
+            not_after: None,
+        }),
+    });
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("refused IMAP content");
+
+    let connect = descendants::<gtk::Button>(&child)
+        .into_iter()
+        .find(|button| button.label().as_deref() == Some(l10n::action_connect()))
+        .expect("a Connect button");
+    assert!(
+        !connect.is_sensitive(),
+        "a certificate nobody has accepted cannot connect"
+    );
+    let accept = check_button(&child, l10n::setup_certificate_confirm())
+        .expect("the acceptance must be on screen");
+    assert!(accept.is_visible() && !accept.is_active());
+    accept.set_active(true);
+    assert!(connect.is_sensitive(), "accepting it opens Connect");
 }
 
 pub(super) fn server_row(protocol: &str, hostname: &str, port: u16) -> DetectedServerRow {

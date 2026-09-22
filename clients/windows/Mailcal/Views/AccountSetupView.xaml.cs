@@ -66,6 +66,13 @@ public sealed partial class AccountSetupView : UserControl
                 UpdateCanConnect();
                 UpdateGoogleSignInEnabled();
             }
+            // A connect refused for a certificate is answered on this form, so the panel is
+            // drawn when one arrives and taken away when the next attempt clears it
+            // (docs/certificate-exceptions.md).
+            if (e.PropertyName == nameof(MailboxModel.SetupRejectedCertificate))
+            {
+                ShowRefusedCertificate();
+            }
         };
         // Once now: on a first run nothing raises AddingAccount, so the panel would otherwise
         // never be built.
@@ -127,6 +134,7 @@ public sealed partial class AccountSetupView : UserControl
         _jmapSignIn.CardChanged(detected: !route.IsManual);
         ApprovalPanel.Visibility = route.NeedsApproval ? Visibility.Visible : Visibility.Collapsed;
         ApprovalCheck.IsChecked = false;
+        ShowRefusedCertificate();
         Username.Text = route.Email;
         JmapEmail.Text = route.Email;
         // The account-type picker (IMAP/JMAP/Microsoft) is a manual-setup control, not something to
@@ -206,6 +214,89 @@ public sealed partial class AccountSetupView : UserControl
 
     private void OnApprovalChanged(object sender, RoutedEventArgs e) => UpdateCanConnect();
 
+    private void OnCertificateAcceptedChanged(object sender, RoutedEventArgs e) => UpdateCanConnect();
+
+    /// <summary>
+    /// Draws the certificate the last connect was refused for, or takes the panel away when
+    /// nothing was refused. Only the IMAP route offers acceptance: a JMAP account's stored config
+    /// carries no exception, so a refusal there keeps its plain error instead
+    /// (docs/certificate-exceptions.md).
+    /// </summary>
+    private void ShowRefusedCertificate()
+    {
+        if (CertificatePanel is null)
+        {
+            return;
+        }
+        var refused = RefusedCertificate();
+        CertificatePanel.Visibility = refused is null ? Visibility.Collapsed : Visibility.Visible;
+        CertificateCheck.IsChecked = false;
+        if (refused is not null)
+        {
+            CertificateWarning.Text = L10n.SetupCertificateWarning(refused.ServerName);
+            CertificateClaims.Text = CertificateClaimLines(refused);
+        }
+        UpdateCanConnect();
+    }
+
+    /// <summary>The refused certificate this tab can act on, if any.</summary>
+    private RejectedCertificate? RefusedCertificate() =>
+        AccountDetectForm.OffersCertificateException(ActiveTab()) ? Model?.SetupRejectedCertificate : null;
+
+    /// <summary>
+    /// Which route the form is on, named as the tab the shared gates are stated in terms of, so
+    /// the button and the certificate panel read the same rules the unit suite drives.
+    /// </summary>
+    private DetectTab ActiveTab() =>
+        JmapChoice?.IsChecked == true ? DetectTab.Jmap
+        : MicrosoftChoice?.IsChecked == true ? DetectTab.Microsoft
+        : GoogleChoice?.IsChecked == true ? DetectTab.Google
+        : DetectTab.Imap;
+
+    /// <summary>
+    /// What the certificate claims about itself, one claim per line. Absent claims are left out
+    /// rather than shown empty; the fingerprint is always there, because it is taken over the
+    /// bytes rather than read out of them. Dates are formatted here, from the epoch seconds the
+    /// core sends (docs/timestamps.md).
+    /// </summary>
+    private static string CertificateClaimLines(RejectedCertificate certificate)
+    {
+        var lines = new List<string>();
+        var subject = Party(certificate.SubjectCommonName, certificate.SubjectOrganisation);
+        if (subject is not null)
+        {
+            lines.Add($"{L10n.SetupCertificateIssuedTo()}: {subject}");
+        }
+        var issuer = Party(certificate.IssuerCommonName, certificate.IssuerOrganisation);
+        if (issuer is not null)
+        {
+            lines.Add($"{L10n.SetupCertificateIssuedBy()}: {issuer}");
+        }
+        if (certificate.NotBefore is { } from && certificate.NotAfter is { } until)
+        {
+            lines.Add($"{L10n.SetupCertificateValid()}: {Day(from)} – {Day(until)}");
+        }
+        lines.Add($"{L10n.SetupCertificateFingerprint()}: {certificate.Sha256}");
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    // The process culture is already pinned to the app's language choice (AppCulture), so the
+    // long-date format follows the words on screen rather than the host's region.
+    private static string Day(long epochSeconds) =>
+        DateTimeOffset.FromUnixTimeSeconds(epochSeconds).ToLocalTime().ToString("D");
+
+    /// <summary>
+    /// "name (organisation)", or whichever of the two the certificate carries. <c>null</c> when it
+    /// names neither, which is when there is nothing to show rather than an empty line.
+    /// </summary>
+    private static string? Party(string? commonName, string? organisation) => (commonName, organisation) switch
+    {
+        (not null, not null) => $"{commonName} ({organisation})",
+        (not null, null) => commonName,
+        (null, not null) => organisation,
+        _ => null,
+    };
+
     // What gates Connect depends on the active tab and, for a detected result, the approval: IMAP
     // needs mail server + email + password; JMAP needs email + one secret (server is discovered);
     // an untrusted result also needs the approval box. A connect in flight disables it.
@@ -219,13 +310,19 @@ public sealed partial class AccountSetupView : UserControl
             }
             return;
         }
-        var approvalOk = !_needsApproval || ApprovalCheck.IsChecked == true;
-        var fieldsOk = JmapChoice.IsChecked == true
-            ? JmapSetupForm.CanConnect(JmapEmail.Text, JmapPassword.Password)
-            : !string.IsNullOrWhiteSpace(ImapHost.Text)
-                && !string.IsNullOrWhiteSpace(Username.Text)
-                && !string.IsNullOrEmpty(Password.Password);
-        ConnectButton.IsEnabled = approvalOk && fieldsOk;
+        // The gate itself lives in AccountDetectForm, which the unit suite drives: deciding it
+        // twice would let a test pass over a button that does something else.
+        var tab = ActiveTab();
+        ConnectButton.IsEnabled = AccountDetectForm.CanConnect(
+            tab,
+            _needsApproval,
+            ApprovalCheck.IsChecked == true,
+            ImapHost.Text,
+            tab == DetectTab.Jmap ? JmapEmail.Text : Username.Text,
+            Password.Password,
+            JmapPassword.Password,
+            certificateRefused: RefusedCertificate() is not null,
+            certificateAccepted: CertificateCheck.IsChecked == true);
     }
 
     // Show the fields for the chosen account type, and re-gate Connect (requirements differ per tab).
@@ -237,6 +334,8 @@ public sealed partial class AccountSetupView : UserControl
         }
         var jmap = JmapChoice.IsChecked == true;
         var microsoft = MicrosoftChoice.IsChecked == true;
+        // Switching tabs changes whether a refused certificate can be acted on at all.
+        ShowRefusedCertificate();
         var google = GoogleChoice.IsChecked == true;
         var imap = !jmap && !microsoft && !google;
         ImapSection.Visibility = imap ? Visibility.Visible : Visibility.Collapsed;
@@ -267,7 +366,15 @@ public sealed partial class AccountSetupView : UserControl
         }
         else
         {
-            Model?.SubmitSetup(ImapHost.Text, Username.Text, Password.Password, SmtpHost.Text, CaldavUrl.Text, _imapSecurity, _smtpSecurity);
+            Model?.SubmitSetup(
+                ImapHost.Text,
+                Username.Text,
+                Password.Password,
+                SmtpHost.Text,
+                CaldavUrl.Text,
+                _imapSecurity,
+                _smtpSecurity,
+                CertificateCheck.IsChecked == true ? RefusedCertificate() : null);
         }
     }
 

@@ -318,6 +318,14 @@ thiserror = "2"
 # that speak HTTPS build clients from `engine-tls`'s preconfigured rustls config.
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "form", "rustls-no-provider", "charset", "http2"] }
 rustls-pki-types = "1"
+# The server halves of the TLS stack `engine-tls` builds the client from, plus a
+# certificate generator: dev-dependencies of `mailcal-account` only, for the in-process
+# server its certificate-exception test dials. The two rustls crates are already in the
+# lock, declared with the same features the engine resolves, so nothing about a shipped
+# build changes; `rcgen` is new and brings `pem` and `yasna` with it.
+rustls = { version = "0.23.41", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring", "tls12"] }
+rcgen = "0.13"
 # SHA-256 + a system CSPRNG for PKCE (RFC 7636): the code-verifier's random bytes and the
 # S256 code-challenge. Already pulled in transitively by rustls, so this adds no new crate.
 ring = "0.17"

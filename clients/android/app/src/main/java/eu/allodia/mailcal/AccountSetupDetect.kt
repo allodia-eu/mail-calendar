@@ -57,8 +57,8 @@ internal fun AccountSetupFlow(
     detect: suspend (String) -> SetupRecommendation,
     onSignInMicrosoft: (String?) -> Unit,
     onSignInGoogle: (String?) -> Unit = {},
-    onConnect: (AccountSetup) -> String?,
-    onConnectJmap: (JmapSetup) -> String?,
+    onConnect: (AccountSetup) -> ConnectFailure?,
+    onConnectJmap: (JmapSetup) -> ConnectFailure?,
     // Whether this JMAP server offers discoverable OAuth sign-in, and how to start it. Both are
     // threaded straight through to the detected card and the manual form.
     onCheckJmapSignIn: (suspend (String, String) -> Boolean)? = null,
@@ -258,8 +258,8 @@ private fun FoundView(
     externalError: String?,
     onSignInMicrosoft: (String?) -> Unit,
     onSignInGoogle: (String?) -> Unit,
-    onConnect: (AccountSetup) -> String?,
-    onConnectJmap: (JmapSetup) -> String?,
+    onConnect: (AccountSetup) -> ConnectFailure?,
+    onConnectJmap: (JmapSetup) -> ConnectFailure?,
     signInOffered: Boolean,
     onSignInJmap: (String, String) -> Unit,
     signingInJmap: Boolean,
@@ -276,11 +276,24 @@ private fun FoundView(
         mutableStateOf((recommendation as? SetupRecommendation.Imap)?.caldavUrl != null)
     }
     var calendarUrl by remember(recommendation) { mutableStateOf("") }
-    var error by remember(recommendation) { mutableStateOf<String?>(null) }
+    var failure by remember(recommendation) { mutableStateOf<ConnectFailure?>(null) }
+    // A different certificate is a different decision, so an acceptance never carries over to
+    // one nobody has been shown.
+    var certificateAccepted by remember(failure?.certificate) { mutableStateOf(false) }
+    // The transport's own words, but not while the certificate panel is up: that panel says the
+    // same thing in the reader's language and with the certificate beside it. A refusal on a
+    // route that cannot carry an exception keeps its message, because nothing else would say it.
+    // Read off `failure` rather than the form: the form's fields are assigned below, so they
+    // still hold the previous composition's answer here.
+    val error = failure
+        ?.takeIf { it.certificate == null || recommendation !is SetupRecommendation.Imap }
+        ?.message
     form.password = password
     form.approved = approved
     form.calendarEnabled = calendarEnabled
     form.calendarUrlEntry = calendarUrl
+    form.rejectedCertificate = failure?.certificate
+    form.certificateAccepted = certificateAccepted
 
     Column(
         modifier = Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -350,7 +363,7 @@ private fun FoundView(
                 InlineError(error ?: externalError)
                 if (showManualSecret) {
                     ConnectButton(form.canConnect && !connecting, connecting, L10n.action_connect(ctx)) {
-                        error = onConnectJmap(form.jmapSetup())
+                        failure = onConnectJmap(form.jmapSetup())
                     }
                 }
             }
@@ -369,8 +382,11 @@ private fun FoundView(
                     onUrlChange = { calendarUrl = it },
                 )
                 InlineError(error ?: externalError)
+                form.refusedCertificate?.let {
+                    CertificateExceptionPanel(it, certificateAccepted) { on -> certificateAccepted = on }
+                }
                 ConnectButton(form.canConnect && !connecting, connecting, L10n.action_connect(ctx)) {
-                    error = onConnect(form.imapSetup())
+                    failure = onConnect(form.imapSetup())
                 }
             }
             is SetupRecommendation.Manual -> Unit // never routed here

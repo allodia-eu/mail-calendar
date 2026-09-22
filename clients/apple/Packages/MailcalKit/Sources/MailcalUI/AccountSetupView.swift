@@ -46,6 +46,9 @@ enum AccountKind: Hashable {
 /// build/connect.
 struct AccountSetupView: View {
     let error: String?
+    /// The certificate the last connect was refused for, when that is why it failed. Drawn
+    /// with the confirmation that unlocks Connect (`docs/certificate-exceptions.md`).
+    var rejectedCertificate: RejectedCertificate? = nil
     /// Shown only when adding another account (the form as a sheet); `nil` on first run.
     var cancel: (() -> Void)? = nil
     /// Starts the Microsoft 365 sign-in (browser OAuth); the model handles the redirect.
@@ -63,7 +66,8 @@ struct AccountSetupView: View {
         (
             _ imapHost: String, _ username: String, _ password: String,
             _ smtpHost: String, _ caldavURL: String,
-            _ imapSecurity: ConnectionSecurity, _ smtpSecurity: ConnectionSecurity
+            _ imapSecurity: ConnectionSecurity, _ smtpSecurity: ConnectionSecurity,
+            _ acceptedCertificate: RejectedCertificate?
         ) -> Void
     /// Serializes the JMAP fields, stores them, and connects (server may be empty:
     /// the core derives it from the email domain). One secret, whichever kind it is: the
@@ -94,18 +98,22 @@ struct AccountSetupView: View {
     /// Whether the typed JMAP server advertises OAuth sign-in, as answered by `jmapOAuthProbe`.
     /// False until the core says otherwise, so the button is never offered on a guess.
     @State private var jmapSignInOffered = false
+    /// Whether the person has accepted the certificate `rejectedCertificate` names. Reset
+    /// whenever a different one arrives, so an acceptance never carries over.
+    @State private var certificateAccepted = false
 
     /// The manual form, optionally prefilled from a detection result the user chose to edit
     /// (and with a `note` explaining why detection routed here).
     init(
         error: String?,
+        rejectedCertificate: RejectedCertificate? = nil,
         cancel: (() -> Void)? = nil,
         signInMicrosoft: @escaping (String?) -> Void,
         signInGoogle: @escaping (String?) -> Void,
         signingIn: Bool = false,
         googleSigningIn: Bool = false,
         connecting: Bool = false,
-        submit: @escaping (String, String, String, String, String, ConnectionSecurity, ConnectionSecurity) -> Void,
+        submit: @escaping (String, String, String, String, String, ConnectionSecurity, ConnectionSecurity, RejectedCertificate?) -> Void,
         submitJmap: @escaping (String, String, String) -> Void,
         jmapOAuthAvailable: @escaping (String, String) async -> Bool,
         signInJmap: @escaping (String, String) async -> JmapSignInOutcome,
@@ -117,6 +125,7 @@ struct AccountSetupView: View {
         note: String? = nil
     ) {
         self.error = error
+        self.rejectedCertificate = rejectedCertificate
         self.cancel = cancel
         self.signInMicrosoft = signInMicrosoft
         self.signInGoogle = signInGoogle
@@ -144,6 +153,23 @@ struct AccountSetupView: View {
         !username.isEmpty && !password.isEmpty
     }
 
+    /// The refused certificate this pane can actually do something about. Only an IMAP
+    /// account's stored config carries an exception, so a JMAP refusal is reported and not
+    /// offered: taking an answer and ignoring it is worse than not asking
+    /// (`docs/certificate-exceptions.md` → Known gaps).
+    private var refusedCertificate: RejectedCertificate? {
+        kind == .imap ? rejectedCertificate : nil
+    }
+
+    /// Connect stays inert while a refused certificate is waiting to be accepted, the same
+    /// gate the detected card applies.
+    private var certificateOK: Bool { refusedCertificate == nil || certificateAccepted }
+
+    /// The certificate to store with the account: the refused one, once accepted.
+    private var acceptedCertificate: RejectedCertificate? {
+        certificateAccepted ? refusedCertificate : nil
+    }
+
     var body: some View {
         SetupScaffold {
             Text(L10n.setup_title()).font(.title2).bold()
@@ -168,9 +194,18 @@ struct AccountSetupView: View {
             case .google: googleForm
             }
 
-            if let error {
+            // The transport's own words, suppressed while the certificate panel below is up:
+            // that panel says the same thing in the reader's language and with the certificate
+            // beside it, and the raw text above it is a second, worse copy of the question.
+            if let error, refusedCertificate == nil {
                 Text(error).font(.callout).foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if let refusedCertificate {
+                CertificateExceptionPanel(
+                    certificate: refusedCertificate,
+                    accepted: $certificateAccepted
+                )
             }
 
             SetupFooter {
@@ -180,6 +215,9 @@ struct AccountSetupView: View {
                 primaryAction
             }
         }
+        // A different certificate is a different decision, so an acceptance never carries
+        // over to one nobody has been shown.
+        .onChange(of: rejectedCertificate) { certificateAccepted = false }
     }
 
     /// The footer's leading action, which is whichever verb the selected account kind needs:
@@ -194,10 +232,10 @@ struct AccountSetupView: View {
                 Button(L10n.action_connect()) {
                     // The manual form only offers implicit-TLS setup today (STARTTLS
                     // arrives via autodetection).
-                    submit(imapHost, username, password, smtpHost, caldavURL, .implicitTls, .implicitTls)
+                    submit(imapHost, username, password, smtpHost, caldavURL, .implicitTls, .implicitTls, acceptedCertificate)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!canConnect)
+                .disabled(!canConnect || !certificateOK)
             }
         case .jmap:
             if connecting {

@@ -18,8 +18,9 @@ use std::sync::{
 };
 
 use super::{
-    AppInput, AppModel, dns, notifications, oauth_loopback::OAuthLoopback,
-    setup_model::AccountSubmission,
+    AppInput, AppModel, dns, notifications,
+    oauth_loopback::OAuthLoopback,
+    setup_model::{AccountSubmission, ConnectFailure},
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -191,6 +192,29 @@ impl HostTasks {
     }
 }
 
+/// What the form should say about a connect that did not succeed. A refused certificate comes
+/// back whole, because the IMAP pane offers to accept it; everything else is a message
+/// (`docs/certificate-exceptions.md`). The rendered message of a refusal carries the whole
+/// certificate, so it is deliberately not used for that case.
+fn connect_failure(
+    error: mailcal_bindings::MailcalError,
+    offers_exception: bool,
+) -> ConnectFailure {
+    match error {
+        mailcal_bindings::MailcalError::CertificateRejected {
+            reason,
+            certificate,
+        } => ConnectFailure {
+            message: Some(reason),
+            certificate: offers_exception.then_some(certificate),
+        },
+        other => ConnectFailure {
+            message: Some(other.to_string()),
+            certificate: None,
+        },
+    }
+}
+
 impl AppModel {
     pub(super) fn detect_account(&mut self, email: String, sender: relm4::Sender<AppInput>) {
         let Some(app) = self.app.clone() else {
@@ -206,28 +230,48 @@ impl AppModel {
 
     pub(super) fn submit_account(
         &mut self,
-        submission: AccountSubmission,
+        mut submission: AccountSubmission,
         sender: relm4::Sender<AppInput>,
     ) {
         let Some(app) = self.app.clone() else {
             return;
         };
+        // Only an IMAP account's stored config can carry a certificate exception, so only an
+        // IMAP submission may raise the panel or re-send an acceptance
+        // (`docs/certificate-exceptions.md` rule 8).
+        let mut offers_exception = false;
+        if let AccountSubmission::Imap(form) = &mut submission {
+            offers_exception = true;
+            match &form.accepted_certificate {
+                // Accepted once, carried for the rest of this setup: a retry that then fails on
+                // the password must not ask the same question over again.
+                Some(accepted) => self.setup.remember_accepted_certificate(accepted.clone()),
+                None => form.accepted_certificate = self.setup.accepted_certificate(),
+            }
+        }
         self.setup.connecting();
         std::thread::spawn(move || {
-            let result = submission.config_toml().and_then(|config| {
-                // The core persists the credential through the host's `AccountCredentialStore`
-                // and rolls the add back itself when that write fails.
-                app.add_account(config)
-                    .map(|account| account.id)
-                    .map_err(|error| error.to_string())
-            });
+            let result = submission
+                .config_toml()
+                .map_err(|message| ConnectFailure {
+                    message: Some(message),
+                    certificate: None,
+                })
+                .and_then(|config| {
+                    // The core persists the credential through the host's
+                    // `AccountCredentialStore` and rolls the add back itself when that write
+                    // fails.
+                    app.add_account(config)
+                        .map(|account| account.id)
+                        .map_err(|error| connect_failure(error, offers_exception))
+                });
             sender.emit(AppInput::AccountAdded(result));
         });
     }
 
     pub(super) fn account_added(
         &mut self,
-        result: Result<String, String>,
+        result: Result<String, ConnectFailure>,
         sender: relm4::Sender<AppInput>,
     ) {
         match result {
@@ -240,9 +284,12 @@ impl AppModel {
                 self.try_open_pending_mailto();
                 self.try_open_pending_share();
             }
-            Err(error) => self
-                .setup
-                .failed(crate::l10n::status_connect_failed(&error)),
+            Err(failure) => self.setup.connect_failed(ConnectFailure {
+                message: failure
+                    .message
+                    .map(|message| crate::l10n::status_connect_failed(&message)),
+                certificate: failure.certificate,
+            }),
         }
     }
 

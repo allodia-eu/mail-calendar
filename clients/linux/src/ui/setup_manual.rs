@@ -23,6 +23,7 @@ pub(super) fn fields(
     window: &gtk::Window,
     form: &ManualForm,
     error: Option<&str>,
+    certificate: Option<&mailcal_bindings::RejectedCertificate>,
     required: bool,
     sender: &relm4::Sender<AppInput>,
 ) {
@@ -32,7 +33,7 @@ pub(super) fn fields(
     let picker = account_type_picker(content, form.kind);
     let snapshot = match form.kind {
         AccountKind::Imap => {
-            setup_imap::manual_fields(content, window, form, error, required, sender)
+            setup_imap::manual_fields(content, window, form, error, certificate, required, sender)
         }
         AccountKind::Jmap => {
             setup_jmap::manual_fields(content, window, form, error, required, sender)

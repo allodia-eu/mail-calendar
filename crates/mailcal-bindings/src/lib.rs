@@ -196,7 +196,8 @@ pub use rendering::{
 };
 pub use repeat_editor::repeat_change_of;
 pub use setup::{
-    AccountSetup, ConnectionSecurity, JmapSetup, account_config_toml, jmap_account_config_toml,
+    AccountSetup, ConnectionSecurity, JmapSetup, RejectedCertificate, account_config_toml,
+    jmap_account_config_toml,
 };
 pub use share::{
     RejectedShare, SharePrefill, ShareRejectionReason, ShareRequest, SharedFile, prefill_from_share,

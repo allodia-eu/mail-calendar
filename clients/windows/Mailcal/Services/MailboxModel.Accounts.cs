@@ -76,7 +76,8 @@ public sealed partial class MailboxModel
         string smtpHost,
         string caldavUrl,
         ConnectionSecurity imapSecurity = ConnectionSecurity.ImplicitTls,
-        ConnectionSecurity smtpSecurity = ConnectionSecurity.ImplicitTls)
+        ConnectionSecurity smtpSecurity = ConnectionSecurity.ImplicitTls,
+        RejectedCertificate? acceptedCertificate = null)
     {
         // Ignore a second submit while a connect/add is already in flight (e.g. a double-click),
         // so we never build two engines or add one account twice.
@@ -84,6 +85,14 @@ public sealed partial class MailboxModel
         {
             return;
         }
+        // A fresh attempt: whatever was refused last time is answered or superseded. An
+        // acceptance is carried, so a retry that then fails on the password does not ask again.
+        SetupRejectedCertificate = null;
+        if (acceptedCertificate is not null)
+        {
+            SetupAcceptedCertificate = acceptedCertificate;
+        }
+        acceptedCertificate ??= SetupAcceptedCertificate;
         var setup = new AccountSetup(
             ImapHost: imapHost,
             Username: username,
@@ -93,7 +102,10 @@ public sealed partial class MailboxModel
             // The manual form passes the implicit-TLS defaults; the detected path passes what
             // detection found, so the engine dials implicit TLS or STARTTLS to match.
             ImapSecurity: imapSecurity,
-            SmtpSecurity: smtpSecurity);
+            SmtpSecurity: smtpSecurity,
+            // Set only on a re-submit somebody asked for after being shown the certificate; it is
+            // stored with the account, so no later connect asks again.
+            AcceptedCertificate: acceptedCertificate);
         // The app is built (account-less) before the form is shown, so this normally holds. It
         // fails only if the engine itself couldn't open at launch, surface that rather than
         // letting the Connect button silently do nothing.
@@ -116,7 +128,7 @@ public sealed partial class MailboxModel
             SetupError = CoreError.Describe(ex);
             return;
         }
-        _ = AddAccountAsync(configToml);
+        _ = AddAccountAsync(configToml, offersCertificateException: true);
     }
 
     /// <summary>
@@ -351,7 +363,7 @@ public sealed partial class MailboxModel
     /// stored, and so the write no longer waits on this UI-thread hop. A failure keeps the form
     /// up.
     /// </summary>
-    private async Task AddAccountAsync(string configToml)
+    private async Task AddAccountAsync(string configToml, bool offersCertificateException = false)
     {
         IsSubmitting = true;
         try
@@ -390,6 +402,23 @@ public sealed partial class MailboxModel
             _ui.TryEnqueue(() =>
             {
                 IsSubmitting = false;
+                // A refused certificate is the one failure the form can offer a way past, so it is
+                // kept whole rather than rendered: the panel says it in the reader's language and
+                // with the certificate beside it (docs/certificate-exceptions.md). The exception's
+                // own message carries the whole certificate, which is why the reason is used here
+                // instead. Only the IMAP route can act on one; every other route keeps its message,
+                // because nothing else would say it.
+                if (ex is MailcalException.CertificateRejected refused)
+                {
+                    if (offersCertificateException)
+                    {
+                        SetupRejectedCertificate = refused.certificate;
+                        SetupError = null;
+                        return;
+                    }
+                    SetupError = L10n.StatusConnectFailed(refused.reason);
+                    return;
+                }
                 SetupError = L10n.StatusConnectFailed(CoreError.Describe(ex));
             });
         }

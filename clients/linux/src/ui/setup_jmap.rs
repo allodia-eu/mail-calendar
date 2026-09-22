@@ -10,7 +10,7 @@ use super::{
     setup_manual::FormSnapshot,
     setup_model::{AccountSubmission, JmapForm, JmapSignIn, JmapSubmission, ManualForm},
     setup_widgets::{
-        actions, body, caption, detected_row, edit_manually_button, entry, gate_on_trust, primary,
+        actions, body, caption, detected_row, edit_manually_button, entry, gate_connect, primary,
         section, show_error, trust_approved, trust_gate,
     },
 };
@@ -73,7 +73,7 @@ pub(super) fn detected_fields(
         } else {
             primary(l10n::action_connect(), window)
         };
-        gate_on_trust(&trust, &connect, form.trusted);
+        gate_connect(&connect, Some(&trust), form.trusted, None);
         let base = form.clone();
         let input = sender.clone();
         let dialog = window.clone();

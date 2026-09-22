@@ -82,7 +82,7 @@ impl MailcalApp {
             Ok(outcome) => outcome,
             Err(error) => {
                 registered.rollback(&self.registry);
-                return Err(MailcalError::Connect(error.to_string()));
+                return Err(MailcalError::from(error));
             }
         };
         let persisted = match persistence {

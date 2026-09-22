@@ -16,9 +16,12 @@ extension ContentView {
     var addAccountSheet: some View {
         AccountSetupDetectView(
             error: model.setupError,
+            rejectedCertificate: model.setupRejectedCertificate,
             cancel: {
                 model.addingAccount = false
                 model.setupError = nil
+                model.setupRejectedCertificate = nil
+                model.setupAcceptedCertificate = nil
                 model.setupStartEmail = ""
                 model.setupStartOffer = nil
             },
@@ -27,7 +30,7 @@ extension ContentView {
             signingIn: model.microsoftSigningIn,
             googleSigningIn: model.googleSigningIn,
             connecting: model.isConnecting,
-            submit: { imapHost, username, password, smtpHost, caldavURL, imapSecurity, smtpSecurity in
+            submit: { imapHost, username, password, smtpHost, caldavURL, imapSecurity, smtpSecurity, acceptedCertificate in
                 model.submitSetup(
                     imapHost: imapHost,
                     username: username,
@@ -35,7 +38,8 @@ extension ContentView {
                     smtpHost: smtpHost,
                     caldavBaseUrl: caldavURL,
                     imapSecurity: imapSecurity,
-                    smtpSecurity: smtpSecurity
+                    smtpSecurity: smtpSecurity,
+                    acceptedCertificate: acceptedCertificate
                 )
             },
             submitJmap: { email, serverURL, password in

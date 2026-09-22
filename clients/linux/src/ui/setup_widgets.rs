@@ -7,7 +7,7 @@
 //! this person.
 
 use adw::prelude::*;
-use mailcal_bindings::MailcalApp;
+use mailcal_bindings::{MailcalApp, RejectedCertificate};
 
 use super::{AppInput, modal};
 use crate::l10n;
@@ -101,16 +101,141 @@ pub(super) const fn trust_approved(detected_trusted: bool, user_approved: bool) 
     detected_trusted || user_approved
 }
 
-/// Holds an untrusted recommendation's Connect closed until the box is ticked. The submit path
-/// re-checks [`trust_approved`]: this is the affordance, not the gate: because a button that
-/// silently does nothing reads as a broken app rather than as a question waiting for an answer.
-pub(super) fn gate_on_trust(trust: &gtk::CheckButton, button: &gtk::Button, trusted: bool) {
-    if trusted {
+/// The certificate a server offered that could not be verified, and the confirmation that
+/// unlocks Connect. Drawn only once a connect has actually been refused for one; the checkbox
+/// comes back so the submit path can read it (`docs/certificate-exceptions.md`).
+pub(super) fn certificate_gate(
+    content: &gtk::Box,
+    certificate: Option<&RejectedCertificate>,
+) -> Option<gtk::CheckButton> {
+    let certificate = certificate?;
+    let warning = body(&l10n::setup_certificate_warning(&certificate.server_name));
+    warning.add_css_class("error");
+    content.append(&warning);
+    for (label, value) in certificate_claims(certificate) {
+        content.append(&claim_row(label, &value));
+    }
+    let confirm = gtk::CheckButton::with_label(l10n::setup_certificate_confirm());
+    content.append(&confirm);
+    Some(confirm)
+}
+
+/// What the certificate claims about itself, in the order a person reads them. Absent claims
+/// are left out rather than shown empty; the fingerprint is always there, because it is taken
+/// over the bytes rather than read out of them.
+fn certificate_claims(certificate: &RejectedCertificate) -> Vec<(&'static str, String)> {
+    let mut claims = Vec::new();
+    if let Some(subject) = party(
+        certificate.subject_common_name.as_deref(),
+        certificate.subject_organisation.as_deref(),
+    ) {
+        claims.push((l10n::setup_certificate_issued_to(), subject));
+    }
+    if let Some(issuer) = party(
+        certificate.issuer_common_name.as_deref(),
+        certificate.issuer_organisation.as_deref(),
+    ) {
+        claims.push((l10n::setup_certificate_issued_by(), issuer));
+    }
+    if let Some(window) = validity(certificate) {
+        claims.push((l10n::setup_certificate_valid(), window));
+    }
+    claims.push((
+        l10n::setup_certificate_fingerprint(),
+        certificate.sha256.clone(),
+    ));
+    claims
+}
+
+/// "name (organisation)", or whichever of the two the certificate carries. `None` when it names
+/// neither, which is when there is nothing to show rather than an empty row.
+pub(super) fn party(common_name: Option<&str>, organisation: Option<&str>) -> Option<String> {
+    match (common_name, organisation) {
+        (Some(name), Some(organisation)) => Some(format!("{name} ({organisation})")),
+        (Some(name), None) => Some(name.to_owned()),
+        (None, Some(organisation)) => Some(organisation.to_owned()),
+        (None, None) => None,
+    }
+}
+
+/// The window the certificate claims, as a date range in the reader's own locale. The core
+/// sends epoch seconds and formats nothing (`docs/timestamps.md`).
+pub(super) fn validity(certificate: &RejectedCertificate) -> Option<String> {
+    let from = gtk::glib::DateTime::from_unix_local(certificate.not_before?).ok()?;
+    let until = gtk::glib::DateTime::from_unix_local(certificate.not_after?).ok()?;
+    let format = |at: &gtk::glib::DateTime| at.format("%x").ok().map(|text| text.to_string());
+    Some(format!("{} – {}", format(&from)?, format(&until)?))
+}
+
+/// One claim, label first, so the values line up down the panel.
+fn claim_row(label: &str, value: &str) -> gtk::Box {
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let name = body(label);
+    name.add_css_class("caption-heading");
+    name.add_css_class("dim-label");
+    name.set_width_chars(12);
+    row.append(&name);
+    let claim = body(value);
+    claim.set_selectable(true);
+    row.append(&claim);
+    row
+}
+
+/// Whether the certificate half of the gate is answered: nothing was refused, or the person
+/// has accepted what was.
+pub(super) fn certificate_accepted(gate: Option<&gtk::CheckButton>) -> bool {
+    gate.is_none_or(gtk::prelude::CheckButtonExt::is_active)
+}
+
+/// Holds Connect closed until every question this pane asked has an answer: the
+/// untrusted-settings approval, and a refused certificate's acceptance. One function rather
+/// than two, because two would each decide the button's sensitivity and whichever fired last
+/// would win. The submit path re-checks both: this is the affordance, not the gate, because a
+/// button that silently does nothing reads as a broken app rather than as a question waiting
+/// for an answer.
+pub(super) fn gate_connect(
+    button: &gtk::Button,
+    trust: Option<&gtk::CheckButton>,
+    trusted: bool,
+    certificate: Option<&gtk::CheckButton>,
+) {
+    let asks_trust = trust.is_some() && !trusted;
+    if !asks_trust && certificate.is_none() {
         return;
     }
     button.set_sensitive(false);
-    let gated = button.clone();
-    trust.connect_toggled(move |choice| gated.set_sensitive(choice.is_active()));
+    if let Some(trust) = trust {
+        let (button, trust_box, certificate_box) =
+            (button.clone(), trust.clone(), certificate.cloned());
+        trust.connect_toggled(move |_| {
+            button.set_sensitive(answered(
+                trusted,
+                Some(&trust_box),
+                certificate_box.as_ref(),
+            ));
+        });
+    }
+    if let Some(certificate) = certificate {
+        let (button, trust_box, certificate_box) =
+            (button.clone(), trust.cloned(), certificate.clone());
+        certificate.connect_toggled(move |_| {
+            button.set_sensitive(answered(
+                trusted,
+                trust_box.as_ref(),
+                Some(&certificate_box),
+            ));
+        });
+    }
+}
+
+/// Whether both questions a pane can ask have an answer.
+fn answered(
+    trusted: bool,
+    trust: Option<&gtk::CheckButton>,
+    certificate: Option<&gtk::CheckButton>,
+) -> bool {
+    let approved = trust.is_none_or(|choice| trust_approved(trusted, choice.is_active()));
+    approved && certificate_accepted(certificate)
 }
 
 /// The trailing button row every pane ends with. Cancel (when the flow is dismissable) and Back

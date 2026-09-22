@@ -280,6 +280,11 @@ class MainActivity : AppCompatActivity() {
     // A failed add-account connect, shown on the setup form (distinct from the launch-time
     // `connectError`).
     internal var addError by mutableStateOf<String?>(null)
+
+    // A certificate already accepted during this setup. The refusal itself lives in the form,
+    // which is a question; this is the answer, and it outlives a retry that then fails on the
+    // password so nobody is asked the same thing twice (docs/certificate-exceptions.md).
+    internal var setupAcceptedCertificate: uniffi.mailcal_bindings.RejectedCertificate? = null
     // True while an IMAP account's Connect is in flight (the blocking login + first sync runs off
     // the main thread), so the Connect button shows a spinner and is disabled.
     internal var isConnecting by mutableStateOf(false)

@@ -57,8 +57,8 @@ pub(super) enum Progress {
 }
 
 impl Onboarding {
-    /// Nothing offered and nothing asked. `const` because [`super::setup::SetupState::closed`] is,
-    /// and a derived `Default` is not.
+    /// Nothing offered and nothing asked. `const` because
+    /// [`super::setup_state::SetupState::closed`] is, and a derived `Default` is not.
     pub(super) const fn new() -> Self {
         Self {
             offered: false,

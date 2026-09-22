@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
-use mailcal_bindings::ConnectionSecurity;
+use mailcal_bindings::{ConnectionSecurity, RejectedCertificate};
 use url::Url;
 
 use super::{
@@ -11,8 +11,9 @@ use super::{
     setup_manual::FormSnapshot,
     setup_model::{AccountSubmission, DetectedServer, ImapForm, ImapSubmission, ManualForm},
     setup_widgets::{
-        actions, caption, detected_row, edit_manually_button, entry, gate_on_trust, primary,
-        section, show_error, trust_approved, trust_gate,
+        actions, caption, certificate_accepted, certificate_gate, detected_row,
+        edit_manually_button, entry, gate_connect, primary, section, show_error, trust_approved,
+        trust_gate,
     },
 };
 use crate::l10n;
@@ -24,6 +25,7 @@ pub(super) fn detected_fields(
     window: &gtk::Window,
     form: &ImapForm,
     error: Option<&str>,
+    certificate: Option<&RejectedCertificate>,
     required: bool,
     sender: &relm4::Sender<AppInput>,
 ) {
@@ -39,17 +41,24 @@ pub(super) fn detected_fields(
     content.append(&password);
 
     let calendar = calendar_section(content, &form.caldav_url);
-    show_error(content, error);
+    // The panel says what the transport said, in the reader's language and with the certificate
+    // beside it, so the raw message is not shown as well.
+    let accepted = certificate_gate(content, certificate);
+    show_error(content, error.filter(|_| certificate.is_none()));
 
     let actions = actions(window, required, sender);
     actions.append(&edit_manually_button(sender));
     let connect = primary(l10n::action_connect(), window);
-    gate_on_trust(&trust, &connect, form.trusted);
+    gate_connect(&connect, Some(&trust), form.trusted, accepted.as_ref());
     let base = form.clone();
+    let refused = certificate.cloned();
     let input = sender.clone();
     let dialog = window.clone();
     connect.connect_clicked(move |_| {
-        if !trust_approved(base.trusted, trust.is_active()) || password.text().is_empty() {
+        if !trust_approved(base.trusted, trust.is_active())
+            || !certificate_accepted(accepted.as_ref())
+            || password.text().is_empty()
+        {
             return;
         }
         input.emit(AppInput::SubmitAccount(Box::new(AccountSubmission::Imap(
@@ -61,6 +70,7 @@ pub(super) fn detected_fields(
                 imap_security: base.imap_security,
                 smtp_security: base.smtp_security,
                 password: password.text().to_string(),
+                accepted_certificate: refused.clone(),
             },
         ))));
         dialog.set_visible(false);
@@ -75,6 +85,7 @@ pub(super) fn manual_fields(
     window: &gtk::Window,
     form: &ManualForm,
     error: Option<&str>,
+    certificate: Option<&RejectedCertificate>,
     required: bool,
     sender: &relm4::Sender<AppInput>,
 ) -> FormSnapshot {
@@ -88,7 +99,8 @@ pub(super) fn manual_fields(
         content.append(field);
     }
     content.append(&caption(l10n::setup_port_note()));
-    show_error(content, error);
+    let accepted = certificate_gate(content, certificate);
+    show_error(content, error.filter(|_| certificate.is_none()));
 
     let snapshot: FormSnapshot = {
         let base = form.clone();
@@ -105,6 +117,8 @@ pub(super) fn manual_fields(
 
     let actions = actions(window, required, sender);
     let connect = primary(l10n::action_connect(), window);
+    gate_connect(&connect, None, true, accepted.as_ref());
+    let refused = certificate.cloned();
     let input = sender.clone();
     let dialog = window.clone();
     connect.connect_clicked(move |_| {
@@ -118,10 +132,12 @@ pub(super) fn manual_fields(
             imap_security: ConnectionSecurity::ImplicitTls,
             smtp_security: ConnectionSecurity::ImplicitTls,
             password: password.text().to_string(),
+            accepted_certificate: refused.clone(),
         };
         if submission.email.is_empty()
             || submission.imap_host.is_empty()
             || submission.password.is_empty()
+            || !certificate_accepted(accepted.as_ref())
         {
             return;
         }

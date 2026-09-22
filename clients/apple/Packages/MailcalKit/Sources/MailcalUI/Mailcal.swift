@@ -111,12 +111,13 @@ public struct ContentView: View {
             } else if model.needsSetup {
                 AccountSetupDetectView(
                     error: model.setupError,
+                    rejectedCertificate: model.setupRejectedCertificate,
                     signInMicrosoft: { hint in model.signInWithMicrosoft(loginHint: hint) },
                     signInGoogle: { hint in model.signInWithGoogle(loginHint: hint) },
                     signingIn: model.microsoftSigningIn,
                     googleSigningIn: model.googleSigningIn,
                     connecting: model.isConnecting,
-                    submit: { imapHost, username, password, smtpHost, caldavURL, imapSecurity, smtpSecurity in
+                    submit: { imapHost, username, password, smtpHost, caldavURL, imapSecurity, smtpSecurity, acceptedCertificate in
                         model.submitSetup(
                             imapHost: imapHost,
                             username: username,
@@ -124,7 +125,8 @@ public struct ContentView: View {
                             smtpHost: smtpHost,
                             caldavBaseUrl: caldavURL,
                             imapSecurity: imapSecurity,
-                            smtpSecurity: smtpSecurity
+                            smtpSecurity: smtpSecurity,
+                            acceptedCertificate: acceptedCertificate
                         )
                     },
                     submitJmap: { email, serverURL, password in

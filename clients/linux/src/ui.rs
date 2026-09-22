@@ -93,6 +93,7 @@ mod setup_model;
 mod setup_onboarding;
 #[cfg(test)]
 mod setup_onboarding_tests;
+mod setup_state;
 #[cfg(test)]
 mod setup_widget_tests;
 mod setup_widgets;
@@ -130,7 +131,7 @@ use model::ReadingState;
 use reading_windows::DetachedDraft;
 use search::SearchState;
 use selection::Selection;
-use setup::SetupState;
+use setup_state::SetupState;
 use shell::AppWidgets;
 use unfiled_copy::UnfiledCopyNotice;
 

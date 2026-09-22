@@ -57,12 +57,49 @@ fn detected_security_and_calendar_ride_back_into_the_config() {
         imap_security: form.imap_security,
         smtp_security: form.smtp_security,
         password: "secret".to_owned(),
+        accepted_certificate: None,
     })
     .config_toml()
     .expect("valid config");
 
     assert!(config.contains("starttls"));
     assert!(config.contains("calendar.example.test"));
+    // An account that met no certificate problem stores no exception, so its config is
+    // byte-for-byte what it was before exceptions existed.
+    assert!(!config.contains("certificate_exception"));
+}
+
+/// A certificate the person accepted rides into the stored config, so every later connect of
+/// this account carries it and nobody is asked twice (`docs/certificate-exceptions.md`).
+#[test]
+fn an_accepted_certificate_reaches_the_stored_config() {
+    let SetupForm::Detected(DetectedForm::Imap(form)) = imap_form() else {
+        panic!("expected IMAP form");
+    };
+
+    let config = AccountSubmission::Imap(ImapSubmission {
+        email: form.email,
+        imap_host: form.imap_host.clone(),
+        smtp_host: form.smtp_host,
+        caldav_url: form.caldav_url,
+        imap_security: form.imap_security,
+        smtp_security: form.smtp_security,
+        password: "secret".to_owned(),
+        accepted_certificate: Some(mailcal_bindings::RejectedCertificate {
+            server_name: form.imap_host,
+            sha256: "AB:CD".repeat(16),
+            subject_common_name: None,
+            subject_organisation: None,
+            issuer_common_name: None,
+            issuer_organisation: None,
+            not_before: None,
+            not_after: None,
+        }),
+    })
+    .config_toml()
+    .expect("valid config");
+
+    assert!(config.contains("certificate_exception"));
 }
 
 #[test]

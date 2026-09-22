@@ -247,7 +247,7 @@ impl MailcalApp {
                      not added",
                     started.elapsed().as_millis(),
                 );
-                return Err(MailcalError::Connect(err.to_string()));
+                return Err(MailcalError::from(err));
             }
         };
         let account = outcome.account;

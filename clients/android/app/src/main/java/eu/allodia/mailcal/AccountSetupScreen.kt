@@ -102,8 +102,8 @@ internal fun AccountSetupScreen(
     connecting: Boolean = false,
     onSignInMicrosoft: (String?) -> Unit = {},
     onSignInGoogle: (String?) -> Unit = {},
-    onConnect: (AccountSetup) -> String?,
-    onConnectJmap: (JmapSetup) -> String?,
+    onConnect: (AccountSetup) -> ConnectFailure?,
+    onConnectJmap: (JmapSetup) -> ConnectFailure?,
     // Asks the core whether this JMAP server offers discoverable OAuth sign-in. Blocking, so the
     // caller runs it off-main; null (the default) means "never offer it", which keeps every
     // existing preview and test rendering the plain form.
@@ -138,7 +138,14 @@ internal fun AccountSetupScreen(
     // Gates the Google sign-in button: the user must confirm they've signed up for Early Access
     // before we open the browser (Google hard-blocks anyone not on the allow-list).
     var googleEarlyAccessConfirmed by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var failure by remember { mutableStateOf<ConnectFailure?>(null) }
+    // A different certificate is a different decision, so an acceptance never carries over to
+    // one nobody has been shown.
+    var certificateAccepted by remember(failure?.certificate) { mutableStateOf(false) }
+    // The transport's own words, but not while the certificate panel is up: that panel says the
+    // same thing in the reader's language and with the certificate beside it. A refusal on a
+    // route that cannot carry an exception keeps its message, because nothing else would say it.
+    val error = failure?.takeIf { it.certificate == null || kind != AccountKind.PASSWORD }?.message
     val ctx = LocalContext.current
 
     val canConnect = imapHost.isNotBlank() && username.isNotBlank() && password.isNotBlank()
@@ -254,6 +261,14 @@ internal fun AccountSetupScreen(
                 color = MaterialTheme.colorScheme.error,
             )
         }
+        // Only an IMAP account's stored config carries an exception, so a refusal on any other
+        // route is reported and not offered: taking an answer and ignoring it is worse than not
+        // asking (docs/certificate-exceptions.md -> Known gaps).
+        val refused = failure?.certificate?.takeIf { kind == AccountKind.PASSWORD }
+        refused?.let {
+            CertificateExceptionPanel(it, certificateAccepted) { on -> certificateAccepted = on }
+        }
+        val certificateOk = refused == null || certificateAccepted
 
         when (kind) {
             AccountKind.MICROSOFT -> Button(
@@ -279,7 +294,7 @@ internal fun AccountSetupScreen(
                 connecting = connecting,
                 label = L10n.action_connect(ctx),
                 onClick = {
-                    error = onConnectJmap(
+                    failure = onConnectJmap(
                         JmapSetup(
                             email = username,
                             serverUrl = jmapServer.ifBlank { null },
@@ -289,17 +304,21 @@ internal fun AccountSetupScreen(
                 },
             )
             AccountKind.PASSWORD -> ConnectButton(
-                enabled = canConnect && !connecting,
+                enabled = canConnect && !connecting && certificateOk,
                 connecting = connecting,
                 label = L10n.action_connect(ctx),
                 onClick = {
-                    error = onConnect(
+                    failure = onConnect(
                         AccountSetup(
                             imapHost = imapHost,
                             username = username,
                             password = password,
                             smtpHost = smtpHost.ifBlank { null },
                             caldavBaseUrl = caldavBaseUrl.ifBlank { null },
+                            // Set only on a re-submit somebody asked for after being shown the
+                            // certificate; it is stored with the account, so no later connect
+                            // asks again.
+                            acceptedCertificate = if (certificateAccepted) refused else null,
                         ),
                     )
                 },

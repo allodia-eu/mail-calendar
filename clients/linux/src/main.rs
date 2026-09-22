@@ -1,5 +1,13 @@
 //! GTK4/libadwaita host for Allodia Mail & Calendar.
 
+// `MailcalError` carries the certificate a server presented that did not verify
+// (`docs/certificate-exceptions.md`), and `ConnectFailure` carries it onward, so every `Result`
+// either appears in is past the lint's 128-byte threshold. The usual remedy is a `Box`, and the
+// error's own crate cannot take one: a UniFFI record's fields are the wire format, so the
+// indirection cannot be expressed (`crates/mailcal-bindings/Cargo.toml` carries the same allow
+// for the same reason). Boxing it here instead would unwrap at every call across the boundary.
+#![allow(clippy::result_large_err)]
+
 use adw::prelude::*;
 
 mod allodia_sync_store;

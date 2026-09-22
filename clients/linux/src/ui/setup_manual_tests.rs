@@ -13,8 +13,9 @@ use crate::{
     ui::{
         AppInput,
         mailbox::{self, tests::rendered_labels},
-        setup::{SetupState, SetupWindow},
+        setup::SetupWindow,
         setup_model::{AccountKind, manual_form, recommendation_form},
+        setup_state::SetupState,
         setup_widget_tests::{descendant_has_button, drop_down, entries},
         welcome::WelcomeWindow,
     },
