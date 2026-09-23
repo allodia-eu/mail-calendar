@@ -37,8 +37,8 @@ name: mailcal-core-harness
 
 services:
   stalwart:
-    # stalwartlabs/stalwart v0.16.8, pinned by multi-arch digest (linux/amd64 +
-    # linux/arm64). Bump deliberately: re-resolve the digest and update CI too.
+    # stalwartlabs/stalwart v0.16.22, pinned by multi-arch digest (linux/amd64 +
+    # linux/arm64). Bump deliberately: re-resolve the digest and update this version.
     image: stalwartlabs/stalwart:v0.16.22@sha256:388dcb75a70727c5b551249a6d34b1f1321294852489e4fa3a4e6be698b7c4f0
     # Self-bootstrapping wrapper: bootstrap via API, restart to full server,
     # create accounts, seed, then run the server in the foreground.
