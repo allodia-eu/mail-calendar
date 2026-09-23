@@ -148,9 +148,15 @@ not streamed, and waits at most five minutes for a learning request and two for 
 **The relay** (`POST /api/v1/ai/chat` on the Mail & Calendar service, bearer = the Allodia access
 token with `mailcal:ai:use`) takes the same request **without** `model`, plus `purpose: "style" |
 "draft"`, from which the gateway picks the model. It answers with one JSON object, not a stream:
-the chat-completions `choices` and `usage`, plus `allodia: { credits_charged, balance_credits }`.
-`402` is out of credits, `403` with code `not_entitled` is a plan without AI. The relay stores
-nothing and logs no content.
+the chat-completions `choices` and `usage`, plus `allodia: { credits_charged, balance_credits }`,
+both as the gateway metered them. A refusal carries its code in `data.code`: `402`
+`insufficient_credits`, `403` `not_entitled` (a plan without AI), `429` `rate_limited` (thirty
+requests in ten minutes per person), `413` `too_large` (over 1 MiB), `502` `upstream_failed`, `503`
+`unavailable`. The gateway answers the relay as a stream, which the relay collects into that one
+object. It waits five minutes for a learning request and two for a draft, stores nothing of a
+request and logs no content. `GET /api/v1/ai/balance` answers `{ balanceCredits,
+startingGrantApplied }`; the first call on a plan with AI opens the person's credits with the
+starting grant, once.
 
 ## Storage
 
@@ -196,6 +202,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 - **`setComposerDraftText(text, draftId)`** in the editor bundle inserts a draft, as described
   under "Drafting a reply", and keeps `draftId` (`DraftReply.draft_id`) for the submit.
 - **A failure** is a `WritingStyleFailure` variant, never a server's sentence; a client words it.
+- **Driven locally** against the harness's Sent Items and a canned endpoint, with no credits
+  spent ([`debugging.md`](debugging.md), "Start the local mail server").
 
 ## Known gaps
 
