@@ -104,7 +104,7 @@ is never learned from**, and never shown to a later draft as the person's own wo
 |---|---|---|
 | The sample: the person's own words from their sent mail, fenced | The AI endpoint | A learning run the person started on the consent sheet |
 | The message being answered, the style, the passages, the recipient context, the intent | The AI endpoint | A draft the person asked for |
-| The style guide and notes (never the passages) | The Allodia account service, sealed | When the person's plan syncs styles (see Known gaps) |
+| Each style's name, guide and notes (never the passages) | The Allodia account service, sealed | Every account-list sync of a device whose Allodia sign-in includes the writing-style scopes |
 | Passages, quoted mail outside a request, attachment bytes, any address book | Nowhere | Never |
 
 Every prompt follows the MCP server's shared bar ([`mcp.md`](mcp.md), "The shared bar", items 6 to
@@ -168,6 +168,7 @@ starting grant, once.
 | The own endpoint's key | The platform keystore, id `ai-endpoint` | A secret. Taken out of the stored configs at boot before any mail parser sees it; a client asks `is_reserved_config` to tell a first run from a launch with mail accounts. |
 | The jurisdiction mode | `preferences.toml`, `jurisdiction_mode` | It binds every external dispatch, not only these. |
 | The last entitlement answer, and the balance the relay last reported | `preferences.toml`, `[ai]` | Derived, not secret; a launch without a network draws what it was last told ([`entitlement.md`](../allodia_license/entitlement.md)). Dropped at sign-out. |
+| Each synced style's record id, the version last read, a fingerprint of what it held then, and the retry key of a create in flight | The Allodia sync bookkeeping (`SyncStateStore`), its `styles` beside the accounts' entries | Bookkeeping, not secret, and one blob with the accounts' so it is written whole. The fingerprint is what tells a change made here from one made elsewhere. Dropped at sign-out. |
 
 A style's id is opaque CSPRNG output, never derived from its name.
 
@@ -182,7 +183,7 @@ A style's id is opaque CSPRNG output, never derived from its name.
 | Draft a reply into the open composer, with gaps | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Own endpoint under Settings → Advanced | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Allodia relay: the entitlement read, requests, the balance | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Style guide synced between devices | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Style guide synced between devices | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Fetch older sent mail back to a date | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
@@ -214,7 +215,13 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
   fixed above: a signed-in account whose entitlement grants `ai` goes through the relay, the
   entitlement is read in the background and kept in the preferences, and every answer's balance is
   recorded. Buying credits is not built; running out is an honest "no credits left".
-- **Style sync is not built**, on either side.
+- **No client draws a style conflict yet.** A style changed here and on another device arrives in
+  `AllodiaSyncReport.style_conflicts` by name, and nothing of either side is applied until
+  `resolve_writing_style_conflict` keeps one; until a client offers that choice, such a style
+  stays as it is on each device. The service's cap of twenty styles is only logged.
+- **A synced style's passages are picked once**, when it arrives, from the sent mail every account
+  on the device holds at that moment. A device that holds none yet, a new one most of all, has none
+  until the style is learned there, and drafts from the guide and the recipient context alone.
 - **Learning reads what the device holds**: the Sent folder within the account's sync depth, three
   months by default. The consent sheet reports the device's horizon; fetching older sent mail is not
   built.
