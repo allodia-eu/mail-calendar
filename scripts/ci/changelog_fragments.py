@@ -48,8 +48,9 @@ SETTINGS_PATH = REPO_ROOT / "project.inlang" / "settings.json"
 STORES = ("Microsoft Store", "App Store Connect", "Google Play")
 
 # Which console a platform's note is pasted into. `ios` covers iPadOS: they share one App Store
-# record, so they cannot be given different notes even in principle. Linux has no store yet, so a
-# Linux-only change is written down and shipped, but measured against nothing.
+# record, so they cannot be given different notes even in principle. Linux installs from a download
+# rather than a store, so a Linux-only change is written down and shipped, but measured against
+# nothing.
 PLATFORM_STORES = {
     "macos": ("App Store Connect",),
     "ios": ("App Store Connect",),

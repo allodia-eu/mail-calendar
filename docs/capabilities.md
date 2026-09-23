@@ -12,8 +12,8 @@ Where each client stands today, and the per-platform completion status
 [`docs/pledge.md`](docs/pledge.md) points at: a platform still catching up on a row is a gap to
 close, never a reason to charge for it.
 
-**Linux ships from this release.** Its column below is what the Flatpak does; the rows still marked
-⬜ are the ones it does not claim, and a listing may not out-run them.
+**Linux ships as a Flatpak.** Its column below is what the Flatpak does; the rows still marked ⬜
+are the ones it does not claim, and a listing may not out-run them.
 
 Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 

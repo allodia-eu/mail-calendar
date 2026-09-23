@@ -28,7 +28,7 @@ create, edit, and delete dispatch the shared provider-neutral intents.
 It packages as a Flatpak (see "Package as a Flatpak" below) and has showcase mode, so the
 store/marketing captures are produced the same way as every other client's.
 
-It ships from this release. It has email-first setup and autodetection, Google Desktop
+It ships as a Flatpak ([download](../../README.md#getting-it)). It has email-first setup and autodetection, Google Desktop
 OAuth, and standards-discovered JMAP OAuth (RFC 9728 → 8414 → 7591 → PKCE) through the system
 browser and bounded `127.0.0.1` loopback callbacks. JMAP sign-in appears only after the core's
 pre-flight confirms the server advertises dynamic registration; a failure restores the detected
@@ -101,7 +101,7 @@ Install Docker Engine or Docker Desktop separately for the Stalwart harness, and
 `rustup`; the repository's `rust-toolchain.toml` then selects the exact compiler. The Linux build
 script checks the native packages while compiling; GTK, libadwaita, and WebKitGTK are linked into
 the binary. A production account also needs the desktop's normal Secret Service provider
-(such as GNOME Keyring); notifications use the desktop portal, including inside a future Flatpak.
+(such as GNOME Keyring); notifications use the desktop portal, including inside the Flatpak.
 
 ## Run against the local harness
 
@@ -260,11 +260,10 @@ That is a real Flatpak on the seeded showcase dataset, with no keyring and no re
 what a store video or a sandbox-only bug wants. `MAILCAL_DEV_ACCOUNT` still refuses in this build and
 says so; showcase is the only fixture an optimised build offers.
 
-The Flathub manifest that publishes Allodia's build is deliberately not in this tree. It states an
+The manifest that publishes Allodia's build is deliberately not in this tree. It states an
 application id and a download host as literals, which is the one thing `branding/` exists to
 prevent here, and a build from source never reads it anyway: it compiles the client rather than
-downloading one. What Flathub ships is public where it matters, in Flathub's own repository for the
-application id Allodia publishes under.
+downloading one.
 
 ⚠️ **It installs over the shipped one**, because both carry the same application id, and it is *not*
 the artifact to upload. The script says so on every run. Rebuild without `--features` before
@@ -303,6 +302,8 @@ To go back to the released app, or to stop tracking a branch build:
 flatpak uninstall --user <app-id>
 flatpak remote-delete --user mailcal-local
 ```
+
+Then install the released app again from the link under [Getting it](../../README.md#getting-it).
 
 **Sandbox permissions are minimal on purpose**, and the manifest records why each omission is safe:
 credentials go through the Secret *portal* (oo7 picks its backend from the sandbox state) rather
