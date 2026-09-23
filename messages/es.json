@@ -639,6 +639,8 @@
 	"settings_subscription_duplicate": "Se está cobrando más de una suscripción en esta cuenta: {billers}. Cancela las que no quieras mantener.",
 	"settings_subscription_manage": "Gestionar en {biller}",
 	"settings_subscription_terms": "Se renueva automáticamente hasta que la canceles.",
+	"settings_subscription_eula": "Términos de uso (EULA)",
+	"settings_subscription_privacy": "Política de privacidad",
 	"settings_subscription_pending": "Esperando aprobación. El acceso empieza en cuanto se apruebe.",
 	"settings_subscription_stuck": "Una compra todavía no se ha completado. Se seguirá intentando.",
 	"settings_subscription_claimed_elsewhere": "Una suscripción comprada en este dispositivo pertenece a otra cuenta de Allodia, así que no se ha añadido a esta. Inicia sesión con esa cuenta para usarla.",

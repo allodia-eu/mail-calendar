@@ -227,7 +227,26 @@ struct AllodiaSubscriptionSettings: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        // Apple's guideline 3.1.2: a screen selling an auto-renewable subscription links the
+        // Terms of Use and the privacy policy, beside the purchase rather than elsewhere in the
+        // app. Every purchase here is StoreKit's, so the terms are Apple's standard EULA, the one
+        // the App Store listing links too. The Android, Windows and Linux twins draw no such line:
+        // Apple's EULA governs nothing Google or Allodia bills.
+        if !available.isEmpty {
+            HStack(spacing: 12) {
+                Link(L10n.settings_subscription_eula(), destination: Self.appleStandardEULA)
+                if let privacy = URL(string: L10n.welcome_privacy_url()) {
+                    Link(L10n.settings_subscription_privacy(), destination: privacy)
+                }
+            }
+            .font(.caption)
+        }
     }
+
+    /// Apple's standard licence agreement, which governs an App Store purchase for which the
+    /// developer has not uploaded one of its own.
+    private static let appleStandardEULA =
+        URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
 
     /// Opens the store's own subscription page, which is the only thing that can change a
     /// subscription the store is billing.

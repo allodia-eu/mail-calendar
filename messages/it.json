@@ -639,6 +639,8 @@
 	"settings_subscription_duplicate": "Per questo account viene addebitato più di un abbonamento: {billers}. Disdici quelli che non vuoi tenere.",
 	"settings_subscription_manage": "Gestisci su {biller}",
 	"settings_subscription_terms": "Si rinnova automaticamente finché non disdici.",
+	"settings_subscription_eula": "Termini d’uso (EULA)",
+	"settings_subscription_privacy": "Informativa sulla privacy",
 	"settings_subscription_pending": "In attesa di approvazione. L’accesso inizia appena viene approvata.",
 	"settings_subscription_stuck": "Un acquisto non è ancora andato a buon fine. Verrà riprovato.",
 	"settings_subscription_claimed_elsewhere": "Un abbonamento acquistato su questo dispositivo appartiene a un altro account Allodia, quindi non è stato aggiunto a questo. Accedi con quell’account per usarlo.",

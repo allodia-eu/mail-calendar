@@ -639,6 +639,8 @@
 	"settings_subscription_duplicate": "Für dieses Konto wird mehr als ein Abonnement abgerechnet: {billers}. Kündigen Sie die, die Sie nicht behalten möchten.",
 	"settings_subscription_manage": "Bei {biller} verwalten",
 	"settings_subscription_terms": "Verlängert sich automatisch, bis Sie kündigen.",
+	"settings_subscription_eula": "Nutzungsbedingungen (EULA)",
+	"settings_subscription_privacy": "Datenschutzerklärung",
 	"settings_subscription_pending": "Wartet auf Freigabe. Der Zugriff beginnt, sobald sie erteilt ist.",
 	"settings_subscription_stuck": "Ein Kauf ist noch nicht durchgegangen. Es wird weiter versucht.",
 	"settings_subscription_claimed_elsewhere": "Ein auf diesem Gerät gekauftes Abonnement gehört zu einem anderen Allodia-Konto und wurde diesem daher nicht hinzugefügt. Melden Sie sich mit jenem Konto an, um es zu nutzen.",

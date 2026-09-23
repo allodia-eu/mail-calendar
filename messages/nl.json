@@ -639,6 +639,8 @@
 	"settings_subscription_duplicate": "Voor dit account loopt meer dan één abonnement: {billers}. Zeg de abonnementen op die je niet wilt houden.",
 	"settings_subscription_manage": "Beheren bij {biller}",
 	"settings_subscription_terms": "Wordt automatisch verlengd totdat je opzegt.",
+	"settings_subscription_eula": "Gebruiksvoorwaarden (EULA)",
+	"settings_subscription_privacy": "Privacybeleid",
 	"settings_subscription_pending": "Wacht op goedkeuring. Je krijgt toegang zodra het is goedgekeurd.",
 	"settings_subscription_stuck": "Een aankoop is nog niet doorgekomen. Het wordt opnieuw geprobeerd.",
 	"settings_subscription_claimed_elsewhere": "Een abonnement dat op dit apparaat is gekocht, hoort bij een ander Allodia-account en is dus niet aan dit account toegevoegd. Meld je aan met dat account om het te gebruiken.",
