@@ -13,17 +13,26 @@ use crate::l10n;
 
 mod create;
 mod draw;
+mod geometry;
+mod hits;
 #[cfg(feature = "dev-harness")]
 mod perf;
 mod scene;
 mod scroll;
 
-use scene::{GUTTER, GridScene, HEADING_HEIGHT};
+use hits::{Surface, install_event_click, install_hit_target_css, pixel_size, rebuild_hits};
+use scene::GridScene;
 use scroll::Framing;
 
-/// The GTK shell around one Cairo surface and semantic nodes from the same geometry.
+/// The GTK shell around the grid's two Cairo surfaces, and semantic nodes from the same geometry.
+///
+/// The day names and the all-day banner are a surface of their own above the scrolled hours, so
+/// they stay on screen at whatever hour the reader has scrolled to.
 pub(super) struct GridSurface {
-    pub(super) root: gtk::ScrolledWindow,
+    pub(super) root: gtk::Box,
+    scroller: gtk::ScrolledWindow,
+    header: gtk::DrawingArea,
+    header_hits: gtk::Fixed,
     drawing: gtk::DrawingArea,
     hits: gtk::Fixed,
     scene: Rc<RefCell<GridScene>>,
@@ -38,40 +47,57 @@ pub(super) struct GridSurface {
 impl GridSurface {
     pub(super) fn new(sender: relm4::Sender<AppInput>) -> Self {
         install_hit_target_css();
-        let drawing = gtk::DrawingArea::new();
-        drawing.set_hexpand(true);
-        let hits = gtk::Fixed::new();
-        hits.set_hexpand(true);
-        hits.set_can_target(true);
-        let overlay = gtk::Overlay::new();
-        overlay.set_child(Some(&drawing));
-        overlay.add_overlay(&hits);
-        let root = gtk::ScrolledWindow::new();
-        root.set_hscrollbar_policy(gtk::PolicyType::Never);
-        root.set_child(Some(&overlay));
-        root.update_property(&[AccessibleProperty::Label(l10n::nav_calendar())]);
+        let (drawing, hits, overlay) = layered_surface();
+        let (header, header_hits, header_overlay) = layered_surface();
+        let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let scroller = gtk::ScrolledWindow::new();
+        scroller.set_hscrollbar_policy(gtk::PolicyType::Never);
+        scroller.set_vexpand(true);
+        scroller.set_child(Some(&overlay));
+        root.append(&header_overlay);
+        root.append(&scroller);
+        scroller.update_property(&[AccessibleProperty::Label(l10n::nav_calendar())]);
 
         let scene = Rc::new(RefCell::new(GridScene::empty()));
         let framing = Rc::new(Framing::default());
         let draw_scene = Rc::clone(&scene);
         drawing.set_draw_func(move |_, context, width, _| {
-            draw::draw(&draw_scene.borrow(), context, f64::from(width));
+            draw::draw_hours(&draw_scene.borrow(), context, f64::from(width));
+        });
+        let header_scene = Rc::clone(&scene);
+        let header_width = drawing.clone();
+        header.set_draw_func(move |_, context, _, _| {
+            let width = f64::from(header_width.width());
+            draw::draw_header(&header_scene.borrow(), context, width);
         });
         install_create_gesture(&hits, &drawing, &scene, &sender);
-        install_event_click(&hits, &drawing, &scene, &sender);
+        install_event_click(&hits, &drawing, &scene, &sender, Surface::Hours);
+        install_event_click(&header_hits, &drawing, &scene, &sender, Surface::Header);
         let resize_scene = Rc::clone(&scene);
         let resize_hits = hits.clone();
+        let resize_header = header.clone();
+        let resize_header_hits = header_hits.clone();
         let resize_sender = sender.clone();
         drawing.connect_resize(move |_, width, _| {
             let scene = resize_scene.borrow().clone();
-            rebuild_hits(&resize_hits, &scene, f64::from(width), &resize_sender);
+            let width = f64::from(width);
+            rebuild_hits(&resize_hits, &scene, width, &resize_sender, Surface::Hours);
+            rebuild_hits(
+                &resize_header_hits,
+                &scene,
+                width,
+                &resize_sender,
+                Surface::Header,
+            );
+            resize_header.queue_draw();
         });
         let viewport_drawing = drawing.clone();
         let viewport_hits = hits.clone();
         let viewport_scene = Rc::clone(&scene);
         let viewport_sender = sender.clone();
         let viewport_framing = Rc::clone(&framing);
-        root.vadjustment()
+        scroller
+            .vadjustment()
             .connect_page_size_notify(move |adjustment| {
                 fit_viewport(
                     &viewport_drawing,
@@ -86,18 +112,22 @@ impl GridSurface {
         let scroll_scene = Rc::clone(&scene);
         let scroll_framing = Rc::clone(&framing);
         // The painter culls to the viewport, and GTK moves a scrolled child without redrawing it.
-        root.vadjustment().connect_value_notify(move |adjustment| {
-            scroll_scene
-                .borrow_mut()
-                .set_viewport_top(adjustment.value());
-            scroll_drawing.queue_draw();
-            scroll_framing.follow(adjustment, &scroll_scene);
-        });
+        scroller
+            .vadjustment()
+            .connect_value_notify(move |adjustment| {
+                scroll_scene
+                    .borrow_mut()
+                    .set_viewport_top(adjustment.value());
+                scroll_drawing.queue_draw();
+                scroll_framing.follow(adjustment, &scroll_scene);
+            });
         let upper_scene = Rc::clone(&scene);
         let upper_framing = Rc::clone(&framing);
-        root.vadjustment().connect_upper_notify(move |adjustment| {
-            settle_framing(adjustment, &upper_scene, &upper_framing);
-        });
+        scroller
+            .vadjustment()
+            .connect_upper_notify(move |adjustment| {
+                settle_framing(adjustment, &upper_scene, &upper_framing);
+            });
         let tick_drawing = drawing.clone();
         gtk::glib::timeout_add_seconds_local(60, move || {
             tick_drawing.queue_draw();
@@ -105,20 +135,28 @@ impl GridSurface {
         });
         let accessibility_settings = gtk::gio::Settings::new("org.gnome.desktop.interface");
         let accessibility_hits = hits.clone();
+        let accessibility_header_hits = header_hits.clone();
         let accessibility_scene = Rc::clone(&scene);
         let accessibility_sender = sender.clone();
         let accessibility_drawing = drawing.clone();
         accessibility_settings.connect_changed(Some("toolkit-accessibility"), move |_, _| {
             let scene = accessibility_scene.borrow().clone();
+            let width = f64::from(accessibility_drawing.width());
+            let sender = &accessibility_sender;
+            rebuild_hits(&accessibility_hits, &scene, width, sender, Surface::Hours);
             rebuild_hits(
-                &accessibility_hits,
+                &accessibility_header_hits,
                 &scene,
-                f64::from(accessibility_drawing.width()),
-                &accessibility_sender,
+                width,
+                sender,
+                Surface::Header,
             );
         });
         Self {
             root,
+            scroller,
+            header,
+            header_hits,
             drawing,
             hits,
             scene,
@@ -134,30 +172,59 @@ impl GridSurface {
         let drag = self.scene.borrow_mut().drag.take();
         let mut scene = GridScene::from_model(model, dark);
         scene.drag = drag;
-        scene.set_viewport_top(self.root.vadjustment().value());
+        let adjustment = self.scroller.vadjustment();
+        scene.set_viewport_top(adjustment.value());
+        let header_height = pixel_size(scene.header_height().ceil());
         *self.scene.borrow_mut() = scene;
+        self.header.set_content_height(header_height);
+        self.header_hits.set_size_request(-1, header_height);
+        let width = f64::from(self.drawing.width());
+        if width > 0.0 {
+            let scene = self.scene.borrow().clone();
+            rebuild_hits(
+                &self.header_hits,
+                &scene,
+                width,
+                &self.sender,
+                Surface::Header,
+            );
+        }
+        self.header.queue_draw();
         fit_viewport(
             &self.drawing,
             &self.hits,
             &self.scene,
-            self.root.vadjustment().page_size(),
+            adjustment.page_size(),
             &self.sender,
         );
-        settle_framing(&self.root.vadjustment(), &self.scene, &self.framing);
+        settle_framing(&adjustment, &self.scene, &self.framing);
         #[cfg(feature = "dev-harness")]
         perf::start_if_requested(
             &self.drawing,
-            &self.root.vadjustment(),
+            &adjustment,
             &self.scene,
             &self.perf_started,
-            semantic_nodes_active(),
+            hits::semantic_nodes_active(),
         );
     }
 
     pub(super) fn opened(&self) {
         self.framing.open();
-        settle_framing(&self.root.vadjustment(), &self.scene, &self.framing);
+        settle_framing(&self.scroller.vadjustment(), &self.scene, &self.framing);
     }
+}
+
+/// A drawing with a hit plane laid over it, and the overlay that holds the two.
+fn layered_surface() -> (gtk::DrawingArea, gtk::Fixed, gtk::Overlay) {
+    let drawing = gtk::DrawingArea::new();
+    drawing.set_hexpand(true);
+    let hits = gtk::Fixed::new();
+    hits.set_hexpand(true);
+    hits.set_can_target(true);
+    let overlay = gtk::Overlay::new();
+    overlay.set_child(Some(&drawing));
+    overlay.add_overlay(&hits);
+    (drawing, hits, overlay)
 }
 
 /// Settles the grid's vertical position, once GTK is out of the layout pass that moved it.
@@ -256,43 +323,6 @@ fn install_create_gesture(
     hits.add_controller(gesture);
 }
 
-fn install_event_click(
-    hits: &gtk::Fixed,
-    drawing: &gtk::DrawingArea,
-    scene: &Rc<RefCell<GridScene>>,
-    sender: &relm4::Sender<AppInput>,
-) {
-    let gesture = gtk::GestureClick::new();
-    gesture.set_button(gtk::gdk::BUTTON_PRIMARY);
-    let click_scene = Rc::clone(scene);
-    let click_drawing = drawing.clone();
-    let input = sender.clone();
-    gesture.connect_released(move |_, presses, x, y| {
-        if presses != 1 || semantic_nodes_active() {
-            return;
-        }
-        let hit = click_scene
-            .borrow()
-            .geometry(f64::from(click_drawing.width()))
-            .hits
-            .into_iter()
-            .find(|hit| {
-                x >= hit.rect.x
-                    && x < hit.rect.x + hit.rect.width
-                    && y >= hit.rect.y
-                    && y < hit.rect.y + hit.rect.height
-            });
-        if let Some(hit) = hit {
-            if let Some(identity) = hit.identity {
-                input.emit(AppInput::OpenCalendarEvent(identity));
-            } else {
-                input.emit(AppInput::ToggleAllDay);
-            }
-        }
-    });
-    hits.add_controller(gesture);
-}
-
 fn fit_viewport(
     drawing: &gtk::DrawingArea,
     hits: &gtk::Fixed,
@@ -311,7 +341,7 @@ fn fit_viewport(
     let width = f64::from(drawing.width());
     if width > 0.0 {
         let scene = scene.borrow().clone();
-        rebuild_hits(hits, &scene, width, sender);
+        rebuild_hits(hits, &scene, width, sender, Surface::Hours);
     }
     drawing.queue_draw();
 }
@@ -330,101 +360,6 @@ fn request_height(drawing: &gtk::DrawingArea, hits: &gtk::Fixed, height: i32) {
     gtk::glib::idle_add_local_once(move || {
         drawing.set_content_height(height);
         hits.set_size_request(-1, height);
-    });
-}
-
-fn rebuild_hits(
-    fixed: &gtk::Fixed,
-    scene: &GridScene,
-    width: f64,
-    sender: &relm4::Sender<AppInput>,
-) {
-    rebuild_hits_with(fixed, scene, width, sender, semantic_nodes_active());
-}
-
-fn rebuild_hits_with(
-    fixed: &gtk::Fixed,
-    scene: &GridScene,
-    width: f64,
-    sender: &relm4::Sender<AppInput>,
-    semantic: bool,
-) {
-    while let Some(child) = fixed.first_child() {
-        fixed.remove(&child);
-    }
-    if !semantic {
-        return;
-    }
-    if let Some(status) = scene.semantic_status() {
-        append_loading_node(fixed, width, &status);
-        return;
-    }
-    for hit in scene.geometry(width).hits {
-        let button = gtk::Button::new();
-        button.add_css_class("calendar-hit-target");
-        // Keyboard-reachable, but never focused *by the click itself*. Opening an event rebuilds
-        // this overlay, which destroys the button the click landed on; GTK then moves focus off
-        // the dying widget and the scrolled window animates to reveal whatever inherits it,
-        // the first target, at the top of the day. The reader was hours further down.
-        button.set_focus_on_click(false);
-        button.set_tooltip_text(Some(&hit.spoken));
-        button.update_property(&[AccessibleProperty::Label(&hit.spoken)]);
-        button.set_size_request(
-            pixel_size(hit.rect.width.max(1.0).round()),
-            pixel_size(hit.rect.height.max(1.0).round()),
-        );
-        let input = sender.clone();
-        if let Some(identity) = hit.identity {
-            button.connect_clicked(move |_| {
-                input.emit(AppInput::OpenCalendarEvent(identity.clone()));
-            });
-        } else {
-            button.connect_clicked(move |_| input.emit(AppInput::ToggleAllDay));
-        }
-        fixed.put(&button, hit.rect.x, hit.rect.y);
-    }
-}
-
-fn semantic_nodes_active() -> bool {
-    semantic_nodes_enabled(
-        gtk::gio::Settings::new("org.gnome.desktop.interface").boolean("toolkit-accessibility"),
-        std::env::var("GTK_A11Y").ok().as_deref(),
-    )
-}
-
-fn semantic_nodes_enabled(toolkit_accessibility: bool, requested_backend: Option<&str>) -> bool {
-    toolkit_accessibility
-        || requested_backend.is_some_and(|value| value.eq_ignore_ascii_case("atspi"))
-}
-
-fn append_loading_node(fixed: &gtk::Fixed, width: f64, status: &str) {
-    let loading = gtk::Label::new(Some(status));
-    loading.add_css_class("calendar-loading-target");
-    loading.update_property(&[AccessibleProperty::Label(status)]);
-    loading.set_size_request(pixel_size((width - GUTTER).max(1.0)), 48);
-    fixed.put(&loading, GUTTER, HEADING_HEIGHT);
-}
-
-/// Calendar geometry is bounded to a few thousand pixels; clamp before the GTK integer boundary.
-#[allow(clippy::cast_possible_truncation)]
-fn pixel_size(value: f64) -> i32 {
-    value.clamp(1.0, f64::from(i32::MAX)).round() as i32
-}
-
-fn install_hit_target_css() {
-    static INSTALLED: std::sync::Once = std::sync::Once::new();
-    INSTALLED.call_once(|| {
-        let provider = gtk::CssProvider::new();
-        provider.load_from_string(
-            ".calendar-hit-target { background: transparent; color: transparent; border-color: transparent; box-shadow: none; padding: 0; min-width: 0; min-height: 0; } .calendar-loading-target { color: transparent; }",
-        );
-        if let Some(display) = gtk::gdk::Display::default() {
-            gtk::style_context_add_provider_for_display(
-                &display,
-                &provider,
-                gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-            );
-        }
     });
 }
 

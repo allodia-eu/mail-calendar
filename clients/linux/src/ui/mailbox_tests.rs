@@ -221,6 +221,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::calendar::widget_tests::a_grid_shown_for_the_first_time_scrolls_and_frames_itself();
     crate::ui::calendar::widget_tests::a_resized_window_keeps_the_hour_the_reader_was_looking_at();
     crate::ui::calendar::widget_tests::a_scroll_repaints_the_hours_it_reveals();
+    crate::ui::calendar::widget_tests::the_day_names_stay_on_screen_when_the_hours_scroll();
     crate::ui::calendar::dialog_tests::neither_series_question_states_its_title_twice();
     crate::ui::calendar::dialog_tests::the_editor_never_pre_empts_the_scope_question();
     crate::ui::reading::attachment_tests::the_reading_header_formats_its_timestamp();

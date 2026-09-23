@@ -1570,9 +1570,11 @@ puts it back by hand. On macOS a two-finger trackpad scroll and a mouse wheel bo
 a finger does it. The day axis is no longer this row's business on macOS, iOS or Windows: it belongs
 to the strip (note ⁴), which has no end to clamp against.
 
-**Linux's ✅ is its scroll view's.** The surface's root is a `gtk::ScrolledWindow`, so a wheel or
-two-finger scroll moves the hours with no code of ours, and `set_hscrollbar_policy(Never)` is what
-pins the days.
+**Linux's ✅ is its scroll view's.** The hours are a `gtk::ScrolledWindow`, so a wheel or two-finger
+scroll moves them with no code of ours, and `set_hscrollbar_policy(Never)` is what pins the days.
+The day names and the all-day banner are a second surface above it that does not scroll, so they
+stay on screen at every hour; both measure their columns from the hours' width, because a
+scrollbar that takes room beside the hours takes none beside the header.
 
 ⁸ **The three participation rows, and why only one of them is ✅ everywhere.** §4 owns the semantics;
 the full contract is [`invitations.md`](invitations.md). *Declined-hiding* is applied in the core's
