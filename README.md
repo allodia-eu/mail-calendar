@@ -120,8 +120,14 @@ built-in showcase data, not a real mailbox.
 |---|---|---|---|
 | ![The inbox on iPhone](docs/images/screenshots/iphone/list.webp) | ![An invitation on iPhone](docs/images/screenshots/iphone/invitation.webp) | ![The calendar on iPhone](docs/images/screenshots/iphone/calendar.webp) | ![The inbox on iPhone, dark](docs/images/screenshots/iphone/list-dark.webp) |
 
-### Android
+### Android phone
 
 | The inbox | An invitation | The calendar | Dark appearance |
 |---|---|---|---|
-| ![The inbox on Android](docs/images/screenshots/android/list.webp) | ![An invitation on Android](docs/images/screenshots/android/invitation.webp) | ![The calendar on Android](docs/images/screenshots/android/calendar.webp) | ![The inbox on Android, dark](docs/images/screenshots/android/list-dark.webp) |
+| ![The inbox on an Android phone](docs/images/screenshots/android-phone/list.webp) | ![An invitation on an Android phone](docs/images/screenshots/android-phone/invitation.webp) | ![The calendar on an Android phone](docs/images/screenshots/android-phone/calendar.webp) | ![The inbox on an Android phone, dark](docs/images/screenshots/android-phone/list-dark.webp) |
+
+### Android tablet
+
+| The inbox | An invitation | The calendar | Dark appearance |
+|---|---|---|---|
+| ![The inbox on an Android tablet](docs/images/screenshots/android-tablet/list.webp) | ![An invitation on an Android tablet](docs/images/screenshots/android-tablet/invitation.webp) | ![The calendar on an Android tablet](docs/images/screenshots/android-tablet/calendar.webp) | ![The inbox on an Android tablet, dark](docs/images/screenshots/android-tablet/list-dark.webp) |
