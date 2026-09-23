@@ -40,6 +40,21 @@ fn only_https_urls_are_followed() {
 }
 
 #[test]
+fn a_url_is_passed_on_as_the_server_wrote_it() {
+    // The resource a server publishes goes back to it as the RFC 8707 `resource`, and a server
+    // may compare that as a string: `https://mail.example.com/` is not the
+    // `https://mail.example.com` it published, and it answers `invalid_target`.
+    assert_eq!(
+        require_https("https://mail.example.com").unwrap(),
+        "https://mail.example.com"
+    );
+    assert_eq!(
+        require_https("http://localhost:28081").unwrap(),
+        "http://localhost:28081"
+    );
+}
+
+#[test]
 fn the_well_known_path_is_inserted_before_the_issuer_path_not_appended() {
     // RFC 8414 §3.1. Getting this backwards silently 404s on every tenant-scoped issuer and
     // looks like "the server doesn't support discovery".

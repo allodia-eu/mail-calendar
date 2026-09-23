@@ -39,13 +39,14 @@ optional OAuth sign-in, and secure storage of the resulting config.
    - **It fails soft, always.** Any step failing means "this server doesn't do this": the
      password/API-token field is still there and still works. It is never a dead end, and the
      specific cause goes to the diagnostic log rather than to the user.
-   - **Every discovery hop must be HTTPS**, the metadata's `issuer` must match the issuer we
-     asked about (RFC 8414 §3.3), and the server must advertise **S256** PKCE. Any of these
-     failing declines the flow rather than running a weaker one.
+   - **Every discovery hop must be HTTPS** (loopback excepted: it has no hop to read, RFC 8252
+     §7.3), the metadata's `issuer` must match the issuer we asked about (RFC 8414 §3.3), and
+     the server must advertise **S256** PKCE. Any of these failing declines the flow rather
+     than running a weaker one.
    - **We request only the capabilities we use:** `offline_access` plus the advertised
-     scopes whose last segment is `mail`/`calendar`/`calendars`. Never the whole
-     `scopes_supported` list; a consent screen asking for contacts or admin we never exercise
-     is a user-visible harm.
+     scopes whose last segment is `mail`/`calendar`/`calendars`/`contacts`. Never the whole
+     `scopes_supported` list; a consent screen asking for admin or anything else we never
+     exercise is a user-visible harm.
    - **Discovery runs once.** The endpoints, the registered `client_id`, and the refresh
      token are persisted with the account, so a launch re-registers nothing, **and neither does
      a re-authentication** (rule 8).

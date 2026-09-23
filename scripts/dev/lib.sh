@@ -56,6 +56,7 @@ adb_bin() {
 # header; the numbers here have to agree with it.
 STALWART_DIR="$REPO_ROOT/docker/stalwart"
 STALWART_HTTP_ADDR="127.0.0.1:28080"
+STALWART_OAUTH_HTTP_ADDR="localhost:28081" # the sign-in server; `localhost` is part of its issuer
 STALWART_IMAP_ADDR="127.0.0.1:12993"      # implicit-TLS IMAP (harness.sh deliver appends here)
 STALWART_ALICE_PW="harness-alice-pw"      # the seeded alice@test.local password (a fixture, not a secret)
 # The extracted harness IMAP cert (self-signed, SAN=localhost) a dev build trusts via
@@ -373,7 +374,7 @@ emulator_shutdown() { # <serial>
 harness_healthy() {
   command -v docker >/dev/null 2>&1 || return 1
   local status
-  status="$(cd "$STALWART_DIR" && docker compose ps --format '{{.Health}}' 2>/dev/null | head -1)"
+  status="$(cd "$STALWART_DIR" && docker compose ps stalwart --format '{{.Health}}' 2>/dev/null)"
   [[ "$status" == "healthy" ]]
 }
 

@@ -15,8 +15,8 @@
 # but recommends implicit TLS (993/465), so a fresh bootstrap does not create them;
 # we add them to exercise the engine's STARTTLS transports end-to-end.
 #
-# Determinism: the image is pinned by sha256 digest and the whole setup is driven
-# from fixed inputs. Start from a clean slate with `docker compose down -v`
+# Determinism: both images in ./Dockerfile are pinned by sha256 digest and the whole
+# setup is driven from fixed inputs. Start from a clean slate with `docker compose down -v`
 # before `up` (CI always does).
 #
 # ⚠️ THE PROJECT NAME AND EVERY HOST PORT MUST DIFFER FROM THE ENGINE REPO'S HARNESS.
@@ -37,9 +37,10 @@ name: mailcal-core-harness
 
 services:
   stalwart:
-    # stalwartlabs/stalwart v0.16.8, pinned by multi-arch digest (linux/amd64 +
-    # linux/arm64). Bump deliberately: re-resolve the digest and update CI too.
-    image: stalwartlabs/stalwart:v0.16.8@sha256:154dc1f2895ba8d319817fb37c3c26bac3f3e36e2eb338edcf789a79717a5d49
+    # Stalwart plus its CLI, pinned in ./Dockerfile. `pull_policy: build` rebuilds on every `up`
+    # (from cache, in seconds), so a bumped pin is never answered by a stale local image.
+    build: .
+    pull_policy: build
     # Self-bootstrapping wrapper: bootstrap via API, restart to full server,
     # create accounts, seed, then run the server in the foreground.
     entrypoint: ["/bin/sh", "/harness/entrypoint.sh"]
@@ -49,8 +50,6 @@ services:
       STALWART_RECOVERY_ADMIN: "admin:harness-admin-pw"
       STALWART_HOSTNAME: "mail.test.local"
       HARNESS_ADMIN_PW: "harness-admin-pw"
-      HARNESS_ALICE_PW: "harness-alice-pw"
-      HARNESS_BOB_PW: "harness-bob-pw"
       # Dev-only bulk seed: SEED_BULK=1 (e.g. `scripts/dev/harness.sh up --bulk`) seeds
       # SEED_BULK_COUNT extra varied messages into dev-only folders for a fuller, real-feeling
       # mailbox. Default 0 keeps CI's dataset the deterministic fixture above.
@@ -87,6 +86,47 @@ services:
       retries: 80
       start_period: 10s
 
+  # The sign-in server: a second Stalwart whose public URL is its own loopback origin, so the
+  # OAuth discovery it publishes (RFC 9728, RFC 8414) names an issuer this host can reach, and a
+  # live test can run the product's JMAP sign-in end to end (crates/mailcal-bindings/tests/
+  # live_jmap_oauth.rs).
+  #
+  # It is a separate server because a reachable issuer changes what every client's setup form
+  # offers (docs/jmap.md rule 3). The main service above publishes `https://mail.test.local`,
+  # which no host resolves, so its pre-flight answers no and the clients' form tests keep the
+  # password flow they are written against.
+  #
+  # The hostname has to be `localhost` as well: Stalwart accepts an RFC 8707 resource indicator
+  # only when its host is the server's own hostname, and the resource it publishes is the public
+  # URL. Alice only, nothing seeded.
+  stalwart-oauth:
+    build: .
+    pull_policy: build
+    entrypoint: ["/bin/sh", "/harness/entrypoint.sh"]
+    environment:
+      STALWART_RECOVERY_ADMIN: "admin:harness-admin-pw"
+      STALWART_HOSTNAME: "localhost"
+      STALWART_PUBLIC_URL: "http://localhost:28081"
+      HARNESS_ADMIN_PW: "harness-admin-pw"
+      HARNESS_SEED: "0"
+    volumes:
+      - ./entrypoint.sh:/harness/entrypoint.sh:ro
+      - stalwart-oauth-etc:/etc/stalwart
+      - stalwart-oauth-data:/var/lib/stalwart
+    ports:
+      # The host port is part of the issuer above, so the two change together.
+      - "127.0.0.1:28081:8080" # HTTP: JMAP + OAuth
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -f /var/lib/stalwart/.harness-ready && curl -fsS http://127.0.0.1:8080/healthz/live >/dev/null || exit 1
+      interval: 3s
+      timeout: 5s
+      retries: 80
+      start_period: 10s
+
 volumes:
   stalwart-etc:
   stalwart-data:
+  stalwart-oauth-etc:
+  stalwart-oauth-data:
