@@ -92,15 +92,18 @@ class AccountVaultTest {
     }
 
     @Test
-    fun aLegacyStoreThatCannotBeReadIsKeptForTheNextLaunch() {
+    fun aLegacyStoreThatCannotBeReadIsGivenUpOnOnce() {
         legacy.accounts = listOf(StoredAccount("a", "config-a"))
         legacy.failRead = true
 
-        runCatching { vault().accounts() }
-        assertTrue(legacy.exists())
+        assertEquals(emptyList<StoredAccount>(), vault().accounts())
+        assertFalse(legacy.exists())
+        assertEquals(1, discarded.size)
 
-        legacy.failRead = false
-        assertEquals(listOf("a"), vault().accounts().map { it.id })
+        // The app starts clean and a new account is stored as on a first run.
+        vault().save("b", "config-b")
+        assertEquals(listOf("b"), vault().accounts().map { it.id })
+        assertEquals(1, discarded.size)
     }
 
     @Test

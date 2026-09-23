@@ -34,6 +34,8 @@ internal object SecureStore {
         prefs = context.getSharedPreferences(VAULT_FILE, Context.MODE_PRIVATE),
         sealer = KeystoreSealer,
         legacy = LegacySecureStore(context),
-        onDiscard = { reason -> logUiWarn("secure store: discarded an unreadable account vault: $reason") },
+        onDiscard = { reason ->
+            logUiWarn("secure store: discarded stored accounts it cannot read: $reason")
+        },
     )
 }
