@@ -162,7 +162,7 @@ private fun WebView.focusEditorAndShowKeyboard() {
     post {
         if (requestFocus()) {
             context.getSystemService(InputMethodManager::class.java)
-                ?.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+                ?.showSoftInput(this, 0)
         }
     }
 }

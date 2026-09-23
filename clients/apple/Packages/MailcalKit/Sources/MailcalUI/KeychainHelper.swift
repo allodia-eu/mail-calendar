@@ -6,8 +6,8 @@
 // item ("account-index") holding the ordered ids, so the switcher keeps add-order and an
 // account can be added, replaced, or removed on its own. This is the per-account model behind
 // account management (removing an individual account), matching Windows' Credential Manager
-// store (../windows/Mailcal/Services/CredentialStore.cs) and Android's
-// EncryptedSharedPreferences (../android/.../SecureStore.kt). No size chunking here, unlike
+// store (../windows/Mailcal/Services/CredentialStore.cs) and Android's Keystore-sealed vault
+// (../android/.../SecureStore.kt). No size chunking here, unlike
 // Windows' 2560-byte per-credential cap, the Keychain holds a large refresh-token config in one
 // item. Split out so the Security-framework glue stays isolated.
 

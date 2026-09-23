@@ -1,17 +1,16 @@
 // Secure credential storage for Windows: every account's config (TOML, the password for IMAP,
 // the refresh token for Microsoft 365) is kept in the Windows Credential Manager (the OS secure
 // store), the Windows counterpart of macOS's Keychain (KeychainHelper.swift) and Android's
-// EncryptedSharedPreferences (SecureStore.kt).
+// Keystore-sealed vault (SecureStore.kt).
 //
 // Layout: ONE credential per account (target "eu.allodia.mailcal:account:<id>"), plus a small
 // index credential ("…:account-index") holding the ordered ids, so the switcher keeps add-order
 // and an account can be added, replaced, or (later) removed on its own. This is the foundation
 // for per-account removal in the UI.
 //
-// All three clients now use this per-account layout (macOS's Keychain, KeychainHelper.swift,
-// and Android's EncryptedSharedPreferences, SecureStore.kt, each keep one entry per account
-// under an ordered index too). Windows is the only store with a hard per-entry size cap, so it
-// alone self-chunks a large entry (see below); the other two store each config in one item.
+// macOS's Keychain (KeychainHelper.swift) keeps the same layout; Android (SecureStore.kt) seals
+// every account into one ordered document instead. Windows is the only store with a hard
+// per-entry size cap, so it alone self-chunks a large entry (see below).
 //
 // Windows caps one credential's blob at CRED_MAX_CREDENTIAL_BLOB_SIZE (2560 bytes), and a single
 // Microsoft refresh-token config can exceed that (tokens vary; CAE/claims/many-scopes push them

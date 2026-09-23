@@ -237,8 +237,9 @@ internal fun EventEditorScreen(
                 // Only when the answer is settled. An editor opened on one occurrence asks at
                 // Save which occurrences were meant, so stating the answer up here would tell
                 // the user something the next dialog contradicts.
-                if (editor.editing?.isRecurring == true && !editor.asksAboutTheSeries &&
-                    editor.editing?.occurrence?.isEmpty() == true
+                val editing = editor.editing
+                if (editing?.isRecurring == true && !editor.asksAboutTheSeries &&
+                    editing.occurrence.isEmpty()
                 ) {
                     Text(
                         text = L10n.event_series_note(ctx),
@@ -334,7 +335,7 @@ private fun CalendarField(
     val ctx = LocalContext.current
     val dark = LocalAppDark.current
     val choice = editor.calendar
-    val row = calendars.firstOrNull { it.account == choice?.account && it.id == choice?.id }
+    val row = choice?.let { c -> calendars.firstOrNull { it.account == c.account && it.id == c.id } }
     val name = row?.name ?: choice?.name.orEmpty()
     Row(
         modifier = Modifier

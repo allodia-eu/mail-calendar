@@ -54,7 +54,7 @@ optional OAuth sign-in, and secure storage of the resulting config.
    secret, or, for an OAuth account, the `[jmap.oauth]` grant (client id, endpoints, refresh
    token) and **no** long-lived password, and redacts it in logs, exactly like a password
    IMAP config. Storage is the same OS secure store as every other account (Keychain /
-   Credential Manager / EncryptedSharedPreferences): the config is provider-agnostic TOML
+   Credential Manager / Android Keystore): the config is provider-agnostic TOML
    keyed by account id. Every core takes the host's
    `AccountCredentialStore` **at construction** (there is no setter to forget) because a
    **rotated** refresh token that reaches no store leaves the account dead at the next launch,
@@ -195,7 +195,7 @@ and a provider JMAP account's **calendar**.
 
 macOS is the first client of the tab itself (the setup form's **JMAP** tab: email, one secret,
 optional server); **Android** ships the same tab, storing the secret via
-EncryptedSharedPreferences over an Android-Keystore master key. **Windows** now ships it too: the
+a vault sealed under an Android Keystore key. **Windows** now ships it too: the
 same **JMAP** tab in `AccountSetupView`, reusing the same core + FFI
 (`jmap_account_config_toml` → `add_account`) and storing the secret in the Windows Credential
 Manager. It adds only the setup fields and secure storage, since the core owns the whole JMAP path.

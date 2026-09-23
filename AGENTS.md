@@ -455,6 +455,13 @@ were broken right now, would this tell me?*
   does not reach the package, whose targets each state `.treatAllWarnings(as: .error)` in
   [`Package.swift`](clients/apple/Packages/MailcalKit/Package.swift). `MailcalBindings` opts out
   for the reason `mailcal-bindings` does above: the sources are UniFFI's, not ours to fix.
+- **Kotlin warnings are hard errors too**, in the Android app and its tests (`allWarningsAsErrors`
+  in [`app/build.gradle.kts`](clients/android/app/build.gradle.kts)), and
+  `org.gradle.warning.mode=fail` in [`gradle.properties`](clients/android/gradle.properties) does
+  the same for a Gradle deprecation. The generated UniFFI binding gets one file-level suppression
+  from the task that generates it. ⚠️ Gradle's console lists only the first fifteen compiler
+  problems of a build and says nothing about the rest; the whole list is in
+  `clients/android/build/reports/problems/problems-report.html`.
 - **The Rust toolchain is pinned** in [`rust-toolchain.toml`](rust-toolchain.toml), which CI parses
   too. Bumping it is a **standalone PR**: a new stable that adds a default-warn lint turns the build
   red, and that PR is where it gets fixed.

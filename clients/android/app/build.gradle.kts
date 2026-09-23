@@ -218,6 +218,12 @@ android {
     // "green on my machine" means nothing.
     kotlin {
         jvmToolchain(17)
+        // Every Kotlin warning is an error, in the app and its tests alike, as Swift's are
+        // (clients/apple/project.yml). A deprecation that has to stay, such as a fallback for a
+        // device too old for its replacement, is suppressed where it is used, with the reason.
+        compilerOptions {
+            allWarningsAsErrors = true
+        }
     }
 
     buildFeatures {
@@ -328,10 +334,26 @@ val generateUniffiBindings = tasks.register<Exec>("generateUniffiBindings") {
         cargoExecutable, "run", "--quiet", "-p", "mailcal-bindgen-uniffi", "--",
         "generate", "--library", hostCdylib.absolutePath,
         "--language", "kotlin", "--out-dir", "clients/android/app/src/main/java",
+        // ktlint is not a prerequisite of this build, and without it the generator prints a
+        // warning on every run. The file is generated, so nobody reads its formatting.
+        "--no-format",
     )
     inputs.file(hostCdylib)
     // Only the generated package is an output, the rest of src/main/java is hand-written.
     outputs.dir(layout.projectDirectory.dir("src/main/java/uniffi"))
+
+    // The binding touches two objects as bare statements to force their initialisation, which
+    // Kotlin reports as unused expressions, and every warning here is an error. The sources are
+    // UniFFI's, not ours to fix, so that one diagnostic is suppressed in that one file. Kotlin
+    // allows a single `@file:Suppress`, so it joins the one the generator already writes, and a
+    // generator that stops writing it fails here rather than as a compile error elsewhere.
+    val binding = layout.projectDirectory.file("src/main/java/uniffi/mailcal_bindings/mailcal_bindings.kt").asFile
+    doLast {
+        val generated = "@file:Suppress(\"NAME_SHADOWING\")"
+        val source = binding.readText()
+        check(generated in source) { "${binding.name} no longer carries `$generated`; update this task" }
+        binding.writeText(source.replace(generated, "@file:Suppress(\"NAME_SHADOWING\", \"UNUSED_EXPRESSION\")"))
+    }
 }
 
 val generateL10n = tasks.register<Exec>("generateL10n") {
@@ -468,8 +490,8 @@ dependencies {
     // below API 33; MainActivity extends AppCompatActivity so the picker can apply locales.
     implementation("androidx.appcompat:appcompat:1.8.0")
 
-    // The account config (endpoints + credentials) is held in the OS secure store
-    // (EncryptedSharedPreferences over an AES256-GCM master key), not a plaintext file.
+    // Read once, by LegacySecureStore, to move accounts stored by an earlier release into the
+    // Keystore-sealed AccountVault. The library is deprecated as a whole; nothing else uses it.
     implementation("androidx.security:security-crypto:1.1.0")
 
     // UniFFI's generated Kotlin bindings call into the cdylib through JNA. The @aar
