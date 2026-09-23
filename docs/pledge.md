@@ -153,6 +153,7 @@ Every paid service has a free counterpart in the open build, so promise 4 stays 
 |---|---|
 | Real-time push on mobile (an Allodia relay wakes the device; the signal is content-free) | Local background sync, always on ([`background-sync.md`](background-sync.md)) |
 | Send-later on providers whose protocol lacks it | JMAP-native `sendAt`; best-effort client-side scheduling |
+| Your settings kept the same on every device (an Allodia vault holds them, and holds only ciphertext) | Every setting on each device, from the full Settings surface; your list of mail accounts on every device, which is on the free list above and stays there |
 | Hosted AI, when it ships (metered per the suite entitlement model) | The local MCP server; the AI posture beyond that is decided when AI lands, within these promises |
 
 The business tier adds centralized deployment and administration, CRM/ERP integrations, and support
