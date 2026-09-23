@@ -13,6 +13,10 @@
 #   4. seed mail (IMAP over TLS) + calendars (CalDAV over plain HTTP),
 #   5. write a readiness marker and run the server in the foreground.
 #
+# HARNESS_SEED=0 stops after step 3 and creates alice only: the sign-in server
+# (`stalwart-oauth` in docker-compose.yml) needs an account to sign in as and
+# nothing to read.
+#
 # It is idempotent: on a re-run against an already-bootstrapped data volume it
 # skips bootstrap and skips existing accounts, and the content seeder clears
 # before it appends. See docs/agent-guidance/stalwart-harness.md.
@@ -118,7 +122,9 @@ wait_http
 
 if in_bootstrap_mode; then
   log "completing first-run bootstrap (internal directory, no ACME/auto-TLS)"
-  jmap '["x:Bootstrap/set",{"update":{"singleton":{"requestTlsCertificate":false,"generateDkimKeys":false}}},"c0"]' >/dev/null
+  # The mail domain is stated rather than derived: Stalwart derives it from the hostname, and the
+  # sign-in server's hostname is `localhost`, which derives to `example.org`.
+  jmap '["x:Bootstrap/set",{"update":{"singleton":{"defaultDomain":"test.local","requestTlsCertificate":false,"generateDkimKeys":false}}},"c0"]' >/dev/null
   log "restarting into full server"
   stop_server
   start_server
@@ -135,6 +141,14 @@ DOMAIN_ID="$(domain_id)"
 log "default domain id: $DOMAIN_ID"
 
 ensure_account alice "Alice Tester" "${HARNESS_ALICE_PW:-harness-alice-pw}"
+
+if [ "${HARNESS_SEED:-1}" = 0 ]; then
+  touch "$MARKER"
+  log "harness ready (accounts only, no seed)"
+  wait "$SRV"
+  exit 0
+fi
+
 ensure_account bob "Bob Tester" "${HARNESS_BOB_PW:-harness-bob-pw}"
 
 # STARTTLS listeners for the IMAP (143) and SMTP submission (587) transports the engine

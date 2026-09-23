@@ -13,9 +13,9 @@ throwaway credentials and never holds real data.
 
 ## Run it
 
-One self-bootstrapping service. It completes Stalwart v0.16's first-run setup
-through the management API, creates the accounts, and seeds the dataset inside
-its entrypoint, then reports healthy once seeding is done:
+One self-bootstrapping service, plus the unseeded [sign-in server](#the-sign-in-server). It
+completes Stalwart v0.16's first-run setup through the management API, creates the accounts, and
+seeds the dataset inside its entrypoint, then reports healthy once seeding is done:
 
 ```sh
 cd docker/stalwart
@@ -110,6 +110,7 @@ Windows, and the Android emulator (see [`../../docs/debugging.md`](../../docs/de
 | SMTP submission               | 587       | `12587` | STARTTLS (self-signed), entrypoint-provisioned |
 | IMAP                          | 993       | `12993` | implicit TLS (self-signed) |
 | IMAP                          | 143       | `12143` | STARTTLS (self-signed), entrypoint-provisioned |
+| HTTP: JMAP + OAuth (`stalwart-oauth`) | 8080 | `28081` | plaintext, reached as `localhost` |
 
 ### Why these are not the engine's numbers
 
@@ -131,6 +132,23 @@ So: **`11xxx` is the engine, `12xxx` is this repo**; HTTP is `18080` there and `
 the four clients' injected dev account:
 [`cargo xtask check-dev-account`](../../xtask/src/dev_account.rs) fails the build if those drift
 apart, so changing one means changing all of them.
+
+## The sign-in server
+
+`stalwart-oauth` is a second, unseeded Stalwart holding alice alone. It exists so
+[`live_jmap_oauth.rs`](../../crates/mailcal-bindings/tests/live_jmap_oauth.rs) can run a JMAP
+account's "Sign in with your provider" end to end: discovery (RFC 9728, RFC 8414), dynamic
+registration (RFC 7591), the PKCE code exchange and a connect on the grant.
+
+Stalwart publishes its public URL as the OAuth issuer and resource. The main service's is
+`https://mail.test.local`, which resolves nowhere, so its sign-in pre-flight answers no and every
+client's setup form shows it the password flow its tests are written against. Here
+`STALWART_PUBLIC_URL` is `http://localhost:28081`, so the issuer is reachable, and the hostname is
+`localhost` too, because Stalwart accepts a resource indicator only for its own hostname. Change
+the host port and the public URL together.
+
+The test signs in on the login page by posting that page's own form to `/api/auth`. It is
+Stalwart's web UI API rather than a standard, so a bump that moves it fails at that step, by name.
 
 ## Seeded accounts
 

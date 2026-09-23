@@ -10,7 +10,7 @@
 #                                        # clearing this host's client dev stores with it
 #   scripts/dev/harness.sh status        # health + host port table
 #   scripts/dev/harness.sh logs [-f]     # the server's own logs (seeding, requests)
-#   scripts/dev/harness.sh test          # run the gated JMAP live test against it
+#   scripts/dev/harness.sh test          # run the gated JMAP live tests against it
 #   scripts/dev/harness.sh deliver [--from B] [--subject S]
 #                                        # drop a fresh message into alice@test.local's INBOX (via
 #                                        # IMAP APPEND) so a background-sync 'detect' pass has new
@@ -100,6 +100,7 @@ Host ports (loopback only): the 12xxx/28080 block, kept clear of the engine repo
   JMAP + CalDAV + admin  http://127.0.0.1:28080
   SMTP (plaintext)       127.0.0.1:12025
   IMAP (implicit TLS)    127.0.0.1:12993
+  JMAP sign-in (OAuth)   http://localhost:28081   (stalwart-oauth: alice only, nothing seeded)
 
 Seeded account: alice@test.local / harness-alice-pw   (also bob@test.local, admin)
 EOF
@@ -136,12 +137,15 @@ case "$cmd" in
     ;;
   test)
     require_harness
-    info "running the gated JMAP live test against the harness"
+    info "running the gated JMAP live tests against the harness"
     cd "$REPO_ROOT"
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
       STALWART_ACCOUNT="alice@test.local" \
       STALWART_PASSWORD="harness-alice-pw" \
       cargo test -p mailcal-account --test live_jmap -- --nocapture
+    STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
+      STALWART_OAUTH_HTTP_ADDR="$STALWART_OAUTH_HTTP_ADDR" \
+      cargo test -p mailcal-bindings --test live_jmap_oauth -- --nocapture
     ;;
   deliver)
     require_harness

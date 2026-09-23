@@ -91,7 +91,7 @@ struct RegistrationResponse {
 /// Always includes `offline_access` (no refresh token, no account an hour later). Beyond
 /// that it requests **only** the advertised scopes whose last segment names a capability we
 /// actually use; never the whole `scopes_supported` list, which on a real server includes
-/// contacts, admin and other grants we have no business holding.
+/// admin and other grants we have no business holding.
 ///
 /// A server that advertises no scopes at all gets `offline_access` alone and is left to apply
 /// its own default grant, which is the RFC 6749 §3.3 behaviour.

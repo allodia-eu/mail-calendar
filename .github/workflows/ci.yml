@@ -398,6 +398,15 @@ jobs:
           STALWART_PASSWORD: harness-alice-pw
         run: cargo test -p mailcal-account --test live_jmap -- --nocapture
 
+      # "Sign in with your provider" for a JMAP account, against the harness's sign-in server:
+      # discovery, registration, the code exchange and a connect on the grant. The seeded server
+      # is asserted to offer no sign-in, which is what the clients' setup-form tests rely on.
+      - name: Run the gated JMAP sign-in live test
+        env:
+          STALWART_OAUTH_HTTP_ADDR: localhost:28081
+          STALWART_HTTP_ADDR: 127.0.0.1:28080
+        run: cargo test -p mailcal-bindings --test live_jmap_oauth -- --nocapture
+
       - name: Dump Stalwart logs on failure
         if: failure()
         working-directory: docker/stalwart
