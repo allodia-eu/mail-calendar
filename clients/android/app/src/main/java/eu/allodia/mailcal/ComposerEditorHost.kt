@@ -21,6 +21,23 @@ internal fun WebView.setComposerSignature(body: SignatureBody?) {
     evaluateJavascript("window.setComposerSignature($argument)", null)
 }
 
+// A drafted reply into the editor, above the signature and the quote (docs/ai.md). Both arguments
+// go in as JSON string literals: the draft is a model's text and may hold anything.
+internal fun composerDraftTextScript(text: String, draftId: String): String =
+    "window.setComposerDraftText(${JSONObject.quote(text)}, ${JSONObject.quote(draftId)})"
+
+internal fun webViewDraftEditor(webView: () -> WebView?): DraftEditor = object : DraftEditor {
+    // An editor that has not loaded holds nothing a draft could replace.
+    override fun leadHasText(answer: (Boolean) -> Unit) {
+        val view = webView() ?: return answer(false)
+        view.evaluateJavascript("window.composerLeadHasText()") { answer(it == "true") }
+    }
+
+    override fun insert(text: String, draftId: String) {
+        webView()?.evaluateJavascript(composerDraftTextScript(text, draftId), null)
+    }
+}
+
 // Shows a picture at the caret. The shared editor records the inline attachment behind it and
 // carries the bytes in the document, so the core can turn it into the `cid:` part the sent body
 // points at; the same path a pasted screenshot takes, so a dropped and a pasted picture cannot

@@ -60,7 +60,7 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // The composer's quiet "saved" hint. Nothing draws it yet; the composer has
         // neither an idle timer nor a Save button (docs/drafts.md, Known gaps).
         CoreSurface.DRAFT_STATUS -> {}
-        // Writing style has no screen on Android yet (docs/ai.md, per-platform matrix).
-        CoreSurface.WRITING_STYLE -> {}
+        // The library, an assignment, where requests go, a run's progress or the credits.
+        CoreSurface.WRITING_STYLE -> pullWritingStyle(app)
     }
 }

@@ -13,11 +13,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AccountRow
+import uniffi.mailcal_bindings.AiRoute
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.AllodiaPlan
@@ -71,6 +73,7 @@ internal fun CategoryDetail(
     onUpdateSignature: (id: String, name: String, bodyHtml: String, bodyPlain: String) -> Unit,
     onDeleteSignature: (String) -> Unit,
     onSetAccountSignature: (account: String, slot: SignatureSlotKind, signature: String?) -> Unit,
+    writingStyle: WritingStyleSettings,
     about: AboutInfo,
     analyticsEnabled: Boolean,
     onSetAnalytics: (Boolean) -> Unit,
@@ -224,6 +227,10 @@ internal fun CategoryDetail(
             }
         }
 
+        // Writing style, the learned styles and each account's, beside Signatures because it is the
+        // same kind of thing (SettingsWritingStyle.kt).
+        SettingsCategory.WRITING_STYLE -> WritingStyleCategory(writingStyle, timeZone?.active)
+
         // Notifications, the new-mail toggle + the battery-exemption card (SettingsNotifications.kt).
         SettingsCategory.NOTIFICATIONS -> NotificationsSettings()
 
@@ -250,6 +257,14 @@ internal fun CategoryDetail(
                 onAllodiaManage,
                 onAllodiaSignOut,
             )
+            // The credits the relay last reported, asked for afresh whenever this screen opens.
+            LaunchedEffect(Unit) {
+                if (writingStyle.snapshot?.route == AiRoute.RELAY) writingStyle.actions.refreshBalance()
+            }
+            val balance = writingStyle.snapshot?.balance
+            if (allodia.account != null && balance != null) {
+                WritingStyleCreditsLine(balance, timeZone?.active)
+            }
             // The subscription belongs to the account above it, so it is drawn under that card
             // and only once there is one to draw it for.
             if (allodia.account != null) {
@@ -305,7 +320,8 @@ internal fun CategoryDetail(
             }
         }
 
-        // Advanced, reset the local cache (destructive; confirmed by the dialog in SettingsScreen).
+        // Advanced, reset the local cache (destructive; confirmed by the dialog in SettingsScreen),
+        // then the own AI endpoint, on every platform (SettingsOwnAiEndpoint.kt).
         SettingsCategory.ADVANCED -> {
             SettingsGroupCard(L10n.action_reset_database(ctx), L10n.settings_advanced_reset_description(ctx)) {
                 TextButton(
@@ -315,6 +331,12 @@ internal fun CategoryDetail(
                     Text(L10n.action_reset_database(ctx))
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            OwnAiEndpointCard(
+                endpoint = writingStyle.ownEndpoint,
+                onSave = writingStyle.actions::saveEndpoint,
+                onRemove = writingStyle.actions::removeEndpoint,
+            )
         }
 
         // Diagnostics has no inline detail, its hub row opens the full-screen DiagnosticsScreen

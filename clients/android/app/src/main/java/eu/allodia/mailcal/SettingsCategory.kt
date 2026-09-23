@@ -16,6 +16,7 @@ internal enum class SettingsCategory {
     READING,
     COMPOSING,
     SIGNATURES,
+    WRITING_STYLE,
     NOTIFICATIONS,
     PRIVACY,
     ACCOUNTS,
@@ -33,6 +34,7 @@ internal enum class SettingsCategory {
         READING -> L10n.settings_category_reading(ctx)
         COMPOSING -> L10n.settings_category_composing(ctx)
         SIGNATURES -> L10n.settings_category_signatures(ctx)
+        WRITING_STYLE -> L10n.settings_category_writing_style(ctx)
         NOTIFICATIONS -> L10n.settings_category_notifications(ctx)
         PRIVACY -> L10n.settings_category_privacy(ctx)
         ACCOUNTS -> L10n.settings_category_accounts(ctx)
@@ -50,6 +52,7 @@ internal enum class SettingsCategory {
         READING -> L10n.settings_category_reading_summary(ctx)
         COMPOSING -> L10n.settings_category_composing_summary(ctx)
         SIGNATURES -> L10n.settings_category_signatures_summary(ctx)
+        WRITING_STYLE -> L10n.settings_category_writing_style_summary(ctx)
         NOTIFICATIONS -> L10n.settings_category_notifications_summary(ctx)
         PRIVACY -> L10n.settings_category_privacy_summary(ctx)
         ACCOUNTS -> L10n.settings_category_accounts_summary(ctx)
@@ -72,6 +75,7 @@ internal enum class SettingsCategory {
             READING -> R.drawable.ic_mail
             COMPOSING -> R.drawable.ic_edit
             SIGNATURES -> R.drawable.ic_signature
+            WRITING_STYLE -> R.drawable.ic_stylus_note
             NOTIFICATIONS -> R.drawable.ic_notifications
             PRIVACY -> R.drawable.ic_lock
             ACCOUNTS -> R.drawable.ic_inbox
@@ -87,8 +91,15 @@ internal enum class SettingsCategory {
          * [ALLODIA] is absent when the build carries no registration, and the whole category goes
          * rather than its contents: a row that opens an empty screen is worse than no row, and a
          * build from source then opens Settings on General exactly as it did before.
+         *
+         * [WRITING_STYLE] is absent for the same reason until AI has somewhere to go: an Allodia
+         * plan that includes it, or an own endpoint set up under Advanced (docs/settings.md).
          */
-        fun shown(allodiaAvailable: Boolean): List<SettingsCategory> =
-            entries.filter { it != ALLODIA || allodiaAvailable }
+        fun shown(
+            allodiaAvailable: Boolean,
+            writingStyleAvailable: Boolean,
+        ): List<SettingsCategory> = entries.filter {
+            (it != ALLODIA || allodiaAvailable) && (it != WRITING_STYLE || writingStyleAvailable)
+        }
     }
 }

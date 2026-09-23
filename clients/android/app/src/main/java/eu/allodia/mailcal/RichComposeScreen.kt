@@ -105,6 +105,8 @@ internal fun RichComposeMessageDialog(
     // The signature library + the two lookups the core answers, or null to leave signatures out of
     // this composer entirely (a screenshot run, a test).
     signatures: ComposerSignatures? = null,
+    // The message a reply answers, which is what Draft a reply drafts against; null elsewhere.
+    replyTo: ReplyTarget? = null,
 ) {
     val ctx = LocalContext.current
     val density = LocalDensity.current
@@ -181,6 +183,7 @@ internal fun RichComposeMessageDialog(
     // settle in between (the account list arrives after the composer opened). Hold the latest
     // resolution so the page-finished seed is the current one, not the first one.
     val currentSignature = rememberUpdatedState(signature)
+    val draft = rememberReplyDraft(mode, replyTo) { webView }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -189,12 +192,7 @@ internal fun RichComposeMessageDialog(
         }
     }
 
-    val title = when (mode) {
-        RichComposeMode.New -> L10n.compose_title_new(ctx)
-        RichComposeMode.Reply -> L10n.action_reply(ctx)
-        RichComposeMode.ReplyAll -> L10n.action_reply_all(ctx)
-        RichComposeMode.Forward -> L10n.action_forward(ctx)
-    }
+    val title = composerTitle(ctx, mode)
 
     // Closing the composer, the ✕ AND the system back, which is the whole point: one of them is a
     // deliberate tap and the other is an edge swipe you can make by accident, and they must not
@@ -224,6 +222,7 @@ internal fun RichComposeMessageDialog(
 
     val send = send@{
         composerError = null
+        draft?.sending()
         val webViewOrNull = webView
         if (webViewOrNull == null) {
             composerError = L10n.compose_prepare_error(ctx)
@@ -313,6 +312,7 @@ internal fun RichComposeMessageDialog(
                                     },
                                 )
                             }
+                            draft?.let { ComposerDraftAction(it, from?.id) }
                             IconButton(
                                 enabled = to.isNotBlank() && from != null,
                                 onClick = send,
@@ -457,6 +457,7 @@ internal fun RichComposeMessageDialog(
                                 modifier = Modifier.padding(bottom = 8.dp),
                             )
                         }
+                        draft?.let { ComposerDraftNotice(it) }
                     }
                     // The dropped-picture question. Drawn inside the composer's own Dialog so its
                     // window is created after this one and stacks above it, and so back reaches the
@@ -468,6 +469,7 @@ internal fun RichComposeMessageDialog(
                         onUnreadable = { composerError = L10n.compose_image_failed(ctx) },
                         onAnswered = { droppedPictures = emptyList() },
                     )
+                    draft?.let { ComposerDraftDialogs(it, from?.id) }
                     // Inside the composer's own Dialog for the same reason, so back reaches the
                     // confirmation (keep editing) rather than the composer underneath.
                     if (confirmingDiscard) {
