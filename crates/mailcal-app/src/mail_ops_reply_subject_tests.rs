@@ -24,6 +24,7 @@ async fn an_edited_subject_replaces_the_derived_one_on_a_reply() {
         document,
         blobs,
         composition: None,
+        ai_draft: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
@@ -76,6 +77,7 @@ async fn a_cleared_subject_is_honoured_rather_than_refilled() {
         document,
         blobs,
         composition: None,
+        ai_draft: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 

@@ -59,6 +59,8 @@ fn at(rfc3339: &str) -> UtcDateTime {
 fn sent(key: &str, date: &str) -> engine_api::Message {
     let mut sent = message(key, "sent", "Re: figures");
     sent.sent_at = Some(at(date));
+    sent.envelope.message_id =
+        vec![engine_api::MessageIdHeader::new(format!("{key}@example.eu")).unwrap()];
     sent.envelope.to = vec![EmailAddress::new("anna@example.eu")];
     sent
 }
@@ -287,4 +289,94 @@ async fn a_draft_with_no_style_to_write_in_is_refused_before_anything_is_sent() 
         .unwrap_err();
     assert_eq!(draft, WritingStyleError::NoStyle);
     assert!(seen.lock().unwrap().is_empty());
+}
+
+/// A reply sent from a draft is logged with what the person changed, and from then on it is left
+/// out of learning: a style learned from a model's words would drift towards the model.
+#[tokio::test]
+async fn a_reply_sent_from_a_draft_is_logged_and_never_learned_from() {
+    let (app, _) = fixture().await;
+    install(&app, Class::EuNative);
+    app.learn_writing_style(
+        &account_id(),
+        LearnRange::default(),
+        "Work".to_owned(),
+        "en",
+    )
+    .await
+    .unwrap();
+    let draft = app
+        .draft_reply(&ReplyDraftRequest {
+            message: msg("acct-1", "in-1"),
+            from: None,
+            style: None,
+            intent: None,
+            language: None,
+        })
+        .await
+        .unwrap();
+
+    let document: mailcal_composer::ComposerDocument = serde_json::from_value(json!({
+        "blocks": [
+            { "Paragraph": { "content": [{ "Text": { "text": "Hi Anna," } }] } },
+            { "Paragraph": { "content": [{ "Text": { "text": "Fine by me on Friday." } }] } },
+            { "Paragraph": { "content": [{ "Text": { "text": "Best, Sam" } }] } },
+        ],
+    }))
+    .unwrap();
+    app.dispatch(Intent::SubmitRichReply {
+        message: msg("acct-1", "in-1"),
+        from: None,
+        to: "anna@example.eu".to_owned(),
+        cc: String::new(),
+        bcc: String::new(),
+        subject: None,
+        document,
+        blobs: Vec::new(),
+        composition: None,
+        ai_draft: Some(draft.draft_id.clone()),
+    })
+    .await;
+
+    let sends = app.writing_style.observed.sends();
+    assert_eq!(sends.len(), 1);
+    let send = &sends[0];
+    assert_eq!(send.account, "acct-1");
+    assert_eq!(send.language, "en");
+    // The person replaced the gap with a day: that is the whole correction.
+    assert_eq!(send.added, ["Friday."]);
+    assert_eq!(send.removed, ["[date]."]);
+}
+
+async fn found_in(app: &App<FakeProvider>) -> u32 {
+    app.sent_corpus_report(&account_id(), LearnRange::default())
+        .await
+        .unwrap()
+        .found
+}
+
+/// Once a sent message is logged as written from a draft, learning passes over it.
+#[tokio::test]
+async fn learning_passes_over_a_message_sent_from_a_draft() {
+    let (app, _) = fixture().await;
+    assert_eq!(found_in(&app).await, 3);
+
+    app.writing_style.observed.edit(|log| {
+        log.record(mailcal_account::AiAssistedSend {
+            message_id: "s-2026@example.eu".to_owned(),
+            account: "acct-1".to_owned(),
+            style: "work".to_owned(),
+            ..mailcal_account::AiAssistedSend::default()
+        });
+    });
+
+    assert_eq!(found_in(&app).await, 2);
+}
+
+/// A draft id the session never issued (one from before a restart, or made up) logs nothing.
+#[tokio::test]
+async fn an_unknown_draft_id_logs_nothing() {
+    let (app, _) = fixture().await;
+    app.note_ai_draft_sent("acct-1", "never-issued", "Hello", "x@y");
+    assert!(app.writing_style.observed.sends().is_empty());
 }

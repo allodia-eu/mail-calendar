@@ -39,7 +39,12 @@ export function setPlainText(editor: HTMLElement, text: unknown): void {
 /// a second `.allodia-signature` inside the quote. The draft goes in as `setPlainText` fills a
 /// body, one `<div>` per line, and the caret ends up after its last character, so the person picks
 /// up where the draft stops.
-export function setComposerDraftText(editor: HTMLElement, text: unknown): void {
+///
+/// `draftId` is the id the core issued with the draft. The editor keeps it and `composerDocument`
+/// hands it back as `ai_draft`, which is how a reply sent from a draft is kept out of every later
+/// learning run; a later draft replaces it.
+export function setComposerDraftText(editor: HTMLElement, text: unknown, draftId?: unknown): void {
+  if (typeof draftId === "string" && draftId.length > 0) editor.dataset.aiDraft = draftId;
   const boundary =
     Array.from(editor.children).find(
       (child) =>

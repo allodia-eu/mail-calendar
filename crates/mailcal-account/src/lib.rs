@@ -40,6 +40,7 @@ mod setup;
 mod signatures;
 mod throttle;
 mod tls;
+mod writing_style_observations;
 mod writing_styles;
 
 pub use autodetect::{MissReason, OauthRoutes, ServerSummary, SetupRecommendation, recommend};
@@ -106,6 +107,10 @@ pub use setup::{AccountSetup, build_config_toml, imap_default_port, smtp_default
 pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,
+};
+pub use writing_style_observations::{
+    AiAssistedSend, WritingStyleObservations, load_writing_style_observations,
+    save_writing_style_observations, writing_style_observations_path,
 };
 pub use writing_styles::{
     StoredWritingStyle, WritingStyleId, WritingStyles, load_writing_styles, save_writing_styles,

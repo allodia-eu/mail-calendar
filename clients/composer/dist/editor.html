@@ -1702,7 +1702,9 @@
     for (const div of lineDivs(editor, text))
       editor.appendChild(div);
   }
-  function setComposerDraftText(editor, text) {
+  function setComposerDraftText(editor, text, draftId) {
+    if (typeof draftId === "string" && draftId.length > 0)
+      editor.dataset.aiDraft = draftId;
     const boundary = Array.from(editor.children).find((child) => child.classList.contains("allodia-signature") || child.classList.contains("allodia-quote")) ?? null;
     while (editor.firstChild && editor.firstChild !== boundary) {
       editor.removeChild(editor.firstChild);
@@ -2186,7 +2188,7 @@
   window.signatureBody = () => JSON.stringify(signatureBody(editor));
   window.focusComposerBody = () => focusComposerBody(editor);
   window.setPlainText = (text) => setPlainText(editor, text);
-  window.setComposerDraftText = (text) => setComposerDraftText(editor, text);
+  window.setComposerDraftText = (text, draftId) => setComposerDraftText(editor, text, draftId);
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerLabels = (incoming) => {
@@ -2210,7 +2212,8 @@
     const blocks = documentBlocks(editor);
     return JSON.stringify({
       blocks,
-      attachments: attachments.list(referencedAttachmentIds(blocks))
+      attachments: attachments.list(referencedAttachmentIds(blocks)),
+      ai_draft: editor.dataset.aiDraft
     });
   };
 })();

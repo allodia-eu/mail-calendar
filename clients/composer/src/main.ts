@@ -130,7 +130,7 @@ declare global {
     insertSignatureImage: (image: string | Record<string, unknown>) => void;
     focusComposerBody: () => void;
     setPlainText: (text: unknown) => void;
-    setComposerDraftText: (text: unknown) => void;
+    setComposerDraftText: (text: unknown, draftId?: unknown) => void;
     useNativeComposerChrome: () => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
@@ -162,7 +162,7 @@ window.signatureBody = () => JSON.stringify(signatureBody(editor));
 // caret out of To on macOS the moment the bundle finished parsing.
 window.focusComposerBody = () => focusComposerBody(editor);
 window.setPlainText = (text) => setPlainText(editor, text);
-window.setComposerDraftText = (text) => setComposerDraftText(editor, text);
+window.setComposerDraftText = (text, draftId) => setComposerDraftText(editor, text, draftId);
 window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 
@@ -197,5 +197,6 @@ window.composerDocument = () => {
   return JSON.stringify({
     blocks,
     attachments: attachments.list(referencedAttachmentIds(blocks)),
+    ai_draft: editor.dataset.aiDraft,
   });
 };

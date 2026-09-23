@@ -38,6 +38,9 @@ pub struct ReplyDraftRequest {
 /// A drafted reply.
 #[derive(Clone, PartialEq)]
 pub struct DraftReply {
+    /// The draft's id. The composer carries it back on submit (`ai_draft`), which is how a reply
+    /// sent from it is kept out of every later learning run.
+    pub draft_id: String,
     /// The body.
     pub text: String,
     /// The bracketed gaps in it, for "check the parts in brackets".
@@ -141,7 +144,12 @@ impl<P: Provider> App<P> {
             },
             &backend,
         )?;
+        let draft_id =
+            self.writing_style
+                .observed
+                .issue(style_id, draft.language.clone(), draft.text.clone());
         Ok(DraftReply {
+            draft_id,
             text: draft.text,
             gaps: draft.gaps,
             language: draft.language,

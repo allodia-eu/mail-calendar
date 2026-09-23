@@ -149,6 +149,7 @@ impl MailcalApp {
         let prepared = prepare_with_files(&document_json, files)?;
         let from = send_account(from)?;
         let composition = sent_composition(composition)?;
+        let ai_draft = crate::composer::ai_draft_of(&document_json);
         let Recipients { to, cc, bcc } = recipients;
         self.spawn_with_files(prepared, move |document, blobs| {
             AppIntent::SubmitRichReply {
@@ -161,6 +162,7 @@ impl MailcalApp {
                 document,
                 blobs,
                 composition,
+                ai_draft,
             }
         });
         Ok(())

@@ -64,6 +64,9 @@ impl<P: Provider> App<P> {
 
         let mut out = Vec::with_capacity(messages.len());
         for message in messages {
+            if self.sent_from_a_draft(&message) {
+                continue;
+            }
             let Some(body) = self.plain_body(account, &message).await else {
                 continue;
             };
@@ -114,12 +117,13 @@ impl<P: Provider> App<P> {
             .unwrap_or_default()
             .into_iter()
             .filter(|message| {
-                message
-                    .envelope
-                    .to
-                    .iter()
-                    .chain(&message.envelope.cc)
-                    .any(|recipient| recipient.email.eq_ignore_ascii_case(address))
+                !self.sent_from_a_draft(message)
+                    && message
+                        .envelope
+                        .to
+                        .iter()
+                        .chain(&message.envelope.cc)
+                        .any(|recipient| recipient.email.eq_ignore_ascii_case(address))
             })
             .collect();
         messages.sort_by_key(|message| Reverse(sent_at(message)));
@@ -130,6 +134,16 @@ impl<P: Provider> App<P> {
             }
         }
         bodies
+    }
+
+    /// Whether `message` was sent from an AI draft: never learned from, and never shown to a
+    /// draft as the person's own words.
+    fn sent_from_a_draft(&self, message: &Message) -> bool {
+        message
+            .envelope
+            .message_id
+            .first()
+            .is_some_and(|id| self.writing_style.observed.is_assisted(id.as_str()))
     }
 
     /// A message's body as plain text, or `None` when it cannot be read.

@@ -67,6 +67,7 @@ impl From<AppLearnReport> for LearnReport {
 impl From<AppDraftReply> for DraftReply {
     fn from(draft: AppDraftReply) -> Self {
         Self {
+            draft_id: draft.draft_id,
             text: draft.text,
             gaps: draft.gaps,
             language: draft.language,

@@ -21,6 +21,7 @@ mod endpoint;
 pub mod gated;
 pub mod language;
 mod learn;
+mod observe;
 mod prompt;
 mod style;
 mod tool;
@@ -38,5 +39,6 @@ pub use learn::{
     LearnError, LearnOptions, LearnProgress, Learned, REQUEST_BUDGET_TOKENS, learn_style,
 };
 pub use mailcal_jurisdiction::{Class, Destination, Mode, Refused};
+pub use observe::{Correction, correction};
 pub use style::{Exemplars, Habit, LanguageStyle, Provenance, SCHEMA_VERSION, StyleGuide};
 pub use transport::{HttpRequest, HttpResponse, HttpTransport, TransportFailed};

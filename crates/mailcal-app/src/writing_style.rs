@@ -18,7 +18,7 @@ use std::{
 use engine_api::Provider;
 use mailcal_account::{
     Preferences, StoredWritingStyle, WritingStyleId, WritingStyles, load_preferences,
-    load_writing_styles, save_preferences, save_writing_styles,
+    load_writing_styles, save_preferences, save_writing_styles, writing_style_observations_path,
 };
 use mailcal_ai::{Exemplars, GatedBackend, StyleGuide};
 use mailcal_viewmodel::{
@@ -31,10 +31,12 @@ use crate::{App, Surface};
 mod draft;
 mod endpoint;
 mod learn;
+mod observe;
 mod sent;
 
 pub use draft::{DraftReply, ReplyDraftRequest};
 pub use learn::{LearnFailure, LearnRange, LearnReport};
+pub(crate) use observe::lead_text;
 
 /// Why a writing-style use case produced nothing.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -74,11 +76,17 @@ pub(crate) struct WritingStyleState {
     backend: Mutex<Option<Arc<GatedBackend>>>,
     learning: Mutex<Option<LearningProgress>>,
     cancel: AtomicBool,
+    observed: observe::Observed,
 }
 
 impl WritingStyleState {
     pub(crate) fn new(library_path: Option<PathBuf>, prefs_path: Option<PathBuf>) -> Self {
+        let observations_path = library_path
+            .as_ref()
+            .and_then(|path| path.parent())
+            .map(writing_style_observations_path);
         Self {
+            observed: observe::Observed::new(observations_path),
             library: Mutex::new(
                 library_path
                     .as_ref()
@@ -130,8 +138,8 @@ impl WritingStyleState {
     }
 }
 
-/// Mints an opaque style id from the system CSPRNG, as signature ids are.
-fn mint_style_id() -> WritingStyleId {
+/// An opaque id from the system CSPRNG, as signature ids are: 16 bytes, URL-safe base64.
+fn random_id() -> String {
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     use ring::rand::{SecureRandom, SystemRandom};
 
@@ -139,7 +147,11 @@ fn mint_style_id() -> WritingStyleId {
     SystemRandom::new()
         .fill(&mut bytes)
         .expect("system CSPRNG fills 16 bytes");
-    WritingStyleId::new(URL_SAFE_NO_PAD.encode(bytes)).expect("base64 is a valid style id")
+    URL_SAFE_NO_PAD.encode(bytes)
+}
+
+fn mint_style_id() -> WritingStyleId {
+    WritingStyleId::new(random_id()).expect("base64 is a valid style id")
 }
 
 /// A stored style's guide, or an empty one when the stored JSON does not read.
@@ -316,6 +328,7 @@ impl<P: Provider> App<P> {
         state.persist_library(&library);
         drop(library);
         state.edit_prefs(|prefs| prefs.forget_writing_style(&id));
+        state.observed.edit(|log| log.forget_style(id.as_str()));
         log::info!("ai: forgot one writing style");
         self.observer.surface_changed(Surface::WritingStyle);
         true
@@ -343,6 +356,9 @@ impl<P: Provider> App<P> {
     pub(crate) fn remove_account_writing_style(&self, account: &str) {
         self.writing_style
             .edit_prefs(|prefs| prefs.remove_account_writing_style(account));
+        self.writing_style
+            .observed
+            .edit(|log| log.forget_account(account));
     }
 
     /// Stores a newly learned style and assigns it to `account` when the account had none.

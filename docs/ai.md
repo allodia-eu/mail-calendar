@@ -82,6 +82,22 @@ person's voice, are later uses of the same seams.
   bundle's `setComposerDraftText`. It replaces only what is above those two regions, leaves both
   exactly where they are, and puts the caret at the end of the draft. Nothing is sent.
 
+## Keeps learning, from the person and never from the model
+
+A style learned from a model's words would drift towards the model, so **a reply sent from a draft
+is never learned from**, and never shown to a later draft as the person's own words.
+
+- Every draft the core hands out carries an id. The client passes it to `setComposerDraftText`
+  with the text, and the editor hands it back as `ai_draft` beside the document on submit.
+- The reply path logs the sent message's `Message-ID` against that id, with the word-level
+  difference between the draft and what the person actually sent above the signature and the
+  quote: the runs they added, the runs they took out, the share of words that changed. A draft sent
+  as it was carries no signal at all.
+- The log (`writing_style_observations.toml`) stays on the device, is capped at two hundred
+  entries, and loses a style's entries when the style is forgotten and an account's when the
+  account is removed. Learning and the recipient context both pass over every logged message.
+- Mail the person wrote without a draft stays eligible, as it always was.
+
 ## What leaves the device, and what never does
 
 | What | Where it goes | When |
@@ -175,8 +191,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 - **`Surface::WritingStyle`** is signalled when the library, an assignment, the backend or a
   learning run's progress changes. Its snapshot's `route` says whether AI is available at all, and
   a client shows the Writing style category only when it is `Some`.
-- **`setComposerDraftText(text)`** in the editor bundle inserts a draft, as described under
-  "Drafting a reply".
+- **`setComposerDraftText(text, draftId)`** in the editor bundle inserts a draft, as described
+  under "Drafting a reply", and keeps `draftId` (`DraftReply.draft_id`) for the submit.
 - **A failure** is a `WritingStyleFailure` variant, never a server's sentence; a client words it.
 
 ## Known gaps
@@ -189,8 +205,12 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
   built.
 - **The thread is the message being answered**, with whatever history it quotes; older messages of
   the conversation are not read separately.
-- **Corrections are not captured yet.** What the person changes in a draft before sending, which is
-  what a later refinement of the style learns from, is not recorded.
+- **The corrections are recorded but nothing learns from them yet.** A refinement that updates a
+  style from them, a "not like me" button, and a line saying how much drafts still need editing are
+  not built.
+- **A draft saved to the server and resumed later loses its id**, so a reply sent from it is treated
+  as the person's own; so is one sent after a restart, because the ids a session issued are kept in
+  memory.
 - **The credit cost of a learning run** is not estimated on the consent sheet: the token count is
   known on the device, the price only at the relay.
 
@@ -218,7 +238,10 @@ Automated:
 - `crates/mailcal-ai/src/learn_tests.rs`, `draft_tests.rs`: exemplars are the device's own text, the
   fence cannot be closed from inside, gaps are listed.
 - `crates/mailcal-app/src/writing_style_tests.rs`, `writing_style_ai_tests.rs`: no dangling slot,
-  and only the author's words leave the device.
+  only the author's words leave the device, and a reply sent from a draft is logged and never
+  learned from.
+- `crates/mailcal-ai/src/observe.rs`: a draft sent as it was yields no signal, an edited one only
+  its edited runs.
 - `crates/mailcal-bindings/src/ai_transport_tests.rs`, `tests_ai_endpoint.rs`: the request over a
   real socket, the key in the keystore and back at the next launch.
 - `clients/composer/tests/seeds.test.ts`: a draft replaces only what is above the signature and the

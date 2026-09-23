@@ -254,6 +254,9 @@ pub struct LearnReport {
 /// A drafted reply, for the open composer.
 #[derive(Clone, PartialEq, uniffi::Record)]
 pub struct DraftReply {
+    /// The draft's id: the client hands it to `setComposerDraftText` with the text, and the
+    /// composer carries it back on submit, so a reply sent from it is never learned from.
+    pub draft_id: String,
     /// The body, to go above the quote.
     pub text: String,
     /// The bracketed gaps in it; a client says "check the parts in brackets" when there are any.

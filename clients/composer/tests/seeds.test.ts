@@ -61,3 +61,19 @@ describe("a drafted reply", () => {
     expect(kinds).toEqual(["Paragraph", "Paragraph", "Signature", "Quote"]);
   });
 });
+
+describe("the draft's id", () => {
+  test("is kept by the editor, and a later draft replaces it", () => {
+    const { editor } = harness(SIGNATURE);
+    setComposerDraftText(editor, "First", "draft-1");
+    expect(editor.dataset.aiDraft).toBe("draft-1");
+    setComposerDraftText(editor, "Second", "draft-2");
+    expect(editor.dataset.aiDraft).toBe("draft-2");
+  });
+
+  test("is not set by a draft that came without one", () => {
+    const { editor } = harness(SIGNATURE);
+    setComposerDraftText(editor, "No id");
+    expect(editor.dataset.aiDraft).toBeUndefined();
+  });
+});
