@@ -132,6 +132,59 @@ async fn a_rename_and_the_notes_are_kept_and_the_guide_s_other_fields_survive_th
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+const PASSAGES: &str = r#"{"schema_version":1,"languages":{"nl":["Beste Anna, dank je."]}}"#;
+
+/// What another device may be sent: the name and the guide. A guide that does not read is left
+/// out rather than sent as an empty one, which would empty the style on every other device.
+#[tokio::test]
+async fn only_a_style_s_name_and_guide_are_offered_for_syncing() {
+    let dir = temp("syncable");
+    let (app, _) = app_at(&dir);
+    let mut with_passages = stored("Work");
+    with_passages.exemplars_json = PASSAGES.to_owned();
+    let id = app.store_writing_style("acct-1", with_passages);
+    let mut unreadable = stored("Broken");
+    unreadable.guide_json = "not json".to_owned();
+    app.store_writing_style("acct-1", unreadable);
+
+    let syncable = app.syncable_writing_styles();
+
+    assert_eq!(syncable.len(), 1);
+    assert_eq!(syncable[0].id, id.as_str());
+    assert_eq!(syncable[0].name, "Work");
+    assert!(syncable[0].guide.languages.contains_key("nl"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn a_synced_name_and_guide_replace_this_device_s_and_its_passages_and_slot_stay() {
+    let dir = temp("apply-synced");
+    let (app, surfaces) = app_at(&dir);
+    let mut with_passages = stored("Work");
+    with_passages.exemplars_json = PASSAGES.to_owned();
+    let id = app.store_writing_style("acct-1", with_passages);
+    let mut guide = StyleGuide::new();
+    guide
+        .languages
+        .insert("en".to_owned(), LanguageStyle::default());
+    guide.notes = "Never before nine.".to_owned();
+
+    assert!(app.apply_synced_writing_style(id.as_str(), "Office".to_owned(), &guide));
+    assert!(!app.apply_synced_writing_style("missing", "x".to_owned(), &guide));
+
+    let detail = app.writing_style_detail(id.as_str()).unwrap();
+    assert_eq!(detail.row.name, "Office");
+    assert_eq!(detail.notes, "Never before nine.");
+    let library = mailcal_account::load_writing_styles(mailcal_account::writing_styles_path(&dir));
+    assert_eq!(library.get(&id).unwrap().exemplars_json, PASSAGES);
+    assert_eq!(
+        app.resolve_writing_style("acct-1").as_deref(),
+        Some(id.as_str())
+    );
+    assert!(surfaces.lock().unwrap().contains(&Surface::WritingStyle));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[tokio::test]
 async fn without_a_preferences_file_an_assignment_still_holds_for_the_run() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));

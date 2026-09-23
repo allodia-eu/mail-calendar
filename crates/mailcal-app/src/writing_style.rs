@@ -33,10 +33,12 @@ mod endpoint;
 mod learn;
 mod observe;
 mod sent;
+mod synced;
 
 pub use draft::{DraftReply, ReplyDraftRequest};
 pub use learn::{LearnFailure, LearnRange, LearnReport};
 pub(crate) use observe::lead_text;
+pub use synced::SyncableStyle;
 
 /// Why a writing-style use case produced nothing.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]

@@ -178,7 +178,8 @@ use tuning::{
 pub use unfiled_copy::UnfiledCopy;
 use view_settings::load_view_mode;
 pub use writing_style::{
-    DraftReply, LearnFailure, LearnRange, LearnReport, ReplyDraftRequest, WritingStyleError,
+    DraftReply, LearnFailure, LearnRange, LearnReport, ReplyDraftRequest, SyncableStyle,
+    WritingStyleError,
 };
 pub use zones::available_time_zones;
 

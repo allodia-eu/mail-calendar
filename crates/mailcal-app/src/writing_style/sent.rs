@@ -86,7 +86,7 @@ impl<P: Provider> App<P> {
                 body,
             });
         }
-        log::info!("ai: read {} sent message(s) for a learning run", out.len());
+        log::info!("ai: read {} sent message(s) on this device", out.len());
         Ok((out, horizon))
     }
 

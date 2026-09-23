@@ -380,3 +380,54 @@ async fn an_unknown_draft_id_logs_nothing() {
     app.note_ai_draft_sent("acct-1", "never-issued", "Hello", "x@y");
     assert!(app.writing_style.observed.sends().is_empty());
 }
+
+/// A style from another device arrives with no passages. This device picks its own from its own
+/// sent mail, cut to the author's words, with no backend installed at all.
+#[tokio::test]
+async fn a_style_from_another_device_takes_its_passages_from_this_device_s_sent_mail() {
+    let (app, surfaces) = fixture().await;
+    let mut guide = mailcal_ai::StyleGuide::new();
+    for language in ["en", "de"] {
+        guide.languages.insert(
+            language.to_owned(),
+            mailcal_ai::LanguageStyle {
+                typical_words: 60,
+                ..mailcal_ai::LanguageStyle::default()
+            },
+        );
+    }
+    guide.notes = "Short.".to_owned();
+
+    let id = app
+        .add_synced_writing_style("Work".to_owned(), &guide)
+        .await;
+
+    let library = app.writing_style.library();
+    let style = library
+        .get(&mailcal_account::WritingStyleId::new(id).unwrap())
+        .unwrap();
+    assert_eq!(style.name, "Work");
+    assert!(style.source.is_empty(), "no account here is its source");
+    let stored: mailcal_ai::StyleGuide = serde_json::from_str(&style.guide_json).unwrap();
+    assert_eq!(stored, guide, "the guide is kept as it arrived");
+    let passages: mailcal_ai::Exemplars = serde_json::from_str(&style.exemplars_json).unwrap();
+    assert_eq!(
+        passages.languages.keys().collect::<Vec<_>>(),
+        ["en"],
+        "no German mail on this device, so no German passages"
+    );
+    let passage = &passages.languages["en"][0];
+    assert!(passage.contains("hotel in Lyon"));
+    assert!(
+        !passage.contains("quoted question"),
+        "the quote is not theirs"
+    );
+    assert!(!passage.contains("Sam Jansen"), "nor the signature");
+    drop(library);
+    assert_eq!(
+        app.resolve_writing_style("acct-1"),
+        None,
+        "which account drafts in it is this device's choice"
+    );
+    assert!(surfaces.lock().unwrap().contains(&Surface::WritingStyle));
+}
