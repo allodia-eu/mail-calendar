@@ -12,6 +12,7 @@
 // A separate partial so SettingsDialog.About.cs stays a description of what About holds.
 
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
@@ -75,7 +76,25 @@ public sealed partial class SettingsDialog
             content);
     }
 
-    private Task<UpdateOutcome> CheckAsync(bool hosted)
+    private async Task<UpdateOutcome> CheckAsync(bool hosted)
+    {
+        var channel = hosted ? UpdateChannel.Hosted : UpdateChannel.Store;
+        Log.Info(Updates.CheckStartedLine(channel));
+        var clock = Stopwatch.StartNew();
+        var outcome = await AskAsync(hosted);
+        var line = Updates.CheckFinishedLine(channel, outcome, clock.Elapsed);
+        if (outcome == UpdateOutcome.Failed)
+        {
+            Log.Warn(line);
+        }
+        else
+        {
+            Log.Info(line);
+        }
+        return outcome;
+    }
+
+    private Task<UpdateOutcome> AskAsync(bool hosted)
     {
         if (hosted)
         {
@@ -104,7 +123,10 @@ public sealed partial class SettingsDialog
         // consumer machines.
         if (AppIdentity.UpdateSource is { } source)
         {
-            await Windows.System.Launcher.LaunchUriAsync(source);
+            var opened = await Windows.System.Launcher.LaunchUriAsync(source);
+            Log.Info(opened
+                ? "update: opened the installer file in the browser"
+                : "update: the installer file could not be opened");
         }
     }
 }
