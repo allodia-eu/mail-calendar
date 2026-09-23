@@ -130,6 +130,7 @@ internal fun MainActivity.setAllodiaAccountSyncMode(
                             removedElsewhere =
                                 report.removedElsewhere.filter { it.accountId != accountId },
                             sent = report.sent,
+                            styleConflicts = report.styleConflicts,
                         ),
                     )
                 }

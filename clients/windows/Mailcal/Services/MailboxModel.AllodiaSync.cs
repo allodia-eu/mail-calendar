@@ -132,7 +132,8 @@ public sealed partial class MailboxModel
                     report.Offers,
                     report.ChangedElsewhere.Where(c => c.AccountId != accountId).ToArray(),
                     report.RemovedElsewhere.Where(c => c.AccountId != accountId).ToArray(),
-                    report.Sent);
+                    report.Sent,
+                    report.StyleConflicts);
             }
         }
         catch (Exception e)
