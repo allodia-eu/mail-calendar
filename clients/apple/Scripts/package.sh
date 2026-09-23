@@ -717,6 +717,21 @@ if [[ "$FLOW" == ios-app-store ]]; then
   echo "==> iOS App Store: exporting the archive (app-store-connect, manual distribution signing)"
   echo "    profile: $(basename "$IOS_PROFILE_FILE") ($IOS_PROFILE_UUID)"
   echo "    share extension profile: $(basename "$IOS_SHARE_PROFILE_FILE") ($IOS_SHARE_PROFILE_UUID)"
+  # The export is handed each profile by UUID and looks it up among INSTALLED profiles only, so a
+  # profile named by a path anywhere else passes the preflight and then fails here. Installed under
+  # its UUID, with its attributes cleared as the Mac flow clears its copies (ITMS-91109).
+  install_ios_profile() {
+    local file="$1" uuid="$2" dir="$HOME/Library/MobileDevice/Provisioning Profiles"
+    case "$(dirname "$file")" in
+      "$dir" | "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles") return 0 ;;
+    esac
+    mkdir -p "$dir"
+    /bin/cp "$file" "$dir/$uuid.mobileprovision"
+    xattr -c "$dir/$uuid.mobileprovision"
+    echo "    installed $(basename "$file") as $dir/$uuid.mobileprovision"
+  }
+  install_ios_profile "$IOS_PROFILE_FILE" "$IOS_PROFILE_UUID"
+  install_ios_profile "$IOS_SHARE_PROFILE_FILE" "$IOS_SHARE_PROFILE_UUID"
   rm -rf "$EXPORT"; mkdir -p "$EXPORT"
   xcodebuild -exportArchive \
     -archivePath "$ARCHIVE" \
