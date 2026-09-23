@@ -96,6 +96,10 @@ struct RichComposeView: View {
     var probe: ComposeDraftProbe?
     /// The signature library + lookups, or `nil` to disable signatures for this composer.
     var signatures: ComposerSignatures?
+    /// The message being answered and the draft calls, or `nil` for no Draft a reply control.
+    var draftReply: ComposerDraftReply?
+    /// Not `private`: RichComposerView.DraftReply.swift drives it.
+    @State var draftStatus = ComposerDraftStatus()
     /// Whether this compose shows the per-message quote-style picker: it carries a quoted original
     /// (reply/forward) *and* the user opted into per-message styling in Settings.
     private let showsStylePicker: Bool
@@ -156,6 +160,7 @@ struct RichComposeView: View {
         probe: ComposeDraftProbe? = nil,
         suggestionsFor: ((String) async -> [RecipientMatch])? = nil,
         signatures: ComposerSignatures? = nil,
+        draftReply: ComposerDraftReply? = nil,
         send: @escaping (Recipients, String, String, [ComposerFileAttachment], String?) -> Bool,
         cancel: @escaping () -> Void
     ) {
@@ -167,6 +172,7 @@ struct RichComposeView: View {
         self.probe = probe
         self.suggestionsFor = suggestionsFor
         self.signatures = signatures
+        self.draftReply = draftReply
         self.showsStylePicker = ComposerQuote.showsStylePicker(
             hasQuote: quote != nil,
             perMessage: quoteStylePerMessage
@@ -362,6 +368,7 @@ struct RichComposeView: View {
         // editing it: the field's value is what gets sent.
         TextField(L10n.compose_subject(), text: $subject)
         actionBar
+        draftStatusLine
         if showsStylePicker {
             Picker(L10n.quote_style_label(), selection: $quoteStyle) {
                 Text(L10n.quote_style_indented()).tag(QuoteStyleKind.indented)
@@ -392,9 +399,12 @@ struct RichComposeView: View {
     /// Send and Discard lead the bar on macOS, where the composer is an inline pane with no window
     /// chrome of its own. On iOS they stay in the navigation bar, the platform puts confirm/cancel
     /// there, and repeating them in the body would be two Sends on one screen.
+    ///
+    /// On a phone the bar wraps onto a second line rather than truncating: with Draft a reply
+    /// beside Attach files and Signature, one line is too narrow in most of the catalog's languages.
     @ViewBuilder private var actionBar: some View {
+        #if os(macOS)
         HStack(spacing: 10) {
-            #if os(macOS)
             Button {
                 prepareAndSend()
             } label: {
@@ -411,23 +421,34 @@ struct RichComposeView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             Divider().frame(height: 16)
-            #endif
-            Button {
-                chooseAttachments()
-            } label: {
-                Label(L10n.action_attach(), systemImage: "paperclip")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            if showsSignaturePicker {
-                signatureMenu
-            }
+            messageActions
             Spacer()
+        }
+        #else
+        RecipientFlowLayout(spacing: 10) { messageActions }
+        #endif
+    }
+
+    /// The actions on the message itself, which both bars carry.
+    @ViewBuilder private var messageActions: some View {
+        Button {
+            chooseAttachments()
+        } label: {
+            Label(L10n.action_attach(), systemImage: "paperclip")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        if showsSignaturePicker {
+            signatureMenu
+        }
+        if let draftReply {
+            draftReplyControl(draftReply)
         }
     }
 
     private func prepareAndSend() {
         composerError = nil
+        draftStatus.checkBrackets = false
         editor.documentJSON { result in
             switch result {
             case .success(let documentJson):

@@ -170,6 +170,10 @@ final class MailboxModel {
     /// of logos never crosses the FFI just to draw a list of names. Drives the Signatures
     /// settings screen and the composer's override picker.
     var signatures = SignaturesSnapshot(signatures: [], accounts: [])
+    /// Where AI requests go, the learned styles, each account's style, a run in progress and the
+    /// relay's balance (pulled on a `Surface::WritingStyle` signal). `route == nil` means no
+    /// Writing style category and no Draft a reply (docs/ai.md).
+    var writingStyles = MailboxModel.noWritingStyles
     /// The account whose "your name" step is open, or `nil` when none is.
     ///
     /// Set by `accountWasAdded`, the one hook every add route ends at, so the step follows a

@@ -157,7 +157,8 @@ struct ComposeHost: View {
             quoteStylePerMessage: model.quoteSettings.perMessage,
             probe: probe,
             suggestionsFor: recipientSuggestions,
-            signatures: signatures
+            signatures: signatures,
+            draftReply: draftReply(mode: mode, account: account, key: key)
         ) { recipients, subject, documentJson, files, from in
             submitted(
                 model.submitRichReply(
@@ -192,6 +193,19 @@ struct ComposeHost: View {
                 )
             )
         } cancel: { dismiss() }
+    }
+
+    /// What a reply composer needs to offer a draft, or `nil` when it offers none (docs/ai.md).
+    private func draftReply(mode: RichComposeMode, account: String, key: String) -> ComposerDraftReply? {
+        let route = model.writingStyles.route
+        guard offersDraftReply(mode: mode, route: route), let route else { return nil }
+        return ComposerDraftReply(
+            account: account,
+            key: key,
+            route: route,
+            styleFor: { model.resolveWritingStyle($0) },
+            draft: { from, intent in await model.draftReply(account, key, from: from, intent: intent) }
+        )
     }
 
     /// Closes the composer when the submit was accepted, and answers what the editor asked: a

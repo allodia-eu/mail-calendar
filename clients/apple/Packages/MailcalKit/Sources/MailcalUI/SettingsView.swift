@@ -48,7 +48,7 @@ struct SettingsView: View {
             .padding()
             Divider()
             NavigationSplitView {
-                List(SettingsCategory.displayed, selection: $selection) { category in
+                List(SettingsCategory.displayed(aiRoute: model.writingStyles.route), selection: $selection) { category in
                     Label(category.title, systemImage: category.icon).tag(category)
                 }
                 .navigationSplitViewColumnWidth(200)

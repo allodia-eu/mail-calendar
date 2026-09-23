@@ -32,6 +32,7 @@ struct SettingsCategoryDetail: View {
         case .reading: readingDetail
         case .composing: composingDetail
         case .signatures: signaturesDetail
+        case .writingStyle: WritingStyleSettings(model: model)
         case .notifications: notificationsDetail
         case .privacy: privacyDetail
         case .allodia: AllodiaAccountSettings(model: model)
@@ -429,16 +430,18 @@ struct SettingsCategoryDetail: View {
         Binding(get: { folder.subscribed }, set: { model.setPushFolder(account.accountId, folder.key, $0) })
     }
 
-    // MARK: Advanced, AI assistant access (desktop) + reset database (destructive)
+    // MARK: Advanced, AI assistant access (desktop) + own AI endpoint + reset database
     //
-    // Both belong to this category's character rather than its old one-line description:
-    // powerful, expert-facing, off by default, capable of damage (docs/settings.md row 8). The
-    // MCP panel renders nothing on a platform with no endpoint, so iOS needs no `#if` here.
+    // All three belong to this category's character rather than its old one-line description:
+    // powerful, expert-facing, off by default, capable of damage (docs/settings.md row 11). The
+    // MCP panel renders nothing on a platform with no endpoint, so iOS needs no `#if` here; the
+    // own endpoint is on every platform. The reset stays last, as the only destructive control.
 
     @ViewBuilder
     private var advancedDetail: some View {
         VStack(alignment: .leading, spacing: 20) {
             McpSettingsView(model: model)
+            OwnAiEndpointSettings(model: model)
             resetGroup
         }
     }

@@ -75,6 +75,9 @@ extension MailboxModel {
             // The composer resolves the account's signature when it opens, so the library has to
             // be mirrored before the first compose, not on the first `Surface::Settings` signal.
             signatures = app.signatures()
+            // Whether AI has somewhere to go decides whether Settings shows Writing style and a
+            // reply offers a draft, so it is read before either can open.
+            writingStyles = app.writingStyles()
             // Is the usage-statistics question settled? `asked == false` puts the welcome screen up.
             analyticsConsent = app.analyticsConsent()
             // The retention signal, once per launch. A no-op until the user opts in, and on the
