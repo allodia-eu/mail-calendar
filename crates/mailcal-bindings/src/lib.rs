@@ -25,6 +25,8 @@ mod allodia_health;
 #[cfg(feature = "allodia-license")]
 mod allodia_pass;
 mod allodia_purchase;
+#[cfg(feature = "allodia-license")]
+mod allodia_style_pass;
 mod allodia_subscription;
 mod allodia_sync;
 #[cfg(feature = "allodia-license")]
@@ -132,7 +134,7 @@ pub use allodia_subscription::{
 };
 pub use allodia_sync::{
     AllodiaAccountChange, AllodiaAccountKind, AllodiaAccountOffer, AllodiaAccountSyncMode,
-    AllodiaSyncReport, setup_from_offer,
+    AllodiaStyleConflict, AllodiaSyncReport, setup_from_offer,
 };
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
 pub use app_display::stored_appearance;

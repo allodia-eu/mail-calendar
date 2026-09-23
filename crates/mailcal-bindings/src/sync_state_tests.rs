@@ -187,6 +187,70 @@ fn signing_out_forgets_the_records_and_keeps_the_choices() {
     );
 }
 
+/// Every blob in the wild predates styles. Read as unparseable it would start from nothing and
+/// re-adopt every account; it has to read as a device that has simply never synced a style.
+#[test]
+fn a_blob_written_before_styles_were_synced_still_reads() {
+    let older = r#"{"accounts":{"acct-1":{"id":"rec-1","version":2,"fingerprint":"{}"}},
+        "excluded":["acct-2"],"pending_creates":{"acct-3":"attempt-1"}}"#;
+    let book = SyncBookkeeping::load(Box::new(Seeded(older.to_owned()))).unwrap();
+
+    assert_eq!(book.get("acct-1").map(|entry| entry.version), Some(2));
+    assert!(book.is_excluded("acct-2"));
+    assert_eq!(
+        book.pending_create_key("acct-3").as_deref(),
+        Some("attempt-1")
+    );
+    assert!(book.styles().is_empty());
+    assert_eq!(book.pending_style_create_key("acct-3"), None);
+}
+
+/// A style's id and an account's are different things, even when the strings match: writing one
+/// never touches the other.
+#[test]
+fn a_style_s_entry_lives_beside_the_accounts_and_never_among_them() {
+    let fake = Fake::default();
+    let written = Arc::clone(&fake.blob);
+    let book = SyncBookkeeping::load(Box::new(fake)).unwrap();
+    book.set("same-id", state("rec-account", 1)).unwrap();
+    book.set_style("same-id", state("rec-style", 4)).unwrap();
+    book.set_pending_style_create_key("style-2", Some("attempt-9"))
+        .unwrap();
+
+    let blob = written.lock().unwrap().clone().expect("written through");
+    let reread = SyncBookkeeping::load(Box::new(Seeded(blob))).unwrap();
+
+    assert_eq!(reread.get("same-id"), Some(state("rec-account", 1)));
+    assert_eq!(reread.style("same-id"), Some(state("rec-style", 4)));
+    assert_eq!(
+        reread.all().len(),
+        1,
+        "the account entries hold accounts only"
+    );
+    assert_eq!(
+        reread.pending_style_create_key("style-2").as_deref(),
+        Some("attempt-9")
+    );
+
+    reread.forget_style("same-id").unwrap();
+    assert_eq!(reread.style("same-id"), None);
+    assert_eq!(reread.get("same-id"), Some(state("rec-account", 1)));
+}
+
+/// The style records belong to the account that is leaving as much as the account records do.
+#[test]
+fn signing_out_forgets_the_style_records_too() {
+    let book = SyncBookkeeping::load(Box::new(Fake::default())).unwrap();
+    book.set_style("style-1", state("rec-1", 3)).unwrap();
+    book.set_pending_style_create_key("style-2", Some("attempt-7"))
+        .unwrap();
+
+    book.forget_the_session().unwrap();
+
+    assert!(book.styles().is_empty());
+    assert_eq!(book.pending_style_create_key("style-2"), None);
+}
+
 #[test]
 fn the_memory_copy_advances_even_when_the_host_refuses_the_write() {
     // The write to the service has already happened by the time this is recorded. Leaving memory
