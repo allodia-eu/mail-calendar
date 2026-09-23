@@ -13,9 +13,9 @@ and the native clients for these five platforms: **macOS**, **iOS/iPadOS**, **Wi
 further platform from the day Allodia ships a client for it. It does not by itself promise that a
 client for any further platform will be built.
 
-Per-platform completion status for each row below is the [README](../README.md) capability matrix.
-A platform still catching up on a row is a gap to close, never an opening to charge: the moment a
-listed capability ships on a platform, it ships free there.
+Per-platform completion status for each row below is the capability matrix in
+[`capabilities.md`](capabilities.md). A platform still catching up on a row is a gap to close, never
+an opening to charge: the moment a listed capability ships on a platform, it ships free there.
 
 ## The five promises
 

@@ -2,13 +2,11 @@
 
 [![CI](https://github.com/allodia-eu/mail-calendar/actions/workflows/ci.yml/badge.svg)](https://github.com/allodia-eu/mail-calendar/actions/workflows/ci.yml)
 
-Allodia Mail & Calendar is a mail and calendar app for **macOS, iPhone, iPad, Windows and
-Android**, with a Linux client in development. It is part of the [Allodia](https://allodia.eu)
-suite. It connects to accounts you already have (IMAP/SMTP, CalDAV/CardDAV, JMAP, Microsoft 365),
-and no feature in it needs an Allodia server to function, so a build from this source keeps working
-whether or not Allodia does.
-
-![The reading pane on macOS](docs/images/macos-mail.webp)
+Allodia Mail & Calendar is a mail and calendar app for **macOS, iPhone, iPad, Windows, Android
+and Linux**. It is part of the [Allodia](https://allodia.eu) suite. It connects to accounts you
+already have (IMAP/SMTP, CalDAV/CardDAV, JMAP, Microsoft 365), and no feature in it needs an Allodia
+server to function, so a build from this source keeps working whether or not Allodia does.
+[Screenshots](#screenshots) of every platform are at the end of this page.
 
 This repository is the whole application. Deciding what happens is Rust's job and drawing it is the
 client's: the product logic, the presentation state machines every client renders, the host-service
@@ -29,10 +27,17 @@ the line around a paid Allodia service is drawn.
 | macOS, iPhone, iPad | [App Store](https://apps.apple.com/app/allodia-mail-calendar/id6792350379) |
 | Windows | [Microsoft Store](https://apps.microsoft.com/detail/9nj7866z2nd3) |
 | Android | [Google Play](https://play.google.com/store/apps/details?id=eu.allodia.mailcal) |
+| Linux | [Flatpak](https://dl.allodia.eu/flatpak/eu.allodia.mailcal.flatpakref) |
 
-There is no Linux release yet. [`docs/capabilities.md`](docs/capabilities.md) is the row-by-row
-truth for what each client ships, including what Linux is still missing. Building any of them from
-this source needs no credential of ours.
+On Linux, opening the link hands it to GNOME Software or Discover, which installs the app and keeps
+it updated. From a terminal:
+
+```sh
+flatpak install https://dl.allodia.eu/flatpak/eu.allodia.mailcal.flatpakref
+```
+
+[`docs/capabilities.md`](docs/capabilities.md) is the row-by-row truth for what each client ships,
+including the few rows a platform does not claim yet.
 
 ## Where to start
 
@@ -71,3 +76,52 @@ outside it so much as names something inside.
 
 Why this licence, what stays free in every build, and what a paid Allodia service may ever be:
 [`docs/pledge.md`](docs/pledge.md).
+
+## Screenshots
+
+Every client draws the same core state in its platform's own toolkit: SwiftUI on Apple, WinUI 3 on
+Windows, GTK4 and libadwaita on Linux, Jetpack Compose on Android. None is a web page in a window;
+only the message body and the composer, which are HTML, sit in a web view. The screenshots show the
+built-in showcase data, not a real mailbox.
+
+### macOS
+
+| The inbox | An invitation |
+|---|---|
+| ![The inbox on macOS](docs/images/screenshots/macos/list.webp) | ![An invitation on macOS](docs/images/screenshots/macos/invitation.webp) |
+| **The calendar** | **Dark appearance** |
+| ![The calendar on macOS](docs/images/screenshots/macos/calendar.webp) | ![The inbox on macOS, dark](docs/images/screenshots/macos/list-dark.webp) |
+
+### Windows
+
+| The inbox | An invitation |
+|---|---|
+| ![The inbox on Windows](docs/images/screenshots/windows/list.webp) | ![An invitation on Windows](docs/images/screenshots/windows/invitation.webp) |
+| **The calendar** | **Dark appearance** |
+| ![The calendar on Windows](docs/images/screenshots/windows/calendar.webp) | ![The inbox on Windows, dark](docs/images/screenshots/windows/list-dark.webp) |
+
+### Linux
+
+| The inbox | An invitation |
+|---|---|
+| ![The inbox on Linux](docs/images/screenshots/linux/list.webp) | ![An invitation on Linux](docs/images/screenshots/linux/invitation.webp) |
+| **The calendar** | **Dark appearance** |
+| ![The calendar on Linux](docs/images/screenshots/linux/calendar.webp) | ![The inbox on Linux, dark](docs/images/screenshots/linux/list-dark.webp) |
+
+### iPad
+
+| The inbox | An invitation | The calendar | Dark appearance |
+|---|---|---|---|
+| ![The inbox on iPad](docs/images/screenshots/ipad/list.webp) | ![An invitation on iPad](docs/images/screenshots/ipad/invitation.webp) | ![The calendar on iPad](docs/images/screenshots/ipad/calendar.webp) | ![The inbox on iPad, dark](docs/images/screenshots/ipad/list-dark.webp) |
+
+### iPhone
+
+| The inbox | An invitation | The calendar | Dark appearance |
+|---|---|---|---|
+| ![The inbox on iPhone](docs/images/screenshots/iphone/list.webp) | ![An invitation on iPhone](docs/images/screenshots/iphone/invitation.webp) | ![The calendar on iPhone](docs/images/screenshots/iphone/calendar.webp) | ![The inbox on iPhone, dark](docs/images/screenshots/iphone/list-dark.webp) |
+
+### Android
+
+| The inbox | An invitation | The calendar | Dark appearance |
+|---|---|---|---|
+| ![The inbox on Android](docs/images/screenshots/android/list.webp) | ![An invitation on Android](docs/images/screenshots/android/invitation.webp) | ![The calendar on Android](docs/images/screenshots/android/calendar.webp) | ![The inbox on Android, dark](docs/images/screenshots/android/list-dark.webp) |
