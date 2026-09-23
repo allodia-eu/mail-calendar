@@ -508,13 +508,16 @@ MACOS_BIN="$MACOS_APP/Contents/MacOS/AllodiaMail"
 # LaunchServices strips the environment from `open`, so the binary is exec'd directly (as
 # clients/apple/Scripts/build-and-run.sh does). `-AppleLanguages` pins the chrome for this launch
 # only, via the NSArgumentDomain; the developer's stored Settings language is never rewritten.
+# `-ApplePersistenceIgnoreState` because AppKit restores the last session's windows, and once it
+# remembers a session with none open, every later launch comes up windowless: no mailbox is built
+# and the showcase proof below fails, however many times the run is repeated.
 macos_capture() { # <locale> <screen> <out>
   local offset
   offset="$(client_log_size)"
   pkill -f "$MACOS_BIN" 2>/dev/null || true
   sleep 1
   MAILCAL_SHOWCASE="$1" MAILCAL_SHOWCASE_SCREEN="$2" \
-    "$MACOS_BIN" -AppleLanguages "($1)" >/dev/null 2>&1 &
+    "$MACOS_BIN" -AppleLanguages "($1)" -ApplePersistenceIgnoreState YES >/dev/null 2>&1 &
   # Detach it, so the next iteration's pkill doesn't print a "Terminated" job notice over the log.
   disown
   sleep "$(settle_for "$2")"

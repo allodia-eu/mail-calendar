@@ -113,6 +113,31 @@ extension ContentView {
     /// `showsCalendarAndContacts` belongs to those, and
     /// ``sidebarDestinations(showsCalendarAndContacts:)`` says what it answers.
     func sidebarList(showsCalendarAndContacts: Bool) -> some View {
+        #if os(macOS)
+        sidebarTree
+            // The other destinations sit under the tree and out of its scroll, never as one more
+            // section at the end of the list: an account with a few dozen folders fills the pane,
+            // and a row that scrolls away with them is a destination the user has to scroll back
+            // up the whole folder list to reach.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                sidebarDestinations(showsCalendarAndContacts: showsCalendarAndContacts)
+            }
+            .sidebarTitle()
+        #else
+        // Beneath the tree rather than over it, for the reason the macOS inset above pins them.
+        // Stacked, because nothing iOS could fill a bar with is the sidebar's own surface: the
+        // grouped background is a lighter slab on an iPad's glass column. Below the list, nothing
+        // scrolls behind the rows, so they need no fill and sit on whatever the pane is drawn on.
+        VStack(spacing: 0) {
+            sidebarTree
+            sidebarDestinations(showsCalendarAndContacts: showsCalendarAndContacts)
+        }
+        .sidebarTitle()
+        #endif
+    }
+
+    /// The accounts and their folders, as the pane's scrolling list.
+    private var sidebarTree: some View {
         List {
             Section(L10n.sidebar_accounts()) {
                 outboxRow
@@ -209,24 +234,6 @@ extension ContentView {
         }
         .listStyle(.sidebar)
         .frame(minWidth: 180)
-        // The other destinations sit under the tree and out of its scroll, never as one more
-        // section at the end of the list: an account with a few dozen folders fills the pane, and
-        // a row that scrolls away with them is a destination the user has to scroll back up the
-        // whole folder list to reach.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            sidebarDestinations(showsCalendarAndContacts: showsCalendarAndContacts)
-        }
-        // The window title. The product is "Allodia Mail & Calendar", never bare "Allodia"
-        // (AGENTS.md → "Brand & voice"), and this overrides the WindowGroup's own title.
-        .navigationTitle(L10n.app_title())
-        #if os(macOS)
-        // Set, then hidden, the two are not the same thing. The title still names the window to
-        // the OS, which is what the Window menu, ⌘-Tab and Mission Control read; what goes is the
-        // copy of it drawn over the sidebar, which spent the top of the accounts column telling the
-        // user the name of the app they had just opened. Dropping `navigationTitle` instead would
-        // have taken the window's name with it and left the Window menu listing "Untitled".
-        .toolbar(removing: .title)
-        #endif
     }
 
     /// The **Outbox** row: every account's unsent messages, above the trees, and **only while
@@ -402,6 +409,21 @@ extension ContentView {
 }
 
 extension View {
+    /// Names the window after the app without drawing the name over the pane.
+    ///
+    /// The product is "Allodia Mail & Calendar", never bare "Allodia" (AGENTS.md → "Brand &
+    /// voice"), and this overrides the WindowGroup's own title. Set, then hidden, the two are not
+    /// the same thing. The title still names the window to the OS, which is what the Window menu,
+    /// ⌘-Tab, Mission Control and the iPad app switcher read; what goes is the copy drawn over the
+    /// sidebar, which spent the top of the accounts column telling the user the name of the app
+    /// they had just opened, beside the iPad status bar saying it already. Dropping
+    /// `navigationTitle` instead would have taken the window's name with it and left the Window
+    /// menu listing "Untitled".
+    fileprivate func sidebarTitle() -> some View {
+        navigationTitle(L10n.app_title())
+            .toolbar(removing: .title)
+    }
+
     /// Lights the row the user is in.
     ///
     /// ⚠️ **On the `List`'s own child, never on something inside it.** `listRowBackground` is

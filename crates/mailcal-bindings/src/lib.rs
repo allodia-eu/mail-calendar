@@ -204,7 +204,7 @@ pub use share::{
 };
 pub use showcase_data::{
     ShowcaseInvitation, ShowcaseLocale, ShowcaseReply, showcase_invitation,
-    showcase_locale_for_language, showcase_reply,
+    showcase_locale_for_language, showcase_now, showcase_reply,
 };
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;

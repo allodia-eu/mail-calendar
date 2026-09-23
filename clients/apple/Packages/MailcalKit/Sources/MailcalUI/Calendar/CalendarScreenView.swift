@@ -46,7 +46,7 @@ struct CalendarScreenView: View {
     /// The grid's horizontal axis: one continuous strip of days, in weeks from the pager's origin.
     @State var strip = CalendarStrip()
     @State var hourOffset: CGFloat = 0
-    @State private var now = Date()
+    @State private var now = ShowcaseMode.now ?? Date()
     @State private var managing = false
     /// Bumped whenever the grid should frame itself on today again: a shape from the menu, and
     /// "back to today". Not `private`: CalendarScreenView.Grid.swift watches it.
@@ -160,7 +160,7 @@ struct CalendarScreenView: View {
             content(pager: pager, anchor: anchor, calendar: calendar, today: today)
         }
         .onAppear { seed(calendar: calendar, today: today) }
-        .onReceive(tick) { now = $0 }
+        .onReceive(tick) { now = ShowcaseMode.now ?? $0 }
         .onChange(of: model.displaySettings.visibleHours) { _, hours in
             zoom.resetHours(Int(hours))
             // A horizon arriving from the core (or changed in Settings) resizes the content under

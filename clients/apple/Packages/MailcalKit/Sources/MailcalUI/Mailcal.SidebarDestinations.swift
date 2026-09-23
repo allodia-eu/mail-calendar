@@ -108,18 +108,10 @@ extension ContentView {
             #endif
         }
         .labelStyle(PinnedRowLabelStyle())
-        .background(sidebarBackground)
-    }
-
-    /// What the bar is drawn on: the same surface as the tree above it, opaque enough that the
-    /// rows scrolling underneath do not read through it.
-    @ViewBuilder private var sidebarBackground: some View {
         #if os(macOS)
-        SidebarMaterial()
-        #else
-        // The grouped background a sidebar `List` draws itself on, so the bar is the same colour
-        // in both appearances without naming either.
-        Color(uiColor: .systemGroupedBackground)
+        // Opaque, because on macOS the tree scrolls beneath the bar. iOS stacks the bar under the
+        // tree instead (`sidebarList`), so there it has nothing to hide and no fill of its own.
+        .background(SidebarMaterial())
         #endif
     }
 

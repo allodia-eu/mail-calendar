@@ -468,13 +468,17 @@ showcase_marker_for() { # <locale> [screen]
 
 # The bytes of <file> appended after <offset>; empty when the file doesn't exist yet. Reading only
 # what this launch wrote is the point: a showcase line from an *earlier* run must never vouch for
-# this one. A rotation (docs/logging.md caps the log and rolls it) shrinks the file below the
-# offset, so fall back to the whole file rather than slicing at a stale position.
+# this one. A rotation (docs/logging.md caps the log and rolls it) renames the file to `<file>.1`
+# and starts a fresh one below the offset, so what this launch wrote before it is read from `.1`,
+# at the same offset, and the fresh file is read whole.
 log_slice_since() { # <file> <offset>
   local file="$1" offset="$2" size
   [[ -f "$file" ]] || return 0
   size="$(wc -c <"$file" | tr -d '[:space:]')"
-  if [[ "$size" -lt "$offset" ]]; then offset=0; fi
+  if [[ "$size" -lt "$offset" ]]; then
+    if [[ -f "$file.1" ]]; then tail -c "+$((offset + 1))" "$file.1"; fi
+    offset=0
+  fi
   tail -c "+$((offset + 1))" "$file"
 }
 
