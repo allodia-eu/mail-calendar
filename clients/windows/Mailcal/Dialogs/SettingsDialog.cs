@@ -85,7 +85,14 @@ public sealed partial class SettingsDialog : ContentDialog
 
         // Dismissing the dialog leaves the detail panel built, so a signature editor open at that
         // moment would keep its WebView2 alive past the dialog.
-        Closed += (_, _) => CloseSignatureEditor();
+        Closed += (_, _) =>
+        {
+            CloseSignatureEditor();
+            _model.WritingStylesChanged -= OnWritingStylesChanged;
+        };
+        // The Writing style category comes and goes with the route, and a learning run reports
+        // its progress (SettingsDialog.WritingStyle.cs).
+        _model.WritingStylesChanged += OnWritingStylesChanged;
 
         var index = Array.FindIndex(Categories(), entry => entry.Tag == category);
         _rebuilding = true;
@@ -100,12 +107,12 @@ public sealed partial class SettingsDialog : ContentDialog
     // an empty panel reads as a broken panel rather than as a build without a route, and it is what
     // every build from source would show. The category and the group inside it share one string,
     // because the product's own name belongs in one place.
-    private static (string Tag, string Label)[] Categories() =>
+    private (string Tag, string Label)[] Categories() =>
         MailcalBindingsMethods.AllodiaSignInAvailable()
             ? new[] { ("allodia", L10n.SettingsAllodiaHeading()) }.Concat(MailCategories()).ToArray()
             : MailCategories();
 
-    private static (string Tag, string Label)[] MailCategories() => new[]
+    private (string Tag, string Label)[] MailCategories() => new (string Tag, string Label)[]
     {
         ("general", L10n.SettingsCategoryGeneral()),
         ("calendar", L10n.SettingsCategoryCalendar()),
@@ -115,13 +122,15 @@ public sealed partial class SettingsDialog : ContentDialog
         // across accounts, and "Settings → Signatures" is the path people already look for
         // (docs/settings.md slot 6).
         ("signatures", L10n.SettingsCategorySignatures()),
+        // Directly after Signatures, and only while AI has somewhere to go (docs/settings.md slot 7).
+        ("writing_style", L10n.SettingsCategoryWritingStyle()),
         ("notifications", L10n.SettingsCategoryNotifications()),
         ("privacy", L10n.SettingsCategoryPrivacy()),
         ("accounts", L10n.SettingsCategoryAccounts()),
         ("advanced", L10n.SettingsCategoryAdvanced()),
         ("diagnostics", L10n.SettingsCategoryDiagnostics()),
         ("about", L10n.SettingsCategoryAbout()),
-    };
+    }.Where(entry => entry.Tag != "writing_style" || _model.WritingStyles.Route is not null).ToArray();
 
     // Rebuilds the detail panel for the selected category.
     private void ShowCategory(string tag)
@@ -139,6 +148,7 @@ public sealed partial class SettingsDialog : ContentDialog
             _deletingSignature = null;
         }
         CloseAllodiaSubscription(tag);
+        LeaveWritingStyle(tag);
         _detail.Children.Clear();
         _detail.Children.Add(tag switch
         {
@@ -147,6 +157,7 @@ public sealed partial class SettingsDialog : ContentDialog
             "reading" => BuildReading(),
             "composing" => BuildComposing(),
             "signatures" => BuildSignatures(),
+            "writing_style" => BuildWritingStyle(),
             "notifications" => BuildNotifications(),
             "privacy" => BuildPrivacy(),
             "accounts" => BuildAccounts(),
@@ -407,6 +418,7 @@ public sealed partial class SettingsDialog : ContentDialog
         {
             panel.Children.Add(mcp);
         }
+        panel.Children.Add(OwnAiEndpointGroup());
         panel.Children.Add(ResetDatabaseGroup());
         return panel;
     }

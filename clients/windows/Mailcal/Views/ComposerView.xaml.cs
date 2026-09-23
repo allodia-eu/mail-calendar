@@ -173,6 +173,8 @@ public sealed partial class ComposerView : UserControl
         // The Signature control and the library behind it (ComposerView.Signature.cs). Built before
         // the editor loads, because the page-ready seeding reads the resolved signature off it.
         InitSignatures();
+        // Draft a reply, beside it (ComposerView.DraftReply.cs).
+        InitDraftReply();
 
         // Pre-filled recipients are the request's doing, not the user's, arm the dirty tracking
         // only once they are in place, so a reply doesn't open already "dirty".

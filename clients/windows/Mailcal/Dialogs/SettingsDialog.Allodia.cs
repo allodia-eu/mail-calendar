@@ -48,6 +48,11 @@ public sealed partial class SettingsDialog
                 _brushes.Of(ThemePalette.Critical);
             panel.Children.Add(error);
         }
+        // The AI credits the relay last reported (SettingsDialog.WritingStyle.cs).
+        if (AllodiaCredits() is { } credits)
+        {
+            panel.Children.Add(credits);
+        }
         // The subscription sits under the account it belongs to, and is drawn only while somebody
         // is signed in (SettingsDialog.Subscription.cs).
         if (BuildAllodiaSubscription() is { } subscription)
