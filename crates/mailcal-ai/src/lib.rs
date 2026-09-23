@@ -37,6 +37,7 @@ pub use endpoint::{EndpointError, OwnEndpoint};
 pub use gated::{GatedBackend, ModeSource};
 pub use learn::{
     LearnError, LearnOptions, LearnProgress, Learned, REQUEST_BUDGET_TOKENS, learn_style,
+    pick_passages,
 };
 pub use mailcal_jurisdiction::{Class, Destination, Mode, Refused};
 pub use observe::{Correction, correction};

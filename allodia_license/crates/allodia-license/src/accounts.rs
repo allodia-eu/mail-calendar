@@ -21,11 +21,13 @@
 //!
 //! [`docs/account-autodetect.md`]: https://allodia.eu/docs/mail-calendar
 
-use std::fmt::Write as _;
-
 use serde::{Deserialize, Serialize};
 
-use crate::{API_BASE_PATH, AccountService, Error, Method, Request, Transport};
+use crate::{
+    AccountService, Error, Transport,
+    collection::{ConflictWith, SyncedCollection, SyncedRecord, Tombstone},
+    reconcile::Fingerprint,
+};
 
 /// How a JMAP account proves who it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -164,6 +166,12 @@ impl SyncedConfig {
     }
 }
 
+impl Fingerprint for SyncedConfig {
+    fn is_same_as(&self, other: &Self) -> bool {
+        self.is_same_account_as(other)
+    }
+}
+
 /// A stored account, as the service hands it back.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -178,20 +186,38 @@ pub struct SyncedAccount {
     pub updated_at: String,
 }
 
+impl SyncedRecord for SyncedAccount {
+    type List = AccountList;
+    type Payload = SyncedConfig;
+
+    const PATH: &'static str = "accounts";
+    const PAYLOAD: &'static str = "config";
+
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn version(&self) -> u64 {
+        self.version
+    }
+
+    fn payload(&self) -> &SyncedConfig {
+        &self.config
+    }
+
+    fn in_conflict(with: &ConflictWith) -> Option<&Self> {
+        match with {
+            ConflictWith::Record(current) => Some(current),
+            _ => None,
+        }
+    }
+}
+
 /// An account the person removed on some device.
 ///
 /// It comes back as an id rather than as settings, so a device can ask its owner before removing a
 /// mailbox they may still want locally: a removal is a local decision everywhere it lands.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DeletedAccount {
-    /// Which record went.
-    pub id: String,
-    /// The version the deletion itself wrote.
-    pub version: u64,
-    /// When it went (RFC 3339).
-    pub deleted_at: String,
-}
+pub type DeletedAccount = Tombstone;
 
 /// Everything the service holds for this person, or everything that changed since a moment.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -203,31 +229,6 @@ pub struct AccountList {
     pub deleted: Vec<DeletedAccount>,
     /// The moment this answer describes, to pass back as `since`.
     pub synced_at: String,
-}
-
-/// What the server holds instead of what the caller expected.
-///
-/// Two shapes, because a record can be gone as well as moved, and replaying a create whose record
-/// was since deleted answers with the tombstone rather than storing it again, which would be the
-/// resurrection bug wearing a different hat.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ConflictWith {
-    /// The record, at the version the server holds.
-    Record(Box<SyncedAccount>),
-    /// A tombstone: the account is gone, and this is when.
-    Tombstone(Box<DeletedAccount>),
-}
-
-/// The `409` body: what the server holds now.
-#[derive(Deserialize)]
-struct ConflictBody {
-    data: ConflictData,
-}
-
-#[derive(Deserialize)]
-struct ConflictData {
-    current: Option<ConflictWith>,
 }
 
 impl AccountService {
@@ -246,13 +247,7 @@ impl AccountService {
         access_token: &str,
         since: Option<&str>,
     ) -> Result<AccountList, Error> {
-        let mut url = format!("{}{API_BASE_PATH}/accounts", self.base_url());
-        if let Some(since) = since {
-            url.push_str("?since=");
-            url.push_str(&encode_query(since));
-        }
-        let body = send(transport, &Request::get(url, access_token))?;
-        serde_json::from_str(&body).map_err(|error| Error::Malformed(error.to_string()))
+        SyncedCollection::<SyncedAccount>::new(self).list(transport, access_token, since)
     }
 
     /// Store an account the service has never seen, and learn the id it minted.
@@ -270,20 +265,18 @@ impl AccountService {
         config: &SyncedConfig,
         idempotency_key: &str,
     ) -> Result<SyncedAccount, Error> {
-        let body = send(
+        SyncedCollection::<SyncedAccount>::new(self).create(
             transport,
-            &Request {
-                url: format!("{}{API_BASE_PATH}/accounts", self.base_url()),
-                bearer: access_token.to_owned(),
-                method: Method::Post,
-                body: Some(wrap_config(config)?),
-                idempotency_key: Some(idempotency_key.to_owned()),
-            },
-        )?;
-        serde_json::from_str(&body).map_err(|error| Error::Malformed(error.to_string()))
+            access_token,
+            config,
+            idempotency_key,
+        )
     }
 
     /// Replace a record the caller can already name.
+    ///
+    /// A write whose response was lost, re-sent and refused with the very settings it was
+    /// writing, is success rather than a conflict.
     ///
     /// # Errors
     /// [`Error::Conflict`] when `version` is not the one the server holds, carrying what it holds
@@ -296,38 +289,21 @@ impl AccountService {
         version: u64,
         config: &SyncedConfig,
     ) -> Result<SyncedAccount, Error> {
-        let payload = serde_json::json!({ "version": version, "config": config });
-        let sent = send(
+        SyncedCollection::<SyncedAccount>::new(self).update(
             transport,
-            &Request {
-                url: format!("{}{API_BASE_PATH}/accounts/{id}", self.base_url()),
-                bearer: access_token.to_owned(),
-                method: Method::Put,
-                body: Some(payload.to_string()),
-                idempotency_key: None,
-            },
-        );
-        match sent {
-            Ok(body) => {
-                serde_json::from_str(&body).map_err(|error| Error::Malformed(error.to_string()))
-            }
-            // A write whose response was lost re-sends the same base version and is refused, and
-            // what the refusal carries is the write it was making. That is not a disagreement to
-            // put in front of anybody: the settings the caller wanted stored are stored, and the
-            // only thing missing was the receipt.
-            Err(Error::Conflict(Some(ConflictWith::Record(current))))
-                if current.config == *config =>
-            {
-                Ok(*current)
-            }
-            Err(other) => Err(other),
-        }
+            access_token,
+            id,
+            version,
+            config,
+        )
     }
 
     /// Mark an account removed, so the person's other devices learn it went.
     ///
     /// A `404` is success: the caller wanted the record gone and it is gone, and treating "already
-    /// absent" as a failure would leave a device retrying something that can never change.
+    /// absent" as a failure would leave a device retrying something that can never change. So is a
+    /// refusal because the record is already a tombstone: reporting that as a conflict would have
+    /// a device ask its owner about a removal that has already happened everywhere.
     ///
     /// # Errors
     /// [`Error::Conflict`] when `version` is not the one the server holds: the person removed
@@ -339,79 +315,8 @@ impl AccountService {
         id: &str,
         version: u64,
     ) -> Result<(), Error> {
-        let request = Request {
-            url: format!(
-                "{}{API_BASE_PATH}/accounts/{id}?version={version}",
-                self.base_url()
-            ),
-            bearer: access_token.to_owned(),
-            method: Method::Delete,
-            body: None,
-            idempotency_key: None,
-        };
-        match send(transport, &request) {
-            // Already gone is what the caller wanted, so it is not a second case. The service
-            // answers a delete of an unknown record with a `200` and no tombstone; the `404` arm
-            // is kept for a deployment that has not caught up.
-            // The third is refusal because the record is already a tombstone: the account is gone,
-            // which is what was asked for. Reporting that as a conflict would have a device ask
-            // its owner about a removal that has already happened everywhere.
-            Ok(_)
-            | Err(
-                Error::Unexpected { status: 404 }
-                | Error::Conflict(Some(ConflictWith::Tombstone(_))),
-            ) => Ok(()),
-            Err(other) => Err(other),
-        }
+        SyncedCollection::<SyncedAccount>::new(self).delete(transport, access_token, id, version)
     }
-}
-
-/// Send one request and turn its status into this crate's errors.
-fn send(transport: &dyn Transport, request: &Request) -> Result<String, Error> {
-    let response = transport.send(request).map_err(Error::Transport)?;
-    match response.status {
-        200..=299 => Ok(response.body),
-        401 | 403 => Err(Error::Unauthorized),
-        409 => Err(conflict(&response.body)),
-        status => Err(Error::Unexpected { status }),
-    }
-}
-
-/// Read a `409` body, falling back to a bare conflict when it cannot be parsed.
-///
-/// A conflict whose payload is unreadable is still a conflict: reporting it as malformed would send
-/// the caller down the "the service is broken" path when the answer is "re-read and try again".
-fn conflict(body: &str) -> Error {
-    let current = serde_json::from_str::<ConflictBody>(body)
-        .ok()
-        .and_then(|parsed| parsed.data.current);
-    Error::Conflict(current)
-}
-
-/// The request body both writes share, minus the version.
-fn wrap_config(config: &SyncedConfig) -> Result<String, Error> {
-    serde_json::to_string(&serde_json::json!({ "config": config }))
-        .map_err(|error| Error::Malformed(error.to_string()))
-}
-
-/// Percent-encode a query value.
-///
-/// Only the characters a timestamp can contain need escaping, and `+` is the one that matters: it
-/// means a space to a form decoder, so a `+02:00` offset arrives as a space and the delta silently
-/// covers the wrong window.
-fn encode_query(value: &str) -> String {
-    let mut encoded = String::with_capacity(value.len());
-    for byte in value.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                encoded.push(byte as char);
-            }
-            other => {
-                let _ = write!(encoded, "%{other:02X}");
-            }
-        }
-    }
-    encoded
 }
 
 #[cfg(test)]

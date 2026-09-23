@@ -347,6 +347,31 @@ fn picked(part: &[CorpusMessage], numbers: &[u32]) -> Vec<String> {
         .collect()
 }
 
+/// Passages for a guide that arrived from another device, picked on this one without a request.
+///
+/// A synced guide carries none, so each device picks its own from its own sent mail: for each of
+/// the guide's languages, the messages in `corpus` closest to that language's typical length, as
+/// learning does when a model names none. A language `corpus` has no mail in gets no passages; a
+/// draft in it works from the guide and the recipient context.
+#[must_use]
+pub fn pick_passages(guide: &StyleGuide, corpus: &Corpus) -> Exemplars {
+    let mut exemplars = Exemplars::new();
+    for (language, style) in &guide.languages {
+        let Some(messages) = corpus
+            .languages
+            .get(language)
+            .filter(|messages| !messages.is_empty())
+        else {
+            continue;
+        };
+        exemplars.languages.insert(
+            language.clone(),
+            fallback(&[messages.as_slice()], style.typical_words),
+        );
+    }
+    exemplars
+}
+
 /// When a model named no exemplars: the messages closest to the person's typical length.
 fn fallback(parts: &[&[CorpusMessage]], typical_words: u32) -> Vec<String> {
     let typical = usize::try_from(typical_words).unwrap_or(usize::MAX);

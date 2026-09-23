@@ -41,6 +41,9 @@ pub enum Refusal {
     NotFound,
     /// Billing is not configured on this deployment.
     Unavailable,
+    /// The service holds as many writing styles for this person as it will take. Retrying cannot
+    /// change that; forgetting a style can.
+    TooManyStyles,
     /// A code this version does not know.
     Other(String),
 }
@@ -76,6 +79,7 @@ impl Refusal {
             "not_switchable" => Self::NotSwitchable,
             "not_found" => Self::NotFound,
             "unavailable" => Self::Unavailable,
+            "too_many_styles" => Self::TooManyStyles,
             other => Self::Other(other.to_owned()),
         })
     }

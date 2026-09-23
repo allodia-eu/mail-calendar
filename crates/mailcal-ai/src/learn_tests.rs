@@ -227,3 +227,35 @@ fn an_empty_corpus_is_not_sent() {
     assert_eq!(error.error, AiError::Malformed);
     assert!(seen.lock().unwrap().is_empty());
 }
+
+/// A guide synced from another device arrives with no passages, and this device picks its own
+/// from its own mail: no request, its own text, and nothing for a language it has no mail in.
+#[test]
+fn passages_for_a_synced_guide_are_picked_here_without_a_request() {
+    let messages = (0..9)
+        .map(|index| message(&format!("m{index}"), &"word ".repeat(10 * (index + 1))))
+        .collect();
+    let corpus = corpus(vec![("en", messages), ("nl", Vec::new())]);
+    let mut guide = crate::StyleGuide::new();
+    for (language, typical_words) in [("en", 30), ("nl", 70), ("de", 70)] {
+        guide.languages.insert(
+            language.to_owned(),
+            crate::LanguageStyle {
+                typical_words,
+                ..crate::LanguageStyle::default()
+            },
+        );
+    }
+
+    let exemplars = super::pick_passages(&guide, &corpus);
+
+    assert_eq!(
+        exemplars.languages.keys().collect::<Vec<_>>(),
+        ["en"],
+        "a language with no mail on this device has no passages at all"
+    );
+    let passages = &exemplars.languages["en"];
+    assert_eq!(passages.len(), 6);
+    // Closest to this guide's typical length of thirty words first, as the device wrote it.
+    assert_eq!(passages[0], "word ".repeat(30));
+}

@@ -20,7 +20,7 @@ pub const SCHEMA_VERSION: u32 = 1;
 
 /// The synced half of a writing style: what was learned about how one person writes, per
 /// language, and the notes they added.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StyleGuide {
     /// The schema version the guide was written under.
     pub schema_version: u32,
@@ -86,7 +86,7 @@ impl fmt::Debug for StyleGuide {
 
 /// Where a guide was learned from: the date range and how many messages. No account, no
 /// address: the guide may be synced, and an account id means nothing on another device.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Provenance {
     /// The oldest message used, as seconds since the Unix epoch.
     #[serde(default)]
@@ -110,7 +110,7 @@ pub struct Provenance {
 /// The descriptive fields are written in the language of the person's interface, because the
 /// person reads them back on the reveal screen; the habits and phrases are quoted in the language
 /// of the mail, because a draft copies them.
-#[derive(Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct LanguageStyle {
     /// How they open a message, most frequent first, with the exact wording.
     #[serde(default)]
