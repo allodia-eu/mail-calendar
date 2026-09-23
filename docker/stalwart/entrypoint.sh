@@ -97,8 +97,8 @@ listener_exists() { # name
 # Add a STARTTLS listener (`useTls` with `tlsImplicit:false`) if absent. Stalwart supports
 # STARTTLS on 143/587 but recommends implicit TLS (993/465), so a fresh bootstrap comes up
 # with 993/465 only; we add 143/587 to exercise the engine's STARTTLS transports (which
-# real, older servers require). Sets CREATED_LISTENER=1 when it creates one, so the caller
-# restarts once to bind the new socket (a fresh bootstrap; a warm start already has them).
+# real, older servers require). Sets RESTART=1 when it creates one, so the caller restarts once to
+# bind the new socket (a fresh bootstrap; a warm start already has them).
 ensure_starttls_listener() { # create-key  name  bind  protocol
   if listener_exists "$2"; then
     log "listener $2 already present"
@@ -109,8 +109,36 @@ ensure_starttls_listener() { # create-key  name  bind  protocol
     log "FAILED to create listener $2: $resp"
     return 1
   fi
-  CREATED_LISTENER=1
+  RESTART=1
   log "created STARTTLS listener $2 ($3, $4)"
+}
+
+# Stalwart rate-limits anonymous HTTP per address, and every request a test sends comes from one:
+# a few sign-in runs in a row pass the default and get `429`, which a sign-in pre-flight reads as
+# "this server offers no sign-in". A harness has no use for the limit. Read at startup, so this sets
+# RESTART=1 when it changes it.
+lift_anonymous_rate_limit() {
+  if jmap '["x:Http/get",{"ids":["singleton"],"properties":["rateLimitAnonymous"]},"c0"]' \
+    | grep -q '"rateLimitAnonymous":null'; then
+    return 0
+  fi
+  resp=$(jmap '["x:Http/set",{"update":{"singleton":{"rateLimitAnonymous":null}}},"c0"]')
+  if ! printf '%s' "$resp" | grep -q '"updated"'; then
+    log "FAILED to lift the anonymous rate limit: $resp"
+    return 1
+  fi
+  RESTART=1
+  log "lifted the anonymous HTTP rate limit"
+}
+
+restart_if_needed() {
+  if [ "$RESTART" = 1 ]; then
+    log "restarting to apply the settings above"
+    stop_server
+    start_server
+    wait_http
+    RESTART=0
+  fi
 }
 
 trap 'stop_server; exit 0' TERM INT
@@ -142,7 +170,11 @@ log "default domain id: $DOMAIN_ID"
 
 ensure_account alice "Alice Tester" "${HARNESS_ALICE_PW:-harness-alice-pw}"
 
+RESTART=0
+lift_anonymous_rate_limit
+
 if [ "${HARNESS_SEED:-1}" = 0 ]; then
+  restart_if_needed
   touch "$MARKER"
   log "harness ready (accounts only, no seed)"
   wait "$SRV"
@@ -154,15 +186,9 @@ ensure_account bob "Bob Tester" "${HARNESS_BOB_PW:-harness-bob-pw}"
 # STARTTLS listeners for the IMAP (143) and SMTP submission (587) transports the engine
 # speaks in addition to implicit TLS. A newly created listener needs a server restart to
 # bind its socket; a warm start already has them in its persisted config.
-CREATED_LISTENER=0
 ensure_starttls_listener imapstarttls imap "[::]:143" imap
 ensure_starttls_listener submission submission "[::]:587" smtp
-if [ "$CREATED_LISTENER" = 1 ]; then
-  log "restarting to bind the new STARTTLS listeners"
-  stop_server
-  start_server
-  wait_http
-fi
+restart_if_needed
 
 log "seeding shared dataset"
 SEED_DIR="${SEED_DIR:-/harness/seed}" /bin/sh /harness/seed.sh
