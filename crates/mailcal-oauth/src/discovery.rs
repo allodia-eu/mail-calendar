@@ -219,7 +219,9 @@ fn require_https(url: &str) -> Result<String, DiscoveryError> {
     if !permitted {
         return Err(DiscoveryError::InsecureUrl(url.to_owned()));
     }
-    Ok(parsed.into())
+    // Not `parsed.into()`: serialising adds `/` to an empty path, and a resource indicator that
+    // gains a character is a different string to a server comparing it as one.
+    Ok(url.to_owned())
 }
 
 /// Whether `url`'s host is this machine, and therefore off any network.
