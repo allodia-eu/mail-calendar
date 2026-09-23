@@ -758,7 +758,23 @@ PY
 
   # Calendar: the same process changes to the deterministic living-week calendar. The agenda's
   # event buttons and every editor control are driven through AT-SPI; no coordinates or key events.
-  "$PYTHON" "$ATSPI" activate --name "Calendar" --timeout 20
+  #
+  # This one switch is driven by a **real pointer**, and it is the suite's only guard on pointer
+  # input working at all. That input is fragile in a way nothing else here would notice: on a seat
+  # with no physical pointer it works only while one virtual pointer stays open for the whole
+  # gesture, so a regression in the tooling would silently leave the Linux client with no way to
+  # drive a gesture (crates/mailcal-vpointer).
+  #
+  # No stored coordinate: `locate` measures the tab on screen and the point is piped in, the way
+  # `find` composes into `tap` on macOS.
+  #
+  # `New Event` is what makes this a real assertion rather than a hopeful one. It exists only on
+  # the calendar, so it cannot be satisfied by the click having missed and the mail view still
+  # being up, which is how a pointer check quietly becomes a no-op.
+  calendar_tab="$("$PYTHON" "$ATSPI" locate --name "Calendar" --role "toggle button" --timeout 20)"
+  [[ -n "$calendar_tab" ]] || die "the Calendar tab reported no on-screen position to click"
+  # shellcheck disable=SC2086
+  linux_session_pointer click $calendar_tab
   "$PYTHON" "$ATSPI" wait --name "New Event" --enabled --showing --timeout 45
   # The seeded NEEDS-ACTION hold, on the surface with no border to dash: an agenda row prints the
   # disclosure instead, and says it too (docs/calendar.md §4; the picture is per surface, the
@@ -1171,6 +1187,10 @@ sdk_available || die "the GNOME $(sdk_runtime_version) runtime is required to ve
 if [[ "$NO_BUILD" == 0 ]]; then
   info "building the Linux dev-harness client inside the GNOME $(sdk_runtime_version) SDK"
   sdk_cargo build -p mailcal-linux -p mailcal-mcp-shim --features mailcal-linux/dev-harness
+  # On the host, not in the SDK: it drives the compositor from outside the sandbox. Built here so
+  # the pointer leg does not stop to compile it halfway through a run.
+  info "building mailcal-vpointer (host)"
+  (cd "$REPO_ROOT" && cargo build -q -p mailcal-vpointer)
 fi
 info "toolkit under test: $(sdk_versions)"
 

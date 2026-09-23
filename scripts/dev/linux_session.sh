@@ -193,6 +193,23 @@ walk(json.load(sys.stdin))
 '
 }
 
+# Pointer input. One process per gesture on purpose: `mailcal-vpointer` holds a single virtual
+# pointer open for the whole of it, which is the only shape that works on a seat with no physical
+# pointer. Its own docs carry the measurements, and the reason `wlrctl` cannot stand in.
+#
+# Built on demand rather than by the client build: it is outside `default-members`, so nothing that
+# ships links it, and a developer who never drives a pointer never compiles it.
+linux_session_pointer() { # <move|click|drag|scroll> <args...>
+  [[ -n "${LINUX_SESSION_DISPLAY:-}" ]] || die "no headless session to point at"
+  local binary="$REPO_ROOT/target/debug/mailcal-vpointer"
+  if [[ ! -x "$binary" ]]; then
+    info "building mailcal-vpointer (once)"
+    (cd "$REPO_ROOT" && cargo build -q -p mailcal-vpointer) ||
+      die "could not build mailcal-vpointer"
+  fi
+  WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" "$binary" "$@"
+}
+
 # Type into the session. `wtype` carries its own virtual keyboard, so this works where the
 # developer's GNOME session offers nothing at all.
 #
