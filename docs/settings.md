@@ -54,9 +54,6 @@ if another platform grows summaries it uses the same keys.
 
 ## Known gaps
 
-- **No client draws Writing style or the own AI endpoint yet.** Both are in the core
-  ([`ai.md`](ai.md)); until a client draws them, its taxonomy runs without category 7 and its
-  Advanced category without the endpoint, which is also what a build with no AI available shows.
 - **Nothing presses the account category's browser hand-off.** Manage, Delete and the end-session
   hop each open a URL in the system browser, and no suite on any platform follows it: Windows
   ([`SettingsAllodia.Tests.ps1`](../clients/windows/uitests/SettingsAllodia.Tests.ps1), 2026-08-27)

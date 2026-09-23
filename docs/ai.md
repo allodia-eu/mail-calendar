@@ -176,15 +176,20 @@ A style's id is opaque CSPRNG output, never derived from its name.
 
 | Capability | Shared core | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| The gate, before anything is read or sent | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Learn a style: report, consent sheet, progress, cancel | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The reveal, notes, rename, forget | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Per-account style slot | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Draft a reply into the open composer, with gaps | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Own endpoint under Settings → Advanced | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Allodia relay: the entitlement read, requests, the balance | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Style guide synced between devices | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The gate, before anything is read or sent | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Learn a style: report, consent sheet, progress, cancel | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| The reveal, notes, rename, forget | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Per-account style slot | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Draft a reply into the open composer, with gaps | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Own endpoint under Settings → Advanced | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Allodia relay: the entitlement read, requests, the balance | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
+| Style guide synced between devices | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Fetch older sent mail back to a date | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+
+macOS and iOS were driven against the harness's Sent Items and the canned endpoint: the refusal
+until the endpoint says where it runs, learning, the reveal, the library, the account slot, a draft
+into a reply and the replace question, forget, and the category leaving with the endpoint; iOS on
+an iPhone simulator. Windows, Android and Linux are built and not yet driven (Known gaps).
 
 Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 
@@ -210,7 +215,16 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 
 ## Known gaps
 
-- **No client draws any of it yet.** Every client cell in the matrix is ⬜.
+- **Windows, Android and Linux are built and not driven.** Windows and Linux have compiled only in
+  CI; Android's JVM suite passes and its debug build succeeds. iPad was not driven either.
+- **"Try it on a recent message" is not offered** on any client; the reveal ends at Save.
+- **No driven run has sent a reply from a draft**, so the `ai_draft` round trip is proven by the
+  editor's and the core's tests, not on a screen.
+- **On Linux, a composer window left open** does not see a style learned meanwhile until From
+  changes or the reply is opened again.
+- **Drafts have not been judged against the relay's providers.** One of them is known to fold a
+  model's reasoning into its answer text; the first drafts through the relay are to be checked for
+  it, and an evaluation harness is not built.
 - **The relay service is not deployed.** The device side is built against the request and answer
   fixed above: a signed-in account whose entitlement grants `ai` goes through the relay, the
   entitlement is read in the background and kept in the preferences, and every answer's balance is

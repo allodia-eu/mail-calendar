@@ -78,10 +78,10 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Select several messages at once and act on the lot: archive, trash, delete permanently, mark read/unread, flag/unflag. Ctrl/⌘-click and Shift-click on a computer; on a phone a mode, entered by **Select** (iPhone, iPad) or a long press (Android); **Delete** trashes the selection and **Escape** clears it where the list has focus ([docs](docs/list-selection.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Mark as spam / not spam: **reported to the provider**, which trains its filter, not only filed under Junk; the verdicts offered come from the transport's own capability, and a provider that cannot be told still gets the message filed ([docs](docs/reporting.md)) | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
 | AI assistant access (MCP server): opt-in, off by default, desktop-only; read and act on your mail from an MCP client over a local socket (Windows: a named pipe), with an empty account allow list and direct send behind its own toggle ([docs](docs/mcp.md)) | ✅ | ✅ | — | ✅ | — | ✅ |
-| **Writing style**: learned from your own sent mail, cut to your own words on your device, after a sheet that says what is sent where; a description plus a few of your own passages, per language. Nothing is trained, and every request passes the jurisdiction gate first ([docs](docs/ai.md)) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| **Draft a reply** in your writing style, into the open composer above your signature and the quote, with a gap in brackets wherever a fact is missing; the AI path never sends ([docs](docs/ai.md)) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| **Your own AI endpoint** (any OpenAI-compatible server, one on your own computer included) under Settings → Advanced, with where it runs declared and checked by the gate ([docs](docs/ai.md)) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Writing style and drafts through Allodia's relay, in credits, and a style synced between your devices ([docs](docs/ai.md)) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Writing style**: learned from your own sent mail, cut to your own words on your device, after a sheet that says what is sent where; a description plus a few of your own passages, per language. Nothing is trained, and every request passes the jurisdiction gate first ([docs](docs/ai.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| **Draft a reply** in your writing style, into the open composer above your signature and the quote, with a gap in brackets wherever a fact is missing; the AI path never sends ([docs](docs/ai.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| **Your own AI endpoint** (any OpenAI-compatible server, one on your own computer included) under Settings → Advanced, with where it runs declared and checked by the gate ([docs](docs/ai.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Writing style and drafts through Allodia's relay, in credits, and a style synced between your devices ([docs](docs/ai.md)) | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Configurable swipe actions: Trash / Archive / Star per direction, with an undo toast | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | Calendar: agenda + create / delete event | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: write affordances gated on per-row `can_write` (a read-only row offers no delete; New event disabled without a writable calendar) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -165,6 +165,8 @@ is reopened.
 the date or the badges), because bolding every line of an unread mailbox distinguishes nothing.
 
 The jurisdiction gate is in the core, and the first AI feature of our own, writing style and drafted
-replies, is in the core behind it with no client drawing it yet ([`ai.md`](ai.md)).
+replies, runs behind it. macOS and iOS were driven against the local harness and a canned endpoint;
+Windows, Android and Linux draw it and have not been driven. The relay and style sync wait for the
+service to be deployed ([`ai.md`](ai.md)).
 
 > Keeping this matrix current is a hard rule: see [`AGENTS.md`](AGENTS.md).
