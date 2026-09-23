@@ -52,7 +52,7 @@ public sealed partial class MailboxModel
         // and quits before adding a mailbox would otherwise be met at the next launch by an empty
         // inbox and no way back to setup. The core routes that entry out before anything reads it
         // as a mailbox; this asks it the same question.
-        NeedsSetup = configs.All(MailcalBindingsMethods.IsAllodiaAccountConfig);
+        NeedsSetup = configs.All(MailcalBindingsMethods.IsReservedConfig);
         Log.Info(configs.Length == 0
             ? "no stored account, bringing up an account-less app for setup"
             : $"{configs.Length} stored account(s), connecting");

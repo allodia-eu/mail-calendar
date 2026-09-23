@@ -77,6 +77,8 @@ impl AppModel {
             // The composer's quiet "saved" hint. Nothing draws it yet; the composer has
             // neither an idle timer nor a Save button (`docs/drafts.md`, Known gaps).
             Surface::DraftStatus => {}
+            // Writing style has no screen on Linux yet (`docs/ai.md`, per-platform matrix).
+            Surface::WritingStyle => {}
         }
     }
 }

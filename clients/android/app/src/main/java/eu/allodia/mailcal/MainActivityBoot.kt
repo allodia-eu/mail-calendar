@@ -10,7 +10,7 @@ import android.net.Uri
 import android.os.Build
 import androidx.activity.enableEdgeToEdge
 import uniffi.mailcal_bindings.MailtoPrefill
-import uniffi.mailcal_bindings.isAllodiaAccountConfig
+import uniffi.mailcal_bindings.isReservedConfig
 import uniffi.mailcal_bindings.parseMailtoUri
 
 // What onCreate needs after `setContent`, to make the initial connect call: the resolved account
@@ -115,7 +115,7 @@ internal fun MainActivity.prepareBoot(): MainActivityBootPlan {
         // accounts and shows no form at all.
         needsSetup = when {
             showcase -> ShowcaseMode.screen(this) == ShowcaseScreen.ADD_ACCOUNT
-            else -> configs.all { isAllodiaAccountConfig(it) }
+            else -> configs.all { isReservedConfig(it) }
         }
         if (showcase) {
             // The periodic worker builds its own headless core over the *stored* accounts, so it

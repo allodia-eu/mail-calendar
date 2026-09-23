@@ -27,12 +27,42 @@ export function focusComposerBody(editor: HTMLElement): void {
 /// paragraph each, and an empty div carries a blank line through (`<br>` so the browser gives it
 /// height).
 export function setPlainText(editor: HTMLElement, text: unknown): void {
-  const doc = documentOf(editor);
   editor.textContent = "";
-  for (const line of String(text ?? "").split("\n")) {
-    const div = doc.createElement("div");
-    if (line.length > 0) div.textContent = line;
-    else div.appendChild(doc.createElement("br"));
-    editor.appendChild(div);
+  for (const div of lineDivs(editor, text)) editor.appendChild(div);
+}
+
+/// Puts a drafted reply into the open composer (`docs/ai.md`): replaces what the person has typed
+/// above the signature and the quoted original, and leaves both of those exactly where they are.
+///
+/// The lead region is every node before the first direct child that is the signature or the quote.
+/// Direct children only, for the reason `composerSignature` gives: a reply to our own mail carries
+/// a second `.allodia-signature` inside the quote. The draft goes in as `setPlainText` fills a
+/// body, one `<div>` per line, and the caret ends up after its last character, so the person picks
+/// up where the draft stops.
+export function setComposerDraftText(editor: HTMLElement, text: unknown): void {
+  const boundary =
+    Array.from(editor.children).find(
+      (child) =>
+        child.classList.contains("allodia-signature") || child.classList.contains("allodia-quote"),
+    ) ?? null;
+  while (editor.firstChild && editor.firstChild !== boundary) {
+    editor.removeChild(editor.firstChild);
   }
+  const divs = lineDivs(editor, text);
+  for (const div of divs) editor.insertBefore(div, boundary);
+  const last = divs[divs.length - 1];
+  if (last) caretInto(last, false);
+}
+
+/// One `<div>` per line of `text`, an empty line carrying a `<br>` so the browser gives it height.
+function lineDivs(editor: HTMLElement, text: unknown): HTMLElement[] {
+  const doc = documentOf(editor);
+  return String(text ?? "")
+    .split("\n")
+    .map((line) => {
+      const div = doc.createElement("div");
+      if (line.length > 0) div.textContent = line;
+      else div.appendChild(doc.createElement("br"));
+      return div;
+    });
 }

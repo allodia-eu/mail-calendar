@@ -364,7 +364,7 @@ final class MailboxModel {
         // launch by an empty inbox and no way back to setup, the sign-in having, from where they
         // sit, thrown the app into a state they did not ask for. The core routes the entry out
         // before anything reads it as a mailbox; this asks it the same question.
-        needsSetup = configs.allSatisfy { isAllodiaAccountConfig(config: $0) }
+        needsSetup = configs.allSatisfy { isReservedConfig(config: $0) }
         connect(configs)
     }
 

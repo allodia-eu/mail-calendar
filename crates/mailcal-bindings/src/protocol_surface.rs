@@ -49,6 +49,9 @@ pub enum Surface {
     /// Draft save status: how the most recent save of the message being composed ended
     /// (pulled via `MailcalApp::draft_status`); drives the composer's quiet "saved" hint.
     DraftStatus,
+    /// The Writing style surface (pulled via `MailcalApp::writing_styles`): the learned styles,
+    /// which account drafts in which, whether AI is available, and a learning run's progress.
+    WritingStyle,
 }
 
 /// A foreign (Kotlin/Swift) observer the app notifies when a surface changes; the

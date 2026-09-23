@@ -23,6 +23,7 @@ pub mod sync_progress;
 pub mod text;
 pub mod view;
 mod view_rows;
+pub mod writing_style;
 
 pub use attendee::{EventAttendee, effective_response, event_attendees};
 pub use avatar::Avatar;
@@ -48,4 +49,8 @@ pub use text::plain_text;
 pub use view::{
     AccountMessage, AccountRow, EmptyReason, FlatRow, MailboxListSnapshot, SearchHorizon,
     SnapshotRow, ThreadMessage, ThreadRow, ViewMode, unified_unread,
+};
+pub use writing_style::{
+    AccountWritingStyleRow, AiRoute, GateRefusal, HabitRow, LanguageStyleRow, LearningProgress,
+    LearningStage, WritingStyleDetail, WritingStyleRow, WritingStyleSnapshot,
 };

@@ -21,7 +21,7 @@ import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
 import { indentSelection } from "./lists";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
 import { installImageResize } from "./resize";
-import { focusComposerBody, setPlainText } from "./seeds";
+import { focusComposerBody, setComposerDraftText, setPlainText } from "./seeds";
 import {
   routeClickBelowSignature,
   setComposerSignature,
@@ -130,6 +130,7 @@ declare global {
     insertSignatureImage: (image: string | Record<string, unknown>) => void;
     focusComposerBody: () => void;
     setPlainText: (text: unknown) => void;
+    setComposerDraftText: (text: unknown) => void;
     useNativeComposerChrome: () => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
@@ -161,6 +162,7 @@ window.signatureBody = () => JSON.stringify(signatureBody(editor));
 // caret out of To on macOS the moment the bundle finished parsing.
 window.focusComposerBody = () => focusComposerBody(editor);
 window.setPlainText = (text) => setPlainText(editor, text);
+window.setComposerDraftText = (text) => setComposerDraftText(editor, text);
 window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 

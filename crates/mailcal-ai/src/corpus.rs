@@ -153,6 +153,13 @@ pub struct LanguageReport {
     pub tokens: u32,
 }
 
+/// The part of `body` its author wrote: no quoted original, no forwarded message, no signature
+/// block, and no trailing copy of any of `signatures`.
+#[must_use]
+pub fn own_text(body: &str, signatures: &[String]) -> String {
+    strip::Stripper::new().own_text(body, signatures)
+}
+
 /// Builds the corpus from `messages`.
 #[must_use]
 pub fn build(messages: Vec<SentMessage>, options: &CorpusOptions) -> Corpus {

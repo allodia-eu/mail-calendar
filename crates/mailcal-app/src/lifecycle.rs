@@ -75,6 +75,11 @@ impl<P: Provider> App<P> {
             .as_ref()
             .and_then(|path| path.parent())
             .map(mailcal_account::signatures_path);
+        // The writing-style library beside it, for the same reason.
+        let writing_styles_path = prefs_path
+            .as_ref()
+            .and_then(|path| path.parent())
+            .map(mailcal_account::writing_styles_path);
         // The message-list grouping is a persisted app preference (default Threaded); seed the
         // runtime mode from it so the choice survives a restart.
         let view_mode = load_view_mode(prefs_path.as_ref());
@@ -113,6 +118,10 @@ impl<P: Provider> App<P> {
                 prefs_path.clone(),
             )),
             mcp_settings: Mutex::new(McpSettingsState::new(prefs_path.clone())),
+            writing_style: Box::new(crate::writing_style::WritingStyleState::new(
+                writing_styles_path,
+                prefs_path.clone(),
+            )),
             sync_settings: Mutex::new(SyncSettingsState::new(prefs_path.clone())),
             notify_marks: Mutex::new(NotifyMarksState::new(prefs_path)),
             telemetry,

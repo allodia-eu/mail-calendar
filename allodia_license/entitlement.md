@@ -201,8 +201,8 @@ client now separates the two rather than refusing: Windows and Linux by a namesp
 credential itself (`dev`, `dev-imap`, `dev-multi`), Apple and Android by taking this one entry out
 of the store beside the canned account. Nothing a harness run writes can reach the developer's own
 accounts, and nothing it reads can see them. Which entry is this one is asked of the core
-(`is_allodia_account_config`) rather than matched in a client, so only one place knows the stored
-shape.
+(`is_reserved_config`, which also recognises an own AI endpoint's key) rather than matched in a
+client, so only one place knows the stored shape.
 
 The client registration is **injected at build time** (`MAILCAL_ALLODIA_CLIENT_ID`), so a build
 given none has no Allodia sign-in at all, the same mechanism, and the same absent-is-supported

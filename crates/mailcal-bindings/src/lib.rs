@@ -31,6 +31,9 @@ mod allodia_sync;
 mod allodia_tokens;
 #[cfg(feature = "allodia-license")]
 mod allodia_transport;
+// The person's own AI endpoint: its key in the secure store, and which backend AI goes through.
+mod ai_endpoint;
+mod ai_transport;
 mod analytics;
 mod app_accounts;
 mod app_accounts_google;
@@ -47,9 +50,11 @@ mod app_sender_name;
 mod app_settings;
 mod app_signatures;
 mod app_snapshots;
+mod app_writing_styles;
 mod autodetect;
 mod background;
 mod background_sync;
+mod blocking;
 mod boot;
 mod composer;
 mod composer_files;
@@ -61,6 +66,7 @@ mod convert;
 mod convert_mailbox;
 mod convert_reading;
 mod convert_settings;
+mod convert_writing_style;
 mod crash;
 mod credential_log;
 pub mod credential_store;
@@ -94,6 +100,7 @@ pub mod sync_state;
 mod records_invitation;
 mod records_recurrence;
 mod records_repeat_summary;
+mod records_writing_style;
 mod rendering;
 mod repeat_editor;
 mod runtime;
@@ -109,9 +116,8 @@ mod token_sink;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use agent_ui::{AgentDraft, AgentHostUi};
-pub use allodia::{
-    AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,
-};
+pub use ai_endpoint::{OwnAiEndpoint, OwnEndpointError, is_reserved_config};
+pub use allodia::{AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available};
 pub use allodia_health::AllodiaGrantHealth;
 pub use allodia_purchase::{
     AllodiaOffer, AllodiaPlan, AllodiaPurchaseError, AllodiaPurchaseReport, AllodiaStore,
@@ -191,6 +197,12 @@ pub use records_recurrence::{
     RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
+pub use records_writing_style::{
+    AccountWritingStyleRow, AiCharge, AiRoute, CorpusLanguage, CorpusReport, DraftReply,
+    GateRefusal, HabitRow, JurisdictionClass, JurisdictionMode, LanguageStyleRow, LearnReport,
+    LearningProgress, LearningStage, WritingStyleDetail, WritingStyleFailure, WritingStyleRow,
+    WritingStyleSnapshot,
+};
 pub use rendering::{
     MessageCanvas, message_canvas, render_message_html, should_open_external_link,
 };
@@ -288,6 +300,8 @@ pub struct MailcalApp {
     /// What it holds is the grant that lets the app ask Allodia's own service what this person is
     /// entitled to: so it sits beside the account list rather than in it. See [`crate::allodia`].
     allodia: Mutex<Option<allodia::StoredAccount>>,
+    /// The own AI endpoint's key, restored from the host's store at boot ([`crate::ai_endpoint`]).
+    ai_key: Mutex<Option<String>>,
     /// The host's OS-secure-store writer, supplied **at construction** and shared with the token
     /// sink so a rotated refresh token is re-persisted. One store serves all three OAuth
     /// families; it can never be absent, which is the point; see
@@ -414,3 +428,6 @@ mod tests_calendar;
 
 #[cfg(test)]
 mod tests_setup;
+
+#[cfg(test)]
+mod tests_ai_endpoint;

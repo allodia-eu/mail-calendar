@@ -155,6 +155,16 @@ impl SignatureState {
         )
     }
 
+    /// Every signature's plain text, for recognising one at the end of a sent message.
+    pub(crate) fn plain_bodies(&self) -> Vec<String> {
+        self.library
+            .entries
+            .values()
+            .map(|entry| entry.body_plain.clone())
+            .filter(|plain| !plain.trim().is_empty())
+            .collect()
+    }
+
     fn persist_library(&self) {
         if let Some(path) = &self.signatures_path {
             let _ = save_signatures(path, &self.library);

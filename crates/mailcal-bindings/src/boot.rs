@@ -126,6 +126,9 @@ pub(crate) fn build_accounts(
     // ⚠️ Taken either way, so the mail parsers never see it, but **kept only by a core that can use
     // it**: a second core holding the grant is a second refresh gate over one credential.
     let allodia = crate::allodia::take_stored(&mut configs).filter(|_| start_live_sync);
+    // The own AI endpoint's key is the other entry that is not a mail account, taken out for the
+    // same reason. A headless pass drafts nothing, so only an interactive core keeps it.
+    let ai_key = crate::ai_endpoint::take_stored(&mut configs).filter(|_| start_live_sync);
 
     let registry = AccountRegistry::new();
     // The token sink every OAuth account's refresh shares, built over the host's store before
@@ -318,6 +321,7 @@ pub(crate) fn build_accounts(
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(allodia),
+        ai_key: Mutex::new(ai_key),
         credential_store,
         disconnected,
         device_zone: device_tz,
@@ -328,6 +332,8 @@ pub(crate) fn build_accounts(
     // has consented, but it must happen before the first event, or a consented install's very
     // first batch would report zero accounts.
     mailcal.refresh_analytics_accounts();
+    // What AI requests go through, from what is set up: nothing, until an endpoint is.
+    mailcal.refresh_ai_backend();
     // Interactive boot: every account is a provider-less placeholder, so dial them all in the
     // background now. Each successful reconnect registers live providers (the cached mail is
     // already on screen), starts that account's IMAP IDLE watches / poll timer, and runs a

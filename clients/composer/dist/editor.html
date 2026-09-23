@@ -1698,17 +1698,33 @@
     focusEditor(editor);
   }
   function setPlainText(editor, text) {
-    const doc = documentOf(editor);
     editor.textContent = "";
-    for (const line of String(text ?? "").split(`
-`)) {
+    for (const div of lineDivs(editor, text))
+      editor.appendChild(div);
+  }
+  function setComposerDraftText(editor, text) {
+    const boundary = Array.from(editor.children).find((child) => child.classList.contains("allodia-signature") || child.classList.contains("allodia-quote")) ?? null;
+    while (editor.firstChild && editor.firstChild !== boundary) {
+      editor.removeChild(editor.firstChild);
+    }
+    const divs = lineDivs(editor, text);
+    for (const div of divs)
+      editor.insertBefore(div, boundary);
+    const last = divs[divs.length - 1];
+    if (last)
+      caretInto(last, false);
+  }
+  function lineDivs(editor, text) {
+    const doc = documentOf(editor);
+    return String(text ?? "").split(`
+`).map((line) => {
       const div = doc.createElement("div");
       if (line.length > 0)
         div.textContent = line;
       else
         div.appendChild(doc.createElement("br"));
-      editor.appendChild(div);
-    }
+      return div;
+    });
   }
 
   // src/tables.ts
@@ -2170,6 +2186,7 @@
   window.signatureBody = () => JSON.stringify(signatureBody(editor));
   window.focusComposerBody = () => focusComposerBody(editor);
   window.setPlainText = (text) => setPlainText(editor, text);
+  window.setComposerDraftText = (text) => setComposerDraftText(editor, text);
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerLabels = (incoming) => {

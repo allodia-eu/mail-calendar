@@ -64,6 +64,9 @@ mailcal-mcp = { workspace = true }
 # The HTTPS delivery adapter for consented analytics. Kept out of `mailcal-app` so the core
 # stays network-free; this crate is the only thing that can put an event on the wire.
 mailcal-telemetry = { workspace = true }
+# Writing style and drafted replies. The core holds the gated backend; this crate builds it, over
+# the one transport here that may open a socket for AI (`ai_transport`).
+mailcal-ai = { workspace = true }
 async-trait = { workspace = true }
 # The transient begin→complete `pending` handle is serde-encoded to a JSON string.
 serde = { workspace = true }

@@ -97,8 +97,9 @@ port:
    frames, forms, remote resources, and unsupported CSS; Rust validation is the final authority.
 8. **Draft body text is sensitive.** Do not log editor JSON, rendered HTML, plain text, or pasted
    content. Logs may include lengths, counts, ids, and validation error categories.
-9. **External dispatches stay gated.** If a future feature fetches a remote image, uploads to a cloud
-   attachment provider, or calls AI drafting, it passes the `JurisdictionGate` before data leaves.
+9. **External dispatches stay gated.** AI drafting passes the jurisdiction gate
+   (`mailcal-jurisdiction`) before data leaves ([`ai.md`](ai.md)); a future feature that fetches a
+   remote image or uploads to a cloud attachment provider passes it too.
 10. **Raw-HTML body blocks are sanitised in the core: quoted originals *and* signatures.** Two blocks
     carry HTML the composer emits verbatim rather than building from nodes, and both are hostile input
     the editor round-trips:

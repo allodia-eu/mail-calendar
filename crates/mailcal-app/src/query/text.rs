@@ -22,7 +22,7 @@
 /// Block-level boundaries become newlines so paragraphs and list items stay apart (a wall of
 /// run-together text reads as one sentence to a model as much as to a person), consecutive blank
 /// lines collapse, and `<script>`/`<style>` content is dropped rather than emitted as prose.
-pub(super) fn to_plain(html: &str) -> String {
+pub(crate) fn to_plain(html: &str) -> String {
     let mut out = String::with_capacity(html.len() / 2);
     let mut rest = html;
     while let Some(open) = rest.find('<') {
