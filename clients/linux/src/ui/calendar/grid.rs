@@ -82,12 +82,15 @@ impl GridSurface {
                 );
                 settle_framing(adjustment, &viewport_scene, &viewport_framing);
             });
+        let scroll_drawing = drawing.clone();
         let scroll_scene = Rc::clone(&scene);
         let scroll_framing = Rc::clone(&framing);
+        // The painter culls to the viewport, and GTK moves a scrolled child without redrawing it.
         root.vadjustment().connect_value_notify(move |adjustment| {
             scroll_scene
                 .borrow_mut()
                 .set_viewport_top(adjustment.value());
+            scroll_drawing.queue_draw();
             scroll_framing.follow(adjustment, &scroll_scene);
         });
         let upper_scene = Rc::clone(&scene);

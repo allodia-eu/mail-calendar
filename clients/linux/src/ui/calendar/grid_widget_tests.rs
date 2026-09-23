@@ -217,6 +217,52 @@ pub(crate) fn a_resized_window_keeps_the_hour_the_reader_was_looking_at() {
     );
 }
 
+/// A scroll repaints the grid for the hours it now shows.
+///
+/// The painter skips every event outside the viewport, and GTK moves a scrolled child without
+/// asking it to draw again, so a grid that is not told to repaint keeps the events of wherever it
+/// was last drawn: framed on the morning, it showed nothing after the hours visible at midnight.
+pub(crate) fn a_scroll_repaints_the_hours_it_reveals() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let surface = GridSurface::new(sender);
+    let mut scene = scrollable_scene();
+    scene.timezone = "UTC".to_owned();
+    *surface.scene.borrow_mut() = scene;
+    let window = gtk::Window::new();
+    window.set_default_size(900, 400);
+    window.set_child(Some(&surface.root));
+    window.present();
+    surface.opened();
+    let adjustment = surface.root.vadjustment();
+    settle(|| !surface.framing.is_pending() && adjustment.upper() > adjustment.page_size());
+
+    let painted = Rc::new(std::cell::Cell::new(None::<f64>));
+    let recorder = Rc::clone(&painted);
+    let painted_scene = Rc::clone(&surface.scene);
+    surface.drawing.set_draw_func(move |_, _, _, _| {
+        recorder.set(Some(painted_scene.borrow().viewport_top));
+    });
+    settle(|| painted.get().is_some());
+    painted.set(None);
+    let target = if adjustment.value() > adjustment.page_size() {
+        adjustment.value() - adjustment.page_size()
+    } else {
+        adjustment.value() + adjustment.page_size()
+    };
+    adjustment.set_value(target);
+    settle(|| painted.get().is_some());
+    let (value, repainted) = (adjustment.value(), painted.get());
+    window.close();
+
+    let Some(repainted) = repainted else {
+        panic!("the grid scrolled to {value} and was never repainted for it");
+    };
+    assert!(
+        (repainted - value).abs() < 1.0,
+        "the grid was repainted for {repainted} while it shows {value}"
+    );
+}
+
 /// The minute in the middle of the viewport, read back off the grid the way a reader sees it.
 ///
 /// Its own arithmetic on purpose, rather than the framing's: an oracle that calls the code under
