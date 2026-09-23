@@ -265,7 +265,7 @@ pub fn load(path: impl AsRef<Path>) -> Result<AccountConfig, ConfigError> {
 }
 
 /// Parses an [`AccountConfig`] from a TOML string: the in-memory form a host reads
-/// from its OS secure store (Keychain / EncryptedSharedPreferences) rather than a
+/// from its OS secure store (Keychain / Android Keystore) rather than a
 /// plaintext file on disk.
 ///
 /// # Errors
