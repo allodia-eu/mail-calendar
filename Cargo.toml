@@ -43,6 +43,8 @@ default-members = [
   "crates/mailcal-mcp",
   "crates/mailcal-mcp-shim",
   "crates/mailcal-bindings",
+  "crates/mailcal-jurisdiction",
+  "crates/mailcal-ai",
 ]
 
 # `version` mirrors the top-level `/VERSION` single source of truth (docs/versioning.md). Cargo
@@ -252,6 +254,12 @@ mailcal-oauth = { path = "crates/mailcal-oauth" }
 # structurally CANNOT listen on a socket, so the demo, the showcase, and every test are not merely
 # configured off but incapable. See docs/mcp.md.
 mailcal-mcp = { path = "crates/mailcal-mcp" }
+# The jurisdiction gate every external dispatch passes before data leaves the device. Pure: it
+# decides and never sends (docs/ai.md, "The gate").
+mailcal-jurisdiction = { path = "crates/mailcal-jurisdiction" }
+# Writing style and drafted replies: the OpenAI-compatible wire types, the gated backend, the
+# corpus builder, the prompts. Opens no socket; the host implements its transport port.
+mailcal-ai = { path = "crates/mailcal-ai" }
 # The HTTPS delivery adapter for consented product analytics: implements the core's
 # `TelemetrySink` port. Kept out of `mailcal-app` so the core stays network-free — the demo, the
 # showcase, and every test run with no sink, and therefore cannot phone home. See docs/analytics.md.
@@ -287,7 +295,8 @@ provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-eng
 provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "63fe25ac8c7807297a9966e57381a0b139122b41" }
 # JSON Schema derivation for the MCP tool surface (crates/mailcal-mcp). MCP requires a
 # draft-2020-12 `inputSchema` per tool; deriving it from the same struct the handler deserializes
-# is what stops a client sending exactly what a tool documented and getting a parse error.
+# is what stops a client sending exactly what a tool documented and getting a parse error. The
+# same holds for the style guide a model returns through `emit_json` (crates/mailcal-ai).
 schemars = { version = "1", features = ["preserve_order"] }
 # UniFFI generates the Kotlin/Swift bindings over the app.
 uniffi = "0.31"

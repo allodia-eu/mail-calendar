@@ -1,0 +1,166 @@
+use std::sync::Arc;
+
+use mailcal_jurisdiction::{Class, Mode};
+
+use super::{EndpointError, OwnEndpoint};
+use crate::{
+    AiError, GatedBackend,
+    test_support::CannedTransport,
+    transport::TransportFailed,
+    wire::{ChatMessage, ChatRequest, Purpose},
+};
+
+fn endpoint(base: &str) -> Result<OwnEndpoint, EndpointError> {
+    OwnEndpoint::new(
+        base,
+        Some("sk-secret".to_owned()),
+        "mistral-small",
+        Some(Class::EuNative),
+    )
+}
+
+fn request() -> ChatRequest {
+    ChatRequest {
+        purpose: Purpose::Draft,
+        messages: vec![ChatMessage::system("be brief"), ChatMessage::user("hello")],
+        tools: Vec::new(),
+        tool_choice: None,
+        temperature: Some(0.4),
+        max_tokens: Some(800),
+    }
+}
+
+fn gated(transport: CannedTransport) -> GatedBackend {
+    GatedBackend::own_endpoint(
+        endpoint("https://api.example.eu/v1/").unwrap(),
+        Box::new(transport),
+        Arc::new(|| Mode::EuNative),
+    )
+}
+
+#[test]
+fn https_is_required_except_to_this_device() {
+    assert!(endpoint("https://api.example.eu/v1").is_ok());
+    assert!(endpoint("http://localhost:11434/v1").is_ok());
+    assert!(endpoint("http://127.0.0.1:8080/v1").is_ok());
+    assert!(endpoint("http://[::1]:8080/v1").is_ok());
+    assert_eq!(
+        endpoint("http://192.168.1.20:11434/v1"),
+        Err(EndpointError::NotHttps)
+    );
+    assert_eq!(
+        endpoint("http://api.example.eu/v1"),
+        Err(EndpointError::NotHttps)
+    );
+    assert_eq!(
+        endpoint("ftp://api.example.eu/v1"),
+        Err(EndpointError::InvalidUrl)
+    );
+}
+
+#[test]
+fn an_address_carrying_credentials_or_a_query_is_refused() {
+    for base in [
+        "https://user:pass@api.example.eu/v1",
+        "https://api.example.eu/v1?key=secret",
+        "https://api.example.eu/v1#part",
+        "not a url",
+    ] {
+        assert_eq!(endpoint(base), Err(EndpointError::InvalidUrl), "{base}");
+    }
+}
+
+#[test]
+fn a_model_is_required_and_a_blank_key_is_no_key() {
+    assert_eq!(
+        OwnEndpoint::new("https://api.example.eu/v1", None, "  ", None),
+        Err(EndpointError::NoModel)
+    );
+    let keyless = OwnEndpoint::new(
+        "https://api.example.eu/v1",
+        Some("  ".to_owned()),
+        "m",
+        None,
+    )
+    .unwrap();
+    assert!(!format!("{keyless:?}").contains("has_key: true"));
+}
+
+#[test]
+fn the_key_never_reaches_debug_output() {
+    let printed = format!("{:?}", endpoint("https://api.example.eu/v1").unwrap());
+    assert!(!printed.contains("sk-secret"));
+    assert!(!printed.contains("example"));
+}
+
+#[test]
+fn a_request_carries_the_model_the_key_and_no_streaming() {
+    let transport = CannedTransport::new(
+        200,
+        r#"{"choices":[{"message":{"role":"assistant","content":"Hi"}}]}"#,
+    );
+    let sent = Arc::clone(&transport.sent);
+
+    let answer = gated(transport).chat(&request()).unwrap();
+
+    assert_eq!(answer.answer().unwrap().content.as_deref(), Some("Hi"));
+    let sent = sent.lock().unwrap();
+    assert_eq!(sent[0].url, "https://api.example.eu/v1/chat/completions");
+    assert_eq!(sent[0].bearer.as_deref(), Some("sk-secret"));
+    let body = &sent[0].body;
+    assert_eq!(body["model"], "mistral-small");
+    assert_eq!(body["stream"], false);
+    assert_eq!(body["max_tokens"], 800);
+    assert_eq!(body["messages"][0]["role"], "system");
+    // The purpose is the relay's business: an own endpoint is never sent a field it may reject.
+    assert!(body.get("purpose").is_none());
+}
+
+#[test]
+fn each_failure_status_has_its_own_error() {
+    for (status, expected) in [
+        (401, AiError::Unauthorized),
+        (403, AiError::Unauthorized),
+        (429, AiError::RateLimited),
+        (404, AiError::Status(404)),
+        (500, AiError::Status(500)),
+    ] {
+        let error = gated(CannedTransport::new(status, "{}"))
+            .chat(&request())
+            .unwrap_err();
+        assert_eq!(error, expected, "{status}");
+    }
+    let unreadable = gated(CannedTransport::new(200, "<html>"))
+        .chat(&request())
+        .unwrap_err();
+    assert_eq!(unreadable, AiError::Malformed);
+}
+
+#[test]
+fn no_answer_at_all_is_unreachable() {
+    let transport = CannedTransport {
+        answer: Err(TransportFailed),
+        sent: Arc::default(),
+    };
+    assert_eq!(
+        gated(transport).chat(&request()).unwrap_err(),
+        AiError::Unreachable
+    );
+}
+
+#[test]
+fn an_undeclared_endpoint_is_refused_before_the_transport_is_touched() {
+    let transport = CannedTransport::new(200, "{}");
+    let sent = Arc::clone(&transport.sent);
+    let gated = GatedBackend::own_endpoint(
+        OwnEndpoint::new("https://api.example.com/v1", None, "m", None).unwrap(),
+        Box::new(transport),
+        Arc::new(|| Mode::EuNative),
+    );
+
+    assert!(matches!(
+        gated.chat(&request()),
+        Err(AiError::Refused(refused)) if refused.class == Class::Unknown
+    ));
+    assert!(sent.lock().unwrap().is_empty());
+}

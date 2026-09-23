@@ -1,0 +1,103 @@
+//! The gated backend: the one door an AI request leaves through.
+//!
+//! Every function in this crate that dispatches takes a [`GatedBackend`], and the app holds one of
+//! those rather than any [`AiBackend`]. Its [`chat`](GatedBackend::chat) asks the jurisdiction
+//! gate first and refuses before the inner backend is reached, so the check sits in process, on
+//! the path, where it cannot be routed around (`AGENTS.md`, "Non-negotiables").
+
+use std::{fmt, sync::Arc};
+
+use mailcal_jurisdiction::{Destination, Mode, Refused, classify, gate};
+
+use crate::{
+    AiBackend, AiError,
+    endpoint::{OpenAiCompatibleBackend, OwnEndpoint},
+    transport::HttpTransport,
+    wire::{ChatRequest, ChatResponse},
+};
+
+/// Reads the mode in force at the moment of a request, so a change of preference applies to the
+/// next request without rebuilding the backend.
+pub type ModeSource = Arc<dyn Fn() -> Mode + Send + Sync>;
+
+/// A backend behind the jurisdiction gate.
+pub struct GatedBackend {
+    inner: Box<dyn AiBackend>,
+    destination: Destination,
+    mode: ModeSource,
+}
+
+impl GatedBackend {
+    /// Puts `inner`, which sends to `destination`, behind the gate.
+    ///
+    /// The destination is the caller's statement of where `inner` sends, and the gate is only as
+    /// true as it: the relay's constructor passes [`Destination::AllodiaRelay`] and nothing else
+    /// may.
+    #[must_use]
+    pub fn new(inner: Box<dyn AiBackend>, destination: Destination, mode: ModeSource) -> Self {
+        Self {
+            inner,
+            destination,
+            mode,
+        }
+    }
+
+    /// An own endpoint behind the gate, classed by the person's declaration.
+    #[must_use]
+    pub fn own_endpoint(
+        endpoint: OwnEndpoint,
+        transport: Box<dyn HttpTransport>,
+        mode: ModeSource,
+    ) -> Self {
+        let destination = Destination::OwnEndpoint {
+            declared: endpoint.declared(),
+        };
+        Self::new(
+            Box::new(OpenAiCompatibleBackend::new(endpoint, transport)),
+            destination,
+            mode,
+        )
+    }
+
+    /// Where requests go.
+    #[must_use]
+    pub fn destination(&self) -> Destination {
+        self.destination
+    }
+
+    /// Whether a request would pass the gate now, so a client can explain a refusal before the
+    /// person asks for anything.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`Refused`] a request would meet.
+    pub fn check(&self) -> Result<(), Refused> {
+        gate((self.mode)(), classify(&self.destination))
+    }
+
+    /// Asks the gate, then sends `request` if it passed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AiError::Refused`] when the gate stopped it, in which case nothing left the
+    /// device, and otherwise whatever the inner backend returned.
+    pub fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, AiError> {
+        if let Err(refused) = self.check() {
+            log::info!("ai: dispatch refused: {refused}");
+            return Err(AiError::Refused(refused));
+        }
+        self.inner.chat(request)
+    }
+}
+
+impl fmt::Debug for GatedBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GatedBackend")
+            .field("destination", &self.destination)
+            .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+#[path = "gated_tests.rs"]
+mod tests;

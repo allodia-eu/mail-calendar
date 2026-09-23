@@ -2112,6 +2112,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcal-ai"
+version = "0.10.0"
+dependencies = [
+ "log",
+ "mailcal-jurisdiction",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "url",
+]
+
+[[package]]
 name = "mailcal-app"
 version = "0.10.0"
 dependencies = [
@@ -2209,6 +2222,14 @@ version = "0.10.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mailcal-jurisdiction"
+version = "0.10.0"
+dependencies = [
+ "serde",
+ "toml 1.1.4+spec-1.1.0",
 ]
 
 [[package]]
