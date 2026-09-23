@@ -1705,7 +1705,7 @@
   function setComposerDraftText(editor, text, draftId) {
     if (typeof draftId === "string" && draftId.length > 0)
       editor.dataset.aiDraft = draftId;
-    const boundary = Array.from(editor.children).find((child) => child.classList.contains("allodia-signature") || child.classList.contains("allodia-quote")) ?? null;
+    const boundary = leadBoundary(editor);
     while (editor.firstChild && editor.firstChild !== boundary) {
       editor.removeChild(editor.firstChild);
     }
@@ -1715,6 +1715,21 @@
     const last = divs[divs.length - 1];
     if (last)
       caretInto(last, false);
+  }
+  function composerLeadHasText(editor) {
+    const boundary = leadBoundary(editor);
+    for (let node = editor.firstChild;node && node !== boundary; node = node.nextSibling) {
+      if ((node.textContent ?? "").trim().length > 0)
+        return true;
+      if (node instanceof windowOf(editor).Element) {
+        if (node.nodeName === "IMG" || node.querySelector("img"))
+          return true;
+      }
+    }
+    return false;
+  }
+  function leadBoundary(editor) {
+    return Array.from(editor.children).find((child) => child.classList.contains("allodia-signature") || child.classList.contains("allodia-quote")) ?? null;
   }
   function lineDivs(editor, text) {
     const doc = documentOf(editor);
@@ -2189,6 +2204,7 @@
   window.focusComposerBody = () => focusComposerBody(editor);
   window.setPlainText = (text) => setPlainText(editor, text);
   window.setComposerDraftText = (text, draftId) => setComposerDraftText(editor, text, draftId);
+  window.composerLeadHasText = () => composerLeadHasText(editor);
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerLabels = (incoming) => {

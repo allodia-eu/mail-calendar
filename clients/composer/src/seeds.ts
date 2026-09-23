@@ -1,6 +1,6 @@
 // Seeding the body from the host, and putting the caret in it.
 
-import { caretInto, documentOf, focusEditor, rangeWithin } from "./dom";
+import { caretInto, documentOf, focusEditor, rangeWithin, windowOf } from "./dom";
 
 /// Focuses the message area so the composer opens ready to type; a host calls this when it opens a
 /// reply or forward, where the addresses and subject are already filled in and writing is the only
@@ -45,11 +45,7 @@ export function setPlainText(editor: HTMLElement, text: unknown): void {
 /// learning run; a later draft replaces it.
 export function setComposerDraftText(editor: HTMLElement, text: unknown, draftId?: unknown): void {
   if (typeof draftId === "string" && draftId.length > 0) editor.dataset.aiDraft = draftId;
-  const boundary =
-    Array.from(editor.children).find(
-      (child) =>
-        child.classList.contains("allodia-signature") || child.classList.contains("allodia-quote"),
-    ) ?? null;
+  const boundary = leadBoundary(editor);
   while (editor.firstChild && editor.firstChild !== boundary) {
     editor.removeChild(editor.firstChild);
   }
@@ -57,6 +53,29 @@ export function setComposerDraftText(editor: HTMLElement, text: unknown, draftId
   for (const div of divs) editor.insertBefore(div, boundary);
   const last = divs[divs.length - 1];
   if (last) caretInto(last, false);
+}
+
+/// Whether the person has put anything above the signature and the quoted original: text, or a
+/// picture. A host asks before a draft replaces it.
+export function composerLeadHasText(editor: HTMLElement): boolean {
+  const boundary = leadBoundary(editor);
+  for (let node = editor.firstChild; node && node !== boundary; node = node.nextSibling) {
+    if ((node.textContent ?? "").trim().length > 0) return true;
+    if (node instanceof windowOf(editor).Element) {
+      if (node.nodeName === "IMG" || node.querySelector("img")) return true;
+    }
+  }
+  return false;
+}
+
+/// The first direct child that is the signature or the quote, which ends the lead region.
+function leadBoundary(editor: HTMLElement): Element | null {
+  return (
+    Array.from(editor.children).find(
+      (child) =>
+        child.classList.contains("allodia-signature") || child.classList.contains("allodia-quote"),
+    ) ?? null
+  );
 }
 
 /// One `<div>` per line of `text`, an empty line carrying a `<br>` so the browser gives it height.

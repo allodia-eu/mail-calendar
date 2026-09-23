@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { documentBlocks } from "../src/document";
-import { setComposerDraftText } from "../src/seeds";
+import { composerLeadHasText, setComposerDraftText } from "../src/seeds";
 import { harness } from "./support";
 
 const SIGNATURE = `<div class="allodia-signature" data-signature-plain="Sam"><p>Sam</p></div>`;
@@ -75,5 +75,27 @@ describe("the draft's id", () => {
     const { editor } = harness(SIGNATURE);
     setComposerDraftText(editor, "No id");
     expect(editor.dataset.aiDraft).toBeUndefined();
+  });
+});
+
+describe("whether the person has written a reply", () => {
+  test("is no above an empty line, the signature and the quote", () => {
+    const { editor } = harness(`<div><br></div>${SIGNATURE}${QUOTE}`);
+    expect(composerLeadHasText(editor)).toBe(false);
+  });
+
+  test("is yes once there is text above them", () => {
+    const { editor } = harness(`<div>Thanks,</div>${SIGNATURE}${QUOTE}`);
+    expect(composerLeadHasText(editor)).toBe(true);
+  });
+
+  test("does not count the text of the signature or the quote", () => {
+    const { editor } = harness(`${SIGNATURE}${QUOTE}`);
+    expect(composerLeadHasText(editor)).toBe(false);
+  });
+
+  test("counts a picture the person put there", () => {
+    const { editor } = harness(`<div><img src="cid:a"></div>${SIGNATURE}`);
+    expect(composerLeadHasText(editor)).toBe(true);
   });
 });

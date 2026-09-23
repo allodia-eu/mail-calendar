@@ -21,7 +21,7 @@ import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
 import { indentSelection } from "./lists";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
 import { installImageResize } from "./resize";
-import { focusComposerBody, setComposerDraftText, setPlainText } from "./seeds";
+import { composerLeadHasText, focusComposerBody, setComposerDraftText, setPlainText } from "./seeds";
 import {
   routeClickBelowSignature,
   setComposerSignature,
@@ -131,6 +131,7 @@ declare global {
     focusComposerBody: () => void;
     setPlainText: (text: unknown) => void;
     setComposerDraftText: (text: unknown, draftId?: unknown) => void;
+    composerLeadHasText: () => boolean;
     useNativeComposerChrome: () => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
@@ -163,6 +164,7 @@ window.signatureBody = () => JSON.stringify(signatureBody(editor));
 window.focusComposerBody = () => focusComposerBody(editor);
 window.setPlainText = (text) => setPlainText(editor, text);
 window.setComposerDraftText = (text, draftId) => setComposerDraftText(editor, text, draftId);
+window.composerLeadHasText = () => composerLeadHasText(editor);
 window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 

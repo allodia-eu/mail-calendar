@@ -201,6 +201,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
   a client shows the Writing style category only when it is `Some`.
 - **`setComposerDraftText(text, draftId)`** in the editor bundle inserts a draft, as described
   under "Drafting a reply", and keeps `draftId` (`DraftReply.draft_id`) for the submit.
+- **`composerLeadHasText()`** answers whether the person has already written above the
+  signature and the quote; a client asks before a draft replaces it, and asks to replace.
 - **A failure** is a `WritingStyleFailure` variant, never a server's sentence; a client words it.
 - **Driven locally** against the harness's Sent Items and a canned endpoint, with no credits
   spent ([`debugging.md`](debugging.md), "Start the local mail server").
