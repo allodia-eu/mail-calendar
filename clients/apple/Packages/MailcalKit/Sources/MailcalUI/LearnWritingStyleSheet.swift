@@ -62,23 +62,19 @@ struct LearnWritingStyleSheet: View {
         if LearnWritingStyleFlow.asksForAccount(accounts.map(\.accountId)) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(L10n.learn_account_title()).font(.subheadline).bold()
-                Picker(L10n.learn_account_title(), selection: $flow.account) {
-                    ForEach(accounts, id: \.accountId) { account in
-                        Text(account.email).tag(Optional(account.accountId))
-                    }
-                }
-                .radioPickerStyle()
-                .labelsHidden()
+                ChoiceList(
+                    title: L10n.learn_account_title(),
+                    selection: $flow.account,
+                    options: accounts.map { (Optional($0.accountId), $0.email) }
+                )
             }
         }
         VStack(alignment: .leading, spacing: 6) {
             Text(L10n.learn_range_title()).font(.subheadline).bold()
-            Picker(L10n.learn_range_title(), selection: $usesUntil) {
-                Text(L10n.learn_range_all()).tag(false)
-                Text(L10n.learn_range_until()).tag(true)
-            }
-            .radioPickerStyle()
-            .labelsHidden()
+            ChoiceList(title: L10n.learn_range_title(), selection: $usesUntil, options: [
+                (false, L10n.learn_range_all()),
+                (true, L10n.learn_range_until()),
+            ])
             if usesUntil {
                 Text(L10n.learn_range_until_hint())
                     .font(.caption)

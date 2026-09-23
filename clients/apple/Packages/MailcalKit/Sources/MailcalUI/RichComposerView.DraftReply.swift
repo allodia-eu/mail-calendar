@@ -73,8 +73,13 @@ extension RichComposeView {
         }
     }
 
-    /// "Drafting…", a failure, or the reminder to check the gaps, near the body.
-    @ViewBuilder var draftStatusLine: some View {
+    /// "Drafting…", a failure, or the reminder to check the gaps, near the body. Pinned to the
+    /// leading edge: the phone composer's header centres a child narrower than itself.
+    var draftStatusLine: some View {
+        draftStatusContent.frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private var draftStatusContent: some View {
         if draftStatus.drafting {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)

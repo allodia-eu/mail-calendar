@@ -425,7 +425,10 @@ struct RichComposeView: View {
             Spacer()
         }
         #else
+        // Pinned to the leading edge: the phone composer's header centres a child narrower than
+        // itself, which an HStack ending in a Spacer never was.
         RecipientFlowLayout(spacing: 10) { messageActions }
+            .frame(maxWidth: .infinity, alignment: .leading)
         #endif
     }
 

@@ -46,16 +46,11 @@ struct OwnAiEndpointSettings: View {
                     }
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L10n.ai_endpoint_where()).font(.subheadline).bold()
-                        Picker(L10n.ai_endpoint_where(), selection: $declared) {
-                            Text(L10n.ai_endpoint_where_eu_native())
-                                .tag(JurisdictionClass?.some(.euNative))
-                            Text(L10n.ai_endpoint_where_eu_hosted())
-                                .tag(JurisdictionClass?.some(.euHosted))
-                            Text(L10n.ai_endpoint_where_non_eu())
-                                .tag(JurisdictionClass?.some(.nonEu))
-                        }
-                        .radioPickerStyle()
-                        .labelsHidden()
+                        ChoiceList(title: L10n.ai_endpoint_where(), selection: $declared, options: [
+                            (.euNative, L10n.ai_endpoint_where_eu_native()),
+                            (.euHosted, L10n.ai_endpoint_where_eu_hosted()),
+                            (.nonEu, L10n.ai_endpoint_where_non_eu()),
+                        ])
                     }
                     if let error {
                         Text(error)
