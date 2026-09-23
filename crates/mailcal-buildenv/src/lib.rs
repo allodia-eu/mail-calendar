@@ -145,10 +145,7 @@ pub fn repo_root() -> PathBuf {
 /// A value with one layer of matching quotes taken off.
 fn unquote(value: &str) -> &str {
     for quote in ['"', '\''] {
-        if let Some(inner) = value
-            .strip_prefix(quote)
-            .and_then(|v| v.strip_suffix(quote))
-        {
+        if let Some(inner) = value.strip_circumfix(quote, quote) {
             return inner;
         }
     }

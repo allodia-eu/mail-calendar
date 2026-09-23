@@ -30,10 +30,7 @@ pub(crate) fn valid_host_or_ip(s: &str) -> bool {
 
 /// Whether `s` is an IPv6 address, bare (`::1`) or bracketed (`[::1]`).
 fn is_ipv6_literal(s: &str) -> bool {
-    let inner = s
-        .strip_prefix('[')
-        .and_then(|rest| rest.strip_suffix(']'))
-        .unwrap_or(s);
+    let inner = s.strip_circumfix('[', ']').unwrap_or(s);
     inner.parse::<Ipv6Addr>().is_ok()
 }
 

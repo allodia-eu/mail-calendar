@@ -186,7 +186,8 @@ fn parse_fingerprint(text: &str) -> Option<[u8; 32]> {
         return None;
     }
     let mut fingerprint = [0u8; 32];
-    for (byte, pair) in fingerprint.iter_mut().zip(digits.chunks_exact(2)) {
+    let (pairs, _) = digits.as_chunks::<2>();
+    for (byte, pair) in fingerprint.iter_mut().zip(pairs) {
         let pair = std::str::from_utf8(pair).ok()?;
         *byte = u8::from_str_radix(pair, 16).ok()?;
     }
