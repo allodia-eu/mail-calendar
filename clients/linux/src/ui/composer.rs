@@ -20,6 +20,7 @@ use super::{
         show_in_message,
     },
     composer_draft::{DraftGuard, HeaderValues},
+    composer_draft_reply::DraftReplyControl,
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
     composer_model::{
         ComposeContext, ComposeKind, ComposerSubmission, PickedFile, plain_text_seed_script,
@@ -47,6 +48,8 @@ pub(crate) struct ComposerPane {
     /// The draft's signature control. The pane owns the only strong reference; the editor, the
     /// From picker and the menu action all reach it weakly; so tearing the pane down frees it.
     signature: RefCell<Option<Rc<SignatureControl>>>,
+    /// The Draft a reply control, owned here for the signature control's reason.
+    drafted_reply: RefCell<Option<Rc<DraftReplyControl>>>,
     /// The open draft's unsaved-work guard, and the generation it has already been asked about,
     /// so a re-render cannot ask twice for one navigation.
     draft: RefCell<Option<DraftGuard>>,
@@ -62,6 +65,7 @@ impl ComposerPane {
             send: RefCell::new(None),
             fields: RefCell::new(Vec::new()),
             signature: RefCell::new(None),
+            drafted_reply: RefCell::new(None),
             draft: RefCell::new(None),
             checked_generation: Cell::new(None),
         }
@@ -191,6 +195,11 @@ impl ComposerPane {
         if let Some(control) = &signature {
             actions.append(control.widget());
         }
+        let drafted_reply =
+            DraftReplyControl::new(app, request, accounts, &from, web.widget(), &send_button);
+        if let Some(control) = &drafted_reply {
+            actions.append(control.widget());
+        }
         let editor_host = gtk::Box::new(gtk::Orientation::Vertical, 0);
         editor_host.set_accessible_role(AccessibleRole::Group);
         editor_host.set_hexpand(true);
@@ -258,6 +267,7 @@ impl ComposerPane {
         self.error.replace(Some(error));
         self.send.replace(Some(send_button));
         self.signature.replace(signature);
+        self.drafted_reply.replace(drafted_reply);
     }
 
     pub(crate) fn show_error(&self, text: &str) {
@@ -295,6 +305,7 @@ impl ComposerPane {
         // and unparents itself on drop.
         self.fields.take();
         self.signature.take();
+        self.drafted_reply.take();
         self.draft.take();
         self.checked_generation.set(None);
         while let Some(child) = self.root.first_child() {

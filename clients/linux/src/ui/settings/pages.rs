@@ -350,6 +350,7 @@ pub(super) fn advanced(ctx: &PageContext) -> gtk::Box {
     if let Some(mcp) = super::mcp::section(ctx) {
         content.append(&mcp);
     }
+    content.append(&super::ai_endpoint::section(ctx));
     content
 }
 

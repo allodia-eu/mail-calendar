@@ -290,4 +290,19 @@ impl AppModel {
                     .map(|report| report.offers.clone()),
             });
     }
+
+    /// Asks the relay for the credits left as the Allodia account's page opens, so its line is
+    /// not only as recent as the last request. Off the main thread, being a network round trip;
+    /// a failure changes nothing, and the stored line stays.
+    pub(super) fn refresh_ai_balance(&self) {
+        let Some(app) = self.app.clone() else {
+            return;
+        };
+        if app.writing_styles().route != Some(mailcal_bindings::AiRoute::Relay) {
+            return;
+        }
+        std::thread::spawn(move || {
+            let _ = app.refresh_ai_balance();
+        });
+    }
 }

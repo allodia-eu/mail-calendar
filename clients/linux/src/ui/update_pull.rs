@@ -77,8 +77,13 @@ impl AppModel {
             // The composer's quiet "saved" hint. Nothing draws it yet; the composer has
             // neither an idle timer nor a Save button (`docs/drafts.md`, Known gaps).
             Surface::DraftStatus => {}
-            // Writing style has no screen on Linux yet (`docs/ai.md`, per-platform matrix).
-            Surface::WritingStyle => {}
+            // An open Settings window redraws in place from this; only AI becoming available or
+            // going away changes which categories its sidebar holds, and that takes a rebuild.
+            Surface::WritingStyle => {
+                if self.settings.writing_style.receive(app.writing_styles()) {
+                    self.settings.refresh_in_place();
+                }
+            }
         }
     }
 }

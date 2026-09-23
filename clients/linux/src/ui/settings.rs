@@ -16,6 +16,7 @@ use crate::{l10n, preferences::HostPreferences};
 pub(super) mod about;
 pub(super) mod account_sync_mode;
 pub(super) mod accounts;
+mod ai_endpoint;
 pub(super) mod allodia;
 pub(super) mod allodia_sync;
 pub(super) mod subscription;
@@ -29,6 +30,9 @@ pub(super) mod sender_name;
 mod signature_editor;
 pub(super) mod signatures;
 mod state;
+mod writing_style;
+mod writing_style_learn;
+mod writing_style_reveal;
 
 pub(super) use state::SettingsState;
 
@@ -43,6 +47,7 @@ pub(crate) enum Category {
     Reading,
     Composing,
     Signatures,
+    WritingStyle,
     Notifications,
     Privacy,
     Accounts,
@@ -73,13 +78,14 @@ pub(super) struct RenderState<'a> {
 }
 
 /// Every category, in order. What a given build **shows** is [`visible_categories`].
-const CATEGORIES: [Category; 12] = [
+const CATEGORIES: [Category; 13] = [
     Category::Allodia,
     Category::General,
     Category::Calendar,
     Category::Reading,
     Category::Composing,
     Category::Signatures,
+    Category::WritingStyle,
     Category::Notifications,
     Category::Privacy,
     Category::Accounts,
@@ -93,12 +99,14 @@ const CATEGORIES: [Category; 12] = [
 /// [`Category::Allodia`] is absent when the build carries no registration, and the whole category
 /// goes rather than its contents: a sidebar row that opens an empty page reads as a broken page
 /// rather than as a build without a route, and that is what every build from source would see.
-fn visible_categories() -> Vec<Category> {
+/// [`Category::WritingStyle`] likewise, while AI has nowhere to go (`writing_style`).
+fn visible_categories(writing_style: bool) -> Vec<Category> {
     CATEGORIES
         .into_iter()
         .filter(|category| {
             *category != Category::Allodia || mailcal_bindings::allodia_sign_in_available()
         })
+        .filter(|category| *category != Category::WritingStyle || writing_style)
         .collect()
 }
 
@@ -122,6 +130,8 @@ struct PageContext {
     /// absent rather than dead.
     allodia_accounts_synced:
         std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
+    /// What a Writing style snapshot redraws in place.
+    writing_style: writing_style::Live,
 }
 
 #[derive(Debug, Default)]
@@ -131,6 +141,9 @@ pub(super) struct SettingsWindow {
     /// not be packed a second time.
     header: Option<adw::HeaderBar>,
     rendered_generation: u64,
+    writing_style: writing_style::Live,
+    /// The Writing style snapshot the window was last brought to.
+    writing_style_seen: u64,
 }
 
 impl SettingsWindow {
@@ -207,7 +220,10 @@ impl SettingsWindow {
             allodia_sync: state.allodia_sync.clone(),
             allodia_subscription: state.allodia_subscription.clone(),
             allodia_accounts_synced: state.allodia_accounts_synced.clone(),
+            writing_style: self.writing_style.clone(),
         };
+        // Every page below registers what a snapshot redraws, afresh on each build.
+        self.writing_style.clear();
         navigation.add_named(&window_content(state.category, &ctx), Some("settings"));
         navigation.set_visible_child_name("settings");
         window.set_child(Some(&navigation));
@@ -221,8 +237,21 @@ impl SettingsWindow {
 
     pub(super) fn close(&mut self) {
         self.header = None;
+        self.writing_style.clear();
         if let Some(window) = self.window.take() {
             window.close();
+        }
+    }
+
+    /// Brings the open window to the Writing style snapshot the model last pulled, once per new
+    /// one: the category and every credits line redraw in place.
+    pub(super) fn sync_writing_style(&mut self, feed: &crate::ui::writing_style::WritingStyleFeed) {
+        if feed.generation() == self.writing_style_seen {
+            return;
+        }
+        self.writing_style_seen = feed.generation();
+        if let Some(snapshot) = feed.snapshot() {
+            self.writing_style.redraw(snapshot);
         }
     }
 
@@ -246,7 +275,7 @@ fn window_content(category: Category, ctx: &PageContext) -> gtk::Box {
     let stack = gtk::Stack::new();
     stack.set_hexpand(true);
     stack.set_vexpand(true);
-    let shown = visible_categories();
+    let shown = visible_categories(ctx.app.writing_styles().route.is_some());
     let selected = initial_category(&shown, category);
     let mut button_group: Option<gtk::ToggleButton> = None;
     for category in shown {
@@ -330,6 +359,7 @@ fn page(category: Category, ctx: &PageContext) -> gtk::ScrolledWindow {
         Category::Reading => pages::reading(ctx),
         Category::Composing => pages::composing(ctx),
         Category::Signatures => signatures::signatures(ctx),
+        Category::WritingStyle => writing_style::page(ctx),
         Category::Notifications => pages::notifications(ctx),
         Category::Privacy => pages::privacy(ctx),
         Category::Accounts => accounts::accounts(ctx),
@@ -351,6 +381,7 @@ impl Category {
             Self::Reading => "reading",
             Self::Composing => "composing",
             Self::Signatures => "signatures",
+            Self::WritingStyle => "writing-style",
             Self::Notifications => "notifications",
             Self::Privacy => "privacy",
             Self::Accounts => "accounts",
@@ -370,6 +401,7 @@ impl Category {
             Self::Reading => l10n::settings_category_reading(),
             Self::Composing => l10n::settings_category_composing(),
             Self::Signatures => l10n::settings_category_signatures(),
+            Self::WritingStyle => l10n::settings_category_writing_style(),
             Self::Notifications => l10n::settings_category_notifications(),
             Self::Privacy => l10n::settings_category_privacy(),
             Self::Accounts => l10n::settings_category_accounts(),
