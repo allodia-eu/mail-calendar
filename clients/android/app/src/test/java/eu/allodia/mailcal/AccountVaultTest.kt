@@ -25,6 +25,7 @@ class AccountVaultTest {
     private val sealer = SoftwareSealer()
     private val legacy = FakeLegacy()
     private val discarded = mutableListOf<String>()
+    private val migrated = mutableListOf<Int>()
 
     @Before
     fun setUp() {
@@ -33,7 +34,8 @@ class AccountVaultTest {
         prefs.edit().clear().commit()
     }
 
-    private fun vault(sealer: Sealer = this.sealer) = AccountVault(prefs, sealer, legacy) { discarded += it }
+    private fun vault(sealer: Sealer = this.sealer) =
+        AccountVault(prefs, sealer, legacy, onDiscard = { discarded += it }, onMigrated = { migrated += it })
 
     @Test
     fun anEmptyVaultHoldsNoAccounts() {
@@ -85,6 +87,7 @@ class AccountVaultTest {
 
         assertEquals(legacy.accounts, vault().accounts())
         assertFalse(legacy.exists())
+        assertEquals(listOf(2), migrated)
 
         // Read from the vault from now on, not from the store the migration emptied.
         assertEquals(listOf("a", "b"), vault().accounts().map { it.id })
@@ -99,6 +102,7 @@ class AccountVaultTest {
         assertEquals(emptyList<StoredAccount>(), vault().accounts())
         assertFalse(legacy.exists())
         assertEquals(1, discarded.size)
+        assertTrue(migrated.isEmpty())
 
         // The app starts clean and a new account is stored as on a first run.
         vault().save("b", "config-b")

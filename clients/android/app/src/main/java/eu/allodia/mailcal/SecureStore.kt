@@ -37,5 +37,8 @@ internal object SecureStore {
         onDiscard = { reason ->
             logUiWarn("secure store: discarded stored accounts it cannot read: $reason")
         },
+        onMigrated = { count ->
+            logUiInfo("secure store: moved $count account(s) out of the legacy store")
+        },
     )
 }

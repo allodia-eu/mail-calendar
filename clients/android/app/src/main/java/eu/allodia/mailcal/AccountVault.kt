@@ -43,6 +43,7 @@ internal class AccountVault(
     private val sealer: Sealer,
     private val legacy: LegacyAccounts,
     private val onDiscard: (reason: String) -> Unit,
+    private val onMigrated: (accounts: Int) -> Unit,
 ) {
     fun accounts(): List<StoredAccount> {
         migrate()
@@ -85,9 +86,10 @@ internal class AccountVault(
                 legacy.read()
             } catch (e: Exception) {
                 onDiscard("the legacy store could not be read: ${e.javaClass.simpleName}")
-                emptyList()
+                null
             }
-            write(accounts)
+            write(accounts.orEmpty())
+            if (accounts != null) onMigrated(accounts.size)
         }
         legacy.delete()
     }
