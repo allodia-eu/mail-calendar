@@ -27,6 +27,10 @@ time = { workspace = true }
 # `projection.rs` have no password field, so this parses what the credential store holds without
 # being able to carry a secret out of it.
 toml = { workspace = true }
+# The relay is an `AiBackend`: the port, the wire types and the transport with a timeout are
+# `mailcal-ai`'s. This direction is the one `cargo xtask check-license-dir` allows; the GPL tree
+# never depends on this crate except through the one optional line in `mailcal-bindings`.
+mailcal-ai = { path = "../../../crates/mailcal-ai" }
 
 [lints]
 workspace = true

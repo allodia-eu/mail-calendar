@@ -238,7 +238,8 @@ pub enum Intent {
         blobs: Vec<ComposerBlob>,
         /// The composer this was written in, as on [`Intent::SubmitRichMail`].
         composition: Option<CompositionId>,
-        /// The AI draft the reply was written from (`docs/ai.md`); `None` when the person wrote it.
+        /// The AI draft the reply was written from (`docs/ai.md`); `None` when the person wrote
+        /// it.
         ai_draft: Option<String>,
     },
     /// Forward a message (by key) with a rich composer document (a `Fwd:` subject; the

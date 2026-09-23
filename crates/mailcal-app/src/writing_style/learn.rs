@@ -197,10 +197,14 @@ impl<P: Provider> App<P> {
                 progress: &progress,
             },
         )
-        .map_err(|failed| LearnFailure {
-            error: failed.error.into(),
-            metering: failed.metering,
+        .map_err(|failed| {
+            self.note_metering(failed.metering);
+            LearnFailure {
+                error: failed.error.into(),
+                metering: failed.metering,
+            }
         })?;
+        self.note_metering(learned.metering);
 
         let messages = corpus
             .languages

@@ -77,7 +77,8 @@ pub(crate) fn build_demo(
         )),
         runtime.handle().clone(),
     ));
-    Arc::new(MailcalApp {
+    Arc::new_cyclic(|this| MailcalApp {
+        this: this.clone(),
         runtime,
         app,
         account_connect_errors: Mutex::new(Vec::new()),
@@ -242,7 +243,8 @@ fn finish_showcase(
         )),
         runtime.handle().clone(),
     ));
-    Arc::new(MailcalApp {
+    Arc::new_cyclic(|this| MailcalApp {
+        this: this.clone(),
         runtime,
         app,
         account_connect_errors: Mutex::new(Vec::new()),

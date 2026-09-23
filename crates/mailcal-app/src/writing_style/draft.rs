@@ -144,6 +144,7 @@ impl<P: Provider> App<P> {
             },
             &backend,
         )?;
+        self.note_metering(draft.metering);
         let draft_id =
             self.writing_style
                 .observed

@@ -243,6 +243,7 @@ impl<P: Provider> App<P> {
                 .lock()
                 .expect("learning state poisoned")
                 .clone(),
+            balance: self.ai_balance(),
         }
     }
 

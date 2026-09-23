@@ -303,7 +303,8 @@ pub(crate) fn build_accounts(
         )),
         runtime.handle().clone(),
     ));
-    let mailcal = Arc::new(MailcalApp {
+    let mailcal = Arc::new_cyclic(|this| MailcalApp {
+        this: this.clone(),
         runtime,
         app,
         account_connect_errors: Mutex::new(account_errors),
@@ -332,8 +333,11 @@ pub(crate) fn build_accounts(
     // has consented, but it must happen before the first event, or a consented install's very
     // first batch would report zero accounts.
     mailcal.refresh_analytics_accounts();
-    // What AI requests go through, from what is set up: nothing, until an endpoint is.
+    // What AI requests go through, from what is set up, and the entitlement behind the relay
+    // read again in the background when it is due.
     mailcal.refresh_ai_backend();
+    #[cfg(feature = "allodia-license")]
+    mailcal.refresh_entitlement_in_background();
     // Interactive boot: every account is a provider-less placeholder, so dial them all in the
     // background now. Each successful reconnect registers live providers (the cached mail is
     // already on screen), starts that account's IMAP IDLE watches / poll timer, and runs a

@@ -96,6 +96,11 @@ fn save_then_load_round_trips_the_preferences() {
                 model: "mistral-small".to_owned(),
                 declared: Some(mailcal_jurisdiction::Class::EuNative),
             }),
+            entitlement_answer: Some("{\"answer\":{}}".to_owned()),
+            balance: Some(StoredBalance {
+                millicredits: 498_750,
+                as_of: 1_790_000_000,
+            }),
         }),
         collapsed_accounts: BTreeSet::from(["me@imap.example.com".to_owned()]),
         unified_collapsed: true,

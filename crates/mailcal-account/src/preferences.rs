@@ -30,7 +30,7 @@ mod signature;
 mod sender_name;
 mod sync;
 
-pub use ai::{AiEndpoint, AiPreferences};
+pub use ai::{AiEndpoint, AiPreferences, StoredBalance};
 pub use behavior::{MessageGrouping, QuoteStyle, SwipeAction};
 pub use display::{
     Appearance, CalendarLayout, CalendarPrefs, DEFAULT_VISIBLE_HOURS, DefaultCalendar,

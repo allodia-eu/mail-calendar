@@ -248,6 +248,11 @@ impl MailcalApp {
                 self.note_allodia_health(health);
             }
             log::info!("allodia: signed in; the grant is stored");
+            // A new grant may be a different account: what the last one was entitled to says
+            // nothing about this one, so it is asked afresh.
+            self.app.set_entitlement_answer(None);
+            self.refresh_ai_backend();
+            self.refresh_entitlement_in_background();
             Ok(account)
         }
     }
@@ -309,6 +314,10 @@ impl MailcalApp {
             // finds, which is the same repair a bookkeeping that will not parse already gets.
             log::warn!("allodia: the sync bookkeeping could not be cleared; {err}");
         }
+        // Nothing is entitled to anything once nobody is signed in: the relay goes, and what the
+        // account was entitled to goes with it.
+        self.app.set_entitlement_answer(None);
+        self.refresh_ai_backend();
         log::info!("allodia: signing out; erasing the stored grant");
         self.credential_store
             .delete(ACCOUNT_ID.to_owned())

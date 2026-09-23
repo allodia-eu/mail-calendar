@@ -161,6 +161,7 @@ nothing and logs no content.
 | The own endpoint's address, model and declaration | `preferences.toml`, `[ai.endpoint]` | Not secret. |
 | The own endpoint's key | The platform keystore, id `ai-endpoint` | A secret. Taken out of the stored configs at boot before any mail parser sees it; a client asks `is_reserved_config` to tell a first run from a launch with mail accounts. |
 | The jurisdiction mode | `preferences.toml`, `jurisdiction_mode` | It binds every external dispatch, not only these. |
+| The last entitlement answer, and the balance the relay last reported | `preferences.toml`, `[ai]` | Derived, not secret; a launch without a network draws what it was last told ([`entitlement.md`](../allodia_license/entitlement.md)). Dropped at sign-out. |
 
 A style's id is opaque CSPRNG output, never derived from its name.
 
@@ -174,7 +175,7 @@ A style's id is opaque CSPRNG output, never derived from its name.
 | Per-account style slot | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Draft a reply into the open composer, with gaps | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Own endpoint under Settings → Advanced | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Allodia relay, credits and balance | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Allodia relay: the entitlement read, requests, the balance | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Style guide synced between devices | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Fetch older sent mail back to a date | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
@@ -186,8 +187,9 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
   `update_writing_style_notes`, `delete_writing_style`, `set_account_writing_style`,
   `resolve_writing_style`, `sent_corpus_report`, `learn_writing_style`,
   `cancel_writing_style_learning`, `draft_reply`, `ai_available`, `own_ai_endpoint`,
-  `set_own_ai_endpoint`, `clear_own_ai_endpoint`. **`sent_corpus_report`, `learn_writing_style` and
-  `draft_reply` block**: a client calls them off the main thread.
+  `set_own_ai_endpoint`, `clear_own_ai_endpoint`, `refresh_ai_balance`. **`sent_corpus_report`,
+  `learn_writing_style`, `draft_reply` and `refresh_ai_balance` block**: a client calls them off the
+  main thread.
 - **`Surface::WritingStyle`** is signalled when the library, an assignment, the backend or a
   learning run's progress changes. Its snapshot's `route` says whether AI is available at all, and
   a client shows the Writing style category only when it is `Some`.
@@ -198,8 +200,11 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 ## Known gaps
 
 - **No client draws any of it yet.** Every client cell in the matrix is ⬜.
-- **The relay, credits, the balance and style sync** are not built. The relay's request and answer
-  are fixed above so both sides can be built against them.
+- **The relay service is not deployed.** The device side is built against the request and answer
+  fixed above: a signed-in account whose entitlement grants `ai` goes through the relay, the
+  entitlement is read in the background and kept in the preferences, and every answer's balance is
+  recorded. Buying credits is not built; running out is an honest "no credits left".
+- **Style sync is not built**, on either side.
 - **Learning reads what the device holds**: the Sent folder within the account's sync depth, three
   months by default. The consent sheet reports the device's horizon; fetching older sent mail is not
   built.

@@ -8,8 +8,9 @@
 use std::sync::Arc;
 
 use engine_api::Provider;
-use mailcal_account::{AiEndpoint, load_preferences};
-use mailcal_ai::{GatedBackend, Mode, ModeSource};
+use mailcal_account::{AiEndpoint, StoredBalance, load_preferences};
+use mailcal_ai::{Destination, GatedBackend, Mode, ModeSource, wire::Metering};
+use mailcal_viewmodel::CreditBalance;
 
 use crate::{App, Surface};
 
@@ -62,5 +63,60 @@ impl<P: Provider> App<P> {
     pub fn set_own_ai_endpoint(&self, endpoint: Option<AiEndpoint>) {
         self.writing_style
             .edit_prefs(|prefs| prefs.ai.endpoint = endpoint);
+    }
+
+    /// The Allodia account service's last entitlement answer, as the licence half stored it.
+    #[must_use]
+    pub fn entitlement_answer(&self) -> Option<String> {
+        self.writing_style
+            .edit_prefs(|prefs| prefs.ai.entitlement_answer.clone())
+    }
+
+    /// Stores the entitlement answer for the licence half, or clears it with `None` (a sign-out).
+    pub fn set_entitlement_answer(&self, answer: Option<String>) {
+        self.writing_style
+            .edit_prefs(|prefs| prefs.ai.entitlement_answer = answer);
+    }
+
+    /// The credits Allodia's relay last reported, when requests go through it.
+    #[must_use]
+    pub fn ai_balance(&self) -> Option<CreditBalance> {
+        let relay = self
+            .writing_style
+            .backend()
+            .is_some_and(|backend| backend.destination() == Destination::AllodiaRelay);
+        let stored = self.writing_style.edit_prefs(|prefs| prefs.ai.balance)?;
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "a balance in thousandths of a credit is far inside f64's exact range"
+        )]
+        relay.then(|| CreditBalance {
+            credits: stored.millicredits as f64 / 1000.0,
+            as_of: stored.as_of,
+        })
+    }
+
+    /// Records the credits the relay reported, and signals [`Surface::WritingStyle`].
+    pub fn set_ai_balance(&self, credits: f64) {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "a credit balance is nowhere near i64's range in thousandths"
+        )]
+        let millicredits = (credits * 1000.0).round() as i64;
+        let as_of = time::OffsetDateTime::now_utc().unix_timestamp();
+        self.writing_style.edit_prefs(|prefs| {
+            prefs.ai.balance = Some(StoredBalance {
+                millicredits,
+                as_of,
+            });
+        });
+        self.observer.surface_changed(Surface::WritingStyle);
+    }
+
+    /// Records the balance a relay answer carried, when it carried one.
+    pub(super) fn note_metering(&self, metering: Option<Metering>) {
+        if let Some(metering) = metering {
+            self.set_ai_balance(metering.balance_credits);
+        }
     }
 }

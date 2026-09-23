@@ -21,6 +21,24 @@ pub struct AiPreferences {
     /// The person's own endpoint, when they configured one. Its key is in the keystore.
     #[serde(default)]
     pub endpoint: Option<AiEndpoint>,
+    /// The Allodia account service's last entitlement answer, as the licence half stores it. The
+    /// core never reads it; it is kept here so a build that cannot ask still draws what it was
+    /// last told (`entitlement.md`).
+    #[serde(default)]
+    pub entitlement_answer: Option<String>,
+    /// The AI credit balance Allodia's relay last reported.
+    #[serde(default)]
+    pub balance: Option<StoredBalance>,
+}
+
+/// A credit balance and when it was reported. Thousandths of a credit, so the file holds an
+/// integer and the preferences stay comparable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StoredBalance {
+    /// Credits left, in thousandths.
+    pub millicredits: i64,
+    /// When the relay reported it, in seconds since the Unix epoch.
+    pub as_of: i64,
 }
 
 /// An endpoint the person runs or rents themselves: where it is, the model to ask for, and where

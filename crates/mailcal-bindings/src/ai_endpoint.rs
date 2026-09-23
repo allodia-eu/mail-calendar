@@ -167,6 +167,25 @@ impl MailcalApp {
         Ok(())
     }
 
+    /// Asks Allodia's relay how many credits are left, and records the answer on the Writing
+    /// style surface. **Blocking.** Every relay answer already carries the balance; this is for a
+    /// screen opened before any request was made.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WritingStyleFailure::Unavailable`](crate::WritingStyleFailure::Unavailable) in a
+    /// build without the Allodia sign-in,
+    /// [`WritingStyleFailure::Unauthorized`](crate::WritingStyleFailure::Unauthorized) when the
+    /// sign-in has to be made again, and
+    /// [`WritingStyleFailure::Unreachable`](crate::WritingStyleFailure::Unreachable) when the
+    /// service could not be reached.
+    pub fn refresh_ai_balance(&self) -> Result<(), crate::WritingStyleFailure> {
+        #[cfg(feature = "allodia-license")]
+        return self.fetch_ai_balance();
+        #[cfg(not(feature = "allodia-license"))]
+        Err(crate::WritingStyleFailure::Unavailable)
+    }
+
     /// Removes the own endpoint and its key.
     ///
     /// # Errors
@@ -226,6 +245,8 @@ impl MailcalApp {
                     self.app.jurisdiction_mode_source(),
                 ))
             });
+        #[cfg(feature = "allodia-license")]
+        let backend = backend.or_else(|| self.relay_backend());
         self.app.set_ai_backend(backend);
     }
 }

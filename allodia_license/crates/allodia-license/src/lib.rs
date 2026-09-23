@@ -29,6 +29,7 @@ use std::{collections::BTreeSet, fmt};
 use serde::{Deserialize, Serialize};
 
 mod accounts;
+mod ai;
 mod cache;
 mod feature;
 mod link;
@@ -43,15 +44,16 @@ pub use accounts::{
     AccountList, CalDavEndpoint, ConflictWith, DeletedAccount, ImapEndpoint, JmapAuth, Security,
     SmtpEndpoint, SyncedAccount, SyncedConfig,
 };
+pub use ai::{Balance, Relay, TokenSource};
 pub use cache::{Cache, GRACE_SECONDS, Outcome, Stored};
-pub use feature::Feature;
+pub use feature::{Feature, SCOPES};
 pub use link::{Ledger, LinkOutcome, Pending, Settled, StorePurchase};
 pub use projection::{NotSyncable, SetupPrefill, to_synced};
 pub use purchase::{Offer, Plan, ProductId, Store, StoreProduct, ordered};
 pub use reconcile::{Decision, LocalAccount, SyncState, fingerprint, reconcile};
 pub use refresh::Refresher;
 pub use signin::{
-    Endpoints, Identity, Prompt, REDIRECT_HOST, SCOPES, SignIn, SignInError, account_url, api_url,
+    Endpoints, Identity, Prompt, REDIRECT_HOST, SignIn, SignInError, account_url, api_url,
     available, host,
 };
 pub use subscription::{
@@ -212,6 +214,9 @@ pub enum Capability {
     SendLater,
     /// Centralised deployment and administration.
     CentralAdmin,
+    /// Writing style and drafted replies through Allodia's relay, drawing on the person's credits
+    /// (`docs/ai.md`).
+    Ai,
     /// A label this version does not know.
     Unknown(String),
 }
@@ -224,6 +229,7 @@ impl Capability {
             "push" => Self::Push,
             "send_later" => Self::SendLater,
             "central_admin" => Self::CentralAdmin,
+            "ai" => Self::Ai,
             other => Self::Unknown(other.to_owned()),
         }
     }

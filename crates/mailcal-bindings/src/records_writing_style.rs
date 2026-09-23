@@ -131,8 +131,17 @@ pub struct LearningProgress {
     pub total: u32,
 }
 
+/// AI credits, as Allodia's relay last reported them. For display: the relay decides.
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+pub struct CreditBalance {
+    /// Credits left.
+    pub credits: f64,
+    /// When the relay reported it, in seconds since the Unix epoch; shown as "as of".
+    pub as_of: i64,
+}
+
 /// The Writing style surface (pulled after a `Surface::WritingStyle` signal).
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct WritingStyleSnapshot {
     /// Where requests go; `None` when AI is not available or not set up. A client shows the
     /// Writing style category only when this is `Some` (`docs/settings.md`).
@@ -145,6 +154,8 @@ pub struct WritingStyleSnapshot {
     pub accounts: Vec<AccountWritingStyleRow>,
     /// A learning run in progress.
     pub learning: Option<LearningProgress>,
+    /// The credits left, when requests go through Allodia's relay and it has reported any.
+    pub balance: Option<CreditBalance>,
 }
 
 /// One recurring form and roughly how often it is used.

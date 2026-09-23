@@ -14,9 +14,9 @@ use mailcal_viewmodel::{
 };
 
 use crate::records_writing_style::{
-    AccountWritingStyleRow, AiCharge, AiRoute, CorpusLanguage, CorpusReport, DraftReply,
-    GateRefusal, HabitRow, LanguageStyleRow, LearnReport, LearningProgress, LearningStage,
-    WritingStyleDetail, WritingStyleFailure, WritingStyleRow, WritingStyleSnapshot,
+    AccountWritingStyleRow, AiCharge, AiRoute, CorpusLanguage, CorpusReport, CreditBalance,
+    DraftReply, GateRefusal, HabitRow, LanguageStyleRow, LearnReport, LearningProgress,
+    LearningStage, WritingStyleDetail, WritingStyleFailure, WritingStyleRow, WritingStyleSnapshot,
 };
 
 impl From<WritingStyleError> for WritingStyleFailure {
@@ -186,6 +186,10 @@ impl From<AppSnapshot> for WritingStyleSnapshot {
                     done: learning.done,
                     total: learning.total,
                 }),
+            balance: snapshot.balance.map(|balance| CreditBalance {
+                credits: balance.credits,
+                as_of: balance.as_of,
+            }),
         }
     }
 }

@@ -33,6 +33,8 @@ mod allodia_tokens;
 mod allodia_transport;
 // The person's own AI endpoint: its key in the secure store, and which backend AI goes through.
 mod ai_endpoint;
+#[cfg(feature = "allodia-license")]
+mod ai_relay;
 mod ai_transport;
 mod analytics;
 mod app_accounts;
@@ -198,10 +200,10 @@ pub use records_recurrence::{
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
 pub use records_writing_style::{
-    AccountWritingStyleRow, AiCharge, AiRoute, CorpusLanguage, CorpusReport, DraftReply,
-    GateRefusal, HabitRow, JurisdictionClass, JurisdictionMode, LanguageStyleRow, LearnReport,
-    LearningProgress, LearningStage, WritingStyleDetail, WritingStyleFailure, WritingStyleRow,
-    WritingStyleSnapshot,
+    AccountWritingStyleRow, AiCharge, AiRoute, CorpusLanguage, CorpusReport, CreditBalance,
+    DraftReply, GateRefusal, HabitRow, JurisdictionClass, JurisdictionMode, LanguageStyleRow,
+    LearnReport, LearningProgress, LearningStage, WritingStyleDetail, WritingStyleFailure,
+    WritingStyleRow, WritingStyleSnapshot,
 };
 pub use rendering::{
     MessageCanvas, message_canvas, render_message_html, should_open_external_link,
@@ -302,6 +304,13 @@ pub struct MailcalApp {
     allodia: Mutex<Option<allodia::StoredAccount>>,
     /// The own AI endpoint's key, restored from the host's store at boot ([`crate::ai_endpoint`]).
     ai_key: Mutex<Option<String>>,
+    /// This app, weakly: what a callback the core holds (the relay's token source) reaches back
+    /// through without keeping the app alive.
+    #[cfg_attr(
+        not(feature = "allodia-license"),
+        expect(dead_code, reason = "only the relay reaches back")
+    )]
+    this: std::sync::Weak<MailcalApp>,
     /// The host's OS-secure-store writer, supplied **at construction** and shared with the token
     /// sink so a rotated refresh token is re-persisted. One store serves all three OAuth
     /// families; it can never be absent, which is the point; see
@@ -431,3 +440,6 @@ mod tests_setup;
 
 #[cfg(test)]
 mod tests_ai_endpoint;
+
+#[cfg(all(test, feature = "allodia-license"))]
+mod tests_ai_relay;

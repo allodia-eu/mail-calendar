@@ -96,6 +96,9 @@ fn a_scope_the_service_offers_is_asked_for() {
         "mailcal:accounts:write",
         "mailcal:subscription:read",
         "mailcal:subscription:write",
+        "mailcal:ai:use",
+        "mailcal:writing-styles:read",
+        "mailcal:writing-styles:write",
     ]);
     let asked = scopes_for(&tomorrow);
     for scope in SCOPES {

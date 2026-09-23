@@ -76,8 +76,17 @@ pub struct GateRefusal {
     pub class: Class,
 }
 
+/// AI credits, as Allodia's relay last reported them. For display: the relay decides.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CreditBalance {
+    /// Credits left.
+    pub credits: f64,
+    /// When the relay reported it, in seconds since the Unix epoch; a client shows it as "as of".
+    pub as_of: i64,
+}
+
 /// The Writing style surface.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct WritingStyleSnapshot {
     /// Where requests go; `None` when AI is not available in this build or not set up.
     pub route: Option<AiRoute>,
@@ -89,6 +98,8 @@ pub struct WritingStyleSnapshot {
     pub accounts: Vec<AccountWritingStyleRow>,
     /// A learning run in progress.
     pub learning: Option<LearningProgress>,
+    /// The credits left, when requests go through Allodia's relay and it has reported any.
+    pub balance: Option<CreditBalance>,
 }
 
 /// One recurring form and roughly how often it is used, for the reveal screen.
