@@ -75,8 +75,10 @@ internal class AccountVault(
     }
 
     // Moves the legacy store's accounts in when the vault has none yet, then deletes it. A legacy
-    // store that cannot be read throws and is left in place, so a transient failure costs a launch
-    // rather than the user's accounts.
+    // store that cannot be read throws and is left in place: its library does not say whether a
+    // failure is transient or permanent, and deleting it on a transient one loses the accounts. A
+    // permanent one (a backup restored without its Keystore key) fails every launch, as it did
+    // before the vault existed.
     private fun migrate() {
         if (!legacy.exists()) return
         if (!prefs.contains(KEY_VAULT)) write(legacy.read())
