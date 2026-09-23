@@ -14,7 +14,7 @@ throwaway credentials and never holds real data.
 ## Run it
 
 One self-bootstrapping service, plus the unseeded [sign-in server](#the-sign-in-server). It
-completes Stalwart v0.16's first-run setup through the management API, creates the accounts, and
+completes Stalwart v0.16's first-run setup with Stalwart's CLI, creates the accounts, and
 seeds the dataset inside its entrypoint, then reports healthy once seeding is done:
 
 ```sh
@@ -152,8 +152,9 @@ Stalwart's web UI API rather than a standard, so a bump that moves it fails at t
 
 ## Seeded accounts
 
-Created at startup via Stalwart's management API (v0.16 has no declarative config
-file, see the design doc).
+Created at startup by the `stalwart-cli apply` plans in [`entrypoint.sh`](entrypoint.sh): Stalwart
+v0.16 has no configuration file, and each plan is an `upsert`, so a warm volume converges rather
+than duplicating. Add an account or a setting there, as another line of the plan.
 
 | Account            | Password           | Role                          |
 | ------------------ | ------------------ | ----------------------------- |
@@ -165,8 +166,9 @@ file, see the design doc).
 
 ```text
 docker/stalwart/
-├── docker-compose.yml      # single service (image pinned by digest)
-├── entrypoint.sh           # self-bootstrap via API → restart → accounts → seed
+├── Dockerfile              # Stalwart + stalwart-cli, both pinned by digest
+├── docker-compose.yml      # the seeded server and the sign-in server
+├── entrypoint.sh           # bootstrap → restart → `stalwart-cli apply` plans → restart → seed
 ├── seed.sh                 # curl: IMAP APPEND/STORE/COPY/MOVE + CalDAV PUT
 ├── seed-calendar-week.sh   # the living week, re-anchored on the current Monday at every seed
 └── seed/
