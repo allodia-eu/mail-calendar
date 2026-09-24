@@ -17,6 +17,12 @@ import Testing
         #expect(LearnWritingStyleFlow(accounts: ["alice", "bob"]).account == "alice")
     }
 
+    /// The sheet's pages follow the same order, and the run comes last.
+    @Test func theAccountPageIsThereOnlyWhenThereIsAChoice() {
+        #expect(LearnWritingStyleFlow.steps(["alice"]) == [.range, .consent, .progress])
+        #expect(LearnWritingStyleFlow.steps(["alice", "bob"]) == [.account, .range, .consent, .progress])
+    }
+
     /// The core's `until` is inclusive, so the chosen day ends one second before the next begins,
     /// in the person's own zone.
     @Test func upToADateIncludesTheWholeOfThatDay() throws {

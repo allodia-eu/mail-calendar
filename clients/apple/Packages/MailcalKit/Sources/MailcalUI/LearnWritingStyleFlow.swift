@@ -27,6 +27,11 @@ enum LearnRangeChoice: Equatable {
     }
 }
 
+/// A page of the sheet.
+enum LearnStep: Equatable {
+    case account, range, consent, progress
+}
+
 struct LearnWritingStyleFlow: Equatable {
     /// What the device found for the current choice.
     enum Report: Equatable {
@@ -63,6 +68,12 @@ struct LearnWritingStyleFlow: Equatable {
     /// Whether the sheet asks which account: only when there is more than one.
     static func asksForAccount(_ accounts: [String]) -> Bool {
         accounts.count > 1
+    }
+
+    /// The sheet's pages: the account only when there is a choice, and the run last, reached only
+    /// by the consent.
+    static func steps(_ accounts: [String]) -> [LearnStep] {
+        (asksForAccount(accounts) ? [.account] : []) + [.range, .consent, .progress]
     }
 
     /// Starts reading the report for the current choice; hand the result back with the number

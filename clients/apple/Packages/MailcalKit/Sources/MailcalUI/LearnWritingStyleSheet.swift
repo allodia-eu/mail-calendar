@@ -1,5 +1,6 @@
 // The "Learn my writing style" sheet (docs/ai.md, "Learning"): an account when there is a choice,
-// the range, what the device found in it, and the consent, all on one sheet, then the run.
+// the range, what the device found in it with the consent beneath, then the run, one page each in
+// the frame the reveal uses.
 //
 // The report is read again whenever the account or the range changes, so what the consent says is
 // always about the mail the Learn button would send. Pressing Learn is the consent; there is no
@@ -15,84 +16,109 @@ struct LearnWritingStyleSheet: View {
     /// caller opens it, and with `nil` otherwise.
     let finish: (String?) -> Void
 
+    private let steps: [LearnStep]
     @State private var flow: LearnWritingStyleFlow
+    @State private var pager: WizardPager
     @State private var usesUntil = false
     @State private var untilDay = Date()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(model: MailboxModel, finish: @escaping (String?) -> Void) {
         self.model = model
         self.finish = finish
-        _flow = State(initialValue: LearnWritingStyleFlow(
-            accounts: model.writingStyles.accounts.map(\.accountId)
-        ))
+        let accounts = model.writingStyles.accounts.map(\.accountId)
+        steps = LearnWritingStyleFlow.steps(accounts)
+        _flow = State(initialValue: LearnWritingStyleFlow(accounts: accounts))
+        _pager = State(initialValue: WizardPager(count: steps.count))
     }
 
     private var accounts: [AccountWritingStyleRow] { model.writingStyles.accounts }
+    private var step: LearnStep { steps[pager.index] }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.writing_style_learn()).font(.headline)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    switch flow.phase {
-                    case .choosing: choosing
-                    case .learning: progress
-                    case let .failed(failure): failed(failure)
-                    case .learned: EmptyView()
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            buttons
+        WizardSheet(
+            pager: $pager,
+            cancel: step == .progress
+                ? nil
+                : WizardAction(title: L10n.action_cancel(), role: .cancel, prominent: false) { finish(nil) },
+            showsBack: step != .progress && !pager.isFirst,
+            primary: primary
+        ) { index in
+            page(steps[index])
         }
-        .padding(16)
-        #if os(macOS)
-        .frame(minWidth: 480, minHeight: 440)
-        #else
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        #endif
         .interactiveDismissDisabled(!flow.dismissible)
+        .onChange(of: usesUntil) { _, _ in syncRange() }
+        .onChange(of: untilDay) { _, _ in syncRange() }
         .task(id: reportKey) { await readReport() }
     }
 
-    // MARK: Account, range, report, consent
+    private var primary: WizardPrimary {
+        switch step {
+        case .account, .range:
+            return .next(enabled: flow.account != nil)
+        case .consent:
+            // Nothing usable says so and offers no button.
+            guard flow.canLearn else { return .none }
+            return .action(WizardAction(title: L10n.learn_consent_confirm(), action: learn))
+        case .progress:
+            switch flow.phase {
+            case .learning:
+                return .action(WizardAction(title: L10n.learn_stop(), role: .cancel, prominent: false) {
+                    model.cancelWritingStyleLearning()
+                })
+            case .failed:
+                return .action(WizardAction(title: L10n.action_close()) { finish(nil) })
+            case .choosing, .learned:
+                return .none
+            }
+        }
+    }
 
     @ViewBuilder
-    private var choosing: some View {
-        if LearnWritingStyleFlow.asksForAccount(accounts.map(\.accountId)) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(L10n.learn_account_title()).font(.subheadline).bold()
+    private func page(_ step: LearnStep) -> some View {
+        switch step {
+        case .account:
+            WizardPage(title: L10n.learn_account_title()) {
                 ChoiceList(
                     title: L10n.learn_account_title(),
                     selection: $flow.account,
                     options: accounts.map { (Optional($0.accountId), $0.email) }
                 )
             }
-        }
-        VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.learn_range_title()).font(.subheadline).bold()
-            ChoiceList(title: L10n.learn_range_title(), selection: $usesUntil, options: [
-                (false, L10n.learn_range_all()),
-                (true, L10n.learn_range_until()),
-            ])
-            if usesUntil {
-                Text(L10n.learn_range_until_hint())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                DatePicker(
-                    L10n.learn_range_until_label(),
-                    selection: $untilDay,
-                    in: ...Date(),
-                    displayedComponents: .date
-                )
-                .environment(\.locale, L10n.appLocale)
+        case .range:
+            WizardPage(title: L10n.learn_range_title()) { range }
+        case .consent:
+            WizardPage(title: L10n.writing_style_learn()) { report }
+        case .progress:
+            if case let .failed(failure) = flow.phase {
+                WizardPage(title: L10n.learn_failed_title()) { failureText(failure) }
+            } else {
+                progress
             }
         }
-        .onChange(of: usesUntil) { _, _ in syncRange() }
-        .onChange(of: untilDay) { _, _ in syncRange() }
-        Divider()
-        report
+    }
+
+    // MARK: Range, report, consent
+
+    @ViewBuilder
+    private var range: some View {
+        ChoiceList(title: L10n.learn_range_title(), selection: $usesUntil, options: [
+            (false, L10n.learn_range_all()),
+            (true, L10n.learn_range_until()),
+        ])
+        if usesUntil {
+            Text(L10n.learn_range_until_hint())
+                .font(WizardFont.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            DatePicker(
+                L10n.learn_range_until_label(),
+                selection: $untilDay,
+                in: ...Date(),
+                displayedComponents: .date
+            )
+            .environment(\.locale, L10n.appLocale)
+        }
     }
 
     @ViewBuilder
@@ -121,23 +147,24 @@ struct LearnWritingStyleSheet: View {
                     .foregroundStyle(.secondary)
                 }
             }
-            .font(.callout)
+            .font(WizardFont.text)
+            .fixedSize(horizontal: false, vertical: true)
             if report.usable == 0 {
                 Text(L10n.learn_report_nothing())
-                    .font(.callout)
+                    .font(WizardFont.text)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                consent
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L10n.learn_consent_title())
+                        .font(WizardFont.label)
+                        .foregroundStyle(.secondary)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(consentText)
+                        .font(WizardFont.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 6)
             }
-        }
-    }
-
-    private var consent: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.learn_consent_title()).font(.subheadline).bold()
-            Text(consentText)
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -151,61 +178,40 @@ struct LearnWritingStyleSheet: View {
 
     // MARK: The run, and how it ended
 
-    @ViewBuilder
+    /// The bar and the count, alone in the middle of the page. A finished run shows the bar full
+    /// while the sheet hands over to the reveal.
     private var progress: some View {
-        if let learning = model.writingStyles.learning, learning.stage == .learning {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(L10n.learn_progress(done: String(learning.done), total: String(learning.total)))
-                    .font(.callout)
+        VStack(spacing: 12) {
+            if case .learned = flow.phase {
+                ProgressView(value: 1).frame(maxWidth: 320)
+            } else if let learning = model.writingStyles.learning, learning.stage == .learning {
                 ProgressView(value: Double(learning.done), total: Double(max(learning.total, 1)))
+                    .frame(maxWidth: 320)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.4), value: learning.done)
+                Text(L10n.learn_progress(done: String(learning.done), total: String(learning.total)))
+                    .font(WizardFont.text)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            } else {
+                reading
             }
-        } else {
-            reading
         }
+        .padding(WizardMetrics.gutter)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var reading: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text(L10n.learn_reading()).font(.callout).foregroundStyle(.secondary)
-        }
-    }
-
-    private func failed(_ failure: WritingStyleFailure) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.learn_failed_title()).font(.subheadline).bold()
-            failureText(failure)
+            Text(L10n.learn_reading()).font(WizardFont.text).foregroundStyle(.secondary)
         }
     }
 
     private func failureText(_ failure: WritingStyleFailure) -> some View {
         Text(writingStyleFailureText(failure, route: model.writingStyles.route))
-            .font(.callout)
+            .font(WizardFont.text)
             .foregroundStyle(failure == .Cancelled ? Color.secondary : Color.red)
             .fixedSize(horizontal: false, vertical: true)
-    }
-
-    // MARK: Buttons
-
-    @ViewBuilder
-    private var buttons: some View {
-        HStack {
-            Spacer()
-            switch flow.phase {
-            case .learning:
-                Button(L10n.learn_stop(), role: .cancel) { model.cancelWritingStyleLearning() }
-            case .failed, .learned:
-                Button(L10n.action_close()) { finish(nil) }
-                    .keyboardShortcut(.defaultAction)
-            case .choosing:
-                Button(L10n.action_cancel(), role: .cancel) { finish(nil) }
-                if flow.canLearn {
-                    Button(L10n.learn_consent_confirm()) { learn() }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.defaultAction)
-                }
-            }
-        }
     }
 
     // MARK: Driving the core
@@ -228,6 +234,7 @@ struct LearnWritingStyleSheet: View {
 
     private func learn() {
         guard let account = flow.account, flow.consent() else { return }
+        withAnimation(reduceMotion ? nil : WizardMotion.page) { pager.go(to: steps.count - 1) }
         let range = flow.range
         Task {
             flow.learningFinished(await model.learnWritingStyle(account, range))
