@@ -46,8 +46,11 @@ public sealed partial class SettingsDialog
         {
             _styleScreen = StyleScreen.Library;
             _learnSheet = null;
+            _learnFrame = null;
+            _learnReport = null;
             _learnFailure = null;
             _openStyle = null;
+            _reveal = null;
         }
         if (tag != "allodia")
         {
@@ -93,7 +96,7 @@ public sealed partial class SettingsDialog
                 Content = L10n.WritingStyleLearn(),
                 IsEnabled = snapshot.Accounts.Length > 0,
             };
-            learn.Click += (_, _) => OpenLearnSheet(snapshot.Accounts[0].AccountId);
+            learn.Click += (_, _) => OpenLearnSheet(snapshot.Accounts[0].AccountId, snapshot.Accounts.Length);
             top.Children.Add(learn);
         }
         if (snapshot.Route == AiRoute.Relay && snapshot.Balance is { } balance)
@@ -254,6 +257,7 @@ public sealed partial class SettingsDialog
     private void OpenStyle(string id) => Apply(() =>
     {
         _openStyle = id;
+        _reveal = null;
         _styleScreen = StyleScreen.Style;
     });
 

@@ -22,7 +22,7 @@ public class LearnSheetTests
         Newest: null,
         Horizon: null);
 
-    private static LearnSheet Sheet() => new("work", new DateOnly(2024, 12, 31));
+    private static LearnSheet Sheet(int accounts = 1) => new("work", new DateOnly(2024, 12, 31), accounts);
 
     [Theory]
     [InlineData(0, false)]
@@ -30,6 +30,23 @@ public class LearnSheetTests
     [InlineData(2, true)]
     public void TheAccountIsAskedOnlyWhenThereIsAChoice(int accounts, bool asks) =>
         Assert.Equal(asks, LearnSheet.AsksForAccount(accounts));
+
+    // An account page only when there is a choice, and the run last, one page each.
+    [Fact]
+    public void TheSheetsPagesFollowTheAccounts()
+    {
+        Assert.Equal(
+            new[] { LearnStep.Range, LearnStep.Consent, LearnStep.Progress },
+            Sheet().Steps);
+        var sheet = Sheet(accounts: 3);
+        Assert.Equal(
+            new[] { LearnStep.Account, LearnStep.Range, LearnStep.Consent, LearnStep.Progress },
+            sheet.Steps);
+        Assert.Equal(4, sheet.Pager.Count);
+        Assert.Equal(LearnStep.Account, sheet.Step);
+        sheet.Pager.Go(2);
+        Assert.Equal(LearnStep.Consent, sheet.Step);
+    }
 
     [Fact]
     public void EverythingOnTheDeviceHasNoEnd() => Assert.Null(Sheet().Until(Amsterdam));

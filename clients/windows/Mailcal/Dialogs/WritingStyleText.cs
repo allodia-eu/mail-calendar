@@ -1,5 +1,5 @@
 // The words the Writing style surface puts on screen for the codes and numbers the WinUI-free
-// halves decide (AiFailure, OwnEndpointProblem, StyleReveal, WritingStyleFormat). Here rather than
+// halves decide (AiFailure, OwnEndpointProblem, WritingStyleFormat). Here rather than
 // in those files because L10n.cs cannot be linked into Mailcal.Tests, the same split as
 // InvitationFormat and InvitationText.
 
@@ -44,20 +44,13 @@ internal static class WritingStyleText
         _ => L10n.AiEndpointErrorKeystore(),
     };
 
-    /// <summary>A reveal field's heading. Length has none: its line says what it is.</summary>
-    internal static string Label(RevealField field) => field switch
+    /// <summary>The word beside a greeting's or sign-off's bar. The core decides which, so every
+    /// client agrees.</summary>
+    internal static string Frequency(HabitFrequency frequency) => frequency switch
     {
-        RevealField.Greetings => L10n.RevealGreetings(),
-        RevealField.SignOffs => L10n.RevealSignOffs(),
-        RevealField.SignsAs => L10n.RevealSignsAs(),
-        RevealField.Register => L10n.RevealRegister(),
-        RevealField.Shape => L10n.RevealShape(),
-        RevealField.Punctuation => L10n.RevealPunctuation(),
-        RevealField.Structure => L10n.RevealStructure(),
-        RevealField.Moves => L10n.RevealMoves(),
-        RevealField.Phrases => L10n.RevealPhrases(),
-        RevealField.Avoid => L10n.RevealAvoid(),
-        _ => string.Empty,
+        HabitFrequency.Mostly => L10n.RevealFrequencyMostly(),
+        HabitFrequency.Often => L10n.RevealFrequencyOften(),
+        _ => L10n.RevealFrequencySometimes(),
     };
 
     /// <summary>The credits line, with the balance's time in <paramref name="zone"/>.</summary>

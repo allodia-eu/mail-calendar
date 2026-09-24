@@ -1,10 +1,11 @@
-// Settings → Writing style → Learn my writing style (docs/ai.md, "Learning"): one sheet that holds
-// the account, the range, what the device found for them, and the consent. Pressing Learn on it is
-// the consent; there is no other prompt. Then the run's progress with a way to stop it, and either
-// the new style or why there is none.
+// Settings → Writing style → Learn my writing style (docs/ai.md, "Learning"): an account when there
+// is a choice, the range, what the device found for them with the consent beneath, then the run,
+// one page each in the frame the reveal uses (WizardFrame). Pressing Learn on the consent page is
+// the consent; there is no other prompt. The run's page has a way to stop it, and ends in either the
+// new style or why there is none.
 //
-// The report is read again whenever the account or the range changes, and redrawn in place under
-// the choices, so the control the person just used keeps its focus. The state and the rule that a
+// The report is read again whenever the account or the range changes, and redrawn in place, so the
+// consent always speaks of the mail Learn would send. The pages, the state and the rule that a
 // superseded read is dropped are LearnSheet, where Mailcal.Tests can reach them.
 
 using System.Globalization;
@@ -18,18 +19,18 @@ namespace Allodia.Mailcal.Dialogs;
 
 public sealed partial class SettingsDialog
 {
-    // Where the report and the consent are drawn, and the button that gives it; both belong to the
-    // sheet on screen and are replaced when it is rebuilt.
+    // Where the report and the consent are drawn, and the frame whose last button gives it; both
+    // belong to the sheet on screen and are replaced when it is rebuilt.
     private StackPanel? _learnReport;
-    private Button? _learnConfirm;
+    private WizardFrame? _learnFrame;
 
     // Opens the sheet on `account` with everything on the device, and starts reading at once, so
     // the facts consent is given against are on screen as soon as they are known.
-    private void OpenLearnSheet(string account)
+    private void OpenLearnSheet(string account, int accounts)
     {
         var zone = WritingStyleFormat.Zone(_model.ActiveZone);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, zone).DateTime);
-        var sheet = new LearnSheet(account, today);
+        var sheet = new LearnSheet(account, today, accounts);
         Apply(() =>
         {
             _learnSheet = sheet;
@@ -40,53 +41,65 @@ public sealed partial class SettingsDialog
 
     private UIElement BuildLearnSheet(LearnSheet sheet, WritingStyleSnapshot snapshot)
     {
-        var panel = new StackPanel { Spacing = 16 };
-        panel.Children.Add(Heading(L10n.WritingStyleLearn()));
-        if (LearnSheet.AsksForAccount(snapshot.Accounts.Length))
-        {
-            panel.Children.Add(LearnAccountChoice(sheet, snapshot.Accounts));
-        }
-        panel.Children.Add(LearnRangeChoice(sheet));
-
-        var confirm = new Button
-        {
-            Content = L10n.LearnConsentConfirm(),
-            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
-        };
-        // Disabled at once: a second press before the panel redraws would start a second run,
-        // which the core refuses as busy over the first one's progress.
-        confirm.Click += (_, _) =>
-        {
-            confirm.IsEnabled = false;
-            _ = LearnAsync(sheet);
-        };
-        _learnConfirm = confirm;
-        _learnReport = new StackPanel { Spacing = 6 };
-        FillLearnReport(sheet);
-        panel.Children.Add(_learnReport);
-
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        var cancel = new Button { Content = L10n.ActionCancel() };
-        cancel.Click += (_, _) => Apply(() =>
+        var frame = new WizardFrame(
+            sheet.Pager, PanelHeight, allowsJump: false, (_, index) => LearnPage(sheet, snapshot, sheet.Steps[index]));
+        frame.SetCancel(L10n.ActionCancel(), () => Apply(() =>
         {
             _learnSheet = null;
             _styleScreen = StyleScreen.Library;
+        }));
+        frame.Moved = () => LearnFooter(sheet, frame);
+        _learnFrame = frame;
+        frame.Show();
+        return frame.Root;
+    }
+
+    private UIElement LearnPage(LearnSheet sheet, WritingStyleSnapshot snapshot, LearnStep step)
+    {
+        if (step == LearnStep.Account)
+        {
+            var account = WizardFrame.Page(L10n.LearnAccountTitle());
+            account.Children.Add(LearnAccountChoice(sheet, snapshot.Accounts));
+            return account;
+        }
+        if (step == LearnStep.Range)
+        {
+            var range = WizardFrame.Page(L10n.LearnRangeTitle());
+            range.Children.Add(LearnRangeChoice(sheet));
+            return range;
+        }
+        var consent = WizardFrame.Page(L10n.WritingStyleLearn());
+        _learnReport = new StackPanel { Spacing = 6 };
+        FillLearnReport(sheet);
+        consent.Children.Add(_learnReport);
+        return consent;
+    }
+
+    // Back and Next take the person through the choices; on the consent page Learn stands where
+    // Next did, and only over a report with something to learn from.
+    private void LearnFooter(LearnSheet sheet, WizardFrame frame)
+    {
+        if (sheet.Step != LearnStep.Consent)
+        {
+            return;
+        }
+        if (!sheet.CanLearn)
+        {
+            frame.HidePrimary();
+            return;
+        }
+        frame.SetAction(L10n.LearnConsentConfirm(), enabled: true, accent: true, () =>
+        {
+            // Disabled at once: a second press before the panel redraws would start a second run,
+            // which the core refuses as busy over the first one's progress.
+            frame.EnablePrimary(false);
+            _ = LearnAsync(sheet);
         });
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(confirm);
-        panel.Children.Add(buttons);
-        return panel;
     }
 
     private UIElement LearnAccountChoice(LearnSheet sheet, IReadOnlyList<AccountWritingStyleRow> accounts)
     {
         var stack = new StackPanel { Spacing = 4 };
-        stack.Children.Add(Heading(L10n.LearnAccountTitle()));
         foreach (var account in accounts)
         {
             var id = account.AccountId;
@@ -102,7 +115,6 @@ public sealed partial class SettingsDialog
     private UIElement LearnRangeChoice(LearnSheet sheet)
     {
         var stack = new StackPanel { Spacing = 4 };
-        stack.Children.Add(Heading(L10n.LearnRangeTitle()));
 
         var until = new StackPanel
         {
@@ -170,9 +182,9 @@ public sealed partial class SettingsDialog
             return;
         }
         report.Children.Clear();
-        if (_learnConfirm is { } confirm)
+        if (_learnFrame is { } frame)
         {
-            confirm.Visibility = sheet.CanLearn ? Visibility.Visible : Visibility.Collapsed;
+            LearnFooter(sheet, frame);
         }
         if (sheet.Reading)
         {
@@ -230,6 +242,7 @@ public sealed partial class SettingsDialog
             return;
         }
         var until = sheet.Until(WritingStyleFormat.Zone(_model.ActiveZone));
+        sheet.Pager.Go(sheet.Steps.Count - 1);
         Apply(() => _styleScreen = StyleScreen.Learning);
         var outcome = await _model.LearnWritingStyleAsync(
             sheet.Account, until, L10n.WritingStyleDefaultName(), CatalogLocale());
@@ -244,6 +257,7 @@ public sealed partial class SettingsDialog
             if (outcome.Value is { } learned)
             {
                 _openStyle = learned.StyleId;
+                _reveal = null;
                 _styleScreen = StyleScreen.Style;
             }
             else
@@ -254,41 +268,68 @@ public sealed partial class SettingsDialog
         });
     }
 
-    // The run's progress from the core's snapshot: reading on the device, then one request per
-    // part with a determinate bar. Stop takes effect before the next request.
+    // The run's progress from the core's snapshot, on the sheet's last page: reading on the device,
+    // then one request per part with a determinate bar. Stop stands where Learn did, and takes
+    // effect before the next request.
     private UIElement BuildLearning(LearningProgress? progress)
     {
-        var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(Heading(L10n.WritingStyleLearn()));
-        var text = L10n.LearnReading();
-        var bar = new ProgressBar { IsIndeterminate = true };
-        if (progress is { Stage: LearningStage.Learning, Total: > 0 } learning)
+        _learnReport = null;
+        _learnFrame = null;
+        var frame = new WizardFrame(RunPager(), PanelHeight, allowsJump: false, (_, _) =>
         {
-            text = L10n.LearnProgress(learning.Done.ToString(Culture), learning.Total.ToString(Culture));
-            bar = new ProgressBar { Maximum = learning.Total, Value = learning.Done };
-        }
-        AutomationProperties.SetName(bar, text);
-        panel.Children.Add(Line(text));
-        panel.Children.Add(bar);
-        var stop = new Button { Content = L10n.LearnStop() };
-        stop.Click += (_, _) => _model.CancelWritingStyleLearning();
-        panel.Children.Add(stop);
-        return panel;
+            var page = WizardFrame.Page(L10n.WritingStyleLearn());
+            var text = L10n.LearnReading();
+            var bar = new ProgressBar { IsIndeterminate = true };
+            if (progress is { Stage: LearningStage.Learning, Total: > 0 } learning)
+            {
+                text = L10n.LearnProgress(learning.Done.ToString(Culture), learning.Total.ToString(Culture));
+                bar = new ProgressBar { Maximum = learning.Total, Value = learning.Done };
+            }
+            AutomationProperties.SetName(bar, text);
+            page.Children.Add(Line(text));
+            page.Children.Add(bar);
+            return page;
+        });
+        frame.HideCancel();
+        frame.Moved = () =>
+        {
+            frame.SetBack(false);
+            frame.SetAction(L10n.LearnStop(), enabled: true, accent: false, _model.CancelWritingStyleLearning);
+        };
+        frame.Show();
+        return frame.Root;
     }
 
     private UIElement BuildLearnFailed(AiFailure failure)
     {
-        var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(Heading(L10n.LearnFailedTitle()));
-        panel.Children.Add(Line(WritingStyleText.Of(failure)));
-        var close = new Button { Content = L10n.ActionClose() };
-        close.Click += (_, _) => Apply(() =>
+        var frame = new WizardFrame(RunPager(), PanelHeight, allowsJump: false, (_, _) =>
         {
-            _learnFailure = null;
-            _styleScreen = StyleScreen.Library;
+            var page = WizardFrame.Page(L10n.LearnFailedTitle());
+            page.Children.Add(Line(WritingStyleText.Of(failure)));
+            return page;
         });
-        panel.Children.Add(close);
-        return panel;
+        frame.HideCancel();
+        frame.Moved = () =>
+        {
+            frame.SetBack(false);
+            frame.SetAction(L10n.ActionClose(), enabled: true, accent: true, () => Apply(() =>
+            {
+                _learnFailure = null;
+                _styleScreen = StyleScreen.Library;
+            }));
+        };
+        frame.Show();
+        return frame.Root;
+    }
+
+    // The run is the sheet's last page. One started before this dialog opened has no sheet here,
+    // and is drawn on the last page of the sheet it would have had.
+    private WizardPager RunPager()
+    {
+        var pager = _learnSheet?.Pager
+            ?? new WizardPager(LearnSheet.StepsFor(_model.WritingStyles.Accounts.Length).Length);
+        pager.Go(pager.Count - 1);
+        return pager;
     }
 
     // The catalog locale the app is shown in: the language the style's description is written in,

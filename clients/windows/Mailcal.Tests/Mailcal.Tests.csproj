@@ -228,12 +228,14 @@
          still be told, so the core never sees an oversized logo. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />
     <!-- Writing style and drafted replies (docs/ai.md): which sentence a failure earns, the learn
-         sheet's range and its superseded reads, the reveal's fields, the numbers and dates, the
-         composer's Draft a reply rules and the own endpoint form. WinUI-free and L10n-free on
-         purpose, the words are Dialogs/WritingStyleText.cs; each rule is silent when wrong, most
-         sharply a draft replacing what the person wrote without asking, and an empty key field
-         removing the stored key. They read the generated records, so they need the bindings. -->
+         sheet's pages, range and superseded reads, the reveal's steps and pictures, the numbers
+         and dates, the composer's Draft a reply rules and the own endpoint form. WinUI-free and
+         L10n-free on purpose, the words are Dialogs/WritingStyleText.cs; each rule is silent when
+         wrong, most sharply a draft replacing what the person wrote without asking, and an empty
+         key field removing the stored key. They read the generated records, so they need the
+         bindings. -->
     <Compile Include="..\Mailcal\Services\AiFailure.cs" Link="Services\AiFailure.cs" />
+    <Compile Include="..\Mailcal\Services\WizardPager.cs" Link="Services\WizardPager.cs" />
     <Compile Include="..\Mailcal\Services\LearnSheet.cs" Link="Services\LearnSheet.cs" />
     <Compile Include="..\Mailcal\Services\StyleReveal.cs" Link="Services\StyleReveal.cs" />
     <Compile Include="..\Mailcal\Services\WritingStyleFormat.cs" Link="Services\WritingStyleFormat.cs" />

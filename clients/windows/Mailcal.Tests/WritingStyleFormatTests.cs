@@ -1,13 +1,10 @@
-// The numbers, dates, language names and reveal fields the Writing style screens put on screen.
-// Each is a rule a screenshot reads straight past: a balance printed with three decimals, a
-// description written in a language the person does not read, a reveal drawing a heading over an
-// empty field, or a language named by its code.
+// The numbers, dates and language names the Writing style screens put on screen. Each is a rule a
+// screenshot reads straight past: a balance printed with three decimals, a description written in
+// a language the person does not read, or a language named by its code.
 
 using System;
 using System.Globalization;
-using System.Linq;
 using Allodia.Mailcal.Services;
-using uniffi.mailcal_bindings;
 using Xunit;
 
 namespace Allodia.Mailcal.Tests;
@@ -75,66 +72,5 @@ public class WritingStyleFormatTests
         Assert.Equal("de", WritingStyleFormat.CatalogLocale("de", "nl"));
         Assert.Equal("nl", WritingStyleFormat.CatalogLocale("system", "nl"));
         Assert.Equal("en", WritingStyleFormat.CatalogLocale("system", "sv"));
-    }
-
-    [Fact]
-    public void AHabitIsItsWordingThenItsShare() =>
-        Assert.Equal("Hi Anna, (40 %)", StyleReveal.Habit(new HabitRow("Hi Anna,", 40, 100, HabitFrequency.Often), Invariant));
-
-    // In the order every client draws, and a field with nothing in it is not drawn at all.
-    [Fact]
-    public void TheRevealDrawsOnlyFieldsThatSaySomething()
-    {
-        var language = new LanguageStyleRow(
-            Language: "en",
-            Greetings: new[] { new HabitRow("Hi,", 60, 86, HabitFrequency.Mostly), new HabitRow(" ", 10, 14, HabitFrequency.Sometimes) },
-            SignOffs: Array.Empty<HabitRow>(),
-            SignsAs: "Anna",
-            Register: "",
-            RegisterHeadline: "",
-            TypicalWords: 0,
-            TypicalParagraphs: 0,
-            Shape: "Short paragraphs",
-            Punctuation: "  ",
-            Structure: "",
-            StructureHeadline: "",
-            Moves: "",
-            MovesHeadline: "",
-            Phrases: new[] { "no worries", "" },
-            Avoid: Array.Empty<string>());
-        var sections = StyleReveal.Sections(language, Invariant);
-        Assert.Equal(
-            new[] { RevealField.Greetings, RevealField.SignsAs, RevealField.Shape, RevealField.Phrases },
-            sections.Select(section => section.Field).ToArray());
-        Assert.Equal(new[] { "Hi, (60 %)" }, sections[0].Lines);
-        Assert.Equal(new[] { "no worries" }, sections[3].Lines);
-    }
-
-    // The length is a number in a sentence of its own, placed after the register.
-    [Fact]
-    public void ATypicalLengthIsDrawnWhenKnown()
-    {
-        var language = new LanguageStyleRow(
-            Language: "nl",
-            Greetings: Array.Empty<HabitRow>(),
-            SignOffs: Array.Empty<HabitRow>(),
-            SignsAs: "",
-            Register: "Informal",
-            RegisterHeadline: "",
-            TypicalWords: 120,
-            TypicalParagraphs: 0,
-            Shape: "",
-            Punctuation: "",
-            Structure: "",
-            StructureHeadline: "",
-            Moves: "",
-            MovesHeadline: "",
-            Phrases: Array.Empty<string>(),
-            Avoid: new[] { "exclamation marks" });
-        var sections = StyleReveal.Sections(language, Invariant);
-        Assert.Equal(
-            new[] { RevealField.Register, RevealField.Length, RevealField.Avoid },
-            sections.Select(section => section.Field).ToArray());
-        Assert.Equal(120, sections[1].Words);
     }
 }

@@ -23,6 +23,9 @@ namespace Allodia.Mailcal.Dialogs;
 /// <summary>A modal, categorised app-settings editor.</summary>
 public sealed partial class SettingsDialog : ContentDialog
 {
+    // The height of the detail panel, which the Writing style sheets fill (WizardFrame).
+    private const double PanelHeight = 500;
+
     private readonly MailboxModel _model;
 
     // The panels below are built once and never rebuilt, and this dialog is where the
@@ -73,7 +76,7 @@ public sealed partial class SettingsDialog : ContentDialog
             }
         };
 
-        var root = new Grid { Width = 680, Height = 500, ColumnSpacing = 16 };
+        var root = new Grid { Width = 680, Height = PanelHeight, ColumnSpacing = 16 };
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetColumn(_categories, 0);

@@ -38,10 +38,6 @@ internal static class WritingStyleFormat
         TimeZoneInfo.ConvertTime(DateTimeOffset.FromUnixTimeSeconds(unixSeconds), zone)
             .ToString("d MMM yyyy", culture);
 
-    /// <summary>A habit's share of messages, as <paramref name="culture"/> writes a percentage.</summary>
-    internal static string Share(byte share, CultureInfo culture) =>
-        (share / 100.0).ToString("P0", culture);
-
     /// <summary>
     /// Languages by their own names ("Deutsch", never "German"), in the order given. A code the
     /// catalog does not ship is shown as the code, since there is no endonym to look up.
