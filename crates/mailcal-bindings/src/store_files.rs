@@ -11,6 +11,8 @@ pub(crate) const STORE_FILE: &str = "mailcal.sqlite";
 /// of device backups. Preferences, signatures and the log sit beside it and are not listed.
 ///
 /// A path may not exist yet: the WAL and shared-memory files come and go with the connection.
+///
+/// Android cannot ask at backup time, so its `data_extraction_rules.xml` names the same files.
 #[uniffi::export]
 #[must_use]
 pub fn mail_store_paths(data_dir: String) -> Vec<String> {
@@ -58,5 +60,22 @@ mod tests {
 
         drop(engine);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn android_keeps_every_store_path_out_of_both_backups() {
+        let rules = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../clients/android/app/src/main/res/xml/data_extraction_rules.xml",
+        ))
+        .unwrap();
+        for name in mail_store_paths(String::new()) {
+            let rule = format!("<exclude domain=\"file\" path=\"{name}\" />");
+            assert_eq!(
+                rules.matches(&rule).count(),
+                2,
+                "{name} excluded from cloud backup and device transfer",
+            );
+        }
     }
 }
