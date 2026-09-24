@@ -192,7 +192,8 @@ pub use records_recurrence::{
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
 pub use rendering::{
-    MessageCanvas, message_canvas, render_message_html, should_open_external_link,
+    MessageCanvas, PrintHeaderLine, message_canvas, render_message_html, render_message_print_html,
+    should_open_external_link,
 };
 pub use repeat_editor::repeat_change_of;
 pub use setup::{
