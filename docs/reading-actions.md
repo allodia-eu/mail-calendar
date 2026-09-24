@@ -46,8 +46,8 @@ a reader should not be able to tell the overflow apart from its neighbours excep
 
 ## What may go in the overflow
 
-- **Actions on the message as a document**, rather than on its place in the mailbox: exporting it,
-  and later reading its source and printing it.
+- **Actions on the message as a document**, rather than on its place in the mailbox: exporting it
+  and printing it, and later reading its source.
 - **Never a duplicate** of a button already on the row. A user who cannot find archive does not
   need a second archive; they need a wider pane, which the icon collapse already gives them.
 - **Never something irreversible.** Delete stays a button someone can see before they press it.
@@ -92,6 +92,33 @@ dispatch → snapshot loop never sees it.
 message whose body has been read exports with no network at all; one that has not been opened
 since a size cap dropped its source will fetch it.
 
+## Printing a message
+
+**The page is built once, in the core**, through `render_message_print_html`: the subject, then the
+lines the reading header draws (From, To, Cc, Bcc and the date, under the label **Sent**), then the
+body. A client passes each line under the label it already shows and the date as it already
+formats it; a line with nothing in it is dropped by the core, so no client filters. Every header
+value is escaped, so a subject or an address is text on the page and never markup.
+
+**It is the reading document with a header on top**, not a second renderer: the body is the
+snapshot's sanitised fragment (or its plain text, escaped and kept to its own line breaks), wrapped
+by the same `render_document`, so the CSP, the base stylesheet and the reflow are the reading
+view's. The reader's remote-images choice for this message is passed through: **a print never
+loads what reading did not**, so it cannot be the way a tracking pixel fires.
+
+**It is laid out in a web view nobody sees**, carrying every native gate of
+[`rendering-security.md`](rendering-security.md) that the reading host carries, and handed to the
+platform's own print dialog, which owns the printer, the paper and saving as PDF. The reading
+pane's web view is not reused: it holds no header, and a plain-text body is not in a web view at
+all on Apple and Android.
+
+**Print is offered once the body has arrived.** Before that, while an open is still running, and
+after a fetch that failed, the item is in the menu and disabled: a printout of a message with no
+body is a header on a blank page. A client that could not lay the page out reports it with
+`message_print_failed` where it reports a failed export.
+
+It is not an `Intent`, for the reason exporting is not one.
+
 ## Per-platform
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
@@ -101,12 +128,16 @@ since a size cap dropped its source will fetch it.
 | Save as `.eml` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Destination | save panel | share sheet | save picker | share sheet | save dialog |
 | Result reported | inline error | inline error | inline error | toast | banner |
+| Print | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Print dialog | `NSPrintOperation` sheet | `UIPrintInteractionController` | `ShowPrintUI` (system) | `PrintManager` | `WebKitPrintOperation` |
 
 ## Known gaps
 
-- **View source and print are not built.** The menu ships with one item. They are named here
-  because the menu's rules were written for the set, not for the one: an item that is a duplicate
-  of a row button, or that cannot be undone, is refused whichever of them arrives first.
+- **View source is not built.** It is named here because the menu's rules were written for the
+  set, not for the items it ships with: an item that is a duplicate of a row button, or that cannot
+  be undone, is refused whichever arrives next.
+- **No print shortcut.** On the desktops Print is reached through the menu only; neither Cmd+P
+  nor Ctrl+P is bound to it yet.
 - **No multi-message export.** Selecting several messages and exporting them is not offered
   anywhere; the export acts on the open message only.
 - **The header scrolls with the message on iPhone and iPad only.** Everywhere else it stands still

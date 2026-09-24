@@ -153,6 +153,11 @@
                                                     Click="OnExportEml"
                                                     Text="{x:Bind l10n:L10n.ActionSaveAsEml()}"
                                                     AutomationProperties.AutomationId="ReadingExportEml" />
+                                    <MenuFlyoutItem x:Name="PrintItem"
+                                                    Click="OnPrint"
+                                                    IsEnabled="False"
+                                                    Text="{x:Bind l10n:L10n.ActionPrint()}"
+                                                    AutomationProperties.AutomationId="ReadingPrint" />
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
@@ -257,6 +262,13 @@
                 <ProgressRing x:Name="LoadingRing" IsActive="False" Width="36" Height="36"
                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                 <controls:WebView2 x:Name="Body" Visibility="Collapsed" />
+                <!-- The page Print lays a message out on (ReadingView.Print.cs). A WebView2 starts
+                     only inside the visual tree, so it is here, transparent and one pixel square;
+                     the print dialog lays the page out at the paper's size, not this one's. -->
+                <controls:WebView2 x:Name="PrintHost" Width="1" Height="1" Opacity="0"
+                                   IsHitTestVisible="False" IsTabStop="False"
+                                   HorizontalAlignment="Left" VerticalAlignment="Top"
+                                   AutomationProperties.AccessibilityView="Raw" />
                 <!-- A plain-text body is the message itself, not a label: it is many lines whose
                      own breaks carry the paragraphing, so each line box must keep the font's
                      natural leading. (It must NOT set TextLineBounds="Tight", which trims every

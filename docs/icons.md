@@ -100,6 +100,7 @@ noted beside it, and the two without one are this app's own drawings.
 | Move to Trash | `trash` | `ic_delete` | `E74D` Delete | `user-trash-symbolic` |
 | More actions | `ellipsis` | `ic_more_vert` | `E712` More | `view-more-symbolic` |
 | Save as a file | `square.and.arrow.down.on.square` | — | — | — |
+| Print | `printer` | — | — | — |
 | Open an attachment | `arrow.up.forward.app` | — | — | — |
 | Save an attachment | `square.and.arrow.down` | — | — | — |
 | The body failed to load | `exclamationmark.triangle` | — | `E7BA` Warning | — |
