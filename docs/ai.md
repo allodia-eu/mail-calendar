@@ -298,13 +298,13 @@ A style's id is opaque CSPRNG output, never derived from its name.
 
 | Capability | Shared core | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| The gate, before anything is read or sent | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
-| Learn a style: report, consent sheet, progress, cancel | ✅ | ✅ | ✅ | 🚧 | ✅ | 🚧 |
-| The reveal, notes, rename, forget | ✅ | ✅ | ✅ | 🚧 | ✅ | 🚧 |
-| Per-account style slot | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
-| Draft a reply into the open composer, with gaps | ✅ | ✅ | ✅ | 🚧 | ✅ | 🚧 |
-| What the message asks, and a checklist asked about once at Send | ✅ | ✅ | ✅ | 🚧 | ✅ | 🚧 |
-| Own endpoint under Settings → Advanced | ✅ | ✅ | ✅ | 🚧 | ✅ | 🚧 |
+| The gate, before anything is read or sent | ✅ | ✅ | ✅ | ✅ | 🚧 | 🚧 |
+| Learn a style: report, consent sheet, progress, cancel | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| The reveal, notes, rename, forget | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| Per-account style slot | ✅ | ✅ | ✅ | ✅ | 🚧 | 🚧 |
+| Draft a reply into the open composer, with gaps | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| What the message asks, and a checklist asked about once at Send | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| Own endpoint under Settings → Advanced | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
 | Allodia relay: the entitlement read, requests, the balance | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Style guide synced between devices | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Feedback on a draft: thumbs, reasons, comment, the email and the draft only when ticked | 🚧 | 🚧 | ✅ | ⬜ | ⬜ | ⬜ |
@@ -317,8 +317,13 @@ into a reply and the replace question, forget, and the category leaving with the
 an iPhone simulator. Android was driven on a phone against the harness and the canned endpoint:
 the category after Signatures, learning with Stop, all six pages of the reveal in both languages,
 a draft with its card (a placeholder ticking about a second after it was replaced, Send asking
-once), in dark mode and with animations off. Windows and Linux are built and not yet driven
-(Known gaps).
+once), in dark mode and with animations off. Windows was driven against the harness and the
+canned endpoint in English and Dutch: the refusal until the endpoint says where it runs, learning
+with Stop, all six pages of the reveal, notes kept across a restart, the account slot and None,
+forget, a draft with its card and the replace question, a placeholder ticking once replaced, Send
+asking once, a reply sent from a draft landing in Sent and in the observations log, an endpoint's
+error, the key kept in Credential Manager and removed with the endpoint, and the category leaving
+with it. Linux is built and not yet driven (Known gaps).
 Feedback was driven on an iPhone simulator against the harness and the canned endpoint, offered by
 `MAILCAL_FAKE_AI_FEEDBACK` in place of a sign-in: a thumbs up, and a thumbs down with reasons, a
 comment and the box ticked, each landing in the outbox. The core's side is 🚧 until the route
@@ -359,16 +364,19 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 
 ## Known gaps
 
-- **Windows and Linux are built and not driven**, and have compiled only in CI. On Android the gate's
-  refusal and the account slot have not been driven. iPad was not driven either.
+- **Linux is built and not driven**, and has compiled only in CI. On Android the gate's refusal and
+  the account slot have not been driven. iPad was not driven either.
 - **A placeholder brought back by an undo stays ticked until Send**, on every client: the card
   stops asking the editor once every placeholder is filled, and Send reads them again.
 - **On Android, a word long-pressed in the body under the card** is selected beneath the keyboard,
   and the editor scrolls it into view only once the person types.
 - **At a very large font size (1.8 on Android)** the sheets' Next button wraps within the word.
 - **"Try it on a recent message" is not offered** on any client; the reveal ends at Save.
-- **No driven run has sent a reply from a draft**, so the `ai_draft` round trip is proven by the
-  editor's and the core's tests, not on a screen.
+- **An account set to None while a style exists** gets the same reason on the disabled Draft a reply
+  as one with no style at all, "Learn a writing style first", on every client; it would be truer to
+  say that the account drafts in no style.
+- **Only Windows has sent a reply from a draft in a driven run**; elsewhere the `ai_draft` round trip
+  is proven by the editor's and the core's tests.
 - **On Linux, a composer window left open** does not see a style learned meanwhile until From
   changes or the reply is opened again.
 - **Drafts have not been judged against the relay's providers.** One of them is known to fold a

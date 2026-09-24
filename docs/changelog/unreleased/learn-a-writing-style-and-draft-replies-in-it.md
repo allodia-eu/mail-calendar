@@ -1,12 +1,12 @@
 # Learn a writing style and draft replies in it
 
-Platforms: macos, ios, android
+Platforms: macos, ios, android, windows
 Bump: minor
 
 > The Writing style category, the own AI endpoint under Advanced and the composer's Draft a reply
-> control, driven on macOS, an iPhone simulator and an Android phone against the harness and a
-> canned endpoint. The note names only the own endpoint, because Allodia's relay is not deployed;
-> Windows and Linux draw the feature and are not tagged until they have been driven (`docs/ai.md`).
+> control, driven on macOS, an iPhone simulator, an Android phone and Windows against the harness
+> and a canned endpoint. The note names only the own endpoint, because Allodia's relay is not
+> deployed; Linux draws the feature and is not tagged until it has been driven (`docs/ai.md`).
 
 **English**
 
