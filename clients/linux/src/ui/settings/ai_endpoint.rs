@@ -99,8 +99,9 @@ pub(super) fn section(ctx: &PageContext) -> gtk::Box {
 }
 
 /// One labelled field: the label and its hint on the row, the entry beside them carrying its own
-/// accessible name, since the row cannot lend it its title.
-fn field<E: IsA<gtk::Widget> + IsA<gtk::Accessible>>(
+/// accessible name, since the row cannot lend it its title. The entry is given a width of its own,
+/// so a long hint wraps rather than leaving an address too narrow to read.
+fn field<E: IsA<gtk::Widget> + IsA<gtk::Accessible> + IsA<gtk::Editable>>(
     title: &str,
     hint: Option<&str>,
     entry: E,
@@ -110,6 +111,7 @@ fn field<E: IsA<gtk::Widget> + IsA<gtk::Accessible>>(
         row.set_subtitle(hint);
     }
     entry.update_property(&[gtk::accessible::Property::Label(title)]);
+    entry.set_width_chars(28);
     entry.set_valign(gtk::Align::Center);
     entry.set_hexpand(true);
     row.add_suffix(&entry);

@@ -27,6 +27,9 @@ impl Wizard {
         let root = adw::ToolbarView::new();
         let header = adw::HeaderBar::new();
         header.set_title_widget(Some(&adw::WindowTitle::new(title, "")));
+        // The Settings header above already closes the window. A second one here would sit
+        // beside a Close that closes only the sheet, under the same name.
+        header.set_show_end_title_buttons(false);
         let cancel = gtk::Button::with_label(l10n::action_cancel());
         header.pack_start(&cancel);
         root.add_top_bar(&header);
@@ -86,7 +89,10 @@ impl Wizard {
                 self.carousel.scroll_to(&page, true);
             }
         }
+        // Through `Widget`: the binding lists `Accessible` on the dots only under its `gtk_v4_10`
+        // feature, which this crate does not turn on.
         self.dots
+            .upcast_ref::<gtk::Widget>()
             .update_property(&[Property::Label(&pager.step_label())]);
         self.back.set_visible(!pager.is_first());
     }

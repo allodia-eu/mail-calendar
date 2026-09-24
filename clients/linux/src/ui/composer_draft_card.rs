@@ -23,6 +23,7 @@ pub(super) type OnTick = Rc<dyn Fn(usize, bool)>;
 
 pub(super) struct DraftCard {
     root: gtk::Box,
+    expander: gtk::Expander,
     heading: gtk::Label,
     summary: gtk::Label,
     checklist_heading: gtk::Label,
@@ -64,6 +65,7 @@ impl DraftCard {
         root.append(&expander);
         Self {
             root,
+            expander,
             heading,
             summary,
             checklist_heading,
@@ -79,11 +81,16 @@ impl DraftCard {
     /// Replaces the card with a draft's. The person's collapse or expand stays as it was.
     pub(super) fn show(&self, checklist: &DraftChecklist, on_tick: &OnTick) {
         let summary = checklist.summary();
-        self.heading.set_text(if summary.is_empty() {
+        let heading = if summary.is_empty() {
             l10n::composer_checklist_heading()
         } else {
             l10n::composer_draft_summary_heading()
-        });
+        };
+        self.heading.set_text(heading);
+        // Named by its heading and described by the summary: a button's name and description
+        // are otherwise read from everything inside it, which here is the whole card.
+        self.expander
+            .update_property(&[Property::Label(heading), Property::Description(summary)]);
         self.summary.set_text(summary);
         self.summary.set_visible(!summary.is_empty());
         self.checklist_heading
@@ -150,9 +157,11 @@ fn row(item: &ChecklistItem) -> (gtk::CheckButton, gtk::Label) {
         DraftTaskKind::Do => {
             check.update_property(&[Property::Description(l10n::a11y_task_do())]);
         }
+        // `can-focus`, not `focusable`: a check button that cannot take focus still claims it
+        // when Tab arrives, so the card's expander above it would keep the keyboard for good.
         DraftTaskKind::FillIn => {
             check.set_can_target(false);
-            check.set_focusable(false);
+            check.set_can_focus(false);
         }
     }
     (check, title)

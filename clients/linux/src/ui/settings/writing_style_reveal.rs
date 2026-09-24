@@ -26,6 +26,9 @@ use crate::{
     ui::writing_style_reveal::{RevealStep, WizardPager, shows_languages, source_address},
 };
 
+/// Draws one page about one language into its body.
+type DrawPage = fn(&gtk::Box, &LanguageStyleRow);
+
 const NAME: &str = "writing-style-reveal";
 
 /// The open detail. The Writing style page owns it; every handler here reaches it weakly.
@@ -203,7 +206,7 @@ impl Reveal {
         let Some(style) = self.detail.languages.get(self.language.get()) else {
             return;
         };
-        let steps: [(RevealStep, fn(&gtk::Box, &LanguageStyleRow)); 4] = [
+        let steps: [(RevealStep, DrawPage); 4] = [
             (RevealStep::Letter, reveal_pages::letter),
             (RevealStep::Habits, reveal_pages::habits),
             (RevealStep::Voice, cards::voice),

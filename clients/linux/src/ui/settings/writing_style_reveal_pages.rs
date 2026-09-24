@@ -344,10 +344,11 @@ fn habit_bar(habit: &HabitRow, top: bool) -> gtk::Overlay {
     let words = runs(habit.text.trim(), "mailcal-reveal-habit");
     words.set_hexpand(true);
     words.set_valign(gtk::Align::Center);
-    let frequency = text(frequency_text(habit.frequency));
+    // One word that never wraps: a wrapping label beside an expanding one is given its minimum,
+    // a single character, and the column it then makes pushes the greeting off its bar.
+    let frequency = gtk::Label::new(Some(frequency_text(habit.frequency)));
     frequency.add_css_class("caption");
     frequency.add_css_class("dim-label");
-    frequency.set_hexpand(false);
     frequency.set_valign(gtk::Align::Center);
     line.append(&words);
     line.append(&frequency);

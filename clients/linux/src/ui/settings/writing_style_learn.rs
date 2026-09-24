@@ -88,7 +88,7 @@ pub(super) fn open(
         .collect::<Vec<_>>();
     let (flow, first) = LearnFlow::new(&ids);
     let pages = LearnPage::all(accounts.len());
-    let pager = WizardPager::new(pages.len());
+    let start = WizardPager::new(pages.len());
     let wizard = Wizard::new(l10n::writing_style_learn());
     let range = RangeChoice::new();
     let consent = WizardPage::new(l10n::writing_style_learn());
@@ -103,7 +103,7 @@ pub(super) fn open(
         accounts,
         wizard,
         pages,
-        pager: Cell::new(pager),
+        pager: Cell::new(start),
         range,
         consent,
         progress,
