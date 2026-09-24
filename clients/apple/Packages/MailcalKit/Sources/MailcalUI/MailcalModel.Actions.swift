@@ -136,6 +136,9 @@ extension MailboxModel {
     /// message's snapshot arrives, including on a retry of the same key after a load error.
     func openMessage(_ account: String, _ key: String) {
         reading = nil
+        #if DEBUG && os(macOS)
+        trainingMessage = TrainingMessage(account: account, key: key)
+        #endif
         app?.dispatch(intent: .openMessage(account: account, key: key))
     }
 

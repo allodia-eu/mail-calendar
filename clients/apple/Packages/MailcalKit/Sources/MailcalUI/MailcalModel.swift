@@ -121,6 +121,10 @@ final class MailboxModel {
     /// The **pane's** open message: its fetched, sanitised body (pulled on a `Surface::Reading`
     /// signal). `nil` until a message is opened.
     var reading: ReadingSnapshot?
+    #if DEBUG && os(macOS)
+    /// The message the pane last opened, which the training window drafts replies to.
+    var trainingMessage: TrainingMessage?
+    #endif
     /// Every detached reading window, keyed by its core reader id (`docs/reading-window.md`).
     ///
     /// One entry per open window, so this is also the list of them: the registry the main window
