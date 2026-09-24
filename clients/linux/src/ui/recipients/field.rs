@@ -66,9 +66,9 @@ impl RecipientField {
     pub(crate) fn new(label: &str, app: Option<Arc<MailcalApp>>) -> Self {
         mailbox::install_styles();
 
-        // Above the input rather than inline before it: GTK 4.14 has no wrapping box, and a row of
-        // pills sharing one line with the entry squeezes the entry to nothing on the fourth
-        // recipient; exactly when the field is hardest to use.
+        // Above the input rather than inline before it: a row of pills sharing one line with the
+        // entry squeezes the entry to nothing on the fourth recipient, exactly when the field is
+        // hardest to use.
         let pills = gtk::FlowBox::new();
         pills.set_selection_mode(gtk::SelectionMode::None);
         pills.set_max_children_per_line(32);

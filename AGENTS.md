@@ -358,7 +358,8 @@ container and a GitHub Windows runner runs only Windows ones, so the twelve **ha
 ones that prove a mail action survived a round trip, run nowhere but a developer's machine. Run
 them before pushing anything that touches a mail or calendar write.
 
-On **Linux**, with GTK 4.14+ and libadwaita 1.5+ dev packages; other hosts exclude the crate.
+On **Linux**, with GTK 4.22+, libadwaita 1.9+ and WebKitGTK 2.52+ dev packages (Ubuntu 26.04's);
+other hosts exclude the crate.
 [`clients/linux/README.md`](clients/linux/README.md) has the commands and the one-time GNOME
 runtime install.
 

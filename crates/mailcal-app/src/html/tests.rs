@@ -23,6 +23,17 @@ fn strips_inline_event_handlers() {
     assert!(out.contains("https://ok.example"));
 }
 
+/// WebKit resolves a `<link rel=dns-prefetch>` host as the document parses, and since 2.48 no
+/// setting turns that off: stripping the element is the only thing keeping a message from
+/// announcing that it was opened to the sender's resolver.
+#[test]
+fn strips_link_elements_so_no_host_is_prefetched() {
+    let out = sanitize(r#"<link rel="dns-prefetch" href="//tracker.example"><p>hi</p>"#).html;
+    assert!(out.contains("hi"));
+    assert!(!out.contains("<link"));
+    assert!(!out.contains("tracker.example"));
+}
+
 #[test]
 fn preserves_inline_css_so_mail_is_legible() {
     // The reported bug: styling was stripped, so blue text rendered black. Inline

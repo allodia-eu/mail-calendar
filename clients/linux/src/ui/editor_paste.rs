@@ -157,10 +157,9 @@ fn is_paste_chord(key: gdk::Key, state: gdk::ModifierType) -> bool {
 /// `docs/composer-security.md` Gate 14 states, and for a reason that leaves no alternative: the
 /// stock item cannot be *observed*. Its action is a `WebKitContextMenuGAction`, which is neither a
 /// `GSimpleAction` nor carrier of an `activate` signal, so there is no way to learn that the user
-/// chose Paste and no way to read the clipboard when they did. Reusing the stock item's own label
-/// would need `webkit_context_menu_item_get_title`, which arrived in WebKitGTK 2.52 and is far
-/// above this client's floor. So the label is the app's own, in the app's own language, and the
-/// behaviour falls straight back to the stock paste for everything that is not a picture.
+/// chose Paste and no way to read the clipboard when they did. So the label is the app's own, in
+/// the app's own language, and the behaviour falls straight back to the stock paste for everything
+/// that is not a picture.
 ///
 /// A view with no handler set (the reading view, or a composer still being built) keeps the stock
 /// item, so nothing here can degrade a menu that was never ours to change.

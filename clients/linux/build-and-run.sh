@@ -158,15 +158,14 @@ if [[ "$TARGET" == sdk ]]; then
 fi
 
 require_cmd pkg-config
-# The crate's feature gates, which are the compile-time floor; deliberately older than both the
-# baseline and the runtime, because they are what the code may call. Moving the baseline does not
-# move these.
-pkg-config --atleast-version=4.14 gtk4 ||
-  die "GTK 4.14 or newer is required (pkg-config package: gtk4)"
-pkg-config --atleast-version=1.5 libadwaita-1 ||
-  die "libadwaita 1.5 or newer is required (pkg-config package: libadwaita-1)"
-pkg-config --exists webkitgtk-6.0 ||
-  die "WebKitGTK 6.0 is required (pkg-config package: webkitgtk-6.0)"
+# The crate's feature gates, which are the compile-time floor: what the code may call. They match
+# the baseline (Ubuntu 26.04) and the GNOME 50 runtime, and move with this check and Cargo.toml.
+pkg-config --atleast-version=4.22 gtk4 ||
+  die "GTK 4.22 or newer is required (pkg-config package: gtk4)"
+pkg-config --atleast-version=1.9 libadwaita-1 ||
+  die "libadwaita 1.9 or newer is required (pkg-config package: libadwaita-1)"
+pkg-config --atleast-version=2.52 webkitgtk-6.0 ||
+  die "WebKitGTK 2.52 or newer is required (pkg-config package: webkitgtk-6.0)"
 
 warn "building against this distribution's GTK $(pkg-config --modversion gtk4) / libadwaita $(pkg-config --modversion libadwaita-1),
      a different build from the GNOME $(sdk_runtime_version) runtime the Flatpak links, however close the versions read.

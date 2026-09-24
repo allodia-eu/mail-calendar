@@ -77,17 +77,17 @@ close; they are still two separate builds of GTK on two schedules, and only the 
 nothing to do with the toolkit. The `-dev` packages are what `--host` needs; the driving tools below
 run outside the sandbox either way.
 
-The **compile-time floor is the crate feature gates** (GTK 4.14 / libadwaita 1.5 in
-[`Cargo.toml`](Cargo.toml)), not the baseline: it is what the code may call, and it is deliberately
-older than either. Raising it is a separate decision from moving the baseline, and it is what would
-put `AdwSidebar` and friends within reach.
+The **compile-time floor is the crate feature gates** (GTK 4.22 / libadwaita 1.9 / WebKitGTK 2.52
+in [`Cargo.toml`](Cargo.toml)): it is what the code may call. It matches the baseline and the
+runtime, so a host build and the Flatpak see the same API; `build-and-run.sh --host` checks it
+before building.
 
 | Packages | Purpose |
 |---|---|
 | `git`, `curl`, `ca-certificates` | Clone with submodules and install/update Rust through `rustup` |
 | `build-essential`, `pkg-config` | Native linker/build tools and GTK library discovery |
-| `libgtk-4-dev`, `libadwaita-1-dev` | GTK 4.14+/libadwaita 1.5+ client build |
-| `libwebkitgtk-6.0-dev` | Locked reading/composer content islands and native network content filters |
+| `libgtk-4-dev`, `libadwaita-1-dev` | GTK 4.22+/libadwaita 1.9+ client build |
+| `libwebkitgtk-6.0-dev` | WebKitGTK 2.52+: locked reading/composer content islands and native network content filters |
 | `sway`, `grim` | The private headless compositor every capture and the UI acceptance suite run on, and the tool that photographs it |
 | `wtype` | A real keystroke on that compositor, for what AT-SPI cannot reach (Escape, Tab, a shortcut) |
 | `wayland-utils` | `wayland-info`, which answers whether a compositor offers a capture protocol at all |
