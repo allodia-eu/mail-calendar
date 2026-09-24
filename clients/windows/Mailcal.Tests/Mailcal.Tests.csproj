@@ -198,6 +198,9 @@
          recipient is entered; a whole-field replace destroys the recipients already typed), so the
          rule docs/contacts.md §4 binds every client to is pinned here rather than trusted. -->
     <Compile Include="..\Mailcal\Services\RecipientTokens.cs" Link="Services\RecipientTokens.cs" />
+    <!-- Where the recipient field's pills and input go: the input fills what is left of its line and
+         takes a fresh one only when too little is left to type in. -->
+    <Compile Include="..\Mailcal\Services\FlowLayout.cs" Link="Services\FlowLayout.cs" />
     <!-- The avatar as the views bind it (docs/avatars.md): which of photo / letters / person glyph
          a circle draws, which theme's colour it sits on, and, the rule the snapshot reconcile
          rides on, that two avatars differing only by a photo are NOT equal. WinUI-free on purpose

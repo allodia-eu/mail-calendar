@@ -16,63 +16,60 @@
          truth. So there is no state to keep in sync and nothing can be on screen that would not be
          sent. Services/RecipientTokens.cs owns the string <-> (pills, token) split in pure functions
          Mailcal.Tests drives directly. -->
-    <StackPanel Spacing="4">
-        <TextBlock x:Name="LabelText" />
+    <UserControl.Resources>
+        <!-- A finished recipient's pill, built in code (RecipientField.xaml.cs) because it shares
+             the line with the input. A style rather than a brush, so the fill follows the theme. -->
+        <Style x:Key="PillStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="8,2,2,2" />
+            <Setter Property="Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
+        </Style>
+    </UserControl.Resources>
 
-        <!-- A plain ItemsControl has no automation peer, so this container is NOT a node in the UIA
-             tree and cannot be scoped to by id, the pills are reached through their own text and
-             their remove buttons, each of which names the recipient it would remove. -->
-        <ItemsControl x:Name="Pills" Visibility="Collapsed">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <controls:FlowPanel />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:RecipientPillItem">
-                    <Border CornerRadius="12" Padding="8,2,2,2"
-                            Background="{ThemeResource ControlFillColorSecondaryBrush}">
-                        <StackPanel Orientation="Horizontal" Spacing="2">
-                            <TextBlock Text="{x:Bind Text}" VerticalAlignment="Center"
-                                       MaxLines="1" TextTrimming="CharacterEllipsis" MaxWidth="240"
-                                       Style="{StaticResource CaptionTextBlockStyle}" />
-                            <Button Tag="{x:Bind Index}" Click="OnRemoveRecipient"
-                                    Background="Transparent" BorderThickness="0"
-                                    Padding="4" MinWidth="0"
-                                    AutomationProperties.Name="{x:Bind RemoveLabel}"
-                                    ToolTipService.ToolTip="{x:Bind RemoveLabel}">
-                                <FontIcon Glyph="&#xE711;" FontSize="10" />
-                            </Button>
-                        </StackPanel>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+    <!-- One line per field, as a mail client lays out its header: the label in a column the composer
+         lines up across From, To, Cc, Bcc and Subject, then one underlined box holding the finished
+         addresses as pills with the one being typed after them, wrapping onto further lines when
+         there are more than fit, then whatever the composer hung off the field (the To row carries
+         the Cc/Bcc chevron; Cc and Bcc carry nothing).
 
-        <!-- The input, and whatever control the composer hung off it (the To row carries the Cc/Bcc
-             chevron; Cc and Bcc carry nothing).
+         The Popup is a child of this Grid too, and takes no layout space in it. -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="LabelColumn" Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <TextBlock x:Name="LabelText" Grid.Column="0" VerticalAlignment="Top" Margin="0,6,12,0"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-             The trailing control sits in the input's OWN row, which is what keeps the two aligned.
-             Beside the whole field it drifted: this StackPanel's Spacing adds a gap after the input
-             for the closed Popup below, so the field's bottom edge is 4epx under the input's and a
-             bottom-aligned control was drawn 4epx low, and lower still once pills appear. Nothing
-             here needs the composer to know that.
-
-             No ColumnSpacing: an Auto column spaces even when it is empty, which would narrow Cc
-             and Bcc against To for a control they do not have. The margin rides on the content. -->
-        <Grid>
+        <!-- The underline is the field's edge, and it turns to the accent while the input has focus
+             (Controls/HeaderField.cs): the input itself draws no box of its own, so the pills
+             and the text are visibly one field. -->
+        <Grid x:Name="Field" Grid.Column="1" SizeChanged="OnFieldSizeChanged"
+              BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="Input" Grid.Column="0" TextChanged="OnInputChanged" KeyDown="OnInputKeyDown"
-                     LosingFocus="OnInputLosingFocus" SizeChanged="OnInputSizeChanged" />
-            <ContentPresenter x:Name="TrailingHost" Grid.Column="1" VerticalAlignment="Center" />
+            <!-- A FlowPanel has no automation peer, so the pills are reached through their own text
+                 and their remove buttons, each of which names the recipient it would remove. The
+                 input is its last child and fills what is left of its line (FillLast). -->
+            <controls:FlowPanel x:Name="Line" Spacing="4" FillLast="120">
+                <TextBox x:Name="Input" TextChanged="OnInputChanged" KeyDown="OnInputKeyDown"
+                         LosingFocus="OnInputLosingFocus" />
+            </controls:FlowPanel>
+            <!-- Bottom-aligned, so it sits on the input's line however many lines of pills there
+                 are: the input is always the last child, so its line is the last one. No column
+                 spacing: an Auto column spaces even when it is empty, which would narrow Cc and
+                 Bcc against To for a control they do not have. The margin rides on the content. -->
+            <ContentPresenter x:Name="TrailingHost" Grid.Column="1" VerticalAlignment="Bottom" />
+            <Rectangle x:Name="FocusLine" Grid.ColumnSpan="2" Height="2" VerticalAlignment="Bottom"
+                       Margin="0,0,0,-1" Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                       Visibility="Collapsed" />
         </Grid>
 
         <!-- The suggestions float OVER what follows rather than sitting in the layout.
 
-             Inline, the list was a sibling in this StackPanel: it appeared and disappeared on every
+             Inline, the list was a sibling in the layout: it appeared and disappeared on every
              keystroke and took ~160px with it, so Cc, Bcc, the editor and the Send row all jumped
              down and back while the user was still typing the first recipient. A Popup takes no
              layout space at all, the element below is where it was before anyone started typing.
@@ -81,7 +78,7 @@
              and the semi-transparent control fill it used to carry would render two texts on top of
              each other. -->
         <primitives:Popup x:Name="SuggestionPopup"
-                          PlacementTarget="{x:Bind Input}"
+                          PlacementTarget="{x:Bind Field}"
                           DesiredPlacement="BottomEdgeAlignedLeft">
             <Border x:Name="SuggestionSurface"
                     Background="{ThemeResource FlyoutPresenterBackground}"
@@ -119,5 +116,5 @@
                 </ListView>
             </Border>
         </primitives:Popup>
-    </StackPanel>
+    </Grid>
 </UserControl>

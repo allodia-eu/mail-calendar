@@ -61,6 +61,7 @@ public sealed partial class ComposerView : UserControl
     public ComposerView()
     {
         this.InitializeComponent();
+        StyleHeader();
         _editor = new EditorWebViewHost(Editor) { PageReady = OnEditorReadyAsync };
     }
 
@@ -110,7 +111,7 @@ public sealed partial class ComposerView : UserControl
         if (model.Accounts.Count <= 1)
         {
             FromBox.Visibility = Visibility.Collapsed;
-            FromRow.Visibility = Visibility.Visible;
+            FromAddress.Visibility = Visibility.Visible;
             FromAddress.Text = (FromBox.SelectedItem as AccountItem)?.SendLabel ?? string.Empty;
         }
 
@@ -129,6 +130,7 @@ public sealed partial class ComposerView : UserControl
             field.SuggestionsFor = model.RecipientSuggestionsAsync;
             field.RecipientsChanged += OnRecipientsChanged;
         }
+        InitHeader();
         // Seeded, not assigned raw: every address the request carries is finished, so all of them
         // render as pills. The field's own rule reads whatever follows the last comma as the token
         // the user is typing, which is right for a keystroke and wrong for a pre-fill, it left a
