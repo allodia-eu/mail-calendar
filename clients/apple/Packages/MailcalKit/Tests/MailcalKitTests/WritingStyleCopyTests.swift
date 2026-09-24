@@ -107,7 +107,7 @@ import Testing
     }
 
     @Test func aHabitCarriesItsShareAsAPercentage() {
-        let habit = HabitRow(text: "Hi Bob,", share: 80)
+        let habit = HabitRow(text: "Hi Bob,", share: 80, relative: 100, frequency: .mostly)
         #expect(writingStyleHabit(habit, locale: Locale(identifier: "en")) == "Hi Bob, (80%)")
     }
 }

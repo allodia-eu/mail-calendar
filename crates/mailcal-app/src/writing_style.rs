@@ -198,13 +198,7 @@ fn row(id: &WritingStyleId, style: &StoredWritingStyle) -> WritingStyleRow {
 }
 
 fn habits(habits: &[mailcal_ai::Habit]) -> Vec<HabitRow> {
-    habits
-        .iter()
-        .map(|habit| HabitRow {
-            text: habit.text.clone(),
-            share: habit.share,
-        })
-        .collect()
+    mailcal_viewmodel::habit_rows(habits.iter().map(|habit| (habit.text.clone(), habit.share)))
 }
 
 impl<P: Provider> App<P> {
@@ -268,11 +262,15 @@ impl<P: Provider> App<P> {
                     sign_offs: habits(&learned.sign_offs),
                     signs_as: learned.signs_as.clone(),
                     register: learned.register.clone(),
+                    register_headline: learned.register_headline.clone(),
                     typical_words: learned.typical_words,
+                    typical_paragraphs: learned.typical_paragraphs,
                     shape: learned.shape.clone(),
                     punctuation: learned.punctuation.clone(),
                     structure: learned.structure.clone(),
+                    structure_headline: learned.structure_headline.clone(),
                     moves: learned.moves.clone(),
+                    moves_headline: learned.moves_headline.clone(),
                     phrases: learned.phrases.clone(),
                     avoid: learned.avoid.clone(),
                 })

@@ -21,7 +21,7 @@ use serde::Deserialize;
 use crate::{
     AiError, Exemplars, GatedBackend, LanguageStyle, Provenance, StyleGuide,
     corpus::{Corpus, CorpusMessage, estimate_tokens},
-    prompt::{FENCE_PREAMBLE, fence, language_name},
+    prompt::{FENCE_PREAMBLE, fence, interface_language_name, language_name},
     tool,
     wire::{ChatMessage, ChatRequest, Metering, Purpose},
 };
@@ -272,23 +272,28 @@ fn describe_request(language: &str, ui_language: &str, part: &[CorpusMessage]) -
          Describe their style by calling emit_json once. Be concrete and specific to this \
          person; leave out anything that would describe most writers.\n\
          - greetings and sign_offs: the exact wording they use, most frequent first, each with \
-         the rough share of emails that use it.\n\
+         the rough share of emails that use it. A wording listed here is not repeated under \
+         phrases.\n\
          - signs_as: the name they sign with, exactly as written, or empty.\n\
          - register: how formal they are and how that shifts with the recipient (formal or \
          informal pronouns, first names or titles).\n\
-         - typical_words: the typical length of their emails, in words.\n\
+         - typical_words: the typical length of their emails, in words; typical_paragraphs: \
+         how many paragraphs they usually write between greeting and sign-off.\n\
          - shape, punctuation, structure, moves: short descriptions.\n\
+         - register_headline, structure_headline, moves_headline: the matching description in \
+         at most five words, as a heading.\n\
          - phrases: short expressions characteristic of them, a few words each.\n\
          - avoid: what they never do, which a draft in their name must not do either.\n\
          - exemplars: the numbers of the six to ten emails that best show their everyday \
          voice, varied in recipient and purpose.\n\
          \n\
-         Write register, shape, punctuation, structure, moves and avoid in {ui}. Quote \
+         Write register, shape, punctuation, structure, moves, the headlines and avoid in {ui}. \
+         Quote \
          greetings, sign-offs and phrases exactly as the person writes them. Never copy a \
          sentence of an email into a description.",
         count = part.len(),
         language = language_name(language),
-        ui = language_name(ui_language),
+        ui = interface_language_name(ui_language),
     );
     let mail = part
         .iter()
@@ -313,10 +318,10 @@ fn merge_request(language: &str, ui_language: &str, styles: &[LanguageStyle]) ->
         "You are given {count} descriptions of how one person writes email in {language}, each \
          made from a different sample of their mail. Merge them into one by calling emit_json: \
          keep what recurs, reconcile the shares, and leave out what only one sample shows. Keep \
-         the descriptions in {ui} and the quoted wording exactly as given.",
+         the descriptions and headlines in {ui} and the quoted wording exactly as given.",
         count = styles.len(),
         language = language_name(language),
-        ui = language_name(ui_language),
+        ui = interface_language_name(ui_language),
     );
     let parts = serde_json::to_string_pretty(styles).unwrap_or_default();
     let (tool, choice) = tool::forced::<Merged>("Record the merged description.");

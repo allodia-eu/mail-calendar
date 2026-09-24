@@ -103,12 +103,63 @@ pub struct WritingStyleSnapshot {
 }
 
 /// One recurring form and roughly how often it is used, for the reveal screen.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HabitRow {
     /// The exact wording.
     pub text: String,
     /// Roughly how often, as a percentage of messages.
     pub share: u8,
+    /// Its part of its list, as a percentage of the list's shares together: a bar's length. The
+    /// model's shares are rough and need not add up, so a bar is drawn from this.
+    pub relative: u8,
+    /// How often, in the word the reveal shows beside the bar.
+    pub frequency: HabitFrequency,
+}
+
+/// How often a greeting or sign-off is used, read from its share of messages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HabitFrequency {
+    /// Half the messages or more.
+    Mostly,
+    /// A fifth or more.
+    Often,
+    /// Less than that, or not known.
+    Sometimes,
+}
+
+impl HabitFrequency {
+    /// The word for a share of messages, in percent.
+    #[must_use]
+    pub const fn of(share: u8) -> Self {
+        match share {
+            50.. => Self::Mostly,
+            20..=49 => Self::Often,
+            _ => Self::Sometimes,
+        }
+    }
+}
+
+/// A list of `(wording, share)` as the reveal draws it: each with its part of the list and its
+/// frequency word. A list whose shares are all unknown is drawn in equal parts.
+#[must_use]
+pub fn habit_rows(habits: impl IntoIterator<Item = (String, u8)>) -> Vec<HabitRow> {
+    let habits: Vec<(String, u8)> = habits.into_iter().collect();
+    let total: u32 = habits.iter().map(|(_, share)| u32::from(*share)).sum();
+    let count = u32::try_from(habits.len()).unwrap_or(u32::MAX).max(1);
+    habits
+        .into_iter()
+        .map(|(text, share)| {
+            let part = (u32::from(share) * 100 + total / 2)
+                .checked_div(total)
+                .unwrap_or(100 / count);
+            HabitRow {
+                text,
+                share,
+                relative: u8::try_from(part.min(100)).unwrap_or(100),
+                frequency: HabitFrequency::of(share),
+            }
+        })
+        .collect()
 }
 
 /// What was learned about one language, in the words the reveal screen shows.
@@ -124,16 +175,24 @@ pub struct LanguageStyleRow {
     pub signs_as: String,
     /// Register, and how it shifts.
     pub register: String,
+    /// The register in at most five words; empty when a model gave none.
+    pub register_headline: String,
     /// Typical length in words; zero when unknown.
     pub typical_words: u32,
+    /// Typical paragraphs between greeting and sign-off; zero when unknown.
+    pub typical_paragraphs: u32,
     /// Paragraphing and sentence length.
     pub shape: String,
     /// Punctuation habits.
     pub punctuation: String,
     /// Structural habits.
     pub structure: String,
+    /// The structural habits in at most five words; empty when a model gave none.
+    pub structure_headline: String,
     /// How they decline, chase, apologise and confirm.
     pub moves: String,
+    /// The same in at most five words; empty when a model gave none.
+    pub moves_headline: String,
     /// Characteristic phrases.
     pub phrases: Vec<String>,
     /// What they avoid.
@@ -150,3 +209,7 @@ pub struct WritingStyleDetail {
     /// Per language, most messages first.
     pub languages: Vec<LanguageStyleRow>,
 }
+
+#[cfg(test)]
+#[path = "writing_style_tests.rs"]
+mod tests;

@@ -8,6 +8,7 @@ import uniffi.mailcal_bindings.CorpusLanguage
 import uniffi.mailcal_bindings.CorpusReport
 import uniffi.mailcal_bindings.CreditBalance
 import uniffi.mailcal_bindings.GateRefusal
+import uniffi.mailcal_bindings.HabitFrequency
 import uniffi.mailcal_bindings.HabitRow
 import uniffi.mailcal_bindings.JurisdictionClass
 import uniffi.mailcal_bindings.LanguageStyleRow
@@ -58,15 +59,19 @@ internal val PLAIN_DETAIL = WritingStyleDetail(
     languages = listOf(
         LanguageStyleRow(
             language = "en",
-            greetings = listOf(HabitRow("Hi Anna,", 70u)),
-            signOffs = listOf(HabitRow("Best,", 55u)),
+            greetings = listOf(HabitRow("Hi Anna,", 70u, 100u, HabitFrequency.MOSTLY)),
+            signOffs = listOf(HabitRow("Best,", 55u, 100u, HabitFrequency.MOSTLY)),
             signsAs = "Alice",
             register = "",
+            registerHeadline = "",
             typicalWords = 80u,
+            typicalParagraphs = 0u,
             shape = "Short paragraphs.",
             punctuation = "",
             structure = "",
+            structureHeadline = "",
             moves = "",
+            movesHeadline = "",
             phrases = listOf("Happy to help"),
             avoid = emptyList(),
         ),

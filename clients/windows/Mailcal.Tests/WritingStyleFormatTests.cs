@@ -79,7 +79,7 @@ public class WritingStyleFormatTests
 
     [Fact]
     public void AHabitIsItsWordingThenItsShare() =>
-        Assert.Equal("Hi Anna, (40 %)", StyleReveal.Habit(new HabitRow("Hi Anna,", 40), Invariant));
+        Assert.Equal("Hi Anna, (40 %)", StyleReveal.Habit(new HabitRow("Hi Anna,", 40, 100, HabitFrequency.Often), Invariant));
 
     // In the order every client draws, and a field with nothing in it is not drawn at all.
     [Fact]
@@ -87,15 +87,19 @@ public class WritingStyleFormatTests
     {
         var language = new LanguageStyleRow(
             Language: "en",
-            Greetings: new[] { new HabitRow("Hi,", 60), new HabitRow(" ", 10) },
+            Greetings: new[] { new HabitRow("Hi,", 60, 86, HabitFrequency.Mostly), new HabitRow(" ", 10, 14, HabitFrequency.Sometimes) },
             SignOffs: Array.Empty<HabitRow>(),
             SignsAs: "Anna",
             Register: "",
+            RegisterHeadline: "",
             TypicalWords: 0,
+            TypicalParagraphs: 0,
             Shape: "Short paragraphs",
             Punctuation: "  ",
             Structure: "",
+            StructureHeadline: "",
             Moves: "",
+            MovesHeadline: "",
             Phrases: new[] { "no worries", "" },
             Avoid: Array.Empty<string>());
         var sections = StyleReveal.Sections(language, Invariant);
@@ -116,11 +120,15 @@ public class WritingStyleFormatTests
             SignOffs: Array.Empty<HabitRow>(),
             SignsAs: "",
             Register: "Informal",
+            RegisterHeadline: "",
             TypicalWords: 120,
+            TypicalParagraphs: 0,
             Shape: "",
             Punctuation: "",
             Structure: "",
+            StructureHeadline: "",
             Moves: "",
+            MovesHeadline: "",
             Phrases: Array.Empty<string>(),
             Avoid: new[] { "exclamation marks" });
         var sections = StyleReveal.Sections(language, Invariant);

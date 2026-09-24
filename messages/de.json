@@ -979,5 +979,27 @@
 	"ai_error_not_found": "Diese Nachricht ist nicht mehr auf diesem Gerät.",
 	"ai_error_busy": "Es wird bereits ein Stil gelernt.",
 	"ai_error_cancelled": "Angehalten. Es wurde kein Stil gespeichert.",
-	"ai_error_unavailable": "Der Schreibstil ist nicht eingerichtet."
+	"ai_error_unavailable": "Der Schreibstil ist nicht eingerichtet.",
+
+	"reveal_step_letter": "Eine typische Antwort",
+	"reveal_step_habits": "Anreden und Grußformeln",
+	"reveal_step_voice": "Ton und Vorgehen",
+	"reveal_step_name": "Name und Notizen",
+	"reveal_based_on": "Auf Grundlage der E-Mails, die Sie von {address} gesendet haben.",
+	"reveal_stat_messages": "Nachrichten",
+	"reveal_stat_languages": "Sprachen",
+	"reveal_stat_since": "Seit",
+	"reveal_stats_a11y": "{count} Nachrichten seit {date}, auf {languages}",
+	"reveal_stats_a11y_one": "{count} Nachricht seit {date}, auf {languages}",
+	"reveal_pages_intro": "Die nächsten Seiten zeigen je Sprache, was aufgefallen ist.",
+	"reveal_letter_caption": "Die Linien zeigen Ihre übliche Länge und Form.",
+	"reveal_frequency_mostly": "Meistens",
+	"reveal_frequency_often": "Oft",
+	"reveal_frequency_sometimes": "Manchmal",
+	"reveal_card_more": "Mehr",
+	"reveal_card_less": "Weniger",
+	"wizard_back": "Zurück",
+	"wizard_next": "Weiter",
+	"a11y_wizard_step": "Schritt {step} von {total}",
+	"a11y_reveal_language": "Sprache"
 }

@@ -106,7 +106,8 @@ fn the_request_forces_the_tool_and_fences_every_message() {
         "emit_json"
     );
     assert!(request.messages[0].content.contains("German"));
-    assert!(request.messages[0].content.contains("in English"));
+    // The descriptions are read back in the app, whose English is British.
+    assert!(request.messages[0].content.contains("in British English"));
     let mail = &request.messages[1].content;
     assert!(mail.starts_with("<untrusted-message-content number=1>"));
     assert_eq!(mail.matches("</untrusted-message-content>").count(), 1);

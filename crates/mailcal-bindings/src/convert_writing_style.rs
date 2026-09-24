@@ -15,8 +15,9 @@ use mailcal_viewmodel::{
 
 use crate::records_writing_style::{
     AccountWritingStyleRow, AiCharge, AiRoute, CorpusLanguage, CorpusReport, CreditBalance,
-    DraftReply, GateRefusal, HabitRow, LanguageStyleRow, LearnReport, LearningProgress,
-    LearningStage, WritingStyleDetail, WritingStyleFailure, WritingStyleRow, WritingStyleSnapshot,
+    DraftReply, GateRefusal, HabitFrequency, HabitRow, LanguageStyleRow, LearnReport,
+    LearningProgress, LearningStage, WritingStyleDetail, WritingStyleFailure, WritingStyleRow,
+    WritingStyleSnapshot,
 };
 
 impl From<WritingStyleError> for WritingStyleFailure {
@@ -121,6 +122,12 @@ impl From<AppHabitRow> for HabitRow {
         Self {
             text: habit.text,
             share: habit.share,
+            relative: habit.relative,
+            frequency: match habit.frequency {
+                mailcal_viewmodel::HabitFrequency::Mostly => HabitFrequency::Mostly,
+                mailcal_viewmodel::HabitFrequency::Often => HabitFrequency::Often,
+                mailcal_viewmodel::HabitFrequency::Sometimes => HabitFrequency::Sometimes,
+            },
         }
     }
 }
@@ -133,11 +140,15 @@ impl From<AppLanguageStyleRow> for LanguageStyleRow {
             sign_offs: style.sign_offs.into_iter().map(Into::into).collect(),
             signs_as: style.signs_as,
             register: style.register,
+            register_headline: style.register_headline,
             typical_words: style.typical_words,
+            typical_paragraphs: style.typical_paragraphs,
             shape: style.shape,
             punctuation: style.punctuation,
             structure: style.structure,
+            structure_headline: style.structure_headline,
             moves: style.moves,
+            moves_headline: style.moves_headline,
             phrases: style.phrases,
             avoid: style.avoid,
         }

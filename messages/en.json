@@ -979,5 +979,27 @@
 	"ai_error_not_found": "That message is no longer on this device.",
 	"ai_error_busy": "A style is already being learned.",
 	"ai_error_cancelled": "Stopped. No style was saved.",
-	"ai_error_unavailable": "Writing style is not set up."
+	"ai_error_unavailable": "Writing style is not set up.",
+
+	"reveal_step_letter": "A typical reply",
+	"reveal_step_habits": "Greetings and sign-offs",
+	"reveal_step_voice": "Tone and approach",
+	"reveal_step_name": "Name and notes",
+	"reveal_based_on": "Based on mail you sent from {address}.",
+	"reveal_stat_messages": "Messages",
+	"reveal_stat_languages": "Languages",
+	"reveal_stat_since": "Since",
+	"reveal_stats_a11y": "{count} messages since {date}, in {languages}",
+	"reveal_stats_a11y_one": "{count} message since {date}, in {languages}",
+	"reveal_pages_intro": "The next pages show what stood out, one language at a time.",
+	"reveal_letter_caption": "The lines show your usual length and shape.",
+	"reveal_frequency_mostly": "Mostly",
+	"reveal_frequency_often": "Often",
+	"reveal_frequency_sometimes": "Sometimes",
+	"reveal_card_more": "More",
+	"reveal_card_less": "Less",
+	"wizard_back": "Back",
+	"wizard_next": "Next",
+	"a11y_wizard_step": "Step {step} of {total}",
+	"a11y_reveal_language": "Language"
 }

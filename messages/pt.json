@@ -979,5 +979,27 @@
 	"ai_error_not_found": "Essa mensagem já não está neste dispositivo.",
 	"ai_error_busy": "Já está a ser aprendido um estilo.",
 	"ai_error_cancelled": "Parado. Não foi guardado nenhum estilo.",
-	"ai_error_unavailable": "O estilo de escrita não está configurado."
+	"ai_error_unavailable": "O estilo de escrita não está configurado.",
+
+	"reveal_step_letter": "Uma resposta típica",
+	"reveal_step_habits": "Saudações e despedidas",
+	"reveal_step_voice": "Tom e abordagem",
+	"reveal_step_name": "Nome e notas",
+	"reveal_based_on": "Com base no correio que enviou a partir de {address}.",
+	"reveal_stat_messages": "Mensagens",
+	"reveal_stat_languages": "Idiomas",
+	"reveal_stat_since": "Desde",
+	"reveal_stats_a11y": "{count} mensagens desde {date}, em {languages}",
+	"reveal_stats_a11y_one": "{count} mensagem desde {date}, em {languages}",
+	"reveal_pages_intro": "As páginas seguintes mostram o que se destacou, um idioma de cada vez.",
+	"reveal_letter_caption": "As linhas mostram a sua extensão e forma habituais.",
+	"reveal_frequency_mostly": "Quase sempre",
+	"reveal_frequency_often": "Frequentemente",
+	"reveal_frequency_sometimes": "Às vezes",
+	"reveal_card_more": "Mais",
+	"reveal_card_less": "Menos",
+	"wizard_back": "Voltar",
+	"wizard_next": "Seguinte",
+	"a11y_wizard_step": "Passo {step} de {total}",
+	"a11y_reveal_language": "Idioma"
 }

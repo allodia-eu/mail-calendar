@@ -51,6 +51,7 @@ pub use view::{
     SnapshotRow, ThreadMessage, ThreadRow, ViewMode, unified_unread,
 };
 pub use writing_style::{
-    AccountWritingStyleRow, AiRoute, CreditBalance, GateRefusal, HabitRow, LanguageStyleRow,
-    LearningProgress, LearningStage, WritingStyleDetail, WritingStyleRow, WritingStyleSnapshot,
+    AccountWritingStyleRow, AiRoute, CreditBalance, GateRefusal, HabitFrequency, HabitRow,
+    LanguageStyleRow, LearningProgress, LearningStage, WritingStyleDetail, WritingStyleRow,
+    WritingStyleSnapshot, habit_rows,
 };

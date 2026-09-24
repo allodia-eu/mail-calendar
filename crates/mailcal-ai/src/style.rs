@@ -125,9 +125,16 @@ pub struct LanguageStyle {
     /// names or titles.
     #[serde(default)]
     pub register: String,
+    /// The register in at most five words, as a heading.
+    #[serde(default)]
+    pub register_headline: String,
     /// The typical length of a reply, in words. Zero when unknown.
     #[serde(default)]
     pub typical_words: u32,
+    /// How many paragraphs a typical reply has between the greeting and the sign-off. Zero when
+    /// unknown.
+    #[serde(default)]
+    pub typical_paragraphs: u32,
     /// Paragraphing and sentence length.
     #[serde(default)]
     pub shape: String,
@@ -137,9 +144,15 @@ pub struct LanguageStyle {
     /// Structural habits: opening with thanks, closing with a next step, using lists.
     #[serde(default)]
     pub structure: String,
+    /// The structural habits in at most five words, as a heading.
+    #[serde(default)]
+    pub structure_headline: String,
     /// How they decline, chase, apologise and confirm.
     #[serde(default)]
     pub moves: String,
+    /// How they decline, chase, apologise and confirm, in at most five words, as a heading.
+    #[serde(default)]
+    pub moves_headline: String,
     /// Short words and constructions characteristic of them.
     #[serde(default)]
     pub phrases: Vec<String>,
@@ -169,10 +182,17 @@ const PHRASE_CAP: usize = 80;
 /// The most entries a list keeps.
 const LIST_CAP: usize = 12;
 
+/// The longest a headline is kept, in words and in characters.
+const HEADLINE_WORDS: usize = 5;
+const HEADLINE_CAP: usize = 60;
+
+/// More paragraphs than this is a model miscounting, not a habit.
+const PARAGRAPH_CAP: u32 = 12;
+
 impl LanguageStyle {
-    /// Bounds what a model returned: descriptions to a paragraph, habits and phrases to a short
-    /// line, lists to a dozen entries. An entry over the line cap is dropped rather than cut,
-    /// because a cut quotation is still a quotation.
+    /// Bounds what a model returned: descriptions to a paragraph, headlines to five words, habits
+    /// and phrases to a short line, lists to a dozen entries. An entry over the line cap is dropped
+    /// rather than cut, because a cut quotation is still a quotation.
     #[must_use]
     pub fn bounded(mut self) -> Self {
         for text in [
@@ -184,6 +204,15 @@ impl LanguageStyle {
         ] {
             *text = truncate(text.trim(), DESCRIPTION_CAP);
         }
+        for headline in [
+            &mut self.register_headline,
+            &mut self.structure_headline,
+            &mut self.moves_headline,
+        ] {
+            let words = headline.split_whitespace().take(HEADLINE_WORDS);
+            *headline = truncate(&words.collect::<Vec<_>>().join(" "), HEADLINE_CAP);
+        }
+        self.typical_paragraphs = self.typical_paragraphs.min(PARAGRAPH_CAP);
         self.signs_as = short(&self.signs_as).unwrap_or_default();
         for habits in [&mut self.greetings, &mut self.sign_offs] {
             habits.retain_mut(|habit| match short(&habit.text) {
@@ -210,6 +239,7 @@ impl fmt::Debug for LanguageStyle {
             .field("greetings", &self.greetings.len())
             .field("sign_offs", &self.sign_offs.len())
             .field("typical_words", &self.typical_words)
+            .field("typical_paragraphs", &self.typical_paragraphs)
             .field("phrases", &self.phrases.len())
             .finish_non_exhaustive()
     }

@@ -16,8 +16,9 @@ Three layers, each carrying what the others cannot:
 
 1. **The style guide** (`mailcal_ai::StyleGuide`), one section per language the person writes in:
    greetings and sign-offs with their exact wording and rough share, the name they sign with,
-   register and how it shifts, typical length, paragraphing, punctuation, structural habits, how
-   they decline or chase, characteristic phrases, what they avoid. Plus the person's own **notes**,
+   register and how it shifts, typical length and number of paragraphs, paragraphing, punctuation,
+   structural habits, how they decline or chase, characteristic phrases, what they avoid, and a
+   heading of at most five words for the register, the structure and the declining and chasing. Plus the person's own **notes**,
    which every draft reads and which win over the description. The descriptive fields are written
    in the language of the person's interface, because they read them back; the habits are quoted
    in the language of the mail, because a draft copies them.
@@ -58,8 +59,11 @@ that edits a newer guide (its notes, its name) writes the newer fields back unto
    it is read into. A description is bounded on the way in, so a field cannot carry a paragraph of
    somebody's mail. Progress is on `Surface::WritingStyle`; the person can cancel before the next
    request.
-5. **The reveal**: the description is shown back in plain words, the person adds notes, names the
-   style and is offered a draft on a recent message.
+5. **The reveal**: the description is shown back in plain words, one language at a time, the person
+   adds notes, names the style and is offered a draft on a recent message. A greeting or sign-off
+   is drawn by its part of its list, because a model's shares need not add up, and worded by its
+   own share: half the messages or more is "mostly", a fifth or more "often", less "sometimes".
+   The core computes both, so every client says the same.
 
 Our own sent mail always carries a `text/plain` part, which is what the stripper reads; a message
 with no plain part is converted from its sanitised HTML first.

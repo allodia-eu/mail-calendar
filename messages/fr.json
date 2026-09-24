@@ -979,5 +979,27 @@
 	"ai_error_not_found": "Ce message n’est plus sur cet appareil.",
 	"ai_error_busy": "Un style est déjà en cours d’apprentissage.",
 	"ai_error_cancelled": "Arrêté. Aucun style n’a été enregistré.",
-	"ai_error_unavailable": "Le style d’écriture n’est pas configuré."
+	"ai_error_unavailable": "Le style d’écriture n’est pas configuré.",
+
+	"reveal_step_letter": "Une réponse type",
+	"reveal_step_habits": "Formules d’appel et de politesse",
+	"reveal_step_voice": "Ton et approche",
+	"reveal_step_name": "Nom et notes",
+	"reveal_based_on": "D’après les e-mails envoyés depuis {address}.",
+	"reveal_stat_messages": "Messages",
+	"reveal_stat_languages": "Langues",
+	"reveal_stat_since": "Depuis",
+	"reveal_stats_a11y": "{count} messages depuis le {date}, en {languages}",
+	"reveal_stats_a11y_one": "{count} message depuis le {date}, en {languages}",
+	"reveal_pages_intro": "Les pages suivantes montrent ce qui ressort, une langue à la fois.",
+	"reveal_letter_caption": "Les lignes montrent votre longueur et votre forme habituelles.",
+	"reveal_frequency_mostly": "Le plus souvent",
+	"reveal_frequency_often": "Souvent",
+	"reveal_frequency_sometimes": "Parfois",
+	"reveal_card_more": "Plus",
+	"reveal_card_less": "Moins",
+	"wizard_back": "Retour",
+	"wizard_next": "Suivant",
+	"a11y_wizard_step": "Étape {step} sur {total}",
+	"a11y_reveal_language": "Langue"
 }

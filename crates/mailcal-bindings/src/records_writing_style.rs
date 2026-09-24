@@ -165,6 +165,21 @@ pub struct HabitRow {
     pub text: String,
     /// Roughly how often, as a percentage of messages.
     pub share: u8,
+    /// Its part of its list, as a percentage: the length of its bar.
+    pub relative: u8,
+    /// The word the reveal shows beside the bar.
+    pub frequency: HabitFrequency,
+}
+
+/// How often a greeting or sign-off is used: half the messages or more, a fifth or more, less.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum HabitFrequency {
+    /// "Mostly".
+    Mostly,
+    /// "Often".
+    Often,
+    /// "Sometimes".
+    Sometimes,
 }
 
 /// What was learned about one language, for the reveal screen.
@@ -180,16 +195,24 @@ pub struct LanguageStyleRow {
     pub signs_as: String,
     /// Register, and how it shifts.
     pub register: String,
+    /// The register in at most five words, a card's heading; empty when none was given.
+    pub register_headline: String,
     /// Typical length in words; zero when unknown.
     pub typical_words: u32,
+    /// Typical paragraphs between greeting and sign-off; zero when unknown.
+    pub typical_paragraphs: u32,
     /// Paragraphing and sentence length.
     pub shape: String,
     /// Punctuation habits.
     pub punctuation: String,
     /// Structural habits.
     pub structure: String,
+    /// The structural habits in at most five words; empty when none was given.
+    pub structure_headline: String,
     /// How they decline, chase, apologise and confirm.
     pub moves: String,
+    /// The same in at most five words; empty when none was given.
+    pub moves_headline: String,
     /// Characteristic phrases.
     pub phrases: Vec<String>,
     /// What they avoid.

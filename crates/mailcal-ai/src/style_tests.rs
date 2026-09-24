@@ -75,6 +75,26 @@ fn a_learned_style_is_bounded_before_it_is_kept() {
 }
 
 #[test]
+fn a_headline_keeps_five_words_and_the_paragraph_count_stays_plausible() {
+    let style = LanguageStyle {
+        register_headline: "  Friendly professional, shifting with the recipient\n".to_owned(),
+        structure_headline: "Thanks, then the answer".to_owned(),
+        moves_headline: "x".repeat(200),
+        typical_paragraphs: 40,
+        ..LanguageStyle::default()
+    }
+    .bounded();
+
+    assert_eq!(
+        style.register_headline,
+        "Friendly professional, shifting with the"
+    );
+    assert_eq!(style.structure_headline, "Thanks, then the answer");
+    assert_eq!(style.moves_headline.chars().count(), 60);
+    assert_eq!(style.typical_paragraphs, 12);
+}
+
+#[test]
 fn debug_output_carries_no_text() {
     let mut guide = StyleGuide::new();
     guide.notes = "secret note".to_owned();

@@ -979,5 +979,27 @@
 	"ai_error_not_found": "Dat bericht staat niet meer op dit apparaat.",
 	"ai_error_busy": "Er wordt al een stijl geleerd.",
 	"ai_error_cancelled": "Gestopt. Er is geen stijl bewaard.",
-	"ai_error_unavailable": "Schrijfstijl is niet ingesteld."
+	"ai_error_unavailable": "Schrijfstijl is niet ingesteld.",
+
+	"reveal_step_letter": "Een doorsnee antwoord",
+	"reveal_step_habits": "Aanhef en afsluiting",
+	"reveal_step_voice": "Toon en aanpak",
+	"reveal_step_name": "Naam en notities",
+	"reveal_based_on": "Gebaseerd op mail die je verstuurde vanaf {address}.",
+	"reveal_stat_messages": "Berichten",
+	"reveal_stat_languages": "Talen",
+	"reveal_stat_since": "Sinds",
+	"reveal_stats_a11y": "{count} berichten sinds {date}, in {languages}",
+	"reveal_stats_a11y_one": "{count} bericht sinds {date}, in {languages}",
+	"reveal_pages_intro": "De volgende pagina’s laten per taal zien wat opviel.",
+	"reveal_letter_caption": "De lijnen tonen je gebruikelijke lengte en vorm.",
+	"reveal_frequency_mostly": "Meestal",
+	"reveal_frequency_often": "Vaak",
+	"reveal_frequency_sometimes": "Soms",
+	"reveal_card_more": "Meer",
+	"reveal_card_less": "Minder",
+	"wizard_back": "Terug",
+	"wizard_next": "Volgende",
+	"a11y_wizard_step": "Stap {step} van {total}",
+	"a11y_reveal_language": "Taal"
 }
