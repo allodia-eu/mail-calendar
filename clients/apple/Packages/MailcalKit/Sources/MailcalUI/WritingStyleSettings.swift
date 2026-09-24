@@ -26,6 +26,7 @@ struct WritingStyleSettings: View {
     }
 
     @State private var sheet: Sheet?
+    @Environment(\.colorScheme) private var scheme
 
     private var snapshot: WritingStyleSnapshot { model.writingStyles }
 
@@ -47,14 +48,20 @@ struct WritingStyleSettings: View {
             }
         }
         .sheet(item: $sheet) { sheet in
-            switch sheet {
-            case .learn:
-                LearnWritingStyleSheet(model: model) { learned in
-                    self.sheet = learned.map(Sheet.style)
+            Group {
+                switch sheet {
+                case .learn:
+                    LearnWritingStyleSheet(model: model) { learned in
+                        self.sheet = learned.map(Sheet.style)
+                    }
+                case let .style(id):
+                    WritingStyleRevealView(model: model, styleId: id) { self.sheet = nil }
                 }
-            case let .style(id):
-                WritingStyleRevealView(model: model, styleId: id) { self.sheet = nil }
             }
+            #if os(iOS)
+            // An iOS sheet keeps the scheme it was presented in (docs/client-traps.md).
+            .preferredColorScheme(scheme)
+            #endif
         }
     }
 
