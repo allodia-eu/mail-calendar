@@ -10,7 +10,7 @@ use super::{DraftRequest, ThreadMessage, draft_reply};
 use crate::{
     AiError, Exemplars, GatedBackend, Habit, LanguageStyle, OwnEndpoint, StyleGuide,
     test_support::{CannedTransport, gated, text_answer},
-    wire::ChatRequest,
+    wire::{ChatRequest, ChatResponse},
 };
 
 const SIGNATURE: &str = "Met vriendelijke groet,\nSanne de Vries\nAllodia";
@@ -85,6 +85,43 @@ fn working_notes_in_place_of_the_tool_call_are_not_a_draft() {
     let notes = "We need to draft reply in Dutch. The person signs as Sanne. Use emit_json with \
                  summary, reply and tasks. Now produce JSON.";
     assert_eq!(drafted(notes, None).0, Err(AiError::Malformed));
+}
+
+#[test]
+fn working_notes_that_quote_the_instructions_are_not_a_draft() {
+    // A reasoning model thinking aloud about its instructions, without naming the tool.
+    let notes = "The user wants me to draft an email reply. Re-reading the setup: \"You draft \
+                 email replies in the voice of one person, described below, so that they only \
+                 need to check\". But the email is addressed to someone else. Wait.";
+    assert_eq!(drafted(notes, None).0, Err(AiError::Malformed));
+}
+
+#[test]
+fn a_reply_that_repeats_a_long_signature_line_is_still_a_draft() {
+    let signature = "Sanne de Vries\nThis message is meant only for the person it is addressed to.";
+    let reply = "Hoi Marc,\n\nIk stuur ze je morgen.\n\nThis message is meant only for the person \
+                 it is addressed to.";
+    let (text, _) = drafted(reply, Some(signature));
+    assert!(text.unwrap().starts_with("Hoi Marc,"));
+}
+
+#[test]
+fn a_plain_answer_cut_off_at_the_length_limit_is_not_a_draft() {
+    let cut_off: ChatResponse = serde_json::from_value(serde_json::json!({
+        "choices": [{
+            "message": { "role": "assistant", "content": "Let me analyse this. Marc asks" },
+            "finish_reason": "length",
+        }],
+    }))
+    .unwrap();
+    let (backend, _) = gated(vec![Ok(cut_off)]);
+    let (thread, guide, exemplars) = (
+        thread("Kun je de tekeningen sturen?"),
+        guide(),
+        Exemplars::new(),
+    );
+    let draft = draft_reply(&request(&thread, &guide, &exemplars, &[], None), &backend);
+    assert_eq!(draft.map(|draft| draft.text), Err(AiError::Malformed));
 }
 
 #[test]

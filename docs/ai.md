@@ -96,8 +96,9 @@ person's voice, are later uses of the same seams.
   reasoning model's thinking counts against it on most servers. An answer that reaches it is
   logged.
 - **A model that does not answer through the tool**: a plain-text answer is the reply, unless it
-  names the tool (`emit_json`), which no email does and a model's working notes do; that answer
-  is unreadable (`Malformed`) and never a draft. On an own endpoint, a `400` saying the model does
+  is unfinished or working notes: it stopped at the length limit, names the tool (`emit_json`), or
+  repeats eight consecutive words of the instructions it was given (the signature left out), none
+  of which a finished email does. That answer is unreadable (`Malformed`) and never a draft. On an own endpoint, a `400` saying the model does
   not support `tool_choice` is sent once more without it, and one saying it does not support tools
   once more without the tools either; the answer is read from the JSON in its text, or as a
   plain reply. Each resend is logged as an event, with nothing of the request. The relay is not
@@ -412,8 +413,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
   changes or the reply is opened again.
 - **Drafts have not been judged against the relay's providers.** One of them is known to fold a
   model's reasoning into its answer text; the first drafts through the relay are to be checked for
-  it. Working notes are recognised only when they name the tool, so notes that do not are still
-  taken as the reply, and a relay model that refuses a forced tool is not asked again.
+  it. Working notes that neither stop at the limit, name the tool nor quote the instructions are
+  still taken as the reply, and a relay model that refuses a forced tool is not asked again.
 - **The relay service is not deployed.** The device side is built against the request and answer
   fixed above: a signed-in account whose entitlement grants `ai` goes through the relay, the
   entitlement is read in the background and kept in the preferences, and every answer's balance is

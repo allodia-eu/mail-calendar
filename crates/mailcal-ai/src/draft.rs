@@ -175,7 +175,7 @@ pub fn draft_reply_with(
     }
     let answered = match tool::read::<Answered>(&response) {
         Ok(answered) => answered,
-        Err(_) => plain_reply(&response)?,
+        Err(_) => plain_reply(&response, &chat.messages[0].content, request.signature)?,
     };
     let text = Some(closing::without_closing(
         &cleaned(&answered.reply),
@@ -203,13 +203,32 @@ pub fn draft_reply_with(
 }
 
 /// The answer of a server that ignored the forced tool and answered in plain text: the reply
-/// alone, unless the text is the model's working notes, which name the tool as no email does.
-fn plain_reply(response: &ChatResponse) -> Result<Answered, AiError> {
+/// alone, unless it is unfinished or the model's working notes. An answer cut off at the length
+/// limit is unfinished; notes name the tool, or quote the instructions they were given, as no
+/// email does.
+fn plain_reply(
+    response: &ChatResponse,
+    instructions: &str,
+    signature: Option<&str>,
+) -> Result<Answered, AiError> {
+    // The signature is in the instructions too, and a reply may rightly repeat a line of it.
+    let instructions = signature
+        .map(str::trim)
+        .filter(|signature| !signature.is_empty())
+        .map_or_else(
+            || instructions.to_owned(),
+            |signature| instructions.replace(signature, ""),
+        );
     let text = response
         .answer()
         .and_then(|answer| answer.content.clone())
         .unwrap_or_default();
-    if text.contains(tool::NAME) {
+    let cut_off = response
+        .choices
+        .first()
+        .and_then(|choice| choice.finish_reason.as_deref())
+        == Some("length");
+    if cut_off || text.contains(tool::NAME) || quotes(&text, &instructions) {
         log::warn!("ai: the draft answer is the model's working notes, not a reply");
         return Err(AiError::Malformed);
     }
@@ -218,6 +237,26 @@ fn plain_reply(response: &ChatResponse) -> Result<Answered, AiError> {
         reply: text,
         tasks: Vec::new(),
     })
+}
+
+/// How many consecutive words of the instructions make a quotation of them.
+const QUOTED_WORDS: usize = 8;
+
+/// Whether `text` repeats a run of [`QUOTED_WORDS`] words of `instructions`, in any case and
+/// punctuation.
+fn quotes(text: &str, instructions: &str) -> bool {
+    let words = |source: &str| -> Vec<String> {
+        source
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|word| !word.is_empty())
+            .map(str::to_lowercase)
+            .collect()
+    };
+    let given = words(instructions);
+    let runs: std::collections::HashSet<&[String]> = given.windows(QUOTED_WORDS).collect();
+    words(text)
+        .windows(QUOTED_WORDS)
+        .any(|run| runs.contains(run))
 }
 
 /// The guide's section for `language`, or for its main language when it has none: a person who
