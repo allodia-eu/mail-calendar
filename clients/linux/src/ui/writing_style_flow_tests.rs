@@ -5,7 +5,8 @@ use mailcal_bindings::{
 };
 
 use super::{
-    LearnFlow, LearnRequest, LearnStage, Range, consent_text, progress_text, report_lines,
+    LearnAction, LearnFlow, LearnPage, LearnRequest, LearnStage, Range, consent_text,
+    progress_text, report_lines,
 };
 use crate::{l10n, ui::writing_style::languages_text};
 
@@ -50,6 +51,74 @@ fn a_single_account_skips_the_account_question() {
         request.is_none(),
         "nothing is read before an account is chosen"
     );
+}
+
+/// The sheet's pages follow the same order, and the run comes last.
+#[test]
+fn the_account_page_is_there_only_when_there_is_a_choice() {
+    assert_eq!(
+        LearnPage::all(1),
+        [LearnPage::Range, LearnPage::Consent, LearnPage::Progress]
+    );
+    assert_eq!(
+        LearnPage::all(2),
+        [
+            LearnPage::Account,
+            LearnPage::Range,
+            LearnPage::Consent,
+            LearnPage::Progress
+        ]
+    );
+    assert!(LearnPage::Consent.can_go_back());
+    assert!(!LearnPage::Progress.can_go_back(), "Stop is the way out");
+}
+
+/// Going back to the account page and choosing another reads the device for that one, until the
+/// sample has gone.
+#[test]
+fn the_account_can_change_until_the_run_starts() {
+    let (mut flow, _) = LearnFlow::new(&["work".to_owned(), "home".to_owned()]);
+    assert_eq!(
+        flow.action(LearnPage::Account),
+        LearnAction::Next { enabled: false }
+    );
+    let work = flow.choose_account("work".to_owned()).expect("a read");
+    assert_eq!(
+        flow.action(LearnPage::Account),
+        LearnAction::Next { enabled: true }
+    );
+    let home = flow
+        .choose_account("home".to_owned())
+        .expect("a second read");
+    assert_eq!(home.account, "home");
+    flow.report_arrived(work.ticket, Ok(report(4)));
+    assert_eq!(flow.stage(), &LearnStage::Reading, "work's report is stale");
+    flow.report_arrived(home.ticket, Ok(report(4)));
+    flow.consent().expect("consented");
+    assert!(flow.choose_account("work".to_owned()).is_none());
+}
+
+/// Learn stands under a report with something in it, Stop under a run, Close under one that
+/// ended without a style.
+#[test]
+fn each_page_offers_what_its_stage_allows() {
+    let (mut flow, request) = LearnFlow::new(&["work".to_owned()]);
+    assert_eq!(flow.action(LearnPage::Consent), LearnAction::Nothing);
+    let request = request.expect("a read");
+    flow.report_arrived(request.ticket, Ok(report(0)));
+    assert_eq!(
+        flow.action(LearnPage::Consent),
+        LearnAction::Nothing,
+        "nothing to learn from"
+    );
+    let again = flow.choose_range(Range::default()).expect("a read");
+    flow.report_arrived(again.ticket, Ok(report(4)));
+    assert_eq!(flow.action(LearnPage::Consent), LearnAction::Learn);
+    assert_eq!(flow.action(LearnPage::Progress), LearnAction::Nothing);
+    flow.consent().expect("consented");
+    assert_eq!(flow.action(LearnPage::Progress), LearnAction::Stop);
+    flow.finished(Err(WritingStyleFailure::Cancelled));
+    assert_eq!(flow.action(LearnPage::Progress), LearnAction::Close);
 }
 
 /// Changing the range reads the device again, and a report for the range left behind lands

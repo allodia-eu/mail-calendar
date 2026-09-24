@@ -98,8 +98,10 @@ impl LearnFlow {
         &self.stage
     }
 
+    /// An account reads the device for it. Another can be chosen until the run starts, the report
+    /// then being read again.
     pub(crate) fn choose_account(&mut self, account: String) -> Option<ReportRequest> {
-        if self.stage != LearnStage::Account {
+        if self.run_started() {
             return None;
         }
         self.account = Some(account);
@@ -195,9 +197,75 @@ impl LearnFlow {
 
     /// Whether the range can still change: once an account is chosen, and until the run starts.
     pub(crate) const fn range_open(&self) -> bool {
-        self.account.is_some()
-            && !matches!(self.stage, LearnStage::Learning(_) | LearnStage::Learned(_))
+        self.account.is_some() && !self.run_started()
     }
+
+    const fn run_started(&self) -> bool {
+        matches!(self.stage, LearnStage::Learning(_) | LearnStage::Learned(_))
+    }
+
+    /// Whether there is anything to learn from, which is what puts Learn under the consent.
+    pub(crate) fn can_learn(&self) -> bool {
+        self.account.is_some()
+            && matches!(&self.stage, LearnStage::Report(report) if report.usable > 0)
+    }
+
+    /// What stands where Next does on `page`.
+    pub(crate) fn action(&self, page: LearnPage) -> LearnAction {
+        match page {
+            LearnPage::Account | LearnPage::Range => LearnAction::Next {
+                enabled: self.account.is_some(),
+            },
+            LearnPage::Consent if self.can_learn() => LearnAction::Learn,
+            LearnPage::Progress if self.is_learning() => LearnAction::Stop,
+            LearnPage::Progress if matches!(self.stage, LearnStage::Failed(_)) => {
+                LearnAction::Close
+            }
+            LearnPage::Consent | LearnPage::Progress => LearnAction::Nothing,
+        }
+    }
+}
+
+/// A page of the learning sheet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LearnPage {
+    Account,
+    Range,
+    /// What the range holds on this device, and the consent that sends it.
+    Consent,
+    /// The run, and how it ended.
+    Progress,
+}
+
+impl LearnPage {
+    /// The sheet's pages: the account only when there is a choice, and the run last, reached only
+    /// by the consent.
+    pub(crate) fn all(accounts: usize) -> Vec<Self> {
+        let asks = (accounts > 1).then_some(Self::Account);
+        asks.into_iter()
+            .chain([Self::Range, Self::Consent, Self::Progress])
+            .collect()
+    }
+
+    /// Whether the person can leave the page by Cancel or Back: not the run's, whose only way out
+    /// is Stop, and after it Close.
+    pub(crate) const fn can_go_back(self) -> bool {
+        !matches!(self, Self::Progress)
+    }
+}
+
+/// What stands where Next does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LearnAction {
+    Next {
+        enabled: bool,
+    },
+    /// The consent: the one act that sends anything.
+    Learn,
+    Stop,
+    Close,
+    /// Nothing yet, or nothing to learn from.
+    Nothing,
 }
 
 /// The report as the consent sheet states it, one fact a line. The undetected count and the

@@ -1,15 +1,13 @@
 //! What Writing style says, pinned without a window.
 
 use mailcal_bindings::{
-    AiRoute, CreditBalance, GateRefusal, HabitFrequency, HabitRow, JurisdictionClass,
-    JurisdictionMode, LanguageStyleRow, OwnEndpointError, WritingStyleFailure, WritingStyleRow,
-    WritingStyleSnapshot,
+    AiRoute, CreditBalance, GateRefusal, JurisdictionClass, JurisdictionMode, OwnEndpointError,
+    WritingStyleFailure, WritingStyleRow, WritingStyleSnapshot,
 };
 
 use super::{
     WritingStyleFeed, changed_sender, draft_script, endpoint_error_text, failure_text,
-    format_credits, intent_of, languages_text, lead_is_empty, reveal_fields, shown_credits,
-    style_summary,
+    format_credits, intent_of, languages_text, lead_is_empty, shown_credits, style_summary,
 };
 use crate::{l10n, ui::timestamps};
 
@@ -189,71 +187,6 @@ fn a_rows_summary_says_what_it_was_learned_from_and_in_which_languages() {
     let undated = style_summary(&style(40, 0, &["en"]), "UTC", "en");
     assert_eq!(undated.lines().count(), 1);
     assert!(style_summary(&style(0, 0, &[]), "UTC", "en").is_empty());
-}
-
-fn language() -> LanguageStyleRow {
-    LanguageStyleRow {
-        language: "en".to_owned(),
-        greetings: vec![
-            HabitRow {
-                text: "Hi Anna".to_owned(),
-                share: 60,
-                relative: 86,
-                frequency: HabitFrequency::Mostly,
-            },
-            HabitRow {
-                text: "  ".to_owned(),
-                share: 10,
-                relative: 14,
-                frequency: HabitFrequency::Sometimes,
-            },
-        ],
-        sign_offs: Vec::new(),
-        signs_as: "Ada".to_owned(),
-        register: String::new(),
-        register_headline: String::new(),
-        typical_words: 120,
-        typical_paragraphs: 0,
-        shape: "Short paragraphs.".to_owned(),
-        punctuation: "  ".to_owned(),
-        structure: String::new(),
-        structure_headline: String::new(),
-        moves: String::new(),
-        moves_headline: String::new(),
-        phrases: vec!["Sounds good".to_owned(), String::new()],
-        avoid: Vec::new(),
-    }
-}
-
-/// An empty field is skipped rather than drawn as a heading over nothing, in the reveal's order.
-#[test]
-fn the_reveal_lists_what_was_noticed_and_skips_what_was_not() {
-    let fields = reveal_fields(&language(), "en");
-    let labels = fields
-        .iter()
-        .map(|(label, _)| label.as_str())
-        .collect::<Vec<_>>();
-    let length = l10n::reveal_length(120);
-    assert_eq!(
-        labels,
-        [
-            l10n::reveal_greetings(),
-            l10n::reveal_signs_as(),
-            length.as_str(),
-            l10n::reveal_shape(),
-            l10n::reveal_phrases(),
-        ]
-    );
-    assert_eq!(fields[0].1, "Hi Anna (60%)");
-    assert_eq!(fields[1].1, "Ada");
-    assert!(fields[2].1.is_empty(), "the length is in its label");
-    assert_eq!(fields[4].1, "Sounds good");
-}
-
-#[test]
-fn a_share_is_written_the_way_its_language_writes_a_percentage() {
-    assert_eq!(reveal_fields(&language(), "de")[0].1, "Hi Anna (60\u{a0}%)");
-    assert_eq!(reveal_fields(&language(), "nl")[0].1, "Hi Anna (60%)");
 }
 
 /// The core is told about a From account only when the person moved to one.

@@ -91,6 +91,7 @@ pub(super) fn page(ctx: &PageContext) -> gtk::Box {
         syncing: Cell::new(false),
         latest: RefCell::new(snapshot.clone()),
         sheet: RefCell::new(None),
+        reveal: RefCell::new(None),
     });
     content.append(&page.accounts_group(&snapshot.accounts));
     content.append(&credits_group(ctx));
@@ -160,6 +161,8 @@ struct Page {
     latest: RefCell<WritingStyleSnapshot>,
     /// The learning sheet, while one is open.
     sheet: RefCell<Option<Rc<writing_style_learn::Sheet>>>,
+    /// The style last opened, which its detail's handlers reach weakly.
+    reveal: RefCell<Option<Rc<writing_style_reveal::Reveal>>>,
 }
 
 impl Page {
@@ -311,7 +314,8 @@ impl Page {
 
     fn open_style(&self, id: &str) {
         if let Some(detail) = self.ctx.app.writing_style_detail(id.to_owned()) {
-            writing_style_reveal::open(&self.ctx, &detail);
+            self.reveal
+                .replace(Some(writing_style_reveal::open(&self.ctx, &detail)));
         }
     }
 

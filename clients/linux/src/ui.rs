@@ -120,6 +120,7 @@ mod webview;
 mod welcome;
 mod writing_style;
 mod writing_style_flow;
+mod writing_style_reveal;
 
 use calendar::CalendarModel;
 use composer_draft::PendingNavigation;

@@ -1,135 +1,291 @@
-//! One writing style, shown back in plain words: what was noticed per language, the person's own
-//! notes, its name, and forgetting it (`docs/ai.md`, "The reveal").
+//! One writing style, shown back in plain words over six pages (`docs/ai.md`, "Learning" step 5):
+//! what was read, a typical reply, greetings and sign-offs, tone and approach, phrases, then its
+//! name, the person's own notes, and forgetting it.
 //!
 //! The same detail opens after a learning run and from a library row, so a style reads the same
-//! the first time as every time after. Its description is a model's text about the person's mail,
-//! so every value is a subtitle on a row whose markup is off.
+//! the first time as every time after. The four pages about one language are redrawn when the
+//! language control moves; the pages themselves are `writing_style_reveal_pages` and
+//! `writing_style_reveal_cards`, the step logic `crate::ui::writing_style_reveal`.
+
+use std::{
+    cell::Cell,
+    rc::{Rc, Weak},
+};
 
 use adw::prelude::*;
-use gtk::glib;
+use gtk::{accessible::Property, glib};
 use mailcal_bindings::{LanguageStyleRow, WritingStyleDetail};
 
-use super::{PageContext, group, group_titled, page_box, pages, signatures::named_row};
-use crate::{l10n, ui::writing_style::reveal_fields};
+use super::{
+    PageContext, group, pages,
+    wizard::{Wizard, WizardPage},
+    writing_style_reveal_cards as cards, writing_style_reveal_pages as reveal_pages,
+};
+use crate::{
+    l10n,
+    ui::writing_style_reveal::{RevealStep, WizardPager, shows_languages, source_address},
+};
 
 const NAME: &str = "writing-style-reveal";
 
-/// Opens the style as a Settings detail.
-pub(super) fn open(ctx: &PageContext, detail: &WritingStyleDetail) {
+/// The open detail. The Writing style page owns it; every handler here reaches it weakly.
+pub(super) struct Reveal {
+    ctx: PageContext,
+    detail: WritingStyleDetail,
+    wizard: Wizard,
+    pager: Cell<WizardPager>,
+    language: Cell<usize>,
+    /// One page per step, in `RevealStep::ALL`'s order.
+    pages: Vec<WizardPage>,
+    /// The header's title, or the language control in its place.
+    title: gtk::Stack,
+    name: adw::EntryRow,
+    notes: gtk::TextView,
+}
+
+/// Opens the style as a Settings detail. The caller keeps what this returns for as long as the
+/// detail may be on screen.
+pub(super) fn open(ctx: &PageContext, detail: &WritingStyleDetail) -> Rc<Reveal> {
     if let Some(previous) = ctx.navigation.child_by_name(NAME) {
         ctx.navigation.remove(&previous);
     }
-    let page = adw::ToolbarView::new();
-    let header = adw::HeaderBar::new();
-    header.set_title_widget(Some(&adw::WindowTitle::new(&detail.row.name, "")));
-    let cancel = gtk::Button::with_label(l10n::action_cancel());
-    let navigation = ctx.navigation.downgrade();
-    cancel.connect_clicked(move |_| leave(&navigation));
-    header.pack_start(&cancel);
-    page.add_top_bar(&header);
-
-    let content = page_box(l10n::reveal_title());
-    let locale = l10n::active_locale();
-    for language in &detail.languages {
-        content.append(&language_group(language, locale));
+    reveal_pages::install_styles();
+    let wizard = Wizard::new(&detail.row.name);
+    let pages = RevealStep::ALL
+        .into_iter()
+        .map(|step| WizardPage::new(step.title()))
+        .collect::<Vec<_>>();
+    for page in &pages {
+        wizard.append(page);
     }
-
-    let names = adw::PreferencesGroup::new();
+    let title = gtk::Stack::new();
+    title.set_transition_type(gtk::StackTransitionType::Crossfade);
+    title.add_named(&adw::WindowTitle::new(&detail.row.name, ""), Some("title"));
+    wizard.header.set_title_widget(Some(&title));
     let name = adw::EntryRow::new();
     name.set_use_markup(false);
     name.set_title(l10n::writing_style_name_label());
     name.set_text(&detail.row.name);
-    names.add(&name);
-    content.append(&names);
-
-    let notes_group = group(
-        l10n::writing_style_notes(),
-        l10n::writing_style_notes_hint(),
-    );
-    let notes = gtk::TextView::new();
-    notes.set_wrap_mode(gtk::WrapMode::WordChar);
-    notes.set_accepts_tab(false);
-    notes.set_top_margin(8);
-    notes.set_bottom_margin(8);
-    notes.set_left_margin(8);
-    notes.set_right_margin(8);
-    notes.buffer().set_text(&detail.notes);
-    notes.update_property(&[gtk::accessible::Property::Label(l10n::writing_style_notes())]);
-    let frame = gtk::Frame::new(None);
-    frame.set_child(Some(&notes));
-    frame.set_size_request(-1, 120);
-    notes_group.add(&frame);
-    content.append(&notes_group);
-
-    let forget = gtk::Button::with_label(l10n::writing_style_forget());
-    forget.add_css_class("destructive-action");
-    forget.set_halign(gtk::Align::Start);
-    content.append(&forget);
-
-    let save = gtk::Button::with_label(l10n::reveal_save());
-    save.add_css_class("suggested-action");
-    // A style with no name is a picker entry nobody can tell apart, so Save waits for one.
-    let gated = save.clone();
-    name.connect_changed(move |entry| gated.set_sensitive(!entry.text().trim().is_empty()));
-    connect_save(ctx, detail, &save, &name, &notes);
-    header.pack_end(&save);
-    let (ctx_forget, style) = (ctx.clone(), detail.row.clone());
-    forget.connect_clicked(move |_| confirm_forget(&ctx_forget, &style.id, &style.name));
-
-    let scroll = gtk::ScrolledWindow::new();
-    scroll.set_vexpand(true);
-    scroll.set_child(Some(&content));
-    page.set_content(Some(&scroll));
-    ctx.navigation.add_named(&page, Some(NAME));
+    let reveal = Rc::new(Reveal {
+        ctx: ctx.clone(),
+        detail: detail.clone(),
+        wizard,
+        pager: Cell::new(WizardPager::new(RevealStep::ALL.len())),
+        language: Cell::new(0),
+        pages,
+        title,
+        name,
+        notes: gtk::TextView::new(),
+    });
+    reveal.build();
+    ctx.navigation.add_named(&reveal.wizard.root, Some(NAME));
     ctx.navigation.set_visible_child_name(NAME);
+    reveal.show();
+    reveal
 }
 
-/// One language's description, headed by the language's own name. A label over what was noticed,
-/// and nothing for a field the model left empty.
-fn language_group(language: &LanguageStyleRow, locale: &str) -> adw::PreferencesGroup {
-    let section = group_titled(&l10n::language_name(&language.language));
-    for (label, value) in reveal_fields(language, locale) {
-        let row = named_row(&label);
-        if !value.is_empty() {
-            row.set_subtitle(&value);
+impl Reveal {
+    fn build(self: &Rc<Self>) {
+        let zone = self.ctx.app.timezone_settings().active;
+        let accounts = self.ctx.app.writing_styles().accounts;
+        let address = source_address(&self.detail.row.source_account, &accounts);
+        reveal_pages::read(
+            &self.page(RevealStep::Read).body,
+            &self.detail,
+            address,
+            &zone,
+        );
+        self.name_page();
+        self.draw_language();
+        if self.detail.languages.len() > 1 {
+            self.title
+                .add_named(&self.language_control(), Some("language"));
         }
-        section.add(&row);
-    }
-    section
-}
 
-/// Save stores what changed and only that: a rename, the notes, or both.
-fn connect_save(
-    ctx: &PageContext,
-    detail: &WritingStyleDetail,
-    save: &gtk::Button,
-    name: &adw::EntryRow,
-    notes: &gtk::TextView,
-) {
-    let app = ctx.app.clone();
-    let navigation = ctx.navigation.downgrade();
-    let (id, stored_name, stored_notes) = (
-        detail.row.id.clone(),
-        detail.row.name.clone(),
-        detail.notes.clone(),
-    );
-    let (name, notes) = (name.clone(), notes.clone());
-    save.connect_clicked(move |_| {
-        let chosen = name.text().trim().to_owned();
+        let weak = Rc::downgrade(self);
+        self.wizard.cancel.connect_clicked(move |_| {
+            if let Some(reveal) = weak.upgrade() {
+                reveal.leave();
+            }
+        });
+        let weak = Rc::downgrade(self);
+        self.wizard.back.connect_clicked(move |_| {
+            if let Some(reveal) = weak.upgrade() {
+                reveal.turn(WizardPager::back);
+            }
+        });
+        let weak = Rc::downgrade(self);
+        self.wizard.primary.connect_clicked(move |_| {
+            let Some(reveal) = weak.upgrade() else {
+                return;
+            };
+            if reveal.pager.get().is_last() {
+                reveal.save();
+            } else {
+                reveal.turn(WizardPager::next);
+            }
+        });
+        // A style with no name is a picker entry nobody can tell apart, so Save waits for one.
+        let weak = Rc::downgrade(self);
+        self.name.connect_changed(move |_| {
+            if let Some(reveal) = weak.upgrade() {
+                reveal.show();
+            }
+        });
+    }
+
+    fn page(&self, step: RevealStep) -> &WizardPage {
+        let index = RevealStep::ALL
+            .iter()
+            .position(|candidate| *candidate == step)
+            .unwrap_or_default();
+        &self.pages[index]
+    }
+
+    fn step(&self) -> RevealStep {
+        RevealStep::ALL[self.pager.get().index()]
+    }
+
+    fn turn(&self, move_to: fn(&mut WizardPager)) {
+        let mut pager = self.pager.get();
+        move_to(&mut pager);
+        self.pager.set(pager);
+        self.show();
+    }
+
+    /// Brings the frame to the page on screen: the dots, Back, Next or Save, and the language
+    /// control over a page about one language.
+    fn show(&self) {
+        let pager = self.pager.get();
+        self.wizard.show(pager);
+        if pager.is_last() {
+            let named = !self.name.text().trim().is_empty();
+            self.wizard.set_primary(l10n::reveal_save(), true, named);
+        } else {
+            self.wizard.set_primary(l10n::wizard_next(), true, true);
+        }
+        let languages = shows_languages(self.step(), self.detail.languages.len());
+        self.title
+            .set_visible_child_name(if languages { "language" } else { "title" });
+    }
+
+    /// The control that picks the language pages 2 to 5 are about: one toggle per language, named
+    /// in its own language.
+    fn language_control(self: &Rc<Self>) -> gtk::Box {
+        let control = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .accessible_role(gtk::AccessibleRole::Group)
+            .build();
+        control.add_css_class("linked");
+        control.update_property(&[Property::Label(l10n::a11y_reveal_language())]);
+        let mut first: Option<gtk::ToggleButton> = None;
+        for (index, language) in self.detail.languages.iter().enumerate() {
+            let toggle = gtk::ToggleButton::with_label(&l10n::language_name(&language.language));
+            if let Some(first) = &first {
+                toggle.set_group(Some(first));
+            } else {
+                toggle.set_active(true);
+                first = Some(toggle.clone());
+            }
+            let weak = Rc::downgrade(self);
+            toggle.connect_toggled(move |toggle| {
+                if toggle.is_active() {
+                    choose_language(&weak, index);
+                }
+            });
+            control.append(&toggle);
+        }
+        control
+    }
+
+    /// Redraws the four pages about one language for the language chosen.
+    fn draw_language(&self) {
+        let Some(style) = self.detail.languages.get(self.language.get()) else {
+            return;
+        };
+        let steps: [(RevealStep, fn(&gtk::Box, &LanguageStyleRow)); 4] = [
+            (RevealStep::Letter, reveal_pages::letter),
+            (RevealStep::Habits, reveal_pages::habits),
+            (RevealStep::Voice, cards::voice),
+            (RevealStep::Phrases, cards::phrases),
+        ];
+        for (step, draw) in steps {
+            let page = self.page(step);
+            page.clear();
+            draw(&page.body, style);
+        }
+    }
+
+    /// Step 6: the name, the person's own notes, and forgetting the style.
+    fn name_page(self: &Rc<Self>) {
+        let body = &self.page(RevealStep::Name).body;
+        let names = adw::PreferencesGroup::new();
+        names.add(&self.name);
+        body.append(&names);
+
+        let notes_group = group(
+            l10n::writing_style_notes(),
+            l10n::writing_style_notes_hint(),
+        );
+        let notes = &self.notes;
+        notes.set_wrap_mode(gtk::WrapMode::WordChar);
+        notes.set_accepts_tab(false);
+        notes.set_top_margin(8);
+        notes.set_bottom_margin(8);
+        notes.set_left_margin(8);
+        notes.set_right_margin(8);
+        notes.buffer().set_text(&self.detail.notes);
+        notes.update_property(&[Property::Label(l10n::writing_style_notes())]);
+        let frame = gtk::Frame::new(None);
+        frame.set_child(Some(notes));
+        frame.set_size_request(-1, 120);
+        notes_group.add(&frame);
+        body.append(&notes_group);
+
+        let forget = gtk::Button::with_label(l10n::writing_style_forget());
+        forget.add_css_class("destructive-action");
+        forget.set_halign(gtk::Align::Start);
+        forget.set_margin_top(12);
+        let weak = Rc::downgrade(self);
+        forget.connect_clicked(move |_| {
+            if let Some(reveal) = weak.upgrade() {
+                confirm_forget(&reveal.ctx, &reveal.detail.row.id, &reveal.detail.row.name);
+            }
+        });
+        body.append(&forget);
+    }
+
+    /// Save stores what changed and only that: a rename, the notes, or both.
+    fn save(&self) {
+        let chosen = self.name.text().trim().to_owned();
         if chosen.is_empty() {
             return;
         }
-        if chosen != stored_name {
-            app.rename_writing_style(id.clone(), chosen);
+        let id = &self.detail.row.id;
+        if chosen != self.detail.row.name {
+            self.ctx.app.rename_writing_style(id.clone(), chosen);
         }
-        let buffer = notes.buffer();
+        let buffer = self.notes.buffer();
         let (start, end) = buffer.bounds();
         let written = buffer.text(&start, &end, false).to_string();
-        if written != stored_notes {
-            app.update_writing_style_notes(id.clone(), written);
+        if written != self.detail.notes {
+            self.ctx.app.update_writing_style_notes(id.clone(), written);
         }
-        leave(&navigation);
-    });
+        self.leave();
+    }
+
+    fn leave(&self) {
+        leave(&self.ctx.navigation.downgrade());
+    }
+}
+
+/// Draws the pages about one language for another, once it is a different one.
+fn choose_language(reveal: &Weak<Reveal>, index: usize) {
+    if let Some(reveal) = reveal.upgrade()
+        && reveal.language.replace(index) != index
+    {
+        reveal.draw_language();
+    }
 }
 
 /// Forgetting is confirmed in a modal, as deleting a signature is, and the message says what it

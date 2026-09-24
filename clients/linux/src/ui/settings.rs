@@ -30,9 +30,13 @@ pub(super) mod sender_name;
 mod signature_editor;
 pub(super) mod signatures;
 mod state;
+mod wizard;
 mod writing_style;
 mod writing_style_learn;
+mod writing_style_learn_parts;
 mod writing_style_reveal;
+mod writing_style_reveal_cards;
+mod writing_style_reveal_pages;
 
 pub(super) use state::SettingsState;
 

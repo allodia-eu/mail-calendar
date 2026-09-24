@@ -130,6 +130,25 @@ pub(super) fn local_day(seconds: i64, zone: &str, locale: &str) -> Option<String
     ))
 }
 
+/// The reveal's "Since" figure: the day and month within this year, the month and year before it,
+/// because it stands at the size of the counts beside it and a full date does not fit there.
+pub(super) fn since_figure(
+    seconds: i64,
+    now: Timestamp,
+    zone: &str,
+    locale: &str,
+) -> Option<String> {
+    let value = Timestamp::from_second(seconds).ok()?.in_tz(zone).ok()?;
+    let current = now.in_tz(zone).ok()?;
+    let day = date_of(&value)?;
+    let month = date_names(locale).months[usize::from(u8::from(day.month()) - 1)];
+    Some(if value.year() == current.year() {
+        format!("{} {month}", day.day())
+    } else {
+        format!("{month} {}", day.year())
+    })
+}
+
 /// The day of an instant that carries its own offset, read in UTC.
 fn instant_day(raw: &str) -> Option<Date> {
     let instant = raw.parse::<Timestamp>().ok()?;
@@ -227,7 +246,7 @@ mod tests {
 
     use super::{
         RelativeDatePattern, account_date, date_names_for, local_date_time, local_day,
-        relative_date_at, relative_date_pattern,
+        relative_date_at, relative_date_pattern, since_figure,
     };
 
     fn stamp(raw: &str) -> Timestamp {
@@ -331,6 +350,21 @@ mod tests {
             Some("1 jan 2025")
         );
         assert_eq!(local_day(late, "Not/A_Zone", "en"), None);
+    }
+
+    #[test]
+    fn since_is_the_day_this_year_and_the_month_before_it() {
+        let now = stamp("2026-09-24T12:00:00Z");
+        let june = stamp("2026-06-24T12:00:00Z").as_second();
+        let march = stamp("2025-03-03T00:00:00Z").as_second();
+        assert_eq!(
+            since_figure(june, now, "UTC", "en").as_deref(),
+            Some("24 Jun")
+        );
+        assert_eq!(
+            since_figure(march, now, "UTC", "nl").as_deref(),
+            Some("mrt 2025")
+        );
     }
 
     #[test]

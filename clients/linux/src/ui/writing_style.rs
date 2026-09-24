@@ -1,14 +1,14 @@
 //! What Writing style says, decided without a widget (`docs/ai.md`).
 //!
-//! The copy for each failure, the credits line, a style's summary and its description, the
-//! composer's few rules, and the snapshot the model pushes into an open Settings window. Kept free
-//! of GTK so each rule is a plain test; where a learning run stands is
-//! [`super::writing_style_flow`], and the screens that draw both are the Writing style settings
-//! category and the composer's Draft a reply control.
+//! The copy for each failure, the credits line, a style's summary, the composer's few rules, and
+//! the snapshot the model pushes into an open Settings window. Kept free of GTK so each rule is a
+//! plain test; where a learning run stands is [`super::writing_style_flow`], what the reveal draws
+//! is [`super::writing_style_reveal`], and the screens that draw them are the Writing style
+//! settings category and the composer's Draft a reply control.
 
 use mailcal_bindings::{
-    AiRoute, CreditBalance, HabitRow, JurisdictionMode, LanguageStyleRow, OwnEndpointError,
-    WritingStyleFailure, WritingStyleRow, WritingStyleSnapshot,
+    AiRoute, CreditBalance, JurisdictionMode, OwnEndpointError, WritingStyleFailure,
+    WritingStyleRow, WritingStyleSnapshot,
 };
 
 use super::{allodia_subscription_facts::decimal_separator, timestamps};
@@ -126,84 +126,6 @@ pub(crate) fn style_summary(style: &WritingStyleRow, zone: &str, locale: &str) -
         .chain(languages)
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-/// One language's description as the reveal lists it: a label, and what was noticed under it.
-///
-/// A field the model left empty is skipped rather than drawn as a heading over nothing. Length is
-/// the one entry whose label carries its own value, so its second half is empty.
-pub(crate) fn reveal_fields(language: &LanguageStyleRow, locale: &str) -> Vec<(String, String)> {
-    let mut fields = [
-        (
-            l10n::reveal_greetings(),
-            habits(&language.greetings, locale),
-        ),
-        (
-            l10n::reveal_sign_offs(),
-            habits(&language.sign_offs, locale),
-        ),
-        (l10n::reveal_signs_as(), language.signs_as.trim().to_owned()),
-        (l10n::reveal_register(), language.register.trim().to_owned()),
-    ]
-    .into_iter()
-    .filter(|(_, value)| !value.is_empty())
-    .map(|(label, value)| (label.to_owned(), value))
-    .collect::<Vec<_>>();
-    if language.typical_words > 0 {
-        fields.push((
-            l10n::reveal_length(i64::from(language.typical_words)),
-            String::new(),
-        ));
-    }
-    fields.extend(
-        [
-            (l10n::reveal_shape(), language.shape.trim().to_owned()),
-            (
-                l10n::reveal_punctuation(),
-                language.punctuation.trim().to_owned(),
-            ),
-            (
-                l10n::reveal_structure(),
-                language.structure.trim().to_owned(),
-            ),
-            (l10n::reveal_moves(), language.moves.trim().to_owned()),
-            (l10n::reveal_phrases(), lines(&language.phrases)),
-            (l10n::reveal_avoid(), lines(&language.avoid)),
-        ]
-        .into_iter()
-        .filter(|(_, value)| !value.is_empty())
-        .map(|(label, value)| (label.to_owned(), value)),
-    );
-    fields
-}
-
-/// Each habit on a line of its own, with how often it is used.
-fn habits(found: &[HabitRow], locale: &str) -> String {
-    found
-        .iter()
-        .filter(|habit| !habit.text.trim().is_empty())
-        .map(|habit| format!("{} ({})", habit.text.trim(), percent(habit.share, locale)))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn lines(items: &[String]) -> String {
-    items
-        .iter()
-        .map(String::as_str)
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// A share as its language writes a percentage: German, French and Spanish put a non-breaking
-/// space before the sign, the other catalog languages none.
-fn percent(share: u8, locale: &str) -> String {
-    match locale {
-        "de" | "fr" | "es" => format!("{share}\u{a0}%"),
-        _ => format!("{share}%"),
-    }
 }
 
 /// The From account `draft_reply` is told about: only one the person moved to. The message's own
