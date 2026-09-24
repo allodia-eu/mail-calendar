@@ -61,6 +61,8 @@ mod app_snapshots;
 // all.
 #[cfg(debug_assertions)]
 mod app_training;
+#[cfg(debug_assertions)]
+mod app_training_run;
 mod app_writing_styles;
 mod autodetect;
 mod background;
@@ -150,6 +152,10 @@ pub use app_month::calendar_palette;
 pub use app_sender_name::sender_label;
 #[cfg(debug_assertions)]
 pub use app_training::{TrainingResult, TrainingVariant};
+#[cfg(debug_assertions)]
+pub use app_training_run::{
+    TrainingFailureCount, TrainingMessage, TrainingMessageResults, TrainingSummary,
+};
 pub use autodetect::{
     DetectedServerRow, DnsError, MissReason, MxRecord, MxResolution, MxResolver,
     SetupRecommendation, SrvRecord, SrvResolution,

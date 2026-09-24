@@ -228,12 +228,17 @@ impl<P: Provider> App<P> {
             draft,
             style: style_id,
             schema_version: guide.schema_version,
-            message: mailcal_ai::lean(&answered.body)
-                .trim_end()
-                .chars()
-                .take(mailcal_ai::THREAD_CHARS)
-                .collect(),
+            message: as_prompted(&answered.body),
             elapsed,
         })
     }
+}
+
+/// The body of a message answered, as a draft's prompt carries it.
+pub(super) fn as_prompted(body: &str) -> String {
+    mailcal_ai::lean(body)
+        .trim_end()
+        .chars()
+        .take(mailcal_ai::THREAD_CHARS)
+        .collect()
 }

@@ -103,8 +103,16 @@ extension ContentView {
     func selectionBehaviour(_ list: some View) -> AnyView {
         let pruned = list.onChange(of: visibleRows.map(\.rowID)) { _, _ in pruneSelection() }
         #if os(macOS)
+        #if DEBUG
+        // The training window answers the selected rows (docs/ai.md, "Training mode").
+        let watched = pruned.onChange(of: selection.keys, initial: true) { _, _ in
+            model.trainingSelection = visibleRows.filter(selection.contains).map(TrainingMessage.init)
+        }
+        #else
+        let watched = pruned
+        #endif
         return AnyView(
-            pruned
+            watched
                 .focusable()
                 .focusEffectDisabled()
                 .onKeyPress(.delete) { deleteSelectionByKey() }

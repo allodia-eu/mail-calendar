@@ -6,8 +6,8 @@
 //! it, so the gate and the endpoint's declaration apply as they do to every other draft.
 
 use mailcal_ai::{
-    DRAFT_INSTRUCTIONS, DRAFT_PLACEHOLDERS, DraftContent, DraftExport, DraftRecord, GatedBackend,
-    OwnEndpoint, RatedDraft,
+    DRAFT_INSTRUCTIONS, DRAFT_PLACEHOLDERS, DraftContent, DraftRecord, GatedBackend, OwnEndpoint,
+    RatedDraft,
 };
 use mailcal_app::{MessageRef, ReplyDraftRequest, WritingStyleError};
 
@@ -182,24 +182,5 @@ impl MailcalApp {
         self.runtime
             .block_on(self.app.training_draft(&request, &backend, named))
             .into()
-    }
-
-    /// The comparison as one JSON document: the message answered, every result and every rating.
-    /// **Blocking**: it reads the message.
-    #[must_use]
-    pub fn training_export(
-        &self,
-        account_id: String,
-        key: String,
-        results: Vec<TrainingResult>,
-    ) -> String {
-        let message = MessageRef::from_parts(&account_id, key)
-            .and_then(|message| self.runtime.block_on(self.app.training_message(&message)));
-        DraftExport {
-            id: None,
-            message,
-            drafts: results.into_iter().map(Into::into).collect(),
-        }
-        .to_json()
     }
 }

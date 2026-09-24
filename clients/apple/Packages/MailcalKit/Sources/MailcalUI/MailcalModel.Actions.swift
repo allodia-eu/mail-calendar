@@ -137,7 +137,7 @@ extension MailboxModel {
     func openMessage(_ account: String, _ key: String) {
         reading = nil
         #if DEBUG && os(macOS)
-        trainingMessage = TrainingMessage(account: account, key: key)
+        trainingMessage = TrainingMessage(accountId: account, key: key, from: "", subject: "")
         #endif
         app?.dispatch(intent: .openMessage(account: account, key: key))
     }

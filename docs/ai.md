@@ -171,23 +171,33 @@ only while somebody is signed in to an Allodia account, which is the only way it
 ## Training mode (debug builds)
 
 A developer's bench for drafting, **compiled only in a debug build**: the core's use case
-(`mailcal-app`'s `training_draft`, `training_message`), the FFI methods and records
-(`crates/mailcal-bindings/src/app_training.rs`) and the client's window (`#if DEBUG`). No release
-binary or generated binding carries any of it.
+(`mailcal-app`'s `training_draft`, `training_message`, `training_answered`), the run's export and
+summary (`mailcal-ai`'s `ComparisonExport`, `summarise`), the FFI methods and records
+(`crates/mailcal-bindings/src/app_training.rs`, `app_training_run.rs`) and the client's window
+(`#if DEBUG`). No release binary or generated binding carries any of it.
 
 - **The instructions are a template.** `DRAFT_INSTRUCTIONS` holds the placeholders
   `{reply_language}`, `{interface_language}`, `{closing}` (stop short of the signature, or the
   person's own sign-off when there is none) and `{fence_preamble}`. The normal path renders it
   exactly as a draft has always been instructed; a variant is a named copy rendered the same way,
   in one pass, so a value that holds a placeholder's name is never filled twice.
-- **On macOS**, Develop → Compare drafts… opens a window for the message open in the reading pane.
-  The developer types the models to ask on the configured own endpoint and keeps named variants of
-  the instructions beside the default, which is shown read-only; both are remembered in the debug
-  build's `UserDefaults`. A run drafts with every model under every variant, one after the other,
-  with its progress shown. Each result shows the reply, the summary, the checklist, the time taken,
-  the tokens and its failure when it failed, and is rated with the same controls feedback uses.
-  Export saves the run (the message answered, every result, every rating) as the JSON document
-  feedback is posted in, through a save panel.
+- **On macOS**, Develop → Compare drafts… opens a window. The developer types the models to ask on
+  the configured own endpoint and keeps named variants of the instructions beside the default,
+  which is shown read-only; both are remembered in the debug build's `UserDefaults`.
+- **A run answers several messages**, from one of two sources: the rows selected in the list (a
+  conversation by its latest message, and the message open in the reading pane when no row is
+  selected), or the newest Inbox messages the person answered, as many as the developer asks for.
+  A message counts as answered when a message in its account's Sent folder, among that account's
+  newest thousand on the device, names it in `In-Reply-To`; only accounts that draft in a style are
+  looked through, and nothing is fetched.
+- Every model runs with every variant on every message, one after the other, showing which message
+  of how many and which draft of how many, with Stop. Results are grouped by message; each shows
+  the reply, the summary, the checklist, the time taken, the tokens and its failure when it failed,
+  and is rated with the same controls feedback uses. A summary above them says, per model and
+  variant, how many drafts came back, how many failed and why, the median time of those that came
+  back, and the tokens read and written.
+- Export saves the whole run as one JSON document through a save panel: every message answered,
+  its body as the prompt carried it, with every result and rating, and the same summary.
 - **The gate applies.** Each model is asked through a `GatedBackend` over the own endpoint with only
   the model replaced, so the gate and the endpoint's declaration apply to every request. The relay
   is not offered, because its gateway picks the model. Nothing is issued to a composer, so a
@@ -201,7 +211,7 @@ binary or generated binding carries any of it.
 | The message being answered, the style, the passages, the recipient context, the intent | The AI endpoint | A draft the person asked for |
 | Each style's name, guide and notes (never the passages) | The Allodia account service, sealed | Every account-list sync of a device whose Allodia sign-in includes the writing-style scopes |
 | Feedback on a draft: the rating and what made the draft; the message answered and the draft **only when the person ticked the box** | The Mail & Calendar service (`POST /api/v1/ai/feedback`) | A pass after each rating and at launch, while signed in to Allodia. **Not yet**: nothing is sent until the service has the route (Known gaps) |
-| In a debug build's training mode, what a draft sends, once per model and variant | The own endpoint | A comparison a developer runs |
+| In a debug build's training mode, what a draft sends, once per message, model and variant | The own endpoint | A comparison a developer runs |
 | Passages, quoted mail outside a request, attachment bytes, any address book | Nowhere | Never |
 
 Every prompt follows the MCP server's shared bar ([`mcp.md`](mcp.md), "The shared bar", items 6 to
@@ -289,8 +299,11 @@ one draft:
 
 `usage` is absent when the endpoint did not say, `content` without the box, `comment` when empty;
 `reasons` is empty for a thumbs up. Any 2xx is delivery and the body of the answer is not read; the
-service can tell a retry by `id`. Training mode saves the same document with every result of a run,
-a `failure` label beside a draft that did not come back, and no `id`.
+service can tell a retry by `id`. Training mode saves a document of its own, `{ "version": 1,
+"messages": [{ "message", "drafts" }], "summary": [...] }`: each message with its drafts in the
+shape above, a `failure` label beside a draft that did not come back, no `id`, and a summary line
+per model and variant (`model`, `variant`, `succeeded`, `failed` as a count per failure label,
+`median_elapsed_ms`, `prompt_tokens`, `completion_tokens`).
 
 ## Storage
 
@@ -322,7 +335,7 @@ A style's id is opaque CSPRNG output, never derived from its name.
 | Allodia relay: the entitlement read, requests, the balance | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Style guide synced between devices | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Feedback on a draft: thumbs, reasons, comment, the email and the draft only when ticked | 🚧 | 🚧 | ✅ | ⬜ | ⬜ | ⬜ |
-| Training mode: compare drafts across models and variants, rate, export (debug builds) | ✅ | 🚧 | — | — | — | — |
+| Training mode: compare drafts across messages, models and variants, rate, summarise, export (debug builds) | ✅ | 🚧 | — | — | — | — |
 | Fetch older sent mail back to a date | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 macOS and iOS were driven against the harness's Sent Items and the canned endpoint: the refusal
@@ -360,9 +373,12 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
   Both are local and quick. `DraftReply.usage` carries the tokens as `TokenUsage`.
 - **Training mode, debug builds only**: `training_default_instructions`, `training_placeholders`,
   `training_draft(account_id, key, model, variant, ui_language)` answering a `TrainingResult` (with
-  a `failure` in plain words rather than an error), and `training_export(account_id, key, results)`
-  answering the JSON. **`training_draft` and `training_export` block.** A client names none of them
-  outside its own debug-only code, because a release build's bindings do not have them.
+  a `failure` in plain words rather than an error), `training_answered_messages(count)` answering
+  `TrainingMessage`s, `training_summary(results)` answering a `TrainingSummary` per model and
+  variant, and `training_export(messages)` taking a `TrainingMessageResults` per message and
+  answering the JSON. **`training_draft`, `training_answered_messages` and `training_export`
+  block.** A client names none of them outside its own debug-only code, because a release build's
+  bindings do not have them.
 - **`Surface::WritingStyle`** is signalled when the library, an assignment, the backend or a
   learning run's progress changes. Its snapshot's `route` says whether AI is available at all, and
   a client shows the Writing style category only when it is `Some`.
@@ -459,9 +475,12 @@ Automated:
   without it, the ceiling leaves room for thinking, one closing only, and the thread goes in lean.
 - `crates/mailcal-ai/src/draft_instructions_tests.rs`, `record_tests.rs`: the template is filled in
   one pass, and a record carries what the draft said only when it is given.
+  `comparison_tests.rs`: a run's export holds every message and its summary counts per model and
+  variant.
 - `crates/mailcal-app/src/writing_style_feedback_tests.rs`, `writing_style_training_tests.rs`: a
   rating carries no header, intent or style and the content only when asked; a comparison's model
-  and variant reach the endpoint through the gate.
+  and variant reach the endpoint through the gate, and only answered Inbox messages of an account
+  with a style are offered.
 - `allodia_license/crates/allodia-license/src/feedback_tests.rs`: the post, the 2xx rule, and nothing
   sent while the route switch is off. `crates/mailcal-bindings/src/tests_ai_relay.rs`: feedback is
   offered only while signed in, and a sign-out empties the outbox.

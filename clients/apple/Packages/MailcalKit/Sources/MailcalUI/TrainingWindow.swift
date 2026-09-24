@@ -1,6 +1,7 @@
 // Develop → Compare drafts… in a macOS debug build (docs/ai.md, "Training mode (debug builds)"): the
-// models and variants on the left, the run's results on the right, each rated with the controls
-// feedback uses, and the run exported as JSON. Plain English, because nothing here ships.
+// messages, models and variants on the left, the run's results on the right, grouped by message
+// and each rated with the controls feedback uses, and the run exported as JSON. Plain English,
+// because nothing here ships.
 
 #if DEBUG && os(macOS)
 import MailcalBindings
@@ -33,25 +34,21 @@ public struct TrainingWindow: View {
 
     public var body: some View {
         HSplitView {
-            setup
+            ScrollView { setup }
                 .frame(minWidth: 340, idealWidth: 420, maxWidth: 560)
             TrainingResults(bench: bench)
                 .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 860, minHeight: 560)
+        .frame(minWidth: 860, minHeight: 600)
+        .task(id: lookUpKey) {
+            guard bench.source == .answered, !bench.running, let app = model.app else { return }
+            await bench.lookUpAnswered(app: app)
+        }
     }
 
     private var setup: some View {
         VStack(alignment: .leading, spacing: 14) {
-            section("Message") {
-                if let message = model.trainingMessage {
-                    Text(message.key == model.reading?.key ? (model.reading?.from ?? message.key) : message.key)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                } else {
-                    Text("Open a message in the reading pane first.").foregroundStyle(.secondary)
-                }
-            }
+            messagesSection
             section("Own endpoint") {
                 if let endpoint = model.ownAiEndpoint() {
                     Text(endpoint.baseUrl).lineLimit(1).truncationMode(.middle)
@@ -70,6 +67,33 @@ public struct TrainingWindow: View {
             runControls
         }
         .padding(16)
+    }
+
+    private var messagesSection: some View {
+        section("Messages") {
+            Picker("Messages", selection: $bench.source) {
+                ForEach(TrainingSource.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            if bench.source == .answered {
+                Stepper("The \(bench.answeredCount) most recent", value: $bench.answeredCount, in: 1...50)
+            }
+            let messages = runMessages
+            if messages.isEmpty {
+                Text(emptyMessages).foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(messages.enumerated()), id: \.offset) { _, message in
+                            Text(label(message)).lineLimit(1).truncationMode(.tail)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 90)
+            }
+        }
     }
 
     private var variantsSection: some View {
@@ -126,8 +150,9 @@ public struct TrainingWindow: View {
                     Button("Stop") { bench.stop() }
                 } else {
                     Button("Run") {
-                        guard let message = model.trainingMessage, let app = model.app else { return }
-                        Task { await bench.run(message, app: app) }
+                        guard let app = model.app else { return }
+                        let messages = runMessages
+                        Task { await bench.run(messages, app: app) }
                     }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canRun)
@@ -139,10 +164,10 @@ public struct TrainingWindow: View {
                 }
                 .disabled(bench.running || bench.results.isEmpty)
             }
-            if bench.running || bench.total > 0 {
-                ProgressView(value: Double(bench.done), total: Double(max(bench.total, 1)))
-                Text(bench.running ? "Drafting \(bench.done + 1) of \(bench.total): \(bench.current)"
-                                   : "\(bench.done) of \(bench.total) drafted")
+            if bench.running || !bench.groups.isEmpty {
+                let total = bench.messageCount * bench.draftsPerMessage
+                ProgressView(value: Double(bench.results.count), total: Double(max(total, 1)))
+                Text(progress(total: total))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -152,9 +177,49 @@ public struct TrainingWindow: View {
         }
     }
 
+    /// The messages a run would answer now.
+    private var runMessages: [TrainingMessage] {
+        switch bench.source {
+        case .selection:
+            model.trainingSelection.isEmpty
+                ? model.trainingMessage.map { [$0] } ?? []
+                : model.trainingSelection
+        case .answered:
+            bench.answered
+        }
+    }
+
+    private var emptyMessages: String {
+        switch bench.source {
+        case .selection:
+            "Select messages in the list, or open one in the reading pane."
+        case .answered:
+            bench.lookingUp
+                ? "Looking…"
+                : "No answered Inbox messages found in the accounts that have a writing style."
+        }
+    }
+
+    private var lookUpKey: String { "\(bench.source.rawValue)-\(bench.answeredCount)" }
+
     private var canRun: Bool {
-        model.trainingMessage != nil && model.ownAiEndpoint() != nil && !bench.models.isEmpty
+        !runMessages.isEmpty && model.ownAiEndpoint() != nil && !bench.models.isEmpty
             && !bench.runVariants.isEmpty
+    }
+
+    private func progress(total: Int) -> String {
+        guard bench.running else { return "\(bench.results.count) of \(total) drafted" }
+        return "Message \(bench.messageNumber) of \(bench.messageCount), draft \(bench.draftNumber) "
+            + "of \(bench.draftsPerMessage): \(bench.current)"
+    }
+
+    /// What the list shows of a message: its sender and subject, or what the pane shows of it
+    /// when it came from the pane without them.
+    private func label(_ message: TrainingMessage) -> String {
+        let from = message.from.isEmpty && message.key == model.reading?.key
+            ? model.reading?.from ?? "" : message.from
+        let parts = [from, message.subject].filter { !$0.isEmpty }
+        return parts.isEmpty ? message.key : parts.joined(separator: " · ")
     }
 
     private var defaultInstructions: String {
@@ -169,80 +234,6 @@ public struct TrainingWindow: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             content()
-        }
-    }
-}
-
-/// Every result of the run, in the order it was drafted.
-private struct TrainingResults: View {
-    @Bindable var bench: TrainingBench
-
-    var body: some View {
-        if bench.results.isEmpty {
-            Text(bench.running ? "Drafting…" : "Run to compare drafts here.")
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(bench.results.indices, id: \.self) { index in
-                        TrainingResultCard(
-                            result: bench.results[index],
-                            feedback: $bench.ratings[index],
-                            keep: { rating, _ in bench.rate(index, rating) }
-                        )
-                    }
-                }
-                .padding(16)
-            }
-        }
-    }
-}
-
-private struct TrainingResultCard: View {
-    let result: TrainingResult
-    @Binding var feedback: DraftFeedback
-    let keep: (DraftRating, Bool) -> Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("\(result.model) · \(result.variant ?? "default")").font(.headline)
-                Spacer()
-                Text(facts).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            }
-            if let failure = result.failure {
-                Text(failure).foregroundStyle(.red)
-            } else {
-                if !result.summary.isEmpty {
-                    Text(result.summary).font(.callout).foregroundStyle(.secondary)
-                }
-                ForEach(Array(result.tasks.enumerated()), id: \.offset) { _, task in
-                    Label(task.text, systemImage: icon(task.kind)).font(.callout)
-                }
-                Text(result.reply)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 6))
-                DraftRatingControls(feedback: $feedback, isFeedback: false, keep: keep)
-            }
-        }
-        .padding(12)
-        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
-    }
-
-    private var facts: String {
-        let seconds = String(format: "%.1f s", Double(result.elapsedMs) / 1000)
-        guard let usage = result.usage else { return seconds }
-        return "\(seconds) · \(usage.promptTokens) in, \(usage.completionTokens) out"
-    }
-
-    private func icon(_ kind: DraftTaskKind) -> String {
-        switch kind {
-        case .fillIn: "character.cursor.ibeam"
-        case .attach: "paperclip"
-        case .do: "checklist"
         }
     }
 }

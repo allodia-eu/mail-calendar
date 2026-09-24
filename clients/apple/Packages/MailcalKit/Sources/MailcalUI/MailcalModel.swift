@@ -122,8 +122,11 @@ final class MailboxModel {
     /// signal). `nil` until a message is opened.
     var reading: ReadingSnapshot?
     #if DEBUG && os(macOS)
-    /// The message the pane last opened, which the training window drafts replies to.
+    /// The message the pane last opened, which the training window answers when no row is
+    /// selected.
     var trainingMessage: TrainingMessage?
+    /// The rows selected in the list, which the training window answers.
+    var trainingSelection: [TrainingMessage] = []
     #endif
     /// Every detached reading window, keyed by its core reader id (`docs/reading-window.md`).
     ///
