@@ -10,10 +10,10 @@
 //! and only that port carries a per-request timeout. The access token is the host's to mint, and
 //! a failure to mint one comes back as `Unauthorized`, which a client answers with "sign in again".
 
-use std::fmt;
+use std::{fmt, time::Instant};
 
 use mailcal_ai::{
-    AiBackend, AiError, HttpRequest, HttpTransport,
+    AiBackend, AiError, HttpRequest, HttpTransport, report,
     wire::{ChatRequest, ChatResponse},
 };
 use serde::Deserialize;
@@ -61,6 +61,7 @@ impl AiBackend for Relay {
             serde_json::to_value(request.purpose).map_err(|_| AiError::Malformed)?,
         );
         let body = body.to_string();
+        let started = Instant::now();
         let answered = self
             .transport
             .post_json(HttpRequest {
@@ -69,9 +70,19 @@ impl AiBackend for Relay {
                 body: &body,
                 timeout: request.purpose.timeout(),
             })
-            .map_err(|_| AiError::Unreachable)?;
+            .map_err(|_| {
+                report::log_unanswered(request.purpose, body.len(), started.elapsed());
+                AiError::Unreachable
+            })?;
+        report::log_answer(
+            request.purpose,
+            body.len(),
+            started.elapsed(),
+            answered.status,
+            &answered.body,
+        );
         match answered.status {
-            200..=299 => serde_json::from_str(&answered.body).map_err(|_| AiError::Malformed),
+            200..=299 => report::read_answer(&answered.body),
             402 => Err(AiError::OutOfCredits),
             403 if refusal_code(&answered.body).as_deref() == Some("not_entitled") => {
                 Err(AiError::NotEntitled)

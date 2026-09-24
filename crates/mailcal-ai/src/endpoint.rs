@@ -5,12 +5,12 @@
 //! pipeline runs against. The request shaper lives here; the socket is the host's
 //! ([`HttpTransport`]).
 
-use std::fmt;
+use std::{fmt, time::Instant};
 
 use mailcal_jurisdiction::Class;
 
 use crate::{
-    AiBackend, AiError,
+    AiBackend, AiError, report,
     transport::{HttpRequest, HttpTransport},
     wire::{ChatRequest, ChatResponse},
 };
@@ -162,6 +162,7 @@ impl AiBackend for OpenAiCompatibleBackend {
     fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, AiError> {
         let body = self.body(request)?;
         let url = self.endpoint.completions_url();
+        let started = Instant::now();
         let answered = self
             .transport
             .post_json(HttpRequest {
@@ -170,9 +171,19 @@ impl AiBackend for OpenAiCompatibleBackend {
                 body: &body,
                 timeout: request.purpose.timeout(),
             })
-            .map_err(|_| AiError::Unreachable)?;
+            .map_err(|_| {
+                report::log_unanswered(request.purpose, body.len(), started.elapsed());
+                AiError::Unreachable
+            })?;
+        report::log_answer(
+            request.purpose,
+            body.len(),
+            started.elapsed(),
+            answered.status,
+            &answered.body,
+        );
         match answered.status {
-            200..=299 => serde_json::from_str(&answered.body).map_err(|_| AiError::Malformed),
+            200..=299 => report::read_answer(&answered.body),
             401 | 403 => Err(AiError::Unauthorized),
             429 => Err(AiError::RateLimited),
             status => Err(AiError::Status(status)),

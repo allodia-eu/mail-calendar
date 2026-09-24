@@ -22,6 +22,15 @@ pub enum Purpose {
 }
 
 impl Purpose {
+    /// What the log calls a request for this purpose.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Style => "learning request",
+            Self::Draft => "draft request",
+        }
+    }
+
     /// How long a request for this purpose may take before it is given up on.
     ///
     /// Learning reads up to a context window of mail and writes a long structured answer, which

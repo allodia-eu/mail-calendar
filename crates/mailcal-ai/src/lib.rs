@@ -23,6 +23,7 @@ pub mod language;
 mod learn;
 mod observe;
 mod prompt;
+pub mod report;
 mod style;
 mod tool;
 mod transport;
