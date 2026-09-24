@@ -105,9 +105,4 @@ import Testing
                 == L10n.writing_style_credits(credits: "5", time: "09:05")
         )
     }
-
-    @Test func aHabitCarriesItsShareAsAPercentage() {
-        let habit = HabitRow(text: "Hi Bob,", share: 80, relative: 100, frequency: .mostly)
-        #expect(writingStyleHabit(habit, locale: Locale(identifier: "en")) == "Hi Bob, (80%)")
-    }
 }

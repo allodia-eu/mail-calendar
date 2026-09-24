@@ -113,9 +113,3 @@ func writingStyleDate(_ seconds: Int64, zone: TimeZone, locale: Locale) -> Strin
 func writingStyleLanguages(_ codes: [String], locale: Locale) -> String {
     codes.map(L10n.languageName).formatted(.list(type: .and).locale(locale))
 }
-
-/// A habit and how often it is used: "Hi Bob, (80%)", the percentage in the locale's form.
-func writingStyleHabit(_ habit: HabitRow, locale: Locale) -> String {
-    let share = (Double(habit.share) / 100).formatted(.percent.locale(locale))
-    return "\(habit.text) (\(share))"
-}
