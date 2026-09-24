@@ -1,42 +1,34 @@
 // The learning sheet (docs/ai.md, "Learning"): which account, which sent mail, what the device
 // found there and exactly what would be sent where, then the run with its progress and a way to
-// stop it. Full screen, as this platform's other settings flows are. The steps and every call they
-// make are LearnFlow's (WritingStyleLearnFlow.kt); this only draws them.
+// stop it, one page each in the frame the reveal uses. The steps and every call they make are
+// LearnFlow's (WritingStyleLearnFlow.kt); this only draws them.
 package eu.allodia.mailcal
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -45,9 +37,9 @@ import uniffi.mailcal_bindings.AiRoute
 import uniffi.mailcal_bindings.LearningProgress
 import uniffi.mailcal_bindings.LearningStage
 import uniffi.mailcal_bindings.OwnAiEndpoint
+import uniffi.mailcal_bindings.WritingStyleFailure
 import uniffi.mailcal_bindings.WritingStyleSnapshot
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun WritingStyleLearnDialog(
     flow: LearnFlow,
@@ -62,81 +54,76 @@ internal fun WritingStyleLearnDialog(
     LaunchedEffect(step) {
         if (step is LearnStep.Learned) onLearned(step.styleId)
     }
-    Dialog(
-        onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-    ) {
-        SystemBarsMatchTheme()
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = { Text(L10n.writing_style_learn(ctx)) },
-                        navigationIcon = {
-                            IconButton(onClick = onClose) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_close),
-                                    contentDescription = L10n.action_close(ctx),
-                                )
-                            }
-                        },
-                    )
-                },
-            ) { padding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    when (step) {
-                        is LearnStep.ChooseAccount -> {
-                            Text(L10n.learn_account_title(ctx), style = MaterialTheme.typography.titleMedium)
-                            step.accounts.forEach { account ->
-                                Text(
-                                    account.email,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { flow.chooseAccount(account.accountId) }
-                                        .padding(vertical = 12.dp),
-                                )
-                            }
-                        }
-                        is LearnStep.Consent -> ConsentStep(step, flow, snapshot.route, ownEndpoint, zone)
-                        is LearnStep.Learning -> LearningStep(snapshot.learning, flow)
-                        is LearnStep.Failed -> {
-                            Text(L10n.learn_failed_title(ctx), style = MaterialTheme.typography.titleMedium)
-                            Text(writingStyleFailureText(ctx, step.failure, snapshot.route))
-                        }
-                        // The caller opens the style in place of this sheet.
-                        is LearnStep.Learned -> Unit
+    val pages = remember { learnPages(snapshot.accounts) }
+    val pager = remember { WizardPager(pages.size) }
+    val page = pages[pager.index]
+    val account = (step as? LearnStep.Consent)?.account
+    val primary = when (page) {
+        LearnPage.ACCOUNT, LearnPage.RANGE -> WizardPrimary.Next(enabled = account != null)
+        // Nothing usable says so and offers no button.
+        LearnPage.CONSENT -> if (flow.canLearn) {
+            WizardPrimary.Action(L10n.learn_consent_confirm(ctx)) {
+                flow.consent(L10n.writing_style_default_name(ctx), catalogLocale(ctx))
+                pager.go(pages.lastIndex)
+            }
+        } else {
+            WizardPrimary.None
+        }
+        LearnPage.PROGRESS -> when (step) {
+            is LearnStep.Learning -> WizardPrimary.Action(L10n.learn_stop(ctx), prominent = false, run = flow::stop)
+            is LearnStep.Failed -> WizardPrimary.Action(L10n.action_close(ctx), run = onClose)
+            else -> WizardPrimary.None
+        }
+    }
+    WizardSheet(
+        pager = pager,
+        onClose = onClose,
+        showsBack = page != LearnPage.PROGRESS && !pager.isFirst,
+        primary = primary,
+    ) { index ->
+        when (pages[index]) {
+            LearnPage.ACCOUNT -> WizardPage(title = L10n.learn_account_title(ctx)) {
+                Column {
+                    snapshot.accounts.forEach {
+                        StrategyRow(it.email, selected = it.accountId == account) { flow.chooseAccount(it.accountId) }
                     }
                 }
+            }
+            LearnPage.RANGE -> WizardPage(title = L10n.learn_range_title(ctx)) { RangeChoice(step, flow, zone) }
+            LearnPage.CONSENT -> WizardPage(title = L10n.writing_style_learn(ctx)) {
+                (step as? LearnStep.Consent)?.let { ConsentReport(it, snapshot.route, ownEndpoint, zone) }
+            }
+            LearnPage.PROGRESS -> if (step is LearnStep.Failed) {
+                WizardPage(title = L10n.learn_failed_title(ctx)) {
+                    Text(
+                        writingStyleFailureText(ctx, step.failure, snapshot.route),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (step.failure is WritingStyleFailure.Cancelled) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                    )
+                }
+            } else {
+                LearningProgressPage(snapshot.learning, finished = step is LearnStep.Learned)
             }
         }
     }
 }
 
 @Composable
-private fun ConsentStep(
-    step: LearnStep.Consent,
-    flow: LearnFlow,
-    route: AiRoute?,
-    ownEndpoint: OwnAiEndpoint?,
-    zone: ZoneId,
-) {
+private fun RangeChoice(step: LearnStep, flow: LearnFlow, zone: ZoneId) {
     val ctx = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
-    val range = step.range
-    Text(L10n.learn_range_title(ctx), style = MaterialTheme.typography.titleMedium)
-    StrategyRow(L10n.learn_range_all(ctx), selected = range == LearnRange.Everything) {
-        if (range != LearnRange.Everything) flow.chooseRange(LearnRange.Everything)
-    }
-    StrategyRow(L10n.learn_range_until(ctx), selected = range is LearnRange.Until) {
-        if (range !is LearnRange.Until) flow.chooseRange(LearnRange.Until(LocalDate.now(zone)))
+    val range = (step as? LearnStep.Consent)?.range ?: LearnRange.Everything
+    Column {
+        StrategyRow(L10n.learn_range_all(ctx), selected = range == LearnRange.Everything) {
+            if (range != LearnRange.Everything) flow.chooseRange(LearnRange.Everything)
+        }
+        StrategyRow(L10n.learn_range_until(ctx), selected = range is LearnRange.Until) {
+            if (range !is LearnRange.Until) flow.chooseRange(LearnRange.Until(LocalDate.now(zone)))
+        }
     }
     Text(
         L10n.learn_range_until_hint(ctx),
@@ -151,63 +138,86 @@ private fun ConsentStep(
             }
         }
     }
-    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+}
+
+// What the device found in the range, and, when any of it says enough, what would be sent where.
+@Composable
+private fun ConsentReport(step: LearnStep.Consent, route: AiRoute?, ownEndpoint: OwnAiEndpoint?, zone: ZoneId) {
+    val ctx = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
     when (val corpus = step.corpus) {
-        CorpusState.Reading -> Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            Text(L10n.learn_reading(ctx), style = MaterialTheme.typography.bodyMedium)
-        }
+        CorpusState.Reading -> ReadingLine()
         is CorpusState.Failed -> Text(
             writingStyleFailureText(ctx, corpus.failure, route),
             color = MaterialTheme.colorScheme.error,
         )
         is CorpusState.Ready -> {
-            corpusReportLines(ctx, corpus.report, zone, locale).forEach {
-                Text(it, style = MaterialTheme.typography.bodyMedium)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                corpusReportLines(ctx, corpus.report, zone, locale).forEach {
+                    Text(it, style = MaterialTheme.typography.bodyLarge)
+                }
             }
             if (corpus.report.usable == 0u) {
-                Text(L10n.learn_report_nothing(ctx), style = MaterialTheme.typography.bodyMedium)
+                Text(L10n.learn_report_nothing(ctx), style = MaterialTheme.typography.bodyLarge)
             } else {
-                Text(
-                    L10n.learn_consent_title(ctx),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                Text(
-                    if (route == AiRoute.RELAY) {
-                        L10n.learn_consent_relay(ctx)
-                    } else {
-                        L10n.learn_consent_own(ctx, host = ownEndpoint?.baseUrl?.let(::endpointHost).orEmpty())
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Button(onClick = { flow.consent(L10n.writing_style_default_name(ctx), catalogLocale(ctx)) }) {
-                    Text(L10n.learn_consent_confirm(ctx))
+                Column(modifier = Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        L10n.learn_consent_title(ctx),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    Text(
+                        if (route == AiRoute.RELAY) {
+                            L10n.learn_consent_relay(ctx)
+                        } else {
+                            L10n.learn_consent_own(ctx, host = ownEndpoint?.baseUrl?.let(::endpointHost).orEmpty())
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
                 }
             }
         }
     }
 }
 
-// The core's own progress: reading the Sent folder first, then one request per part, counted.
 @Composable
-private fun LearningStep(progress: LearningProgress?, flow: LearnFlow) {
+private fun ReadingLine() {
     val ctx = LocalContext.current
-    if (progress?.stage == LearningStage.LEARNING && progress.total > 0u) {
-        Text(
-            L10n.learn_progress(ctx, done = progress.done.toString(), total = progress.total.toString()),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        LinearProgressIndicator(
-            progress = { progress.done.toFloat() / progress.total.toFloat() },
-            modifier = Modifier.fillMaxWidth(),
-        )
-    } else {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
         Text(L10n.learn_reading(ctx), style = MaterialTheme.typography.bodyMedium)
-        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
     }
-    TextButton(onClick = flow::stop) { Text(L10n.learn_stop(ctx)) }
+}
+
+// The core's own progress, alone in the middle of the page: reading the Sent folder first, then
+// one request per part, counted. A finished run shows the bar full while the sheet hands over to
+// the reveal.
+@Composable
+private fun LearningProgressPage(progress: LearningProgress?, finished: Boolean) {
+    val ctx = LocalContext.current
+    Box(modifier = Modifier.fillMaxSize().padding(WIZARD_GUTTER), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when {
+                finished -> LinearProgressIndicator(progress = { 1f }, modifier = Modifier.fillMaxWidth())
+                progress?.stage == LearningStage.LEARNING && progress.total > 0u -> {
+                    LinearProgressIndicator(
+                        progress = { progress.done.toFloat() / progress.total.toFloat() },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        L10n.learn_progress(ctx, done = progress.done.toString(), total = progress.total.toString()),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                else -> ReadingLine()
+            }
+        }
+    }
 }

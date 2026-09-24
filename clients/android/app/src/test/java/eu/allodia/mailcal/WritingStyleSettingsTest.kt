@@ -8,6 +8,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -93,24 +97,52 @@ class WritingStyleSettingsTest {
         assertEquals(listOf(ALICE_ACCOUNT.accountId to PLAIN_STYLE.id), core.assigned)
     }
 
-    /** From the library row to the reveal, and Save renames and keeps the notes in one go. */
+    private fun next() = compose.onNodeWithText(L10n.wizard_next(ctx())).performClick()
+
+    /**
+     * From the library row through the reveal's pages, the account named by its address, and Save
+     * on the last page renames and keeps the notes in one go.
+     */
     @Test
     fun a_style_opens_its_reveal_and_saves_name_and_notes_together() {
         show(writingStyleSnapshot(styles = listOf(PLAIN_STYLE)))
         compose.onNodeWithText("Learned from 12 messages", substring = true).performClick()
 
         compose.onNodeWithText(L10n.reveal_title(ctx())).assertIsDisplayed()
+        compose.onNodeWithText(L10n.reveal_based_on(ctx(), address = ALICE_ACCOUNT.email)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(L10n.a11y_wizard_step(ctx(), step = "1", total = "6")).assertIsDisplayed()
+        next()
+        compose.onNodeWithText(L10n.reveal_step_letter(ctx())).assertIsDisplayed()
         compose.onNodeWithText("Hi Anna,").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Usually about 80 words").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithContentDescription(L10n.reveal_save(ctx())).performClick()
+        compose.onNodeWithContentDescription("Usually about 80 words").performScrollTo().assertIsDisplayed()
+        next()
+        compose.onNodeWithText(L10n.reveal_step_habits(ctx())).assertIsDisplayed()
+        // The greeting and the sign-off, each worded by its own share.
+        compose.onAllNodesWithText(L10n.reveal_frequency_mostly(ctx())).assertCountEquals(2)
+        repeat(3) { next() }
+        compose.onNodeWithText(L10n.reveal_step_name(ctx())).assertIsDisplayed()
+        compose.onAllNodesWithText(L10n.wizard_next(ctx())).assertCountEquals(0)
+        compose.onNodeWithText(L10n.reveal_save(ctx())).performClick()
 
         assertEquals(listOf(Triple(PLAIN_STYLE.id, PLAIN_STYLE.name, PLAIN_DETAIL.notes)), core.saved)
+    }
+
+    /** Back steps back a page, and is not offered on the first. */
+    @Test
+    fun back_steps_back_through_the_reveal() {
+        show(writingStyleSnapshot(styles = listOf(PLAIN_STYLE)))
+        compose.onNodeWithText("Learned from 12 messages", substring = true).performClick()
+        compose.onAllNodesWithText(L10n.wizard_back(ctx())).assertCountEquals(0)
+        next()
+        compose.onNodeWithText(L10n.wizard_back(ctx())).assertIsEnabled().performClick()
+        compose.onNodeWithText(L10n.reveal_title(ctx())).assertIsDisplayed()
     }
 
     @Test
     fun forgetting_a_style_asks_first() {
         show(writingStyleSnapshot(styles = listOf(PLAIN_STYLE)))
         compose.onNodeWithText("Learned from 12 messages", substring = true).performClick()
+        repeat(5) { next() }
         compose.onNodeWithText(L10n.writing_style_forget(ctx())).performScrollTo().performClick()
         assertTrue("nothing forgotten before the answer", core.forgotten.isEmpty())
 
@@ -130,15 +162,31 @@ class WritingStyleSettingsTest {
         compose.onNodeWithText(L10n.writing_style_learn(ctx())).performClick()
 
         compose.onNodeWithText(L10n.learn_range_title(ctx())).assertIsDisplayed()
+        compose.onNodeWithText(L10n.learn_range_all(ctx())).assertIsDisplayed()
+        next()
         compose.onNodeWithText("Long enough to learn from: 30").assertIsDisplayed()
         compose.onNodeWithText(L10n.learn_consent_own(ctx(), host = "127.0.0.1")).performScrollTo()
             .assertIsDisplayed()
         assertTrue("reading sent nothing", core.learns.isEmpty())
 
-        compose.onNodeWithText(L10n.learn_consent_confirm(ctx())).performScrollTo().performClick()
+        compose.onNodeWithText(L10n.learn_consent_confirm(ctx())).performClick()
         assertEquals(L10n.writing_style_default_name(ctx()), core.learns.single().name)
         assertEquals("en", core.learns.single().uiLanguage)
         compose.onNodeWithText(L10n.reveal_title(ctx())).assertIsDisplayed()
+    }
+
+    /** With a choice of account, the sheet asks first, and Next waits for the answer. */
+    @Test
+    fun several_accounts_are_asked_about_on_a_page_of_their_own() {
+        show(writingStyleSnapshot(accounts = listOf(ALICE_ACCOUNT, BOB_ACCOUNT)))
+        compose.onNodeWithText(L10n.writing_style_learn(ctx())).performClick()
+        compose.onNodeWithText(L10n.learn_account_title(ctx())).assertIsDisplayed()
+        compose.onNodeWithText(L10n.wizard_next(ctx())).assertIsNotEnabled()
+        // The sheet's row, not the account's style picker behind the sheet.
+        compose.onNode(hasText(BOB_ACCOUNT.email) and hasClickAction()).performClick()
+        next()
+        compose.onNodeWithText(L10n.learn_range_title(ctx())).assertIsDisplayed()
+        assertEquals(BOB_ACCOUNT.accountId, core.reports.single().account)
     }
 
     @Test
@@ -146,11 +194,13 @@ class WritingStyleSettingsTest {
         core.learnAnswer = { throw uniffi.mailcal_bindings.WritingStyleFailure.OutOfCredits() }
         show(writingStyleSnapshot(route = AiRoute.RELAY))
         compose.onNodeWithText(L10n.writing_style_learn(ctx())).performClick()
+        next()
         compose.onNodeWithText(L10n.learn_consent_relay(ctx())).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(L10n.learn_consent_confirm(ctx())).performScrollTo().performClick()
+        compose.onNodeWithText(L10n.learn_consent_confirm(ctx())).performClick()
 
         compose.onNodeWithText(L10n.learn_failed_title(ctx())).assertIsDisplayed()
         compose.onNodeWithText(L10n.ai_error_out_of_credits(ctx())).assertIsDisplayed()
+        compose.onAllNodesWithText(L10n.wizard_back(ctx())).assertCountEquals(0)
     }
 
     @Test
@@ -158,6 +208,7 @@ class WritingStyleSettingsTest {
         core.reportAnswer = { corpusReport(usable = 0u) }
         show(writingStyleSnapshot())
         compose.onNodeWithText(L10n.writing_style_learn(ctx())).performClick()
+        next()
         compose.onNodeWithText(L10n.learn_report_nothing(ctx())).performScrollTo().assertIsDisplayed()
         compose.onAllNodesWithText(L10n.learn_consent_confirm(ctx())).assertCountEquals(0)
     }

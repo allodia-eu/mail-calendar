@@ -6,6 +6,7 @@ package eu.allodia.mailcal
 import java.time.LocalDate
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,9 +57,22 @@ class WritingStyleLearnFlowTest {
     fun nothing_usable_offers_nothing_to_consent_to() {
         core.reportAnswer = { corpusReport(usable = 0u) }
         val flow = flow()
+        assertFalse(flow.canLearn)
         flow.consent("My style", "en")
         assertTrue("nothing was sent", core.learns.isEmpty())
         assertTrue(flow.step is LearnStep.Consent)
+    }
+
+    /** Learn is offered only once the report is in and says enough; not while it is being read. */
+    @Test
+    fun learn_is_offered_only_over_a_report_with_something_to_learn_from() {
+        val held = HeldBackground()
+        val flow = flow(background = held)
+        assertFalse("still reading", flow.canLearn)
+        held.release()
+        assertTrue(flow.canLearn)
+        flow.consent("My style", "en")
+        assertFalse("already learning", flow.canLearn)
     }
 
     /** Pressing Learn on the sheet is the consent, and the only thing that sends anything. */

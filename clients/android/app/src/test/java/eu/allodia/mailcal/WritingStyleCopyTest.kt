@@ -213,22 +213,4 @@ class WritingStyleCopyTest {
     fun a_language_the_catalog_does_not_ship_asks_for_the_base_one() {
         assertEquals("en", catalogLocale(ctx()))
     }
-
-    @Test
-    fun the_reveal_skips_what_the_model_said_nothing_about() {
-        val fields = revealFields(ctx(), PLAIN_DETAIL.languages.single(), Locale.UK)
-        assertEquals(
-            listOf(
-                L10n.reveal_greetings(ctx()),
-                L10n.reveal_sign_offs(ctx()),
-                L10n.reveal_signs_as(ctx()),
-                null,
-                L10n.reveal_shape(ctx()),
-                L10n.reveal_phrases(ctx()),
-            ),
-            fields.map { it.heading },
-        )
-        assertEquals(RevealLine("Hi Anna,", "70%"), fields[0].lines.single())
-        assertEquals("Usually about 80 words", fields[3].lines.single().text)
-    }
 }

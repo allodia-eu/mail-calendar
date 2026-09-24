@@ -150,7 +150,13 @@ internal fun WritingStyleCategory(state: WritingStyleSettings, activeZoneId: Str
         )
     }
     revealing?.let { id ->
-        WritingStyleRevealDialog(id = id, actions = state.actions, onClose = { revealing = null })
+        WritingStyleRevealDialog(
+            id = id,
+            actions = state.actions,
+            accounts = snapshot.accounts,
+            zone = zone,
+            onClose = { revealing = null },
+        )
     }
 }
 

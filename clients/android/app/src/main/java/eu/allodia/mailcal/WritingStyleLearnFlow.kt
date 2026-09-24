@@ -74,6 +74,15 @@ internal sealed interface LearnStep {
     data class Failed(val failure: WritingStyleFailure) : LearnStep
 }
 
+// A page of the learning sheet.
+internal enum class LearnPage { ACCOUNT, RANGE, CONSENT, PROGRESS }
+
+// The sheet's pages: the account only when there is a choice, and the run last, reached only by
+// the consent.
+internal fun learnPages(accounts: List<AccountWritingStyleRow>): List<LearnPage> =
+    listOfNotNull(LearnPage.ACCOUNT.takeIf { accounts.size > 1 }) +
+        listOf(LearnPage.RANGE, LearnPage.CONSENT, LearnPage.PROGRESS)
+
 internal class LearnFlow(
     private val accounts: List<AccountWritingStyleRow>,
     private val core: LearnCore,
@@ -98,11 +107,14 @@ internal class LearnFlow(
         read(current.account, range)
     }
 
+    // Whether there is anything to learn from, which is what puts the Learn button on screen.
+    val canLearn: Boolean
+        get() = (((step as? LearnStep.Consent)?.corpus as? CorpusState.Ready)?.report?.usable ?: 0u) > 0u
+
     // Pressing Learn on the consent sheet is the consent; there is no other prompt.
     fun consent(name: String, uiLanguage: String) {
         val current = step as? LearnStep.Consent ?: return
-        val corpus = current.corpus as? CorpusState.Ready ?: return
-        if (corpus.report.usable == 0u) return
+        if (!canLearn) return
         val mine = ++ticket
         val (since, until) = bounds(current.range)
         step = LearnStep.Learning(current.account)
