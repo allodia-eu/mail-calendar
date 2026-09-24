@@ -145,6 +145,9 @@ public struct TrainingWindow: View {
 
     private var runControls: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Toggle("Draft up to \(TrainingBench.parallelLimit) at once", isOn: $bench.parallel)
+                .disabled(bench.running)
+                .help("Turn off for an endpoint on this computer, which answers one request at a time.")
             HStack {
                 if bench.running {
                     Button("Stop") { bench.stop() }
@@ -209,6 +212,9 @@ public struct TrainingWindow: View {
 
     private func progress(total: Int) -> String {
         guard bench.running else { return "\(bench.results.count) of \(total) drafted" }
+        if bench.parallel {
+            return "\(bench.results.count) of \(total) drafted, \(bench.inFlight) waiting on an answer"
+        }
         return "Message \(bench.messageNumber) of \(bench.messageCount), draft \(bench.draftNumber) "
             + "of \(bench.draftsPerMessage): \(bench.current)"
     }

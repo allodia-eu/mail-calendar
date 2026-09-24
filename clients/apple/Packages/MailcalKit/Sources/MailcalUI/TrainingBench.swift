@@ -49,6 +49,14 @@ enum TrainingSource: String, CaseIterable, Identifiable {
     }
 }
 
+/// One draft a parallel run owes: which message, with which model and instructions.
+private struct TrainingJob: Sendable {
+    let index: Int
+    let message: TrainingMessage
+    let model: String
+    let variant: TrainingVariant?
+}
+
 /// One message of a run and what was drafted for it, in order.
 struct TrainingGroup: Identifiable {
     /// Its place in the run.
@@ -67,6 +75,10 @@ final class TrainingBench {
     private static let defaultKey = "mailcal.debug.training.includeDefault"
     private static let sourceKey = "mailcal.debug.training.source"
     private static let answeredCountKey = "mailcal.debug.training.answeredCount"
+    private static let parallelKey = "mailcal.debug.training.parallel"
+    /// How many drafts a parallel run keeps in flight: quick on a router that spreads them over
+    /// its providers, and few enough not to run into a provider's rate limit.
+    static let parallelLimit = 6
 
     /// One model name per line, as typed.
     var modelsText: String {
@@ -90,6 +102,11 @@ final class TrainingBench {
     var answeredCount: Int {
         didSet { UserDefaults.standard.set(answeredCount, forKey: Self.answeredCountKey) }
     }
+    /// Whether a run drafts several at once. Off for an endpoint on this machine, which usually
+    /// answers one request at a time.
+    var parallel: Bool {
+        didSet { UserDefaults.standard.set(parallel, forKey: Self.parallelKey) }
+    }
 
     /// The answered Inbox messages, as last looked up.
     private(set) var answered: [TrainingMessage] = []
@@ -107,6 +124,8 @@ final class TrainingBench {
     private(set) var draftsPerMessage = 0
     /// What the run is drafting now, as "model · variant".
     private(set) var current = ""
+    /// How many drafts a parallel run has waiting on an answer.
+    private(set) var inFlight = 0
     private var stopping = false
     var exportFailed = false
 
@@ -118,6 +137,7 @@ final class TrainingBench {
         includeDefault = defaults.object(forKey: Self.defaultKey) as? Bool ?? true
         source = defaults.string(forKey: Self.sourceKey).flatMap(TrainingSource.init) ?? .selection
         answeredCount = defaults.object(forKey: Self.answeredCountKey) as? Int ?? 5
+        parallel = defaults.object(forKey: Self.parallelKey) as? Bool ?? true
     }
 
     var models: [String] {
@@ -157,7 +177,8 @@ final class TrainingBench {
         lookingUp = false
     }
 
-    /// Drafts every message with every model under every variant, one after the other.
+    /// Drafts every message with every model under every variant: one after the other, or up to
+    /// `parallelLimit` at once, each result joining its message as it arrives.
     func run(_ messages: [TrainingMessage], app: MailcalApp) async {
         let plan = models.flatMap { model in runVariants.map { (model, $0) } }
         guard !running, !plan.isEmpty, !messages.isEmpty else { return }
@@ -168,6 +189,12 @@ final class TrainingBench {
         messageCount = messages.count
         draftsPerMessage = plan.count
         let language = L10n.appLocale.identifier
+        if parallel {
+            await runInParallel(messages, plan: plan, app: app, language: language)
+            current = ""
+            running = false
+            return
+        }
         drafting: for (index, message) in messages.enumerated() {
             messageNumber = index + 1
             for (step, (model, variant)) in plan.enumerated() {
@@ -190,6 +217,52 @@ final class TrainingBench {
     }
 
     func stop() { stopping = true }
+
+    /// Keeps up to `parallelLimit` drafts in flight; a stop launches no more and lets those in
+    /// flight arrive, since they are already paid for.
+    private func runInParallel(
+        _ messages: [TrainingMessage], plan: [(String, TrainingVariant?)], app: MailcalApp,
+        language: String
+    ) async {
+        let jobs = messages.indices.flatMap { index in
+            plan.map { TrainingJob(index: index, message: messages[index], model: $0.0, variant: $0.1) }
+        }
+        var next = 0
+        await withTaskGroup(of: (Int, TrainingResult).self) { group in
+            next = launch(jobs, from: next, app: app, language: language, into: &group)
+            for await (index, result) in group {
+                inFlight -= 1
+                groups[index].results.append(result)
+                groups[index].ratings.append(DraftFeedback())
+                summary = app.trainingSummary(results: results)
+                next = launch(jobs, from: next, app: app, language: language, into: &group)
+            }
+        }
+    }
+
+    /// Starts jobs from `start` until `parallelLimit` are in flight or a stop is asked for, and
+    /// says where it stopped.
+    private func launch(
+        _ jobs: [TrainingJob], from start: Int, app: MailcalApp, language: String,
+        into group: inout TaskGroup<(Int, TrainingResult)>
+    ) -> Int {
+        var next = start
+        while next < jobs.count, inFlight < Self.parallelLimit, !stopping {
+            let job = jobs[next]
+            next += 1
+            inFlight += 1
+            group.addTask {
+                let result = await Task.detached(priority: .userInitiated) {
+                    app.trainingDraft(
+                        accountId: job.message.accountId, key: job.message.key, model: job.model,
+                        variant: job.variant, uiLanguage: language
+                    )
+                }.value
+                return (job.index, result)
+            }
+        }
+        return next
+    }
 
     /// Keeps the developer's rating of result `index` of message `group`.
     func rate(_ group: Int, _ index: Int, _ rating: DraftRating) -> Bool {

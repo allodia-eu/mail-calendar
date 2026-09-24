@@ -199,6 +199,10 @@ summary (`mailcal-ai`'s `ComparisonExport`, `summarise`), the FFI methods and re
   back, and the tokens read and written.
 - Export saves the whole run as one JSON document through a save panel: every message answered,
   its body as the prompt carried it, with every result and rating, and the same summary.
+- **Drafts run up to six at once by default**, each joining its message as it arrives, because a
+  router spreads them over its providers and six stays clear of their rate limits. A toggle runs
+  them one after the other, for an endpoint on the developer's own computer that answers one
+  request at a time. A stop starts no more and lets those already asked for arrive.
 - **The gate applies.** Each model is asked through a `GatedBackend` over the own endpoint with only
   the model replaced, so the gate and the endpoint's declaration apply to every request. The relay
   is not offered, because its gateway picks the model. Nothing is issued to a composer, so a
