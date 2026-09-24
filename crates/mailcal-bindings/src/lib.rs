@@ -104,6 +104,7 @@ mod showcase;
 mod showcase_bodies;
 mod showcase_contacts;
 mod showcase_data;
+mod store_files;
 mod timezone;
 mod token_sink;
 
@@ -206,6 +207,7 @@ pub use showcase_data::{
     ShowcaseInvitation, ShowcaseLocale, ShowcaseReply, showcase_invitation,
     showcase_locale_for_language, showcase_now, showcase_reply,
 };
+pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;
 pub use timezone::{available_time_zones, device_time_zone};
