@@ -6,10 +6,11 @@ Set it up in a debug build under Settings → Advanced → Own AI endpoint as
 style from the harness account's Sent Items and draft a reply. Every answer is fixed, so a UI test
 can assert on it:
 
-- a request that forces the `emit_json` tool (learning) gets one description, whichever language
-  or part it asked about, with the messages numbered 1 to 3 as the passages;
-- any other request (a draft) gets a reply with one `[date]` gap, in Dutch when the instructions
-  ask for Dutch and in English otherwise.
+- a request whose `emit_json` tool asks for a `reply` (a draft) gets a reply with one `[date]` gap,
+  in Dutch when the instructions ask for the reply in Dutch and in English otherwise, with a
+  summary and two tasks, one to attach and one to do, in Dutch when the app is shown in Dutch;
+- any other request that forces the tool (learning) gets one description, whichever language or
+  part it asked about, with the messages numbered 1 to 3 as the passages.
 
 An Android emulator reaches it after `adb reverse tcp:28434 tcp:28434`, because the app accepts
 plain HTTP only to this device. It listens on loopback only and prints one line per request,
@@ -56,32 +57,55 @@ DRAFTS = {
     "Ik zet het in de agenda zodra je het bevestigt.\n\nGroetjes,\nAlice",
 }
 
+SUMMARIES = {
+    "en": "The sender asks whether a meeting suits you, and on which date.",
+    "nl": "De afzender vraagt of een afspraak je uitkomt, en op welke datum.",
+}
+
+TASKS = {
+    "en": [
+        {"kind": "attach", "text": "Attach the agenda for the meeting"},
+        {"kind": "do", "text": "Put the meeting in the calendar once it is confirmed"},
+    ],
+    "nl": [
+        {"kind": "attach", "text": "Voeg de agenda voor de afspraak toe"},
+        {"kind": "do", "text": "Zet de afspraak in de agenda zodra die bevestigd is"},
+    ],
+}
+
 USAGE = {"prompt_tokens": 1000, "completion_tokens": 100, "total_tokens": 1100}
 
 
 def answer(request):
     """The canned chat completion for one request body."""
-    if request.get("tools"):
-        message = {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {
-                    "id": "call_1",
-                    "type": "function",
-                    "function": {"name": "emit_json", "arguments": json.dumps(STYLE)},
-                }
-            ],
-        }
-        purpose = "style"
-    else:
+    tool = (request.get("tools") or [{}])[0].get("function", {})
+    if "reply" in tool.get("parameters", {}).get("properties", {}):
         system = next(
             (m.get("content") or "" for m in request.get("messages", []) if m.get("role") == "system"),
             "",
         )
-        language = "nl" if "Write in Dutch" in system else "en"
-        message = {"role": "assistant", "content": DRAFTS[language]}
-        purpose = f"draft ({language})"
+        language = "nl" if "Write the reply in Dutch" in system else "en"
+        interface = "nl" if "in one or two sentences, in Dutch" in system else "en"
+        arguments = {
+            "summary": SUMMARIES[interface],
+            "reply": DRAFTS[language],
+            "tasks": TASKS[interface],
+        }
+        purpose = f"draft ({language}, list in {interface})"
+    else:
+        arguments = STYLE
+        purpose = "style"
+    message = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "emit_json", "arguments": json.dumps(arguments)},
+            }
+        ],
+    }
     completion = {
         "id": "mock",
         "object": "chat.completion",
