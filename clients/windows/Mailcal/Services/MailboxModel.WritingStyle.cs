@@ -6,6 +6,7 @@
 // Like the signature library, nothing is cached: the snapshot is small and local, and an assignment
 // or the route can change under an open screen.
 
+using System.Globalization;
 using System.Threading.Tasks;
 using uniffi.mailcal_bindings;
 
@@ -86,7 +87,14 @@ public sealed partial class MailboxModel
         string account, string key, string? from, string? intent) =>
         OffUiThread(
             "no reply was drafted",
-            () => _app!.DraftReply(account, key, from, null, intent, null));
+            () => _app!.DraftReply(account, key, from, null, intent, null, CatalogLocale()));
+
+    // The catalog locale the app is shown in, which the draft's summary and checklist are
+    // written in.
+    private static string CatalogLocale() =>
+        WritingStyleFormat.CatalogLocale(
+            ShowcaseMode.LanguageOverride ?? LanguageStore.Read(),
+            CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
 
     /// <summary>
     /// Asks Allodia's relay for the credits left. A failure changes nothing: the line keeps the

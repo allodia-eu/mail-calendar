@@ -1001,5 +1001,16 @@
 	"wizard_back": "Indietro",
 	"wizard_next": "Avanti",
 	"a11y_wizard_step": "Passo {step} di {total}",
-	"a11y_reveal_language": "Lingua"
+	"a11y_reveal_language": "Lingua",
+
+	"composer_draft_summary_heading": "In breve",
+	"composer_checklist_heading": "Prima di inviare",
+	"composer_task_fill_in": "Compila {placeholder}",
+	"a11y_task_attach": "Da allegare",
+	"a11y_task_do": "Da fare",
+	"composer_send_open_title": "Inviare con punti aperti?",
+	"composer_send_open_message": "{count} punti dell’elenco sono ancora aperti.",
+	"composer_send_open_message_one": "{count} punto dell’elenco è ancora aperto.",
+	"composer_send_anyway": "Invia comunque",
+	"composer_keep_editing": "Continua a modificare"
 }

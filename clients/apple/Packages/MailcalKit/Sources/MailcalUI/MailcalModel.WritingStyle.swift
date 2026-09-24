@@ -78,9 +78,12 @@ extension MailboxModel {
         _ account: String, _ key: String, from: String?, intent: String?
     ) async -> Result<DraftReply, WritingStyleFailure> {
         guard let app else { return .failure(.Unavailable) }
+        // The summary and the checklist are written in the language the app is shown in.
+        let uiLanguage = L10n.appLocale.identifier
         return await blocking {
             try app.draftReply(
-                accountId: account, key: key, from: from, style: nil, intent: intent, language: nil
+                accountId: account, key: key, from: from, style: nil, intent: intent, language: nil,
+                uiLanguage: uiLanguage
             )
         }
     }

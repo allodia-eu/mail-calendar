@@ -1,7 +1,7 @@
 use super::{DraftRequest, ThreadMessage, draft_reply, gaps};
 use crate::{
-    AiError, Exemplars, LanguageStyle, StyleGuide,
-    test_support::{gated, text_answer},
+    AiError, DraftTask, Exemplars, LanguageStyle, StyleGuide, TaskKind,
+    test_support::{gated, text_answer, tool_answer},
     wire::Purpose,
 };
 
@@ -69,6 +69,7 @@ fn a_reply_is_drafted_in_the_language_it_answers_with_that_language_s_style() {
             intent: Some("ja, maar pas volgende week"),
             language: None,
             signature: Some("Sanne de Vries\nAllodia"),
+            ui_language: "en",
         },
         &backend,
     )
@@ -81,9 +82,12 @@ fn a_reply_is_drafted_in_the_language_it_answers_with_that_language_s_style() {
     let seen = seen.lock().unwrap();
     let request = &seen[0];
     assert_eq!(request.purpose, Purpose::Draft);
-    assert!(request.tools.is_empty());
+    // A plain answer from a server that ignores the tool is still a draft, with no summary.
+    assert_eq!(request.tools[0].function.name, "emit_json");
+    assert!(draft.summary.is_empty());
     let system = &request.messages[0].content;
-    assert!(system.contains("Write in Dutch"));
+    assert!(system.contains("Write the reply in Dutch"));
+    assert!(system.contains("in British English"));
     assert!(system.contains("Sanne"));
     assert!(system.contains("Sanne de Vries\nAllodia"));
     assert!(system.contains("square brackets"));
@@ -114,6 +118,7 @@ fn a_chosen_language_wins_and_a_missing_section_falls_back_to_the_main_one() {
             intent: None,
             language: Some("fr"),
             signature: None,
+            ui_language: "en",
         },
         &backend,
     )
@@ -121,7 +126,11 @@ fn a_chosen_language_wins_and_a_missing_section_falls_back_to_the_main_one() {
 
     assert_eq!(draft.language, "fr");
     let seen = seen.lock().unwrap();
-    assert!(seen[0].messages[0].content.contains("Write in French"));
+    assert!(
+        seen[0].messages[0]
+            .content
+            .contains("Write the reply in French")
+    );
     // No French section: the guide's first language stands in for it.
     assert!(seen[0].messages[1].content.contains("register-en"));
     assert!(seen[0].messages[1].content.contains("gave no instructions"));
@@ -142,6 +151,7 @@ fn a_thread_cannot_close_its_own_fence() {
             intent: None,
             language: Some("en"),
             signature: None,
+            ui_language: "en",
         },
         &backend,
     )
@@ -165,6 +175,7 @@ fn a_code_fence_around_the_answer_is_taken_off() {
             intent: None,
             language: Some("en"),
             signature: None,
+            ui_language: "en",
         },
         &backend,
     )
@@ -186,6 +197,7 @@ fn an_empty_thread_or_an_empty_answer_is_malformed() {
                 intent: None,
                 language: Some("en"),
                 signature: None,
+                ui_language: "en",
             },
             &backend,
         )
@@ -221,9 +233,53 @@ fn a_draft_prints_no_text() {
             intent: Some("secret intent"),
             language: Some("en"),
             signature: None,
+            ui_language: "en",
         },
         &backend,
     )
     .unwrap();
     assert!(!format!("{draft:?} {:?}", thread[1]).contains("secret"));
+}
+
+#[test]
+fn a_draft_comes_with_what_the_message_asks_and_what_is_left_to_do() {
+    let (backend, _) = gated(vec![Ok(tool_answer(&serde_json::json!({
+        "summary": "Anna asks to move Friday's meeting to next week.",
+        "reply": "Hoi Anna,\n\nPrima, zullen we [dag] doen? Ik stuur je de agenda.\n\nGroet,\nSanne",
+        "tasks": [
+            { "kind": "attach", "text": "Attach the agenda" },
+            { "kind": "do", "text": "Move the meeting in the shared calendar" },
+        ],
+    })))]);
+    let thread = thread(DUTCH_QUESTION);
+    let (guide, exemplars) = (guide(), exemplars());
+
+    let draft = draft_reply(
+        &DraftRequest {
+            thread: &thread,
+            guide: &guide,
+            exemplars: &exemplars,
+            recipient_messages: &[],
+            intent: None,
+            language: None,
+            signature: None,
+            ui_language: "en",
+        },
+        &backend,
+    )
+    .unwrap();
+
+    assert_eq!(
+        draft.summary,
+        "Anna asks to move Friday's meeting to next week."
+    );
+    assert!(draft.text.starts_with("Hoi Anna,"));
+    assert_eq!(
+        draft.tasks,
+        [
+            DraftTask::new(TaskKind::FillIn, "[dag]"),
+            DraftTask::new(TaskKind::Attach, "Attach the agenda"),
+            DraftTask::new(TaskKind::Do, "Move the meeting in the shared calendar"),
+        ]
+    );
 }

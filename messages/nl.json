@@ -1001,5 +1001,16 @@
 	"wizard_back": "Terug",
 	"wizard_next": "Volgende",
 	"a11y_wizard_step": "Stap {step} van {total}",
-	"a11y_reveal_language": "Taal"
+	"a11y_reveal_language": "Taal",
+
+	"composer_draft_summary_heading": "In het kort",
+	"composer_checklist_heading": "Voordat je verstuurt",
+	"composer_task_fill_in": "Vul {placeholder} in",
+	"a11y_task_attach": "Bijvoegen",
+	"a11y_task_do": "Te doen",
+	"composer_send_open_title": "Versturen met open punten?",
+	"composer_send_open_message": "{count} punten op de lijst staan nog open.",
+	"composer_send_open_message_one": "{count} punt op de lijst staat nog open.",
+	"composer_send_anyway": "Toch versturen",
+	"composer_keep_editing": "Verder bewerken"
 }

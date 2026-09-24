@@ -256,9 +256,11 @@ impl DraftReplyControl {
         let (account, key) = (self.account.clone(), self.key.clone());
         let from = changed_sender(self.selected().as_deref(), self.opened_from.as_deref());
         let intent = intent_of(&self.intent.text());
+        // The summary and the checklist are written in the language the app is shown in.
+        let language = l10n::active_locale().to_owned();
         let weak = Rc::downgrade(self);
         off_main_thread(
-            move || app.draft_reply(account, key, from, None, intent, None),
+            move || app.draft_reply(account, key, from, None, intent, None, language),
             move |drafted| {
                 if let Some(control) = weak.upgrade() {
                     control.drafted(drafted);

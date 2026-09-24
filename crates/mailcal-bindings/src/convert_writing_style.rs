@@ -15,9 +15,9 @@ use mailcal_viewmodel::{
 
 use crate::records_writing_style::{
     AccountWritingStyleRow, AiCharge, AiRoute, CorpusLanguage, CorpusReport, CreditBalance,
-    DraftReply, GateRefusal, HabitFrequency, HabitRow, LanguageStyleRow, LearnReport,
-    LearningProgress, LearningStage, WritingStyleDetail, WritingStyleFailure, WritingStyleRow,
-    WritingStyleSnapshot,
+    DraftReply, DraftTask, DraftTaskKind, GateRefusal, HabitFrequency, HabitRow, LanguageStyleRow,
+    LearnReport, LearningProgress, LearningStage, WritingStyleDetail, WritingStyleFailure,
+    WritingStyleRow, WritingStyleSnapshot,
 };
 
 impl From<WritingStyleError> for WritingStyleFailure {
@@ -71,6 +71,19 @@ impl From<AppDraftReply> for DraftReply {
             draft_id: draft.draft_id,
             text: draft.text,
             gaps: draft.gaps,
+            summary: draft.summary,
+            tasks: draft
+                .tasks
+                .into_iter()
+                .map(|task| DraftTask {
+                    kind: match task.kind {
+                        mailcal_ai::TaskKind::FillIn => DraftTaskKind::FillIn,
+                        mailcal_ai::TaskKind::Attach => DraftTaskKind::Attach,
+                        mailcal_ai::TaskKind::Do => DraftTaskKind::Do,
+                    },
+                    text: task.text,
+                })
+                .collect(),
             language: draft.language,
             charge: charge(draft.metering),
         }

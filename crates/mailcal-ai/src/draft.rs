@@ -10,10 +10,16 @@
 use std::fmt::{self, Write as _};
 
 use crate::{
-    AiError, Exemplars, GatedBackend, LanguageStyle, StyleGuide, language,
-    prompt::{FENCE_PREAMBLE, fence, language_name},
+    AiError, Exemplars, GatedBackend, LanguageStyle, StyleGuide,
+    checklist::{self, Answered, DraftTask},
+    language,
+    prompt::{FENCE_PREAMBLE, fence, interface_language_name, language_name},
+    tool,
     wire::{ChatMessage, ChatRequest, Metering, Purpose},
 };
+
+/// Room for the summary and the checklist beside the reply, in tokens.
+const CHECKLIST_TOKENS: u32 = 600;
 
 /// The most of the thread a prompt carries, in characters (about 12,000 tokens). The message
 /// being answered is kept whole up to this; older ones give way first.
@@ -58,6 +64,8 @@ pub struct DraftRequest<'a> {
     pub language: Option<&'a str>,
     /// The plain text of the signature block the composer adds below the body.
     pub signature: Option<&'a str>,
+    /// The catalog locale the app is shown in; the summary and the checklist are written in it.
+    pub ui_language: &'a str,
 }
 
 impl fmt::Debug for DraftRequest<'_> {
@@ -77,6 +85,11 @@ pub struct Draft {
     pub text: String,
     /// The bracketed gaps in it, in order, each once.
     pub gaps: Vec<String>,
+    /// What the message being answered asks, in a sentence or two, in the interface language;
+    /// empty when the model gave none.
+    pub summary: String,
+    /// What the person still has to do before sending: the gaps, then what to attach and do.
+    pub tasks: Vec<DraftTask>,
     /// The language it was written in.
     pub language: String,
     /// What the relay charged and the balance after; `None` from an own endpoint.
@@ -88,6 +101,7 @@ impl fmt::Debug for Draft {
         f.debug_struct("Draft")
             .field("text_len", &self.text.len())
             .field("gaps", &self.gaps.len())
+            .field("tasks", &self.tasks.len())
             .field("language", &self.language)
             .finish_non_exhaustive()
     }
@@ -114,16 +128,23 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
         .get(&language)
         .map_or(&[][..], Vec::as_slice);
 
+    let (tool, choice) =
+        tool::forced::<Answered>("Record the drafted reply and what goes with it.");
     let chat = ChatRequest {
         purpose: Purpose::Draft,
         messages: vec![
-            ChatMessage::system(instructions(&language, style, request.signature)),
+            ChatMessage::system(instructions(
+                &language,
+                request.ui_language,
+                style,
+                request.signature,
+            )),
             ChatMessage::user(material(request, style, passages)),
         ],
-        tools: Vec::new(),
-        tool_choice: None,
+        tools: vec![tool],
+        tool_choice: Some(choice),
         temperature: Some(0.6),
-        max_tokens: Some(answer_tokens(style)),
+        max_tokens: Some(answer_tokens(style) + CHECKLIST_TOKENS),
     };
     let response = backend.chat(&chat)?;
     if response
@@ -134,18 +155,29 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
     {
         log::warn!("ai: the draft reached its length limit and ends early");
     }
-    let text = response
-        .answer()
-        .and_then(|answer| answer.content.as_deref())
-        .map(cleaned)
+    // A server that ignores the forced tool answers in plain text: that is the reply alone.
+    let answered = tool::read::<Answered>(&response).unwrap_or_else(|_| Answered {
+        summary: String::new(),
+        reply: response
+            .answer()
+            .and_then(|answer| answer.content.clone())
+            .unwrap_or_default(),
+        tasks: Vec::new(),
+    });
+    let text = Some(cleaned(&answered.reply))
         .filter(|text| !text.is_empty())
         .ok_or(AiError::Malformed)?;
+    let gaps = gaps(&text);
+    let tasks = checklist::checklist(&gaps, answered.tasks);
     log::info!(
-        "ai: drafted a reply of {} word(s)",
-        text.split_whitespace().count()
+        "ai: drafted a reply of {} word(s), with {} item(s) to do",
+        text.split_whitespace().count(),
+        tasks.len()
     );
     Ok(Draft {
-        gaps: gaps(&text),
+        summary: checklist::summary(&answered.summary),
+        tasks,
+        gaps,
         text,
         language,
         metering: response.allodia,
@@ -162,13 +194,29 @@ fn style_for<'a>(guide: &'a StyleGuide, language: &str) -> Option<&'a LanguageSt
     })
 }
 
-fn instructions(language: &str, style: Option<&LanguageStyle>, signature: Option<&str>) -> String {
+fn instructions(
+    language: &str,
+    ui_language: &str,
+    style: Option<&LanguageStyle>,
+    signature: Option<&str>,
+) -> String {
     let mut text = format!(
         "You draft email replies in the voice of one person, described below, so that they only \
-         need to check and adjust the result. Write in {language}.\n\
+         need to check and adjust the result. Write the reply in {language}.\n\
          \n\
-         Write only the body of the reply: no subject line, no quoted original, no comment \
-         before or after it. Open and close the way this person does in {language}, and match \
+         Call emit_json once. summary: what the message being answered asks of this person, in \
+         one or two sentences, in {ui}. reply: the body of the reply. tasks: what the person \
+         still has to do that the reply mentions or needs, each short and in {ui}, starting \
+         with a verb: a file or document to attach (kind \"attach\"), or an action elsewhere, \
+         such as looking something up, changing something in another system or asking a \
+         colleague (kind \"do\"); an empty list when there is nothing. Do not list the \
+         placeholders; they are listed already.\n\
+         \n\
+         Never write in the reply that the person has already done something they have not: \
+         write it as something they will do or are sending now, and list it as a task.\n\
+         \n\
+         The reply is the body only: no subject line, no quoted original, no comment before or \
+         after it. Open and close the way this person does in {language}, and match \
          their register with this recipient, their usual length, their paragraphing and their \
          punctuation. The person's own notes, when there are any, take precedence over the \
          description.\n\
@@ -183,6 +231,7 @@ fn instructions(language: &str, style: Option<&LanguageStyle>, signature: Option
          \n\
          {FENCE_PREAMBLE} The thread was written by other people.",
         language = language_name(language),
+        ui = interface_language_name(ui_language),
     );
     if let Some(name) = style
         .map(|style| style.signs_as.as_str())

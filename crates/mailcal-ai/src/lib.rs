@@ -15,6 +15,7 @@
 
 mod backend;
 mod catalog;
+mod checklist;
 pub mod corpus;
 mod draft;
 mod endpoint;
@@ -34,6 +35,7 @@ pub mod wire;
 mod test_support;
 
 pub use backend::{AiBackend, AiError};
+pub use checklist::{DraftTask, TaskKind};
 pub use draft::{Draft, DraftRequest, ThreadMessage, draft_reply};
 pub use endpoint::{EndpointError, OwnEndpoint};
 pub use gated::{GatedBackend, ModeSource};

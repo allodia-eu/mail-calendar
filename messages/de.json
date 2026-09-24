@@ -1001,5 +1001,16 @@
 	"wizard_back": "Zurück",
 	"wizard_next": "Weiter",
 	"a11y_wizard_step": "Schritt {step} von {total}",
-	"a11y_reveal_language": "Sprache"
+	"a11y_reveal_language": "Sprache",
+
+	"composer_draft_summary_heading": "Kurz gesagt",
+	"composer_checklist_heading": "Bevor Sie senden",
+	"composer_task_fill_in": "{placeholder} ausfüllen",
+	"a11y_task_attach": "Anhängen",
+	"a11y_task_do": "Zu erledigen",
+	"composer_send_open_title": "Mit offenen Punkten senden?",
+	"composer_send_open_message": "{count} Punkte auf der Liste sind noch offen.",
+	"composer_send_open_message_one": "{count} Punkt auf der Liste ist noch offen.",
+	"composer_send_anyway": "Trotzdem senden",
+	"composer_keep_editing": "Weiter bearbeiten"
 }

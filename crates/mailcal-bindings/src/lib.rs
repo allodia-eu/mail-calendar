@@ -203,9 +203,9 @@ pub use records_recurrence::{
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
 pub use records_writing_style::{
     AccountWritingStyleRow, AiCharge, AiRoute, CorpusLanguage, CorpusReport, CreditBalance,
-    DraftReply, GateRefusal, HabitFrequency, HabitRow, JurisdictionClass, JurisdictionMode,
-    LanguageStyleRow, LearnReport, LearningProgress, LearningStage, WritingStyleDetail,
-    WritingStyleFailure, WritingStyleRow, WritingStyleSnapshot,
+    DraftReply, DraftTask, DraftTaskKind, GateRefusal, HabitFrequency, HabitRow, JurisdictionClass,
+    JurisdictionMode, LanguageStyleRow, LearnReport, LearningProgress, LearningStage,
+    WritingStyleDetail, WritingStyleFailure, WritingStyleRow, WritingStyleSnapshot,
 };
 pub use rendering::{
     MessageCanvas, message_canvas, render_message_html, should_open_external_link,

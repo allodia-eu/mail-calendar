@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use engine_api::{AccountId, EmailAddress, UtcDateTime};
 use mailcal_ai::{
-    AiError, Class, GatedBackend, HttpRequest, HttpResponse, HttpTransport, OwnEndpoint,
+    AiError, Class, GatedBackend, HttpRequest, HttpResponse, HttpTransport, OwnEndpoint, TaskKind,
     TransportFailed,
 };
 use serde_json::{Value, json};
@@ -24,8 +24,8 @@ check whether the hotel in Lyon was booked twice? If so, let us ask for a refund
 of the month.\r\n\r\nBest,\r\nSam\r\n-- \r\nSam Jansen | Finance\r\n\r\n\
 On 1 Jul 2026, Anna <anna@example.eu> wrote:\r\n> The quoted question about the budget.\r\n";
 
-/// An OpenAI-compatible endpoint that records every body and answers a style request with a tool
-/// call and anything else with a draft.
+/// An OpenAI-compatible endpoint that records every body and answers each request through its
+/// forced tool: a draft when the tool's schema asks for a reply, a style otherwise.
 struct FakeEndpoint {
     seen: Arc<Mutex<Vec<Value>>>,
 }
@@ -33,7 +33,18 @@ struct FakeEndpoint {
 impl HttpTransport for FakeEndpoint {
     fn post_json(&self, request: HttpRequest<'_>) -> Result<HttpResponse, TransportFailed> {
         let body: Value = serde_json::from_str(request.body).unwrap();
-        let answer = if body.get("tools").is_some() {
+        let wants_reply = body["tools"][0]["function"]["parameters"]["properties"]
+            .get("reply")
+            .is_some();
+        let answer = if wants_reply {
+            let drafted = json!({
+                "summary": "Anna asks whether Friday suits.",
+                "reply": "Hi Anna,\n\nFine by me on **[date]**.\n\nBest,\nSam",
+                "tasks": [{ "kind": "attach", "text": "Attach the figures" }],
+            });
+            json!({ "choices": [{ "message": { "tool_calls": [{ "function": {
+                "name": "emit_json", "arguments": drafted.to_string() } }] } }] })
+        } else {
             let described = json!({
                 "style": { "greetings": [{ "text": "Hi", "share": 80 }], "typical_words": 60,
                            "register": "Direct, first names." },
@@ -41,8 +52,6 @@ impl HttpTransport for FakeEndpoint {
             });
             json!({ "choices": [{ "message": { "tool_calls": [{ "function": {
                 "name": "emit_json", "arguments": described.to_string() } }] } }] })
-        } else {
-            json!({ "choices": [{ "message": { "content": "Hi Anna,\n\nFine by me on **[date]**.\n\nBest,\nSam" } }] })
         };
         self.seen.lock().unwrap().push(body);
         Ok(HttpResponse {
@@ -202,6 +211,7 @@ async fn a_draft_answers_the_message_in_the_account_s_style() {
             style: None,
             intent: Some("yes, but next week".to_owned()),
             language: None,
+            ui_language: "en".to_owned(),
         })
         .await
         .unwrap();
@@ -216,7 +226,11 @@ async fn a_draft_answers_the_message_in_the_account_s_style() {
     assert!(material.contains("recently wrote to the same recipient"));
     assert!(material.contains("<untrusted-message-content from=Anna anna@example.eu"));
     assert!(material.contains("yes, but next week"));
-    assert!(seen[1].get("tools").is_none());
+    // The draft comes with what the message asks and a checklist: the reply's gap first.
+    assert_eq!(draft.summary, "Anna asks whether Friday suits.");
+    let kinds: Vec<_> = draft.tasks.iter().map(|task| task.kind).collect();
+    assert_eq!(kinds, [TaskKind::FillIn, TaskKind::Attach]);
+    assert_eq!(draft.tasks[0].text, "[date]");
 }
 
 #[tokio::test]
@@ -266,6 +280,7 @@ async fn without_a_backend_nothing_is_read_or_sent() {
             style: None,
             intent: None,
             language: None,
+            ui_language: "en".to_owned(),
         })
         .await
         .unwrap_err();
@@ -284,6 +299,7 @@ async fn a_draft_with_no_style_to_write_in_is_refused_before_anything_is_sent() 
             style: None,
             intent: None,
             language: None,
+            ui_language: "en".to_owned(),
         })
         .await
         .unwrap_err();
@@ -312,6 +328,7 @@ async fn a_reply_sent_from_a_draft_is_logged_and_never_learned_from() {
             style: None,
             intent: None,
             language: None,
+            ui_language: "en".to_owned(),
         })
         .await
         .unwrap();

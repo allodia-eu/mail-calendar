@@ -295,10 +295,43 @@ pub struct DraftReply {
     pub text: String,
     /// The bracketed gaps in it; a client says "check the parts in brackets" when there are any.
     pub gaps: Vec<String>,
+    /// What the message being answered asks, in the interface language; empty when none came.
+    pub summary: String,
+    /// What the person still has to do before sending: each gap, then what to attach and do.
+    pub tasks: Vec<DraftTask>,
     /// The language it was written in.
     pub language: String,
     /// What it cost; `None` from an own endpoint.
     pub charge: Option<AiCharge>,
+}
+
+/// One item of a draft's checklist.
+#[derive(Clone, PartialEq, Eq, uniffi::Record)]
+pub struct DraftTask {
+    /// What kind of thing it is.
+    pub kind: DraftTaskKind,
+    /// For [`DraftTaskKind::FillIn`] the placeholder exactly as the reply carries it, which the
+    /// client looks for to tick the item; otherwise the task, in the interface language.
+    pub text: String,
+}
+
+impl std::fmt::Debug for DraftTask {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DraftTask")
+            .field("kind", &self.kind)
+            .finish_non_exhaustive()
+    }
+}
+
+/// What kind of thing a checklist item is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum DraftTaskKind {
+    /// A placeholder to replace; ticked by itself once it is gone from the reply.
+    FillIn,
+    /// A file or document to attach.
+    Attach,
+    /// Anything else to do, ticked by the person.
+    Do,
 }
 
 impl std::fmt::Debug for DraftReply {

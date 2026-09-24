@@ -69,6 +69,28 @@ export function composerLeadHasText(editor: HTMLElement): boolean {
   return false;
 }
 
+/// Which of a draft's `placeholders` are still in the reply above the signature and the quote, in
+/// the order asked: a host ticks a checklist's fill-in item once its placeholder is gone. Takes a
+/// list or its JSON; anything else is no list.
+export function composerPlaceholdersLeft(editor: HTMLElement, placeholders: unknown): string[] {
+  const list = typeof placeholders === "string" ? parsedList(placeholders) : placeholders;
+  if (!Array.isArray(list)) return [];
+  const boundary = leadBoundary(editor);
+  let lead = "";
+  for (let node = editor.firstChild; node && node !== boundary; node = node.nextSibling) {
+    lead += `${node.textContent ?? ""}\n`;
+  }
+  return list.filter((item): item is string => typeof item === "string" && lead.includes(item));
+}
+
+function parsedList(json: string): unknown {
+  try {
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
 /// The first direct child that is the signature or the quote, which ends the lead region.
 function leadBoundary(editor: HTMLElement): Element | null {
   return (

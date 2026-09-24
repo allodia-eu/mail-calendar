@@ -21,7 +21,13 @@ import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
 import { indentSelection } from "./lists";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
 import { installImageResize } from "./resize";
-import { composerLeadHasText, focusComposerBody, setComposerDraftText, setPlainText } from "./seeds";
+import {
+  composerLeadHasText,
+  composerPlaceholdersLeft,
+  focusComposerBody,
+  setComposerDraftText,
+  setPlainText,
+} from "./seeds";
 import {
   routeClickBelowSignature,
   setComposerSignature,
@@ -132,6 +138,7 @@ declare global {
     setPlainText: (text: unknown) => void;
     setComposerDraftText: (text: unknown, draftId?: unknown) => void;
     composerLeadHasText: () => boolean;
+    composerPlaceholdersLeft: (placeholders: unknown) => string[];
     useNativeComposerChrome: () => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
@@ -165,6 +172,7 @@ window.focusComposerBody = () => focusComposerBody(editor);
 window.setPlainText = (text) => setPlainText(editor, text);
 window.setComposerDraftText = (text, draftId) => setComposerDraftText(editor, text, draftId);
 window.composerLeadHasText = () => composerLeadHasText(editor);
+window.composerPlaceholdersLeft = (placeholders) => composerPlaceholdersLeft(editor, placeholders);
 window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 

@@ -121,12 +121,14 @@ impl MailcalApp {
     /// Drafts a reply to the message `key` in `account_id`, for the open composer. `from` is the
     /// account the reply is sent from when the composer changed it; `style` overrides that
     /// account's writing style; `intent` is what the person wants the reply to say; `language`
-    /// overrides the language of the message. **Blocking.** Nothing is sent: the host inserts the
-    /// text above the quote, where the person edits it.
+    /// overrides the language of the message; `ui_language` is the catalog locale the app is shown
+    /// in, which the summary and the checklist are written in. **Blocking.** Nothing is sent: the
+    /// host inserts the text above the quote, where the person edits it.
     ///
     /// # Errors
     ///
     /// Returns the [`WritingStyleFailure`] that stopped it.
+    #[allow(clippy::too_many_arguments)]
     pub fn draft_reply(
         &self,
         account_id: String,
@@ -135,6 +137,7 @@ impl MailcalApp {
         style: Option<String>,
         intent: Option<String>,
         language: Option<String>,
+        ui_language: String,
     ) -> Result<DraftReply, WritingStyleFailure> {
         let message =
             MessageRef::from_parts(&account_id, key).ok_or(WritingStyleFailure::NotFound)?;
@@ -146,6 +149,7 @@ impl MailcalApp {
                 style,
                 intent,
                 language,
+                ui_language,
             }))
             .map(Into::into)
             .map_err(|error: WritingStyleError| error.into())

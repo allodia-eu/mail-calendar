@@ -4,6 +4,7 @@
 // the button and its dialogs are in ComposerReplyDraftViews.kt.
 package eu.allodia.mailcal
 
+import android.content.Context
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,12 +31,14 @@ internal class ReplyDrafting(
 
 internal val LocalReplyDrafting = compositionLocalOf<ReplyDrafting?> { null }
 
-internal fun replyDrafting(app: MailcalApp, route: AiRoute) = ReplyDrafting(
+internal fun replyDrafting(app: MailcalApp, route: AiRoute, ctx: Context) = ReplyDrafting(
     route = route,
     styleFor = { app.resolveWritingStyle(it) },
     // The style and the language are the core's to choose: the From account's style, and the
-    // language of the message being answered.
-    draft = { account, key, from, intent -> app.draftReply(account, key, from, null, intent, null) },
+    // language of the message being answered. The summary and checklist follow the app's language.
+    draft = { account, key, from, intent ->
+        app.draftReply(account, key, from, null, intent, null, catalogLocale(ctx))
+    },
 )
 
 // Replies only: a forward and a new message have nothing to answer.

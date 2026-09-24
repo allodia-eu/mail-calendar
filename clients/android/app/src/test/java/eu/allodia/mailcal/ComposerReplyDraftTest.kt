@@ -38,7 +38,7 @@ class ComposerReplyDraftTest {
     private val asked = mutableListOf<Asked>()
     private val inserted = mutableListOf<Pair<String, String>>()
     private var written = false
-    private var answer: () -> DraftReply = { DraftReply("draft-1", "Hi Anna,\n\nYes.", emptyList(), "en", null) }
+    private var answer: () -> DraftReply = { DraftReply("draft-1", "Hi Anna,\n\nYes.", emptyList(), "", emptyList(), "en", null) }
 
     private val editor = object : DraftEditor {
         override fun leadHasText(answer: (Boolean) -> Unit) = answer(written)
@@ -129,7 +129,7 @@ class ComposerReplyDraftTest {
     /** Gaps are pointed out until the next draft or a send. */
     @Test
     fun a_draft_with_gaps_says_to_check_the_brackets_until_it_is_sent() {
-        answer = { DraftReply("draft-2", "See you on [date].", listOf("[date]"), "en", null) }
+        answer = { DraftReply("draft-2", "See you on [date].", listOf("[date]"), "", emptyList(), "en", null) }
         control.create(from = "acct-work")
         assertTrue(control.checkBrackets)
         control.sending()

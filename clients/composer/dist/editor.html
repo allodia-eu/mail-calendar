@@ -1796,6 +1796,25 @@
     }
     return false;
   }
+  function composerPlaceholdersLeft(editor, placeholders) {
+    const list = typeof placeholders === "string" ? parsedList(placeholders) : placeholders;
+    if (!Array.isArray(list))
+      return [];
+    const boundary = leadBoundary(editor);
+    let lead = "";
+    for (let node = editor.firstChild;node && node !== boundary; node = node.nextSibling) {
+      lead += `${node.textContent ?? ""}
+`;
+    }
+    return list.filter((item) => typeof item === "string" && lead.includes(item));
+  }
+  function parsedList(json) {
+    try {
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  }
   function leadBoundary(editor) {
     return Array.from(editor.children).find((child) => child.classList.contains("allodia-signature") || child.classList.contains("allodia-quote")) ?? null;
   }
@@ -2273,6 +2292,7 @@
   window.setPlainText = (text) => setPlainText(editor, text);
   window.setComposerDraftText = (text, draftId) => setComposerDraftText(editor, text, draftId);
   window.composerLeadHasText = () => composerLeadHasText(editor);
+  window.composerPlaceholdersLeft = (placeholders) => composerPlaceholdersLeft(editor, placeholders);
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerLabels = (incoming) => {

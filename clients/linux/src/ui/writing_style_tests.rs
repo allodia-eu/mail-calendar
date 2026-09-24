@@ -1,8 +1,9 @@
 //! What Writing style says, pinned without a window.
 
 use mailcal_bindings::{
-    AiRoute, CreditBalance, GateRefusal, HabitRow, JurisdictionClass, JurisdictionMode,
-    LanguageStyleRow, OwnEndpointError, WritingStyleFailure, WritingStyleRow, WritingStyleSnapshot,
+    AiRoute, CreditBalance, GateRefusal, HabitFrequency, HabitRow, JurisdictionClass,
+    JurisdictionMode, LanguageStyleRow, OwnEndpointError, WritingStyleFailure, WritingStyleRow,
+    WritingStyleSnapshot,
 };
 
 use super::{
@@ -197,20 +198,28 @@ fn language() -> LanguageStyleRow {
             HabitRow {
                 text: "Hi Anna".to_owned(),
                 share: 60,
+                relative: 86,
+                frequency: HabitFrequency::Mostly,
             },
             HabitRow {
                 text: "  ".to_owned(),
                 share: 10,
+                relative: 14,
+                frequency: HabitFrequency::Sometimes,
             },
         ],
         sign_offs: Vec::new(),
         signs_as: "Ada".to_owned(),
         register: String::new(),
+        register_headline: String::new(),
         typical_words: 120,
+        typical_paragraphs: 0,
         shape: "Short paragraphs.".to_owned(),
         punctuation: "  ".to_owned(),
         structure: String::new(),
+        structure_headline: String::new(),
         moves: String::new(),
+        moves_headline: String::new(),
         phrases: vec!["Sounds good".to_owned(), String::new()],
         avoid: Vec::new(),
     }

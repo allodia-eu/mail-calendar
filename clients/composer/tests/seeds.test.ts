@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { documentBlocks } from "../src/document";
-import { composerLeadHasText, setComposerDraftText } from "../src/seeds";
+import { composerLeadHasText, composerPlaceholdersLeft, setComposerDraftText } from "../src/seeds";
 import { harness } from "./support";
 
 const SIGNATURE = `<div class="allodia-signature" data-signature-plain="Sam"><p>Sam</p></div>`;
@@ -97,5 +97,24 @@ describe("whether the person has written a reply", () => {
   test("counts a picture the person put there", () => {
     const { editor } = harness(`<div><img src="cid:a"></div>${SIGNATURE}`);
     expect(composerLeadHasText(editor)).toBe(true);
+  });
+});
+
+describe("the placeholders a draft left", () => {
+  test("are the ones still in the reply, in the order asked", () => {
+    const { editor } = harness(`<div>On [date] at [time].</div>${SIGNATURE}${QUOTE}`);
+    expect(composerPlaceholdersLeft(editor, ["[time]", "[amount]", "[date]"])).toEqual(["[time]", "[date]"]);
+  });
+
+  test("do not count a bracket in the signature or the quoted original", () => {
+    const quoted = QUOTE.replace("Are we on?", "Are we on [date]?");
+    const { editor } = harness(`<div>Fine by me.</div>${SIGNATURE}${quoted}`);
+    expect(composerPlaceholdersLeft(editor, ["[date]"])).toEqual([]);
+  });
+
+  test("read a list sent as JSON, and nothing else", () => {
+    const { editor } = harness("<div>[date]</div>");
+    expect(composerPlaceholdersLeft(editor, JSON.stringify(["[date]"]))).toEqual(["[date]"]);
+    expect(composerPlaceholdersLeft(editor, 42)).toEqual([]);
   });
 });

@@ -33,6 +33,8 @@ pub struct ReplyDraftRequest {
     pub intent: Option<String>,
     /// The language to answer in; `None` answers in the language of the message.
     pub language: Option<String>,
+    /// The catalog locale the app is shown in; the summary and the checklist are written in it.
+    pub ui_language: String,
 }
 
 /// A drafted reply.
@@ -45,6 +47,10 @@ pub struct DraftReply {
     pub text: String,
     /// The bracketed gaps in it, for "check the parts in brackets".
     pub gaps: Vec<String>,
+    /// What the message being answered asks, in the interface language; empty when none came.
+    pub summary: String,
+    /// What the person still has to do before sending.
+    pub tasks: Vec<mailcal_ai::DraftTask>,
     /// The language it was written in.
     pub language: String,
     /// What the relay charged and the balance after; `None` from an own endpoint.
@@ -141,6 +147,7 @@ impl<P: Provider> App<P> {
                 intent: request.intent.as_deref(),
                 language: request.language.as_deref(),
                 signature: signature.as_deref(),
+                ui_language: &request.ui_language,
             },
             &backend,
         )?;
@@ -154,6 +161,8 @@ impl<P: Provider> App<P> {
             draft_id,
             text: draft.text,
             gaps: draft.gaps,
+            summary: draft.summary,
+            tasks: draft.tasks,
             language: draft.language,
             metering: draft.metering,
         })

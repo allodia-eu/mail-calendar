@@ -1001,5 +1001,16 @@
 	"wizard_back": "Back",
 	"wizard_next": "Next",
 	"a11y_wizard_step": "Step {step} of {total}",
-	"a11y_reveal_language": "Language"
+	"a11y_reveal_language": "Language",
+
+	"composer_draft_summary_heading": "In short",
+	"composer_checklist_heading": "Before you send",
+	"composer_task_fill_in": "Fill in {placeholder}",
+	"a11y_task_attach": "To attach",
+	"a11y_task_do": "To do",
+	"composer_send_open_title": "Send with open items?",
+	"composer_send_open_message": "{count} items on the list are still open.",
+	"composer_send_open_message_one": "{count} item on the list is still open.",
+	"composer_send_anyway": "Send anyway",
+	"composer_keep_editing": "Keep editing"
 }

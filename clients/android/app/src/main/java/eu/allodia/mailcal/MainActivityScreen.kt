@@ -26,7 +26,7 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
               // Every composer that can answer a message reads whether it may draft the answer.
               val route = writingStyle.snapshot?.route
               val drafting = remember(app, route) {
-                  app?.let { core -> route?.let { replyDrafting(core, it) } }
+                  app?.let { core -> route?.let { replyDrafting(core, it, this) } }
               }
               androidx.compose.runtime.CompositionLocalProvider(
                   LocalUse24Hour provides (displaySettings.timeFormat == TimeFormat.TWENTY_FOUR_HOUR),

@@ -86,6 +86,17 @@ person's voice, are later uses of the same seams.
   whose lines start with `- `, `* `, `•` or `1.`, and a `#` line drawn as a bold line. The
   answer's ceiling guards against a runaway answer and is well above any reply's length; one that
   reaches it is logged.
+- **Summary and checklist**: the same request answers with what the message asks of the person, in
+  a sentence or two, and what they still have to do: each placeholder of the reply (listed by the
+  core from the reply itself, so each item names the exact text), then files to attach and actions
+  elsewhere (listed by the model, at most six). Both are in the interface language. The reply never
+  says the person has done something they have not; the model writes it as something they will do,
+  and lists it.
+- **Where they show**: in a card between the composer's buttons and its text, never part of the
+  mail, never saved or sent. A placeholder's item ticks itself once its text is gone from the reply
+  (the client asks the editor's `composerPlaceholdersLeft`); the person ticks the others. At Send,
+  with items still open, the client asks once whether to send anyway or keep editing; it never
+  blocks the send.
 - **Insertion**: into the **open** composer, above the signature and the quote, through the editor
   bundle's `setComposerDraftText`. It replaces only what is above those two regions, leaves both
   exactly where they are, builds the formatting as elements (never parsing markup), and puts the
@@ -191,6 +202,7 @@ A style's id is opaque CSPRNG output, never derived from its name.
 | The reveal, notes, rename, forget | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | Per-account style slot | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | Draft a reply into the open composer, with gaps | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| What the message asks, and a checklist asked about once at Send | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Own endpoint under Settings → Advanced | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | Allodia relay: the entitlement read, requests, the balance | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Style guide synced between devices | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
@@ -217,6 +229,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
   a client shows the Writing style category only when it is `Some`.
 - **`setComposerDraftText(text, draftId)`** in the editor bundle inserts a draft, as described
   under "Drafting a reply", and keeps `draftId` (`DraftReply.draft_id`) for the submit.
+- **`composerPlaceholdersLeft(placeholders)`** answers which of a draft's placeholders are still in
+  the reply above the signature and the quote, so a checklist can tick its fill-in items.
 - **`composerLeadHasText()`** answers whether the person has already written above the
   signature and the quote; a client asks before a draft replaces it, and asks to replace.
 - **A failure** is a `WritingStyleFailure` variant, never a server's sentence; a client words it.
