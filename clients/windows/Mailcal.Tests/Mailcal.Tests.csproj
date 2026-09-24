@@ -246,6 +246,12 @@
          rather than per account, fails silently: a per-account tag is REPLACED by the next pass's
          toast, and the core's marks have already moved past the message it replaced. -->
     <Compile Include="..\Mailcal\Services\NewMailNotices.cs" Link="Services\NewMailNotices.cs" />
+    <!-- And the message a click on one opens: the pair a toast carries, and the reading of it.
+         Pure BCL on purpose, so the writer and the reader can share the two argument keys and be
+         pinned together here. The failure is silent either way round: a key spelled differently
+         on one side, or half a pair acted on, is a click that opens nothing or the wrong thing,
+         and the toast itself is outside the UI-Automation tree that uitests can see. -->
+    <Compile Include="..\Mailcal\Services\NotificationOpenInbox.cs" Link="Services\NotificationOpenInbox.cs" />
     <!-- The mail-link (`mailto:`) activation gate: is this launch one, and which URI is in it. Pure
          BCL on purpose, the parse belongs to the shared core and the composer to the shell, so what
          is left is exactly the part whose two failure modes are silent (an OAuth redirect read as a

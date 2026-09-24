@@ -244,14 +244,27 @@ that same file.
   a machine with no matching `Microsoft.WindowsAppRuntime.2`). The log line is
   `notifications: could not register`, and a registration that succeeded reports the system's own
   answer beside it.
+- **An unregistered notification platform does not fail a click, it kills the process.** A launch
+  that *is* a click has to build an `AppNotificationActivatedEventArgs` inside
+  `AppInstance.GetCurrent().GetActivatedEventArgs()`, and the runtime cannot do that unless
+  `AppNotificationManager.Register()` has already run in this process. Unregistered, it does not
+  throw: it **fails fast** (`0xc0000409`, faulting module `Microsoft.WindowsAppRuntime.dll`), and
+  it does so before `Log.Init` has given anything somewhere to write. The app therefore vanishes on
+  the one launch the whole feature exists for, leaving an empty log, a Windows Error Reporting
+  entry and a spinner that blinks once, while every other launch is perfectly healthy. So
+  `Program.Main` registers **above** the line that reads the activation, and what a click *does* is
+  installed afterwards, from the window
+  ([`Services/NewMailNotifier.cs`](../clients/windows/Mailcal/Services/NewMailNotifier.cs)).
 - **Registering for notifications on the UI thread pumps it, and work already queued runs
   early.** `Register()` is a COM call, and a COM call on an STA thread dispatches waiting messages
   while it waits. Called from `OnLaunched`, that lets the first account's connect continuation run
   before the window's content has a `XamlRoot`, and every prompt that opens on one dies with
   "This element does not have a XamlRoot" (the default-mail-app offer is the one that found it).
-  Nothing about the failure names notifications. Queue it at
-  `DispatcherQueuePriority.Low` instead, which runs once the window has laid out. The same caution
-  applies to any COM or WinRT call placed between constructing a window and activating it.
+  Nothing about the failure names notifications. The registration itself is out of reach of this
+  now, because the trap above moved it into `Program.Main`, which runs before `Application.Start`
+  and so has nothing queued to pump. The caution stands for any other COM or WinRT call placed
+  between constructing a window and activating it; queue one at `DispatcherQueuePriority.Low`,
+  which runs once the window has laid out.
 - **An unpackaged app must hand its notifications a display name.** `Register()` takes an overload
   with a display name and an icon URI; the parameterless one leaves an unpackaged registration with
   neither, since there is no manifest to read them from, and the shell then heads the app's mail

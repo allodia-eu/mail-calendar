@@ -171,4 +171,86 @@ public class NewMailNoticesTests
     {
         Assert.Empty(NewMailNotices.For(Outcome(), Unknown, More));
     }
+
+    [Fact]
+    public void A_message_names_the_message_a_click_opens_and_the_summary_names_none()
+    {
+        // The pair the core keys mail on, which is what Intent::OpenMessage takes. A summary
+        // stands for messages it does not name, so it has none to open and brings the app forward
+        // alone; the empty key is what says so.
+        var outcome = Outcome(new AccountNewMail(
+            AccountId: "acct",
+            AccountLabel: "me@example.test",
+            NewCount: 3,
+            Messages: [Preview("m1", "a@example.test", null, "One")]));
+
+        var notices = NewMailNotices.For(outcome, Unknown, More);
+
+        Assert.Equal("m1", notices[0].MessageKey);
+        Assert.Equal("acct", notices[0].Group);
+        Assert.Equal(string.Empty, notices[1].MessageKey);
+    }
+
+    [Theory]
+    [InlineData("acct", "m1")]
+    // A launch argument list is `key=value;key=value`, and Microsoft Graph's message keys are
+    // base64 WITH padding, so a key carrying `=` (or `;`) is a key that changes where the list is
+    // cut. It has to survive whole or that provider's notifications quietly open nothing.
+    [InlineData("acct", "AAMkAGI2THVSAAA=")]
+    [InlineData("acct", "one;two=three")]
+    // Nothing says an account id is plain either, and the account half is what the message key is
+    // resolved within.
+    [InlineData("me@example.test", "m1")]
+    public void The_message_a_notification_names_survives_the_round_trip_through_its_arguments(
+        string account, string key)
+    {
+        // Through the notice, so this pins the pair the poster actually writes rather than the
+        // spelling of it: a key typo'd on one side is a click that silently opens nothing.
+        var outcome = Outcome(new AccountNewMail(
+            AccountId: account,
+            AccountLabel: "me@example.test",
+            NewCount: 1,
+            Messages: [Preview(key, "a@example.test", null, "One")]));
+        var notice = NewMailNotices.For(outcome, Unknown, More)[0];
+        var (accountArgument, messageArgument) =
+            new NotificationTarget(notice.Group, notice.MessageKey).Arguments;
+
+        var target = NotificationTarget.From(new Dictionary<string, string>
+        {
+            [NotificationTarget.AccountArgument] = accountArgument,
+            [NotificationTarget.MessageArgument] = messageArgument,
+        });
+
+        Assert.Equal(new NotificationTarget(account, key), target);
+        // The two characters the argument list itself is cut on.
+        Assert.DoesNotContain("=", accountArgument + messageArgument);
+        Assert.DoesNotContain(";", accountArgument + messageArgument);
+    }
+
+    [Theory]
+    // The summary's own shape: it carries neither argument, and so names no message.
+    [InlineData(null, null)]
+    // Half a pair resolves to no message at all, so acting on it would look like the click went
+    // to the wrong message rather than to none.
+    [InlineData("YWNjdA", null)]
+    [InlineData(null, "bTE")]
+    [InlineData("YWNjdA", "")]
+    [InlineData("", "bTE")]
+    // And an argument this app did not write, or one damaged in transit: the click then names no
+    // message and opens the app, which is what it did before there was a deep link at all.
+    [InlineData("YWNjdA", "!not base64url!")]
+    public void Arguments_that_do_not_name_a_whole_message_name_none(string? account, string? message)
+    {
+        var arguments = new Dictionary<string, string>();
+        if (account is not null)
+        {
+            arguments[NotificationTarget.AccountArgument] = account;
+        }
+        if (message is not null)
+        {
+            arguments[NotificationTarget.MessageArgument] = message;
+        }
+
+        Assert.Null(NotificationTarget.From(arguments));
+    }
 }

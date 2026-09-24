@@ -22,6 +22,7 @@ use super::{
     mailbox::ThreadKey,
     microsoft::MicrosoftOutcome,
     model::OpenedMessage,
+    notifications::NotificationTarget,
     outbox::{QueuedAction, QueuedTarget},
     reader::{ComposerHost, ReadingSource},
     selection::SelectMode,
@@ -306,6 +307,11 @@ pub(crate) enum AppInput {
     AnalyticsDecided(bool),
     CollectNewMail,
     BackgroundFinished,
+    /// A click on a new-mail notification, which names the message it was raised for.
+    OpenNotifiedMessage(Box<NotificationTarget>),
+    /// A click on a notification that names no message: the overflow summary, which stands for
+    /// mail it does not list, so it brings the app forward and nothing more.
+    ShowFromNotification,
 }
 
 impl fmt::Debug for AppInput {
@@ -455,6 +461,8 @@ impl fmt::Debug for AppInput {
             Self::AnalyticsDecided(_) => "AnalyticsDecided",
             Self::CollectNewMail => "CollectNewMail",
             Self::BackgroundFinished => "BackgroundFinished",
+            Self::OpenNotifiedMessage(_) => "OpenNotifiedMessage",
+            Self::ShowFromNotification => "ShowFromNotification",
         })
     }
 }

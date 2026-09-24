@@ -79,6 +79,14 @@ public sealed partial class MainWindow : Window
             TryOpenPendingMailLink();
             // The same for a share, which is held on identical terms.
             TryOpenPendingShare();
+            // And a click on a notification that STARTED the app, which Main parked because there
+            // was no window then and no core to find the message with. Here rather than as the
+            // window is built: opening it means searching the list and then selecting an account,
+            // and neither means anything until the core is up (Services/NotificationOpenInbox.cs).
+            if (NotificationOpenInbox.Take() is { } notified)
+            {
+                OpenNotification(notified);
+            }
             // The earliest honest moment to offer to become the machine's mail app: the core
             // refuses to offer before an account exists, and this is when one appears.
             OfferDefaultMailAppIfDue();

@@ -64,6 +64,7 @@ mod mcp;
 mod microsoft;
 mod modal;
 mod model;
+mod notification_open;
 mod notifications;
 mod oauth_actions;
 mod oauth_loopback;
@@ -195,6 +196,9 @@ pub(crate) struct AppModel {
     pending_mailto: Option<mailcal_bindings::MailtoPrefill>,
     /// A share received before an account exists, held on the same terms as a mail link.
     pending_share: Option<mailcal_bindings::SharePrefill>,
+    /// The message a clicked notification named that the list did not hold, waiting for the one
+    /// snapshot the account switch it caused is worth ([`notification_open`]).
+    notification_wait: Option<notifications::NotificationTarget>,
     /// The navigation the guard must answer, and the counter it is drawn from. Its own sequence,
     /// not the composer's: two navigations away from one draft: the second after a "Keep editing"
     /// ; must each get an answer, and reusing the composer's generation would make the pane treat
@@ -301,6 +305,9 @@ impl SimpleComponent for AppModel {
         );
         let welcome_pending = flow.welcome;
         mcp::install(app.as_deref(), input.clone());
+        // One subscription for the life of the process, so a click on a new-mail notification
+        // reaches the mailbox whichever pass raised it (`notifications::listen`).
+        notifications::listen(input.clone());
         if !welcome_pending && let Some(app) = &app {
             app.report_app_opened();
         }
@@ -385,6 +392,7 @@ impl SimpleComponent for AppModel {
             pending_navigation: None,
             pending_mailto: None,
             pending_share: None,
+            notification_wait: None,
             draft_check: None,
             draft_check_seq: 0,
             discard_prompt: false,
