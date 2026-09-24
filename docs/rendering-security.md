@@ -200,6 +200,11 @@ Source of truth per client:
 - Android: `clients/android/app/src/main/java/eu/allodia/mailcal/ReadingScreen.kt`
 - Windows: `clients/windows/Mailcal/Views/ReadingView.xaml.cs`
 - Linux: `clients/linux/src/ui/reading.rs` + `clients/linux/src/ui/webview.rs`
+- The print host, a second web view nobody sees that lays a message out for the print dialog
+  ([`reading-actions.md`](reading-actions.md)), holds every row of the matrix above as the
+  reading host does: `MessagePrint.swift`, `ReadingScreenPrint.kt`, `ReadingView.Print.cs`, and on
+  Linux the reading host's own `SecureWebView` (`reading/print.rs`). There is no link to hand off
+  on a page nobody can click, so its navigation gate cancels everything but the initial load.
 
 ## Known gaps / follow-ups
 

@@ -127,6 +127,18 @@ internal fun WebSettings.applyReadingPolicy() {
     displayZoomControls = false
 }
 
+// The reading host's second barrier behind the document CSP, shared with the print host: an empty
+// answer for a remote http(s) sub-resource (image, font, CSS) the reader has not opted into, and
+// null, meaning "load it", for everything else.
+internal fun blockRemoteLoad(request: WebResourceRequest?, allowRemote: Boolean): WebResourceResponse? {
+    val scheme = request?.url?.scheme?.lowercase()
+    return if (!allowRemote && (scheme == "http" || scheme == "https")) {
+        WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+    } else {
+        null
+    }
+}
+
 // Renders the core's sanitised HTML in a hardened WebView. The full document (strict CSP,
 // base styling, remote-image gating) is produced by shared Rust (`renderMessageHtml`); this
 // adds the native defenses: JavaScript disabled, in-view navigation blocked (tapped links
@@ -202,14 +214,7 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean) {
                     override fun shouldInterceptRequest(
                         view: WebView?,
                         request: WebResourceRequest?,
-                    ): WebResourceResponse? {
-                        val scheme = request?.url?.scheme?.lowercase()
-                        return if (!policy.allowRemote && (scheme == "http" || scheme == "https")) {
-                            WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
-                        } else {
-                            null
-                        }
-                    }
+                    ): WebResourceResponse? = blockRemoteLoad(request, policy.allowRemote)
                 }
             }
         },

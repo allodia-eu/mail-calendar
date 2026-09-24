@@ -103,6 +103,7 @@
 	"action_remove": "Remover",
 	"action_save": "Guardar",
 	"action_save_as_eml": "Guardar como .eml…",
+	"action_print": "Imprimir…",
 	"action_undo": "Anular",
 
 	"a11y_event_row": "{title}, {time}",
@@ -187,6 +188,7 @@
 	"attachment_open_failed": "Não foi possível abrir este anexo.",
 	"message_saved": "Mensagem guardada",
 	"message_save_failed": "Não foi possível guardar esta mensagem.",
+	"message_print_failed": "Não foi possível imprimir esta mensagem.",
 	"send_status_sending": "A enviar…",
 	"send_status_sent": "Mensagem enviada",
 	"send_status_failed": "Não foi possível enviar a sua mensagem.",

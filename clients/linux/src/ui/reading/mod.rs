@@ -17,12 +17,14 @@ pub(crate) mod attachments;
 pub(crate) mod canvas;
 mod header;
 mod overflow;
+mod print;
 
 use self::{
     attachments::attachment_row,
     canvas as reading_canvas,
     header::ActionRow,
     overflow::{ExportName, export_name_for},
+    print::{MessagePrint, PrintSource},
 };
 use super::{
     AppInput,
@@ -65,6 +67,11 @@ pub(crate) struct ReadingPane {
     /// The file name the overflow menu's export offers; rewritten on every render, because the
     /// menu outlives the message it acts on ([`overflow::ExportName`]).
     export_name: ExportName,
+    /// What the overflow menu's Print prints, rewritten on every render like
+    /// [`Self::export_name`], and the item, which is pressable only while there is a body to
+    /// print.
+    print_source: PrintSource,
+    print_item: gtk::Button,
     remote_banner: adw::Banner,
     /// The meeting-invitation card, above the body. Whether there is one at all is the core's
     /// two-condition RSVP gate (`docs/invitations.md`), so a published `.ics` produces none here
@@ -99,6 +106,8 @@ impl ReadingPane {
             header,
             actions,
             export_name,
+            print_source,
+            print_item,
         } = header::action_row(&window, &source, &sender);
         toolbar.add_top_bar(&header);
 
@@ -190,6 +199,8 @@ impl ReadingPane {
             date,
             actions,
             export_name,
+            print_source,
+            print_item,
             remote_banner,
             invitation,
             invitation_generation: Cell::new(None),
@@ -224,6 +235,8 @@ impl ReadingPane {
             action.set_sensitive(state.opened.is_some());
         }
         let Some(opened) = state.opened.as_ref() else {
+            self.print_item.set_sensitive(false);
+            *self.print_source.borrow_mut() = None;
             self.clear_header();
             self.remote_banner.set_revealed(false);
             self.clear_invitation();
@@ -240,8 +253,13 @@ impl ReadingPane {
         // the same words the pane shows.
         *self.export_name.borrow_mut() = export_name_for(subject);
         self.from.set_text(&opened.from);
-        self.date
-            .set_text(&timestamps::local_date_time(&opened.date, clock.zone));
+        let date = timestamps::local_date_time(&opened.date, clock.zone);
+        self.date.set_text(&date);
+        // Printing lays the page out in a web view, so a host without one has nothing to print
+        // with.
+        let print = MessagePrint::of(state, subject, &date).filter(|_| webview_available);
+        self.print_item.set_sensitive(print.is_some());
+        *self.print_source.borrow_mut() = print;
         self.avatar.set(&opened.avatar);
         if !state.matches_opened() {
             self.recipients.set_text("");

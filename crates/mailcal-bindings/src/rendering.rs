@@ -11,6 +11,47 @@ pub fn render_message_html(html: String, load_remote_images: bool) -> String {
     mailcal_app::render_document(&html, load_remote_images)
 }
 
+/// One labelled line of a printed message's header: the client's localised label and what the
+/// message says for it. A line with an empty value is left out, so a client passes every line it
+/// draws in its reading header without filtering.
+#[derive(uniffi::Record)]
+pub struct PrintHeaderLine {
+    /// The line's name as the client shows it (`From`, `Van`).
+    pub label: String,
+    /// The value, as the reading header shows it.
+    pub value: String,
+}
+
+/// The document a client prints for one message: the subject and `lines` as escaped text above
+/// the body, inside the same strict-CSP document [`render_message_html`] builds. `html` is the
+/// snapshot's sanitised fragment and wins over `plain`; `load_remote_images` is the reader's choice
+/// for this message, so a print never loads what reading did not. The host loads it into a web view
+/// with the reading view's gates and hands that to the platform's print dialog
+/// (`docs/reading-actions.md`).
+#[uniffi::export]
+pub fn render_message_print_html(
+    subject: String,
+    lines: Vec<PrintHeaderLine>,
+    html: Option<String>,
+    plain: Option<String>,
+    load_remote_images: bool,
+) -> String {
+    let lines: Vec<_> = lines
+        .into_iter()
+        .map(|line| mailcal_app::PrintHeaderLine {
+            label: line.label,
+            value: line.value,
+        })
+        .collect();
+    mailcal_app::render_print_document(
+        &subject,
+        &lines,
+        html.as_deref(),
+        plain.as_deref(),
+        load_remote_images,
+    )
+}
+
 /// The canvas the reading pane's body area is drawn on, `#rrggbb`: the same page
 /// [`render_message_html`] gives the document, so the client's half and the document's half
 /// are one colour rather than two whites that drift apart.
