@@ -5,6 +5,8 @@
 //! Each draft goes through a `GatedBackend` built over the own endpoint with the model named for
 //! it, so the gate and the endpoint's declaration apply as they do to every other draft.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use mailcal_ai::{
     DRAFT_INSTRUCTIONS, DRAFT_PLACEHOLDERS, DraftContent, DraftRecord, GatedBackend, OwnEndpoint,
     RatedDraft,
@@ -52,7 +54,12 @@ pub struct TrainingResult {
     pub failure: Option<String>,
     /// The developer's rating.
     pub rating: Option<DraftRating>,
+    /// Whether a stop abandoned it mid-request: no model's failure, and nothing to show.
+    pub stopped: bool,
 }
+
+/// Bumped by `training_stop`; a comparison's request that sees it move is abandoned.
+static STOPS: AtomicU64 = AtomicU64::new(0);
 
 impl TrainingResult {
     fn failed(model: &str, variant: Option<&TrainingVariant>, failure: String) -> Self {
@@ -68,6 +75,7 @@ impl TrainingResult {
             tasks: Vec::new(),
             failure: Some(failure),
             rating: None,
+            stopped: false,
         }
     }
 }
@@ -91,6 +99,7 @@ impl From<(DraftRecord, Option<WritingStyleError>)> for TrainingResult {
             tasks: content.tasks.into_iter().map(Into::into).collect(),
             failure: failure.map(|failure| failure.to_string()),
             rating: None,
+            stopped: false,
         }
     }
 }
@@ -156,7 +165,8 @@ impl MailcalApp {
                     return TrainingResult::failed(&model, variant.as_ref(), error.to_string());
                 }
             };
-        let transport = match AiTransport::new(self.runtime.handle().clone()) {
+        let seen = STOPS.load(Ordering::Relaxed);
+        let transport = match AiTransport::stoppable(self.runtime.handle().clone(), &STOPS) {
             Ok(transport) => transport,
             Err(error) => return TrainingResult::failed(&model, variant.as_ref(), error),
         };
@@ -179,8 +189,16 @@ impl MailcalApp {
         let named = variant
             .as_ref()
             .map(|variant| (variant.name.as_str(), variant.instructions.as_str()));
-        self.runtime
+        let mut result: TrainingResult = self
+            .runtime
             .block_on(self.app.training_draft(&request, &backend, named))
-            .into()
+            .into();
+        result.stopped = STOPS.load(Ordering::Relaxed) != seen;
+        result
+    }
+
+    /// Abandons every comparison request in flight; each comes back with `stopped` set.
+    pub fn training_stop(&self) {
+        STOPS.fetch_add(1, Ordering::Relaxed);
     }
 }

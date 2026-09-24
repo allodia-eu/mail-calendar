@@ -141,3 +141,41 @@ fn a_server_that_never_answers_times_out() {
 
     assert!(result.is_err());
 }
+
+/// A server that takes a request and never answers it.
+#[cfg(debug_assertions)]
+fn serve_silence() -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    thread::spawn(move || {
+        let (_stream, _) = listener.accept().unwrap();
+        thread::sleep(Duration::from_secs(30));
+    });
+    port
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn a_stop_abandons_a_request_that_is_waiting_on_an_answer() {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    let stops: &'static AtomicU64 = Box::leak(Box::new(AtomicU64::new(0)));
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let transport = AiTransport::stoppable(runtime.handle().clone(), stops).unwrap();
+    let url = format!("http://127.0.0.1:{}/v1/chat/completions", serve_silence());
+    thread::spawn(move || {
+        thread::sleep(Duration::from_millis(300));
+        stops.fetch_add(1, Ordering::Relaxed);
+    });
+
+    let started = std::time::Instant::now();
+    let answered = transport.post_json(HttpRequest {
+        url: &url,
+        bearer: None,
+        body: "{}",
+        timeout: Duration::from_secs(20),
+    });
+
+    assert!(answered.is_err());
+    assert!(started.elapsed() < Duration::from_secs(3));
+}

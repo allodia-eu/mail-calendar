@@ -153,6 +153,7 @@ mod tests {
             tasks: Vec::new(),
             failure: failure.map(str::to_owned),
             rating: None,
+            stopped: false,
         }
     }
 

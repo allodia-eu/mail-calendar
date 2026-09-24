@@ -202,7 +202,8 @@ summary (`mailcal-ai`'s `ComparisonExport`, `summarise`), the FFI methods and re
 - **Drafts run up to six at once by default**, each joining its message as it arrives, because a
   router spreads them over its providers and six stays clear of their rate limits. A toggle runs
   them one after the other, for an endpoint on the developer's own computer that answers one
-  request at a time. A stop starts no more and lets those already asked for arrive.
+  request at a time. A stop starts no more and abandons those in flight, which closes their
+  connections; an abandoned draft is not shown and counts as no model's failure.
 - **The gate applies.** Each model is asked through a `GatedBackend` over the own endpoint with only
   the model replaced, so the gate and the endpoint's declaration apply to every request. The relay
   is not offered, because its gateway picks the model. Nothing is issued to a composer, so a

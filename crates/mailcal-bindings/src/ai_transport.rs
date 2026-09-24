@@ -17,6 +17,10 @@ use crate::blocking::block_on;
 pub(crate) struct AiTransport {
     http: reqwest::Client,
     handle: tokio::runtime::Handle,
+    /// A debug build's training requests: the stop counter and its value when the transport was
+    /// made; a request that sees it move is abandoned, which closes its connection.
+    #[cfg(debug_assertions)]
+    stop: Option<(&'static std::sync::atomic::AtomicU64, u64)>,
 }
 
 impl std::fmt::Debug for AiTransport {
@@ -33,7 +37,27 @@ impl AiTransport {
     /// Returns the shared TLS policy's message when a client cannot be built.
     pub(crate) fn new(handle: tokio::runtime::Handle) -> Result<Self, String> {
         let http = mailcal_oauth::discovery_client().map_err(|error| error.to_string())?;
-        Ok(Self { http, handle })
+        Ok(Self {
+            http,
+            handle,
+            #[cfg(debug_assertions)]
+            stop: None,
+        })
+    }
+
+    /// One whose requests are abandoned once `stops` moves from its value now.
+    ///
+    /// # Errors
+    ///
+    /// As [`AiTransport::new`].
+    #[cfg(debug_assertions)]
+    pub(crate) fn stoppable(
+        handle: tokio::runtime::Handle,
+        stops: &'static std::sync::atomic::AtomicU64,
+    ) -> Result<Self, String> {
+        let mut transport = Self::new(handle)?;
+        transport.stop = Some((stops, stops.load(std::sync::atomic::Ordering::Relaxed)));
+        Ok(transport)
     }
 
     fn build(&self, request: &HttpRequest<'_>) -> reqwest::RequestBuilder {
@@ -56,15 +80,40 @@ impl HttpTransport for AiTransport {
         block_on(&self.handle, async {
             // Sent from inside the runtime: a request with a timeout starts its timer on `send`,
             // and a timer needs the runtime's clock.
-            let response = self
-                .build(&request)
-                .send()
-                .await
-                .map_err(|_| TransportFailed)?;
-            let status = response.status().as_u16();
-            let body = response.text().await.map_err(|_| TransportFailed)?;
-            Ok(HttpResponse { status, body })
+            let answer = async {
+                let response = self
+                    .build(&request)
+                    .send()
+                    .await
+                    .map_err(|_| TransportFailed)?;
+                let status = response.status().as_u16();
+                let body = response.text().await.map_err(|_| TransportFailed)?;
+                Ok(HttpResponse { status, body })
+            };
+            #[cfg(debug_assertions)]
+            if let Some((stops, seen)) = self.stop {
+                return until_stopped(answer, stops, seen).await;
+            }
+            answer.await
         })
+    }
+}
+
+/// `answer`, unless `stops` moves from `seen` first; then the request is dropped mid-flight.
+#[cfg(debug_assertions)]
+async fn until_stopped(
+    answer: impl std::future::Future<Output = Result<HttpResponse, TransportFailed>>,
+    stops: &'static std::sync::atomic::AtomicU64,
+    seen: u64,
+) -> Result<HttpResponse, TransportFailed> {
+    let stopped = async {
+        while stops.load(std::sync::atomic::Ordering::Relaxed) == seen {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    };
+    match futures::future::select(std::pin::pin!(answer), std::pin::pin!(stopped)).await {
+        futures::future::Either::Left((answer, _)) => answer,
+        futures::future::Either::Right(((), _)) => Err(TransportFailed),
     }
 }
 

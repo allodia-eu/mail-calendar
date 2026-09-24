@@ -127,6 +127,8 @@ final class TrainingBench {
     /// How many drafts a parallel run has waiting on an answer.
     private(set) var inFlight = 0
     private var stopping = false
+    /// The core a run is drafting through, for Stop to reach.
+    private var runApp: MailcalApp?
     var exportFailed = false
 
     init() {
@@ -184,6 +186,8 @@ final class TrainingBench {
         guard !running, !plan.isEmpty, !messages.isEmpty else { return }
         running = true
         stopping = false
+        runApp = app
+        defer { runApp = nil }
         groups = messages.enumerated().map { TrainingGroup(id: $0.offset, message: $0.element) }
         summary = []
         messageCount = messages.count
@@ -207,6 +211,7 @@ final class TrainingBench {
                         variant: variant, uiLanguage: language
                     )
                 }.value
+                guard !result.stopped else { break drafting }
                 groups[index].results.append(result)
                 groups[index].ratings.append(DraftFeedback())
                 summary = app.trainingSummary(results: results)
@@ -216,10 +221,14 @@ final class TrainingBench {
         running = false
     }
 
-    func stop() { stopping = true }
+    /// Starts no more drafts and abandons those in flight; an abandoned draft is not shown.
+    func stop() {
+        stopping = true
+        runApp?.trainingStop()
+    }
 
-    /// Keeps up to `parallelLimit` drafts in flight; a stop launches no more and lets those in
-    /// flight arrive, since they are already paid for.
+    /// Keeps up to `parallelLimit` drafts in flight; a stop launches no more, and those in flight
+    /// come back abandoned.
     private func runInParallel(
         _ messages: [TrainingMessage], plan: [(String, TrainingVariant?)], app: MailcalApp,
         language: String
@@ -232,6 +241,7 @@ final class TrainingBench {
             next = launch(jobs, from: next, app: app, language: language, into: &group)
             for await (index, result) in group {
                 inFlight -= 1
+                guard !result.stopped else { continue }
                 groups[index].results.append(result)
                 groups[index].ratings.append(DraftFeedback())
                 summary = app.trainingSummary(results: results)
