@@ -36,7 +36,22 @@ internal fun webViewDraftEditor(webView: () -> WebView?): DraftEditor = object :
     override fun insert(text: String, draftId: String) {
         webView()?.evaluateJavascript(composerDraftTextScript(text, draftId), null)
     }
+
+    override fun placeholdersLeft(placeholders: List<String>, answer: (List<String>?) -> Unit) {
+        val view = webView() ?: return answer(null)
+        view.evaluateJavascript(composerPlaceholdersLeftScript(placeholders)) { answer(placeholdersLeftAnswer(it)) }
+    }
 }
+
+// The placeholders go in as the JSON of their list, itself a string literal: each is a model's text.
+internal fun composerPlaceholdersLeftScript(placeholders: List<String>): String =
+    "window.composerPlaceholdersLeft(${JSONObject.quote(JSONArray(placeholders).toString())})"
+
+// `evaluateJavascript` answers with the result's JSON; anything but an array is no answer.
+internal fun placeholdersLeftAnswer(json: String?): List<String>? = runCatching {
+    val list = JSONArray(json ?: return null)
+    List(list.length()) { list.getString(it) }
+}.getOrNull()
 
 // Shows a picture at the caret. The shared editor records the inline attachment behind it and
 // carries the bytes in the document, so the core can turn it into the `cid:` part the sent body

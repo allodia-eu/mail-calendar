@@ -1,6 +1,7 @@
 // Draft a reply's controls in the composer: the app-bar button beside the signature's, the small
 // dialog that takes an intent, the question before a draft replaces what was written, and the
-// lines under the address fields while it drafts and after. The state is ComposerReplyDraft.kt.
+// lines under the address fields while it drafts and after. The state is ComposerReplyDraft.kt;
+// the card a draft brings is ComposerDraftCard.kt.
 package eu.allodia.mailcal
 
 import android.webkit.WebView
@@ -85,8 +86,8 @@ internal fun ComposerDraftAction(control: ReplyDraftControl, from: String?) {
     }
 }
 
-// The intent dialog and the replace question. Drawn inside the composer's own Dialog, so back
-// reaches them rather than the composer under them.
+// The intent dialog, the replace question and Send's question about open items. Drawn inside the
+// composer's own Dialog, so back reaches them rather than the composer under them.
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ComposerDraftDialogs(control: ReplyDraftControl, from: String?) {
@@ -140,11 +141,13 @@ internal fun ComposerDraftDialogs(control: ReplyDraftControl, from: String?) {
             },
         )
     }
+    ComposerSendOpenQuestion(control)
 }
 
-// Under the address fields, above the body: drafting, what went wrong, or the gaps to fill.
+// Under the address fields, above the body: drafting, what went wrong, or the gaps to fill, then
+// the card a draft brought.
 @Composable
-internal fun ComposerDraftNotice(control: ReplyDraftControl) {
+internal fun ComposerDraftStatus(control: ReplyDraftControl) {
     val ctx = LocalContext.current
     val failure = control.failure
     when {
@@ -169,4 +172,5 @@ internal fun ComposerDraftNotice(control: ReplyDraftControl) {
             modifier = Modifier.padding(bottom = 8.dp),
         )
     }
+    ComposerDraftCard(control)
 }

@@ -1,7 +1,7 @@
 // Draft a reply, in the composer (docs/ai.md, "Drafting a reply"): the core writes a draft in the
 // person's style, and this puts it above the signature and the quote, where they edit it. Nothing
 // on this path sends. The state is a plain class so the JVM suite can drive it without a WebView;
-// the button and its dialogs are in ComposerReplyDraftViews.kt.
+// the button and its dialogs are in ComposerReplyDraftViews.kt, the card in ComposerDraftCard.kt.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -51,6 +51,10 @@ internal interface DraftEditor {
     fun leadHasText(answer: (Boolean) -> Unit)
 
     fun insert(text: String, draftId: String)
+
+    // Which of `placeholders` are still in the reply above the signature and the quote; null when
+    // the editor did not answer, so a failed read ticks nothing.
+    fun placeholdersLeft(placeholders: List<String>, answer: (List<String>?) -> Unit)
 }
 
 internal class ReplyDraftControl(
@@ -70,9 +74,20 @@ internal class ReplyDraftControl(
     var busy by mutableStateOf(false)
         private set
 
-    // Shown near the body from a draft with gaps until the next draft or a send.
+    // Shown near the body from a draft with gaps and no checklist naming them, until the next draft
+    // or a send.
     var checkBrackets by mutableStateOf(false)
         private set
+
+    // The card above the editor, for this composer's life.
+    val checklist = DraftChecklist()
+
+    // Send is waiting on "send with open items?".
+    var confirmingSend by mutableStateOf(false)
+        private set
+
+    private var pendingSend: (() -> Unit)? = null
+    private var attachments = 0
 
     var failure by mutableStateOf<WritingStyleFailure?>(null)
         private set
@@ -119,6 +134,50 @@ internal class ReplyDraftControl(
         checkBrackets = false
     }
 
+    // The composer's file count, from its opening on, so an attach item can tick itself.
+    fun attachmentsChanged(count: Int) {
+        attachments = count
+        checklist.attachmentsChanged(count)
+    }
+
+    // Asks the editor which placeholders are left and ticks the fill-in items; an answer that
+    // arrives after a later draft replaced the card is dropped.
+    fun readPlaceholders(done: () -> Unit = {}) {
+        val placeholders = checklist.placeholders
+        if (placeholders.isEmpty()) return done()
+        val asked = checklist.draft
+        editor.placeholdersLeft(placeholders) { left ->
+            if (left != null && asked == checklist.draft) checklist.placeholdersLeft(left)
+            done()
+        }
+    }
+
+    // Send, asking once first while an item is open, with the placeholders read afresh. It never
+    // blocks: either answer ends the asking for this composer.
+    fun requestSend(send: () -> Unit) {
+        if (checklist.hasAsked || checklist.items.isEmpty()) return send()
+        readPlaceholders {
+            if (checklist.asksBeforeSend) {
+                pendingSend = send
+                confirmingSend = true
+            } else {
+                send()
+            }
+        }
+    }
+
+    fun sendAnyway() {
+        val send = pendingSend
+        keepEditing()
+        send?.invoke()
+    }
+
+    fun keepEditing() {
+        confirmingSend = false
+        pendingSend = null
+        checklist.sendAsked()
+    }
+
     private fun draft(from: String?) {
         busy = true
         failure = null
@@ -130,7 +189,8 @@ internal class ReplyDraftControl(
             busy = false
             result.onSuccess {
                 editor.insert(it.text, it.draftId)
-                checkBrackets = it.gaps.isNotEmpty()
+                checklist.show(it.summary, it.tasks, attachments)
+                checkBrackets = it.gaps.isNotEmpty() && it.tasks.isEmpty()
             }.onFailure {
                 failure = it.asWritingStyleFailure()
             }

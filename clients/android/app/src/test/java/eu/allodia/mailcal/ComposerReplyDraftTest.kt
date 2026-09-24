@@ -6,6 +6,7 @@ package eu.allodia.mailcal
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -40,13 +41,27 @@ class ComposerReplyDraftTest {
     private var written = false
     private var answer: () -> DraftReply = { DraftReply("draft-1", "Hi Anna,\n\nYes.", emptyList(), "", emptyList(), "en", null) }
 
+    // What the editor says is left of the placeholders it is asked about.
+    private var left: List<String>? = emptyList()
+    private val placeholderReads = mutableListOf<List<String>>()
+
     private val editor = object : DraftEditor {
         override fun leadHasText(answer: (Boolean) -> Unit) = answer(written)
 
         override fun insert(text: String, draftId: String) {
             inserted += text to draftId
         }
+
+        override fun placeholdersLeft(placeholders: List<String>, answer: (List<String>?) -> Unit) {
+            placeholderReads += placeholders
+            answer(left)
+        }
     }
+
+    private val withTasks = DraftReply(
+        "draft-3", "See you on [date] at [time].", listOf("[date]", "[time]"),
+        "Bob asks when you can meet.", DRAFT_TASKS, "en", null,
+    )
 
     private val control = ReplyDraftControl(
         ANSWERED,
@@ -134,6 +149,114 @@ class ComposerReplyDraftTest {
         assertTrue(control.checkBrackets)
         control.sending()
         assertFalse(control.checkBrackets)
+    }
+
+    /** The card names the gaps, so it takes the place of the line about brackets. */
+    @Test
+    fun a_draft_with_a_checklist_shows_its_card_in_place_of_the_brackets_line() {
+        answer = { withTasks }
+        control.create(from = "acct-work")
+        assertFalse(control.checkBrackets)
+        assertEquals("Bob asks when you can meet.", control.checklist.summary)
+        assertEquals(DRAFT_TASKS.map { it.text }, control.checklist.items.map { it.text })
+    }
+
+    /** Files counted from the composer's opening, so only those added after the draft tick. */
+    @Test
+    fun an_attach_item_ticks_once_a_file_is_added_after_the_draft() {
+        control.attachmentsChanged(1)
+        answer = { withTasks }
+        control.create(from = "acct-work")
+        control.attachmentsChanged(1)
+        assertFalse(control.checklist.items[2].ticked)
+        control.attachmentsChanged(2)
+        assertTrue(control.checklist.items[2].ticked)
+    }
+
+    /** Send reads the reply afresh, asks once, and a later Send goes straight through. */
+    @Test
+    fun send_asks_once_about_open_items_with_the_placeholders_read_afresh() {
+        answer = { withTasks }
+        control.create(from = "acct-work")
+        var sends = 0
+        left = listOf("[time]")
+        control.requestSend { sends++ }
+        assertEquals(listOf(listOf("[date]", "[time]")), placeholderReads)
+        assertEquals(listOf(true, false, false, false), control.checklist.items.map { it.ticked })
+        assertTrue(control.confirmingSend)
+        assertEquals(0, sends)
+
+        control.keepEditing()
+        assertFalse(control.confirmingSend)
+        assertEquals(0, sends)
+        control.requestSend { sends++ }
+        assertEquals(1, sends)
+        assertFalse(control.confirmingSend)
+    }
+
+    @Test
+    fun send_anyway_sends_as_it_stands() {
+        answer = { withTasks }
+        control.create(from = "acct-work")
+        var sends = 0
+        control.requestSend { sends++ }
+        control.sendAnyway()
+        assertEquals(1, sends)
+        assertTrue(control.checklist.hasAsked)
+    }
+
+    /** Every placeholder filled and nothing else on the list: nothing to ask about. */
+    @Test
+    fun send_does_not_ask_once_the_reply_has_filled_everything() {
+        answer = { withTasks.copy(tasks = DRAFT_TASKS.take(2)) }
+        control.create(from = "acct-work")
+        left = emptyList()
+        var sends = 0
+        control.requestSend { sends++ }
+        assertEquals(1, sends)
+        assertFalse(control.confirmingSend)
+    }
+
+    /** An editor that did not answer ticks nothing, so the question still comes. */
+    @Test
+    fun a_read_the_editor_did_not_answer_ticks_nothing() {
+        answer = { withTasks }
+        control.create(from = "acct-work")
+        left = null
+        control.readPlaceholders()
+        assertTrue(control.checklist.items.none { it.ticked })
+    }
+
+    @Test
+    fun the_card_shows_the_summary_and_only_the_items_the_editor_cannot_see_toggle() {
+        answer = { withTasks.copy(tasks = DRAFT_TASKS.drop(1)) }
+        control.create(from = "acct-work")
+        left = listOf("[time]")
+        compose.setContent { ComposerDraftStatus(control) }
+        compose.onNodeWithText("Bob asks when you can meet.").assertIsDisplayed()
+        compose.onNodeWithText(L10n.composer_task_fill_in(ctx(), placeholder = "[time]")).performClick()
+        assertFalse(control.checklist.items[0].ticked)
+        compose.onNodeWithText("Book the room").performClick()
+        assertTrue(control.checklist.items[2].ticked)
+        compose.onNodeWithContentDescription(L10n.a11y_task_attach(ctx())).assertIsDisplayed()
+
+        // The card asks the editor about once a second, and ticks the placeholder once it is gone.
+        left = emptyList()
+        compose.mainClock.advanceTimeBy(1_100)
+        compose.waitForIdle()
+        assertTrue(control.checklist.items[0].ticked)
+    }
+
+    @Test
+    fun the_placeholders_reach_the_editor_as_a_string_and_come_back_as_a_list() {
+        assertEquals(
+            "window.composerPlaceholdersLeft(\"[\\\"[date]\\\",\\\"a\\\\\\\"b\\\"]\")",
+            composerPlaceholdersLeftScript(listOf("[date]", "a\"b")),
+        )
+        assertEquals(listOf("[date]"), placeholdersLeftAnswer("[\"[date]\"]"))
+        assertEquals(emptyList<String>(), placeholdersLeftAnswer("[]"))
+        assertNull(placeholdersLeftAnswer("null"))
+        assertNull(placeholdersLeftAnswer(null))
     }
 
     @Test

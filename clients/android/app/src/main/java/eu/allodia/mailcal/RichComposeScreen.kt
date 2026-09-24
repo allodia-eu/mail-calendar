@@ -184,6 +184,7 @@ internal fun RichComposeMessageDialog(
     // resolution so the page-finished seed is the current one, not the first one.
     val currentSignature = rememberUpdatedState(signature)
     val draft = rememberReplyDraft(mode, replyTo) { webView }
+    LaunchedEffect(draft, attachments.size) { draft?.attachmentsChanged(attachments.size) }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -315,7 +316,7 @@ internal fun RichComposeMessageDialog(
                             draft?.let { ComposerDraftAction(it, from?.id) }
                             IconButton(
                                 enabled = to.isNotBlank() && from != null,
-                                onClick = send,
+                                onClick = { draft?.requestSend(send) ?: send() },
                             ) {
                                 Icon(
                                     painter = painterResource(R.drawable.ic_send),
@@ -457,7 +458,7 @@ internal fun RichComposeMessageDialog(
                                 modifier = Modifier.padding(bottom = 8.dp),
                             )
                         }
-                        draft?.let { ComposerDraftNotice(it) }
+                        draft?.let { ComposerDraftStatus(it) }
                     }
                     // The dropped-picture question. Drawn inside the composer's own Dialog so its
                     // window is created after this one and stacks above it, and so back reaches the
