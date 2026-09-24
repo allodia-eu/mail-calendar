@@ -23,6 +23,7 @@ mod draft_instructions;
 mod endpoint;
 pub mod gated;
 pub mod language;
+mod lean;
 mod learn;
 mod markup;
 mod observe;
@@ -43,6 +44,7 @@ pub use draft::{Draft, DraftRequest, THREAD_CHARS, ThreadMessage, draft_reply, d
 pub use draft_instructions::{DRAFT_INSTRUCTIONS, DRAFT_PLACEHOLDERS};
 pub use endpoint::{EndpointError, OwnEndpoint};
 pub use gated::{GatedBackend, ModeSource, admit};
+pub use lean::lean;
 pub use learn::{
     LearnError, LearnOptions, LearnProgress, Learned, REQUEST_BUDGET_TOKENS, learn_style,
     pick_passages,

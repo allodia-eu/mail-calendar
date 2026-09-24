@@ -1,11 +1,12 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use mailcal_jurisdiction::{Class, Mode};
 
 use super::{EndpointError, OwnEndpoint};
 use crate::{
-    AiError, GatedBackend,
+    AiError, GatedBackend, LanguageStyle,
     test_support::CannedTransport,
+    tool,
     transport::TransportFailed,
     wire::{ChatMessage, ChatRequest, Purpose},
 };
@@ -139,6 +140,7 @@ fn each_failure_status_has_its_own_error() {
 #[test]
 fn no_answer_at_all_is_unreachable() {
     let transport = CannedTransport {
+        first: Mutex::default(),
         answer: Err(TransportFailed),
         sent: Arc::default(),
     };
@@ -163,4 +165,82 @@ fn an_undeclared_endpoint_is_refused_before_the_transport_is_touched() {
         Err(AiError::Refused(refused)) if refused.class == Class::Unknown
     ));
     assert!(sent.lock().unwrap().is_empty());
+}
+
+/// A request forcing `emit_json`, as every draft and learning request does.
+fn forced() -> ChatRequest {
+    let (tool, choice) = tool::forced::<LanguageStyle>("describe");
+    ChatRequest {
+        tools: vec![tool],
+        tool_choice: Some(choice),
+        ..request()
+    }
+}
+
+const NO_TOOL_CHOICE: &str = r#"{"error":{"message":"Model 'deepseek-v4.1-flash' does not support tool_choice.","type":"invalid_request_error"}}"#;
+const NO_TOOLS: &str = r#"{"error":"registry.ollama.ai/library/gemma:2b does not support tools"}"#;
+const ANSWERED: &str = r#"{"choices":[{"message":{"content":"{\"register\":\"u\"}"}}]}"#;
+
+#[test]
+fn a_model_that_refuses_the_forced_choice_is_asked_again_without_it() {
+    let transport = CannedTransport::after(&[(400, NO_TOOL_CHOICE)], 200, ANSWERED);
+    let sent = Arc::clone(&transport.sent);
+
+    let answer = gated(transport).chat(&forced()).unwrap();
+
+    assert!(answer.answer().unwrap().content.is_some());
+    let sent = sent.lock().unwrap();
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[0].body["tool_choice"]["function"]["name"], "emit_json");
+    assert!(sent[1].body.get("tool_choice").is_none());
+    assert_eq!(sent[1].body["tools"][0]["function"]["name"], "emit_json");
+}
+
+#[test]
+fn a_model_without_tools_is_asked_again_with_none() {
+    let transport = CannedTransport::after(&[(400, NO_TOOLS)], 200, ANSWERED);
+    let sent = Arc::clone(&transport.sent);
+
+    gated(transport).chat(&forced()).unwrap();
+
+    let sent = sent.lock().unwrap();
+    assert_eq!(sent.len(), 2);
+    assert!(sent[1].body.get("tools").is_none());
+    assert!(sent[1].body.get("tool_choice").is_none());
+    assert_eq!(sent[1].body["messages"], sent[0].body["messages"]);
+}
+
+#[test]
+fn each_refusal_is_answered_once_and_then_the_status_stands() {
+    let transport = CannedTransport::after(
+        &[(400, NO_TOOL_CHOICE), (400, NO_TOOLS)],
+        400,
+        NO_TOOL_CHOICE,
+    );
+    let sent = Arc::clone(&transport.sent);
+
+    assert_eq!(
+        gated(transport).chat(&forced()).unwrap_err(),
+        AiError::Status(400)
+    );
+    assert_eq!(sent.lock().unwrap().len(), 3);
+}
+
+#[test]
+fn any_other_refusal_is_not_repeated() {
+    for (body, request) in [
+        (
+            r#"{"error":{"message":"max_tokens is too large"}}"#,
+            forced(),
+        ),
+        (NO_TOOLS, request()),
+    ] {
+        let transport = CannedTransport::new(400, body);
+        let sent = Arc::clone(&transport.sent);
+        assert_eq!(
+            gated(transport).chat(&request).unwrap_err(),
+            AiError::Status(400)
+        );
+        assert_eq!(sent.lock().unwrap().len(), 1, "{body}");
+    }
 }

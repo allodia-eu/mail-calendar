@@ -76,25 +76,39 @@ person's voice, are later uses of the same seams.
 - **Input**: the message being answered as plain text (with whatever history it quotes), the
   style's section for the answer language (or its main one when it has none), that language's
   passages, the recipient context, the person's one-line intent when they give one, and the plain
-  text of the signature the composer will add, so the body does not repeat it.
+  text of the signature the composer will add, so the body does not repeat it. The thread and the
+  recipient context go in lean: one newline per line end, no trailing spaces, no run of blank
+  lines longer than one, and no `<https://…>` or `<mailto:…>` link target after a link's text,
+  which is most of what a plain-text conversion of a long signature is made of.
 - **Language**: the chosen one, else the language of the message being answered, else the style's
   main language.
 - **Output**: the body only, opening the way the person does. It closes the way they do only when
   the composer adds no signature; with one, the signature closes the message, the reply ends at its
-  last sentence, and a closing paragraph that repeats the signature's opening, or is made only of
-  its lines, is taken off before the draft reaches the editor. Where the reply needs a
+  last sentence, and a closing paragraph that repeats the signature's opening, is made only of
+  its lines, or is a single line of at most six words that is one of the person's own sign-offs
+  for the language, is taken off before the draft reaches the editor. Where the reply needs a
   fact that is in neither the thread nor the intent, the model writes a short bracketed gap
   (`[date]`); the draft lists them and the client says to check the parts in brackets. Where the
   person uses them, the draft may carry a small Markdown subset: `**bold**`, `*italic*`, lists
   whose lines start with `- `, `* `, `•` or `1.`, and a `#` line drawn as a bold line. The
-  answer's ceiling guards against a runaway answer and is well above any reply's length; one that
-  reaches it is logged.
+  answer's ceiling guards against a runaway answer, not the reply's length: from 3,000 to 6,000
+  tokens by the style's usual length, plus 600 for the summary and the checklist, because a
+  reasoning model's thinking counts against it on most servers. An answer that reaches it is
+  logged.
+- **A model that does not answer through the tool**: a plain-text answer is the reply, unless it
+  names the tool (`emit_json`), which no email does and a model's working notes do; that answer
+  is unreadable (`Malformed`) and never a draft. On an own endpoint, a `400` saying the model does
+  not support `tool_choice` is sent once more without it, and one saying it does not support tools
+  once more without the tools either; the answer is read from the JSON in its text, or as a
+  plain reply. Each resend is logged as an event, with nothing of the request. The relay is not
+  asked again, because its gateway picks the model.
 - **Summary and checklist**: the same request answers with what the message asks of the person, in
   a sentence or two, and what they still have to do: each placeholder of the reply (listed by the
   core from the reply itself, so each item names the exact text), then files to attach and actions
   elsewhere (listed by the model, at most six). Both are in the interface language. The reply never
-  says the person has done something they have not; the model writes it as something they will do,
-  and lists it.
+  says the person has done something they have not, nor anything about their own situation that is
+  in neither the thread nor the intent (that something is ready, that they checked something,
+  when they will do something); the model writes what they will do, and lists it.
 - **Where they show**: in a card between the composer's buttons and its text, never part of the
   mail, never saved or sent. A placeholder's item ticks itself once its text is gone from the reply
   (the client asks the editor's `composerPlaceholdersLeft`); the person ticks the others. At Send,
@@ -381,7 +395,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
   changes or the reply is opened again.
 - **Drafts have not been judged against the relay's providers.** One of them is known to fold a
   model's reasoning into its answer text; the first drafts through the relay are to be checked for
-  it, and an evaluation harness is not built.
+  it. Working notes are recognised only when they name the tool, so notes that do not are still
+  taken as the reply, and a relay model that refuses a forced tool is not asked again.
 - **The relay service is not deployed.** The device side is built against the request and answer
   fixed above: a signed-in account whose entitlement grants `ai` goes through the relay, the
   entitlement is read in the background and kept in the preferences, and every answer's balance is
@@ -439,6 +454,9 @@ Automated:
   the catalog.
 - `crates/mailcal-ai/src/learn_tests.rs`, `draft_tests.rs`: exemplars are the device's own text, the
   fence cannot be closed from inside, gaps are listed.
+- `crates/mailcal-ai/src/draft_model_tests.rs`, `endpoint_tests.rs`, `closing_tests.rs`,
+  `lean_tests.rs`: working notes are never a draft, a refused forced tool is asked for once more
+  without it, the ceiling leaves room for thinking, one closing only, and the thread goes in lean.
 - `crates/mailcal-ai/src/draft_instructions_tests.rs`, `record_tests.rs`: the template is filled in
   one pass, and a record carries what the draft said only when it is given.
 - `crates/mailcal-app/src/writing_style_feedback_tests.rs`, `writing_style_training_tests.rs`: a

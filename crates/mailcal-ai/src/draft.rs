@@ -13,9 +13,10 @@ use crate::{
     AiError, Exemplars, GatedBackend, LanguageStyle, StyleGuide,
     checklist::{self, Answered, DraftTask},
     closing, draft_instructions, language,
+    lean::lean,
     prompt::fence,
     tool,
-    wire::{ChatMessage, ChatRequest, Metering, Purpose, Usage},
+    wire::{ChatMessage, ChatRequest, ChatResponse, Metering, Purpose, Usage},
 };
 
 /// Room for the summary and the checklist beside the reply, in tokens.
@@ -172,18 +173,14 @@ pub fn draft_reply_with(
     {
         log::warn!("ai: the draft reached its length limit and ends early");
     }
-    // A server that ignores the forced tool answers in plain text: that is the reply alone.
-    let answered = tool::read::<Answered>(&response).unwrap_or_else(|_| Answered {
-        summary: String::new(),
-        reply: response
-            .answer()
-            .and_then(|answer| answer.content.clone())
-            .unwrap_or_default(),
-        tasks: Vec::new(),
-    });
+    let answered = match tool::read::<Answered>(&response) {
+        Ok(answered) => answered,
+        Err(_) => plain_reply(&response)?,
+    };
     let text = Some(closing::without_closing(
         &cleaned(&answered.reply),
         request.signature,
+        style.map_or(&[][..], |style| style.sign_offs.as_slice()),
     ))
     .filter(|text| !text.is_empty())
     .ok_or(AiError::Malformed)?;
@@ -202,6 +199,24 @@ pub fn draft_reply_with(
         language,
         metering: response.allodia,
         usage: response.usage,
+    })
+}
+
+/// The answer of a server that ignored the forced tool and answered in plain text: the reply
+/// alone, unless the text is the model's working notes, which name the tool as no email does.
+fn plain_reply(response: &ChatResponse) -> Result<Answered, AiError> {
+    let text = response
+        .answer()
+        .and_then(|answer| answer.content.clone())
+        .unwrap_or_default();
+    if text.contains(tool::NAME) {
+        log::warn!("ai: the draft answer is the model's working notes, not a reply");
+        return Err(AiError::Malformed);
+    }
+    Ok(Answered {
+        summary: String::new(),
+        reply: text,
+        tasks: Vec::new(),
     })
 }
 
@@ -241,7 +256,12 @@ fn material(
         sections.push(format!(
             "What this person recently wrote to the same recipient; match their register with \
              them:\n{}",
-            request.recipient_messages.join("\n\n---\n\n")
+            request
+                .recipient_messages
+                .iter()
+                .map(|text| lean(text).trim_end().to_owned())
+                .collect::<Vec<_>>()
+                .join("\n\n---\n\n")
         ));
     }
     sections.push(format!(
@@ -265,12 +285,12 @@ fn material(
     sections.join("\n\n")
 }
 
-/// The thread fenced, newest kept whole and older messages dropped first when it is long.
+/// The thread lean and fenced, newest kept whole and older messages dropped first when it is long.
 fn thread(messages: &[ThreadMessage]) -> String {
     let mut kept: Vec<String> = Vec::new();
     let mut room = THREAD_CHARS;
     for message in messages.iter().rev() {
-        let body: String = message.body.chars().take(room).collect();
+        let body: String = lean(&message.body).trim_end().chars().take(room).collect();
         room = room.saturating_sub(body.chars().count());
         let label = format!("from=\"{}\" date=\"{}\"", message.from, message.date);
         kept.push(fence(&label, &body));
@@ -283,10 +303,11 @@ fn thread(messages: &[ThreadMessage]) -> String {
 }
 
 /// A ceiling against a runaway answer, not a length guide: the instructions set the length, and a
-/// ceiling the reply reaches cuts it mid-sentence.
+/// ceiling the reply reaches cuts it mid-sentence. A reasoning model's thinking counts against it
+/// on most servers, which is what the floor leaves room for.
 fn answer_tokens(style: Option<&LanguageStyle>) -> u32 {
     let words = style.map_or(0, |style| style.typical_words);
-    (words.saturating_mul(8) + 1_000).clamp(1_500, 4_000)
+    (words.saturating_mul(8) + 2_500).clamp(3_000, 6_000)
 }
 
 /// The answer with a code fence or surrounding quotes a model sometimes adds taken off.
@@ -330,3 +351,7 @@ fn gaps(text: &str) -> Vec<String> {
 #[cfg(test)]
 #[path = "draft_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "draft_model_tests.rs"]
+mod model_tests;

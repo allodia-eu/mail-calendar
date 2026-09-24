@@ -12,6 +12,21 @@ fn the_default_template_uses_every_placeholder() {
 }
 
 #[test]
+fn the_default_template_forbids_inventing_the_person_s_own_situation() {
+    let rendered = render(DRAFT_INSTRUCTIONS, "nl", "en", None, None);
+    for said in [
+        "anything about this person's own situation that is in neither the thread nor their \
+         instructions",
+        "that they have something ready",
+        "that they have checked something",
+        "when they will do something",
+        "write what they will do, and list it as a task",
+    ] {
+        assert!(rendered.contains(said), "{said}");
+    }
+}
+
+#[test]
 fn a_template_is_filled_in_one_pass_and_leaves_other_braces_alone() {
     let rendered = render(
         "In {reply_language}; list in {interface_language}. {unknown} {\n{closing}\n",

@@ -228,8 +228,8 @@ impl<P: Provider> App<P> {
             draft,
             style: style_id,
             schema_version: guide.schema_version,
-            message: answered
-                .body
+            message: mailcal_ai::lean(&answered.body)
+                .trim_end()
                 .chars()
                 .take(mailcal_ai::THREAD_CHARS)
                 .collect(),

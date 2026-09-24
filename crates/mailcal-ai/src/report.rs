@@ -43,6 +43,15 @@ pub fn log_unanswered(purpose: Purpose, sent: usize, elapsed: Duration) {
     );
 }
 
+/// Logs a request sent again without `dropped`, which the model refused; `count` is how many
+/// times this request has been sent again.
+pub fn log_resent(purpose: Purpose, dropped: &str, count: u32) {
+    log::warn!(
+        "ai: {} sent again without {dropped}, which the model does not support (resend {count})",
+        purpose.label()
+    );
+}
+
 /// Reads a successful answer, and says in the log when it does not read as one.
 ///
 /// # Errors

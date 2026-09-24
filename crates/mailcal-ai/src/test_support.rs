@@ -90,19 +90,28 @@ pub(crate) struct SentRequest {
     pub(crate) body: serde_json::Value,
 }
 
-/// Answers every request with `answer` and records what was sent.
+/// Answers each request with the next of `first`, then every request with `answer`, and records
+/// what was sent.
 pub(crate) struct CannedTransport {
+    pub(crate) first: Mutex<Vec<HttpResponse>>,
     pub(crate) answer: Result<HttpResponse, TransportFailed>,
     pub(crate) sent: Arc<Mutex<Vec<SentRequest>>>,
 }
 
 impl CannedTransport {
     pub(crate) fn new(status: u16, body: &str) -> Self {
+        Self::after(&[], status, body)
+    }
+
+    /// Answers with each of `first` in turn, then with `status` and `body`.
+    pub(crate) fn after(first: &[(u16, &str)], status: u16, body: &str) -> Self {
+        let response = |(status, body): (u16, &str)| HttpResponse {
+            status,
+            body: body.to_owned(),
+        };
         Self {
-            answer: Ok(HttpResponse {
-                status,
-                body: body.to_owned(),
-            }),
+            first: Mutex::new(first.iter().copied().map(response).collect()),
+            answer: Ok(response((status, body))),
             sent: Arc::default(),
         }
     }
@@ -115,6 +124,11 @@ impl HttpTransport for CannedTransport {
             bearer: request.bearer.map(str::to_owned),
             body: serde_json::from_str(request.body).unwrap(),
         });
-        self.answer.clone()
+        let mut first = self.first.lock().unwrap();
+        if first.is_empty() {
+            self.answer.clone()
+        } else {
+            Ok(first.remove(0))
+        }
     }
 }

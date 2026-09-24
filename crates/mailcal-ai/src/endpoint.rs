@@ -5,13 +5,13 @@
 //! pipeline runs against. The request shaper lives here; the socket is the host's
 //! ([`HttpTransport`]).
 
-use std::{fmt, time::Instant};
+use std::{borrow::Cow, fmt, time::Instant};
 
 use mailcal_jurisdiction::Class;
 
 use crate::{
     AiBackend, AiError, report,
-    transport::{HttpRequest, HttpTransport},
+    transport::{HttpRequest, HttpResponse, HttpTransport},
     wire::{ChatRequest, ChatResponse},
 };
 
@@ -148,18 +148,9 @@ impl OpenAiCompatibleBackend {
         object.insert("stream".to_owned(), false.into());
         Ok(body.to_string())
     }
-}
 
-impl fmt::Debug for OpenAiCompatibleBackend {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("OpenAiCompatibleBackend")
-            .field("endpoint", &self.endpoint)
-            .finish_non_exhaustive()
-    }
-}
-
-impl AiBackend for OpenAiCompatibleBackend {
-    fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, AiError> {
+    /// Posts `request` once, and logs the exchange.
+    fn post(&self, request: &ChatRequest) -> Result<HttpResponse, AiError> {
         let body = self.body(request)?;
         let url = self.endpoint.completions_url();
         let started = Instant::now();
@@ -182,13 +173,75 @@ impl AiBackend for OpenAiCompatibleBackend {
             answered.status,
             &answered.body,
         );
-        match answered.status {
-            200..=299 => report::read_answer(&answered.body),
-            401 | 403 => Err(AiError::Unauthorized),
-            429 => Err(AiError::RateLimited),
-            status => Err(AiError::Status(status)),
+        Ok(answered)
+    }
+}
+
+impl fmt::Debug for OpenAiCompatibleBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OpenAiCompatibleBackend")
+            .field("endpoint", &self.endpoint)
+            .finish_non_exhaustive()
+    }
+}
+
+impl AiBackend for OpenAiCompatibleBackend {
+    fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, AiError> {
+        let mut request = Cow::Borrowed(request);
+        let mut resent = 0;
+        loop {
+            let answered = self.post(&request)?;
+            match answered.status {
+                200..=299 => return report::read_answer(&answered.body),
+                400 => {
+                    let Some((fewer, dropped)) = without_unsupported(&request, &answered.body)
+                    else {
+                        return Err(AiError::Status(400));
+                    };
+                    resent += 1;
+                    report::log_resent(request.purpose, dropped, resent);
+                    request = Cow::Owned(fewer);
+                }
+                401 | 403 => return Err(AiError::Unauthorized),
+                429 => return Err(AiError::RateLimited),
+                status => return Err(AiError::Status(status)),
+            }
         }
     }
+}
+
+/// `request` without what a refusal says the model does not support, and what that was, when the
+/// refusal names the forced tool choice or tools and the request still carries it. Each is
+/// dropped once at most, so a request is sent at most three times.
+fn without_unsupported(
+    request: &ChatRequest,
+    refusal: &str,
+) -> Option<(ChatRequest, &'static str)> {
+    let said = refusal.to_lowercase();
+    if !said.contains("support") {
+        return None;
+    }
+    if request.tool_choice.is_some()
+        && (said.contains("tool_choice") || said.contains("tool choice"))
+    {
+        let fewer = ChatRequest {
+            tool_choice: None,
+            ..request.clone()
+        };
+        return Some((fewer, "a forced tool"));
+    }
+    let names_tools = ["tools", "tool use", "tool calling", "function calling"]
+        .iter()
+        .any(|name| said.contains(name));
+    if !request.tools.is_empty() && names_tools {
+        let fewer = ChatRequest {
+            tools: Vec::new(),
+            tool_choice: None,
+            ..request.clone()
+        };
+        return Some((fewer, "tools"));
+    }
+    None
 }
 
 #[cfg(test)]
