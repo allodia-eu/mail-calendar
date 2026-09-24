@@ -64,6 +64,7 @@ const EARLY_CHECKS: &[&str] = &[
 const LATE_CHECKS: &[&str] = &[
     "check-showcase-flag",
     "check-dev-account",
+    "check-icons",
     "check-log-hygiene",
     "check-british-english",
     "check-dash-hygiene",
