@@ -334,7 +334,7 @@ A style's id is opaque CSPRNG output, never derived from its name.
 | Own endpoint under Settings → Advanced | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
 | Allodia relay: the entitlement read, requests, the balance | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Style guide synced between devices | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
-| Feedback on a draft: thumbs, reasons, comment, the email and the draft only when ticked | 🚧 | 🚧 | ✅ | ⬜ | ⬜ | ⬜ |
+| Feedback on a draft: thumbs, reasons, comment, the email and the draft only when ticked | 🚧 | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
 | Training mode: compare drafts across messages, models and variants, rate, summarise, export (debug builds) | ✅ | 🚧 | — | — | — | — |
 | Fetch older sent mail back to a date | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
@@ -354,7 +354,8 @@ with it. Linux is built and not yet driven (Known gaps).
 Feedback was driven on an iPhone simulator against the harness and the canned endpoint, offered by
 `MAILCAL_FAKE_AI_FEEDBACK` in place of a sign-in: a thumbs up, and a thumbs down with reasons, a
 comment and the box ticked, each landing in the outbox. The core's side is 🚧 until the route
-exists. On macOS both features are built and not driven.
+exists. On macOS feedback was driven against a real mailbox signed in to Allodia; training mode
+is built and not yet driven.
 
 Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 

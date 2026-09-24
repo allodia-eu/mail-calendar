@@ -1,11 +1,11 @@
 # Rate a drafted reply
 
-Platforms: ios
+Platforms: macos, ios
 Bump: minor
 
 > Thumbs up and down on the draft card, and a short form for what was wrong, offered only while
-> signed in to an Allodia account. Driven on an iPhone simulator; macOS is built and not driven, so
-> it is not tagged. The note does not say the feedback reaches Allodia, because nothing is sent
+> signed in to an Allodia account. Driven on an iPhone simulator, and on macOS against a real
+> mailbox signed in to Allodia. The note does not say the feedback reaches Allodia, because nothing is sent
 > until the service has the route (`docs/ai.md`, "Feedback").
 
 **English**
