@@ -9,11 +9,8 @@
 package eu.allodia.mailcal
 
 import android.webkit.WebView
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,7 +32,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -404,15 +400,7 @@ internal fun RichComposeMessageDialog(
                     // The address-field header, overlaid on the WebView and offset by the scroll so
                     // it scrolls up and off as the message grows. Opaque, so the empty editor area
                     // it covers doesn't show through between the fields.
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onSizeChanged { headerHeightPx = it.height }
-                            .graphicsLayer { translationY = -scrollY.toFloat() }
-                            .background(MaterialTheme.colorScheme.surface)
-                            .padding(horizontal = 16.dp)
-                            .padding(top = 8.dp),
-                    ) {
+                    ComposerHeaderOverlay(scrollY = { scrollY }, onHeight = { headerHeightPx = it }) {
                         ComposerHeaderFields(
                             accounts = accounts,
                             from = from,
