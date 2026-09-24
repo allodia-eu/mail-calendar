@@ -277,7 +277,7 @@ struct RichComposeView: View {
                     Button(L10n.action_cancel(), role: .cancel) { cancel() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(L10n.action_send()) { prepareAndSend() }.disabled(sendDisabled)
+                    Button(L10n.action_send()) { requestSend() }.disabled(sendDisabled)
                 }
             }
         }
@@ -369,6 +369,7 @@ struct RichComposeView: View {
         TextField(L10n.compose_subject(), text: $subject)
         actionBar
         draftStatusLine
+        draftCard
         if showsStylePicker {
             Picker(L10n.quote_style_label(), selection: $quoteStyle) {
                 Text(L10n.quote_style_indented()).tag(QuoteStyleKind.indented)
@@ -406,7 +407,7 @@ struct RichComposeView: View {
         #if os(macOS)
         HStack(spacing: 10) {
             Button {
-                prepareAndSend()
+                requestSend()
             } label: {
                 Label(L10n.action_send(), systemImage: "paperplane")
             }
@@ -449,7 +450,8 @@ struct RichComposeView: View {
         }
     }
 
-    private func prepareAndSend() {
+    /// Sends as it stands. Not `private`: RichComposerView.DraftChecklist.swift asks first.
+    func prepareAndSend() {
         composerError = nil
         draftStatus.checkBrackets = false
         editor.documentJSON { result in

@@ -249,6 +249,22 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
         }
     }
 
+    /// Which of `placeholders` are still in the reply above the signature and the quote, or `nil`
+    /// when the editor did not answer, so a failed read ticks nothing.
+    func placeholdersLeft(_ placeholders: [String]) async -> [String]? {
+        guard let data = try? JSONSerialization.data(withJSONObject: placeholders),
+              let json = String(data: data, encoding: .utf8)
+        else {
+            return nil
+        }
+        let script = "window.composerPlaceholdersLeft(\(Self.jsString(json)))"
+        return await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript(script) { value, _ in
+                continuation.resume(returning: value as? [String])
+            }
+        }
+    }
+
     /// Re-styles the quoted original in place without disturbing the user's typed message, the
     /// per-composer override of the persisted default.
     func setQuoteStyle(_ token: String) {

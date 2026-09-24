@@ -33,8 +33,12 @@ final class ComposerDraftStatus {
     var intent = ""
     /// The draft is being written; the composer stays usable meanwhile.
     var drafting = false
-    /// The last draft left gaps in brackets. Shown until the next draft or send.
+    /// The last draft left gaps in brackets and no checklist names them. Shown until the next
+    /// draft or send.
     var checkBrackets = false
+    /// The card above the editor, for this composer's life.
+    var checklist = DraftChecklist()
+    var confirmingSend = false
     var failure: String?
     /// A draft waiting on "replace what you have written?", with the intent it was asked with.
     var confirmingReplace = false
@@ -123,7 +127,10 @@ extension RichComposeView {
             switch result {
             case let .success(draft):
                 editor.setDraftText(draft.text, draftId: draft.draftId)
-                draftStatus.checkBrackets = !draft.gaps.isEmpty
+                draftStatus.checklist.show(
+                    summary: draft.summary, tasks: draft.tasks, attachments: attachments.count
+                )
+                draftStatus.checkBrackets = !draft.gaps.isEmpty && draft.tasks.isEmpty
                 draftStatus.intent = ""
             case let .failure(failure):
                 draftStatus.failure = writingStyleFailureText(failure, route: draftReply.route)
