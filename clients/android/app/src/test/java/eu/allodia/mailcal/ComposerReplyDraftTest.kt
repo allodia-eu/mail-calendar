@@ -39,7 +39,7 @@ class ComposerReplyDraftTest {
     private val asked = mutableListOf<Asked>()
     private val inserted = mutableListOf<Pair<String, String>>()
     private var written = false
-    private var answer: () -> DraftReply = { DraftReply("draft-1", "Hi Anna,\n\nYes.", emptyList(), "", emptyList(), "en", null) }
+    private var answer: () -> DraftReply = { DraftReply("draft-1", "Hi Anna,\n\nYes.", emptyList(), "", emptyList(), "en", null, null) }
 
     // What the editor says is left of the placeholders it is asked about.
     private var left: List<String>? = emptyList()
@@ -60,7 +60,7 @@ class ComposerReplyDraftTest {
 
     private val withTasks = DraftReply(
         "draft-3", "See you on [date] at [time].", listOf("[date]", "[time]"),
-        "Bob asks when you can meet.", DRAFT_TASKS, "en", null,
+        "Bob asks when you can meet.", DRAFT_TASKS, "en", null, null,
     )
 
     private val control = ReplyDraftControl(
@@ -144,7 +144,7 @@ class ComposerReplyDraftTest {
     /** Gaps are pointed out until the next draft or a send. */
     @Test
     fun a_draft_with_gaps_says_to_check_the_brackets_until_it_is_sent() {
-        answer = { DraftReply("draft-2", "See you on [date].", listOf("[date]"), "", emptyList(), "en", null) }
+        answer = { DraftReply("draft-2", "See you on [date].", listOf("[date]"), "", emptyList(), "en", null, null) }
         control.create(from = "acct-work")
         assertTrue(control.checkBrackets)
         control.sending()
