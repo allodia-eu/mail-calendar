@@ -1,6 +1,7 @@
 // Seeding the body from the host, and putting the caret in it.
 
 import { caretInto, documentOf, focusEditor, rangeWithin, windowOf } from "./dom";
+import { draftBlocks } from "./drafttext";
 
 /// Focuses the message area so the composer opens ready to type; a host calls this when it opens a
 /// reply or forward, where the addresses and subject are already filled in and writing is the only
@@ -36,9 +37,9 @@ export function setPlainText(editor: HTMLElement, text: unknown): void {
 ///
 /// The lead region is every node before the first direct child that is the signature or the quote.
 /// Direct children only, for the reason `composerSignature` gives: a reply to our own mail carries
-/// a second `.allodia-signature` inside the quote. The draft goes in as `setPlainText` fills a
-/// body, one `<div>` per line, and the caret ends up after its last character, so the person picks
-/// up where the draft stops.
+/// a second `.allodia-signature` inside the quote. The draft goes in through `draftBlocks`, one
+/// `<div>` per line with its bold, italic and lists built as elements, and the caret ends up after
+/// its last character, so the person picks up where the draft stops.
 ///
 /// `draftId` is the id the core issued with the draft. The editor keeps it and `composerDocument`
 /// hands it back as `ai_draft`, which is how a reply sent from a draft is kept out of every later
@@ -49,10 +50,10 @@ export function setComposerDraftText(editor: HTMLElement, text: unknown, draftId
   while (editor.firstChild && editor.firstChild !== boundary) {
     editor.removeChild(editor.firstChild);
   }
-  const divs = lineDivs(editor, text);
-  for (const div of divs) editor.insertBefore(div, boundary);
-  const last = divs[divs.length - 1];
-  if (last) caretInto(last, false);
+  const blocks = draftBlocks(documentOf(editor), String(text ?? ""));
+  for (const block of blocks) editor.insertBefore(block, boundary);
+  const last = blocks[blocks.length - 1];
+  if (last) caretInto(last.lastElementChild?.tagName === "LI" ? last.lastElementChild : last, false);
 }
 
 /// Whether the person has put anything above the signature and the quoted original: text, or a

@@ -42,7 +42,7 @@ impl HttpTransport for FakeEndpoint {
             json!({ "choices": [{ "message": { "tool_calls": [{ "function": {
                 "name": "emit_json", "arguments": described.to_string() } }] } }] })
         } else {
-            json!({ "choices": [{ "message": { "content": "Hi Anna,\n\nFine by me on [date].\n\nBest,\nSam" } }] })
+            json!({ "choices": [{ "message": { "content": "Hi Anna,\n\nFine by me on **[date]**.\n\nBest,\nSam" } }] })
         };
         self.seen.lock().unwrap().push(body);
         Ok(HttpResponse {
@@ -343,7 +343,8 @@ async fn a_reply_sent_from_a_draft_is_logged_and_never_learned_from() {
     let send = &sends[0];
     assert_eq!(send.account, "acct-1");
     assert_eq!(send.language, "en");
-    // The person replaced the gap with a day: that is the whole correction.
+    // The person replaced the gap with a day: that is the whole correction. The bold around the
+    // gap was the composer's to draw, so it is not an edit.
     assert_eq!(send.added, ["Friday."]);
     assert_eq!(send.removed, ["[date]."]);
 }

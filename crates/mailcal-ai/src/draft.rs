@@ -126,6 +126,14 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
         max_tokens: Some(answer_tokens(style)),
     };
     let response = backend.chat(&chat)?;
+    if response
+        .choices
+        .first()
+        .and_then(|choice| choice.finish_reason.as_deref())
+        == Some("length")
+    {
+        log::warn!("ai: the draft reached its length limit and ends early");
+    }
     let text = response
         .answer()
         .and_then(|answer| answer.content.as_deref())
@@ -164,6 +172,10 @@ fn instructions(language: &str, style: Option<&LanguageStyle>, signature: Option
          their register with this recipient, their usual length, their paragraphing and their \
          punctuation. The person's own notes, when there are any, take precedence over the \
          description.\n\
+         \n\
+         Where this person uses them, you may format with **bold** for a short heading or an \
+         emphasis, *italic*, and lists whose lines start with \"- \" or \"1. \". Use nothing \
+         else: no # headings, no links, no tables, no code blocks.\n\
          \n\
          Never invent a fact. Where the reply needs one that is in neither the thread nor the \
          person's instructions, such as a date, a time, an amount, a name or an address, write a \
@@ -258,9 +270,11 @@ fn thread(messages: &[ThreadMessage]) -> String {
     kept.join("\n\n")
 }
 
+/// A ceiling against a runaway answer, not a length guide: the instructions set the length, and a
+/// ceiling the reply reaches cuts it mid-sentence.
 fn answer_tokens(style: Option<&LanguageStyle>) -> u32 {
     let words = style.map_or(0, |style| style.typical_words);
-    (words.saturating_mul(3) + 300).clamp(400, 2_000)
+    (words.saturating_mul(8) + 1_000).clamp(1_500, 4_000)
 }
 
 /// The answer with a code fence or surrounding quotes a model sometimes adds taken off.

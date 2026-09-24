@@ -99,7 +99,9 @@ port:
    content. Logs may include lengths, counts, ids, and validation error categories.
 9. **External dispatches stay gated.** AI drafting passes the jurisdiction gate
    (`mailcal-jurisdiction`) before data leaves ([`ai.md`](ai.md)); a future feature that fetches a
-   remote image or uploads to a cloud attachment provider passes it too.
+   remote image or uploads to a cloud attachment provider passes it too. A drafted reply is model
+   output and so hostile input: its bold, italic and lists are built as elements through the DOM
+   API (`drafttext.ts`) and nothing in it is parsed as markup.
 10. **Raw-HTML body blocks are sanitised in the core: quoted originals *and* signatures.** Two blocks
     carry HTML the composer emits verbatim rather than building from nodes, and both are hostile input
     the editor round-trips:

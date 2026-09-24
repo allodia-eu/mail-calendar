@@ -77,10 +77,16 @@ person's voice, are later uses of the same seams.
   main language.
 - **Output**: the body only, opening and closing the way the person does. Where the reply needs a
   fact that is in neither the thread nor the intent, the model writes a short bracketed gap
-  (`[date]`); the draft lists them and the client says to check the parts in brackets.
+  (`[date]`); the draft lists them and the client says to check the parts in brackets. Where the
+  person uses them, the draft may carry a small Markdown subset: `**bold**`, `*italic*`, lists
+  whose lines start with `- `, `* `, `•` or `1.`, and a `#` line drawn as a bold line. The
+  answer's ceiling guards against a runaway answer and is well above any reply's length; one that
+  reaches it is logged.
 - **Insertion**: into the **open** composer, above the signature and the quote, through the editor
   bundle's `setComposerDraftText`. It replaces only what is above those two regions, leaves both
-  exactly where they are, and puts the caret at the end of the draft. Nothing is sent.
+  exactly where they are, builds the formatting as elements (never parsing markup), and puts the
+  caret at the end of the draft. Nothing is sent. What the person sends is compared with the draft
+  as the composer's plain text renders it, so the formatting itself is never counted as an edit.
 
 ## Keeps learning, from the person and never from the model
 

@@ -145,10 +145,11 @@ impl<P: Provider> App<P> {
             &backend,
         )?;
         self.note_metering(draft.metering);
-        let draft_id =
-            self.writing_style
-                .observed
-                .issue(style_id, draft.language.clone(), draft.text.clone());
+        let draft_id = self.writing_style.observed.issue(
+            style_id,
+            draft.language.clone(),
+            mailcal_ai::draft_plain(&draft.text),
+        );
         Ok(DraftReply {
             draft_id,
             text: draft.text,

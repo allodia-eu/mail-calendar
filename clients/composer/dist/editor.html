@@ -1690,6 +1690,74 @@
     view.addEventListener("resize", place);
   }
 
+  // src/drafttext.ts
+  var BULLET = /^\s*[-*•]\s+(.*)$/;
+  var NUMBERED = /^\s*\d{1,3}[.)]\s+(.*)$/;
+  var HEADING = /^\s*#{1,3}\s+(.*)$/;
+  var INLINE = /\*\*(\S(?:.*?\S)?)\*\*|\*(\S(?:.*?\S)?)\*/g;
+  function draftBlocks(doc, text) {
+    const lines = text.split(`
+`);
+    const blocks = [];
+    let list = null;
+    lines.forEach((line, index) => {
+      const item = listItem2(line);
+      if (item) {
+        if (!list || list.tagName !== item.tag) {
+          list = doc.createElement(item.tag);
+          blocks.push(list);
+        }
+        const li = doc.createElement("li");
+        appendInline(doc, li, item.rest);
+        list.appendChild(li);
+        return;
+      }
+      if (line.trim() === "" && list && continuesList(lines, index, list.tagName))
+        return;
+      list = null;
+      const div = doc.createElement("div");
+      const heading = HEADING.exec(line);
+      if (heading) {
+        const bold = doc.createElement("b");
+        bold.textContent = heading[1] ?? "";
+        div.appendChild(bold);
+      } else if (line.length > 0) {
+        appendInline(doc, div, line);
+      } else {
+        div.appendChild(doc.createElement("br"));
+      }
+      blocks.push(div);
+    });
+    return blocks;
+  }
+  function listItem2(line) {
+    const bullet = BULLET.exec(line);
+    if (bullet)
+      return { tag: "UL", rest: bullet[1] ?? "" };
+    const numbered = NUMBERED.exec(line);
+    if (numbered)
+      return { tag: "OL", rest: numbered[1] ?? "" };
+    return null;
+  }
+  function continuesList(lines, blank, tag) {
+    const next = lines.slice(blank + 1).find((line) => line.trim() !== "");
+    return next !== undefined && listItem2(next)?.tag === tag;
+  }
+  function appendInline(doc, parent, text) {
+    let from = 0;
+    for (const match of text.matchAll(INLINE)) {
+      const at = match.index ?? 0;
+      if (at > from)
+        parent.appendChild(doc.createTextNode(text.slice(from, at)));
+      const mark = doc.createElement(match[1] !== undefined ? "b" : "i");
+      mark.textContent = match[1] ?? match[2] ?? "";
+      parent.appendChild(mark);
+      from = at + match[0].length;
+    }
+    if (from < text.length)
+      parent.appendChild(doc.createTextNode(text.slice(from)));
+  }
+
   // src/seeds.ts
   function focusComposerBody(editor) {
     const lead = editor.firstElementChild;
@@ -1709,12 +1777,12 @@
     while (editor.firstChild && editor.firstChild !== boundary) {
       editor.removeChild(editor.firstChild);
     }
-    const divs = lineDivs(editor, text);
-    for (const div of divs)
-      editor.insertBefore(div, boundary);
-    const last = divs[divs.length - 1];
+    const blocks = draftBlocks(documentOf(editor), String(text ?? ""));
+    for (const block of blocks)
+      editor.insertBefore(block, boundary);
+    const last = blocks[blocks.length - 1];
     if (last)
-      caretInto(last, false);
+      caretInto(last.lastElementChild?.tagName === "LI" ? last.lastElementChild : last, false);
   }
   function composerLeadHasText(editor) {
     const boundary = leadBoundary(editor);

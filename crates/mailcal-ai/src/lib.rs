@@ -21,6 +21,7 @@ mod endpoint;
 pub mod gated;
 pub mod language;
 mod learn;
+mod markup;
 mod observe;
 mod prompt;
 pub mod report;
@@ -41,6 +42,7 @@ pub use learn::{
     pick_passages,
 };
 pub use mailcal_jurisdiction::{Class, Destination, Mode, Refused};
+pub use markup::draft_plain;
 pub use observe::{Correction, correction};
 pub use style::{Exemplars, Habit, LanguageStyle, Provenance, SCHEMA_VERSION, StyleGuide};
 pub use transport::{HttpRequest, HttpResponse, HttpTransport, TransportFailed};
