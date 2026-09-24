@@ -1,19 +1,18 @@
-//! An IMAP [`Provider`] wrapper that transparently reconnects a dropped session.
+//! An IMAP [`Provider`] wrapper that retries a call once after its socket died.
 //!
-//! The engine's `ImapProvider` holds **one** persistent `Mutex<Connection>` and never
-//! re-dials: once its TLS socket dies (the machine slept, or the network dropped), every
-//! reuse fails instantly with a [`FailureClass::Retryable`] transport error (`Broken pipe`,
-//! `peer closed connection without sending TLS close_notify`) and stays dead until the
-//! provider is rebuilt. The app holds its providers behind an immutable `Arc`, so nothing
-//! rebuilds them and only an app restart recovers, which is exactly the "Refresh does
-//! nothing / can't load this message" bug.
+//! The engine's `ImapProvider` borrows a connection from its account per call and replaces a
+//! dead one on the *next* call, but the call that found it dead has already failed with a
+//! [`FailureClass::Retryable`] transport error (`Broken pipe`, `peer closed connection without
+//! sending TLS close_notify`). After the machine slept or the network dropped, that is the first
+//! thing the user does: a Refresh, or opening a message, and it would fail once for no reason
+//! they can see.
 //!
-//! [`ReconnectingImapProvider`] fixes it the same way [`RefreshingGraphProvider`] fixes the
+//! [`ReconnectingImapProvider`] retries it the same way [`RefreshingGraphProvider`] does on the
 //! Graph side ([`crate::graph`]): it caches a live delegate and, on a retryable transport
-//! failure, drops the dead session, re-dials a fresh one, and retries the (idempotent) call
-//! once. The re-dial is an **injected closure** ([`Redial`]) so the reconnect path is
-//! unit-testable without a real socket; the live closure ([`crate::make_imap_redial`])
-//! re-runs `ImapProvider::connect`.
+//! failure, drops it, takes a fresh one, and retries the (idempotent) call once. The fresh one
+//! comes from an **injected closure** ([`Redial`]) so the path is unit-testable without a real
+//! socket; the live closure (`imap::make_imap_redial`) drops the account's resting connections
+//! and binds the folder again, so the retry runs on a connection dialled for it.
 //!
 //! [`RefreshingGraphProvider`]: crate::graph
 

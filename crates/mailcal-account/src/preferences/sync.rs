@@ -136,7 +136,11 @@ pub const MESSAGE_SIZE_LIMITS_MB: [u16; 4] = [2, 5, 10, 0];
 /// cost of one standing connection per watched folder, and keeping it uniform means one
 /// rule across clients). The product core enforces it; clients also disable further
 /// selection once it is reached (`AccountSyncRow::at_push_limit`).
-pub const MAX_PUSH_FOLDERS: usize = 5;
+///
+/// Four because each watch holds one of the account's five IMAP connections for as long as it
+/// runs, and the engine refuses the watch that would leave none to sync with. A fifth watched
+/// folder would be refused on every attempt.
+pub const MAX_PUSH_FOLDERS: usize = 4;
 
 /// The selectable background-poll intervals, in minutes; what a client offers when an
 /// account checks on a timer instead of receiving push. 15 minutes is the floor (it
@@ -332,11 +336,11 @@ mod tests {
     }
 
     #[test]
-    fn cap_push_folders_dedupes_and_truncates_to_five() {
+    fn cap_push_folders_dedupes_and_truncates_to_the_cap() {
         let many = ["INBOX", "A", "B", "INBOX", "C", "D", "E", "F"].map(str::to_owned);
         let capped = cap_push_folders(&many);
-        // Deduped (one INBOX) and never more than five, in first-seen order.
-        assert_eq!(capped, ["INBOX", "A", "B", "C", "D"].map(str::to_owned));
+        // Deduped (one INBOX) and never more than the cap, in first-seen order.
+        assert_eq!(capped, ["INBOX", "A", "B", "C"].map(str::to_owned));
         assert_eq!(capped.len(), MAX_PUSH_FOLDERS);
     }
 

@@ -41,7 +41,10 @@ mailcal-autodetect = { workspace = true }
 # deciding for itself what an unanswered organiser means. A leaf crate (engine-api only), so
 # depending on it here adds no cycle and no weight.
 mailcal-viewmodel = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+# Names the stream an IMAP account's connections run over (`imap::ImapConnections`); the
+# engine is generic over it and exports no alias.
+tokio-rustls = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
@@ -68,12 +71,11 @@ time = { workspace = true }
 [dev-dependencies]
 engine-core = { workspace = true }
 engine-provider = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-thread"] }
 # `tests/certificate_exception.rs` stands up an in-process TLS server presenting a
 # certificate no trust anchor can rescue, and dials it through the real connect path.
 rcgen = { workspace = true }
 rustls = { workspace = true }
-tokio-rustls = { workspace = true }
 
 # The probe binary drives the full engine sync against a real account; the library is
 # reused by the bindings to build the same providers.

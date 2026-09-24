@@ -82,7 +82,8 @@ fn account(port: u16, exceptions: &[CertificateException]) -> AccountConfig {
 
 async fn connect(config: &AccountConfig) -> Result<(), AccountError> {
     let id = AccountId::try_from("someone@127.0.0.1").expect("account id");
-    mailcal_account::connect_mail_providers(config, &id, None)
+    let connections = mailcal_account::ImapConnections::new();
+    mailcal_account::connect_mail_providers(&connections, config, &id)
         .await
         .map(|_| ())
 }

@@ -231,13 +231,13 @@ async fn timezone_intents_drive_the_settings_surface_and_reorder_the_agenda() {
 async fn sync_settings_defaults_to_polling_without_idle_support() {
     // A server that doesn't advertise IDLE: the account defaults to interval polling
     // (30 min), the push option is gated off, and the folder list is still reported so a
-    // client can render it. The shared limits (5 folders, the interval set) come through.
+    // client can render it. The shared limits (4 folders, the interval set) come through.
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = app(vec![account("acct", FakeProvider::with(vec![]))], &surfaces);
     app.dispatch(Intent::RefreshMail).await; // populate the engine's folder list
 
     let settings = app.sync_settings().await;
-    assert_eq!(settings.max_push_folders, 5);
+    assert_eq!(settings.max_push_folders, 4);
     assert_eq!(settings.poll_intervals, vec![15, 30, 60, 90, 120]);
     let row = &settings.accounts[0];
     assert!(!row.idle_supported, "the fake server advertises no IDLE");
@@ -304,7 +304,7 @@ async fn replacing_account_providers_refreshes_idle_support_settings() {
 
 #[tokio::test]
 async fn set_push_folder_caps_subscriptions_at_the_limit() {
-    // Subscribing past the five-folder cap is ignored, and the snapshot then reports the
+    // Subscribing past the four-folder cap is ignored, and the snapshot then reports the
     // account is at the limit so a client disables further toggles.
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = app(
@@ -313,18 +313,18 @@ async fn set_push_folder_caps_subscriptions_at_the_limit() {
     );
     app.dispatch(Intent::RefreshMail).await;
 
-    // The Inbox ("a") is already subscribed by default; add six more keys: only four more
-    // fit (5 total), and the rest are dropped.
+    // The Inbox ("a") is already subscribed by default; add six more keys: only three more
+    // fit (4 total), and the rest are dropped.
     for key in ["b", "c", "d", "e", "f", "g"] {
         app.set_push_folder("acct", key, true).await;
     }
     let row = &app.sync_settings().await.accounts[0];
     let subscribed = row.folders.iter().filter(|f| f.subscribed).count();
     // Folders b..g aren't in the engine's folder list, but the stored push set still caps
-    // at five; the reported `at_push_limit` reflects that.
+    // at four; the reported `at_push_limit` reflects that.
     assert!(row.at_push_limit, "the account is at the push-folder cap");
     // Only the Inbox ("a") exists as a real folder, so it's the one subscribed row shown.
-    assert!(subscribed <= 5);
+    assert!(subscribed <= 4);
 }
 
 #[tokio::test]

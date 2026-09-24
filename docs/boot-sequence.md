@@ -151,9 +151,6 @@ one that lost an account.
 ### Still open
 
 - The headless pass primes a snapshot and a calendar it cannot read.
-- **The engine's connection pool** is what bounds sockets *per account*; three accounts
-  × five folders is still 15 until it lands. The core's bound is per **account**, deliberately: the
-  socket count of one account is a property of the engine's type, not of this scheduler.
 - **`collect_new_inbound` reports cached mail newer than the mark**, whether or not this pass synced
   anything. Not a bug on its face (mail the user was never notified about should not be swallowed),
   but 74 notifications at once is not a design either.

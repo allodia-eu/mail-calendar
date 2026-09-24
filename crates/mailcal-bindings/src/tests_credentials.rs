@@ -205,8 +205,9 @@ fn a_rejected_replacement_keeps_the_registered_and_stored_password() {
     );
     assert_eq!(
         app.registry
-            .imap_config(&account_id)
+            .imap(&account_id)
             .expect("the displaced entry was restored")
+            .0
             .imap
             .password
             .expose(),

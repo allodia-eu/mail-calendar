@@ -8,9 +8,10 @@
 
 use std::fmt;
 
+use engine_core::error::FailureClass;
 use provider_imap::ImapError;
 
-use crate::{FailureClass, RejectedCertificate};
+use crate::RejectedCertificate;
 
 /// An error building or connecting an account's providers.
 #[derive(Debug, thiserror::Error)]

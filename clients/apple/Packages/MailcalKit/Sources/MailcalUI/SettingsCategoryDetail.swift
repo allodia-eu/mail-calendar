@@ -379,7 +379,7 @@ struct SettingsCategoryDetail: View {
     private func pushFolders(_ account: AccountSyncRow) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(L10n.settings_sync_folders_heading()).font(.subheadline).bold()
-            Text(L10n.settings_sync_folders_note(count: Int(model.syncSettings?.maxPushFolders ?? 5)))
+            Text(L10n.settings_sync_folders_note(count: Int(model.syncSettings?.maxPushFolders ?? 4)))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ForEach(account.folders, id: \.key) { folder in
