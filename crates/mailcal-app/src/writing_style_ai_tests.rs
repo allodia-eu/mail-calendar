@@ -115,6 +115,12 @@ fn account_id() -> AccountId {
     AccountId::try_from("acct-1").unwrap()
 }
 
+#[path = "writing_style_feedback_tests.rs"]
+mod feedback;
+#[cfg(debug_assertions)]
+#[path = "writing_style_training_tests.rs"]
+mod training;
+
 #[tokio::test]
 async fn the_report_reads_only_the_sent_folder_and_only_the_range() {
     let (app, _) = fixture().await;

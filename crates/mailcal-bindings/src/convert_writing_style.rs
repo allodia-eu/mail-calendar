@@ -65,6 +65,30 @@ impl From<AppLearnReport> for LearnReport {
     }
 }
 
+impl From<mailcal_ai::DraftTask> for DraftTask {
+    fn from(task: mailcal_ai::DraftTask) -> Self {
+        Self {
+            kind: match task.kind {
+                mailcal_ai::TaskKind::FillIn => DraftTaskKind::FillIn,
+                mailcal_ai::TaskKind::Attach => DraftTaskKind::Attach,
+                mailcal_ai::TaskKind::Do => DraftTaskKind::Do,
+            },
+            text: task.text,
+        }
+    }
+}
+
+impl From<DraftTask> for mailcal_ai::DraftTask {
+    fn from(task: DraftTask) -> Self {
+        let kind = match task.kind {
+            DraftTaskKind::FillIn => mailcal_ai::TaskKind::FillIn,
+            DraftTaskKind::Attach => mailcal_ai::TaskKind::Attach,
+            DraftTaskKind::Do => mailcal_ai::TaskKind::Do,
+        };
+        Self::new(kind, &task.text)
+    }
+}
+
 impl From<AppDraftReply> for DraftReply {
     fn from(draft: AppDraftReply) -> Self {
         Self {
@@ -72,20 +96,10 @@ impl From<AppDraftReply> for DraftReply {
             text: draft.text,
             gaps: draft.gaps,
             summary: draft.summary,
-            tasks: draft
-                .tasks
-                .into_iter()
-                .map(|task| DraftTask {
-                    kind: match task.kind {
-                        mailcal_ai::TaskKind::FillIn => DraftTaskKind::FillIn,
-                        mailcal_ai::TaskKind::Attach => DraftTaskKind::Attach,
-                        mailcal_ai::TaskKind::Do => DraftTaskKind::Do,
-                    },
-                    text: task.text,
-                })
-                .collect(),
+            tasks: draft.tasks.into_iter().map(Into::into).collect(),
             language: draft.language,
             charge: charge(draft.metering),
+            usage: draft.usage.map(Into::into),
         }
     }
 }

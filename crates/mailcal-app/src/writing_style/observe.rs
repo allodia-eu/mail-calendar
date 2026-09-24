@@ -8,6 +8,10 @@
 //!
 //! A draft id the session did not issue, one issued before a restart, or a draft saved and
 //! resumed later, logs nothing: the reply is then treated as the person's own.
+//!
+//! The same memory is what feedback on a draft is built from (`feedback.rs`): what made it, what
+//! it said and the message it answered. It stays in memory and leaves only as feedback the person
+//! gives.
 
 use std::{collections::VecDeque, path::PathBuf, sync::Mutex};
 
@@ -16,6 +20,7 @@ use mailcal_account::{
     AiAssistedSend, WritingStyleId, WritingStyleObservations, load_writing_style_observations,
     save_writing_style_observations,
 };
+use mailcal_ai::DraftRecord;
 use mailcal_composer::{Block, ComposerDocument};
 
 use crate::App;
@@ -27,8 +32,12 @@ const ISSUED_CAP: usize = 32;
 struct Issued {
     id: String,
     style: WritingStyleId,
-    language: String,
+    /// The draft as the composer's plain text renders it, which a sent reply is compared with.
     text: String,
+    /// What made it and what it said.
+    record: DraftRecord,
+    /// The body of the message it answered.
+    message: String,
 }
 
 /// The drafts handed out this session, and the log of replies sent from them.
@@ -52,19 +61,37 @@ impl Observed {
     }
 
     /// Remembers a draft and returns the id the composer carries back.
-    pub(super) fn issue(&self, style: WritingStyleId, language: String, text: String) -> String {
+    pub(super) fn issue(
+        &self,
+        style: WritingStyleId,
+        text: String,
+        record: DraftRecord,
+        message: String,
+    ) -> String {
         let id = super::random_id();
         let mut issued = self.issued.lock().expect("issued drafts poisoned");
         issued.push_back(Issued {
             id: id.clone(),
             style,
-            language,
             text,
+            record,
+            message,
         });
         while issued.len() > ISSUED_CAP {
             issued.pop_front();
         }
         id
+    }
+
+    /// What made the draft `draft_id`, what it said and the message it answered, while the session
+    /// remembers it.
+    pub(super) fn record_of(&self, draft_id: &str) -> Option<(DraftRecord, String)> {
+        self.issued
+            .lock()
+            .expect("issued drafts poisoned")
+            .iter()
+            .find(|draft| draft.id == draft_id)
+            .map(|draft| (draft.record.clone(), draft.message.clone()))
     }
 
     /// Whether the message with this `Message-ID` was sent from a draft.
@@ -141,7 +168,7 @@ impl<P: Provider> App<P> {
                 message_id: message_id.to_owned(),
                 account: account.to_owned(),
                 style: issued.style.as_str().to_owned(),
-                language: issued.language,
+                language: issued.record.language,
                 sent_at: time::OffsetDateTime::now_utc().unix_timestamp(),
                 changed: correction.changed,
                 added: correction.added,

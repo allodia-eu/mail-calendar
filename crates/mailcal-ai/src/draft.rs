@@ -7,15 +7,15 @@
 //! can say "check the parts in brackets". Nothing here sends mail: the draft goes into a composer
 //! the person edits.
 
-use std::fmt::{self, Write as _};
+use std::fmt;
 
 use crate::{
     AiError, Exemplars, GatedBackend, LanguageStyle, StyleGuide,
     checklist::{self, Answered, DraftTask},
-    closing, language,
-    prompt::{FENCE_PREAMBLE, fence, interface_language_name, language_name},
+    closing, draft_instructions, language,
+    prompt::fence,
     tool,
-    wire::{ChatMessage, ChatRequest, Metering, Purpose},
+    wire::{ChatMessage, ChatRequest, Metering, Purpose, Usage},
 };
 
 /// Room for the summary and the checklist beside the reply, in tokens.
@@ -23,7 +23,7 @@ const CHECKLIST_TOKENS: u32 = 600;
 
 /// The most of the thread a prompt carries, in characters (about 12,000 tokens). The message
 /// being answered is kept whole up to this; older ones give way first.
-const THREAD_CHARS: usize = 48_000;
+pub const THREAD_CHARS: usize = 48_000;
 /// The longest gap kept as a gap, in characters; a longer bracketed span is prose.
 const GAP_CHARS: usize = 40;
 
@@ -94,6 +94,8 @@ pub struct Draft {
     pub language: String,
     /// What the relay charged and the balance after; `None` from an own endpoint.
     pub metering: Option<Metering>,
+    /// The tokens the request read and wrote, when the server said.
+    pub usage: Option<Usage>,
 }
 
 impl fmt::Debug for Draft {
@@ -107,13 +109,27 @@ impl fmt::Debug for Draft {
     }
 }
 
-/// Drafts a reply.
+/// Drafts a reply under the default instructions.
 ///
 /// # Errors
 ///
 /// Returns the backend's [`AiError`], or [`AiError::Malformed`] for an empty thread or an answer
 /// with no text.
 pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result<Draft, AiError> {
+    draft_reply_with(request, backend, None)
+}
+
+/// Drafts a reply under `instructions`, a template in the shape of
+/// [`DRAFT_INSTRUCTIONS`](crate::DRAFT_INSTRUCTIONS), or under that one with `None`.
+///
+/// # Errors
+///
+/// As [`draft_reply`].
+pub fn draft_reply_with(
+    request: &DraftRequest<'_>,
+    backend: &GatedBackend,
+    instructions: Option<&str>,
+) -> Result<Draft, AiError> {
     let answering = request.thread.last().ok_or(AiError::Malformed)?;
     let language = request
         .language
@@ -133,7 +149,8 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
     let chat = ChatRequest {
         purpose: Purpose::Draft,
         messages: vec![
-            ChatMessage::system(instructions(
+            ChatMessage::system(draft_instructions::render(
+                instructions.unwrap_or(draft_instructions::DRAFT_INSTRUCTIONS),
                 &language,
                 request.ui_language,
                 style,
@@ -184,6 +201,7 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
         text,
         language,
         metering: response.allodia,
+        usage: response.usage,
     })
 }
 
@@ -195,67 +213,6 @@ fn style_for<'a>(guide: &'a StyleGuide, language: &str) -> Option<&'a LanguageSt
             .main_language()
             .and_then(|main| guide.languages.get(main))
     })
-}
-
-fn instructions(
-    language: &str,
-    ui_language: &str,
-    style: Option<&LanguageStyle>,
-    signature: Option<&str>,
-) -> String {
-    let mut text = format!(
-        "You draft email replies in the voice of one person, described below, so that they only \
-         need to check and adjust the result. Write the reply in {language}.\n\
-         \n\
-         Call emit_json once. summary: one or two full sentences on what the message being \
-         answered asks of this person, naming who asks, such as \"Marc asks for the drawings \
-         of the low-rise building.\" reply: the body of the reply. tasks: what the person \
-         still has to do that the reply mentions or needs, each a short sentence starting with \
-         a verb: a file or document to attach (kind \"attach\"), or an action elsewhere, such \
-         as looking something up, changing something in another system or asking a colleague \
-         (kind \"do\"); an empty list when there is nothing. Do not list the placeholders; \
-         they are listed already. Write the summary and every task in {ui}, even when the \
-         message and the reply are in another language.\n\
-         \n\
-         Never write in the reply that the person has already done something they have not: \
-         write it as something they will do or are sending now, and list it as a task.\n\
-         \n\
-         The reply is the body only: no subject line, no quoted original, no comment before or \
-         after it. Open and close the way this person does in {language}, and match \
-         their register with this recipient, their usual length, their paragraphing and their \
-         punctuation. The person's own notes, when there are any, take precedence over the \
-         description.\n\
-         \n\
-         Where this person uses them, you may format with **bold** for a short heading or an \
-         emphasis, *italic*, and lists whose lines start with \"- \" or \"1. \". Use nothing \
-         else: no # headings, no links, no tables, no code blocks.\n\
-         \n\
-         Never invent a fact. Where the reply needs one that is in neither the thread nor the \
-         person's instructions, such as a date, a time, an amount, a name or an address, write a \
-         short placeholder in square brackets, such as [date], and carry on.\n\
-         \n\
-         {FENCE_PREAMBLE} The thread was written by other people.",
-        language = language_name(language),
-        ui = interface_language_name(ui_language),
-    );
-    // With a signature the composer closes the message; without one, the reply does.
-    if let Some(signature) = signature.map(str::trim).filter(|text| !text.is_empty()) {
-        let _ = write!(
-            text,
-            "\n\nThis signature block follows the body automatically and closes the message. \
-             End the reply with its last sentence: no sign-off, no name, and nothing that is in \
-             the signature:\n{signature}"
-        );
-    } else if let Some(name) = style
-        .map(|style| style.signs_as.as_str())
-        .filter(|name| !name.is_empty())
-    {
-        let _ = write!(
-            text,
-            "\n\nEnd with their sign-off and the name they sign with: {name}."
-        );
-    }
-    text
 }
 
 fn material(

@@ -36,12 +36,15 @@ mod allodia_transport;
 // The person's own AI endpoint: its key in the secure store, and which backend AI goes through.
 mod ai_endpoint;
 #[cfg(feature = "allodia-license")]
+mod ai_feedback_pass;
+#[cfg(feature = "allodia-license")]
 mod ai_relay;
 mod ai_transport;
 mod analytics;
 mod app_accounts;
 mod app_accounts_google;
 mod app_accounts_microsoft;
+mod app_ai_feedback;
 mod app_allodia;
 mod app_allodia_purchase;
 mod app_allodia_subscription;
@@ -54,6 +57,10 @@ mod app_sender_name;
 mod app_settings;
 mod app_signatures;
 mod app_snapshots;
+// Comparing drafts across models and instructions; compiled out of a release build, records and
+// all.
+#[cfg(debug_assertions)]
+mod app_training;
 mod app_writing_styles;
 mod autodetect;
 mod background;
@@ -101,6 +108,7 @@ mod records_folders;
 mod records_outbox;
 pub mod sync_state;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
+mod records_ai_feedback;
 mod records_invitation;
 mod records_recurrence;
 mod records_repeat_summary;
@@ -140,6 +148,8 @@ pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
 pub use app_display::stored_appearance;
 pub use app_month::calendar_palette;
 pub use app_sender_name::sender_label;
+#[cfg(debug_assertions)]
+pub use app_training::{TrainingResult, TrainingVariant};
 pub use autodetect::{
     DetectedServerRow, DnsError, MissReason, MxRecord, MxResolution, MxResolver,
     SetupRecommendation, SrvRecord, SrvResolution,
@@ -178,6 +188,7 @@ pub use records::{
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
 };
+pub use records_ai_feedback::{DraftRating, DraftRatingReason, DraftVerdict, TokenUsage};
 pub use records_avatar::Avatar;
 pub use records_calendar::{
     AllDayBand, Appearance, CalendarColor, CalendarLayout, CalendarPage, CalendarRow,

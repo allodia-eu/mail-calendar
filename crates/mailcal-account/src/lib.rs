@@ -10,6 +10,7 @@
 
 use std::sync::Arc;
 
+mod ai_feedback_outbox;
 mod autodetect;
 mod calendar;
 mod calendar_drag;
@@ -43,6 +44,10 @@ mod tls;
 mod writing_style_observations;
 mod writing_styles;
 
+pub use ai_feedback_outbox::{
+    AI_FEEDBACK_CAP, AiFeedbackItem, AiFeedbackOutbox, ai_feedback_outbox_path,
+    load_ai_feedback_outbox, save_ai_feedback_outbox,
+};
 pub use autodetect::{MissReason, OauthRoutes, ServerSummary, SetupRecommendation, recommend};
 pub use calendar::{EventEdit, build_event_deletion, build_event_draft, build_event_patch};
 pub use calendar_drag::{

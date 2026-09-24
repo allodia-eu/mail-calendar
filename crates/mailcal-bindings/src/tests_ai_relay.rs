@@ -19,8 +19,18 @@ const GRANT: &str = "[allodia]\nemail = \"sam@example.eu\"\nrefresh_token = \"re
 
 /// A launch after one that learned the account's entitlement, fresh enough not to ask again.
 fn boot(name: &str, capabilities: &[Capability]) -> (Arc<MailcalApp>, std::path::PathBuf) {
+    boot_after(name, capabilities, |_| {})
+}
+
+/// [`boot`], with `left` writing what the earlier launch left in the data directory.
+fn boot_after(
+    name: &str,
+    capabilities: &[Capability],
+    left: impl FnOnce(&std::path::Path),
+) -> (Arc<MailcalApp>, std::path::PathBuf) {
     let data_dir = crate::tests::temp_data_dir(name);
     std::fs::create_dir_all(&data_dir).unwrap();
+    left(&data_dir);
     let stored = Stored {
         answer: Answer {
             entitlement: Entitlement {
@@ -96,5 +106,39 @@ fn an_own_endpoint_wins_over_the_relay_and_signing_out_leaves_only_it() {
     // What the account was entitled to left with it.
     let prefs = mailcal_account::load_preferences(mailcal_account::preferences_path(&data_dir));
     assert!(prefs.ai.entitlement_answer.is_none());
+    let _ = std::fs::remove_dir_all(data_dir);
+}
+
+#[test]
+fn feedback_is_offered_while_signed_in_and_what_waits_goes_at_sign_out() {
+    let (app, data_dir) = boot_after("feedback-sign-out", &[Capability::Ai], |dir| {
+        let mut outbox = mailcal_account::AiFeedbackOutbox::default();
+        outbox.push(mailcal_account::AiFeedbackItem {
+            id: "f1".to_owned(),
+            created_at: 1,
+            with_content: true,
+            body: "{}".to_owned(),
+        });
+        mailcal_account::save_ai_feedback_outbox(
+            mailcal_account::ai_feedback_outbox_path(dir),
+            &outbox,
+        )
+        .unwrap();
+    });
+    assert!(app.ai_feedback_available());
+    assert_eq!(app.app.ai_feedback_waiting().len(), 1);
+    // A draft this session never issued is not rated.
+    let up = crate::DraftRating {
+        verdict: crate::DraftVerdict::Up,
+        reasons: Vec::new(),
+        comment: String::new(),
+    };
+    assert!(!app.rate_draft("unknown".to_owned(), up.clone(), false));
+
+    app.sign_out_of_allodia().unwrap();
+    assert!(!app.ai_feedback_available());
+    assert!(!app.rate_draft("unknown".to_owned(), up, false));
+    assert!(app.app.ai_feedback_waiting().is_empty());
+    assert!(!mailcal_account::ai_feedback_outbox_path(&data_dir).exists());
     let _ = std::fs::remove_dir_all(data_dir);
 }

@@ -19,6 +19,7 @@ mod checklist;
 mod closing;
 pub mod corpus;
 mod draft;
+mod draft_instructions;
 mod endpoint;
 pub mod gated;
 pub mod language;
@@ -26,6 +27,7 @@ mod learn;
 mod markup;
 mod observe;
 mod prompt;
+mod record;
 pub mod report;
 mod style;
 mod tool;
@@ -37,9 +39,10 @@ mod test_support;
 
 pub use backend::{AiBackend, AiError};
 pub use checklist::{DraftTask, TaskKind};
-pub use draft::{Draft, DraftRequest, ThreadMessage, draft_reply};
+pub use draft::{Draft, DraftRequest, THREAD_CHARS, ThreadMessage, draft_reply, draft_reply_with};
+pub use draft_instructions::{DRAFT_INSTRUCTIONS, DRAFT_PLACEHOLDERS};
 pub use endpoint::{EndpointError, OwnEndpoint};
-pub use gated::{GatedBackend, ModeSource};
+pub use gated::{GatedBackend, ModeSource, admit};
 pub use learn::{
     LearnError, LearnOptions, LearnProgress, Learned, REQUEST_BUDGET_TOKENS, learn_style,
     pick_passages,
@@ -47,5 +50,8 @@ pub use learn::{
 pub use mailcal_jurisdiction::{Class, Destination, Mode, Refused};
 pub use markup::draft_plain;
 pub use observe::{Correction, correction};
+pub use record::{
+    COMMENT_CHARS, DraftContent, DraftExport, DraftRecord, RatedDraft, Rating, Reason, Verdict,
+};
 pub use style::{Exemplars, Habit, LanguageStyle, Provenance, SCHEMA_VERSION, StyleGuide};
 pub use transport::{HttpRequest, HttpResponse, HttpTransport, TransportFailed};

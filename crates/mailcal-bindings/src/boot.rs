@@ -338,6 +338,8 @@ pub(crate) fn build_accounts(
     mailcal.refresh_ai_backend();
     #[cfg(feature = "allodia-license")]
     mailcal.refresh_entitlement_in_background();
+    #[cfg(feature = "allodia-license")]
+    mailcal.send_ai_feedback_in_background();
     // Interactive boot: every account is a provider-less placeholder, so dial them all in the
     // background now. Each successful reconnect registers live providers (the cached mail is
     // already on screen), starts that account's IMAP IDLE watches / poll timer, and runs a

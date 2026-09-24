@@ -6,7 +6,7 @@
 use std::fmt;
 
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// The longest summary kept, in characters.
 const SUMMARY_CHARS: usize = 400;
@@ -38,7 +38,7 @@ pub(crate) struct AnsweredTask {
 }
 
 /// One thing to do before sending.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize)]
 pub struct DraftTask {
     /// What kind of thing it is.
     pub kind: TaskKind,
@@ -67,7 +67,8 @@ impl fmt::Debug for DraftTask {
 }
 
 /// What kind of thing a checklist item is.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TaskKind {
     /// A placeholder in the reply to replace; done once it is gone from the reply.
     FillIn,

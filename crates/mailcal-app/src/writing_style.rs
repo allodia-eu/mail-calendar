@@ -17,8 +17,9 @@ use std::{
 
 use engine_api::Provider;
 use mailcal_account::{
-    Preferences, StoredWritingStyle, WritingStyleId, WritingStyles, load_preferences,
-    load_writing_styles, save_preferences, save_writing_styles, writing_style_observations_path,
+    Preferences, StoredWritingStyle, WritingStyleId, WritingStyles, ai_feedback_outbox_path,
+    load_preferences, load_writing_styles, save_preferences, save_writing_styles,
+    writing_style_observations_path,
 };
 use mailcal_ai::{Exemplars, GatedBackend, StyleGuide};
 use mailcal_viewmodel::{
@@ -30,10 +31,13 @@ use crate::{App, Surface};
 
 mod draft;
 mod endpoint;
+mod feedback;
 mod learn;
 mod observe;
 mod sent;
 mod synced;
+#[cfg(debug_assertions)]
+mod training;
 
 pub use draft::{DraftReply, ReplyDraftRequest};
 pub use learn::{LearnFailure, LearnRange, LearnReport};
@@ -79,16 +83,15 @@ pub(crate) struct WritingStyleState {
     learning: Mutex<Option<LearningProgress>>,
     cancel: AtomicBool,
     observed: observe::Observed,
+    feedback: feedback::Outbox,
 }
 
 impl WritingStyleState {
     pub(crate) fn new(library_path: Option<PathBuf>, prefs_path: Option<PathBuf>) -> Self {
-        let observations_path = library_path
-            .as_ref()
-            .and_then(|path| path.parent())
-            .map(writing_style_observations_path);
+        let base = library_path.as_ref().and_then(|path| path.parent());
         Self {
-            observed: observe::Observed::new(observations_path),
+            observed: observe::Observed::new(base.map(writing_style_observations_path)),
+            feedback: feedback::Outbox::new(base.map(ai_feedback_outbox_path)),
             library: Mutex::new(
                 library_path
                     .as_ref()

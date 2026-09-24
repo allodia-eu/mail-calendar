@@ -20,11 +20,23 @@ use crate::{
 /// next request without rebuilding the backend.
 pub type ModeSource = Arc<dyn Fn() -> Mode + Send + Sync>;
 
+/// Asks the gate whether a dispatch to `destination` may leave under the mode in force now: the
+/// check [`GatedBackend::chat`] makes, for a dispatch that is not a chat request.
+///
+/// # Errors
+///
+/// Returns the [`Refused`] the dispatch meets.
+pub fn admit(destination: Destination, mode: &ModeSource) -> Result<(), Refused> {
+    gate(mode(), classify(&destination))
+}
+
 /// A backend behind the jurisdiction gate.
 pub struct GatedBackend {
     inner: Box<dyn AiBackend>,
     destination: Destination,
     mode: ModeSource,
+    /// The own endpoint's model name; `None` for any other backend.
+    model: Option<String>,
 }
 
 impl GatedBackend {
@@ -39,6 +51,7 @@ impl GatedBackend {
             inner,
             destination,
             mode,
+            model: None,
         }
     }
 
@@ -52,17 +65,32 @@ impl GatedBackend {
         let destination = Destination::OwnEndpoint {
             declared: endpoint.declared(),
         };
-        Self::new(
-            Box::new(OpenAiCompatibleBackend::new(endpoint, transport)),
-            destination,
-            mode,
-        )
+        let model = endpoint.model().to_owned();
+        Self {
+            model: Some(model),
+            ..Self::new(
+                Box::new(OpenAiCompatibleBackend::new(endpoint, transport)),
+                destination,
+                mode,
+            )
+        }
     }
 
     /// Where requests go.
     #[must_use]
     pub fn destination(&self) -> Destination {
         self.destination
+    }
+
+    /// What a draft's record calls the model: the own endpoint's model name, or `allodia` for the
+    /// relay, whose gateway picks its own.
+    #[must_use]
+    pub fn model_label(&self) -> &str {
+        match (&self.model, self.destination) {
+            (Some(model), _) => model,
+            (None, Destination::AllodiaRelay) => "allodia",
+            (None, Destination::OwnEndpoint { .. }) => "",
+        }
     }
 
     /// Whether a request would pass the gate now, so a client can explain a refusal before the
@@ -72,7 +100,7 @@ impl GatedBackend {
     ///
     /// Returns the [`Refused`] a request would meet.
     pub fn check(&self) -> Result<(), Refused> {
-        gate((self.mode)(), classify(&self.destination))
+        admit(self.destination, &self.mode)
     }
 
     /// Asks the gate, then sends `request` if it passed.

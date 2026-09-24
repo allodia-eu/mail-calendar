@@ -84,6 +84,23 @@ fn the_mode_is_read_at_the_moment_of_each_request() {
     assert_eq!(seen.lock().unwrap().len(), 1);
 }
 
+#[test]
+fn a_backend_names_its_model_for_a_draft_s_record() {
+    let mode: crate::ModeSource = Arc::new(|| Mode::All);
+    let relay = GatedBackend::new(
+        Box::new(RecordingBackend::default()),
+        Destination::AllodiaRelay,
+        Arc::clone(&mode),
+    );
+    assert_eq!(relay.model_label(), "allodia");
+    let own = GatedBackend::own_endpoint(
+        crate::OwnEndpoint::new("http://localhost:11434/v1", None, "mistral-small", None).unwrap(),
+        Box::new(crate::test_support::CannedTransport::new(200, "{}")),
+        mode,
+    );
+    assert_eq!(own.model_label(), "mistral-small");
+}
+
 /// Pins the shape the gate depends on: no public type of this crate implements `AiBackend`, so
 /// the only way an app gets something that dispatches is through `GatedBackend`, and every
 /// function that dispatches takes that type.

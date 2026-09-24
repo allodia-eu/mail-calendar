@@ -303,6 +303,8 @@ pub struct DraftReply {
     pub language: String,
     /// What it cost; `None` from an own endpoint.
     pub charge: Option<AiCharge>,
+    /// The tokens the request read and wrote, when the server said.
+    pub usage: Option<crate::records_ai_feedback::TokenUsage>,
 }
 
 /// One item of a draft's checklist.

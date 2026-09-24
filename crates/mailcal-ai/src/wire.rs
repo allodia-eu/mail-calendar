@@ -224,7 +224,7 @@ impl fmt::Debug for FunctionCall {
 }
 
 /// Token counts.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Usage {
     /// Tokens read.
     #[serde(default)]

@@ -315,8 +315,10 @@ impl MailcalApp {
             log::warn!("allodia: the sync bookkeeping could not be cleared; {err}");
         }
         // Nothing is entitled to anything once nobody is signed in: the relay goes, and what the
-        // account was entitled to goes with it.
+        // account was entitled to goes with it. So does feedback still waiting to be sent, which
+        // had only that sign-in to leave by.
         self.app.set_entitlement_answer(None);
+        self.app.forget_ai_feedback();
         self.refresh_ai_backend();
         log::info!("allodia: signing out; erasing the stored grant");
         self.credential_store
