@@ -1,24 +1,28 @@
 //! The composer's Draft a reply control: a reply drafted in the person's writing style, put into
-//! the open composer above the signature and the quote (`docs/ai.md`, "Drafting a reply").
+//! the open composer above the signature and the quote, with the card that says what the message
+//! asks and what is left to do (`docs/ai.md`, "Drafting a reply").
 //!
 //! Offered on a reply and a reply all only, and only while AI has somewhere to go. The draft is
 //! written off the main thread, so the composer stays usable while it is; nothing on this path
-//! sends. The rules it follows are `super::writing_style`.
+//! sends, and Send only asks, once, while an item on the card is open. The rules it follows are
+//! `super::writing_style` and `super::draft_checklist`.
 
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     rc::{Rc, Weak},
     sync::Arc,
 };
 
 use adw::prelude::*;
-use gtk::{AccessibleProperty, accessible::Property, gio};
-use mailcal_bindings::{AiRoute, DraftReply, MailcalApp, WritingStyleFailure};
+use gtk::{AccessibleProperty, accessible::Property, gio, glib};
+use mailcal_bindings::{AiRoute, DraftReply, DraftTask, MailcalApp, WritingStyleFailure};
 use webkit6::prelude::WebViewExt;
 
 use super::{
     blocking::off_main_thread,
-    composer_model::{ComposeContext, ComposeKind},
+    composer_draft_card::{DraftCard, OnTick, confirm_send},
+    composer_model::{ComposeContext, ComposeKind, PickedFile},
+    draft_checklist::{DraftChecklist, placeholders_answer, placeholders_script},
     writing_style::{changed_sender, draft_script, failure_text, intent_of, lead_is_empty},
 };
 use crate::l10n;
@@ -43,6 +47,14 @@ pub(super) struct DraftReplyControl {
     /// "Drafting…", the reminder about bracketed gaps, or why no draft came.
     status: gtk::Label,
     drafting: Cell<bool>,
+    /// The files attached to the reply, which an attach item follows.
+    files: Rc<RefCell<Vec<PickedFile>>>,
+    card: DraftCard,
+    checklist: RefCell<DraftChecklist>,
+    /// Whether the card's timer is running; one at a time, whichever draft it is for.
+    following: Cell<bool>,
+    /// Set while Send reads the placeholders before asking, so a second click does not ask twice.
+    asking: Cell<bool>,
 }
 
 impl DraftReplyControl {
@@ -55,6 +67,7 @@ impl DraftReplyControl {
         from: &gtk::DropDown,
         editor: &webkit6::WebView,
         send: &gtk::Button,
+        files: &Rc<RefCell<Vec<PickedFile>>>,
     ) -> Option<Rc<Self>> {
         if !matches!(request.kind, ComposeKind::Reply | ComposeKind::ReplyAll) {
             return None;
@@ -79,6 +92,11 @@ impl DraftReplyControl {
             spinner: gtk::Spinner::new(),
             status: gtk::Label::new(None),
             drafting: Cell::new(false),
+            files: Rc::clone(files),
+            card: DraftCard::new(),
+            checklist: RefCell::new(DraftChecklist::default()),
+            following: Cell::new(false),
+            asking: Cell::new(false),
         });
         control.build();
         control.refresh();
@@ -102,6 +120,11 @@ impl DraftReplyControl {
 
     pub(super) fn widget(&self) -> &gtk::Box {
         &self.root
+    }
+
+    /// The card, which the composer puts between its buttons and the editor.
+    pub(super) fn card(&self) -> &gtk::Box {
+        self.card.widget()
     }
 
     fn build(self: &Rc<Self>) {
@@ -269,7 +292,7 @@ impl DraftReplyControl {
         );
     }
 
-    fn drafted(&self, drafted: Result<DraftReply, WritingStyleFailure>) {
+    fn drafted(self: &Rc<Self>, drafted: Result<DraftReply, WritingStyleFailure>) {
         self.drafting.set(false);
         self.spinner.set_spinning(false);
         self.spinner.set_visible(false);
@@ -282,15 +305,139 @@ impl DraftReplyControl {
                     None::<&gio::Cancellable>,
                     |_| {},
                 );
-                if draft.gaps.is_empty() {
+                // The card's checklist names every gap, so the reminder stands only without one.
+                if draft.gaps.is_empty() || !draft.tasks.is_empty() {
                     self.status.set_visible(false);
                 } else {
                     self.show_status(l10n::composer_draft_check_brackets(), false);
                 }
+                self.show_checklist(&draft.summary, &draft.tasks);
             }
             Err(failure) => self.show_status(&failure_text(&failure, Some(self.route)), true),
         }
         self.refresh();
+    }
+
+    /// Replaces the card with a draft's, and follows the editor and the files while an item that
+    /// ticks itself is open.
+    fn show_checklist(self: &Rc<Self>, summary: &str, tasks: &[DraftTask]) {
+        let attached = self.files.borrow().len();
+        self.checklist.borrow_mut().show(summary, tasks, attached);
+        let weak = Rc::downgrade(self);
+        let on_tick: OnTick = Rc::new(move |index, ticked| {
+            if let Some(control) = weak.upgrade() {
+                control.ticked(index, ticked);
+            }
+        });
+        self.card.show(&self.checklist.borrow(), &on_tick);
+        self.follow();
+    }
+
+    /// The person's tick. A check the card set to what the checklist already says changes
+    /// nothing.
+    fn ticked(&self, index: usize, ticked: bool) {
+        let agrees = self
+            .checklist
+            .borrow()
+            .items()
+            .get(index)
+            .is_none_or(|item| item.ticked == ticked);
+        if agrees {
+            return;
+        }
+        self.checklist.borrow_mut().toggle(index);
+        self.card.refresh(&self.checklist.borrow());
+    }
+
+    /// About once a second while an item that ticks itself is open: the files attached since the
+    /// draft, and the placeholders still in the reply. The timer stops when nothing is left to
+    /// follow or the composer has gone.
+    fn follow(self: &Rc<Self>) {
+        if !self.checklist.borrow().follows() || self.following.replace(true) {
+            return;
+        }
+        let weak = Rc::downgrade(self);
+        glib::timeout_add_seconds_local(1, move || {
+            let Some(control) = weak.upgrade() else {
+                return glib::ControlFlow::Break;
+            };
+            let attached = control.files.borrow().len();
+            control.checklist.borrow_mut().attachments_changed(attached);
+            control.card.refresh(&control.checklist.borrow());
+            let (follows, placeholders) = {
+                let checklist = control.checklist.borrow();
+                (checklist.follows(), checklist.awaits_placeholders())
+            };
+            if !follows {
+                control.following.set(false);
+                return glib::ControlFlow::Break;
+            }
+            if placeholders {
+                control.read_placeholders(|_| {});
+            }
+            glib::ControlFlow::Continue
+        });
+    }
+
+    /// Asks the editor which placeholders are still in the reply, ticks the card by the answer,
+    /// then runs `then`. No answer, or one about an earlier draft, ticks nothing.
+    fn read_placeholders(self: &Rc<Self>, then: impl FnOnce(&Rc<Self>) + 'static) {
+        let (placeholders, draft) = {
+            let checklist = self.checklist.borrow();
+            (checklist.placeholders(), checklist.draft())
+        };
+        if placeholders.is_empty() {
+            then(self);
+            return;
+        }
+        let weak = Rc::downgrade(self);
+        self.editor.evaluate_javascript(
+            &placeholders_script(&placeholders),
+            None,
+            None,
+            None::<&gio::Cancellable>,
+            move |answer| {
+                let Some(control) = weak.upgrade() else {
+                    return;
+                };
+                let json = answer.ok().and_then(|value| value.to_json(0));
+                let current = control.checklist.borrow().draft() == draft;
+                if current && let Some(left) = placeholders_answer(json.as_deref()) {
+                    control.checklist.borrow_mut().placeholders_left(&left);
+                    control.card.refresh(&control.checklist.borrow());
+                }
+                then(&control);
+            },
+        );
+    }
+
+    /// Send, asking first while an item on the card is open. The placeholders are read afresh,
+    /// the question is asked once per composer, and neither answer stops a later Send.
+    pub(super) fn before_send(self: &Rc<Self>, send: Rc<dyn Fn()>) {
+        let settled = {
+            let checklist = self.checklist.borrow();
+            checklist.has_asked() || checklist.items().is_empty()
+        };
+        if settled {
+            send();
+            return;
+        }
+        if self.asking.replace(true) {
+            return;
+        }
+        self.read_placeholders(move |control| {
+            control.asking.set(false);
+            if !control.checklist.borrow().asks_before_send() {
+                send();
+                return;
+            }
+            control.checklist.borrow_mut().send_asked();
+            let open = control.checklist.borrow().open_count();
+            match control.root.root().and_downcast::<gtk::Window>() {
+                Some(parent) => confirm_send(&parent, open, send),
+                None => send(),
+            }
+        });
     }
 
     fn show_status(&self, text: &str, failed: bool) {
