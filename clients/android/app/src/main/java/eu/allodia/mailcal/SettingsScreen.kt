@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
@@ -163,8 +164,9 @@ internal fun SettingsScreen(
         if (open != null) open = null else onBack()
     }
 
-    // Outside the Scaffold, so the system bars are this screen's own problem (see WelcomeScreen).
-    Column(modifier = Modifier.fillMaxSize().systemBarsPadding().padding(16.dp)) {
+    // Outside the Scaffold, so the system bars and the keyboard are this screen's own problem (see
+    // WelcomeScreen). Without the keyboard's inset, a field near the foot stays behind it.
+    Column(modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(16.dp)) {
         val current = open
         if (current == null) {
             Row(
