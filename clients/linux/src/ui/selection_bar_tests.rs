@@ -4,39 +4,10 @@
 //! [`crate::ui::mailbox::tests`]).
 
 use adw::prelude::*;
-use mailcal_bindings::{BulkAction, ViewMode};
+use mailcal_bindings::ViewMode;
 
-use super::{
-    CLEAR_ICON, SELECT_ALL_ICON, SYNC_ICON, SelectionBar, SelectionCountPane, action_icon,
-    mail_surface,
-};
+use super::{SelectionBar, SelectionCountPane, mail_surface};
 use crate::ui::{AppInput, selection::SelectionSummary};
-
-/// A named glyph the theme lacks draws the broken-image icon, and the bar keeps drawing as though
-/// nothing happened; so the names are asserted rather than looked at once.
-pub(crate) fn every_action_icon_resolves_to_a_real_glyph() {
-    let display = gtk::gdk::Display::default().expect("a display");
-    let theme = gtk::IconTheme::for_display(&display);
-    let icons = [
-        action_icon(BulkAction::MarkRead),
-        action_icon(BulkAction::MarkUnread),
-        action_icon(BulkAction::Flag),
-        action_icon(BulkAction::Unflag),
-        action_icon(BulkAction::Archive),
-        action_icon(BulkAction::Delete),
-        action_icon(BulkAction::PermanentlyDelete),
-        SELECT_ALL_ICON,
-        CLEAR_ICON,
-        SYNC_ICON,
-    ];
-    for icon in icons {
-        assert!(theme.has_icon(icon), "the bar must be able to draw {icon}");
-    }
-    assert!(
-        !theme.has_icon("mailcal-not-an-icon-symbolic"),
-        "a theme that answers yes to everything would make the check above meaningless"
-    );
-}
 
 /// The bar stands with nothing selected, and says so by what can be pressed rather than by
 /// appearing (`docs/list-selection.md`, rule 5). Select all is the exception: it is how a

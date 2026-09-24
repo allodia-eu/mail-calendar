@@ -13,11 +13,7 @@ use adw::prelude::*;
 use mailcal_bindings::EmptyReason;
 
 use super::AppInput;
-use crate::l10n;
-
-/// The icon for a folder whose mail is simply not here yet, and for one the depth is keeping out.
-const EMPTY_ICON: &str = "mail-mark-unread-symbolic";
-const WINDOWED_ICON: &str = "document-open-recent-symbolic";
+use crate::{l10n, ui::icons};
 
 /// Puts the reason for an empty list into `list`'s placeholder, or takes the placeholder away
 /// when the core gave no reason (a list with rows, or a search, which says how far it looked
@@ -36,11 +32,11 @@ pub(super) fn render(
         EmptyReason::NoMail => {
             // Nothing was held back, so there is no setting to offer: a button here would
             // promise mail that widening cannot find.
-            page.set_icon_name(Some(EMPTY_ICON));
+            page.set_icon_name(Some(icons::EMPTY_FOLDER));
             page.set_title(l10n::mailbox_empty_no_mail());
         }
         EmptyReason::OutsideSyncDepth { months } => {
-            page.set_icon_name(Some(WINDOWED_ICON));
+            page.set_icon_name(Some(icons::OUTSIDE_SYNC_DEPTH));
             page.set_title(&l10n::mailbox_empty_windowed(i64::from(*months)));
             page.set_description(Some(l10n::mailbox_empty_windowed_body()));
             // A statement the user cannot act on is half the value, so the page carries the way

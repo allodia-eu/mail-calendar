@@ -14,7 +14,7 @@ use super::{
     model::{CalendarMode, CalendarModel},
     views,
 };
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 pub(crate) struct CalendarPane {
     root: adw::ToolbarView,
@@ -51,10 +51,10 @@ impl CalendarPane {
         header.pack_start(&mode);
         let navigation = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         navigation.add_css_class("linked");
-        let previous = icon_button("go-previous-symbolic", l10n::calendar_prev_week());
+        let previous = icon_button(icons::PREVIOUS, l10n::calendar_prev_week());
         let today = gtk::Button::with_label(l10n::calendar_today());
         today.update_property(&[AccessibleProperty::Label(l10n::calendar_back_to_today())]);
-        let next = icon_button("go-next-symbolic", l10n::calendar_next_week());
+        let next = icon_button(icons::NEXT, l10n::calendar_next_week());
         let input = sender.clone();
         previous.connect_clicked(move |_| input.emit(AppInput::StepCalendar(-1)));
         let input = sender.clone();

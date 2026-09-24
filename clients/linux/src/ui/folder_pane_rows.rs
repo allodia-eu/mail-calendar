@@ -11,7 +11,7 @@ use mailcal_bindings::{AccountRow, FolderRole, FolderRow};
 use super::{
     AppInput, folder_names::folder_label, folder_pane::SidebarTarget, mailbox, row_action,
 };
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 /// The symbolic icon for a folder's special role; a plain folder for anything without one.
 ///
@@ -19,35 +19,25 @@ use crate::l10n;
 /// the name is whatever the server calls it, so a name test picks the wrong icon in six of the
 /// seven shipped languages, and on any server whose folders were renamed.
 ///
-/// Inbox and Archive are **ours** (`mailcal-*`); the rest are the desktop's own. Adwaita: the
-/// theme the GNOME runtime provides, and so the one the Flatpak actually runs against; ships
-/// neither `mail-inbox-symbolic` nor `mail-archive-symbolic`, and a name the theme does not have
-/// draws the broken-image icon while the pane carries on as though nothing happened. Yaru has
-/// both, which is exactly what would have made this look fine on the machine it was written on.
+/// Inbox and Archive are bundled (`mailcal-*`), because Adwaita, the theme the GNOME runtime
+/// provides, ships neither; the rest are the desktop's own. Yaru has both, which is exactly what
+/// makes a themed name for either look fine on an Ubuntu desktop and broken in the Flatpak.
 pub(super) fn role_icon(role: Option<&FolderRole>) -> &'static str {
     match role {
-        Some(FolderRole::Inbox) => INBOX_ICON,
-        Some(FolderRole::Drafts) => "document-edit-symbolic",
-        Some(FolderRole::Sent) => "mail-send-symbolic",
-        Some(FolderRole::Archive) => "mailcal-archive-symbolic",
-        Some(FolderRole::Junk) => "mail-mark-junk-symbolic",
-        Some(FolderRole::Trash) => "user-trash-symbolic",
+        Some(FolderRole::Inbox) => icons::INBOX,
+        Some(FolderRole::Drafts) => icons::DRAFTS,
+        Some(FolderRole::Sent) => icons::SENT,
+        Some(FolderRole::Archive) => icons::ARCHIVE,
+        Some(FolderRole::Junk) => icons::JUNK,
+        Some(FolderRole::Trash) => icons::TRASH,
         // A role we recognise but draw no distinct icon for (flagged / all / important), and
         // every ordinary custom folder, take the plain folder.
-        Some(FolderRole::Other) | None => "folder-symbolic",
+        Some(FolderRole::Other) | None => icons::FOLDER,
     }
 }
 
-/// The tray, on All Inboxes and on every account's Inbox; the same glyph for both, because the
-/// unified row *is* those inboxes summed.
-const INBOX_ICON: &str = "mailcal-inbox-symbolic";
-
-/// The account row's icon. Its own person glyph rather than a mail one, so an account reads as a
-/// heading over its folders rather than as another folder among them.
-const ACCOUNT_ICON: &str = "avatar-default-symbolic";
-
 pub(super) fn unified_inbox_row(unread: u32, sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
-    let row = pane_row(INBOX_ICON, sender, &SidebarTarget::AllInboxes);
+    let row = pane_row(icons::INBOX, sender, &SidebarTarget::AllInboxes);
     row.set_title(l10n::folder_inbox());
     row.set_margin_start(INDENT);
     add_badge(&row, unread);
@@ -63,9 +53,9 @@ pub(super) fn unified_group_row(
     row.set_title_lines(1);
     row.set_activatable(true);
     let button = gtk::Button::from_icon_name(if expanded {
-        "pan-down-symbolic"
+        icons::EXPANDED
     } else {
-        "pan-end-symbolic"
+        icons::COLLAPSED
     });
     button.add_css_class("flat");
     button.set_valign(gtk::Align::Center);
@@ -94,7 +84,7 @@ pub(super) fn account_row(
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ActionRow {
     let row = pane_row(
-        ACCOUNT_ICON,
+        icons::ACCOUNT,
         sender,
         &SidebarTarget::Account(account.id.clone()),
     );
@@ -103,7 +93,7 @@ pub(super) fn account_row(
     // precisely the one the user needs to read.
     row.set_tooltip_text(Some(&account.email));
     if unreachable {
-        let warning = gtk::Image::from_icon_name("dialog-warning-symbolic");
+        let warning = gtk::Image::from_icon_name(icons::WARNING);
         warning.add_css_class("warning");
         warning.set_tooltip_text(Some(l10n::connectivity_account_unreachable()));
         warning.update_property(&[AccessibleProperty::Label(
@@ -122,9 +112,9 @@ pub(super) fn account_row(
 /// consumes its own click, so the two gestures stay separate.
 fn chevron(account: &AccountRow, sender: &relm4::Sender<AppInput>) -> gtk::Button {
     let button = gtk::Button::from_icon_name(if account.expanded {
-        "pan-down-symbolic"
+        icons::EXPANDED
     } else {
-        "pan-end-symbolic"
+        icons::COLLAPSED
     });
     button.add_css_class("flat");
     button.set_valign(gtk::Align::Center);
@@ -190,9 +180,9 @@ fn folder_chevron(
     sender: &relm4::Sender<AppInput>,
 ) -> gtk::Button {
     let button = gtk::Button::from_icon_name(if folder.expanded {
-        "pan-down-symbolic"
+        icons::EXPANDED
     } else {
-        "pan-end-symbolic"
+        icons::COLLAPSED
     });
     button.add_css_class("flat");
     button.set_valign(gtk::Align::Center);

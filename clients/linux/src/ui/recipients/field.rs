@@ -25,7 +25,10 @@ use gtk::{accessible::Property as AccessibleProperty, gdk, glib};
 use mailcal_bindings::{MailcalApp, RecipientMatch};
 
 use super::tokens;
-use crate::{l10n, ui::mailbox};
+use crate::{
+    l10n,
+    ui::{icons, mailbox},
+};
 
 /// How long the field waits after the last keystroke before asking the core.
 ///
@@ -66,9 +69,9 @@ impl RecipientField {
     pub(crate) fn new(label: &str, app: Option<Arc<MailcalApp>>) -> Self {
         mailbox::install_styles();
 
-        // Above the input rather than inline before it: GTK 4.14 has no wrapping box, and a row of
-        // pills sharing one line with the entry squeezes the entry to nothing on the fourth
-        // recipient; exactly when the field is hardest to use.
+        // Above the input rather than inline before it: a row of pills sharing one line with the
+        // entry squeezes the entry to nothing on the fourth recipient, exactly when the field is
+        // hardest to use.
         let pills = gtk::FlowBox::new();
         pills.set_selection_mode(gtk::SelectionMode::None);
         pills.set_max_children_per_line(32);
@@ -401,7 +404,7 @@ fn pill(address: &str, index: usize, inner: &Rc<Inner>) -> gtk::Box {
     label.set_max_width_chars(30);
     label.set_tooltip_text(Some(address));
     root.append(&label);
-    let remove = gtk::Button::from_icon_name("window-close-symbolic");
+    let remove = gtk::Button::from_icon_name(icons::CLOSE);
     remove.add_css_class("flat");
     remove.add_css_class("circular");
     remove.set_valign(gtk::Align::Center);

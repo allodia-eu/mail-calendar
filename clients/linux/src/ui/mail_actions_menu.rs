@@ -13,7 +13,7 @@ use super::{
     mail_actions::{ActionKind, MailActionRequest, MessageTarget, actions_for},
     model::OpenedMessage,
 };
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 pub(super) fn message_menu_button(
     row: &FlatRow,
@@ -128,7 +128,7 @@ fn append_actions(
 fn menu_button(menu: &gtk::Box) -> gtk::Box {
     let popover = gtk::Popover::new();
     popover.set_child(Some(menu));
-    let button = gtk::Button::from_icon_name("view-more-symbolic");
+    let button = gtk::Button::from_icon_name(icons::MORE);
     button.set_tooltip_text(Some(l10n::a11y_more_actions()));
     button.update_property(&[AccessibleProperty::Label(l10n::a11y_more_actions())]);
     button.add_css_class("flat");
