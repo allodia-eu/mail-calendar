@@ -96,6 +96,9 @@ core, the bindings, and the native host land in one stream.
   request describes the request's shape, which is what a developer needs to act on. Never the
   endpoint, the key, the request or the answer; an error page that is not JSON is logged by its size
   alone, because it can name the host.
+- **Feedback on a draft logs its verdict and its counts**: up or down, how many reasons, whether the
+  email and the draft were included, how many items wait, and a pass's delivered count or the status
+  it stopped at. Never a reason's wording, the comment, the model or anything the draft said.
 
 ## The shared bar
 

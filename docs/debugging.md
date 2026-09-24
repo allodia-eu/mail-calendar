@@ -85,6 +85,8 @@ what learning a writing style reads. Pair it with `scripts/dev/ai-mock.py`, a ca
 OpenAI-compatible server on `http://127.0.0.1:28434/v1`, set up as the own endpoint under Settings →
 Advanced, and learning and drafting run end to end with fixed answers and no credits
 ([`ai.md`](ai.md)). An Android emulator reaches it after `adb reverse tcp:28434 tcp:28434`.
+Feedback on a draft needs an Allodia sign-in, which a harness launch does not have; in a debug build
+`MAILCAL_FAKE_AI_FEEDBACK=1` offers it anyway, and what is rated stays in the outbox.
 
 ## 2. Boot a client against it
 

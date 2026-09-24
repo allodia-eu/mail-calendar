@@ -1012,5 +1012,23 @@
 	"composer_send_open_message": "{count} pontos da lista ainda estão por fazer.",
 	"composer_send_open_message_one": "{count} ponto da lista ainda está por fazer.",
 	"composer_send_anyway": "Enviar mesmo assim",
-	"composer_keep_editing": "Continuar a editar"
+	"composer_keep_editing": "Continuar a editar",
+
+	"ai_feedback_prompt": "Este rascunho foi útil?",
+	"ai_feedback_good": "Útil",
+	"ai_feedback_poor": "Pouco útil",
+	"ai_feedback_thanks": "Obrigado pela sua opinião.",
+	"ai_feedback_title": "O que estava errado no rascunho?",
+	"ai_feedback_reason_tone": "O tom não era o adequado",
+	"ai_feedback_reason_length": "Demasiado longo ou demasiado curto",
+	"ai_feedback_reason_made_up": "Inventou coisas",
+	"ai_feedback_reason_missed_point": "Não respondeu ao essencial",
+	"ai_feedback_reason_language": "Idioma errado",
+	"ai_feedback_reason_other": "Outra coisa",
+	"ai_feedback_comment_hint": "Quer acrescentar alguma coisa? (opcional)",
+	"ai_feedback_include": "Incluir a mensagem e o rascunho",
+	"ai_feedback_include_note": "A mensagem contém as palavras do remetente, além das suas.",
+	"ai_feedback_explainer": "A sua avaliação vai para a Allodia com o nome do modelo que escreveu o rascunho. A mensagem e o rascunho só vão se os incluir.",
+	"ai_feedback_send": "Enviar opinião",
+	"ai_feedback_failed": "Não foi possível guardar esta opinião."
 }

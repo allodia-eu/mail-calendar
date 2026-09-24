@@ -122,6 +122,63 @@ is never learned from**, and never shown to a later draft as the person's own wo
   account is removed. Learning and the recipient context both pass over every logged message.
 - Mail the person wrote without a draft stays eligible, as it always was.
 
+## Feedback
+
+A person can say what they thought of a draft, for Allodia to improve drafting with. It is offered
+only while somebody is signed in to an Allodia account, which is the only way it can reach Allodia
+(`ai_feedback_available`), whichever backend wrote the draft.
+
+- **On the draft card**: thumbs up and thumbs down. Up keeps a rating at once and says a quiet
+  thank-you. Down opens a small form: the reasons as toggles (wrong tone, too long or too short,
+  made things up, missed the point, wrong language, something else), an optional comment of at
+  most 1,000 characters, and a box, **unticked by default**, to include the email and the draft,
+  with a line saying the email holds the sender's words as well as the person's. Then Send
+  feedback. One rating per draft; the thumbs give way to the thank-you.
+- **What it carries**: the rating, and what made the draft: the model (the own endpoint's model
+  name, or `allodia` for the relay), the instructions' name when they were not the default, the
+  style's schema version, the language, the time the request took and the tokens it used. With the
+  box ticked, also the body of the message answered as plain text, as the prompt carried it, and the
+  reply, the summary and the checklist as the card showed them. **Never** an address or a name from
+  a header, an attachment, the person's intent, the style or its passages.
+- **The outbox**: a rating is kept on the device at once and posted by a background pass, at launch
+  and after each rating, as described under "Where requests go". A 2xx answer takes an item out;
+  anything else, or no answer, leaves it for the next pass, which stops at the first item not
+  taken. At most fifty items wait, the oldest dropped first, and signing out of the Allodia account
+  empties the outbox.
+- **Nothing leaves until the route exists.** A request to a route that does not exist still carries
+  its body, so the pass does nothing, and mints no token, while
+  `allodia_license::AI_FEEDBACK_ROUTE_LIVE` is false (Known gaps).
+- **Only a draft this session issued** can be rated: the session keeps what made each of its last
+  thirty-two drafts, what they said and the message each answered, in memory, as it keeps their ids
+  for "Keeps learning".
+- The log says the verdict, how many reasons, whether the email and the draft were included, and how
+  many items wait; never a reason's wording or the comment ([`logging.md`](logging.md)).
+
+## Training mode (debug builds)
+
+A developer's bench for drafting, **compiled only in a debug build**: the core's use case
+(`mailcal-app`'s `training_draft`, `training_message`), the FFI methods and records
+(`crates/mailcal-bindings/src/app_training.rs`) and the client's window (`#if DEBUG`). No release
+binary or generated binding carries any of it.
+
+- **The instructions are a template.** `DRAFT_INSTRUCTIONS` holds the placeholders
+  `{reply_language}`, `{interface_language}`, `{closing}` (stop short of the signature, or the
+  person's own sign-off when there is none) and `{fence_preamble}`. The normal path renders it
+  exactly as a draft has always been instructed; a variant is a named copy rendered the same way,
+  in one pass, so a value that holds a placeholder's name is never filled twice.
+- **On macOS**, Develop → Compare drafts… opens a window for the message open in the reading pane.
+  The developer types the models to ask on the configured own endpoint and keeps named variants of
+  the instructions beside the default, which is shown read-only; both are remembered in the debug
+  build's `UserDefaults`. A run drafts with every model under every variant, one after the other,
+  with its progress shown. Each result shows the reply, the summary, the checklist, the time taken,
+  the tokens and its failure when it failed, and is rated with the same controls feedback uses.
+  Export saves the run (the message answered, every result, every rating) as the JSON document
+  feedback is posted in, through a save panel.
+- **The gate applies.** Each model is asked through a `GatedBackend` over the own endpoint with only
+  the model replaced, so the gate and the endpoint's declaration apply to every request. The relay
+  is not offered, because its gateway picks the model. Nothing is issued to a composer, so a
+  comparison is never rated as feedback, never logged for "Keeps learning" and records no balance.
+
 ## What leaves the device, and what never does
 
 | What | Where it goes | When |
@@ -129,6 +186,8 @@ is never learned from**, and never shown to a later draft as the person's own wo
 | The sample: the person's own words from their sent mail, fenced | The AI endpoint | A learning run the person started on the consent sheet |
 | The message being answered, the style, the passages, the recipient context, the intent | The AI endpoint | A draft the person asked for |
 | Each style's name, guide and notes (never the passages) | The Allodia account service, sealed | Every account-list sync of a device whose Allodia sign-in includes the writing-style scopes |
+| Feedback on a draft: the rating and what made the draft; the message answered and the draft **only when the person ticked the box** | The Mail & Calendar service (`POST /api/v1/ai/feedback`) | A pass after each rating and at launch, while signed in to Allodia. **Not yet**: nothing is sent until the service has the route (Known gaps) |
+| In a debug build's training mode, what a draft sends, once per model and variant | The own endpoint | A comparison a developer runs |
 | Passages, quoted mail outside a request, attachment bytes, any address book | Nowhere | Never |
 
 Every prompt follows the MCP server's shared bar ([`mcp.md`](mcp.md), "The shared bar", items 6 to
@@ -151,10 +210,12 @@ destination is classified, the class is compared with the mode, and a refusal na
 - **An own endpoint is what the person declared** (EU company in the EU, EU data centre of a
   non-EU company, outside the EU), and unknown until they declare anything. A model on the
   person's own computer or server in the EU is EU-native.
-- The only thing that dispatches is a `GatedBackend`, whose `chat` asks the gate first, and every
-  function that sends takes one; the app holds nothing else. A test pins that no public type in
-  `mailcal-ai` implements the backend port, and another runs every mode against every destination
-  and asserts nothing reaches a backend the gate refused.
+- The only thing that dispatches a model request is a `GatedBackend`, whose `chat` asks the gate
+  first, and every function that sends takes one; the app holds nothing else. A test pins that no
+  public type in `mailcal-ai` implements the backend port, and another runs every mode against every
+  destination and asserts nothing reaches a backend the gate refused.
+- Feedback is the one other dispatch here. Its sender asks the same gate (`mailcal_ai::admit`)
+  before each post, as `Destination::AllodiaRelay`, since the route is on the relay's service.
 - A refusal is reported **before anything is read**: the Writing style surface carries the gate's
   verdict, and learning and drafting ask the gate before touching the Sent folder.
 
@@ -182,6 +243,41 @@ request and logs no content. `GET /api/v1/ai/balance` answers `{ balanceCredits,
 startingGrantApplied }`; the first call on a plan with AI opens the person's credits with the
 starting grant, once.
 
+**Feedback** (`POST /api/v1/ai/feedback` on the same service, bearer = the Allodia access token with
+`mailcal:ai:use`) takes one document, the shape `mailcal_ai::DraftExport` writes, holding exactly
+one draft:
+
+```json
+{
+  "version": 1,
+  "id": "opaque, the same on every retry of this item",
+  "message": "the body of the message answered; only when the box was ticked",
+  "drafts": [{
+    "model": "allodia, or the own endpoint's model name",
+    "variant": "the instructions' name; absent for the default",
+    "schema_version": 1,
+    "language": "nl",
+    "elapsed_ms": 4200,
+    "usage": { "prompt_tokens": 1000, "completion_tokens": 120 },
+    "content": {
+      "reply": "…", "summary": "…",
+      "tasks": [{ "kind": "fill_in | attach | do", "text": "…" }]
+    },
+    "rating": {
+      "verdict": "up | down",
+      "reasons": ["wrong_tone", "wrong_length", "made_things_up", "missed_the_point",
+                  "wrong_language", "something_else"],
+      "comment": "at most 1,000 characters"
+    }
+  }]
+}
+```
+
+`usage` is absent when the endpoint did not say, `content` without the box, `comment` when empty;
+`reasons` is empty for a thumbs up. Any 2xx is delivery and the body of the answer is not read; the
+service can tell a retry by `id`. Training mode saves the same document with every result of a run,
+a `failure` label beside a draft that did not come back, and no `id`.
+
 ## Storage
 
 | What | Where | Why there |
@@ -193,6 +289,8 @@ starting grant, once.
 | The jurisdiction mode | `preferences.toml`, `jurisdiction_mode` | It binds every external dispatch, not only these. |
 | The last entitlement answer, and the balance the relay last reported | `preferences.toml`, `[ai]` | Derived, not secret; a launch without a network draws what it was last told ([`entitlement.md`](../allodia_license/entitlement.md)). Dropped at sign-out. |
 | Each synced style's record id, the version last read, a fingerprint of what it held then, and the retry key of a create in flight | The Allodia sync bookkeeping (`SyncStateStore`), its `styles` beside the accounts' entries | Bookkeeping, not secret, and one blob with the accounts' so it is written whole. The fingerprint is what tells a change made here from one made elsewhere. Dropped at sign-out. |
+| Feedback waiting to be sent: each item's body, as it will be posted | `ai_feedback_outbox.toml`, beside the preferences | Its own file, like the observations log, so a rating is not lost with a launch. At most fifty items, the oldest dropped; emptied, and the file removed, at Allodia sign-out and once the last item is taken. The email and the draft are in an item only when the person included them. |
+| The drafts a session issued: what made each, what it said and the message it answered | Memory | For "Keeps learning" and for a rating; the last thirty-two, gone at the end of the session. |
 
 A style's id is opaque CSPRNG output, never derived from its name.
 
@@ -209,12 +307,18 @@ A style's id is opaque CSPRNG output, never derived from its name.
 | Own endpoint under Settings → Advanced | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | Allodia relay: the entitlement read, requests, the balance | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Style guide synced between devices | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
+| Feedback on a draft: thumbs, reasons, comment, the email and the draft only when ticked | 🚧 | 🚧 | ✅ | ⬜ | ⬜ | ⬜ |
+| Training mode: compare drafts across models and variants, rate, export (debug builds) | ✅ | 🚧 | — | — | — | — |
 | Fetch older sent mail back to a date | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 macOS and iOS were driven against the harness's Sent Items and the canned endpoint: the refusal
 until the endpoint says where it runs, learning, the reveal, the library, the account slot, a draft
 into a reply and the replace question, forget, and the category leaving with the endpoint; iOS on
 an iPhone simulator. Windows, Android and Linux are built and not yet driven (Known gaps).
+Feedback was driven on an iPhone simulator against the harness and the canned endpoint, offered by
+`MAILCAL_FAKE_AI_FEEDBACK` in place of a sign-in: a thumbs up, and a thumbs down with reasons, a
+comment and the box ticked, each landing in the outbox. The core's side is 🚧 until the route
+exists. On macOS both features are built and not driven.
 
 Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 
@@ -227,6 +331,15 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
   `set_own_ai_endpoint`, `clear_own_ai_endpoint`, `refresh_ai_balance`. **`sent_corpus_report`,
   `learn_writing_style`, `draft_reply` and `refresh_ai_balance` block**: a client calls them off the
   main thread.
+- **Feedback**: `ai_feedback_available` says whether to draw the thumbs; `rate_draft(draft_id,
+  rating, include_content)` keeps a `DraftRating` (a `DraftVerdict`, `DraftRatingReason`s and a
+  comment) and answers whether it was kept, which it is not for a draft the session did not issue.
+  Both are local and quick. `DraftReply.usage` carries the tokens as `TokenUsage`.
+- **Training mode, debug builds only**: `training_default_instructions`, `training_placeholders`,
+  `training_draft(account_id, key, model, variant, ui_language)` answering a `TrainingResult` (with
+  a `failure` in plain words rather than an error), and `training_export(account_id, key, results)`
+  answering the JSON. **`training_draft` and `training_export` block.** A client names none of them
+  outside its own debug-only code, because a release build's bindings do not have them.
 - **`Surface::WritingStyle`** is signalled when the library, an assignment, the backend or a
   learning run's progress changes. Its snapshot's `route` says whether AI is available at all, and
   a client shows the Writing style category only when it is `Some`.
@@ -276,6 +389,15 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
   memory.
 - **The credit cost of a learning run** is not estimated on the consent sheet: the token count is
   known on the device, the price only at the relay.
+- **The feedback route does not exist yet.** `allodia_license::AI_FEEDBACK_ROUTE_LIVE` is false, so
+  every rating stays in the outbox, at most fifty, until the account service ships
+  `POST /api/v1/ai/feedback` in the shape under "Where requests go" and the switch is turned on in
+  the change that follows. The sender is tested against a canned transport meanwhile.
+- **Feedback is drawn on Apple only.** Windows, Android and Linux have the core's methods and draw
+  no thumbs. macOS is built and not driven.
+- **Training mode is on macOS only**, and has been built, not driven.
+- **An item in the outbox is not tied to a mail account**, so removing an account leaves feedback on
+  its drafts waiting until it is sent, dropped by the cap, or forgotten at Allodia sign-out.
 
 ## Enforcement
 
@@ -300,6 +422,14 @@ Automated:
   the catalog.
 - `crates/mailcal-ai/src/learn_tests.rs`, `draft_tests.rs`: exemplars are the device's own text, the
   fence cannot be closed from inside, gaps are listed.
+- `crates/mailcal-ai/src/draft_instructions_tests.rs`, `record_tests.rs`: the template is filled in
+  one pass, and a record carries what the draft said only when it is given.
+- `crates/mailcal-app/src/writing_style_feedback_tests.rs`, `writing_style_training_tests.rs`: a
+  rating carries no header, intent or style and the content only when asked; a comparison's model
+  and variant reach the endpoint through the gate.
+- `allodia_license/crates/allodia-license/src/feedback_tests.rs`: the post, the 2xx rule, and nothing
+  sent while the route switch is off. `crates/mailcal-bindings/src/tests_ai_relay.rs`: feedback is
+  offered only while signed in, and a sign-out empties the outbox.
 - `crates/mailcal-app/src/writing_style_tests.rs`, `writing_style_ai_tests.rs`: no dangling slot,
   only the author's words leave the device, and a reply sent from a draft is logged and never
   learned from.

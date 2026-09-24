@@ -1012,5 +1012,23 @@
 	"composer_send_open_message": "{count} items on the list are still open.",
 	"composer_send_open_message_one": "{count} item on the list is still open.",
 	"composer_send_anyway": "Send anyway",
-	"composer_keep_editing": "Keep editing"
+	"composer_keep_editing": "Keep editing",
+
+	"ai_feedback_prompt": "Was this draft useful?",
+	"ai_feedback_good": "Useful",
+	"ai_feedback_poor": "Not useful",
+	"ai_feedback_thanks": "Thank you for your feedback.",
+	"ai_feedback_title": "What was wrong with the draft?",
+	"ai_feedback_reason_tone": "The tone was wrong",
+	"ai_feedback_reason_length": "Too long or too short",
+	"ai_feedback_reason_made_up": "It made things up",
+	"ai_feedback_reason_missed_point": "It missed the point",
+	"ai_feedback_reason_language": "Wrong language",
+	"ai_feedback_reason_other": "Something else",
+	"ai_feedback_comment_hint": "Anything you want to add (optional)",
+	"ai_feedback_include": "Include the email and the draft",
+	"ai_feedback_include_note": "The email contains the sender’s words as well as yours.",
+	"ai_feedback_explainer": "Your rating goes to Allodia with the name of the model that wrote the draft. The email and the draft go only if you include them.",
+	"ai_feedback_send": "Send feedback",
+	"ai_feedback_failed": "This feedback could not be kept."
 }

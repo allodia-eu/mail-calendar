@@ -1012,5 +1012,23 @@
 	"composer_send_open_message": "{count} Punkte auf der Liste sind noch offen.",
 	"composer_send_open_message_one": "{count} Punkt auf der Liste ist noch offen.",
 	"composer_send_anyway": "Trotzdem senden",
-	"composer_keep_editing": "Weiter bearbeiten"
+	"composer_keep_editing": "Weiter bearbeiten",
+
+	"ai_feedback_prompt": "War dieser Entwurf hilfreich?",
+	"ai_feedback_good": "Hilfreich",
+	"ai_feedback_poor": "Nicht hilfreich",
+	"ai_feedback_thanks": "Vielen Dank für Ihr Feedback.",
+	"ai_feedback_title": "Was war an dem Entwurf falsch?",
+	"ai_feedback_reason_tone": "Der Ton passte nicht",
+	"ai_feedback_reason_length": "Zu lang oder zu kurz",
+	"ai_feedback_reason_made_up": "Er hat etwas erfunden",
+	"ai_feedback_reason_missed_point": "Er ging am Thema vorbei",
+	"ai_feedback_reason_language": "Falsche Sprache",
+	"ai_feedback_reason_other": "Etwas anderes",
+	"ai_feedback_comment_hint": "Möchten Sie noch etwas ergänzen? (optional)",
+	"ai_feedback_include": "E-Mail und Entwurf mitsenden",
+	"ai_feedback_include_note": "Die E-Mail enthält neben Ihren Worten auch die des Absenders.",
+	"ai_feedback_explainer": "Ihre Bewertung geht an Allodia, zusammen mit dem Namen des Modells, das den Entwurf geschrieben hat. E-Mail und Entwurf gehen nur mit, wenn Sie sie mitsenden.",
+	"ai_feedback_send": "Feedback senden",
+	"ai_feedback_failed": "Dieses Feedback konnte nicht gespeichert werden."
 }

@@ -1012,5 +1012,23 @@
 	"composer_send_open_message": "{count} points de la liste sont encore ouverts.",
 	"composer_send_open_message_one": "{count} point de la liste est encore ouvert.",
 	"composer_send_anyway": "Envoyer quand même",
-	"composer_keep_editing": "Continuer à modifier"
+	"composer_keep_editing": "Continuer à modifier",
+
+	"ai_feedback_prompt": "Ce brouillon vous a-t-il été utile ?",
+	"ai_feedback_good": "Utile",
+	"ai_feedback_poor": "Pas utile",
+	"ai_feedback_thanks": "Merci pour votre avis.",
+	"ai_feedback_title": "Qu’est-ce qui n’allait pas dans le brouillon ?",
+	"ai_feedback_reason_tone": "Le ton ne convenait pas",
+	"ai_feedback_reason_length": "Trop long ou trop court",
+	"ai_feedback_reason_made_up": "Il a inventé des choses",
+	"ai_feedback_reason_missed_point": "Il est passé à côté du sujet",
+	"ai_feedback_reason_language": "Mauvaise langue",
+	"ai_feedback_reason_other": "Autre chose",
+	"ai_feedback_comment_hint": "Autre chose à ajouter ? (facultatif)",
+	"ai_feedback_include": "Joindre le message et le brouillon",
+	"ai_feedback_include_note": "Le message contient les mots de l’expéditeur en plus des vôtres.",
+	"ai_feedback_explainer": "Votre évaluation est envoyée à Allodia avec le nom du modèle qui a rédigé le brouillon. Le message et le brouillon ne sont envoyés que si vous les joignez.",
+	"ai_feedback_send": "Envoyer l’avis",
+	"ai_feedback_failed": "Cet avis n’a pas pu être conservé."
 }

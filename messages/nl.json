@@ -1012,5 +1012,23 @@
 	"composer_send_open_message": "{count} punten op de lijst staan nog open.",
 	"composer_send_open_message_one": "{count} punt op de lijst staat nog open.",
 	"composer_send_anyway": "Toch versturen",
-	"composer_keep_editing": "Verder bewerken"
+	"composer_keep_editing": "Verder bewerken",
+
+	"ai_feedback_prompt": "Was dit concept bruikbaar?",
+	"ai_feedback_good": "Bruikbaar",
+	"ai_feedback_poor": "Niet bruikbaar",
+	"ai_feedback_thanks": "Bedankt voor je feedback.",
+	"ai_feedback_title": "Wat was er mis met het concept?",
+	"ai_feedback_reason_tone": "De toon klopte niet",
+	"ai_feedback_reason_length": "Te lang of te kort",
+	"ai_feedback_reason_made_up": "Het verzon dingen",
+	"ai_feedback_reason_missed_point": "Het miste de kern",
+	"ai_feedback_reason_language": "Verkeerde taal",
+	"ai_feedback_reason_other": "Iets anders",
+	"ai_feedback_comment_hint": "Wil je nog iets toevoegen? (optioneel)",
+	"ai_feedback_include": "De e-mail en het concept meesturen",
+	"ai_feedback_include_note": "De e-mail bevat naast jouw woorden ook die van de afzender.",
+	"ai_feedback_explainer": "Je beoordeling gaat naar Allodia, met de naam van het model dat het concept schreef. De e-mail en het concept gaan alleen mee als je ze meestuurt.",
+	"ai_feedback_send": "Feedback versturen",
+	"ai_feedback_failed": "Deze feedback kon niet worden bewaard."
 }

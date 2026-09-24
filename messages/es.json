@@ -1012,5 +1012,23 @@
 	"composer_send_open_message": "Quedan {count} puntos pendientes en la lista.",
 	"composer_send_open_message_one": "Queda {count} punto pendiente en la lista.",
 	"composer_send_anyway": "Enviar de todos modos",
-	"composer_keep_editing": "Seguir editando"
+	"composer_keep_editing": "Seguir editando",
+
+	"ai_feedback_prompt": "¿Te ha sido útil este borrador?",
+	"ai_feedback_good": "Útil",
+	"ai_feedback_poor": "Poco útil",
+	"ai_feedback_thanks": "Gracias por tu opinión.",
+	"ai_feedback_title": "¿Qué fallaba en el borrador?",
+	"ai_feedback_reason_tone": "El tono no era el adecuado",
+	"ai_feedback_reason_length": "Demasiado largo o demasiado corto",
+	"ai_feedback_reason_made_up": "Se inventaba cosas",
+	"ai_feedback_reason_missed_point": "No respondía a lo que se pedía",
+	"ai_feedback_reason_language": "Idioma equivocado",
+	"ai_feedback_reason_other": "Otra cosa",
+	"ai_feedback_comment_hint": "¿Algo más que añadir? (opcional)",
+	"ai_feedback_include": "Incluir el mensaje y el borrador",
+	"ai_feedback_include_note": "El mensaje contiene las palabras del remitente además de las tuyas.",
+	"ai_feedback_explainer": "Tu valoración se envía a Allodia con el nombre del modelo que escribió el borrador. El mensaje y el borrador solo se envían si los incluyes.",
+	"ai_feedback_send": "Enviar opinión",
+	"ai_feedback_failed": "No se ha podido guardar esta opinión."
 }

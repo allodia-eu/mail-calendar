@@ -1012,5 +1012,23 @@
 	"composer_send_open_message": "{count} punti dell’elenco sono ancora aperti.",
 	"composer_send_open_message_one": "{count} punto dell’elenco è ancora aperto.",
 	"composer_send_anyway": "Invia comunque",
-	"composer_keep_editing": "Continua a modificare"
+	"composer_keep_editing": "Continua a modificare",
+
+	"ai_feedback_prompt": "Questa bozza ti è stata utile?",
+	"ai_feedback_good": "Utile",
+	"ai_feedback_poor": "Non utile",
+	"ai_feedback_thanks": "Grazie per il tuo parere.",
+	"ai_feedback_title": "Cosa non andava nella bozza?",
+	"ai_feedback_reason_tone": "Il tono non era adatto",
+	"ai_feedback_reason_length": "Troppo lunga o troppo corta",
+	"ai_feedback_reason_made_up": "Ha inventato delle cose",
+	"ai_feedback_reason_missed_point": "Non ha colto il punto",
+	"ai_feedback_reason_language": "Lingua sbagliata",
+	"ai_feedback_reason_other": "Altro",
+	"ai_feedback_comment_hint": "Vuoi aggiungere qualcosa? (facoltativo)",
+	"ai_feedback_include": "Includi il messaggio e la bozza",
+	"ai_feedback_include_note": "Il messaggio contiene le parole del mittente oltre alle tue.",
+	"ai_feedback_explainer": "La tua valutazione va ad Allodia con il nome del modello che ha scritto la bozza. Il messaggio e la bozza vanno solo se li includi.",
+	"ai_feedback_send": "Invia parere",
+	"ai_feedback_failed": "Non è stato possibile conservare questo parere."
 }

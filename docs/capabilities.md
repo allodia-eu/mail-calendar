@@ -82,6 +82,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | **Draft a reply** in your writing style, into the open composer above your signature and the quote, with a gap in brackets wherever a fact is missing; the AI path never sends ([docs](docs/ai.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | **Your own AI endpoint** (any OpenAI-compatible server, one on your own computer included) under Settings → Advanced, with where it runs declared and checked by the gate ([docs](docs/ai.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | Writing style and drafts through Allodia's relay, in credits, and a style synced between your devices ([docs](docs/ai.md)) | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
+| **Rate a drafted reply** while signed in to an Allodia account: thumbs up or down, what was wrong, and the email and the draft only if you include them; kept on the device until Allodia's service takes feedback ([docs](docs/ai.md)) | 🚧 | 🚧 | ✅ | ⬜ | ⬜ | ⬜ |
 | Configurable swipe actions: Trash / Archive / Star per direction, with an undo toast | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | Calendar: agenda + create / delete event | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: write affordances gated on per-row `can_write` (a read-only row offers no delete; New event disabled without a writable calendar) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
