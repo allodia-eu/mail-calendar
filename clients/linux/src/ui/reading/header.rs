@@ -14,15 +14,18 @@ use gtk::accessible::Property as AccessibleProperty;
 use super::{
     ActionKind, AppInput, ReadingSource,
     overflow::{ExportName, overflow_menu},
+    print::PrintSource,
 };
 use crate::l10n;
 
-/// The built row: the bar to mount, the buttons whose sensitivity follows the open message, and
-/// the file name the export offers.
+/// The built row: the bar to mount, the buttons whose sensitivity follows the open message, the
+/// file name the export offers, and what Print prints with the item that offers it.
 pub(super) struct ActionRow {
     pub(super) header: adw::HeaderBar,
     pub(super) actions: [gtk::Button; 6],
     pub(super) export_name: ExportName,
+    pub(super) print_source: PrintSource,
+    pub(super) print_item: gtk::Button,
 }
 
 /// Builds the row for one reader. Every button names `source`, so a window acts on its own
@@ -82,7 +85,9 @@ pub(super) fn action_row(
     // widget packed is the rightmost, and the overflow belongs last of all
     // (`../../../docs/reading-actions.md`).
     let export_name: ExportName = Rc::new(RefCell::new(String::new()));
-    let (overflow, overflow_button) = overflow_menu(window, source, &export_name, sender);
+    let print_source: PrintSource = Rc::new(RefCell::new(None));
+    let (overflow, overflow_button, print_item) =
+        overflow_menu(window, source, &export_name, &print_source, sender);
     header.pack_end(&overflow);
     let input_sender = sender.clone();
     let reader = source.clone();
@@ -107,6 +112,8 @@ pub(super) fn action_row(
         header,
         actions: [reply, reply_all, forward, archive, trash, overflow_button],
         export_name,
+        print_source,
+        print_item,
     }
 }
 

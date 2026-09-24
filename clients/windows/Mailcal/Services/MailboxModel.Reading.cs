@@ -288,6 +288,19 @@ public sealed partial class MailboxModel
         MailcalBindingsMethods.RenderMessageHtml(html, loadRemoteImages);
 
     /// <summary>
+    /// The page Print lays out for one message: <paramref name="lines"/> under the subject, as
+    /// escaped text, above the body, inside the same strict-CSP document as
+    /// <see cref="RenderMessageHtml"/> (docs/reading-actions.md).
+    /// </summary>
+    internal string RenderMessagePrintHtml(
+        string subject,
+        PrintHeaderLine[] lines,
+        string? html,
+        string? plain,
+        bool loadRemoteImages) =>
+        MailcalBindingsMethods.RenderMessagePrintHtml(subject, lines, html, plain, loadRemoteImages);
+
+    /// <summary>
     /// Whether a link the user clicked in a rendered message should be opened in the OS
     /// default browser/handler. The launch policy (a strict scheme allowlist, mail is
     /// hostile input) is shared in Rust so every client decides identically and consistently

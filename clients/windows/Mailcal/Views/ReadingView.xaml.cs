@@ -9,6 +9,7 @@
 //   ReadingView.WebView.cs      the hardened WebView2 host and the rendering-security gates
 //   ReadingView.Attachments.cs  the attachment strip (save / open via the OS handler)
 //   ReadingView.Invitation.cs   the meeting-invitation card and its Accept / Maybe / Decline
+//   ReadingView.Print.cs        Print, laid out in a second hardened WebView2
 
 using System.ComponentModel;
 using Allodia.Mailcal.Calendar;
@@ -270,6 +271,7 @@ public sealed partial class ReadingView : UserControl
         // message rather than cleared on every pass: Render runs on each reading snapshot, so a
         // background sync committing behind an open message would otherwise take the error off
         // the screen seconds after the person was told about it.
+        UpdatePrintItem();
         if (Opened?.Key != _exportErrorKey)
         {
             ClearExportError();

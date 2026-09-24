@@ -7,7 +7,10 @@ use adw::prelude::*;
 use gtk::{accessible::Property as AccessibleProperty, glib};
 use mailcal_bindings::save::message_export_file_name;
 
-use super::{AppInput, ReadingSource};
+use super::{
+    AppInput, ReadingSource,
+    print::{PrintSource, print_item},
+};
 use crate::l10n;
 
 /// The file name the export offers, kept in step with the message on screen.
@@ -18,7 +21,8 @@ use crate::l10n;
 /// rather than under a second, English name.
 pub(super) type ExportName = Rc<RefCell<String>>;
 
-/// The overflow button, with its menu attached, and the button itself for sensitivity.
+/// The overflow button, with its menu attached; the button itself, for sensitivity; and the Print
+/// item, whose sensitivity follows whether the open message's body has arrived.
 ///
 /// The container is a `gtk::Box` because the popover is parented to the button and has to be
 /// unparented before the button is disposed of, so the two have to travel together.
@@ -26,14 +30,17 @@ pub(super) fn overflow_menu(
     window: &gtk::Window,
     source: &ReadingSource,
     export_name: &ExportName,
+    print_source: &PrintSource,
     sender: &relm4::Sender<AppInput>,
-) -> (gtk::Box, gtk::Button) {
+) -> (gtk::Box, gtk::Button, gtk::Button) {
     let menu = gtk::Box::new(gtk::Orientation::Vertical, 0);
     menu.set_margin_top(6);
     menu.set_margin_bottom(6);
     menu.set_margin_start(6);
     menu.set_margin_end(6);
     menu.append(&export_item(window, source, export_name, sender));
+    let print = print_item(window, print_source, sender);
+    menu.append(&print);
 
     let popover = gtk::Popover::new();
     popover.set_child(Some(&menu));
@@ -51,7 +58,7 @@ pub(super) fn overflow_menu(
 
     let container = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     container.append(&button);
-    (container, button)
+    (container, button, print)
 }
 
 /// The "Save as .eml" item: closes the menu, asks where, then hands the destination to the
