@@ -127,6 +127,21 @@ class WritingStyleSettingsTest {
         assertEquals(listOf(Triple(PLAIN_STYLE.id, PLAIN_STYLE.name, PLAIN_DETAIL.notes)), core.saved)
     }
 
+    /** The counts are read out as one sentence, with the full date the "Since" figure shortens. */
+    @Test
+    fun the_first_page_reads_its_counts_as_one_sentence() {
+        val oldest = 1_782_302_400L
+        core.detailAnswer = PLAIN_DETAIL.copy(row = PLAIN_STYLE.copy(oldest = oldest))
+        show(writingStyleSnapshot(styles = listOf(PLAIN_STYLE)))
+        compose.onNodeWithText("Learned from 12 messages", substring = true).performClick()
+
+        val locale = ctx().resources.configuration.locales[0]
+        val date = epochDate(oldest, displayZone("Europe/Amsterdam"), locale)
+        val languages = writingStyleLanguages(ctx(), listOf("en"))
+        compose.onNodeWithContentDescription(L10n.reveal_stats_a11y(ctx(), count = 12, date = date, languages = languages))
+            .assertIsDisplayed()
+    }
+
     /** Back steps back a page, and is not offered on the first. */
     @Test
     fun back_steps_back_through_the_reveal() {

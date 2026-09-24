@@ -62,7 +62,7 @@ internal fun RevealReadPage(detail: WritingStyleDetail, address: String?, zone: 
     val ctx = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     val shown = rememberShown()
-    val codes = detail.row.languages
+    val codes = detail.languages.map { it.language }
     WizardPage(
         title = L10n.reveal_title(ctx),
         bottom = {

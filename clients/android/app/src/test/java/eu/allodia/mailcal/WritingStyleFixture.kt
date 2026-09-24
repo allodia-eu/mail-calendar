@@ -131,7 +131,9 @@ internal class FakeWritingStyleActions(
         cancels++
     }
 
-    override fun detail(id: String): WritingStyleDetail? = PLAIN_DETAIL.takeIf { id == it.row.id }
+    var detailAnswer: WritingStyleDetail = PLAIN_DETAIL
+
+    override fun detail(id: String): WritingStyleDetail? = detailAnswer.takeIf { id == it.row.id }
 
     override fun save(id: String, name: String, notes: String) {
         saved += Triple(id, name, notes)
