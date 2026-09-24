@@ -16,6 +16,7 @@
 mod backend;
 mod catalog;
 mod checklist;
+mod closing;
 pub mod corpus;
 mod draft;
 mod endpoint;

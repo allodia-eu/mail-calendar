@@ -92,6 +92,9 @@ fn a_reply_is_drafted_in_the_language_it_answers_with_that_language_s_style() {
     assert!(system.contains("even when the message and the reply are in another language"));
     assert!(system.contains("Sanne"));
     assert!(system.contains("Sanne de Vries\nAllodia"));
+    // A signature closes the message, so the reply is asked for no sign-off of its own.
+    assert!(system.contains("no sign-off, no name"));
+    assert!(!system.contains("End with their sign-off"));
     assert!(system.contains("square brackets"));
     let material = &request.messages[1].content;
     assert!(material.contains("register-nl"));
@@ -132,6 +135,12 @@ fn a_chosen_language_wins_and_a_missing_section_falls_back_to_the_main_one() {
         seen[0].messages[0]
             .content
             .contains("Write the reply in French")
+    );
+    // Without a signature the reply closes the message itself.
+    assert!(
+        seen[0].messages[0]
+            .content
+            .contains("End with their sign-off and the name they sign with: D.")
     );
     // No French section: the guide's first language stands in for it.
     assert!(seen[0].messages[1].content.contains("register-en"));

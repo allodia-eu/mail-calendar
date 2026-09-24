@@ -79,7 +79,10 @@ person's voice, are later uses of the same seams.
   text of the signature the composer will add, so the body does not repeat it.
 - **Language**: the chosen one, else the language of the message being answered, else the style's
   main language.
-- **Output**: the body only, opening and closing the way the person does. Where the reply needs a
+- **Output**: the body only, opening the way the person does. It closes the way they do only when
+  the composer adds no signature; with one, the signature closes the message, the reply ends at its
+  last sentence, and a closing paragraph that repeats the signature's opening, or is made only of
+  its lines, is taken off before the draft reaches the editor. Where the reply needs a
   fact that is in neither the thread nor the intent, the model writes a short bracketed gap
   (`[date]`); the draft lists them and the client says to check the parts in brackets. Where the
   person uses them, the draft may carry a small Markdown subset: `**bold**`, `*italic*`, lists

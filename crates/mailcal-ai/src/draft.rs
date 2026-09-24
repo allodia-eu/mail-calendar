@@ -12,7 +12,7 @@ use std::fmt::{self, Write as _};
 use crate::{
     AiError, Exemplars, GatedBackend, LanguageStyle, StyleGuide,
     checklist::{self, Answered, DraftTask},
-    language,
+    closing, language,
     prompt::{FENCE_PREAMBLE, fence, interface_language_name, language_name},
     tool,
     wire::{ChatMessage, ChatRequest, Metering, Purpose},
@@ -164,9 +164,12 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
             .unwrap_or_default(),
         tasks: Vec::new(),
     });
-    let text = Some(cleaned(&answered.reply))
-        .filter(|text| !text.is_empty())
-        .ok_or(AiError::Malformed)?;
+    let text = Some(closing::without_closing(
+        &cleaned(&answered.reply),
+        request.signature,
+    ))
+    .filter(|text| !text.is_empty())
+    .ok_or(AiError::Malformed)?;
     let gaps = gaps(&text);
     let tasks = checklist::checklist(&gaps, answered.tasks);
     log::info!(
@@ -235,20 +238,21 @@ fn instructions(
         language = language_name(language),
         ui = interface_language_name(ui_language),
     );
-    if let Some(name) = style
+    // With a signature the composer closes the message; without one, the reply does.
+    if let Some(signature) = signature.map(str::trim).filter(|text| !text.is_empty()) {
+        let _ = write!(
+            text,
+            "\n\nThis signature block follows the body automatically and closes the message. \
+             End the reply with its last sentence: no sign-off, no name, and nothing that is in \
+             the signature:\n{signature}"
+        );
+    } else if let Some(name) = style
         .map(|style| style.signs_as.as_str())
         .filter(|name| !name.is_empty())
     {
         let _ = write!(
             text,
             "\n\nEnd with their sign-off and the name they sign with: {name}."
-        );
-    }
-    if let Some(signature) = signature.map(str::trim).filter(|text| !text.is_empty()) {
-        let _ = write!(
-            text,
-            "\n\nThis signature block follows the body automatically, so repeat nothing that is \
-             in it:\n{signature}"
         );
     }
     text
