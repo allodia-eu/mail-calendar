@@ -85,7 +85,7 @@ def answer(request):
             "",
         )
         language = "nl" if "Write the reply in Dutch" in system else "en"
-        interface = "nl" if "in one or two sentences, in Dutch" in system else "en"
+        interface = "nl" if "every task in Dutch" in system else "en"
         arguments = {
             "summary": SUMMARIES[interface],
             "reply": DRAFTS[language],
