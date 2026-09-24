@@ -15,7 +15,7 @@ use super::{
     ActionKind, AppInput, ReadingSource,
     overflow::{ExportName, overflow_menu},
 };
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 /// The built row: the bar to mount, the buttons whose sensitivity follows the open message, and
 /// the file name the export offers.
@@ -49,11 +49,11 @@ pub(super) fn action_row(
         // own name over the message being read.
         header.set_title_widget(Some(&gtk::Label::new(None)));
     }
-    let reply = action_button("mail-reply-sender-symbolic", l10n::action_reply());
-    let reply_all = action_button("mail-reply-all-symbolic", l10n::action_reply_all());
-    let forward = action_button("mail-forward-symbolic", l10n::action_forward());
-    let archive = action_button("mailcal-archive-symbolic", l10n::action_archive());
-    let trash = action_button("user-trash-symbolic", l10n::action_move_to_trash());
+    let reply = action_button(icons::REPLY, l10n::action_reply());
+    let reply_all = action_button(icons::REPLY_ALL, l10n::action_reply_all());
+    let forward = action_button(icons::FORWARD, l10n::action_forward());
+    let archive = action_button(icons::ARCHIVE, l10n::action_archive());
+    let trash = action_button(icons::TRASH, l10n::action_move_to_trash());
     let input_sender = sender.clone();
     let reader = source.clone();
     reply.connect_clicked(move |_| {

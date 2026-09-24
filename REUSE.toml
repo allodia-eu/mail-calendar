@@ -55,6 +55,14 @@ precedence = "closest"
 SPDX-FileCopyrightText = "2015 the original authors (Gradle)"
 SPDX-License-Identifier = "Apache-2.0"
 
+# GNOME's icon-development-kit, copied verbatim by scripts/dev/vendor-idk-icons.sh (docs/icons.md).
+# Each file names its designer in its own metadata; the kit's COPYING puts all of it under CC0.
+[[annotations]]
+path = "clients/linux/icons/idk/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "The GNOME Project (icon-development-kit)"
+SPDX-License-Identifier = "CC0-1.0"
+
 [[annotations]]
 path = "CODE_OF_CONDUCT.md"
 precedence = "closest"

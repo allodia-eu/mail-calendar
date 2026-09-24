@@ -306,7 +306,7 @@ fn has_menu(row: &gtk::Widget) -> bool {
         if widget
             .downcast_ref::<gtk::Button>()
             .and_then(gtk::prelude::ButtonExt::icon_name)
-            .is_some_and(|name| name == "view-more-symbolic")
+            .is_some_and(|name| name == crate::ui::icons::MORE)
         {
             return true;
         }

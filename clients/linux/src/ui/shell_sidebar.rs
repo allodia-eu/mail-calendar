@@ -6,7 +6,7 @@ use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 
 use super::{AppInput, destinations::DestinationBar, folder_pane};
-use crate::{l10n, preferences};
+use crate::{l10n, preferences, ui::icons};
 
 /// Assembles the folder pane: every account's tree scrolling under a header, with the destination
 /// switcher pinned beneath it.
@@ -25,7 +25,7 @@ pub(super) fn sidebar_pane(
     header.set_show_start_title_buttons(false);
     header.set_show_end_title_buttons(false);
     header.set_title_widget(Some(&adw::WindowTitle::new(l10n::sidebar_accounts(), "")));
-    let add_account = gtk::Button::from_icon_name("list-add-symbolic");
+    let add_account = gtk::Button::from_icon_name(icons::ADD);
     add_account.set_tooltip_text(Some(l10n::action_add_account()));
     add_account.update_property(&[AccessibleProperty::Label(l10n::action_add_account())]);
     let input = sender.clone();

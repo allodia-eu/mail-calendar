@@ -6,6 +6,8 @@ use adw::prelude::*;
 use gtk::gdk::prelude::GdkCairoContextExt;
 use mailcal_bindings::Avatar;
 
+use crate::ui::icons;
+
 /// Client-owned avatar data, equatable so a photo arriving rebuilds only the affected row.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct AvatarData {
@@ -112,7 +114,7 @@ pub(crate) fn view(avatar: &AvatarData, size: i32) -> gtk::Widget {
             .build();
         let glyph = gtk::Image::builder()
             .accessible_role(gtk::AccessibleRole::Presentation)
-            .icon_name("avatar-default-symbolic")
+            .icon_name(icons::PERSON)
             .build();
         glyph.set_pixel_size(size / 2);
         overlay.add_overlay(&glyph);

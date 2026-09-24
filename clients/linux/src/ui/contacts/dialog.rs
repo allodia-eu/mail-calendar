@@ -23,7 +23,7 @@ use super::{
     editor::{ContactEditor, ContactForm, FormError},
     model::CardChoice,
 };
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 /// Presents the editor for `editor`, create or edit.
 pub(super) fn present_editor(
@@ -258,7 +258,7 @@ fn append_value_row(
     value: &str,
 ) -> adw::EntryRow {
     let row = entry_row(heading, value);
-    let remove = gtk::Button::from_icon_name("user-trash-symbolic");
+    let remove = gtk::Button::from_icon_name(icons::REMOVE);
     remove.add_css_class("flat");
     remove.set_valign(gtk::Align::Center);
     remove.set_tooltip_text(Some(remove_label));

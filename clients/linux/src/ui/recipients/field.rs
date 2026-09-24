@@ -25,7 +25,10 @@ use gtk::{accessible::Property as AccessibleProperty, gdk, glib};
 use mailcal_bindings::{MailcalApp, RecipientMatch};
 
 use super::tokens;
-use crate::{l10n, ui::mailbox};
+use crate::{
+    l10n,
+    ui::{icons, mailbox},
+};
 
 /// How long the field waits after the last keystroke before asking the core.
 ///
@@ -401,7 +404,7 @@ fn pill(address: &str, index: usize, inner: &Rc<Inner>) -> gtk::Box {
     label.set_max_width_chars(30);
     label.set_tooltip_text(Some(address));
     root.append(&label);
-    let remove = gtk::Button::from_icon_name("window-close-symbolic");
+    let remove = gtk::Button::from_icon_name(icons::CLOSE);
     remove.add_css_class("flat");
     remove.add_css_class("circular");
     remove.set_valign(gtk::Align::Center);

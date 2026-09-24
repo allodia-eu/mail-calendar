@@ -1,13 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The glyphs the reading toolbar and folder pane draw. Bundled rather than named out of the
-     icon theme so they look the same on every distribution: a theme can only replace an icon name
-     it ships, and none ships these. Adwaita; the theme the GNOME runtime this app is packaged
-     against provides; has no inbox and no archive glyph at all, and a name it does not ship
-     draws the broken-image icon. The role icons it does ship (document-edit, mail-send,
-     mail-mark-junk, user-trash, folder) stay themed, so the pane still looks like it belongs. -->
+<!-- The glyphs Adwaita does not have, compiled into the binary. Which set each comes from, and
+     why, is docs/icons.md; the names the client draws are src/ui/icons.rs.
+
+     Every one is served as `mailcal-…-symbolic`, a name no icon theme ships, so it draws the same on
+     every distribution rather than whatever a theme happens to put under a generic name.
+     `scalable/actions/` is the hicolor directory `IconTheme::add_resource_path` searches.
+
+     idk/ holds icon-development-kit files verbatim under their upstream names
+     (scripts/dev/vendor-idk-icons.sh); the alias gives each its served name. The two in
+     scalable/actions/ are this app's own drawings. -->
 <gresources>
   <gresource prefix="/mailcal/icons">
     <file preprocess="xml-stripblanks">scalable/actions/mailcal-archive-symbolic.svg</file>
     <file preprocess="xml-stripblanks">scalable/actions/mailcal-inbox-symbolic.svg</file>
+    <file alias="scalable/actions/mailcal-bell-symbolic.svg" preprocess="xml-stripblanks">idk/bell.svg</file>
+    <file alias="scalable/actions/mailcal-cogged-wheel-symbolic.svg" preprocess="xml-stripblanks">idk/cogged-wheel.svg</file>
+    <file alias="scalable/actions/mailcal-mail-read-symbolic.svg" preprocess="xml-stripblanks">idk/mail-read.svg</file>
+    <file alias="scalable/actions/mailcal-signature-symbolic.svg" preprocess="xml-stripblanks">idk/signature.svg</file>
+    <file alias="scalable/actions/mailcal-stethoscope-symbolic.svg" preprocess="xml-stripblanks">idk/stethoscope.svg</file>
+    <file alias="scalable/actions/mailcal-wrench-symbolic.svg" preprocess="xml-stripblanks">idk/wrench.svg</file>
   </gresource>
 </gresources>

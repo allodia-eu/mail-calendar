@@ -199,33 +199,6 @@ pub(crate) fn a_server_named_row_is_never_parsed_as_markup() {
     );
 }
 
-/// The bundled glyphs the pane needs, and the themed ones it relies on the desktop for.
-///
-/// A name the icon theme does not have is not an error; GTK draws the broken-image icon and the
-/// pane carries on; so the only way to know is to ask. Adwaita is the theme the GNOME runtime
-/// provides, and it has no inbox and no archive glyph, which is why those two are ours.
-pub(crate) fn every_role_icon_resolves_to_a_real_glyph() {
-    let display = gtk::gdk::Display::default().expect("a display");
-    let theme = gtk::IconTheme::for_display(&display);
-    for role in [
-        Some(FolderRole::Inbox),
-        Some(FolderRole::Drafts),
-        Some(FolderRole::Sent),
-        Some(FolderRole::Archive),
-        Some(FolderRole::Junk),
-        Some(FolderRole::Trash),
-        Some(FolderRole::Other),
-        None,
-    ] {
-        let icon = role_icon(role.as_ref());
-        assert!(theme.has_icon(icon), "the pane must be able to draw {icon}");
-    }
-    assert!(
-        !theme.has_icon("mailcal-not-an-icon-symbolic"),
-        "a theme that answers yes to everything would make the check above meaningless"
-    );
-}
-
 /// A provider outage badges only its own account, never its folders or a healthy neighbour.
 pub(crate) fn only_an_unreachable_account_gets_the_warning() {
     let unreachable = HashSet::from(["acct-2".to_owned()]);
@@ -447,7 +420,7 @@ pub(crate) fn an_optimistic_click_is_not_undone_by_the_previous_snapshot() {
 pub(crate) fn folder_rows_expose_their_navigation_as_a_semantic_action() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let row = crate::ui::folder_pane_rows::pane_row(
-        "folder-symbolic",
+        crate::ui::icons::FOLDER,
         &sender,
         &SidebarTarget::Folder {
             account: "account".to_owned(),

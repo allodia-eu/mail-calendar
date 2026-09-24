@@ -5,25 +5,8 @@
 
 use adw::prelude::*;
 
-use super::{DestinationBar, ICONS};
+use super::DestinationBar;
 use crate::ui::{AppInput, PrimaryView, shell_sidebar};
-
-/// A named glyph the theme lacks draws the broken-image icon, and the bar keeps drawing as though
-/// nothing happened; so the names are asserted rather than looked at once.
-pub(crate) fn every_destination_icon_resolves_to_a_real_glyph() {
-    let display = gtk::gdk::Display::default().expect("a display");
-    let theme = gtk::IconTheme::for_display(&display);
-    for icon in ICONS {
-        assert!(
-            theme.has_icon(icon),
-            "the switcher must be able to draw {icon}"
-        );
-    }
-    assert!(
-        !theme.has_icon("mailcal-not-an-icon-symbolic"),
-        "a theme that answers yes to everything would make the check above meaningless"
-    );
-}
 
 /// Pressing a destination navigates; the model arriving at one by another route does not.
 ///

@@ -47,6 +47,7 @@ mod folder_pane;
 mod folder_pane_rows;
 mod google;
 mod host_tasks;
+mod icons;
 mod input;
 mod invitation;
 mod invitation_actions;

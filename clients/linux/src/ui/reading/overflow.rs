@@ -8,7 +8,7 @@ use gtk::{accessible::Property as AccessibleProperty, glib};
 use mailcal_bindings::save::message_export_file_name;
 
 use super::{AppInput, ReadingSource};
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 /// The file name the export offers, kept in step with the message on screen.
 ///
@@ -37,7 +37,7 @@ pub(super) fn overflow_menu(
 
     let popover = gtk::Popover::new();
     popover.set_child(Some(&menu));
-    let button = gtk::Button::from_icon_name("view-more-symbolic");
+    let button = gtk::Button::from_icon_name(icons::MORE);
     button.set_tooltip_text(Some(l10n::a11y_more_actions()));
     button.update_property(&[AccessibleProperty::Label(l10n::a11y_more_actions())]);
     button.add_css_class("flat");

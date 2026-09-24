@@ -10,6 +10,7 @@ use super::{
     AppInput,
     allodia_subscription::{SubscriptionInput, SubscriptionState},
     allodia_sync::AllodiaSyncState,
+    icons,
 };
 use crate::{l10n, preferences::HostPreferences};
 
@@ -239,6 +240,9 @@ impl SettingsWindow {
 }
 
 fn window_content(category: Category, ctx: &PageContext) -> gtk::Box {
+    if let Some(display) = gtk::gdk::Display::default() {
+        icons::install(&display);
+    }
     let shell = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let categories = gtk::ListBox::new();
     categories.add_css_class("navigation-sidebar");
@@ -252,10 +256,7 @@ fn window_content(category: Category, ctx: &PageContext) -> gtk::Box {
     for category in shown {
         let row = gtk::ListBoxRow::new();
         row.set_activatable(false);
-        let button = gtk::ToggleButton::with_label(category.title());
-        button.add_css_class("flat");
-        button.set_halign(gtk::Align::Fill);
-        button.set_hexpand(true);
+        let button = category_button(category);
         if let Some(group) = &button_group {
             button.set_group(Some(group));
         } else {
@@ -294,6 +295,25 @@ fn window_content(category: Category, ctx: &PageContext) -> gtk::Box {
     split.set_vexpand(true);
     shell.append(&split);
     shell
+}
+
+/// One sidebar row's button: the category's glyph and its name, the way every other platform's
+/// settings sidebar draws it (docs/settings.md).
+///
+/// The name is set on the button as well as drawn inside it, so assistive technology and the UI
+/// suite find the row by the same words whatever the content widget does with them.
+fn category_button(category: Category) -> gtk::ToggleButton {
+    let content = adw::ButtonContent::new();
+    content.set_icon_name(category.icon());
+    content.set_label(category.title());
+    content.set_halign(gtk::Align::Start);
+    let button = gtk::ToggleButton::new();
+    button.set_child(Some(&content));
+    button.add_css_class("flat");
+    button.set_halign(gtk::Align::Fill);
+    button.set_hexpand(true);
+    button.update_property(&[gtk::accessible::Property::Label(category.title())]);
+    button
 }
 
 /// Which category the window opens on: the one the caller asked for, except when the screenshot
@@ -376,6 +396,23 @@ impl Category {
             Self::Advanced => l10n::settings_category_advanced(),
             Self::Diagnostics => l10n::settings_category_diagnostics(),
             Self::About => l10n::settings_category_about(),
+        }
+    }
+
+    const fn icon(self) -> &'static str {
+        match self {
+            Self::Allodia => icons::SETTINGS_ALLODIA,
+            Self::General => icons::SETTINGS_GENERAL,
+            Self::Calendar => icons::SETTINGS_CALENDAR,
+            Self::Reading => icons::SETTINGS_READING,
+            Self::Composing => icons::SETTINGS_COMPOSING,
+            Self::Signatures => icons::SETTINGS_SIGNATURES,
+            Self::Notifications => icons::SETTINGS_NOTIFICATIONS,
+            Self::Privacy => icons::SETTINGS_PRIVACY,
+            Self::Accounts => icons::SETTINGS_ACCOUNTS,
+            Self::Advanced => icons::SETTINGS_ADVANCED,
+            Self::Diagnostics => icons::SETTINGS_DIAGNOSTICS,
+            Self::About => icons::SETTINGS_ABOUT,
         }
     }
 }
