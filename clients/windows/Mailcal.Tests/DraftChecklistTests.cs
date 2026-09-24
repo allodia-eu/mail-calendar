@@ -177,4 +177,41 @@ public class DraftChecklistTests
         var list = script["window.composerPlaceholdersLeft(".Length..^1];
         Assert.Equal(new[] { "[date]", "[a \"quote\"]" }, DraftChecklist.ReadLeft(list));
     }
+
+    // In a short window the card would otherwise take the height the reply needs: the editor keeps
+    // its floor while the card's body can give way, and a tall window caps the body as before.
+    [Fact]
+    public void TheCardYieldsToTheEditorInAShortWindow()
+    {
+        // A 760-DIP window on a 1440 by 900 display leaves the editor and the body 169 between them.
+        Assert.Equal(DraftChecklist.CardBodyFloor, DraftChecklist.CardBodyCeiling(169));
+        Assert.Equal(100, DraftChecklist.CardBodyCeiling(DraftChecklist.EditorFloor + 100));
+        Assert.Equal(DraftChecklist.CardBodyMax, DraftChecklist.CardBodyCeiling(900));
+        Assert.Equal(DraftChecklist.CardBodyFloor, DraftChecklist.CardBodyCeiling(0));
+    }
+
+    // Where both floors do not fit, an open card would leave the reply a line or two, so it opens
+    // folded to its heading; where they do, it opens.
+    [Fact]
+    public void TheCardOpensFoldedWhereBothFloorsDoNotFit()
+    {
+        const double both = DraftChecklist.EditorFloor + DraftChecklist.CardBodyFloor;
+        Assert.True(DraftChecklist.CardOpensFolded(167));
+        Assert.True(DraftChecklist.CardOpensFolded(both - 1));
+        Assert.False(DraftChecklist.CardOpensFolded(both));
+        Assert.False(DraftChecklist.CardOpensFolded(600));
+    }
+
+    // The editor takes whatever the body leaves, so their sum is the same under any cap, and the
+    // cap worked out after the layout has taken it is the cap that was applied.
+    [Theory]
+    [InlineData(169)]
+    [InlineData(300)]
+    [InlineData(420)]
+    public void TheCapDoesNotMoveOnceApplied(double editorAndBody)
+    {
+        var cap = DraftChecklist.CardBodyCeiling(editorAndBody);
+        var editor = editorAndBody - cap;
+        Assert.Equal(cap, DraftChecklist.CardBodyCeiling(editor + cap));
+    }
 }

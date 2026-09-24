@@ -66,6 +66,9 @@ internal sealed class WizardFrame
             IsHitTestVisible = allowsJump,
         };
         _pips.SelectedIndexChanged += (_, _) => OnPip();
+        // The pager's template names it "Pager" when applied, over a name set before it loaded,
+        // so the first page's step is named again once it has.
+        _pips.Loaded += (_, _) => NamePips();
         _cancel.Click += (_, _) => _cancelAction?.Invoke();
         _back.Click += (_, _) => Go(_pager.Index - 1);
         _primary.Click += (_, _) =>
@@ -88,7 +91,9 @@ internal sealed class WizardFrame
         Grid.SetRow(_stage, 1);
         Root.Children.Add(_top);
         Root.Children.Add(_stage);
-        Root.Children.Add(Footer());
+        var footer = Footer();
+        Grid.SetRow(footer, 2);
+        Root.Children.Add(footer);
     }
 
     /// <summary>The frame, to put in the panel.</summary>
@@ -197,7 +202,7 @@ internal sealed class WizardFrame
         }
     }
 
-    private UIElement Footer()
+    private Grid Footer()
     {
         var footer = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 12, 0, 0) };
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -234,14 +239,16 @@ internal sealed class WizardFrame
         _syncing = true;
         _pips.SelectedPageIndex = _pager.Index;
         _syncing = false;
-        AutomationProperties.SetName(_pips, L10n.A11yWizardStep(
-            (_pager.Index + 1).ToString(CultureInfo.CurrentCulture),
-            _pager.Count.ToString(CultureInfo.CurrentCulture)));
+        NamePips();
         SetBack(!_pager.IsFirst);
         SetPrimary(L10n.WizardNext(), enabled: true, accent: true);
         _primaryAction = null;
         Moved?.Invoke();
     }
+
+    private void NamePips() => AutomationProperties.SetName(_pips, L10n.A11yWizardStep(
+        (_pager.Index + 1).ToString(CultureInfo.CurrentCulture),
+        _pager.Count.ToString(CultureInfo.CurrentCulture)));
 
     // A pip moves to its page where the frame allows it; elsewhere the selection goes back to the
     // page on screen, which a keyboard can still reach the pips to change.

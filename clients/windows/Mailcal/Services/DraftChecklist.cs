@@ -38,6 +38,16 @@ internal sealed class DraftChecklistItem
 /// <summary>The card a drafted reply brings, for one composer's life.</summary>
 internal sealed class DraftChecklist
 {
+    /// <summary>The height, in DIPs, the editor keeps before the card's body gives up any more:
+    /// its toolbar, which wraps to two rows in a narrow pane, and a few lines of the reply.</summary>
+    internal const double EditorFloor = 240;
+
+    /// <summary>The card's body at its shortest: a line or two, with the rest a scroll away.</summary>
+    internal const double CardBodyFloor = 56;
+
+    /// <summary>The card's body at its tallest, however much room there is.</summary>
+    internal const double CardBodyMax = 180;
+
     private DraftChecklistItem[] _items = [];
     private int _attachmentsAtDraft;
 
@@ -128,6 +138,24 @@ internal sealed class DraftChecklist
 
     /// <summary>Send has asked, and whatever the answer was, it does not ask again.</summary>
     internal void SendAsked() => HasAsked = true;
+
+    /// <summary>
+    /// How tall the card's body may be, given the height the editor and the body take between them
+    /// now. The editor is the composer's one star row and the card sits under it at its own height,
+    /// so in a short window an uncapped card takes the height the reply needs. The body yields down
+    /// to <see cref="CardBodyFloor"/> before the editor goes under <see cref="EditorFloor"/>. The sum
+    /// does not change when the cap does, since the editor takes what the body leaves, so applying
+    /// the answer does not move it.
+    /// </summary>
+    internal static double CardBodyCeiling(double editorAndBody) =>
+        Math.Clamp(editorAndBody - EditorFloor, CardBodyFloor, CardBodyMax);
+
+    /// <summary>
+    /// Whether a new card opens folded to its heading: when the editor and the body together have
+    /// less than both floors, an open card would leave the reply a line or two. The person can open
+    /// it, and it is then capped as <see cref="CardBodyCeiling"/> says.
+    /// </summary>
+    internal static bool CardOpensFolded(double editorAndBody) => editorAndBody < EditorFloor + CardBodyFloor;
 
     /// <summary>
     /// The editor call that answers which of <paramref name="placeholders"/> are still in the reply

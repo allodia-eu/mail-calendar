@@ -31,6 +31,12 @@ public sealed partial class ComposerView
     // Keeps the ticks drawn from the checklist from being taken for the person's own.
     private bool _syncingTicks;
 
+    // The card's scrolling body, whose cap follows the room the editor leaves it.
+    private ScrollViewer? _cardBody;
+
+    // A new card has not been laid out yet, so whether it opens folded is still to be decided.
+    private bool _cardUnfitted;
+
     // A draft went in: its card replaces an earlier draft's, or goes when it has nothing to say.
     private void ShowDraftCard(DraftReply draft)
     {
@@ -42,6 +48,7 @@ public sealed partial class ComposerView
     private void DrawDraftCard()
     {
         _checklistRows.Clear();
+        _cardBody = null;
         if (_checklist.IsEmpty)
         {
             DraftCard.Visibility = Visibility.Collapsed;
@@ -70,9 +77,47 @@ public sealed partial class ComposerView
         {
             body.Children.Add(ChecklistRow(item));
         }
-        DraftCard.Content = new ScrollViewer { Content = body, MaxHeight = 180 };
+        _cardBody = new ScrollViewer { Content = body, MaxHeight = DraftChecklist.CardBodyMax };
+        _cardBody.SizeChanged += (_, _) => FitDraftCard();
+        DraftCard.Content = _cardBody;
+        DraftCard.IsExpanded = true;
         DraftCard.Visibility = Visibility.Visible;
+        _cardUnfitted = true;
         SyncTicks();
+    }
+
+    private void OnEditorFrameSizeChanged(object sender, SizeChangedEventArgs e) => FitDraftCard();
+
+    // Keeps room for the reply: a new card opens folded where both floors do not fit, and an open
+    // one has its body capped (DraftChecklist). A folded card takes no room, so it is left alone,
+    // and folding or opening it afterwards is the person's.
+    private void FitDraftCard()
+    {
+        if (_cardBody is not { } body || DraftCard.Visibility != Visibility.Visible || !DraftCard.IsExpanded)
+        {
+            return;
+        }
+        var room = EditorFrame.ActualHeight + body.ActualHeight;
+        if (_cardUnfitted)
+        {
+            // The editor can report its new size before the new body has one, which would read as
+            // no room at all; the body's own size change comes once it is laid out.
+            if (body.ActualHeight <= 0)
+            {
+                return;
+            }
+            _cardUnfitted = false;
+            if (DraftChecklist.CardOpensFolded(room))
+            {
+                DraftCard.IsExpanded = false;
+                return;
+            }
+        }
+        var ceiling = DraftChecklist.CardBodyCeiling(room);
+        if (Math.Abs(body.MaxHeight - ceiling) >= 1)
+        {
+            body.MaxHeight = ceiling;
+        }
     }
 
     // A checkbox, an icon by kind, and the text. A fill-in item ticks itself as the reply changes,

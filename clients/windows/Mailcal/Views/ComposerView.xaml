@@ -93,7 +93,7 @@
                          Content="{x:Bind l10n:L10n.QuoteStyleLineHeader()}" Checked="OnQuoteStyleChanged" />
         </StackPanel>
 
-        <Border Grid.Row="5" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+        <Border x:Name="EditorFrame" Grid.Row="5" SizeChanged="OnEditorFrameSizeChanged" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
             <controls:WebView2 x:Name="Editor" />
         </Border>
 
