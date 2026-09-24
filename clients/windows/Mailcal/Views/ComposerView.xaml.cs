@@ -221,7 +221,11 @@ public sealed partial class ComposerView : UserControl
     /// <summary>Tears the editor down. The composer is built fresh per draft rather than reused, so
     /// nothing, a document, a quote, an attachment list, can leak from one message into the next;
     /// this releases the WebView2 that backed it.</summary>
-    internal void Teardown() => _editor.Close();
+    internal void Teardown()
+    {
+        CloseDraftCard();
+        _editor.Close();
+    }
 
     private async void OnSend(object sender, RoutedEventArgs e)
     {
@@ -232,6 +236,12 @@ public sealed partial class ComposerView : UserControl
         SendButton.IsEnabled = false;
         try
         {
+            // A drafted reply's open items are asked about once (ComposerView.DraftChecklist.cs).
+            if (!await ConfirmOpenItemsAsync())
+            {
+                SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);
+                return;
+            }
             var documentJson = await ReadDocumentAsync();
             // The pills are a rendering of these strings, never a second source of truth, so what
             // is submitted is exactly what the user can see in the fields.
@@ -357,6 +367,7 @@ public sealed partial class ComposerView : UserControl
         }
         AttachmentList.ItemsSource = null;
         AttachmentList.ItemsSource = _attachments;
+        OnAttachmentsChanged();
     }
 
     private void OnRemoveAttachment(object sender, RoutedEventArgs e)
@@ -369,6 +380,7 @@ public sealed partial class ComposerView : UserControl
         AttachmentList.ItemsSource = null;
         AttachmentList.ItemsSource = _attachments;
         RemoveAttachmentButton.IsEnabled = false;
+        OnAttachmentsChanged();
     }
 
     private void OnAttachmentSelectionChanged(object sender, SelectionChangedEventArgs e) =>

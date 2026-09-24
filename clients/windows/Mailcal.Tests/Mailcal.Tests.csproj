@@ -229,17 +229,18 @@
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />
     <!-- Writing style and drafted replies (docs/ai.md): which sentence a failure earns, the learn
          sheet's pages, range and superseded reads, the reveal's steps and pictures, the numbers
-         and dates, the composer's Draft a reply rules and the own endpoint form. WinUI-free and
-         L10n-free on purpose, the words are Dialogs/WritingStyleText.cs; each rule is silent when
-         wrong, most sharply a draft replacing what the person wrote without asking, and an empty
-         key field removing the stored key. They read the generated records, so they need the
-         bindings. -->
+         and dates, the composer's Draft a reply rules, a draft's checklist and the own endpoint
+         form. WinUI-free and L10n-free on purpose, the words are Dialogs/WritingStyleText.cs; each
+         rule is silent when wrong, most sharply a draft replacing what the person wrote without
+         asking, Send asking twice about a checklist, and an empty key field removing the stored
+         key. They read the generated records, so they need the bindings. -->
     <Compile Include="..\Mailcal\Services\AiFailure.cs" Link="Services\AiFailure.cs" />
     <Compile Include="..\Mailcal\Services\WizardPager.cs" Link="Services\WizardPager.cs" />
     <Compile Include="..\Mailcal\Services\LearnSheet.cs" Link="Services\LearnSheet.cs" />
     <Compile Include="..\Mailcal\Services\StyleReveal.cs" Link="Services\StyleReveal.cs" />
     <Compile Include="..\Mailcal\Services\WritingStyleFormat.cs" Link="Services\WritingStyleFormat.cs" />
     <Compile Include="..\Mailcal\Services\DraftReplyGate.cs" Link="Services\DraftReplyGate.cs" />
+    <Compile Include="..\Mailcal\Services\DraftChecklist.cs" Link="Services\DraftChecklist.cs" />
     <Compile Include="..\Mailcal\Services\OwnEndpointForm.cs" Link="Services\OwnEndpointForm.cs" />
     <!-- The debug-only harness send gate: which recipients count as outside test.local. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\HarnessRecipientGate.cs" Link="Services\HarnessRecipientGate.cs" />

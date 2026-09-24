@@ -4,7 +4,8 @@
 // here: the draft lands in the composer, where the person edits it.
 //
 // The rules (when it is offered, whose style, how the editor's answer reads) are DraftReplyGate,
-// where Mailcal.Tests pins them. What is here is the WinUI and the calls into the editor.
+// where Mailcal.Tests pins them. What is here is the WinUI and the calls into the editor. The card
+// a draft brings is ComposerView.DraftChecklist.cs.
 
 using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
@@ -109,7 +110,11 @@ public sealed partial class ComposerView
             await _editor.RunAsync(
                 $"window.setComposerDraftText({EditorWebViewHost.Arg(draft.Text)}, {EditorWebViewHost.Arg(draft.DraftId)})");
             ClearDraftError();
-            DraftBracketsHint.Visibility = draft.Gaps.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+            // The checklist names each gap, so the line is for a draft that came without one.
+            DraftBracketsHint.Visibility = draft.Gaps.Length > 0 && draft.Tasks.Length == 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            ShowDraftCard(draft);
             DraftIntentBox.Text = string.Empty;
         }
         catch (Exception ex)

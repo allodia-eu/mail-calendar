@@ -98,6 +98,12 @@
         </Border>
 
         <StackPanel Grid.Row="6" Spacing="6">
+            <!-- A drafted reply's summary and checklist (docs/ai.md, "Where they show"), between
+                 the editor and the action row. Never part of the mail: it is not in the editor.
+                 Filled in code, per draft (ComposerView.DraftChecklist.cs). -->
+            <Expander x:Name="DraftCard" Visibility="Collapsed" IsExpanded="True"
+                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                      AutomationProperties.AutomationId="DraftCard" />
             <!-- The composer's action row: things you do TO the message, as opposed to the
                  From/To/Cc fields you address it with. That is why Signature sits here and not
                  among them (docs/signatures.md), it is the Windows counterpart of the action bar
@@ -152,7 +158,8 @@
                 <ProgressRing x:Name="DraftingRing" Width="16" Height="16" IsActive="False" />
                 <TextBlock Text="{x:Bind l10n:L10n.ComposerDrafting()}" VerticalAlignment="Center" />
             </StackPanel>
-            <!-- Stands until the next draft or the send, which closes the composer. -->
+            <!-- Stands until the next draft or the send, which closes the composer. A draft whose
+                 checklist names its gaps says so in the card instead. -->
             <TextBlock x:Name="DraftBracketsHint" Visibility="Collapsed" TextWrapping="Wrap"
                        Style="{StaticResource CaptionTextBlockStyle}"
                        Text="{x:Bind l10n:L10n.ComposerDraftCheckBrackets()}" />
