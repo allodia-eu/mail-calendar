@@ -299,12 +299,12 @@ A style's id is opaque CSPRNG output, never derived from its name.
 | Capability | Shared core | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | The gate, before anything is read or sent | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
-| Learn a style: report, consent sheet, progress, cancel | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
-| The reveal, notes, rename, forget | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Learn a style: report, consent sheet, progress, cancel | ✅ | ✅ | ✅ | 🚧 | ✅ | 🚧 |
+| The reveal, notes, rename, forget | ✅ | ✅ | ✅ | 🚧 | ✅ | 🚧 |
 | Per-account style slot | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
-| Draft a reply into the open composer, with gaps | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
-| What the message asks, and a checklist asked about once at Send | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
-| Own endpoint under Settings → Advanced | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| Draft a reply into the open composer, with gaps | ✅ | ✅ | ✅ | 🚧 | ✅ | 🚧 |
+| What the message asks, and a checklist asked about once at Send | ✅ | ✅ | ✅ | 🚧 | ✅ | 🚧 |
+| Own endpoint under Settings → Advanced | ✅ | ✅ | ✅ | 🚧 | ✅ | 🚧 |
 | Allodia relay: the entitlement read, requests, the balance | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Style guide synced between devices | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Feedback on a draft: thumbs, reasons, comment, the email and the draft only when ticked | 🚧 | 🚧 | ✅ | ⬜ | ⬜ | ⬜ |
@@ -314,7 +314,11 @@ A style's id is opaque CSPRNG output, never derived from its name.
 macOS and iOS were driven against the harness's Sent Items and the canned endpoint: the refusal
 until the endpoint says where it runs, learning, the reveal, the library, the account slot, a draft
 into a reply and the replace question, forget, and the category leaving with the endpoint; iOS on
-an iPhone simulator. Windows, Android and Linux are built and not yet driven (Known gaps).
+an iPhone simulator. Android was driven on a phone against the harness and the canned endpoint:
+the category after Signatures, learning with Stop, all six pages of the reveal in both languages,
+a draft with its card (a placeholder ticking about a second after it was replaced, Send asking
+once), in dark mode and with animations off. Windows and Linux are built and not yet driven
+(Known gaps).
 Feedback was driven on an iPhone simulator against the harness and the canned endpoint, offered by
 `MAILCAL_FAKE_AI_FEEDBACK` in place of a sign-in: a thumbs up, and a thumbs down with reasons, a
 comment and the box ticked, each landing in the outbox. The core's side is 🚧 until the route
@@ -355,8 +359,13 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 
 ## Known gaps
 
-- **Windows, Android and Linux are built and not driven.** Windows and Linux have compiled only in
-  CI; Android's JVM suite passes and its debug build succeeds. iPad was not driven either.
+- **Windows and Linux are built and not driven**, and have compiled only in CI. On Android the gate's
+  refusal and the account slot have not been driven. iPad was not driven either.
+- **A placeholder brought back by an undo stays ticked until Send**, on every client: the card
+  stops asking the editor once every placeholder is filled, and Send reads them again.
+- **On Android, a word long-pressed in the body under the card** is selected beneath the keyboard,
+  and the editor scrolls it into view only once the person types.
+- **At a very large font size (1.8 on Android)** the sheets' Next button wraps within the word.
 - **"Try it on a recent message" is not offered** on any client; the reveal ends at Save.
 - **No driven run has sent a reply from a draft**, so the `ai_draft` round trip is proven by the
   editor's and the core's tests, not on a screen.
