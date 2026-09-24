@@ -202,7 +202,7 @@ A style's id is opaque CSPRNG output, never derived from its name.
 | The reveal, notes, rename, forget | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | Per-account style slot | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | Draft a reply into the open composer, with gaps | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
-| What the message asks, and a checklist asked about once at Send | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| What the message asks, and a checklist asked about once at Send | ✅ | 🚧 | ✅ | ⬜ | ⬜ | ⬜ |
 | Own endpoint under Settings → Advanced | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
 | Allodia relay: the entitlement read, requests, the balance | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Style guide synced between devices | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
