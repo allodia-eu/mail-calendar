@@ -129,7 +129,9 @@ public sealed partial class SettingsDialog
             Date = new DateTimeOffset(sheet.UntilDay.ToDateTime(TimeOnly.MinValue)),
         };
         AutomationProperties.SetName(picker, L10n.LearnRangeUntilLabel());
-        picker.DateChanged += (_, args) =>
+        // `sender` rather than `_`: with one named parameter beside it, `_` is the sender itself,
+        // and `_ = ReadCorpusAsync(…)` below would assign the task to it rather than discard it.
+        picker.DateChanged += (sender, args) =>
         {
             // The picker hands back the chosen day at some time of day in the host's offset; the
             // day is what was chosen, and the sheet makes the range end with it.

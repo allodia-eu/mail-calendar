@@ -23,7 +23,7 @@ $Suite = @{
           $element = Find-UiaElement -AutomationId $id -Root $dialog
           Assert-True ($null -ne $element) (
             "the own endpoint form is always in Advanced (docs/settings.md slot 11), and it is " +
-            "missing #$id: without it a build with no relay has no way into writing style")
+            "missing #${id}: without it a build with no relay has no way into writing style")
         }
         $save = Find-UiaElement -AutomationId 'AiEndpointSave' -Root $dialog
         Assert-True $save.Current.IsEnabled (
