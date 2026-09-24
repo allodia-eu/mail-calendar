@@ -1,12 +1,12 @@
 # See what a message asks, and what is left to do, with a drafted reply
 
-Platforms: ios
+Platforms: macos, ios
 Bump: minor
 
 > The card above a drafted reply: a summary of what the message asks, and a checklist of each
 > placeholder, attachment and action, with Send asking once while items are open. Driven on an
-> iPhone simulator against the harness and a canned endpoint; macOS is added once it has been
-> driven (`docs/ai.md`).
+> iPhone simulator against the harness and a canned endpoint, and on macOS against a real mailbox
+> (`docs/ai.md`).
 
 **English**
 

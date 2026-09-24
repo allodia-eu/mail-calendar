@@ -84,7 +84,7 @@ pub(crate) fn checklist(gaps: &[String], asked: Vec<AnsweredTask>) -> Vec<DraftT
     let listed = asked
         .into_iter()
         .filter_map(|task| {
-            let text = bounded(&task.text, TASK_CHARS);
+            let text = sentence(&task.text, TASK_CHARS);
             let kind = if task.kind.trim().eq_ignore_ascii_case("attach") {
                 TaskKind::Attach
             } else {
@@ -98,7 +98,17 @@ pub(crate) fn checklist(gaps: &[String], asked: Vec<AnsweredTask>) -> Vec<DraftT
 
 /// The summary on one line, cut to [`SUMMARY_CHARS`].
 pub(crate) fn summary(text: &str) -> String {
-    bounded(text, SUMMARY_CHARS)
+    sentence(text, SUMMARY_CHARS)
+}
+
+/// `text` on one line, cut to `cap`, starting with a capital: a model writes list items in lower
+/// case often enough that the card would look unfinished.
+fn sentence(text: &str, cap: usize) -> String {
+    let text = bounded(text, cap);
+    let mut chars = text.chars();
+    chars.next().map_or(text.clone(), |first| {
+        first.to_uppercase().chain(chars).collect()
+    })
 }
 
 fn bounded(text: &str, cap: usize) -> String {

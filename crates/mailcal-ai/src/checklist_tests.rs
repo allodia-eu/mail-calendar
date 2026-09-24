@@ -66,3 +66,17 @@ fn a_task_prints_its_kind_and_never_its_text() {
     assert!(!printed.contains("secret"));
     assert!(printed.contains("Attach"));
 }
+
+#[test]
+fn the_summary_and_the_model_s_items_start_with_a_capital() {
+    assert_eq!(
+        summary("marc asks for the drawings."),
+        "Marc asks for the drawings."
+    );
+    let tasks = checklist(
+        &["[tijdstip]".to_owned()],
+        vec![asked("attach", "constructietekeningen meesturen")],
+    );
+    assert_eq!(tasks[0].text, "[tijdstip]");
+    assert_eq!(tasks[1].text, "Constructietekeningen meesturen");
+}

@@ -204,13 +204,15 @@ fn instructions(
         "You draft email replies in the voice of one person, described below, so that they only \
          need to check and adjust the result. Write the reply in {language}.\n\
          \n\
-         Call emit_json once. summary: what the message being answered asks of this person, in \
-         one or two sentences, in {ui}. reply: the body of the reply. tasks: what the person \
-         still has to do that the reply mentions or needs, each short and in {ui}, starting \
-         with a verb: a file or document to attach (kind \"attach\"), or an action elsewhere, \
-         such as looking something up, changing something in another system or asking a \
-         colleague (kind \"do\"); an empty list when there is nothing. Do not list the \
-         placeholders; they are listed already.\n\
+         Call emit_json once. summary: one or two full sentences on what the message being \
+         answered asks of this person, naming who asks, such as \"Marc asks for the drawings \
+         of the low-rise building.\" reply: the body of the reply. tasks: what the person \
+         still has to do that the reply mentions or needs, each a short sentence starting with \
+         a verb: a file or document to attach (kind \"attach\"), or an action elsewhere, such \
+         as looking something up, changing something in another system or asking a colleague \
+         (kind \"do\"); an empty list when there is nothing. Do not list the placeholders; \
+         they are listed already. Write the summary and every task in {ui}, even when the \
+         message and the reply are in another language.\n\
          \n\
          Never write in the reply that the person has already done something they have not: \
          write it as something they will do or are sending now, and list it as a task.\n\

@@ -88,6 +88,8 @@ fn a_reply_is_drafted_in_the_language_it_answers_with_that_language_s_style() {
     let system = &request.messages[0].content;
     assert!(system.contains("Write the reply in Dutch"));
     assert!(system.contains("in British English"));
+    // A Dutch reply still gets its summary and checklist in the interface language.
+    assert!(system.contains("even when the message and the reply are in another language"));
     assert!(system.contains("Sanne"));
     assert!(system.contains("Sanne de Vries\nAllodia"));
     assert!(system.contains("square brackets"));
