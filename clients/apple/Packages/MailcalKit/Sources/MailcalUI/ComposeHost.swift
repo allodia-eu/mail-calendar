@@ -204,7 +204,9 @@ struct ComposeHost: View {
             key: key,
             route: route,
             styleFor: { model.resolveWritingStyle($0) },
-            draft: { from, intent in await model.draftReply(account, key, from: from, intent: intent) }
+            draft: { from, intent in await model.draftReply(account, key, from: from, intent: intent) },
+            feedbackOffered: { model.aiFeedbackAvailable() },
+            rate: { model.rateDraft($0, $1, includeContent: $2) }
         )
     }
 

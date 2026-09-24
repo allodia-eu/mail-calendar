@@ -22,6 +22,11 @@ struct ComposerDraftReply {
     /// intent when there is one.
     let draft: @MainActor (_ from: String?, _ intent: String?) async
         -> Result<DraftReply, WritingStyleFailure>
+    /// Whether feedback on a draft is offered now: only while signed in to an Allodia account.
+    let feedbackOffered: @MainActor () -> Bool
+    /// Keeps a rating of the draft `draftId`, with the email and the draft when asked; answers
+    /// whether it was kept.
+    let rate: @MainActor (_ draftId: String, _ rating: DraftRating, _ includeContent: Bool) -> Bool
 }
 
 /// The control's state, held once by the composer so the status beside the body outlives the
@@ -38,6 +43,8 @@ final class ComposerDraftStatus {
     var checkBrackets = false
     /// The card above the editor, for this composer's life.
     var checklist = DraftChecklist()
+    /// The thumbs on the card, for the draft last put into the editor.
+    var feedback = DraftFeedback()
     var confirmingSend = false
     var failure: String?
     /// A draft waiting on "replace what you have written?", with the intent it was asked with.
@@ -130,6 +137,7 @@ extension RichComposeView {
                 draftStatus.checklist.show(
                     summary: draft.summary, tasks: draft.tasks, attachments: attachments.count
                 )
+                draftStatus.feedback.start(draftId: draft.draftId)
                 draftStatus.checkBrackets = !draft.gaps.isEmpty && draft.tasks.isEmpty
                 draftStatus.intent = ""
             case let .failure(failure):

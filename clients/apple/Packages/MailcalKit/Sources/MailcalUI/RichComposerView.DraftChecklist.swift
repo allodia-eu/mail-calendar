@@ -1,6 +1,7 @@
 // The card a drafted reply brings (docs/ai.md, "Where they show"): what the message asks and what
-// is left to do, between the action bar and the editor. It is SwiftUI beside the editor, so it is
-// never part of the mail. Send asks once while an item is open, and never blocks.
+// is left to do, between the action bar and the editor, and the thumbs for feedback on the draft
+// ("Feedback"). It is SwiftUI beside the editor, so it is never part of the mail. Send asks once
+// while an item is open, and never blocks.
 
 import Foundation
 import MailcalBindings
@@ -11,9 +12,11 @@ import UIKit
 
 extension RichComposeView {
     /// The card, with what follows the editor and the question Send asks, for as long as it shows.
+    /// It shows for a draft with nothing to list too, when there is feedback to offer on it.
     @ViewBuilder var draftCard: some View {
-        if !draftStatus.checklist.isEmpty {
-            DraftChecklistCard(status: draftStatus)
+        let rating = draftRating
+        if !draftStatus.checklist.isEmpty || rating != nil {
+            DraftChecklistCard(status: draftStatus, rating: rating)
                 .task(id: draftStatus.checklist.following) { await followPlaceholders() }
                 .onChange(of: attachments.count) { _, count in
                     draftStatus.checklist.attachmentsChanged(to: count)
@@ -30,6 +33,14 @@ extension RichComposeView {
                     Text(L10n.composer_send_open_message(count: draftStatus.checklist.openCount))
                 }
         }
+    }
+
+    /// How the card keeps a rating of the draft in the editor, or `nil` while feedback is not
+    /// offered (docs/ai.md, "Feedback").
+    private var draftRating: ((DraftRating, Bool) -> Bool)? {
+        guard let draftReply, let draftId = draftStatus.feedback.draftId, draftReply.feedbackOffered()
+        else { return nil }
+        return { rating, includeContent in draftReply.rate(draftId, rating, includeContent) }
     }
 
     /// Send, asking first while an item is open, with the placeholders read afresh.
@@ -72,12 +83,27 @@ extension RichComposeView {
 
 private struct DraftChecklistCard: View {
     @Bindable var status: ComposerDraftStatus
+    /// Keeps a rating of the draft; `nil` when no feedback is offered.
+    let rating: ((DraftRating, Bool) -> Bool)?
     /// One column for the kind icons, so every row's text starts at the same place.
     @ScaledMetric(relativeTo: .callout) private var iconWidth = 18.0
 
     private var checklist: DraftChecklist { status.checklist }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !checklist.isEmpty { disclosure }
+            // Outside the disclosure, so a collapsed card still offers it.
+            if let rating {
+                DraftRatingControls(feedback: $status.feedback, isFeedback: true, keep: rating)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var disclosure: some View {
         DisclosureGroup(isExpanded: expanded) {
             VStack(alignment: .leading, spacing: 8) {
                 if !checklist.summary.isEmpty {
@@ -99,9 +125,6 @@ private struct DraftChecklistCard: View {
                     : L10n.composer_draft_summary_heading()
             )
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var expanded: Binding<Bool> {

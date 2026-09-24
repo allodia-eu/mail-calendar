@@ -88,6 +88,16 @@ extension MailboxModel {
         }
     }
 
+    /// Whether feedback on a draft is offered: only while signed in to an Allodia account.
+    func aiFeedbackAvailable() -> Bool {
+        app?.aiFeedbackAvailable() ?? false
+    }
+
+    /// Keeps a rating of a draft this session issued, in the core's outbox; quick and local.
+    func rateDraft(_ draftId: String, _ rating: DraftRating, includeContent: Bool) -> Bool {
+        app?.rateDraft(draftId: draftId, rating: rating, includeContent: includeContent) ?? false
+    }
+
     /// Asks the relay for the balance. A failure changes nothing: the stored line stays.
     func refreshAiBalance() async {
         guard let app, writingStyles.route == .relay else { return }
