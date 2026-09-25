@@ -170,3 +170,8 @@ async fn a_shut_folder_is_still_shut_after_a_relaunch() {
         vec![("a", 0), ("archive", 0)]
     );
 }
+
+/// Changing the tree rather than drawing it. Its own file to keep both within the 500-line
+/// limit.
+#[path = "tests_folder_ops.rs"]
+mod ops;

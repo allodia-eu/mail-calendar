@@ -11,7 +11,9 @@ use mailcal_viewmodel::{QuoteStyleKind, SwipeActionKind, SwipeDirection, ViewMod
 // Named only by intra-doc links below, which rustdoc resolves against this module's scope.
 #[allow(unused_imports, reason = "named by intra-doc links on the variants")]
 use super::Surface;
-use super::{BulkAction, ComposerBlob, ContactsIntent, DraftsIntent, OutboxIntent, SearchScope};
+use super::{
+    BulkAction, ComposerBlob, ContactsIntent, DraftsIntent, FolderIntent, OutboxIntent, SearchScope,
+};
 use crate::{
     CompositionId, ReaderId,
     invitations_rsvp::InvitationResponse,
@@ -438,9 +440,10 @@ pub enum Intent {
     /// What a composer asks for its unfinished message: save it to the server, discard the
     /// stored copy, or close without touching it ([`DraftsIntent`], `docs/drafts.md`).
     ///
-    /// A family rather than three variants, because this enum is at its 500-line limit, and
-    /// because these three are the only intents naming a composition rather than a message.
+    /// A family: this enum is at its line limit, and only these three name a composition.
     Drafts(DraftsIntent),
+    /// A change to an account's folder tree ([`FolderIntent`], `docs/folder-pane.md`).
+    Folders(FolderIntent),
     /// The host's composer now holds the message [`Surface::ComposeRequest`] offered, so the
     /// request is answered and must not be offered again.
     ///

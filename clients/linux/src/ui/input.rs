@@ -14,6 +14,7 @@ use super::{
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
     composer_model::{ComposerSubmission, PickedFile},
     contacts::EditTarget,
+    folder_actions::FolderInput,
     folder_pane::SidebarTarget,
     google::GoogleOutcome,
     invitation::InvitationAnswer,
@@ -147,6 +148,8 @@ pub(crate) enum AppInput {
     },
     /// Show the Outbox: every account's unsent messages, in one list.
     ShowOutbox,
+    /// Change the folder tree, or file dropped mail (`docs/folder-pane.md`, rules 22 to 29).
+    Folder(FolderInput),
     /// Send now, withdraw, or reopen one queued message (`docs/sending.md`).
     QueuedSendAction {
         target: QueuedTarget,
@@ -375,6 +378,7 @@ impl fmt::Debug for AppInput {
             Self::SetAccountExpanded { .. } => "SetAccountExpanded",
             Self::SetFolderExpanded { .. } => "SetFolderExpanded",
             Self::ShowOutbox => "ShowOutbox",
+            Self::Folder(_) => "Folder",
             Self::QueuedSendAction { .. } => "QueuedSendAction",
             Self::RespondToInvitation(..) => "RespondToInvitation",
             Self::AnswerReplyPrompt { .. } => "AnswerReplyPrompt",

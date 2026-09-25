@@ -287,6 +287,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 onShowOutbox = {
                                     instance.dispatch(Intent.Outbox(OutboxIntent.Show))
                                 },
+                                folderEditing = FolderEditing.of(instance),
+                                folderNotice = folderNotice,
                             ) {
                             if (showingOutbox) {
                                 // The Outbox replaces the mailbox list rather than covering it:

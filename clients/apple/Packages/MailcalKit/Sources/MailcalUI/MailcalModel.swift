@@ -93,6 +93,8 @@ final class MailboxModel {
     /// Why the mail list has no rows, or `nil` whenever it has some. A search says how far it
     /// looked through `searchHorizon` instead, so the two are never both up.
     var emptyReason: EmptyReason?
+    /// A folder change the server refused, until dismissed (`docs/folder-pane.md`, rule 28).
+    var folderNotice: FolderNotice?
     var events: [EventRow] = []
     /// The contacts list, one row per unified **person**, not per provider card: the engine has
     /// already merged the cards that share an address, across accounts. Pulled on a

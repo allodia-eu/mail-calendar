@@ -34,6 +34,7 @@ pub(super) fn empty_mailbox() -> MailboxListSnapshot {
         search_horizon: None,
         // Nor is there a folder on screen to explain the emptiness of.
         empty_reason: None,
+        folder_notice: None,
         // No Outbox: this client draws none yet (`docs/sending.md`, "Known gaps"), and an
         // empty one would take the row off screen in any case (`docs/folder-pane.md`,
         // rule 18).

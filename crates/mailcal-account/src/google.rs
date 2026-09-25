@@ -106,6 +106,8 @@ impl RefreshingGmailProvider {
             capabilities: Capabilities::none()
                 .with_mail()
                 .with_mail_writes()
+                // Forwarded by this wrapper's `MailboxWrites`.
+                .with_mailbox_writes()
                 // Forwarded by this wrapper's `Provider`, and **without** phishing:
                 // Gmail's label set has no phishing member, so asking for that verdict is a
                 // hard error rather than a near-enough filing under spam.

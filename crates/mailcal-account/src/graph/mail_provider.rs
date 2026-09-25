@@ -12,8 +12,9 @@ use engine_core::{
     sync::{SyncScope, SyncState, SyncWindow},
 };
 use engine_provider::{
-    ConnectionInfo, Draft, EmailStream, MailEdit, MailEditReceipt, MessageReport, Provider,
-    ProviderResult, ReportReceipt, ScopeSync, SenderIdentity, SubmissionReceipt,
+    ConnectionInfo, Draft, EmailStream, MailEdit, MailEditReceipt, MailboxEdit, MailboxEditReceipt,
+    MailboxWrites, MessageReport, Provider, ProviderResult, ReportReceipt, ScopeSync,
+    SenderIdentity, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -245,3 +246,25 @@ impl Provider for RefreshingGraphProvider {
 }
 
 impl CalendarWrites for RefreshingGraphProvider {}
+
+/// A folder change is made **once**: the token is refreshed first, and a dropped connection
+/// only drops the cached delegate, as for a send. Re-issuing it is not safe on every
+/// transport (a rename replayed against the path it already left meets nothing), and the
+/// outbox retries it anyway, after re-reading the folder list.
+#[async_trait]
+impl MailboxWrites for RefreshingGraphProvider {
+    async fn edit_mailbox(
+        &self,
+        account: &AccountId,
+        edit: &MailboxEdit,
+    ) -> ProviderResult<MailboxEditReceipt> {
+        let provider = self.delegate().await?;
+        let result = provider.edit_mailbox(account, edit).await;
+        if let Err(err) = &result
+            && should_reconnect(err)
+        {
+            self.invalidate_delegate();
+        }
+        result
+    }
+}

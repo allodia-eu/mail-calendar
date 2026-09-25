@@ -48,7 +48,8 @@ pub(crate) fn the_switcher_is_pinned_below_the_accounts_and_never_scrolls_with_t
     let destinations = DestinationBar::new(&sender);
     let accounts = gtk::ScrolledWindow::new();
     accounts.set_child(Some(&gtk::ListBox::new()));
-    let pane = shell_sidebar::sidebar_pane(&sender, &accounts, &destinations);
+    let pane =
+        shell_sidebar::sidebar_pane(&sender, &accounts, &destinations, &adw::Banner::new(""));
 
     let bar = destinations.widget().clone().upcast::<gtk::Widget>();
     assert!(

@@ -205,6 +205,9 @@ pub struct MailboxListSnapshot {
     /// already says how far that one looked, and two lines answering the same question would
     /// disagree the moment one of them moves.
     pub empty_reason: Option<EmptyReason>,
+    /// A folder change the server refused, until the user dismisses it or changes a folder
+    /// again. In every view mode, beside the pane it concerns.
+    pub folder_notice: Option<crate::FolderNotice>,
 }
 
 /// One mailbox-list row: a single message (flat) or a conversation (threaded).

@@ -165,7 +165,8 @@ public sealed partial class MainWindow
                 // Saturating rather than unchecked: the label is decoration, and a mailbox past
                 // int.MaxValue unread should read as "a lot", not wrap to a negative number.
                 count => L10n.A11yUnreadCount((int)Math.Min(count, int.MaxValue)),
-                count => L10n.A11yOutboxCount((int)Math.Min(count, int.MaxValue))),
+                count => L10n.A11yOutboxCount((int)Math.Min(count, int.MaxValue)),
+                L10n.FolderPending()),
             Glyphs,
             // A row opens only what it already holds, and it takes in the rows attached above on
             // its next layout pass, so the expansion runs after that pass rather than inside this
@@ -282,9 +283,10 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
-    /// Right-click an account to remove it (with a confirmation). Raised from the NavigationView
-    /// itself and routed to whichever row the pointer was over; a right-click anywhere else in the
-    /// pane is left alone.
+    /// A row's menu: New folder and Remove account on an account row, the folder actions on a
+    /// folder row, each only where the core allows it (docs/folder-pane.md, rules 22 and 23;
+    /// MainWindow.Folders.cs). Raised from the NavigationView itself and routed to whichever row the
+    /// pointer, or the menu key, was on; a row with nothing to offer raises no menu.
     /// </summary>
     /// <remarks>
     /// A <c>ContextFlyout</c> declared on the NavigationViewItem inside the item template does not
@@ -297,14 +299,11 @@ public sealed partial class MainWindow
     {
         if (args.OriginalSource is not DependencyObject source
             || Ancestor<NavigationViewItem>(source) is not { } row
-            || row.DataContext is not SidebarItem { AccountId: { } id } item)
+            || row.DataContext is not SidebarItem item
+            || FolderMenu(item) is not { } flyout)
         {
             return;
         }
-        var remove = new MenuFlyoutItem { Text = L10n.ActionRemoveAccount() };
-        var email = item.Content;
-        remove.Click += async (_, _) => await ConfirmRemoveAccountAsync(id, email);
-        var flyout = new MenuFlyout { Items = { remove } };
         if (args.TryGetPosition(row, out var at))
         {
             flyout.ShowAt(row, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = at });

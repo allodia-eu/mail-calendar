@@ -81,6 +81,7 @@ impl FakeProvider {
             source_failures: Vec::new(),
             throttled_fetches: Arc::new(AtomicUsize::new(0)),
             throttle_wait_secs: None,
+            tree: None,
             edit_gate: None,
         }
     }
@@ -113,36 +114,8 @@ impl FakeProvider {
         let mut archive = Mailbox::new(MailboxId::try_from("archive").unwrap(), "Archive");
         archive.role = Some(MailboxRole::Archive);
         Self {
-            caps: Capabilities::none()
-                .with_mail()
-                .with_mail_writes()
-                // All three verdicts, like IMAP, JMAP and Graph. `without_reporting` models
-                // an adapter that has none, and `without_phishing_report` models Gmail.
-                .with_mail_report(ReportControls {
-                    verdicts: ReportVerdicts::all(),
-                    evidence: ReportEvidence::Convention,
-                })
-                .with_message_source(),
             mailboxes: vec![inbox, archive],
-            messages,
-            edits: Arc::new(Mutex::new(Vec::new())),
-            reports: Arc::new(Mutex::new(Vec::new())),
-            fail: Arc::new(AtomicBool::new(false)),
-            syncs: Arc::new(AtomicUsize::new(0)),
-            email_mailbox: None,
-            concurrent_fetches: 1,
-            peak_in_flight: Arc::new(Mutex::new((0, 0))),
-            sources_per_request: 1,
-            batches: Arc::new(Mutex::new(Vec::new())),
-            source_override: None,
-            stream_gate: None,
-            late: Arc::new(Mutex::new(Vec::new())),
-            refuses_signin: false,
-            source_fetches: Arc::new(AtomicUsize::new(0)),
-            source_failures: Vec::new(),
-            throttled_fetches: Arc::new(AtomicUsize::new(0)),
-            throttle_wait_secs: None,
-            edit_gate: None,
+            ..Self::with(messages)
         }
     }
 
@@ -153,36 +126,8 @@ impl FakeProvider {
         inbox.role = Some(MailboxRole::Inbox);
         let archive = Mailbox::new(MailboxId::try_from("archief").unwrap(), "Archieven");
         Self {
-            caps: Capabilities::none()
-                .with_mail()
-                .with_mail_writes()
-                // All three verdicts, like IMAP, JMAP and Graph. `without_reporting` models
-                // an adapter that has none, and `without_phishing_report` models Gmail.
-                .with_mail_report(ReportControls {
-                    verdicts: ReportVerdicts::all(),
-                    evidence: ReportEvidence::Convention,
-                })
-                .with_message_source(),
             mailboxes: vec![inbox, archive],
-            messages,
-            edits: Arc::new(Mutex::new(Vec::new())),
-            reports: Arc::new(Mutex::new(Vec::new())),
-            fail: Arc::new(AtomicBool::new(false)),
-            syncs: Arc::new(AtomicUsize::new(0)),
-            email_mailbox: None,
-            concurrent_fetches: 1,
-            peak_in_flight: Arc::new(Mutex::new((0, 0))),
-            sources_per_request: 1,
-            batches: Arc::new(Mutex::new(Vec::new())),
-            source_override: None,
-            stream_gate: None,
-            late: Arc::new(Mutex::new(Vec::new())),
-            refuses_signin: false,
-            source_fetches: Arc::new(AtomicUsize::new(0)),
-            source_failures: Vec::new(),
-            throttled_fetches: Arc::new(AtomicUsize::new(0)),
-            throttle_wait_secs: None,
-            edit_gate: None,
+            ..Self::with(messages)
         }
     }
 
@@ -197,36 +142,8 @@ impl FakeProvider {
         let mut all_mail = Mailbox::new(MailboxId::try_from("ALL_MAIL").unwrap(), "All Mail");
         all_mail.role = Some(MailboxRole::All);
         Self {
-            caps: Capabilities::none()
-                .with_mail()
-                .with_mail_writes()
-                // All three verdicts, like IMAP, JMAP and Graph. `without_reporting` models
-                // an adapter that has none, and `without_phishing_report` models Gmail.
-                .with_mail_report(ReportControls {
-                    verdicts: ReportVerdicts::all(),
-                    evidence: ReportEvidence::Convention,
-                })
-                .with_message_source(),
             mailboxes: vec![inbox, all_mail],
-            messages,
-            edits: Arc::new(Mutex::new(Vec::new())),
-            reports: Arc::new(Mutex::new(Vec::new())),
-            fail: Arc::new(AtomicBool::new(false)),
-            syncs: Arc::new(AtomicUsize::new(0)),
-            email_mailbox: None,
-            concurrent_fetches: 1,
-            peak_in_flight: Arc::new(Mutex::new((0, 0))),
-            sources_per_request: 1,
-            batches: Arc::new(Mutex::new(Vec::new())),
-            source_override: None,
-            stream_gate: None,
-            late: Arc::new(Mutex::new(Vec::new())),
-            refuses_signin: false,
-            source_fetches: Arc::new(AtomicUsize::new(0)),
-            source_failures: Vec::new(),
-            throttled_fetches: Arc::new(AtomicUsize::new(0)),
-            throttle_wait_secs: None,
-            edit_gate: None,
+            ..Self::with(messages)
         }
     }
 
@@ -241,36 +158,8 @@ impl FakeProvider {
         let mut archive = Mailbox::new(MailboxId::try_from("archive").unwrap(), "Archive");
         archive.role = Some(MailboxRole::Archive);
         Self {
-            caps: Capabilities::none()
-                .with_mail()
-                .with_mail_writes()
-                // All three verdicts, like IMAP, JMAP and Graph. `without_reporting` models
-                // an adapter that has none, and `without_phishing_report` models Gmail.
-                .with_mail_report(ReportControls {
-                    verdicts: ReportVerdicts::all(),
-                    evidence: ReportEvidence::Convention,
-                })
-                .with_message_source(),
             mailboxes: vec![inbox, sent, archive],
-            messages,
-            edits: Arc::new(Mutex::new(Vec::new())),
-            reports: Arc::new(Mutex::new(Vec::new())),
-            fail: Arc::new(AtomicBool::new(false)),
-            syncs: Arc::new(AtomicUsize::new(0)),
-            email_mailbox: None,
-            concurrent_fetches: 1,
-            peak_in_flight: Arc::new(Mutex::new((0, 0))),
-            sources_per_request: 1,
-            batches: Arc::new(Mutex::new(Vec::new())),
-            source_override: None,
-            stream_gate: None,
-            late: Arc::new(Mutex::new(Vec::new())),
-            refuses_signin: false,
-            source_fetches: Arc::new(AtomicUsize::new(0)),
-            source_failures: Vec::new(),
-            throttled_fetches: Arc::new(AtomicUsize::new(0)),
-            throttle_wait_secs: None,
-            edit_gate: None,
+            ..Self::with(messages)
         }
     }
 
@@ -285,36 +174,8 @@ impl FakeProvider {
         let mut trash = Mailbox::new(MailboxId::try_from("trash").unwrap(), "Trash");
         trash.role = Some(MailboxRole::Trash);
         Self {
-            caps: Capabilities::none()
-                .with_mail()
-                .with_mail_writes()
-                // All three verdicts, like IMAP, JMAP and Graph. `without_reporting` models
-                // an adapter that has none, and `without_phishing_report` models Gmail.
-                .with_mail_report(ReportControls {
-                    verdicts: ReportVerdicts::all(),
-                    evidence: ReportEvidence::Convention,
-                })
-                .with_message_source(),
             mailboxes: vec![inbox, archive, trash],
-            messages,
-            edits: Arc::new(Mutex::new(Vec::new())),
-            reports: Arc::new(Mutex::new(Vec::new())),
-            fail: Arc::new(AtomicBool::new(false)),
-            syncs: Arc::new(AtomicUsize::new(0)),
-            email_mailbox: None,
-            concurrent_fetches: 1,
-            peak_in_flight: Arc::new(Mutex::new((0, 0))),
-            sources_per_request: 1,
-            batches: Arc::new(Mutex::new(Vec::new())),
-            source_override: None,
-            stream_gate: None,
-            late: Arc::new(Mutex::new(Vec::new())),
-            refuses_signin: false,
-            source_fetches: Arc::new(AtomicUsize::new(0)),
-            source_failures: Vec::new(),
-            throttled_fetches: Arc::new(AtomicUsize::new(0)),
-            throttle_wait_secs: None,
-            edit_gate: None,
+            ..Self::with(messages)
         }
     }
 
@@ -323,36 +184,9 @@ impl FakeProvider {
     /// it carries no folder list (the list is already synced).
     pub(crate) fn folder(mailbox_key: &str, messages: Vec<Message>) -> Self {
         Self {
-            caps: Capabilities::none()
-                .with_mail()
-                .with_mail_writes()
-                // All three verdicts, like IMAP, JMAP and Graph. `without_reporting` models
-                // an adapter that has none, and `without_phishing_report` models Gmail.
-                .with_mail_report(ReportControls {
-                    verdicts: ReportVerdicts::all(),
-                    evidence: ReportEvidence::Convention,
-                })
-                .with_message_source(),
             mailboxes: Vec::new(),
-            messages,
-            edits: Arc::new(Mutex::new(Vec::new())),
-            reports: Arc::new(Mutex::new(Vec::new())),
-            fail: Arc::new(AtomicBool::new(false)),
-            syncs: Arc::new(AtomicUsize::new(0)),
             email_mailbox: Some(MailboxId::try_from(mailbox_key).unwrap()),
-            concurrent_fetches: 1,
-            peak_in_flight: Arc::new(Mutex::new((0, 0))),
-            sources_per_request: 1,
-            batches: Arc::new(Mutex::new(Vec::new())),
-            source_override: None,
-            stream_gate: None,
-            late: Arc::new(Mutex::new(Vec::new())),
-            refuses_signin: false,
-            source_fetches: Arc::new(AtomicUsize::new(0)),
-            source_failures: Vec::new(),
-            throttled_fetches: Arc::new(AtomicUsize::new(0)),
-            throttle_wait_secs: None,
-            edit_gate: None,
+            ..Self::with(messages)
         }
     }
 
@@ -374,8 +208,34 @@ impl FakeProvider {
         self
     }
 
-    /// An adapter that cannot report at all: the dev fixtures and the showcase engine, and
-    /// any transport added later without a junk verb. The core files the message itself.
+    /// Lets the account's folders be changed: the folders so far become a tree every
+    /// folder-list sync reads whole and every folder change is applied to.
+    pub(crate) fn with_folder_tree(mut self) -> Self {
+        self.caps = self.caps.with_mailbox_writes();
+        self.tree = Some(Arc::new(Mutex::new(self.mailboxes.clone())));
+        self
+    }
+
+    /// The changeable tree, so a test can change it as another client would, or read it as
+    /// the server holds it.
+    pub(crate) fn folder_tree(&self) -> Arc<Mutex<Vec<Mailbox>>> {
+        Arc::clone(self.tree.as_ref().expect("built with_folder_tree"))
+    }
+
+    /// An IMAP-shaped Inbox provider: bound to the folder `a`, and listing it as the Inbox
+    /// beside a role-less folder per key in `others`, the way the provider an IMAP account's
+    /// folder list is read from reports every folder while syncing only its own.
+    pub(crate) fn imap_inbox(messages: Vec<Message>, others: &[&str]) -> Self {
+        let mut inbox = Mailbox::new(MailboxId::try_from("a").unwrap(), "Inbox");
+        inbox.role = Some(MailboxRole::Inbox);
+        let listed = others
+            .iter()
+            .map(|key| Mailbox::new(MailboxId::try_from(*key).unwrap(), *key));
+        let mut provider = Self::folder("a", messages);
+        provider.mailboxes = std::iter::once(inbox).chain(listed).collect();
+        provider
+    }
+
     /// Files two folders inside the provider's existing Archive: `Clients`, and `Acme` inside
     /// that. Two levels because one proves only that a row was indented once, where the rule a
     /// pane has to hold is that a row is on screen while **every** folder above it is open.
@@ -394,6 +254,8 @@ impl FakeProvider {
         self
     }
 
+    /// An adapter that cannot report at all: the dev fixtures and the showcase engine, and
+    /// any transport added later without a junk verb. The core files the message itself.
     pub(crate) fn without_reporting(mut self) -> Self {
         self.caps = Capabilities::none()
             .with_mail()

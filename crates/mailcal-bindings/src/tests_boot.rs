@@ -76,6 +76,7 @@ impl Provider for BlockingMailboxProvider {
     }
 }
 
+impl engine_api::MailboxWrites for BlockingMailboxProvider {}
 impl CalendarWrites for BlockingMailboxProvider {}
 
 fn temp_data_dir(name: &str) -> std::path::PathBuf {

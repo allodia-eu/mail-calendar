@@ -268,6 +268,12 @@
     <Compile Include="..\Mailcal\ViewModels\SidebarSources.cs" Link="ViewModels\SidebarSources.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarItem.cs" Link="ViewModels\SidebarItem.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarTree.cs" Link="ViewModels\SidebarTree.cs" />
+    <!-- What the folder pane offers and accepts when the tree is changed (docs/folder-pane.md,
+         "Changing the tree"): a row's menu, Move to…'s destinations, which drops land, and the
+         words of the name check, the delete question and the notice. WinUI-free and L10n-free on
+         purpose, so each rule can fail here. It reads the generated FolderNameCheck, FolderNotice
+         and SelectedRow, so it needs the bindings below. -->
+    <Compile Include="..\Mailcal\Services\FolderActions.cs" Link="Services\FolderActions.cs" />
     <!-- CalendarLayout / WeekStart / JmapSetup come from here. Never invoked, no cdylib is loaded. -->
     <Compile Include="..\Mailcal\Services\DefaultMailApp.cs" Link="Services\DefaultMailApp.cs" />
     <Compile Include="..\Mailcal\Services\ShareStaging.cs" Link="Services\ShareStaging.cs" />

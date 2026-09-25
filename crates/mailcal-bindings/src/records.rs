@@ -329,6 +329,9 @@ pub struct MailboxListSnapshot {
     /// `OutsideSyncDepth`: the badge beside the folder is the server's count over all time,
     /// so an empty list that does not say why contradicts it (`docs/folder-pane.md`).
     pub empty_reason: Option<EmptyReason>,
+    /// A folder change the server refused, until dismissed. Render it beside the pane in every
+    /// view mode (`docs/folder-pane.md`, "Changing the tree").
+    pub folder_notice: Option<crate::FolderNotice>,
 }
 
 /// Why a mailbox list holds no rows.

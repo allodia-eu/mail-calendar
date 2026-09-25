@@ -42,6 +42,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Folder pane: **folders inside folders**, drawn inside them, each opening and shutting on its own and remembered across launches ([docs](docs/folder-pane.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Folder pane: every account's folders on screen at once, each account expandable independently of what's selected and **remembered across restarts**; per-folder unread counts (the server's, so they cover mail older than the synced window) and an All Inboxes total; role icons for Inbox/Drafts/Sent/Archive/Junk/Trash ([docs](docs/folder-pane.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Folder pane: **drag its edge to widen it** for long account addresses, remembered across launches (desktop only; a drawer has no width to drag) | — | ✅ | — | ✅ | — | ✅ |
+| Folder pane: **make, rename, move and delete folders** from each row's menu (Move to… on every platform), drawn at once and sent when online; a queued change is never applied over a change made elsewhere, and a refused one is said on the pane; delete goes to Trash first ([docs](docs/folder-pane.md) rules 22 to 29) | ✅ | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
+| Folder pane: **drag a folder** into another folder or onto its account, and **drag messages** onto a folder, within one account (desktop and iPad; a phone's drawer covers the list) ([docs](docs/folder-pane.md) rule 24) | ✅ | 🚧 | 🚧 (iPad) | 🚧 | — | ✅ |
 | Message list: flat + threaded | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Folder and message rows expose a named native action a screen reader can invoke | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Threaded conversation view: the whole conversation (received + your Sent replies, across folders): inline on desktop, a conversation reading screen on Android + archive conversation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
