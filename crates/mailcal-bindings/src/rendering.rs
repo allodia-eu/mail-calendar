@@ -47,3 +47,32 @@ pub fn message_canvas() -> MessageCanvas {
 pub fn should_open_external_link(url: String) -> bool {
     mailcal_app::should_open_external_link(&url)
 }
+
+/// A run of text a client draws natively, and where it leads when it is an address.
+///
+/// Built by the core, never by the client: the text is appended to the client's own rich-text
+/// value **as text**, and `link` is the only thing that makes a run a link, so no markup or
+/// markdown parser ever sees sender content (`docs/rendering-security.md`, gate 8).
+#[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
+pub struct LinkedText {
+    /// The text exactly as written.
+    pub text: String,
+    /// The target to open, when this run is an address. Already on the
+    /// [`should_open_external_link`] allowlist; a client still asks that gate before it launches.
+    pub link: Option<String>,
+}
+
+/// `text` split into plain runs and the web and mail addresses written in it, covering all of it,
+/// for a client that draws sender text natively: a plain-text body, an event's notes, an
+/// invitation's description. The same finder links the addresses in an HTML body, so a link is a
+/// link on every surface. Empty text gives no runs.
+#[uniffi::export]
+pub fn linked_text(text: String) -> Vec<LinkedText> {
+    mailcal_app::link_segments(&text)
+        .into_iter()
+        .map(|segment| LinkedText {
+            text: segment.text,
+            link: segment.link,
+        })
+        .collect()
+}

@@ -39,13 +39,11 @@ pub(crate) struct Sanitized {
 }
 
 /// URL schemes a clicked link in a rendered message may be handed to the OS to open
-/// ([`should_open_external_link`]). Mail is hostile input, so this is a deliberately strict
-/// allowlist: only well-understood, low-risk schemes; never custom app schemes, `data:`,
-/// `file:`, `javascript:`, etc. It is the **single source of truth** for the launch policy,
-/// shared by every client through the FFI so they cannot drift, and it is also the set of
-/// schemes the sanitiser keeps on `<a href>` (a link the sanitiser strips can never be
-/// clicked, so the two must agree).
-const EXTERNAL_LINK_SCHEMES: [&str; 3] = ["http", "https", "mailto"];
+/// ([`should_open_external_link`]), and the set the sanitiser keeps on `<a href>` (a link the
+/// sanitiser strips can never be clicked, so the two must agree). The list itself is
+/// [`mailcal_composer::LINK_SCHEMES`], which also bounds what the composer sends, so every
+/// client, every direction and the linkifier ([`links`]) share one allowlist.
+const EXTERNAL_LINK_SCHEMES: [&str; 3] = mailcal_composer::LINK_SCHEMES;
 
 /// Extra schemes the sanitiser keeps for **inline resources** referenced by `src` (not
 /// links): `data:` for inline images and `cid:` for referenced message parts. These never
@@ -54,8 +52,11 @@ const INLINE_RESOURCE_SCHEMES: [&str; 2] = ["data", "cid"];
 
 /// Sanitises a message's raw `text/html` into an inert subset safe to render in a
 /// locked-down WebView, preserving presentational CSS.
+///
+/// An address written as text in the body becomes a link ([`links`]), so a message whose sender
+/// did not mark it up reads like one whose sender did.
 pub(crate) fn sanitize(html: &str) -> Sanitized {
-    let cleaned = sanitizer().clean(html).to_string();
+    let cleaned = links::linkify_html(&sanitizer().clean(html).to_string());
     let has_remote_images = references_remote_resource(&cleaned);
     let has_cid_references = references_cid(&cleaned);
     Sanitized {
@@ -140,19 +141,7 @@ fn sanitizer() -> &'static Builder<'static> {
 /// `docs/rendering-security.md`).
 #[must_use]
 pub fn should_open_external_link(url: &str) -> bool {
-    scheme_of(url).is_some_and(|scheme| EXTERNAL_LINK_SCHEMES.contains(&scheme.as_str()))
-}
-
-/// The lowercased URL scheme (the part before the first `:`), if `url` starts with a
-/// syntactically valid RFC 3986 scheme; `None` for a relative URL or anything not in
-/// `scheme:` form (those never open). Avoids a URL-parser dependency for a check this small,
-/// and is byte-safe on hostile input (`split_once`/char iteration never slice mid-codepoint).
-fn scheme_of(url: &str) -> Option<String> {
-    let (scheme, _) = url.trim().split_once(':')?;
-    let mut chars = scheme.chars();
-    let valid = chars.next().is_some_and(|c| c.is_ascii_alphabetic())
-        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'));
-    valid.then(|| scheme.to_ascii_lowercase())
+    mailcal_composer::has_link_scheme(url)
 }
 
 /// Whether `value` is an inline `data:` URI (scheme-only check, leading space tolerant).
@@ -370,6 +359,7 @@ fn escape_attr_value(value: &str, out: &mut String) {
 }
 
 mod document;
+mod links;
 mod reflow;
 
 pub use document::{Canvas, MESSAGE_CANVAS, render_document};

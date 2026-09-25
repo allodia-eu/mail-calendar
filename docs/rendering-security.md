@@ -38,6 +38,13 @@ core sanitises it **once** for every client (never re-implemented per platform):
   narrows. It is kept **unprefixed**, or that rule would match nothing and the message would lay
   out 600px wide in a phone's ~384px viewport. Nothing here collides: the reading document holds
   one message and no script.
+- **Linked:** after sanitising, a web or mail address written as text (`http://`, `https://`,
+  `mailto:`, or a `www.` host, opened over `https`) is wrapped in an `<a href>`
+  (`html/links.rs`). Text already inside a link, attribute values and `<style>` are left alone.
+  The finder is `mailcal_app::linkify`, the one the native surfaces under Gate 8 use, so an address
+  is a link on every surface or on none, and its scheme is always one gate 4a opens. A link loads
+  nothing, so it never raises `has_remote_images`. Bare domains and bare email addresses are not
+  linked: too much ordinary prose matches them.
 - **Reported:** `has_remote_images`: whether the body *would* load a remote resource (remote
   `<img>`, CSS `url(...)`, `@import`, protocol-relative `//…`, refs inside `<style>`), so a client
   offers the "load remote images" confirmation only when there is something to gate.
@@ -129,6 +136,8 @@ Not every piece of sender-controlled content goes through a web view. The **meet
 ([`invitations.md`](invitations.md)) draws a message's `SUMMARY`, `LOCATION`, `DESCRIPTION` and the
 organiser's display name as **native labels** above the body. Those four fields are attacker-controlled
 and they bypass layers 1–3 entirely: no sanitiser, no CSP, no web view. So they get their own gate.
+A plain-text message body and an event's notes are drawn natively too, and gate 8a covers the links
+in them.
 
 8. **Rendered as text, never as markup.** The core emits these values as plain text (control
    characters and the Unicode bidi overrides dropped, whitespace collapsed, truncated on a *character*
@@ -146,6 +155,18 @@ and they bypass layers 1–3 entirely: no sanitiser, no CSP, no web view. So the
    `Text(verbatim:)`, which has no markdown-parsing overload to fall into.
 
    **Test:** a title of `**bold** <b>x</b> & co` must appear on screen exactly as typed.
+
+   **8a. Links in native text are built from the core's runs, never found by the client.** Three
+   natively drawn surfaces show their addresses as links: the invitation's `DESCRIPTION` (a
+   meeting's join link lives there), a **plain-text message body**, and an **event's notes**. The
+   core splits the text into runs (`linked_text`, over the FFI), each with an optional target from
+   the same finder Layer 1 uses. A client appends each run to its rich-text value **as text** and
+   attaches the target as a link attribute; it never parses the string and never looks for an
+   address itself. Where the widget can only express a link as markup (GTK), every run is escaped
+   before it is joined, so the markup is ours and the text inside it is not. A tap opens only
+   through gate 4a's `should_open_external_link` and the OS handler, never through a
+   toolkit's own launch path (a `Url` annotation, a `NavigateUri`, GTK's default `activate-link`).
+   The other three invitation fields stay plain text.
 
 ## Per-platform implementation matrix
 
@@ -166,7 +187,8 @@ cell is filled.
 | Inline `cid:` images (resolved to `data:` in shared Rust: `image/*` only, `<img src>` only; **local, not gated**) | renders via document CSP `img-src data:` | renders via CSP; `shouldInterceptRequest` passes `data:` (blocks only `http(s)`) | renders via CSP; `WebResourceRequested` passes `data:` (403s only `http(s)`) | renders via CSP; native filter blocks only `http(s)` |
 | Downloadable attachments: metadata only in view; **never rendered/executed in-app**; explicit per-attachment Save + Open | Save: save panel (macOS) / share sheet (iOS/iPadOS) → core decodes to chosen or temp path. Open: core decodes to a temp path (extension typed from the media type when the name carries none) → `NSWorkspace.open` (OS handler) on macOS, `QLPreviewController` (OS viewer, out-of-process) on iOS/iPadOS, falling back to the share sheet for a type Quick Look cannot preview | Save: document picker → core decodes to app-private temp → host copies to chosen URI. Open: core decodes to app-cache → `FileProvider` `content://` + `ACTION_VIEW` (OS handler) | Save: save picker → core decodes to temp → host copies to chosen `StorageFile`. Open: core decodes to temp → `Launcher.LaunchFileAsync` (OS handler) | Save: `GtkFileDialog` → core decodes to chosen path. Open: core decodes to an app-owned temp path → `GAppInfo` OS handler |
 | Attachment decode/write off the UI thread (large parts must not freeze/ANR) | detached task → `save_attachment` | background thread → `save_attachment` | `Task.Run` → `save_attachment` | Rust worker thread → `save_attachment`; completion returns through the Relm4 sender |
-| **Gate 8**: invitation-card fields as text, never markup (native, outside the web view) | `Text(verbatim:)`: takes no `LocalizedStringKey` overload, so a refactor cannot start parsing markdown | Compose `Text(String)`: styling requires an `AnnotatedString`, which a `String` cannot become implicitly; no `HtmlCompat.fromHtml`, no `buildAnnotatedString`, no WebView | `TextBlock.Text`: markup needs a `RichTextBlock` with authored `Inline`s or an explicit `XamlReader.Load`, neither reachable from a `String`; no `XamlReader`, no WebView2, no composer bridge | `GtkLabel.set_text`: takes the string as text *and* clears `use-markup`; `set_markup` is the one-word refactor that undoes it, so the widget test asserts on the **rendered** label and on the absence of a `from markup` log record. No `WebKitWebView`, no composer bridge |
+| **Gate 8**: invitation-card fields as text, never markup (native, outside the web view) | `Text(verbatim:)`: takes no `LocalizedStringKey` overload, so a refactor cannot start parsing markdown | Compose `Text(String)`: styling requires an `AnnotatedString`, which a `String` cannot become implicitly; no `HtmlCompat.fromHtml`, no WebView, and `buildAnnotatedString` only inside `LinkifiedText` (8a) | `TextBlock.Text`: markup needs a `RichTextBlock` with authored `Inline`s or an explicit `XamlReader.Load`, neither reachable from a `String`; no `XamlReader`, no WebView2, no composer bridge | `GtkLabel.set_text`: takes the string as text *and* clears `use-markup`; `set_markup` is the one-word refactor that undoes it, so the widget test asserts on the **rendered** label and on the absence of a `from markup` log record. No `WebKitWebView`, no composer bridge |
+| **Gate 8a**: plain-text body, event notes and invitation description show links built from the core's runs; a tap goes through `should_open_external_link` | `LinkedText.swift`: each run through `AttributedString(String)`, `.link` from the core's target; `gatedLinkOpening()` answers `openURL` with `.systemAction` only past the gate | `LinkifiedText.kt`: each run `append`ed, a `LinkAnnotation.Clickable` (never `Url`) whose listener calls `openExternalLink`, the reading WebView's own handoff | `LinkedTextBlock.cs`: each run a `Run.Text`, a linked one inside a `Hyperlink` with no `NavigateUri`, whose `Click` asks the gate before `Launcher.LaunchUriAsync` | `linked_text.rs`: each run through `markup_escape_text`, an `<a href>` around a linked one; `activate-link` asks the gate, launches with `GtkUriLauncher` and always stops the signal. The widget test asserts the description's markup exactly |
 
 Gate 8 is now held on every column. It carried a ⬜ for as long as one client did not host the
 surface: the gate bound the moment that client drew the card, which is the ordering the
@@ -193,6 +215,9 @@ Source of truth per client:
   `clients/android/app/src/main/java/eu/allodia/mailcal/InvitationCard.kt`,
   `clients/windows/Mailcal/Views/InvitationCardView.cs`,
   `clients/linux/src/ui/invitation/card.rs`
+- Linked native text (Gate 8a): `clients/apple/Packages/MailcalKit/Sources/MailcalUI/LinkedText.swift`,
+  `clients/android/app/src/main/java/eu/allodia/mailcal/LinkifiedText.kt`,
+  `clients/windows/Mailcal/Services/LinkedTextBlock.cs`, `clients/linux/src/ui/linked_text.rs`
 - macOS + iOS/iPadOS (shared Apple client): `clients/apple/Packages/MailcalKit/Sources/MailcalUI/ReadingWebView.swift`,
   one `WKWebView` host serves every Apple platform. On iOS/iPadOS the external-link handoff uses
   `UIApplication.open`, attachment Open uses Quick Look and attachment Save the share sheet: the

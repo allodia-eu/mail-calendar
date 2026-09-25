@@ -403,7 +403,7 @@ internal fun ReadingScreen(
                     }
                     !body.html.isNullOrEmpty() ->
                         HtmlBody(fragment = body.html!!, loadRemoteImages = loadRemoteImages)
-                    !body.plain.isNullOrEmpty() -> Text(
+                    !body.plain.isNullOrEmpty() -> LinkifiedText(
                         text = body.plain!!,
                         modifier = Modifier
                             .fillMaxSize()

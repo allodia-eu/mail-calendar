@@ -291,6 +291,22 @@ mod tests {
     }
 
     #[test]
+    fn a_link_the_editor_made_goes_out_as_an_anchor_and_a_hostile_one_as_text() {
+        // The document shape `composerDocument()` emits for a linked run: `link` is optional and
+        // omitted on every other run.
+        let document = r#"{"blocks":[{"Paragraph":{"content":[
+            {"Text":{"text":"agenda","bold":false,"italic":false,"underline":false,"link":"https://example.com/a"}},
+            {"Text":{"text":" x","bold":false,"italic":false,"underline":false,"link":"javascript:alert(1)"}}
+        ]}}],"attachments":[]}"#;
+
+        let output = render_composer_document_json(document.to_owned()).expect("rendered");
+
+        assert!(output.contains(r#"<p><a href=\"https://example.com/a\">agenda</a> x</p>"#));
+        assert!(!output.contains("javascript"));
+        assert!(output.contains(r#""plain_text":"agenda <https://example.com/a> x""#));
+    }
+
+    #[test]
     fn rich_submit_rejects_a_missing_blob_before_scheduling() {
         struct NoopObserver;
 

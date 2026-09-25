@@ -8,10 +8,11 @@
 //
 // SECURITY (Gate 8, docs/rendering-security.md), the summary, location, description and organiser
 // name are attacker-controlled sender content, and they reach the screen without passing the HTML
-// sanitiser, the CSP or a WebView2. Every one of them is assigned to `TextBlock.Text`, which WinUI
-// renders as text and nothing else: markup on this platform needs either a `RichTextBlock` with
-// authored `Inline`s or an explicit `XamlReader.Load`, neither of which a plain string can become by
-// accident. So there is no markup path to fall into here, unlike GTK, where a libadwaita row parses
+// sanitiser, the CSP or a WebView2. Every one of them is assigned to `TextBlock.Text`, or for the
+// description to `Run.Text` through LinkedTextBlock, which WinUI renders as text and nothing else:
+// markup on this platform needs either a `RichTextBlock` with authored `Inline`s or an explicit
+// `XamlReader.Load`, neither of which a plain string can become by accident. So there is no markup
+// path to fall into here, unlike GTK, where a libadwaita row parses
 // its title as Pango markup by *default* (AGENTS.md), or SwiftUI, where a string literal selects the
 // markdown-parsing overload. Nothing on this card reaches XamlReader, a WebView2, or the composer
 // bridge.
@@ -212,16 +213,17 @@ internal sealed partial class InvitationCardView : UserControl
         {
             return;
         }
-        _stack.Children.Add(new TextBlock
+        var description = new TextBlock
         {
-            Text = card.Description,
             Style = Res("CaptionTextBlockStyle"),
             Foreground = ThemePalette.Brush(ThemePalette.SecondaryText(_dark)),
             TextWrapping = TextWrapping.Wrap,
             MaxLines = 4,
             TextTrimming = TextTrimming.CharacterEllipsis,
             IsTextSelectionEnabled = true,
-        });
+        };
+        LinkedTextBlock.Fill(description, card.Description);
+        _stack.Children.Add(description);
         if (card.DescriptionTruncated)
         {
             _stack.Children.Add(Caption(L10n.InvitationDescriptionShortened()));

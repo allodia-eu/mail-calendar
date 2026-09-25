@@ -233,6 +233,57 @@ body.native-chrome .popover {
   border-top: 1px solid var(--border);
 }
 
+/* The link editor: two labelled fields and its actions. */
+.link-menu {
+  width: 280px;
+  max-width: calc(100vw - 16px);
+}
+
+.link-menu .field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.link-menu input {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.link-menu input:focus {
+  outline: 2px solid color-mix(in srgb, var(--active) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.link-menu input[aria-invalid="true"] {
+  border-color: #c00000;
+}
+
+.link-menu .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.link-menu .actions .primary {
+  border-color: var(--active);
+  background: var(--active);
+  color: #ffffff;
+}
+
+.link-menu .actions button:disabled {
+  opacity: 0.5;
+}
+
 .editor {
   flex: 1;
   min-height: 180px;
@@ -295,6 +346,13 @@ body.native-chrome .editor {
 
 p {
   margin: 0 0 10px;
+}
+
+/* The reading view's link colour (`mailcal-app`'s base sheet), so a link looks the same written
+   as read. The underline is drawn here only: `elementMarks` does not read it as a mark. */
+.editor a {
+  color: #2864d6;
+  text-decoration: underline;
 }
 
 ul,

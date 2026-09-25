@@ -29,6 +29,8 @@ export interface TextRun {
   font_size?: FontSize;
   color?: HexColor;
   highlight?: HexColor;
+  /// The run's link target, one of `mailcal_composer::LINK_SCHEMES`.
+  link?: string;
 }
 
 /// `mailcal_composer::InlineImage`.
@@ -129,6 +131,7 @@ export interface Marks {
   size: FontSize | null;
   color: HexColor | null;
   highlight: HexColor | null;
+  link: string | null;
 }
 
 export function emptyMarks(): Marks {
@@ -139,6 +142,7 @@ export function emptyMarks(): Marks {
     size: null,
     color: null,
     highlight: null,
+    link: null,
   };
 }
 

@@ -44,7 +44,8 @@ struct EventDetailView: View {
                     labeled(L10n.event_location(), location)
                 }
                 if let notes = detail.notes, !notes.isEmpty {
-                    labeled(L10n.event_notes(), notes)
+                    labeled(L10n.event_notes(), Text(LinkedText.attributed(linkingIn: notes)))
+                        .gatedLinkOpening()
                 }
                 labeled(L10n.event_reminder(), reminderText(detail.reminderMinutes))
                 labeled(
@@ -100,9 +101,13 @@ struct EventDetailView: View {
     }
 
     private func labeled(_ label: String, _ value: String) -> some View {
+        labeled(label, Text(value))
+    }
+
+    private func labeled(_ label: String, _ value: Text) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label).font(.caption).foregroundStyle(.tint)
-            Text(value).textSelection(.enabled)
+            value.textSelection(.enabled)
         }
     }
 }

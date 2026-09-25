@@ -18,6 +18,7 @@ fn run(text: &str, color: Option<TextColor>, highlight: Option<TextColor>) -> In
         font_size: None,
         color,
         highlight,
+        link: None,
     })
 }
 
@@ -66,6 +67,7 @@ fn size_colour_and_highlight_share_one_span() {
         font_size: Some(FontSize::Large),
         color: Some(colour("#0070c0")),
         highlight: Some(colour("#ffff00")),
+        link: None,
     })]);
     assert_eq!(
         body_of(&document),

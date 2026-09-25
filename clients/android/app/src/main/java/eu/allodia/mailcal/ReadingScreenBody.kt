@@ -5,8 +5,6 @@
 // user opted in. See docs/rendering-security.md.
 package eu.allodia.mailcal
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -41,7 +39,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import uniffi.mailcal_bindings.renderMessageHtml
-import uniffi.mailcal_bindings.shouldOpenExternalLink
 
 // The recipient headers (To / Cc / Bcc) shown below the subject/sender. Each row appears only
 // when non-empty; Bcc is present only on the user's own Sent/Drafts copies.
@@ -182,17 +179,9 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean) {
                         request: WebResourceRequest?,
                     ): Boolean {
                         val url = request?.url
-                        if (request?.hasGesture() == true && url != null &&
-                            shouldOpenExternalLink(url.toString())
-                        ) {
-                            try {
-                                view?.context?.startActivity(
-                                    Intent(Intent.ACTION_VIEW, url)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            } catch (_: ActivityNotFoundException) {
-                                // No app handles this scheme, ignore rather than crash.
-                            }
+                        val context = view?.context
+                        if (request?.hasGesture() == true && url != null && context != null) {
+                            openExternalLink(context, url.toString())
                         }
                         return true
                     }

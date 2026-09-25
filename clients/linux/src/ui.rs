@@ -53,6 +53,7 @@ mod invitation;
 mod invitation_actions;
 mod jmap;
 mod jmap_actions;
+mod linked_text;
 mod mail_actions;
 mod mail_actions_menu;
 mod mail_toolbar;
