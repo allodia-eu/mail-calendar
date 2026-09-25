@@ -37,7 +37,7 @@ capturing the redirect), because that is inherently platform-specific.
 4. **Tokens live only in the OS keystore.** The stored account config carries **only** the
    refresh token (the single at-rest secret), never a password; access tokens are minted on
    demand and never persisted. The config secret redacts itself in logs. Storage is the same OS
-   secure store as password accounts (Keychain / Credential Manager / EncryptedSharedPreferences).
+   secure store as password accounts (Keychain / Credential Manager / Android Keystore).
 
 5. **The credential's lifecycle is the core's; the platform store is the host's.** A stored
    credential is created, replaced and erased by the **core**, through one host port:
@@ -539,7 +539,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | System browser (no in-app WebView) | — | ✅ `ASWebAuthenticationSession` | ✅ default browser + protocol activation | 🚧 Chrome Custom Tabs | ✅ default browser + loopback |
 | Redirect capture | — | ✅ custom scheme | ✅ custom-scheme protocol activation | 🚧 custom-scheme `intent-filter` | ✅ `127.0.0.1` Rust `TcpListener` |
 | `state` validated on callback | ✅ | ✅ | ✅ | 🚧 | ✅ |
-| Refresh token only, in OS keystore | ✅ | ✅ Keychain | ✅ Credential Manager | 🚧 EncryptedSharedPreferences | ✅ Secret Service |
+| Refresh token only, in OS keystore | ✅ | ✅ Keychain | ✅ Credential Manager | 🚧 Android Keystore | ✅ Secret Service |
 | Token refresh + rotation persistence | ✅ refresh · rotation **verified live** (Graph + JMAP both rotate) | ✅ | ✅ refresh · rotation **verified live** `CredentialStoreSink` (Graph + JMAP) | ✅ verified on-device | ✅ verified live (Graph + JMAP) |
 | One refresh in flight per account (no replay on a ratcheting server, rule 5) | ✅ | — | — | — | — |
 | A rotation is persistable from the first refresh (the store is a constructor param on **both** constructors, rule 5) | ✅ | ✅ | ✅ (no worker; the app itself) | ✅ | ✅ |
@@ -554,7 +554,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Client secret on token exchange | ✅ optional (sent on exchange + refresh when present) | 🚧 iOS none · macOS non-confidential Desktop secret | 🚧 non-confidential Desktop secret | 🚧 none (Android client) | ✅ non-confidential Desktop secret |
 | System browser (no in-app WebView) | — | 🚧 iOS `ASWebAuthenticationSession` · macOS default browser + loopback | 🚧 default browser + loopback | 🚧 Chrome Custom Tabs | ✅ default browser + loopback |
 | Redirect capture | — | 🚧 iOS reversed-client-id scheme · macOS `127.0.0.1` loopback `NWListener` | 🚧 `127.0.0.1` loopback `HttpListener` | 🚧 reversed-client-id `intent-filter` | ✅ `127.0.0.1` Rust `TcpListener` |
-| Refresh token only, in OS keystore | ✅ | 🚧 Keychain | 🚧 Credential Manager | 🚧 EncryptedSharedPreferences | ✅ Secret Service |
+| Refresh token only, in OS keystore | ✅ | 🚧 Keychain | 🚧 Credential Manager | 🚧 Android Keystore | ✅ Secret Service |
 | Rotation persistence (the shared `AccountCredentialStore`) | ✅ | 🚧 | 🚧 | 🚧 | ✅ |
 | Core-owned add/persist/rollback/erase (rule 5) | ✅ | 🚧 | 🚧 | 🚧 | ✅ |
 | Early Access notice + mandatory confirm checkbox | — | 🚧 | 🚧 | 🚧 | ✅ |

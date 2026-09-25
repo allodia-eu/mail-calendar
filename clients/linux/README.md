@@ -28,7 +28,7 @@ create, edit, and delete dispatch the shared provider-neutral intents.
 It packages as a Flatpak (see "Package as a Flatpak" below) and has showcase mode, so the
 store/marketing captures are produced the same way as every other client's.
 
-It ships from this release. It has email-first setup and autodetection, Google Desktop
+It ships as a Flatpak ([download](../../README.md#getting-it)). It has email-first setup and autodetection, Google Desktop
 OAuth, and standards-discovered JMAP OAuth (RFC 9728 → 8414 → 7591 → PKCE) through the system
 browser and bounded `127.0.0.1` loopback callbacks. JMAP sign-in appears only after the core's
 pre-flight confirms the server advertises dynamic registration; a failure restores the detected
@@ -77,17 +77,17 @@ close; they are still two separate builds of GTK on two schedules, and only the 
 nothing to do with the toolkit. The `-dev` packages are what `--host` needs; the driving tools below
 run outside the sandbox either way.
 
-The **compile-time floor is the crate feature gates** (GTK 4.14 / libadwaita 1.5 in
-[`Cargo.toml`](Cargo.toml)), not the baseline: it is what the code may call, and it is deliberately
-older than either. Raising it is a separate decision from moving the baseline, and it is what would
-put `AdwSidebar` and friends within reach.
+The **compile-time floor is the crate feature gates** (GTK 4.22 / libadwaita 1.9 / WebKitGTK 2.52
+in [`Cargo.toml`](Cargo.toml)): it is what the code may call. It matches the baseline and the
+runtime, so a host build and the Flatpak see the same API; `build-and-run.sh --host` checks it
+before building.
 
 | Packages | Purpose |
 |---|---|
 | `git`, `curl`, `ca-certificates` | Clone with submodules and install/update Rust through `rustup` |
 | `build-essential`, `pkg-config` | Native linker/build tools and GTK library discovery |
-| `libgtk-4-dev`, `libadwaita-1-dev` | GTK 4.14+/libadwaita 1.5+ client build |
-| `libwebkitgtk-6.0-dev` | Locked reading/composer content islands and native network content filters |
+| `libgtk-4-dev`, `libadwaita-1-dev` | GTK 4.22+/libadwaita 1.9+ client build |
+| `libwebkitgtk-6.0-dev` | WebKitGTK 2.52+: locked reading/composer content islands and native network content filters |
 | `sway`, `grim` | The private headless compositor every capture and the UI acceptance suite run on, and the tool that photographs it |
 | `wtype` | A real keystroke on that compositor, for what AT-SPI cannot reach (Escape, Tab, a shortcut) |
 | `wayland-utils` | `wayland-info`, which answers whether a compositor offers a capture protocol at all |
@@ -97,11 +97,16 @@ put `AdwSidebar` and friends within reach.
 `dbus-run-session` comes from `dbus-daemon`, which is already installed on any desktop; the
 acceptance suite needs no `dbus-x11`.
 
+Pointer input needs no package either: it is
+[`crates/mailcal-vpointer`](../../crates/mailcal-vpointer), built on demand by `cargo`. `wlrctl` is
+packaged and looks like the tool for it; it is not, for the reason under "Capture and control the
+window".
+
 Install Docker Engine or Docker Desktop separately for the Stalwart harness, and install Rust with
 `rustup`; the repository's `rust-toolchain.toml` then selects the exact compiler. The Linux build
 script checks the native packages while compiling; GTK, libadwaita, and WebKitGTK are linked into
 the binary. A production account also needs the desktop's normal Secret Service provider
-(such as GNOME Keyring); notifications use the desktop portal, including inside a future Flatpak.
+(such as GNOME Keyring); notifications use the desktop portal, including inside the Flatpak.
 
 ## Run against the local harness
 
@@ -208,24 +213,36 @@ still closes a popover on Escape, but Tab and Escape sent to Settings arrive now
 in the tree reports `focused`. Hold one open for the session before driving by keyboard:
 `WAYLAND_DISPLAY=<the session's display> wtype -s 3000000 -k Shift_L &`.
 
-**Known gap: there is no pointer, and it is upstream's.** A gesture cannot be driven on the
-headless compositor, so a drag, a swipe and a wheel scroll stay unexercised on Linux. Use AT-SPI
-actions and the launch hooks for everything else.
+**Pointer input works, and the packaged tool for it does not.** `click`, `drag` and `scroll` drive
+a real pointer through [`crates/mailcal-vpointer`](../../crates/mailcal-vpointer), which is built on
+demand and ships in nothing. It is the only way to reach a **gesture** or the **wheel**, and the
+only way to open a **list row**, which exposes no AT-SPI action.
 
-The seat starts with no input devices, so `wl_seat` reports `capabilities(0)` and
-`swaymsg seat - cursor` reports success while delivering nothing. The protocol route looks like the
-answer and is not: sway advertises `zwlr_virtual_pointer_manager_v1`, `wlrctl` (packaged) speaks
-it, and running `wlrctl pointer` does create the device (`swaymsg -t get_inputs` shows
-`0:0:wlr_virtual_pointer_v1`) and does raise the seat to `capabilities(1)`. **The events still
-reach no client.** Measured here: a click on a known control, with a virtual pointer continuously
-present, changed nothing at all.
+Compose it with `locate`, so a flow never stores a coordinate:
 
-That is [cage#305](https://github.com/cage-kiosk/cage/issues/305), open, reproduced on sway as
-well, and believed to be a wlroots bug rather than a caller's mistake. So do not reach for
-`wlrctl`, and do not install it expecting a pointer; the device appearing and the capability
-turning on are exactly what makes this look like a working setup that is somehow being driven
-wrongly. Closing it needs the upstream fix, after which a held-open virtual pointer would also give
-absolute positioning, which `wlrctl pointer move` (relative only) does not.
+```sh
+scripts/dev/control.sh linux click $(scripts/dev/control.sh linux locate "Lunch on Friday?")
+```
+
+`locate` reports the centre of a node's **window** extents. Desktop coordinates are unusable here
+and not obviously so: Wayland does not tell a client where it is on screen, so every node reports
+`0,0` in `DESKTOP_COORDS`, which reads as a valid point. Window coordinates are measured and
+correct, and the headless compositor tiles the client full-bleed at the origin, so they are also
+the output's.
+
+⚠️ **A virtual pointer has to stay open for the whole gesture, which is why `wlrctl` cannot do
+this.** A seat with no physical pointer gains its pointer capability only while a virtual pointer
+is alive. `wlrctl` creates one, sends a single action and exits, so the device is gone before a
+client has bound `wl_pointer`, and a move in one invocation and a click in the next are two
+unrelated pointers. Measured here: three `wlrctl pointer` invocations to move and click a control
+changed **zero** pixels; one connection doing the same move and click changed 702,956.
+
+That is worth knowing before reading
+[cage#305](https://github.com/cage-kiosk/cage/issues/305), which reports this as a wlroots bug and
+reproduces it with the same invocation-per-action shape. Treat "virtual pointer does not work on
+headless" as a claim about that shape rather than about the protocol. So do not install `wlrctl`
+for this: it will create the device and turn the capability on, which is exactly what makes a
+non-delivering setup look like a working one being driven wrongly.
 
 Use only the demo or Stalwart harness for captures, never a personal account.
 
@@ -266,11 +283,10 @@ That is a real Flatpak on the seeded showcase dataset, with no keyring and no re
 what a store video or a sandbox-only bug wants. `MAILCAL_DEV_ACCOUNT` still refuses in this build and
 says so; showcase is the only fixture an optimised build offers.
 
-The Flathub manifest that publishes Allodia's build is deliberately not in this tree. It states an
+The manifest that publishes Allodia's build is deliberately not in this tree. It states an
 application id and a download host as literals, which is the one thing `branding/` exists to
 prevent here, and a build from source never reads it anyway: it compiles the client rather than
-downloading one. What Flathub ships is public where it matters, in Flathub's own repository for the
-application id Allodia publishes under.
+downloading one.
 
 ⚠️ **It installs over the shipped one**, because both carry the same application id, and it is *not*
 the artifact to upload. The script says so on every run. Rebuild without `--features` before
@@ -309,6 +325,8 @@ To go back to the released app, or to stop tracking a branch build:
 flatpak uninstall --user <app-id>
 flatpak remote-delete --user mailcal-local
 ```
+
+Then install the released app again from the link under [Getting it](../../README.md#getting-it).
 
 **Sandbox permissions are minimal on purpose**, and the manifest records why each omission is safe:
 credentials go through the Secret *portal* (oo7 picks its backend from the sandbox state) rather

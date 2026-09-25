@@ -137,11 +137,13 @@ What it decides, so nobody re-decides it per release:
   every *shipping* platform, then a section per platform for the rest, so a change that landed on
   two apps is listed under both. Grouping by distinct tuple instead produces headings like
   "macOS, iPhone & iPad and Android", which is a spec rather than something a reader scans.
-- **"Shipping" is derived from the store map**, not listed here. A platform with no entry in
-  `PLATFORM_STORES` cannot be installed, so its changes are reported under "in development, not yet
-  released" rather than announced beside ones a reader can go and get. The day Linux gets a store it
-  moves out of that section on its own: a hand-kept list would instead keep calling a shipped
-  client unreleased, in the one document written for people who do not follow the repo.
+- **"Shipping" is derived from the store map**, not listed here, plus `DOWNLOAD_ONLY` in
+  [`announcement.py`](../scripts/dev/announcement.py) for a platform installed from a download
+  (Linux). Any other platform with no entry in `PLATFORM_STORES` cannot be installed, so its changes
+  are reported under "not yet in a store" rather than announced beside ones a reader can go and
+  get. The day such a platform gets a store it moves out of that section on its own: a hand-kept
+  list would instead keep calling a shipped client unreleased, in the one document written for
+  people who do not follow the repo.
 - **New before Fixed**, labelled only when both are present: a "Fixed" heading with no "New" beside
   it announces the absence of the other kind.
 - **English only.** It is one forum post, not a per-locale store field.

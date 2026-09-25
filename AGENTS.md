@@ -187,6 +187,7 @@ silent. Two couplings apply to everything user-facing: copy may not out-run the 
 | [`reading-actions.md`](docs/reading-actions.md) | The action row above an open message: reply/reply-all/forward at the start, archive/delete at the end, the **overflow menu** last of all, on every platform including phones. What may go behind it: an action on the message as a document, never a duplicate of a row button, never something irreversible. Exporting writes the **delivered bytes**, never a rebuild of the reading view, under a name the core derives from the subject the client displays. |
 | [`reading-window.md`](docs/reading-window.md) | A message, or a draft, in a window of its own on a desktop. A window is a **view of the running app**, never a second instance: one core, one store, so no toolkit's "New Window" survives. A double-click opens the message and leaves the pane alone; the window carries the whole action row; reply and forward open a composer window of its own; and closing the mailbox sweeps both. Every window's body comes through the pane's own open, into a slot of its own, so a window inherits the mark-read and the loading threshold rather than restating them. |
 | [`avatars.md`](docs/avatars.md) | The circle beside a person: what it is *of* (the canonical **address**, never the name), monogram then photo but never blank, the colour from a stable hash of the address, hidden from assistive technology, and the raster-only sniff a path must pass before a client sees it. |
+| [`icons.md`](docs/icons.md) | Which glyph each platform draws for each meaning, and from which set: the platform's own first, then the set that platform itself sanctions (GNOME's icon-development-kit on Linux, Fluent UI System Icons on Windows), and Lucide **never** in platform chrome. A vendored glyph is copied verbatim under its own licence; on Linux it is served under a name no theme ships, and every name lives in one registry whose test asks **Adwaita**, never the desktop's own theme. |
 | [`reporting.md`](docs/reporting.md) | Marking spam is a **report to the provider**, not a folder move: the report files the message itself, so a client never moves it as well. Which verdicts exist is read from `Capabilities::mail_report` (Gmail has no phishing verdict), and no client may claim the provider acted unless its evidence is `Acknowledged`. A provider that cannot report still gets the message filed. |
 | [`contacts.md`](docs/contacts.md) | One person = a shared canonical email, **never** a name; a merged row says it is a merge and names the accounts; an edit names one **source card**, never the person, and only a writable book is offered. |
 | [`signatures.md`](docs/signatures.md) | Standalone reusable entities in a named library; two independent slots per account; re-resolved when From changes; sanitised on store *and* submit; `data:` images rewritten to `cid:` on send. |
@@ -360,7 +361,8 @@ container and a GitHub Windows runner runs only Windows ones, so the twelve **ha
 ones that prove a mail action survived a round trip, run nowhere but a developer's machine. Run
 them before pushing anything that touches a mail or calendar write.
 
-On **Linux**, with GTK 4.14+ and libadwaita 1.5+ dev packages; other hosts exclude the crate.
+On **Linux**, with GTK 4.22+, libadwaita 1.9+ and WebKitGTK 2.52+ dev packages (Ubuntu 26.04's);
+other hosts exclude the crate.
 [`clients/linux/README.md`](clients/linux/README.md) has the commands and the one-time GNOME
 runtime install.
 
@@ -457,6 +459,13 @@ were broken right now, would this tell me?*
   does not reach the package, whose targets each state `.treatAllWarnings(as: .error)` in
   [`Package.swift`](clients/apple/Packages/MailcalKit/Package.swift). `MailcalBindings` opts out
   for the reason `mailcal-bindings` does above: the sources are UniFFI's, not ours to fix.
+- **Kotlin warnings are hard errors too**, in the Android app and its tests (`allWarningsAsErrors`
+  in [`app/build.gradle.kts`](clients/android/app/build.gradle.kts)), and
+  `org.gradle.warning.mode=fail` in [`gradle.properties`](clients/android/gradle.properties) does
+  the same for a Gradle deprecation. The generated UniFFI binding gets one file-level suppression
+  from the task that generates it. ⚠️ Gradle's console lists only the first fifteen compiler
+  problems of a build and says nothing about the rest; the whole list is in
+  `clients/android/build/reports/problems/problems-report.html`.
 - **The Rust toolchain is pinned** in [`rust-toolchain.toml`](rust-toolchain.toml), which CI parses
   too. Bumping it is a **standalone PR**: a new stable that adds a default-warn lint turns the build
   red, and that PR is where it gets fixed.

@@ -293,16 +293,27 @@ async fn read_image(file: &gio::File) -> SignatureImage {
     signature_image::signature_image(&bytes, info.content_type().as_deref(), &alt_text)
 }
 
-/// The picker's filter: every image format the platform can decode.
+/// The formats a signature image may be picked in: the ones a recipient's mail client draws, and
+/// the same list the Windows picker offers.
 ///
-/// `add_pixbuf_formats`, never `add_mime_type("image/*")`: a `GtkFileFilter` matches a file's
+/// Each type is named, never `add_mime_type("image/*")`: a `GtkFileFilter` matches a file's
 /// content type against the types it was given, and `image/*` is not one, so a wildcard filter
 /// matches **nothing** and the picker shows an empty directory. That reads as "there are no images
 /// here", which is the worst way for a filter to be wrong.
+const IMAGE_TYPES: [&str; 5] = [
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
+];
+
 fn image_filters() -> (gio::ListStore, gtk::FileFilter) {
     let filter = gtk::FileFilter::new();
     filter.set_name(Some(l10n::settings_signatures_insert_image()));
-    filter.add_pixbuf_formats();
+    for media_type in IMAGE_TYPES {
+        filter.add_mime_type(media_type);
+    }
     let filters = gio::ListStore::new::<gtk::FileFilter>();
     filters.append(&filter);
     (filters, filter)

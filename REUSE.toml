@@ -55,6 +55,22 @@ precedence = "closest"
 SPDX-FileCopyrightText = "2015 the original authors (Gradle)"
 SPDX-License-Identifier = "Apache-2.0"
 
+# Google's Material Symbols (and, for the status-bar envelope, the older Material Icons set),
+# copied into Android vector drawables. Each file's header names the icon it came from.
+[[annotations]]
+path = "clients/android/app/src/main/res/drawable/ic_*.xml"
+precedence = "closest"
+SPDX-FileCopyrightText = "Google LLC (material-design-icons)"
+SPDX-License-Identifier = "Apache-2.0"
+
+# GNOME's icon-development-kit, copied verbatim by scripts/dev/vendor-idk-icons.sh (docs/icons.md).
+# Each file names its designer in its own metadata; the kit's COPYING puts all of it under CC0.
+[[annotations]]
+path = "clients/linux/icons/idk/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "The GNOME Project (icon-development-kit)"
+SPDX-License-Identifier = "CC0-1.0"
+
 [[annotations]]
 path = "CODE_OF_CONDUCT.md"
 precedence = "closest"

@@ -37,6 +37,7 @@ mod gate_clients;
 mod gate_exec;
 mod gate_steps;
 mod git;
+mod icons;
 mod license_dir;
 mod log_hygiene;
 mod portal_runtime;
@@ -126,6 +127,11 @@ pub(crate) const TASKS: &[Task] = &[
         name: "check-dev-account",
         label: "dev account contract",
         run: dev_account::run,
+    },
+    Task {
+        name: "check-icons",
+        label: "icons (docs/icons.md names what every client draws)",
+        run: icons::run,
     },
     Task {
         name: "check-british-english",

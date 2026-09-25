@@ -136,9 +136,9 @@ fn row(item: &ChecklistItem) -> (gtk::CheckButton, gtk::Label) {
     let title = wrapped();
     title.set_text(&item.title());
     let icon = gtk::Image::from_icon_name(match item.kind {
-        DraftTaskKind::FillIn => "document-edit-symbolic",
-        DraftTaskKind::Attach => "mail-attachment-symbolic",
-        DraftTaskKind::Do => "view-list-bullet-symbolic",
+        DraftTaskKind::FillIn => super::icons::TASK_FILL_IN,
+        DraftTaskKind::Attach => super::icons::TASK_ATTACH,
+        DraftTaskKind::Do => super::icons::TASK_DO,
     });
     icon.add_css_class("dim-label");
     icon.set_valign(gtk::Align::Start);

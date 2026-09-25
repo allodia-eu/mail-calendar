@@ -310,7 +310,7 @@ remove the old package first (MSIX blocks reinstalling the same `1.0.0.0` with c
 - `Generated/`, `**/bin/`, `**/obj/`, `**/AppPackages/`, build artifacts (gitignored; rebuilt).
 
 Credentials live in the **Windows Credential Manager**, never a plaintext file, the
-Windows counterpart of the macOS Keychain and Android EncryptedSharedPreferences. On first
+Windows counterpart of the macOS Keychain and the Android Keystore. On first
 run the app shows the account-setup form (no seed file); it writes the store, then connects.
 
 This is a spike; the eventual home is the `allodia-clients` repo with a full Visual Studio

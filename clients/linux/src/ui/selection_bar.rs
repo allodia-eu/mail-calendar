@@ -13,7 +13,7 @@ use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::{BulkAction, ViewMode};
 
 use super::{AppInput, selection::SelectionSummary};
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 pub(crate) struct SelectionBar {
     root: gtk::Box,
@@ -75,17 +75,17 @@ impl SelectionBar {
         let trash = action_button(sender, BulkAction::Delete, false);
         let purge = action_button(sender, BulkAction::PermanentlyDelete, true);
 
-        let select_all = labelled_button(SELECT_ALL_ICON, l10n::action_select_all());
+        let select_all = labelled_button(icons::SELECT_ALL, l10n::action_select_all());
         let input = sender.clone();
         select_all.connect_clicked(move |_| input.emit(AppInput::SelectAllRows));
-        let clear = gtk::Button::from_icon_name(CLEAR_ICON);
+        let clear = gtk::Button::from_icon_name(icons::CLOSE);
         clear.add_css_class("flat");
         clear.set_tooltip_text(Some(l10n::action_clear_selection()));
         clear.update_property(&[AccessibleProperty::Label(l10n::action_clear_selection())]);
         let input = sender.clone();
         clear.connect_clicked(move |_| input.emit(AppInput::ClearSelection));
 
-        let sync = labelled_button(SYNC_ICON, l10n::action_refresh());
+        let sync = labelled_button(icons::SYNC, l10n::action_refresh());
         let input = sender.clone();
         sync.connect_clicked(move |_| input.emit(AppInput::RefreshRequested));
 
@@ -173,7 +173,7 @@ pub(crate) struct SelectionCountPane {
 
 impl SelectionCountPane {
     pub(crate) fn new() -> Self {
-        let icon = gtk::Image::from_icon_name("mail-unread-symbolic");
+        let icon = gtk::Image::from_icon_name(icons::SELECTED_MAIL);
         icon.set_pixel_size(32);
         icon.add_css_class("dim-label");
         let label = gtk::Label::new(None);
@@ -260,26 +260,20 @@ fn action_label(action: BulkAction) -> &'static str {
     }
 }
 
-/// The glyph for each action. Themed rather than bundled (Archive excepted, which is ours): a
-/// name the theme lacks draws the broken-image icon while the bar carries on as though nothing
-/// happened, so the widget tests assert each of these resolves rather than looking once.
+/// The glyph for each action.
 pub(super) fn action_icon(action: BulkAction) -> &'static str {
     match action {
-        BulkAction::MarkRead => "mail-read-symbolic",
-        BulkAction::MarkUnread => "mail-unread-symbolic",
-        BulkAction::Flag => "starred-symbolic",
-        BulkAction::Unflag => "non-starred-symbolic",
-        BulkAction::Archive => "mailcal-archive-symbolic",
-        BulkAction::Delete => "user-trash-symbolic",
+        BulkAction::MarkRead => icons::MARK_READ,
+        BulkAction::MarkUnread => icons::MARK_UNREAD,
+        BulkAction::Flag => icons::FLAG,
+        BulkAction::Unflag => icons::UNFLAG,
+        BulkAction::Archive => icons::ARCHIVE,
+        BulkAction::Delete => icons::TRASH,
         // Its own glyph rather than a second bin: the two sit side by side, and the label is not
         // the only thing that should tell them apart.
-        BulkAction::PermanentlyDelete => "edit-delete-symbolic",
+        BulkAction::PermanentlyDelete => icons::DELETE_PERMANENTLY,
     }
 }
-
-pub(super) const SELECT_ALL_ICON: &str = "edit-select-all-symbolic";
-pub(super) const CLEAR_ICON: &str = "window-close-symbolic";
-pub(super) const SYNC_ICON: &str = "view-refresh-symbolic";
 
 #[cfg(test)]
 #[path = "selection_bar_tests.rs"]

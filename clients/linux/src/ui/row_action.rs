@@ -3,8 +3,10 @@
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 
+use crate::ui::icons;
+
 fn button(activate: impl Fn() + 'static) -> gtk::Button {
-    let button = gtk::Button::from_icon_name("go-next-symbolic");
+    let button = gtk::Button::from_icon_name(icons::NEXT);
     button.add_css_class("flat");
     button.set_valign(gtk::Align::Center);
     button.set_tooltip_text(Some(crate::l10n::action_open()));

@@ -41,11 +41,12 @@ cannot drift per client. The order below is the display order everywhere.
 | Windows | Source-list beside a detail panel, in a `ContentDialog` | `clients/windows/Mailcal/Dialogs/SettingsDialog*.cs` |
 | Android | **Hub-and-spoke**: a list of category rows (icon · name · one-line summary), each opening its own screen; back (arrow and system) steps detail → hub → mailbox | `clients/android/.../SettingsCategory.kt` + `SettingsScreen.kt` |
 | iOS / iPadOS | **iPad**: two-pane split (category list beside a detail panel, like macOS). **iPhone**: hub-and-spoke (category rows with a one-line summary, each pushing its own screen), matching Android. Presented full-screen (like the composer) so the iPad split has a regular-width container: a form sheet is compact and collapses it to the iPhone hub | `clients/apple/.../SettingsCategory.swift` + `SettingsCategoryDetail.swift` + `SettingsHubView.swift` |
-| Linux | Sidebar beside a detail panel, in a modal window | `clients/linux/src/ui/settings.rs` + `clients/linux/src/ui/settings/` |
+| Linux | Sidebar (category list + icons) beside a detail panel, in a modal window | `clients/linux/src/ui/settings.rs` + `clients/linux/src/ui/settings/` |
 
-Category icons are the platform's native set (SF Symbols on Apple, Material on Android; the
-brand's Lucide is for web/design assets, not platform chrome), matched by meaning:
-gear/calendar/envelope/pencil/quill-or-text/bell/hand-or-lock/person/wrench/stethoscope/info.
+Each category draws one glyph of its own, matched by meaning across platforms: person, gear,
+calendar, envelope, pencil, signature, writing style, bell, hand or lock, tray, wrench, stethoscope,
+info. Which glyph each platform draws, and from which set, is [`icons.md`](icons.md). Windows draws
+none yet.
 
 The Android hub rows also carry a one-line **summary** per category (the
 `settings_category_*_summary` catalog keys) so a first-time user can find a setting without

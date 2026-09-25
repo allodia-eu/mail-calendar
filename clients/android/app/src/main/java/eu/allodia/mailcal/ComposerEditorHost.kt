@@ -193,6 +193,11 @@ private fun WebView.focusEditorAndShowKeyboard() {
     evaluateJavascript("window.focusComposerBody()", null)
     post {
         if (requestFocus()) {
+            // Implicit, because the user did not tap the field: up to Android 15 the IME then
+            // stays down while a hardware keyboard is attached and does not open full-screen in
+            // landscape. Flags of 0 would be an explicit request, which does both. Android 16
+            // ignores the flag.
+            @Suppress("DEPRECATION")
             context.getSystemService(InputMethodManager::class.java)
                 ?.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
         }

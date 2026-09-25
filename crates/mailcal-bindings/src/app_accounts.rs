@@ -85,7 +85,7 @@ impl MailcalApp {
 
     /// Builds a real account-backed app from the host's stored account `configs` (each a
     /// TOML blob of endpoints + credentials, read from the OS secure store; Keychain /
-    /// EncryptedSharedPreferences: not a plaintext file): opens one on-disk engine shared
+    /// Android Keystore: not a plaintext file): opens one on-disk engine shared
     /// by every account, connects each account's IMAP folders over a certificate-verifying
     /// TLS connector, and notifies `observer` on changes. Each connect blocks on the
     /// internal runtime, so this returns only once every account has been attempted. An

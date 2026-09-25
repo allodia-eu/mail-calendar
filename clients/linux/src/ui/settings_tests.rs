@@ -132,6 +132,15 @@ fn a_build_without_the_allodia_route_still_opens_the_category_asked_for() {
     );
 }
 
+/// A sidebar's icons are for finding a row without reading it, which two rows sharing one defeats.
+/// The two account categories are the pair most easily given the same glyph.
+#[test]
+fn every_category_draws_its_own_glyph() {
+    let glyphs = CATEGORIES.map(Category::icon);
+    let distinct = glyphs.iter().collect::<std::collections::HashSet<_>>();
+    assert_eq!(distinct.len(), glyphs.len(), "{glyphs:?}");
+}
+
 #[test]
 fn taxonomy_order_matches_the_cross_platform_contract() {
     assert_eq!(

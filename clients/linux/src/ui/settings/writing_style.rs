@@ -260,7 +260,7 @@ impl Page {
         let row = named_row(&style.name);
         row.set_subtitle(summary);
         row.set_activatable(true);
-        row.add_suffix(&gtk::Image::from_icon_name("go-next-symbolic"));
+        row.add_suffix(&gtk::Image::from_icon_name(crate::ui::icons::NEXT));
         let page = Rc::downgrade(self);
         let id = style.id.clone();
         row.connect_activated(move |_| {

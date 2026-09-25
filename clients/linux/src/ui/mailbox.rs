@@ -138,11 +138,6 @@ row .mailcal-badge {
 }
 ";
 
-/// The bundled glyphs, in the resource layout `IconTheme::add_resource_path` expects.
-/// Must equal the `prefix` in icons/mailcal.gresource.xml. It is a namespace inside the binary,
-/// not an identity, so it does not follow the application id.
-const ICON_RESOURCE_PATH: &str = "/mailcal/icons";
-
 /// Installs the message list's stylesheet and icons once per display.
 pub(super) fn install_styles() {
     static INSTALLED: Once = Once::new();
@@ -155,9 +150,7 @@ pub(super) fn install_styles() {
                 &provider,
                 gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
             );
-            gtk::gio::resources_register_include!("mailcal.gresource")
-                .expect("the bundled icons are compiled into the binary");
-            gtk::IconTheme::for_display(&display).add_resource_path(ICON_RESOURCE_PATH);
+            super::icons::install(&display);
         });
     }
 }
@@ -362,13 +355,13 @@ fn thread_message_row(
 }
 
 fn attachment_icon() -> gtk::Image {
-    let icon = gtk::Image::from_icon_name("mail-attachment-symbolic");
+    let icon = gtk::Image::from_icon_name(super::icons::ATTACHMENT);
     icon.set_tooltip_text(Some(l10n::a11y_has_attachment()));
     icon
 }
 
 fn flag_icon() -> gtk::Image {
-    let icon = gtk::Image::from_icon_name("starred-symbolic");
+    let icon = gtk::Image::from_icon_name(super::icons::FLAG);
     icon.set_tooltip_text(Some(l10n::a11y_flagged()));
     icon.update_property(&[AccessibleProperty::Label(l10n::a11y_flagged())]);
     icon

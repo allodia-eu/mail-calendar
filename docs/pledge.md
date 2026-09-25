@@ -13,9 +13,9 @@ and the native clients for these five platforms: **macOS**, **iOS/iPadOS**, **Wi
 further platform from the day Allodia ships a client for it. It does not by itself promise that a
 client for any further platform will be built.
 
-Per-platform completion status for each row below is the [README](../README.md) capability matrix.
-A platform still catching up on a row is a gap to close, never an opening to charge: the moment a
-listed capability ships on a platform, it ships free there.
+Per-platform completion status for each row below is the capability matrix in
+[`capabilities.md`](capabilities.md). A platform still catching up on a row is a gap to close, never
+an opening to charge: the moment a listed capability ships on a platform, it ships free there.
 
 ## The five promises
 
@@ -153,6 +153,7 @@ Every paid service has a free counterpart in the open build, so promise 4 stays 
 |---|---|
 | Real-time push on mobile (an Allodia relay wakes the device; the signal is content-free) | Local background sync, always on ([`background-sync.md`](background-sync.md)) |
 | Send-later on providers whose protocol lacks it | JMAP-native `sendAt`; best-effort client-side scheduling |
+| Your settings kept the same on every device (an Allodia vault holds them, and holds only ciphertext) | Every setting on each device, from the full Settings surface; your list of mail accounts on every device, which is on the free list above and stays there |
 | Writing style and drafted replies through Allodia's relay, metered in credits ([`ai.md`](ai.md)) | The same two features over the person's own OpenAI-compatible endpoint (Settings → Advanced), one on their own computer included; and the local MCP server |
 
 The business tier adds centralized deployment and administration, CRM/ERP integrations, and support
