@@ -190,9 +190,9 @@ summary (`mailcal-ai`'s `ComparisonExport`, `summarise`), the FFI methods and re
   selected), or the newest Inbox messages the person answered, as many as the developer asks for.
   A message counts as answered when a message in its account's Sent folder, among that account's
   newest thousand on the device, names it in `In-Reply-To`; only accounts that draft in a style are
-  looked through, and nothing is fetched.
-- Every model runs with every variant on every message, one after the other, showing which message
-  of how many and which draft of how many, with Stop. Results are grouped by message; each shows
+  looked through, a message from any of the device's own addresses is left out, and nothing is
+  fetched.
+- Every model runs with every variant on every message, with Stop. Results are grouped by message; each shows
   the reply, the summary, the checklist, the time taken, the tokens and its failure when it failed,
   and is rated with the same controls feedback uses. A summary above them says, per model and
   variant, how many drafts came back, how many failed and why, the median time of those that came

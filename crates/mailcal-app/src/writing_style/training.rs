@@ -55,10 +55,23 @@ impl<P: Provider> App<P> {
 
     /// The list rows of the newest `count` Inbox messages the person answered, across the
     /// accounts that draft in a style: a message in the account's Sent folder, among its newest,
-    /// names each in `In-Reply-To`. Read from what the device holds; nothing is fetched.
+    /// names each in `In-Reply-To`. A message from any of the device's own addresses is left out,
+    /// being a test rather than someone to answer. Read from what the device holds; nothing is
+    /// fetched.
     pub async fn training_answered(&self, count: usize) -> Vec<MailListRow> {
+        let accounts = self.account_ids().await;
+        let mut own = Vec::new();
+        for account in &accounts {
+            own.extend(self.account_address_set(account).await);
+        }
+        let is_own = |row: &MailListRow| {
+            row.mail
+                .from_addr
+                .as_deref()
+                .is_some_and(|from| own.iter().any(|address| address.eq_ignore_ascii_case(from)))
+        };
         let mut found = Vec::new();
-        for account in self.account_ids().await {
+        for account in accounts {
             if self.writing_style.assigned(account.as_str()).is_none() {
                 continue;
             }
@@ -90,6 +103,7 @@ impl<P: Provider> App<P> {
                 .collect();
             found.extend(rows.into_iter().filter(|row| {
                 row.mailboxes.contains(&inbox.id)
+                    && !is_own(row)
                     && row
                         .mail
                         .message_id

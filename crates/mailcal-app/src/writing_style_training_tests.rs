@@ -14,8 +14,8 @@ use super::{
 };
 use crate::{App, Intent, LearnRange, ReplyDraftRequest, WritingStyleError};
 
-/// Two Inbox messages, the older answered by a message in Sent that names it in `In-Reply-To` and
-/// the newer not answered at all.
+/// Three Inbox messages: the oldest answered by a message in Sent that names it in `In-Reply-To`,
+/// the next not answered at all, and the newest sent by the account's own address and answered.
 async fn answered_fixture() -> Box<App<FakeProvider>> {
     let id = |value: &str| vec![MessageIdHeader::new(value).unwrap()];
     let mut answered = message("in-1", "a", "Budget");
@@ -27,15 +27,22 @@ async fn answered_fixture() -> Box<App<FakeProvider>> {
     unanswered.received_at = Some(at("2026-07-03T09:00:00Z"));
     let mut reply = sent("s-1", "2026-07-02T10:00:00Z");
     reply.envelope.in_reply_to = id("in-1@example.eu");
+    let mut own = message("in-3", "a", "Testing a thread");
+    own.envelope.from = vec![EmailAddress::new("ME@acct-1.local")];
+    own.envelope.message_id = id("in-3@example.eu");
+    own.received_at = Some(at("2026-07-04T09:00:00Z"));
+    let mut own_reply = sent("s-2", "2026-07-04T10:00:00Z");
+    own_reply.envelope.in_reply_to = id("in-3@example.eu");
     let provider =
-        FakeProvider::with_sent_and_archive(vec![answered, unanswered, reply]).with_source(SOURCE);
+        FakeProvider::with_sent_and_archive(vec![answered, unanswered, reply, own, own_reply])
+            .with_source(SOURCE);
     let app = Box::new(app(vec![account("acct-1", provider)], &Arc::default()));
     app.dispatch(Intent::RefreshMail).await;
     app
 }
 
 #[tokio::test]
-async fn the_inbox_messages_an_account_with_a_style_answered_are_offered_newest_first() {
+async fn the_inbox_messages_an_account_with_a_style_answered_are_offered_but_not_its_own() {
     let app = answered_fixture().await;
     // An account that drafts in no style has nothing to compare.
     assert!(app.training_answered(5).await.is_empty());
