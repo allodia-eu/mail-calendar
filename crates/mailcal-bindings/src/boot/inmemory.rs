@@ -98,6 +98,7 @@ pub(crate) fn build_demo(
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
         ai_key: Mutex::new(None),
+        development_build: std::sync::atomic::AtomicBool::new(crate::ai_offer::DEVELOPMENT_BUILD),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
         // The demo connects no real accounts, so nothing is ever disconnected.
         disconnected: Arc::new(Mutex::new(HashSet::new())),
@@ -264,6 +265,7 @@ fn finish_showcase(
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
         ai_key: Mutex::new(None),
+        development_build: std::sync::atomic::AtomicBool::new(crate::ai_offer::DEVELOPMENT_BUILD),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
         // The showcase connects no real accounts, so nothing is ever disconnected.
         disconnected: Arc::new(Mutex::new(HashSet::new())),

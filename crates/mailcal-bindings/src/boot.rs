@@ -323,6 +323,7 @@ pub(crate) fn build_accounts(
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(allodia),
         ai_key: Mutex::new(ai_key),
+        development_build: std::sync::atomic::AtomicBool::new(crate::ai_offer::DEVELOPMENT_BUILD),
         credential_store,
         disconnected,
         device_zone: device_tz,

@@ -13,6 +13,7 @@ use crate::{l10n, ui::timestamps};
 
 fn snapshot(route: Option<AiRoute>, balance: Option<CreditBalance>) -> WritingStyleSnapshot {
     WritingStyleSnapshot {
+        offered: true,
         route,
         refused: None,
         styles: Vec::new(),

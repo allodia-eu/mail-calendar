@@ -421,7 +421,11 @@ public sealed partial class SettingsDialog : ContentDialog
         {
             panel.Children.Add(mcp);
         }
-        panel.Children.Add(OwnAiEndpointGroup());
+        // The own AI endpoint only where writing style is offered (docs/ai.md, "Early access").
+        if (_model.WritingStyles.Offered)
+        {
+            panel.Children.Add(OwnAiEndpointGroup());
+        }
         panel.Children.Add(ResetDatabaseGroup());
         return panel;
     }

@@ -26,7 +26,10 @@ impl MailcalApp {
     /// The Writing style surface (pulled after a `Surface::WritingStyle` signal).
     #[must_use]
     pub fn writing_styles(&self) -> WritingStyleSnapshot {
-        self.runtime.block_on(self.app.writing_styles()).into()
+        WritingStyleSnapshot::new(
+            self.runtime.block_on(self.app.writing_styles()),
+            self.ai_offered(),
+        )
     }
 
     /// One style in full, for the reveal and edit screen.

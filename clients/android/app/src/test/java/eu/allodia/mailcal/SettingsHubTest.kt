@@ -268,10 +268,7 @@ class SettingsHubTest {
             .assertIsDisplayed()
     }
 
-    /**
-     * The own endpoint is in Advanced on every build, AI or not: it is how a build without the
-     * relay gets AI at all, so it cannot wait for AI to be available first.
-     */
+    /** Where writing style is offered, Advanced has the own endpoint before AI is available. */
     @Test
     fun advanced_offers_the_own_endpoint_without_ai_available() {
         show(initialCategory = SettingsCategory.ADVANCED)
@@ -279,6 +276,12 @@ class SettingsHubTest {
         compose.onNodeWithText(L10n.ai_endpoint_save(ctx())).performScrollTo().assertIsDisplayed()
         // Nothing is set up, so there is nothing to remove.
         compose.onAllNodesWithText(L10n.ai_endpoint_remove(ctx())).assertCountEquals(0)
+    }
+
+    @Test
+    fun advanced_has_no_own_endpoint_where_writing_style_is_not_offered() {
+        show(SettingsCategory.ADVANCED, writingStyle = writingStyleSnapshot(offered = false, route = null))
+        compose.onAllNodesWithText(L10n.ai_endpoint_title(ctx())).assertCountEquals(0)
     }
 
     /**

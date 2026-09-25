@@ -143,8 +143,12 @@ pub struct CreditBalance {
 /// The Writing style surface (pulled after a `Surface::WritingStyle` signal).
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct WritingStyleSnapshot {
-    /// Where requests go; `None` when AI is not available or not set up. A client shows the
-    /// Writing style category only when this is `Some` (`docs/settings.md`).
+    /// Whether writing style is offered at all: always in a development build, and in a
+    /// production build only while the Allodia account's entitlement carries `ai`. A client shows
+    /// the own endpoint's settings only when it is (`docs/ai.md`, "Early access").
+    pub offered: bool,
+    /// Where requests go; `None` when AI is not offered, not available or not set up. A client
+    /// shows the Writing style category only when this is `Some` (`docs/settings.md`).
     pub route: Option<AiRoute>,
     /// What the gate would say to a request now; `None` when it would pass.
     pub refused: Option<GateRefusal>,

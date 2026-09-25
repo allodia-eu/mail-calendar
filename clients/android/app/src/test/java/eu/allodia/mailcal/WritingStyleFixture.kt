@@ -35,13 +35,14 @@ internal val PLAIN_STYLE = WritingStyleRow(
 )
 
 internal fun writingStyleSnapshot(
+    offered: Boolean = true,
     route: AiRoute? = AiRoute.OWN_ENDPOINT,
     refused: GateRefusal? = null,
     styles: List<WritingStyleRow> = emptyList(),
     accounts: List<AccountWritingStyleRow> = listOf(ALICE_ACCOUNT),
     learning: LearningProgress? = null,
     balance: CreditBalance? = null,
-) = WritingStyleSnapshot(route, refused, styles, accounts, learning, balance)
+) = WritingStyleSnapshot(offered, route, refused, styles, accounts, learning, balance)
 
 internal fun corpusReport(usable: UInt = 30u, undetected: UInt = 0u, horizon: Long? = null) = CorpusReport(
     found = 42u,

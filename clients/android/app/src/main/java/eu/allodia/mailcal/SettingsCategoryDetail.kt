@@ -321,7 +321,8 @@ internal fun CategoryDetail(
         }
 
         // Advanced, reset the local cache (destructive; confirmed by the dialog in SettingsScreen),
-        // then the own AI endpoint, on every platform (SettingsOwnAiEndpoint.kt).
+        // then the own AI endpoint where writing style is offered (SettingsOwnAiEndpoint.kt,
+        // docs/ai.md "Early access").
         SettingsCategory.ADVANCED -> {
             SettingsGroupCard(L10n.action_reset_database(ctx), L10n.settings_advanced_reset_description(ctx)) {
                 TextButton(
@@ -331,12 +332,14 @@ internal fun CategoryDetail(
                     Text(L10n.action_reset_database(ctx))
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            OwnAiEndpointCard(
-                endpoint = writingStyle.ownEndpoint,
-                onSave = writingStyle.actions::saveEndpoint,
-                onRemove = writingStyle.actions::removeEndpoint,
-            )
+            if (writingStyle.snapshot?.offered == true) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OwnAiEndpointCard(
+                    endpoint = writingStyle.ownEndpoint,
+                    onSave = writingStyle.actions::saveEndpoint,
+                    onRemove = writingStyle.actions::removeEndpoint,
+                )
+            }
         }
 
         // Diagnostics has no inline detail, its hub row opens the full-screen DiagnosticsScreen

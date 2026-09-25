@@ -228,8 +228,12 @@ impl MailcalApp {
     }
 
     /// Builds the backend AI requests go through from what is set up now, and hands it to the
-    /// core; `None` when nothing is.
+    /// core; `None` when nothing is, or when writing style is not offered ([`crate::ai_offer`]).
     pub(crate) fn refresh_ai_backend(&self) {
+        if !self.ai_offered() {
+            self.app.set_ai_backend(None);
+            return;
+        }
         let key = self.ai_key.lock().expect("ai key lock").clone();
         let backend = self
             .app

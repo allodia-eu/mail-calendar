@@ -37,6 +37,7 @@ mod allodia_transport;
 mod ai_endpoint;
 #[cfg(feature = "allodia-license")]
 mod ai_feedback_pass;
+mod ai_offer;
 #[cfg(feature = "allodia-license")]
 mod ai_relay;
 mod ai_transport;
@@ -323,6 +324,9 @@ pub struct MailcalApp {
     allodia: Mutex<Option<allodia::StoredAccount>>,
     /// The own AI endpoint's key, restored from the host's store at boot ([`crate::ai_endpoint`]).
     ai_key: Mutex<Option<String>>,
+    /// Whether this is a development build, which offers writing style without an entitlement
+    /// ([`crate::ai_offer`]). Only a test of the production gate turns it off.
+    development_build: std::sync::atomic::AtomicBool,
     /// This app, weakly: what a callback the core holds (the relay's token source) reaches back
     /// through without keeping the app alive.
     #[cfg_attr(

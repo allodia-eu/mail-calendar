@@ -435,13 +435,16 @@ struct SettingsCategoryDetail: View {
     // All three belong to this category's character rather than its old one-line description:
     // powerful, expert-facing, off by default, capable of damage (docs/settings.md row 11). The
     // MCP panel renders nothing on a platform with no endpoint, so iOS needs no `#if` here; the
-    // own endpoint is on every platform. The reset stays last, as the only destructive control.
+    // own endpoint is on every platform where writing style is offered (docs/ai.md, "Early
+    // access"). The reset stays last, as the only destructive control.
 
     @ViewBuilder
     private var advancedDetail: some View {
         VStack(alignment: .leading, spacing: 20) {
             McpSettingsView(model: model)
-            OwnAiEndpointSettings(model: model)
+            if model.writingStyles.offered {
+                OwnAiEndpointSettings(model: model)
+            }
             resetGroup
         }
     }

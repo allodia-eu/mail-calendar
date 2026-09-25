@@ -15,17 +15,21 @@ use mailcal_ai::{AiError, Destination, GatedBackend};
 use crate::{MailcalApp, ai_transport::AiTransport, allodia_transport::HttpsTransport};
 
 impl MailcalApp {
-    /// The relay behind the gate, when the person is signed in and entitled to `ai`.
-    pub(crate) fn relay_backend(&self) -> Option<GatedBackend> {
+    /// Whether somebody is signed in and the last entitlement answer, inside its grace, grants
+    /// `ai`.
+    pub(crate) fn ai_entitled(&self) -> bool {
         if self.allodia.lock().expect("allodia account lock").is_none() {
-            return None;
+            return false;
         }
         let now = time::OffsetDateTime::now_utc().unix_timestamp();
-        if !self
-            .entitlement_cache()
+        self.entitlement_cache()
             .effective(now)
             .grants(&Capability::Ai)
-        {
+    }
+
+    /// The relay behind the gate, when the person is signed in and entitled to `ai`.
+    pub(crate) fn relay_backend(&self) -> Option<GatedBackend> {
+        if !self.ai_entitled() {
             return None;
         }
         let transport = AiTransport::new(self.runtime.handle().clone()).ok()?;

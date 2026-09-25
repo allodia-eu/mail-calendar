@@ -254,10 +254,32 @@ destination is classified, the class is compared with the mode, and a refusal na
 - A refusal is reported **before anything is read**: the Writing style surface carries the gate's
   verdict, and learning and drafting ask the gate before touching the Sent folder.
 
+## Early access
+
+While the feature is tested, **only a development build offers it to everyone**. A production
+build offers it only while the signed-in Allodia account's entitlement carries `ai`, which the
+Mail & Calendar service assigns person by person from its admin pages; no plan carries it yet. Not
+offered, the app installs no backend whatever is set up, so the Writing style category, Draft a
+reply and the own endpoint under Settings → Advanced are all absent; an own endpoint set up earlier
+is kept for the day it is offered.
+
+- A development build is a debug build, or the Android development build, whose core is optimised
+  but carries the harness's `dev-harness` feature. The core decides
+  (`crates/mailcal-bindings/src/ai_offer.rs`); the Writing style snapshot's `offered` tells a
+  client whether to draw the own endpoint's settings, and the category and the composer control
+  follow `route` as before.
+- The entitlement is read as [`entitlement.md`](../allodia_license/entitlement.md) says: in the
+  background, kept through 30 days of outage, and an answer without `ai` takes effect at once.
+- **This ends before the relay is sold.** The pledge promises the own endpoint in every open build
+  as the relay's free counterpart ([`pledge.md`](pledge.md)), and while this holds a build without
+  the Allodia sign-in is never offered the feature. Opening it removes the gate, puts `ai` back on
+  the paid plans, and moves the held release notes (`docs/changelog/held/`) to `unreleased/`.
+
 ## Where requests go
 
 An own endpoint, when one is set up, wins; otherwise the relay, when the build has one and the
-person's plan includes AI; otherwise nowhere, and the Writing style category is not shown.
+person's entitlement carries `ai`; otherwise nowhere, and the Writing style category is not shown.
+Either needs the feature to be offered first (above).
 
 **An own endpoint** is any server that speaks OpenAI's chat-completions API, set up under Settings →
 Advanced: its base URL, a key, a model name and the declaration above. HTTPS is required, except to
@@ -270,13 +292,13 @@ token with `mailcal:ai:use`) takes the same request **without** `model`, plus `p
 "draft"`, from which the gateway picks the model. It answers with one JSON object, not a stream:
 the chat-completions `choices` and `usage`, plus `allodia: { credits_charged, balance_credits }`,
 both as the gateway metered them. A refusal carries its code in `data.code`: `402`
-`insufficient_credits`, `403` `not_entitled` (a plan without AI), `429` `rate_limited` (thirty
+`insufficient_credits`, `403` `not_entitled` (an account without `ai`), `429` `rate_limited` (thirty
 requests in ten minutes per person), `413` `too_large` (over 1 MiB), `502` `upstream_failed`, `503`
 `unavailable`. The gateway answers the relay as a stream, which the relay collects into that one
 object. It waits five minutes for a learning request and two for a draft, stores nothing of a
 request and logs no content. `GET /api/v1/ai/balance` answers `{ balanceCredits,
-startingGrantApplied }`; the first call on a plan with AI opens the person's credits with the
-starting grant, once.
+startingGrantApplied }`; the first call from an account with `ai` opens the person's credits with
+the starting grant, once.
 
 **Feedback** (`POST /api/v1/ai/feedback` on the same service, bearer = the Allodia access token with
 `mailcal:ai:use`) takes one document, the shape `mailcal_ai::DraftExport` writes, holding exactly
@@ -343,10 +365,11 @@ A style's id is opaque CSPRNG output, never derived from its name.
 | Draft a reply into the open composer, with gaps | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | What the message asks, and a checklist asked about once at Send | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Own endpoint under Settings → Advanced | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Early access: offered in a development build, and in a production build only behind `ai` | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Allodia relay: the entitlement read, requests, the balance | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Style guide synced between devices | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
 | Feedback on a draft: thumbs, reasons, comment, the email and the draft only when ticked | 🚧 | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| Training mode: compare drafts across messages, models and variants, rate, summarise, export (debug builds) | ✅ | 🚧 | — | — | — | — |
+| Training mode: compare drafts across messages, models and variants, rate, summarise, export (debug builds) | ✅ | ✅ | — | — | — | — |
 | Fetch older sent mail back to a date | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 macOS and iOS were driven against the harness's Sent Items and the canned endpoint: the refusal
@@ -370,8 +393,11 @@ Items, and the category leaving with the endpoint.
 Feedback was driven on an iPhone simulator against the harness and the canned endpoint, offered by
 `MAILCAL_FAKE_AI_FEEDBACK` in place of a sign-in: a thumbs up, and a thumbs down with reasons, a
 comment and the box ticked, each landing in the outbox. The core's side is 🚧 until the route
-exists. On macOS feedback was driven against a real mailbox signed in to Allodia; training mode
-is built and not yet driven.
+exists. On macOS feedback was driven against a real mailbox signed in to Allodia, and training mode
+against a real mailbox and EU-router: runs over one to ten messages and up to thirteen model lines,
+in parallel and one by one, Stop, a thinking level per line, rating and export.
+The early-access gate is tested in the core, a production build with and without `ai`, and in
+Android's JVM suite; no client has been driven as a production build yet.
 
 Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 
@@ -411,6 +437,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 
 ## Known gaps
 
+- **No client has been driven as a production build under the early-access gate**: that takes a
+  store or TestFlight build signed in once to an account with `ai` and once to one without.
 - **On Android the gate's refusal and the account slot have not been driven**, and iPad was not
   driven at all.
 - **Linux was driven against the distribution's GTK, not the GNOME runtime** the Flatpak ships,

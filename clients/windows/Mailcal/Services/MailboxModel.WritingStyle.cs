@@ -27,13 +27,14 @@ public sealed partial class MailboxModel
     internal event Action? WritingStylesChanged;
 
     /// <summary>
-    /// The Writing style surface. <c>Route</c> is <c>null</c> when AI has nowhere to go, which is
-    /// also the answer before the core is up.
+    /// The Writing style surface. <c>Route</c> is <c>null</c> when AI has nowhere to go, and
+    /// <c>Offered</c> false when writing style is not offered at all, which is also the answer
+    /// before the core is up.
     /// </summary>
     internal WritingStyleSnapshot WritingStyles =>
         _app?.WritingStyles()
         ?? new WritingStyleSnapshot(
-            null, null, Array.Empty<WritingStyleRow>(), Array.Empty<AccountWritingStyleRow>(), null, null);
+            false, null, null, Array.Empty<WritingStyleRow>(), Array.Empty<AccountWritingStyleRow>(), null, null);
 
     /// <summary>Passes a <c>Surface.WritingStyle</c> signal on to whatever is drawing it.</summary>
     private void OnWritingStyleSignal() => WritingStylesChanged?.Invoke();

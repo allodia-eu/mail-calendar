@@ -15,6 +15,7 @@ release **assembles** them. That is the whole design, and it is structural rathe
 docs/changelog/unreleased/<slug>.md      one pending change: you write this
 docs/changelog/unreleased/_summary.md    optional, at release time: see "When a store's cap cannot
                                          hold the release"
+docs/changelog/held/<slug>.md            a change no production build shows yet: see below
 docs/changelog/released/<X.Y.Z>.md       what a release shipped: scripts/dev/release.py writes this
 docs/changelog/announcements/<X.Y.Z>.md  the forum post: same script, same moment
 docs/changelog.md                        this file: the rules, and the index of releases
@@ -33,6 +34,11 @@ for **exactly** the locales in [`../project.inlang/settings.json`](../project.in
 the `store-copy` check. Adding a locale to the app means adding its note to every **pending**
 fragment. A release already submitted is history and is left as it was shipped, which is why
 `released/0.2.0.md` still carries `en` + `nl` alone.
+
+**A change behind early access waits in `held/`.** A note may not announce what a person cannot
+find, so a fragment for a feature no production build offers everyone yet (writing style,
+[`ai.md`](ai.md) "Early access") is written in full and kept in `docs/changelog/held/`, which no
+release reads, and moves to `unreleased/` in the change that opens it.
 
 ---
 

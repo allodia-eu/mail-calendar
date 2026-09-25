@@ -192,9 +192,12 @@ impl From<AppDetail> for WritingStyleDetail {
     }
 }
 
-impl From<AppSnapshot> for WritingStyleSnapshot {
-    fn from(snapshot: AppSnapshot) -> Self {
+impl WritingStyleSnapshot {
+    /// The core's snapshot, with whether writing style is offered, which only the binding layer
+    /// knows (`crate::ai_offer`).
+    pub(crate) fn new(snapshot: AppSnapshot, offered: bool) -> Self {
         Self {
+            offered,
             route: snapshot.route.map(|route| match route {
                 AppAiRoute::Relay => AiRoute::Relay,
                 AppAiRoute::OwnEndpoint => AiRoute::OwnEndpoint,

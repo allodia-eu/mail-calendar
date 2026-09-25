@@ -9,9 +9,10 @@ import Foundation
 import MailcalBindings
 
 extension MailboxModel {
-    /// The snapshot before the core has answered: no route, so no Writing style category.
+    /// The snapshot before the core has answered: not offered and no route, so no Writing style
+    /// category and no own endpoint.
     static let noWritingStyles = WritingStyleSnapshot(
-        route: nil, refused: nil, styles: [], accounts: [], learning: nil, balance: nil
+        offered: false, route: nil, refused: nil, styles: [], accounts: [], learning: nil, balance: nil
     )
 
     /// One style in full, for the reveal.

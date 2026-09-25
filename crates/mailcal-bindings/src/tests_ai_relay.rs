@@ -78,6 +78,31 @@ fn a_signed_in_account_entitled_to_ai_goes_through_the_relay() {
     let _ = std::fs::remove_dir_all(data_dir);
 }
 
+/// In a production build the entitlement is what offers writing style at all, the own endpoint
+/// included.
+#[test]
+fn a_production_build_offers_writing_style_to_an_account_entitled_to_ai() {
+    let (entitled, entitled_dir) = boot("relay-production", &[Capability::Ai]);
+    entitled.as_production_build();
+    assert!(entitled.writing_styles().offered);
+    assert_eq!(entitled.writing_styles().route, Some(AiRoute::Relay));
+    entitled
+        .set_own_ai_endpoint(
+            "http://localhost:11434/v1".to_owned(),
+            "mistral-small".to_owned(),
+            Some(JurisdictionClass::EuNative),
+            None,
+        )
+        .unwrap();
+    assert_eq!(entitled.writing_styles().route, Some(AiRoute::OwnEndpoint));
+
+    let (other, other_dir) = boot("relay-production-other", &[Capability::AccountsSync]);
+    other.as_production_build();
+    assert!(!other.writing_styles().offered);
+    let _ = std::fs::remove_dir_all(entitled_dir);
+    let _ = std::fs::remove_dir_all(other_dir);
+}
+
 #[test]
 fn a_plan_without_ai_offers_nothing() {
     let (app, data_dir) = boot("relay-not-entitled", &[Capability::AccountsSync]);

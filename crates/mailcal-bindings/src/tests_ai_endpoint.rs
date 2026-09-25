@@ -71,6 +71,34 @@ fn an_own_endpoint_is_saved_restored_and_removed() {
     let _ = std::fs::remove_dir_all(data_dir);
 }
 
+/// A production build offers writing style only behind an entitlement: an own endpoint set up
+/// earlier installs no backend and draws no category, and the snapshot says it is not offered.
+#[test]
+fn a_production_build_without_an_entitlement_offers_nothing() {
+    let data_dir = crate::tests::temp_data_dir("ai-endpoint-production");
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = boot(&data_dir, Vec::new(), &store);
+    assert!(app.writing_styles().offered);
+    app.set_own_ai_endpoint(
+        "http://localhost:11434/v1".to_owned(),
+        "mistral-small".to_owned(),
+        Some(JurisdictionClass::EuNative),
+        None,
+    )
+    .unwrap();
+    assert!(app.ai_available());
+
+    app.as_production_build();
+
+    assert!(!app.ai_available());
+    let snapshot = app.writing_styles();
+    assert!(!snapshot.offered);
+    assert!(snapshot.route.is_none());
+    // What was set up stays, for the day the person is offered it.
+    assert!(app.own_ai_endpoint().is_some());
+    let _ = std::fs::remove_dir_all(data_dir);
+}
+
 /// An edit that leaves the key out keeps the stored one: the Advanced screen can save a new model
 /// without asking for the key again.
 #[test]
