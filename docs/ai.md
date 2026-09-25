@@ -87,8 +87,8 @@ person's voice, are later uses of the same seams.
   last sentence, and a closing paragraph that repeats the signature's opening, is made only of
   its lines, or is a single line of at most six words that is one of the person's own sign-offs
   for the language, is taken off before the draft reaches the editor. Where the reply needs a
-  fact that is in neither the thread nor the intent, the model writes a short bracketed gap
-  (`[date]`); the draft lists them and the client says to check the parts in brackets. Where the
+  fact that is in neither the thread nor the intent, the model writes a short bracketed gap in the
+  reply's language (`[date]`, `[datum]`); the draft lists them and the client says to check the parts in brackets. Where the
   person uses them, the draft may carry a small Markdown subset: `**bold**`, `*italic*`, lists
   whose lines start with `- `, `* `, `•` or `1.`, and a `#` line drawn as a bold line. The
   answer's ceiling guards against a runaway answer, not the reply's length: from 3,000 to 6,000

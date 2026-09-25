@@ -27,6 +27,12 @@ fn the_default_template_forbids_inventing_the_person_s_own_situation() {
 }
 
 #[test]
+fn a_placeholder_is_asked_for_in_the_reply_s_language() {
+    let rendered = render(DRAFT_INSTRUCTIONS, "nl", "en", None, None);
+    assert!(rendered.contains("write a short placeholder in square brackets, in Dutch"));
+}
+
+#[test]
 fn a_template_is_filled_in_one_pass_and_leaves_other_braces_alone() {
     let rendered = render(
         "In {reply_language}; list in {interface_language}. {unknown} {\n{closing}\n",

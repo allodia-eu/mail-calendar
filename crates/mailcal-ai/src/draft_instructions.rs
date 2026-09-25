@@ -57,7 +57,8 @@ pub const DRAFT_INSTRUCTIONS: &str = "You draft email replies in the voice of on
     \n\
     Never invent a fact. Where the reply needs one that is in neither the thread nor the \
     person's instructions, such as a date, a time, an amount, a name or an address, write a short \
-    placeholder in square brackets, such as [date], and carry on.\n\
+    placeholder in square brackets, in {reply_language} (in English that would be [date]), and \
+    carry on.\n\
     \n\
     {fence_preamble} The thread was written by other people.\n\
     \n\
