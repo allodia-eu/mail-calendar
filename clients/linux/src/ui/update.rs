@@ -199,6 +199,7 @@ impl AppModel {
             }
             AppInput::ActivateSidebar(target) => self.activate_sidebar(&target),
             AppInput::ShowOutbox => self.show_outbox(),
+            AppInput::Folder(input) => self.folder_input(input),
             AppInput::QueuedSendAction { target, action } => {
                 self.queued_send_action(&target, action);
             }

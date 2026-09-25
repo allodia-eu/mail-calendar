@@ -195,6 +195,66 @@ public sealed class SidebarItem : INotifyPropertyChanged
         set => Set(ref _showBadge, value);
     }
 
+    private bool _isPending;
+    private string _pendingLabel = string.Empty;
+
+    /// <summary>
+    /// Whether a change to this folder has not reached the server yet (docs/folder-pane.md,
+    /// rule 27): the row is drawn dimmed, says so to a screen reader, and offers nothing.
+    /// </summary>
+    public bool IsPending
+    {
+        get => _isPending;
+        set
+        {
+            if (Set(ref _isPending, value))
+            {
+                OnPropertyChanged(nameof(RowOpacity));
+                OnPropertyChanged(nameof(PendingTip));
+            }
+        }
+    }
+
+    /// <summary>What a pending row says it is waiting for, localised by the caller; empty on a row
+    /// that waits for nothing, so it can back <c>AutomationProperties.HelpText</c> as it is.</summary>
+    public string PendingLabel
+    {
+        get => _pendingLabel;
+        set
+        {
+            if (Set(ref _pendingLabel, value))
+            {
+                OnPropertyChanged(nameof(PendingTip));
+            }
+        }
+    }
+
+    /// <summary>The row's tooltip: the pending line while it waits, and none at all otherwise, since
+    /// an empty string would still raise an empty tooltip.</summary>
+    public string? PendingTip => _isPending && _pendingLabel.Length > 0 ? _pendingLabel : null;
+
+    /// <summary>How opaque the row draws: dimmed while pending.</summary>
+    public double RowOpacity => _isPending ? 0.5 : 1.0;
+
+    private bool _editable;
+
+    /// <summary>Whether the row offers Rename, Move to… and Delete, and can be dragged (rule 22).</summary>
+    public bool Editable
+    {
+        get => _editable;
+        set => Set(ref _editable, value);
+    }
+
+    /// <summary>Whether a new folder may be made in this one, or a folder dropped onto it; on an
+    /// account row, whether the account's folders can be changed at all.</summary>
+    public bool AcceptsFolders { get; set; }
+
+    /// <summary>Whether messages may be dropped onto this folder.</summary>
+    public bool AcceptsMessages { get; set; }
+
+    /// <summary>Whether the folder sits inside Trash, where deleting it is permanent (rule 26).</summary>
+    public bool InTrash { get; set; }
+
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
 

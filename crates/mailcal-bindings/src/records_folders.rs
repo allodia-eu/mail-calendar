@@ -75,6 +75,19 @@ pub struct FolderRow {
     /// drawing a flat list never has to. A pane whose framework nests rows and hides a shut
     /// item's children for it ignores this and uses `parent` and `expanded`.
     pub visible: bool,
+    /// Whether a change to this folder, or to one it sits inside, has not reached the server
+    /// yet. Draw it as waiting (dimmed, or with a small clock), and offer no change, no drop
+    /// and no new folder on it until it clears: its key may still move.
+    pub pending: bool,
+    /// Whether the folder sits inside Trash. Deleting it there is **permanent**, so the
+    /// confirmation says so; outside Trash, delete moves it into Trash.
+    pub in_trash: bool,
+    /// Whether to offer Rename, Delete and dragging the row. Never on a role folder.
+    pub editable: bool,
+    /// Whether to offer "New folder" on the row and accept a folder dropped onto it.
+    pub accepts_folders: bool,
+    /// Whether to accept messages dropped onto the row.
+    pub accepts_messages: bool,
 }
 
 /// One account's sorted folder list, for the navigation drawer that shows all accounts at once.
@@ -84,4 +97,63 @@ pub struct AccountFolderRow {
     pub account_id: String,
     /// The account's sorted folder rows, ready for display.
     pub folders: Vec<FolderRow>,
+    /// Whether this account's folders can be changed at all: offer "New folder" on its
+    /// account row, and accept a folder dropped there (to the top of its tree), only when true.
+    pub manages_folders: bool,
+}
+
+/// Whether a name can be given to a folder, answered while the user types
+/// (`MailcalApp::check_folder_name`). Enable the dialog's confirm button only on `Valid`, and
+/// say why otherwise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum FolderNameCheck {
+    /// The name can be used.
+    Valid,
+    /// The name is empty.
+    Empty,
+    /// The name starts or ends with a space.
+    Surrounded,
+    /// The name carries a control character.
+    Control,
+    /// The name carries `/`.
+    Separator,
+    /// A folder beside it already has that name.
+    Taken,
+}
+
+/// A folder change the server refused. Show it beside the pane until the user dismisses it
+/// (`FolderIntent::DismissNotice`); a later change replaces it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct FolderNotice {
+    /// The account whose folder it was.
+    pub account: String,
+    /// The folder's name as the user last saw it; the name asked for, for a new folder.
+    pub folder: String,
+    /// What the user asked for.
+    pub action: FolderAction,
+    /// Why it did not happen.
+    pub problem: FolderProblem,
+}
+
+/// A change to the folder tree, as the user thinks of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum FolderAction {
+    /// Making a folder.
+    Create,
+    /// Renaming one.
+    Rename,
+    /// Moving one.
+    Move,
+    /// Deleting one.
+    Delete,
+}
+
+/// Why a folder change did not happen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum FolderProblem {
+    /// The folder was changed, moved or removed elsewhere since this device last saw it, so
+    /// the change was not applied over it.
+    ChangedElsewhere,
+    /// The server refused it.
+    Refused,
 }

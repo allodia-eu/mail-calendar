@@ -42,6 +42,11 @@ impl From<AppFolderRow> for FolderRow {
             has_children: row.has_children,
             expanded: row.expanded,
             visible: row.visible,
+            pending: row.pending,
+            in_trash: row.in_trash,
+            editable: row.editable,
+            accepts_folders: row.accepts_folders,
+            accepts_messages: row.accepts_messages,
         }
     }
 }
@@ -123,6 +128,7 @@ impl From<AppAccountFolderRow> for AccountFolderRow {
         Self {
             account_id: row.account_id,
             folders: row.folders.into_iter().map(FolderRow::from).collect(),
+            manages_folders: row.manages_folders,
         }
     }
 }
@@ -152,6 +158,7 @@ impl From<AppSnapshot> for MailboxListSnapshot {
             total: snapshot.total as u64,
             search_horizon: snapshot.search_horizon.map(SearchHorizon::from),
             empty_reason: snapshot.empty_reason.map(EmptyReason::from),
+            folder_notice: snapshot.folder_notice.map(crate::FolderNotice::from),
         }
     }
 }

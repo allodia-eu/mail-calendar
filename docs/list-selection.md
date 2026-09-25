@@ -159,14 +159,18 @@ all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
 
 ## Known gaps
 
-- **Dragging rows into a folder is not implemented anywhere.** The core has no move-to-a-named-
-  folder action either: `BulkAction` resolves its destination by role (Archive, Trash), which is
-  all the bar offers. Adding the gesture means a `MoveToFolder` variant carrying a `FolderRef`,
-  plus a drop target on every folder-pane row, in four toolkits.
+- **Dragging rows onto a folder is a desktop and iPad gesture only.** A selection, or the one
+  row under the pointer, drops onto a folder row that `accepts_messages` in the same account as
+  `FolderIntent::MoveMessages`, which takes the batch path above (`move_to_folder` in
+  [`bulk.rs`](../crates/mailcal-app/src/mail_ops/bulk.rs)), so a conversation leaves its Sent
+  copies where they are ([`folder-pane.md`](folder-pane.md), rule 24). A phone's drawer covers
+  the list the drag would start from.
 - **A bulk action has no undo.** The swipe undo window (`docs/settings.md`, swipe actions) covers
   a gesture that is easy to trigger by accident; a deliberate select-then-click is not that. The
   actions the bar offers are recoverable in the mailbox instead.
-- **No "Move to folder…" item on the bar**, for the same reason as the first gap.
+- **No "Move to folder…" item on the bar.** The core takes the move (`FolderIntent::MoveMessages`
+  names any folder); what is missing is a picker on the bar, which is also what would give a
+  phone a way to file a selection.
 - **Spam and not-spam are not bulk actions.** They are reports, not moves
   ([`reporting.md`](reporting.md)), only two clients offer them at all, and which verdicts exist
   is read per account from `Capabilities::mail_report`; a bar button would have to be gated on the

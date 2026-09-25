@@ -19,6 +19,7 @@ pub(super) fn sidebar_pane(
     sender: &relm4::Sender<AppInput>,
     accounts: &gtk::ScrolledWindow,
     destinations: &DestinationBar,
+    folder_notice: &adw::Banner,
 ) -> adw::ToolbarView {
     let pane = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
@@ -32,6 +33,7 @@ pub(super) fn sidebar_pane(
     add_account.connect_clicked(move |_| input.emit(AppInput::OpenAccountSetup));
     header.pack_start(&add_account);
     pane.add_top_bar(&header);
+    pane.add_top_bar(folder_notice);
     pane.set_content(Some(accounts));
     pane.add_bottom_bar(destinations.widget());
     pane

@@ -357,6 +357,8 @@ impl Provider for CalendarFake {
     }
 }
 
+impl engine_api::MailboxWrites for CalendarFake {}
+
 #[async_trait::async_trait]
 impl CalendarWrites for CalendarFake {
     async fn create_event(

@@ -463,19 +463,19 @@ pub enum Intent {
         #[uniffi(default = None)]
         occurrence: Option<String>,
     },
-    /// Report whether the device currently has network connectivity; dispatched on launch
-    /// and whenever the OS reachability signal changes. Offline stops the app attempting
-    /// syncs (and shows a banner); online triggers a refresh so mail catches up and dead
-    /// connections heal.
-    /// An action on the Outbox: show it, or act on one queued send
-    /// ([`OutboxIntent`](super::OutboxIntent)).
+    /// An action on the Outbox ([`OutboxIntent`](super::OutboxIntent)).
     Outbox {
         /// Which Outbox action.
         intent: super::OutboxIntent,
     },
-    /// The host's composer now holds the message `Surface::ComposeRequest` offered, so the
-    /// request is answered and must not be offered again.
+    /// A change to an account's folder tree ([`FolderIntent`](super::FolderIntent)).
+    Folders {
+        /// Which change.
+        intent: super::FolderIntent,
+    },
+    /// The host's composer now holds the message `Surface::ComposeRequest` offered.
     DismissComposeRequest,
+    /// Report whether the device can reach the network; on launch and on every OS change.
     ReportNetworkReachable {
         /// Whether the device can currently reach the network.
         reachable: bool,

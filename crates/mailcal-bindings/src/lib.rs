@@ -42,6 +42,7 @@ mod app_allodia_sync;
 mod app_calendar;
 mod app_contacts;
 mod app_display;
+mod app_folders;
 mod app_month;
 mod app_sender_name;
 mod app_settings;
@@ -58,6 +59,7 @@ mod connected_account;
 mod connection_log;
 mod connector;
 mod convert;
+mod convert_folders;
 mod convert_mailbox;
 mod convert_reading;
 mod convert_settings;
@@ -153,7 +155,7 @@ pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
 pub use oauth_routes::{OAuthRoutes, oauth_routes};
 pub use protocol::{
-    BulkAction, Intent, InvitationResponse, OutboxIntent, SearchScope, SelectedRow,
+    BulkAction, FolderIntent, Intent, InvitationResponse, OutboxIntent, SearchScope, SelectedRow,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -181,7 +183,10 @@ pub use records_contacts::{
     ContactCardRef, ContactDetail, ContactEdit, ContactRow, ContactTarget, ContactValue,
     ContactWriteStatus, ContactsSnapshot, RecipientMatch,
 };
-pub use records_folders::{AccountFolderRow, FolderRole, FolderRow};
+pub use records_folders::{
+    AccountFolderRow, FolderAction, FolderNameCheck, FolderNotice, FolderProblem, FolderRole,
+    FolderRow,
+};
 pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
 };

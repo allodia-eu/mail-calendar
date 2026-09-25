@@ -170,10 +170,21 @@ extension ContentView {
                     // which is what a shut group does to the unified Inbox.
                     // Right-click an account to remove it (with a confirmation).
                     .contextMenu {
+                        if model.accountFolderRow(for: account.id)?.managesFolders == true {
+                            Button {
+                                folderSheet = .name(.create(account: account.id, parent: nil))
+                            } label: {
+                                Label(L10n.folder_action_new(), systemImage: "folder.badge.plus")
+                            }
+                        }
                         Button(L10n.action_remove_account(), role: .destructive) {
                             accountToRemove = account
                         }
                     }
+                    // A folder of this account dropped here moves to the top of its tree.
+                    .modifier(AccountRowFolderDrop(
+                        model: model, account: account.id, dragEnabled: hasReadingPane
+                    ))
                     // A warning badge when this account's server couldn't be reached on its
                     // last sync (while the device is online), a per-account outage, distinct
                     // from the device-wide offline banner.
@@ -214,6 +225,11 @@ extension ContentView {
                                     unread: folder.unread
                                 ) { selectFolder(in: account.id, key: folder.key) }
                             }
+                            .modifier(FolderRowActions(
+                                model: model, account: account.id, folder: folder,
+                                dragEnabled: hasReadingPane,
+                                sheet: $folderSheet, deleting: $folderToDelete
+                            ))
                             // One step per level, plus the account's own. The indent is on the
                             // stack rather than inside the row so the chevrons line up down a
                             // branch, the way the account chevrons line up down the pane.

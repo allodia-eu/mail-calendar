@@ -34,6 +34,23 @@ go away.
 | 20 | **An empty mail list says why it is empty**, from `MailboxListSnapshot::empty_reason`, and offers the sync-depth setting on `OutsideSyncDepth` and only there. `None` (the list has rows, or it is a search, which states its own horizon) draws nothing. | Rule 5 is what makes this necessary: the badge is the server's count over all time and the list holds only the synced window, so a folder whose mail predates the depth badges its unread above no rows at all. Unqualified, that empty list claims the folder is empty, which contradicts the number beside it and is the one reading the user cannot act on. On `NoMail` there is nothing to offer: the device already holds the whole folder, and a button there would promise mail that widening cannot find. |
 | 21 | **The destinations that are not mail are pinned under the tree.** Calendar, Contacts and Settings sit below the accounts and do not scroll with them; the tree takes the height that is left over. Which of the three a pane carries is the platform's own answer (a phone reaches the first two from its tab bar), Settings is on every one. | An account with a few dozen folders fills the pane, and a destination at the end of that list is reached by scrolling past every folder the user has, then scrolling back to where they were. Pinning costs the tree nothing: the bar's height is reserved first and the accounts take the rest, which is the room the scroll was going to need anyway. |
 
+## Changing the tree
+
+A folder is made, renamed, moved and deleted from the pane, and mail is filed by dropping it on
+one. Every change goes through the engine's outbox (`Engine::edit_mailbox`), so the rules below
+hold offline as well as on.
+
+| # | Rule | Why |
+|---|---|---|
+| 22 | **A row offers what the core says it may, and nothing else.** `FolderRow::editable` offers Rename, Move to… and Delete, and lets the row be dragged; `accepts_folders` offers New folder on it and takes a dropped folder; `accepts_messages` takes dropped mail; `AccountFolderRow::manages_folders` offers New folder on the **account** row and takes a folder dropped there, which moves it to the top of the tree. A client decides no eligibility of its own, and the core ignores a change the row did not offer. | Role folders are the app's to name and place (rules 12 and 19), Junk takes mail through a report and never a move ([`reporting.md`](reporting.md)), and whether an account can change its tree at all is its provider's capability. Four clients each deciding would be four answers. |
+| 23 | **The row menu** is the platform's own context menu (right click, long press, the menu key): New folder, Rename…, Move to…, Delete…, each only where rule 22 allows; on an account row, New folder alone. A menu with nothing in it is not offered. | Every folder action is on the row it acts on, in the place each platform's users already look for one. |
+| 24 | **Moving has two routes: dragging, and Move to….** A folder is dragged onto a folder or onto its account's row; a message, or the selection it belongs to, onto a folder. Neither crosses accounts. Move to… lists the account's folders that `accepts_folders`, as `folder_paths` names them, with **Top level** first, and leaves out the folder itself and everything inside it. | A drag reaches neither a keyboard nor a screen reader, and on a phone the drawer covers the list the drag would start from. The menu is the route that works everywhere. |
+| 25 | **A name is checked while it is typed** (`MailcalApp::check_folder_name`), and the dialog's confirm button is enabled only on `Valid`. Every other answer has a line of its own (`folder_name_*`), shown under the field. | A server's refusal after the dialog has closed is the worst place to learn a name was taken, and it arrives after the user has moved on. |
+| 26 | **Delete puts the folder in Trash, with its subfolders and their mail; deleting it again, from inside Trash, removes it for good.** A client confirms both and words the question by `FolderRow::in_trash`: `folder_delete_*` outside Trash, `folder_delete_permanent_*` inside it. | One mistaken click must not lose a folder of mail, the shape a message delete already has. Gmail cannot file a label in Trash, so there the mail goes to Trash and the label is removed; the engine absorbs the difference. |
+| 27 | **A change is drawn at once, and marked while it waits.** Until the server has it the row is `pending`: drawn as waiting (dimmed, with `folder_pending` as its tooltip and accessible description), and it offers no change, no drop and no New folder. The same holds for every folder inside it. | A folder the user made should be there when they look, network or not. A key the server has not confirmed may still move (an IMAP rename re-keys the whole branch), so nothing may be built on it yet. |
+| 28 | **A queued change is never applied over a change made elsewhere.** The engine reads the folder list before it sends anything and refuses a change whose folder has been renamed, moved or removed since the user saw it. The refusal stands on the pane as `MailboxListSnapshot::folder_notice` (`folder_notice_changed` or `folder_notice_refused`) until the user dismisses it (`FolderIntent::DismissNotice`) or makes another change, and the tree shows what the server has. | Last-writer-wins on a folder silently undoes someone's work. The user asked for the change, so they are told when it did not happen, and why. |
+| 29 | **A folder that is open follows its change.** Renamed or moved, the list stays on it under its new key; trashed or deleted, the list opens its account's mailbox. | An open folder the server no longer has is a list of nothing with a header that names nothing. |
+
 ## Where each rule lives
 
 Rules 12 and 13 are client-side by construction: the core has no locale (`AGENTS.md` →
@@ -102,6 +119,15 @@ the `EmptyMailbox` panel (Windows). The two pure mappings that can be reached wi
 tested as such: `EmptyMailboxLineTests.cs` and `an_empty_folder_under_a_bounded_depth_says_the_server_may_hold_more`
 (`mailcal-app`), which is also what holds the depth arithmetic.
 
+Rules 22 and 27 to 29 are core-side, and a client gets them by rendering the snapshot:
+`stamp_folder_actions` and `with_folder_changes`
+([`folder_changes.rs`](../crates/mailcal-viewmodel/src/folder_changes.rs)) stamp each row's
+flags and draw the queued changes over the stored tree, which is the engine's outbox read
+([`folder_tree.rs`](../crates/mailcal-app/src/mail_ops/folder_tree.rs)). Rules 23 to 26 are the
+client's to draw, from one catalog: `folder_action_*`, `folder_*_title`, `folder_name_*`,
+`folder_delete_*`, `folder_notice_*`. The end-to-end cases, offline and on, are
+`tests_folder_ops.rs` (`mailcal-app`).
+
 ## Per-platform
 
 | Platform | Tree source | Expansion control | Badge | Role icons | Resizable | Opens with its account | Semantic primary action | All Accounts group (16, 17) | Folders inside folders (19) | Pinned destinations (21) |
@@ -112,6 +138,23 @@ tested as such: `EmptyMailboxLineTests.cs` and `an_empty_folder_under_a_bounded_
 | iOS (iPhone) | `model.accountFolders` → `sidebarList` in a drawer | chevron `Button` → `setAccountExpanded` | accent `Text`, trailing | SF Symbols | n/a: a drawer is not resizable | `selectFolder(in:key:)` | SwiftUI `Button` | ✅ the same pane | ✅ the same pane | ✅ the same bar, carrying Settings alone: Calendar and Contacts are tabs |
 | Android | `accountFolders` → `FolderDrawerScaffold` | chevron `IconButton` → `Intent.SetAccountExpanded` | `NavigationDrawerItem` badge slot | Material Symbols (`FolderDrawer.kt`, `folderIcon`) | n/a: a modal drawer is not resizable | `FolderDrawer.kt`, off the row's own account | `NavigationDrawerItem` click semantics | ⬜ still one flat "All Inboxes" row | ✅ flat list, `visible` + `depth` × `FOLDER_INDENT`, `FolderDisclosure` in the icon slot | — the drawer carries no destination: Settings is in the app bar, Calendar and Contacts are tabs |
 | Linux | `account_folders` → `folder_pane::render` | chevron `GtkButton` → `Intent::SetAccountExpanded` | accent `GtkLabel` pill, trailing | symbolic icons (`folder_pane_rows.rs`, `role_icon`): Adwaita's, except the bundled inbox and archive it has none of | ✅ 200–560 px: the `GtkPaned`, persisted (`HostPreferences::folder_pane_width`) | `activate_sidebar` → `SidebarTarget::Folder` | row-named `GtkButton`, also the `AdwActionRow` activatable widget | ✅ `SidebarTarget::UnifiedGroup` → `Intent::SetUnifiedExpanded` | ✅ flat list, `visible` + `margin_start` × `INDENT`, `folder_chevron` | ✅ `DestinationBar`, the `AdwToolbarView`'s bottom bar (`shell_sidebar.rs`) |
+
+Rules 22 to 28, per platform:
+
+| Platform | Row menu (23) | Name dialog (25) | Move to… (24) | Delete confirm (26) | Pending (27) | Notice (28) | Folder drag (24) | Message drag (24) |
+|---|---|---|---|---|---|---|---|---|
+| Windows | `MenuFlyout` from the pane's `ContextRequested` (`MainWindow.Folders.cs`) | `ContentDialog`, live `check_folder_name` (`FolderDialogs`) | `ContentDialog` list | `DialogHelper.ConfirmAsync` | opacity 0.5, tooltip and `HelpText` | closable `InfoBar` | ✅ `CanDrag`, the `NavigationView`'s `DragOver`/`Drop` | ✅ `ListView.CanDragItems` (`MailListView.Drag.cs`) |
+| macOS | `.contextMenu` (`Mailcal.FolderActions.swift`) | `FolderNameSheet` | `FolderMoveSheet` | `.alert` | opacity 0.5, `.help`, `accessibilityValue` | banner with Close | ✅ `.draggable` / `.dropDestination` | ✅ the selection, or the row |
+| iPadOS | the same | the same | the same | the same | the same | the same | ✅ with a reading pane | ✅ with a reading pane |
+| iOS (iPhone) | the same, by long press | the same | the same | the same | the same | the same | — | — |
+| Android | long press, `DropdownMenu` (`FolderRowMenu.kt`); each item also an accessibility action | `AlertDialog`, live `checkFolderName` | `FolderMoveDialog` | worded by `inTrash` | half opacity, state description | `FolderNoticeCard` above the list | — | — |
+| Linux | right click, long press, Menu or Shift+F10 → `GtkPopover` (`folder_menu.rs`) | modal with live `check_folder_name` (`folder_dialogs.rs`) | modal list | destructive inside Trash | `dim-label`, tooltip, accessible description | `adw::Banner` over the tree | ✅ `DragSource`/`DropTarget`, a process-local boxed payload (`folder_drag.rs`) | ✅ flat and conversation rows |
+
+The decisions behind each column (which items a row offers, the Move to… list, which drops are
+taken, the line a name check shows, the delete wording) are plain code in every client and tested
+without a window: `FolderActionsTests.cs`, `FolderManagementTests.swift`, `FolderEditingTest.kt`,
+`folder_actions_tests.rs`. Neither phone drags: its drawer covers the list, so it moves a folder
+through Move to….
 
 The iPhone draws the same pane as the desktop, in a drawer over the whole screen (opened from the
 toolbar or a drag off the leading edge). Calendar and Contacts are **not** on it there: they are
@@ -176,10 +219,20 @@ gesture needs a real mouse.
   the leading slot would make it read as one more account row. Rule 10 leaves the artwork to each
   platform, and this is that latitude used; if it ever reads as a missing icon rather than as a
   heading, the fix is a glyph, not a destination.
-- **A folder is never moved, renamed or made from the pane.** The tree it draws is the server's,
-  and the only thing a row does is open its mail or open what is inside it. Creating a folder,
-  renaming one, and dragging one into another are three separate writes with three separate
-  provider capabilities behind them, and none of them exists yet.
+- **A renamed folder forgets whether it was shut, on IMAP.** Expansion is stored per folder key
+  (rule 19), and an IMAP rename or move gives the folder, and every folder inside it, a new key,
+  so the branch opens again. JMAP, Graph and Gmail keep their keys and are unaffected.
+- **A phone cannot file mail into a folder of its choosing.** Neither phone drags (rule 24), and
+  the selection bar has no "Move to folder…" yet ([`list-selection.md`](list-selection.md)), so
+  on Android and the iPhone mail still moves only to Archive and Trash.
+- **Dragging onto the pane is not automatable on Windows**: synthetic pointer input does not
+  reach WinUI content (the resize drag above is the same trap), so the drop rules are pinned in
+  `FolderActionsTests.cs` and the gesture itself needs a real mouse.
+- **Nothing is undone from the notice.** A refused change says so and the tree shows the
+  server's copy; redoing the change is the user's, from the row menu.
+- **The Graph and Gmail folder writes have not yet run against a real mailbox.** They are built
+  to the documented request shapes and pass offline; their live suites exist in the engine and
+  wait for a test account (`providers.md` there).
 - **The group has one child.** A unified Sent, Drafts and Archive are what rule 16's shape is for,
   and none of them exists: the core's unified scope reaches every account's **Inbox** only
   ([`scope.rs`](../crates/mailcal-app/src/scope.rs)), so a second child would need a scope to

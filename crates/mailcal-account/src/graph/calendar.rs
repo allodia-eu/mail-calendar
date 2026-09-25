@@ -234,6 +234,8 @@ impl Provider for RefreshingGraphCalendarProvider {
     }
 }
 
+impl engine_api::MailboxWrites for RefreshingGraphCalendarProvider {}
+
 #[async_trait]
 impl CalendarWrites for RefreshingGraphCalendarProvider {
     async fn create_event(

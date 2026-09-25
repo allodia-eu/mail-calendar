@@ -216,6 +216,8 @@ impl Provider for RefreshingGoogleCalendarProvider {
     }
 }
 
+impl engine_api::MailboxWrites for RefreshingGoogleCalendarProvider {}
+
 #[async_trait]
 impl CalendarWrites for RefreshingGoogleCalendarProvider {
     async fn create_event(

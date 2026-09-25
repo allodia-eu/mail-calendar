@@ -134,6 +134,7 @@ extension MailboxModel {
         selected = snapshot?.selected
         searchHorizon = snapshot?.searchHorizon
         emptyReason = snapshot?.emptyReason
+        folderNotice = snapshot?.folderNotice
         // The reading body (a potentially large HTML string) only changes on a Reading
         // signal, pull it just then, not on every mailbox refresh. The signal names no reader,
         // so every open detached window re-reads its own slot alongside the pane

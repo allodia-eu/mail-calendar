@@ -17,7 +17,7 @@ use engine_core::ids::MailboxId;
 use super::folders::{folder_name_matches_role, resolve_move_target};
 use crate::{
     App, BulkAction,
-    reference::{RowRef, ThreadRef},
+    reference::{FolderRef, RowRef, ThreadRef},
 };
 
 impl<P: Provider> App<P> {
@@ -46,16 +46,37 @@ impl<P: Provider> App<P> {
                         .await;
                 }
                 BulkAction::Archive => {
-                    self.bulk_move(&account, &rows, Some(MailboxRole::Archive))
+                    self.bulk_move(&account, &rows, Destination::Role(MailboxRole::Archive))
                         .await;
                 }
                 BulkAction::Delete => {
-                    self.bulk_move(&account, &rows, Some(MailboxRole::Trash))
+                    self.bulk_move(&account, &rows, Destination::Role(MailboxRole::Trash))
                         .await;
                 }
-                BulkAction::PermanentlyDelete => self.bulk_move(&account, &rows, None).await,
+                BulkAction::PermanentlyDelete => {
+                    self.bulk_move(&account, &rows, Destination::Nowhere).await;
+                }
             }
         }
+    }
+
+    /// Moves the dropped `rows` into `folder`: the drop of a selection, or of one row, on a
+    /// folder in the pane. Only rows of the folder's own account move; mail never crosses
+    /// accounts, and a client that let such a drop through has nothing to ask of the others.
+    pub(crate) async fn move_to_folder(&self, rows: Vec<RowRef>, folder: &FolderRef) {
+        let rows: Vec<RowRef> = rows
+            .into_iter()
+            .filter(|row| row.account() == &folder.account)
+            .collect();
+        if rows.is_empty() {
+            return;
+        }
+        self.bulk_move(
+            &folder.account,
+            &rows,
+            Destination::Folder(folder.key.clone()),
+        )
+        .await;
     }
 
     /// Every message on `thread`, straight from the store's thread index, so a conversation shown
@@ -119,13 +140,12 @@ impl<P: Provider> App<P> {
     /// The removals (archive, trash, permanent delete): one hide for the whole batch so the rows
     /// leave the list before any network round-trip, then the writes, then one re-sync.
     ///
-    /// `role` names the destination folder; `None` is the permanent delete, which has none. A row
-    /// the provider refuses has its hide undone individually, so one rejection does not put the
-    /// rest of the batch back on screen.
-    async fn bulk_move(&self, account: &AccountId, rows: &[RowRef], role: Option<MailboxRole>) {
+    /// A row the provider refuses has its hide undone individually, so one rejection does not
+    /// put the rest of the batch back on screen.
+    async fn bulk_move(&self, account: &AccountId, rows: &[RowRef], destination: Destination) {
         let mailboxes = self.engine.mailboxes(account).await.unwrap_or_default();
-        let destination = match &role {
-            Some(role) => {
+        let destination = match &destination {
+            Destination::Role(role) => {
                 let Some(mailbox) = resolve_move_target(&mailboxes, role) else {
                     log::warn!(
                         "selection: account {} has no {role:?} folder (no SPECIAL-USE role and no \
@@ -136,7 +156,15 @@ impl<P: Provider> App<P> {
                 };
                 Some(mailbox.id.clone())
             }
-            None => None,
+            Destination::Folder(key) => {
+                // A folder still being made has no server key yet, and the pane offers no
+                // drop onto one; anything else is a folder that has gone since it was drawn.
+                let Some(mailbox) = mailboxes.iter().find(|m| m.id.as_str() == key) else {
+                    return;
+                };
+                Some(mailbox.id.clone())
+            }
+            Destination::Nowhere => None,
         };
         let settled = settled_keys(&mailboxes, destination.as_ref());
         let mut keys = Vec::new();
@@ -202,6 +230,16 @@ impl<P: Provider> App<P> {
             .expect("pending-removals mutex poisoned")
             .remove(&(account.as_str().to_owned(), key.as_str().to_owned()));
     }
+}
+
+/// Where a batch of messages goes.
+enum Destination {
+    /// The account's folder with this role (Archive, Trash).
+    Role(MailboxRole),
+    /// The folder with this key, one the user dropped the rows on.
+    Folder(String),
+    /// Nowhere: the permanent delete.
+    Nowhere,
 }
 
 /// Groups `rows` by owning account, keeping the order the accounts first appear in, so a batch

@@ -366,6 +366,8 @@ impl Provider for InvitationFake {
     }
 }
 
+impl engine_api::MailboxWrites for InvitationFake {}
+
 #[async_trait::async_trait]
 impl CalendarWrites for InvitationFake {
     /// The guarded create the client-iMIP route uses to put an invitation on the calendar.

@@ -21,6 +21,7 @@ use crate::{
 };
 
 mod bulk;
+mod folder_tree;
 mod folders;
 mod report;
 pub(crate) mod result;

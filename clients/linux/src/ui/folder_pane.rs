@@ -12,7 +12,9 @@ use mailcal_bindings::{FolderRow, Intent, MailboxListSnapshot};
 
 use super::{
     AppInput, AppModel, PrimaryView,
+    folder_actions::NameCheck,
     folder_names::folder_label,
+    folder_pane_edit,
     folder_pane_rows::{account_row, folder_row, unified_group_row, unified_inbox_row},
     mailbox, outbox,
 };
@@ -38,6 +40,7 @@ pub(crate) fn render(
     list: &gtk::ListBox,
     snapshot: &MailboxListSnapshot,
     unreachable_accounts: &HashSet<String>,
+    check: &NameCheck,
     sender: &relm4::Sender<AppInput>,
 ) {
     mailbox::install_styles();
@@ -54,12 +57,21 @@ pub(crate) fn render(
 
     for account in &snapshot.accounts {
         let row = account_row(account, unreachable_accounts.contains(&account.id), sender);
+        folder_pane_edit::account(
+            &row,
+            &account.id,
+            manages_folders(snapshot, &account.id),
+            check,
+            sender,
+        );
         list.append(&row);
         if !account.expanded {
             continue;
         }
+        let folders = folders_of(snapshot, &account.id);
         for folder in drawn_folders(snapshot, &account.id) {
             let row = folder_row(&account.id, folder, sender);
+            folder_pane_edit::folder(&row, &account.id, folder, folders, check, sender);
             list.append(&row);
         }
     }
@@ -124,6 +136,14 @@ pub(crate) fn folders_of<'a>(snapshot: &'a MailboxListSnapshot, account: &str) -
         .iter()
         .find(|row| row.account_id == account)
         .map_or(&[], |row| row.folders.as_slice())
+}
+
+/// Whether `account`'s folders can be changed at all.
+fn manages_folders(snapshot: &MailboxListSnapshot, account: &str) -> bool {
+    snapshot
+        .account_folders
+        .iter()
+        .any(|row| row.account_id == account && row.manages_folders)
 }
 
 /// The folders this account actually puts on screen: not the ones inside a folder the user shut.
@@ -211,6 +231,7 @@ struct RenderedAccount {
     email: String,
     expanded: bool,
     unreachable: bool,
+    manages_folders: bool,
     folders: Vec<RenderedFolder>,
 }
 
@@ -220,6 +241,10 @@ struct RenderedAccount {
 /// The tree fields are here for the reason the counts are: each of them changes what is on
 /// screen, or which way a chevron points, without any row's text changing at all.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is a separate fact the row draws, not the state of a state machine"
+)]
 struct RenderedFolder {
     key: String,
     label: String,
@@ -228,6 +253,14 @@ struct RenderedFolder {
     has_children: bool,
     expanded: bool,
     visible: bool,
+    /// What the row offers and how it looks while waiting: each changes the row's menu, its
+    /// drag and drop, or its style without changing its text.
+    parent: Option<String>,
+    pending: bool,
+    in_trash: bool,
+    editable: bool,
+    accepts_folders: bool,
+    accepts_messages: bool,
 }
 
 impl FolderPaneRendering {
@@ -244,6 +277,7 @@ impl FolderPaneRendering {
                     email: account.email.clone(),
                     expanded: account.expanded,
                     unreachable: unreachable_accounts.contains(&account.id),
+                    manages_folders: manages_folders(snapshot, &account.id),
                     folders: folders_of(snapshot, &account.id)
                         .iter()
                         .map(|folder| RenderedFolder {
@@ -254,6 +288,12 @@ impl FolderPaneRendering {
                             has_children: folder.has_children,
                             expanded: folder.expanded,
                             visible: folder.visible,
+                            parent: folder.parent.clone(),
+                            pending: folder.pending,
+                            in_trash: folder.in_trash,
+                            editable: folder.editable,
+                            accepts_folders: folder.accepts_folders,
+                            accepts_messages: folder.accepts_messages,
                         })
                         .collect(),
                 })
