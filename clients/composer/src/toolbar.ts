@@ -2,6 +2,7 @@
 
 import { documentOf, windowOf } from "./dom";
 import { applyColor, applyFontSize, applyMark, type ColorKind } from "./format";
+import { buildLinkMenu } from "./link_menu";
 import { indentSelection } from "./lists";
 import { type Labels } from "./labels";
 import {
@@ -37,6 +38,8 @@ interface Popover {
 
 export interface Toolbar {
   applyLabels(labels: Labels): void;
+  /// Opens the link editor on the current selection: the link button's Ctrl/Cmd+K.
+  openLink(): void;
 }
 
 export function installToolbar(editor: HTMLElement, root: HTMLElement, labels: () => Labels): Toolbar {
@@ -52,11 +55,12 @@ export function installToolbar(editor: HTMLElement, root: HTMLElement, labels: (
   // selection where the pointer went down; so bold/indent/colour would apply to nothing and
   // `insertTable` would find no caret and append the table below the quoted original. Cancelling
   // mousedown keeps focus (and the selection) in the editor. Delegated, so the popovers' contents,
-  // built on open: are covered too. The font-size <select> is the one exclusion, so its native
-  // dropdown still opens.
+  // built on open: are covered too. The font-size <select> is excluded, so its native dropdown
+  // still opens, and so are the link editor's fields, which have to take focus to be typed into
+  // (the link editor saves the selection before they do).
   root.addEventListener("mousedown", (event) => {
     const target = event.target as Element | null;
-    if (!target?.closest?.("select")) event.preventDefault();
+    if (!target?.closest?.("select, input")) event.preventDefault();
   });
 
   for (const button of Array.from(root.querySelectorAll<HTMLElement>("[data-command]"))) {
@@ -122,17 +126,19 @@ export function installToolbar(editor: HTMLElement, root: HTMLElement, labels: (
       build: () => build(byId(panelId)),
     };
     popovers.push(popover);
-    popover.button.addEventListener("click", () => {
-      const opening = popover.panel.hidden;
-      closeAll(popover);
-      if (opening) {
-        popover.build();
-        alignPopover(popover);
-      }
-      popover.panel.hidden = !opening;
-      popover.button.setAttribute("aria-expanded", String(opening));
-    });
+    popover.button.addEventListener("click", () => toggle(popover));
     return popover;
+  };
+
+  const toggle = (popover: Popover) => {
+    const opening = popover.panel.hidden;
+    closeAll(popover);
+    if (opening) {
+      popover.build();
+      alignPopover(popover);
+    }
+    popover.panel.hidden = !opening;
+    popover.button.setAttribute("aria-expanded", String(opening));
   };
 
   const swatchBar = (id: string, colour: string) => {
@@ -184,6 +190,9 @@ export function installToolbar(editor: HTMLElement, root: HTMLElement, labels: (
   swatchBar("highlight-bar", HIGHLIGHTS[0]!);
 
   register("table", "table-menu", (panel) => buildTableMenu(panel, editor, doc, labels(), closeAll));
+  const link = register("link", "link-menu", (panel) =>
+    buildLinkMenu(panel, editor, doc, labels(), () => closeAll()),
+  );
 
   // Clicking away or pressing Escape closes an open popover; without this the palette would stay
   // over the message the user just went back to writing.
@@ -195,6 +204,9 @@ export function installToolbar(editor: HTMLElement, root: HTMLElement, labels: (
   });
 
   return {
+    openLink() {
+      if (link.panel.hidden) toggle(link);
+    },
     applyLabels(current: Labels) {
       editor.dataset.placeholder = current.placeholder;
       editor.setAttribute("aria-label", current.placeholder);
@@ -212,6 +224,7 @@ export function installToolbar(editor: HTMLElement, root: HTMLElement, labels: (
       title("#text-colour", current.textColour);
       title("#highlight", current.highlight);
       title("#table", current.table);
+      title("#link", current.link);
       fontSize.title = current.fontSize;
       fontSize.setAttribute("aria-label", current.fontSize);
       const sizeText: Record<string, string> = {

@@ -8,10 +8,12 @@
 
 mod color;
 mod file_meta;
+mod link;
 mod list;
 mod mailto;
 mod quote;
 mod render;
+mod render_inline;
 mod share;
 mod signature;
 mod types;
@@ -19,6 +21,7 @@ mod validate;
 
 pub use color::TextColor;
 pub use file_meta::{safe_file_name, safe_media_type};
+pub use link::{LINK_SCHEMES, LinkUrl, has_link_scheme};
 pub use list::{List, ListItem, ListKind};
 pub use mailto::{MailtoPrefill, parse_mailto};
 pub use quote::{Quote, QuoteAttribution, QuoteHeader, QuoteStyle};

@@ -2,7 +2,7 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{color::TextColor, list::List, quote::Quote, signature::Signature};
+use crate::{color::TextColor, link::LinkUrl, list::List, quote::Quote, signature::Signature};
 
 /// Stable client-generated attachment id used inside the compose document.
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -226,6 +226,11 @@ pub struct TextRun {
     /// Optional highlight (background) colour, on the same terms as `color`.
     #[serde(default, deserialize_with = "crate::color::deserialize_color")]
     pub highlight: Option<TextColor>,
+    /// Where the run links to. A target [`LinkUrl`] refuses deserializes to `None`, so the run
+    /// sends as plain text rather than failing the document. Adjacent runs with the same target
+    /// render as one link.
+    #[serde(default, deserialize_with = "crate::link::deserialize_link")]
+    pub link: Option<LinkUrl>,
 }
 
 impl fmt::Debug for TextRun {
@@ -238,6 +243,7 @@ impl fmt::Debug for TextRun {
             .field("font_size", &self.font_size)
             .field("color", &self.color)
             .field("highlight", &self.highlight)
+            .field("link", &self.link)
             .finish()
     }
 }

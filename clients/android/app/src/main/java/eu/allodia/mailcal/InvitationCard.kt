@@ -191,9 +191,10 @@ private fun InvitationCardView(
             )
         }
         // The organiser's notes. Already truncated by the core (Gmail sends a wall of filler), and
-        // the card says so rather than implying the text ends there.
+        // the card says so rather than implying the text ends there. The one field drawn with
+        // links, since a meeting's join link lives in it; built from the core's runs as text.
         if (card.description.isNotEmpty()) {
-            Text(
+            LinkifiedText(
                 text = card.description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

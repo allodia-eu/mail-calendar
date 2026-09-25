@@ -81,6 +81,7 @@ mod invitations_tests;
 // calendar server will accept as a stored resource.
 mod itip;
 mod lifecycle;
+mod linkify;
 mod live_mailbox;
 mod mail_compose;
 mod mail_compose_quote;
@@ -142,6 +143,7 @@ pub use helpers::{export_file_name, forward_subject, reply_subject};
 pub use html::{Canvas, MESSAGE_CANVAS, render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;
+pub use linkify::{FoundLink, TextSegment, find_links, segments as link_segments};
 pub use mail_ops::result::{MailActionError, SendActionError};
 pub use mailcal_account::EventDetail;
 use mcp_settings::McpSettingsState;

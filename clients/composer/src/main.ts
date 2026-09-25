@@ -18,6 +18,7 @@ import {
   insertImageFiles,
 } from "./images";
 import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
+import { autolinkBeforeCaret } from "./links";
 import { indentSelection } from "./lists";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
 import { installImageResize } from "./resize";
@@ -88,6 +89,21 @@ editor.addEventListener("keydown", (event) => {
       event.preventDefault();
       return;
     }
+    // An address the user has just typed becomes a link when the word ends, as in Outlook. The
+    // space is inserted after the link rather than left to the engine, which would extend it.
+    if (autolinkBeforeCaret(editor, " ")) {
+      event.preventDefault();
+      return;
+    }
+  }
+  // Enter ends the word too; its default (a new line) then runs as usual.
+  if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
+    autolinkBeforeCaret(editor, null);
+  }
+  if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    toolbar.openLink();
+    return;
   }
   if ((event.metaKey || event.ctrlKey) && !event.altKey) {
     const command = { b: "bold", i: "italic", u: "underline" }[event.key.toLowerCase()];

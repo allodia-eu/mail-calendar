@@ -62,6 +62,11 @@ internal fun composerLabelsJson(ctx: android.content.Context): String = JSONObje
     put("deleteRow", L10n.editor_delete_row(ctx))
     put("deleteColumn", L10n.editor_delete_column(ctx))
     put("deleteTable", L10n.editor_delete_table(ctx))
+    put("link", L10n.editor_link(ctx))
+    put("linkText", L10n.editor_link_text(ctx))
+    put("linkAddress", L10n.editor_link_address(ctx))
+    put("linkApply", L10n.editor_link_apply(ctx))
+    put("linkRemove", L10n.editor_link_remove(ctx))
 }.toString()
 
 // The exact JS the host injects once the editor bundle has parsed and its `window.*` hooks exist,
