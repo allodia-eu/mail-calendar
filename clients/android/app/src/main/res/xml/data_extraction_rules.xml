@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keeps the mail store out of Google's cloud backup and out of a device-to-device transfer: a
+     sync rebuilds it, and Auto Backup stops backing up an app entirely once its data passes 25 MB,
+     so a mailbox left in would take the preferences down with it. These are the paths the core's
+     `mail_store_paths` names, under the release data directory (`filesDir`). -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="mailcal.sqlite" />
+        <exclude domain="file" path="mailcal.sqlite-wal" />
+        <exclude domain="file" path="mailcal.sqlite-shm" />
+        <exclude domain="file" path="mailcal.sqlite.blobs" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="mailcal.sqlite" />
+        <exclude domain="file" path="mailcal.sqlite-wal" />
+        <exclude domain="file" path="mailcal.sqlite-shm" />
+        <exclude domain="file" path="mailcal.sqlite.blobs" />
+    </device-transfer>
+</data-extraction-rules>

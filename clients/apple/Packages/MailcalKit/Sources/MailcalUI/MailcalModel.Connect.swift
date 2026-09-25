@@ -37,6 +37,7 @@ extension MailboxModel {
                 credentialStore: KeychainCredentialStore()
             )
             self.app = app
+            excludeMailStoreFromBackup(dataDir: dataDir)
             // Where this device remembers what it has synced with the account service. Installed
             // before anything can ask for a pass; unlike the Keychain writer above it is not
             // racing a dial, because nothing syncs until somebody asks.
@@ -124,6 +125,20 @@ extension MailboxModel {
         ) { [weak self] _ in
             let id = deviceTimeZone()
             Task { @MainActor in self?.app?.dispatch(intent: .reportDeviceTimeZone(id: id)) }
+        }
+    }
+
+    /// Keeps the mail store out of the iCloud device backup (iOS) and Time Machine (macOS): a sync
+    /// rebuilds it, and a large mailbox would otherwise cost gigabytes of the user's iCloud storage.
+    /// Preferences and signatures beside it stay in the backup. Runs after the core has opened the
+    /// store, because each open can create a fresh WAL file, which starts without the flag.
+    private func excludeMailStoreFromBackup(dataDir: String) {
+        for path in mailStorePaths(dataDir: dataDir) {
+            var url = URL(fileURLWithPath: path)
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            // A WAL or shared-memory file that does not exist right now has nothing to flag.
+            try? url.setResourceValues(values)
         }
     }
 
