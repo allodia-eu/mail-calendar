@@ -77,6 +77,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            tree: None,
             edit_gate: None,
         }
     }
@@ -134,6 +135,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            tree: None,
             edit_gate: None,
         }
     }
@@ -170,6 +172,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            tree: None,
             edit_gate: None,
         }
     }
@@ -210,6 +213,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            tree: None,
             edit_gate: None,
         }
     }
@@ -250,6 +254,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            tree: None,
             edit_gate: None,
         }
     }
@@ -290,6 +295,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            tree: None,
             edit_gate: None,
         }
     }
@@ -324,6 +330,7 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            tree: None,
             edit_gate: None,
         }
     }
@@ -351,6 +358,20 @@ impl FakeProvider {
     /// Files two folders inside the provider's existing Archive: `Clients`, and `Acme` inside
     /// that. Two levels because one proves only that a row was indented once, where the rule a
     /// pane has to hold is that a row is on screen while **every** folder above it is open.
+    /// Lets the account's folders be changed: the folders so far become a tree every
+    /// folder-list sync reads whole and every folder change is applied to.
+    pub(crate) fn with_folder_tree(mut self) -> Self {
+        self.caps = self.caps.with_mailbox_writes();
+        self.tree = Some(Arc::new(Mutex::new(self.mailboxes.clone())));
+        self
+    }
+
+    /// The changeable tree, so a test can change it as another client would, or read it as
+    /// the server holds it.
+    pub(crate) fn folder_tree(&self) -> Arc<Mutex<Vec<Mailbox>>> {
+        Arc::clone(self.tree.as_ref().expect("built with_folder_tree"))
+    }
+
     pub(crate) fn with_nested_folders(mut self) -> Self {
         let mut clients = Mailbox::new(
             MailboxId::try_from("archive/clients").unwrap(),

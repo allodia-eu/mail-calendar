@@ -254,4 +254,5 @@ impl Provider for SubmitProvider {
     }
 }
 
+impl engine_api::MailboxWrites for SubmitProvider {}
 impl CalendarWrites for SubmitProvider {}

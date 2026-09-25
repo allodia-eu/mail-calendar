@@ -133,6 +133,9 @@ impl<P: Provider> App<P> {
         let Some(provider) = acct.providers.first() else {
             return;
         };
+        // Read before the pass: a change that settles leaves the queue, and a refused one still
+        // has to be named on the pane.
+        let folder_changes = self.queued_folder_changes(account).await;
         match self.engine.drain_outbox(provider, account).await {
             Ok(report) if report.is_idle() => {}
             Ok(report) => {
@@ -144,6 +147,8 @@ impl<P: Provider> App<P> {
                 // A queued draft save that got through resolved to a key, and this report is
                 // the only place it is ever named (`docs/drafts.md`).
                 self.record_drained_drafts(&report);
+                self.settle_drained_folder_changes(provider, account, &report, &folder_changes)
+                    .await;
                 self.refresh_after_write(account).await;
             }
             Err(err) => log::warn!("outbox: a drain pass failed: {err}"),

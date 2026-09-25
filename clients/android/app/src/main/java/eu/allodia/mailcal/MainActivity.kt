@@ -38,6 +38,7 @@ import uniffi.mailcal_bindings.ContactRow
 import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.EmptyReason
 import uniffi.mailcal_bindings.EventRow
+import uniffi.mailcal_bindings.FolderNotice
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailtoPrefill
@@ -95,6 +96,8 @@ class MainActivity : AppCompatActivity() {
     // Outbox *and* on the unified inbox (docs/folder-pane.md, rule 18).
     internal var outbox by mutableStateOf<List<QueuedRow>>(emptyList())
     internal var showingOutbox by mutableStateOf(false)
+    // A folder change the server refused, until the user closes it (docs/folder-pane.md, rule 28).
+    internal var folderNotice by mutableStateOf<FolderNotice?>(null)
     // A message the core withdrew from the Outbox so the user can change it. It exists nowhere
     // else by the time it arrives, so it is held until this client's composer has it.
     internal var withdrawnMessage by mutableStateOf<ComposeRequest?>(null)

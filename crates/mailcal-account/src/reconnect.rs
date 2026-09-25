@@ -33,8 +33,9 @@ use engine_core::{
     sync::{SyncScope, SyncState, SyncWindow},
 };
 use engine_provider::{
-    Capabilities, ConnectionInfo, Draft, EmailStream, MailEdit, MailEditReceipt, MessageReport,
-    Provider, ProviderResult, ReportReceipt, ScopeSync, SubmissionReceipt,
+    Capabilities, ConnectionInfo, Draft, EmailStream, MailEdit, MailEditReceipt, MailboxEdit,
+    MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderResult, ReportReceipt,
+    ScopeSync, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -295,6 +296,30 @@ impl Provider for ReconnectingImapProvider {
 }
 
 impl CalendarWrites for ReconnectingImapProvider {}
+
+/// A folder change is **not** auto-retried on a dropped socket, unlike [`edit_mail`]: a
+/// `RENAME` replayed after it landed meets a path that no longer exists and reads as a
+/// conflict. A retryable failure only invalidates the session; the outbox retries the change
+/// after re-reading the folder list, which is what makes a repeat safe.
+///
+/// [`edit_mail`]: Provider::edit_mail
+#[async_trait]
+impl MailboxWrites for ReconnectingImapProvider {
+    async fn edit_mailbox(
+        &self,
+        account: &AccountId,
+        edit: &MailboxEdit,
+    ) -> ProviderResult<MailboxEditReceipt> {
+        let provider = self.delegate().await?;
+        match provider.edit_mailbox(account, edit).await {
+            Err(err) if err.class() == FailureClass::Retryable => {
+                self.invalidate();
+                Err(err)
+            }
+            result => result,
+        }
+    }
+}
 
 #[cfg(test)]
 #[path = "reconnect_tests.rs"]

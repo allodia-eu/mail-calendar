@@ -74,6 +74,10 @@ public struct ContentView: View {
     @State var selectingRows = false
     #endif
     @State var accountToRemove: AccountRow? // the account a remove-confirmation is open for
+    /// The folder sheet (a name dialog, or Move to…) and the folder a delete-confirmation is open
+    /// for (Mailcal.FolderActions.swift).
+    @State var folderSheet: FolderSheet?
+    @State var folderToDelete: FolderTarget?
     @State var sceneRestorationComplete = false
     @State var hasActivatedScene = false
     @State var hasLoggedSceneAppear = false
@@ -277,6 +281,8 @@ public struct ContentView: View {
         .safeAreaInset(edge: .top) { mailReauthBanner }
         .safeAreaInset(edge: .top) { signInExpiredBanner }
         .safeAreaInset(edge: .top) { accountNoticeBanner }
+        .safeAreaInset(edge: .top) { folderNoticeBanner }
+        .modifier(FolderDialogs(model: model, sheet: $folderSheet, deleting: $folderToDelete))
         .overlay(alignment: .top) { sendStatusBanner }
         .overlay(alignment: .bottom) { swipeUndoToast }
         .task(id: swipeUndo.pending?.id) { await runUndoWindow() }

@@ -127,6 +127,7 @@ public sealed partial class MailboxModel
         SelectedFolder = snapshot.Selected;
         SearchHorizon = snapshot.SearchHorizon;
         EmptyReason = snapshot.EmptyReason;
+        FolderNotice = snapshot.FolderNotice;
 
         var rows = snapshot.Rows.Select(row =>
         {
@@ -243,19 +244,22 @@ public sealed partial class MailboxModel
     /// </remarks>
     private void SyncAccounts(AccountRow[] accounts, AccountFolderRow[] accountFolders)
     {
-        var byAccount = accountFolders.ToDictionary(row => row.AccountId, row => row.Folders);
+        var byAccount = accountFolders.ToDictionary(row => row.AccountId);
         var wanted = accounts
-            .Select(account => new AccountItem
+            .Select(account =>
             {
-                Id = account.Id,
-                Email = account.Email,
-                // Composed here, once, from the core's own rule, so the composer's From and any
-                // other surface that names this account cannot disagree about the empty case.
-                SendLabel = MailcalBindingsMethods.SenderLabel(account.Name, account.Email),
-                Expanded = account.Expanded,
-                Folders = byAccount.TryGetValue(account.Id, out var folders)
-                    ? folders.Select(ToFolderItem).ToArray()
-                    : [],
+                var tree = byAccount.GetValueOrDefault(account.Id);
+                return new AccountItem
+                {
+                    Id = account.Id,
+                    Email = account.Email,
+                    // Composed here, once, from the core's own rule, so the composer's From and any
+                    // other surface that names this account cannot disagree about the empty case.
+                    SendLabel = MailcalBindingsMethods.SenderLabel(account.Name, account.Email),
+                    Expanded = account.Expanded,
+                    ManagesFolders = tree?.ManagesFolders ?? false,
+                    Folders = tree is null ? [] : tree.Folders.Select(ToFolderItem).ToArray(),
+                };
             })
             .ToArray();
         if (Accounts.Count == wanted.Length && Accounts.Zip(wanted).All(pair => Same(pair.First, pair.Second)))
@@ -283,6 +287,11 @@ public sealed partial class MailboxModel
             Parent = folder.Parent,
             HasChildren = folder.HasChildren,
             Expanded = folder.Expanded,
+            Pending = folder.Pending,
+            InTrash = folder.InTrash,
+            Editable = folder.Editable,
+            AcceptsFolders = folder.AcceptsFolders,
+            AcceptsMessages = folder.AcceptsMessages,
         };
     }
 
@@ -321,12 +330,27 @@ public sealed partial class MailboxModel
         // reach the projection, exactly as an unread count does.
         && a.SendLabel == b.SendLabel
         && a.Expanded == b.Expanded
+        && a.ManagesFolders == b.ManagesFolders
         && a.Folders.Count == b.Folders.Count
-        && a.Folders.Zip(b.Folders).All(pair =>
-            pair.First.Key == pair.Second.Key
-            && pair.First.Name == pair.Second.Name
-            && pair.First.Role == pair.Second.Role
-            && pair.First.Unread == pair.Second.Unread);
+        && a.Folders.Zip(b.Folders).All(pair => SameFolder(pair.First, pair.Second));
+
+    /// <summary>Whether two projected folders draw alike. The place in the tree and what the row
+    /// offers count too: a folder moved under the same key (every transport but IMAP keeps it)
+    /// changes nothing else, and a change that has just reached the server changes only
+    /// <see cref="FolderItem.Pending"/>. Expansion is left out on purpose, it is moved locally first
+    /// (<see cref="SetFolderExpanded"/>) and a snapshot from before that must not spring it back.</summary>
+    private static bool SameFolder(FolderItem a, FolderItem b) =>
+        a.Key == b.Key
+        && a.Name == b.Name
+        && a.Role == b.Role
+        && a.Unread == b.Unread
+        && a.Parent == b.Parent
+        && a.HasChildren == b.HasChildren
+        && a.Pending == b.Pending
+        && a.InTrash == b.InTrash
+        && a.Editable == b.Editable
+        && a.AcceptsFolders == b.AcceptsFolders
+        && a.AcceptsMessages == b.AcceptsMessages;
 
     /// <summary>
     /// Rebuilds <see cref="Folders"/> only when the folder set actually changes, so the

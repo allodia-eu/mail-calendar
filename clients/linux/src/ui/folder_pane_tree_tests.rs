@@ -30,6 +30,7 @@ fn one_tree(archive_expanded: bool, acme_visible: bool) -> MailboxListSnapshot {
         accounts: vec![account("acct-1", "eva.jansen@example.test", true)],
         account_folders: vec![AccountFolderRow {
             account_id: "acct-1".to_owned(),
+            manages_folders: false,
             folders: vec![
                 folder("inbox", "INBOX", Some(FolderRole::Inbox), 0),
                 archive,

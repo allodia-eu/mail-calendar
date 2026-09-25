@@ -14,7 +14,9 @@ use super::{
     contacts::ContactsPane,
     destinations::DestinationBar,
     detached::DetachedWindows,
+    folder_actions,
     folder_pane::{self, FolderPaneRendering, FolderPaneSelection},
+    folder_pane_edit,
     invitation::ReplyPromptDialog,
     mail_actions::{self, PermanentDeleteDialog},
     mail_toolbar::MailToolbar,
@@ -57,6 +59,7 @@ pub(crate) struct AppWidgets {
     detached: DetachedWindows,
     connectivity: ConnectivityBanners,
     notice: adw::Banner,
+    folder_notice: adw::Banner,
     sync_strip: gtk::Box,
     sync_bar_row: gtk::Box,
     sync_progress: gtk::ProgressBar,
@@ -107,7 +110,8 @@ impl AppWidgets {
         sidebar_scroll.set_min_content_width(folder_pane::width::MIN);
         sidebar_scroll.set_child(Some(&sidebar));
         let destinations = DestinationBar::new(&sender);
-        let sidebar_toolbar = sidebar_pane(&sender, &sidebar_scroll, &destinations);
+        let folder_notice = folder_pane_edit::notice_banner(&sender);
+        let sidebar_toolbar = sidebar_pane(&sender, &sidebar_scroll, &destinations, &folder_notice);
 
         let messages = gtk::ListBox::new();
         // Multiple, so a selection is the platform's own selected state rather than a colour we
@@ -252,6 +256,7 @@ impl AppWidgets {
             detached,
             connectivity,
             notice,
+            folder_notice,
             sync_strip,
             sync_bar_row,
             sync_progress,
@@ -311,6 +316,7 @@ impl AppWidgets {
                 &self.sidebar,
                 &model.snapshot,
                 &model.connectivity.unreachable_accounts,
+                &folder_actions::name_check(model.app.clone()),
                 &self.sender,
             );
             self.rendered_pane = Some(pane);
@@ -394,6 +400,7 @@ impl AppWidgets {
         self.notice
             .set_title(model.notice.as_deref().unwrap_or_default());
         self.notice.set_revealed(model.notice.is_some());
+        folder_pane_edit::render_notice(&self.folder_notice, model.snapshot.folder_notice.as_ref());
         self.connectivity.render(&model.connectivity, model.primary);
         if let Some(bar) = &model.sync_bar {
             self.sync_caption.set_text(&bar.caption);

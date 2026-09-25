@@ -120,6 +120,7 @@ fn all_inboxes_sums_every_accounts_inbox_and_nothing_else() {
     let account_folders = vec![
         AccountFolderRow {
             account_id: "work".to_owned(),
+            manages_folders: false,
             folders: sorted_folder_rows(&[
                 counted("INBOX", "Inbox", MailboxRole::Inbox, 545),
                 counted("Junk", "Junk", MailboxRole::Junk, 72),
@@ -127,6 +128,7 @@ fn all_inboxes_sums_every_accounts_inbox_and_nothing_else() {
         },
         AccountFolderRow {
             account_id: "home".to_owned(),
+            manages_folders: false,
             folders: sorted_folder_rows(&[
                 counted("INBOX", "Inbox", MailboxRole::Inbox, 3),
                 counted("Archive", "Archive", MailboxRole::Archive, 900),
@@ -135,6 +137,7 @@ fn all_inboxes_sums_every_accounts_inbox_and_nothing_else() {
         // An account whose provider reports no counts at all contributes nothing.
         AccountFolderRow {
             account_id: "gmail".to_owned(),
+            manages_folders: false,
             folders: sorted_folder_rows(&[roled("INBOX", "Inbox", MailboxRole::Inbox)]),
         },
     ];
@@ -159,10 +162,12 @@ fn the_folder_tree_is_carried_in_every_view_including_one_accounts_own() {
     let account_folders = vec![
         AccountFolderRow {
             account_id: "work".to_owned(),
+            manages_folders: false,
             folders: sorted_folder_rows(&[counted("INBOX", "Inbox", MailboxRole::Inbox, 2)]),
         },
         AccountFolderRow {
             account_id: "home".to_owned(),
+            manages_folders: false,
             folders: sorted_folder_rows(&[counted("INBOX", "Inbox", MailboxRole::Inbox, 1)]),
         },
     ];

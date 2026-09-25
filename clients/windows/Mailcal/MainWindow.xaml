@@ -239,6 +239,8 @@
             MenuItemsSource="{x:Bind SidebarItems}"
             FooterMenuItemsSource="{x:Bind FooterItems}"
             ContextRequested="OnNavContextRequested"
+            DragOver="OnNavDragOver"
+            Drop="OnNavDrop"
             ItemInvoked="OnNavItemInvoked">
 
             <!-- Declared per view rather than once in App.xaml: App.xaml is compiled in the
@@ -288,12 +290,25 @@
                                  mail promises a tree that is not there. IsExpanded is TwoWay for
                                  the reason the account template's is, the chevron the user clicks
                                  writes back and reaches the core, which persists it. -->
+                            <!-- A folder change the server has not confirmed draws dimmed, says so
+                                 on hover and to a screen reader, and offers nothing until it clears
+                                 (docs/folder-pane.md, rule 27). A folder the core lets move can be
+                                 dragged onto a folder or its account's row; AllowDrop is what lets
+                                 the NavigationView's own DragOver and Drop see a drag over this row
+                                 (MainWindow.Folders.cs decides what lands). -->
                             <NavigationViewItem
                                 Tag="{Binding Tag}"
                                 SelectsOnInvoked="{Binding SelectsOnInvoked}"
                                 IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
                                 MenuItemsSource="{Binding Children}"
+                                Opacity="{Binding RowOpacity}"
+                                ToolTipService.ToolTip="{Binding PendingTip}"
+                                CanDrag="{Binding Editable}"
+                                AllowDrop="True"
+                                DragStarting="OnSidebarDragStarting"
+                                DropCompleted="OnSidebarDropCompleted"
                                 AutomationProperties.Name="{Binding Content}"
+                                AutomationProperties.HelpText="{Binding PendingLabel}"
                                 AutomationProperties.AutomationId="{Binding AutomationId}">
                                 <NavigationViewItem.Icon>
                                     <FontIcon Glyph="{Binding Glyph}" />
@@ -340,11 +355,14 @@
                                  address can always outrun whatever width the user picked, and a
                                  row reading "eva.jansen@example.c…" is exactly when they need to
                                  know which account it is. -->
+                            <!-- AllowDrop: a folder dropped on its account's row moves to the top
+                                 of the tree (docs/folder-pane.md, rule 24). -->
                             <NavigationViewItem
                                 Content="{Binding Content}"
                                 Tag="{Binding Tag}"
                                 ToolTipService.ToolTip="{Binding Content}"
                                 IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                AllowDrop="True"
                                 MenuItemsSource="{Binding Children}">
                                 <NavigationViewItem.Icon>
                                     <FontIcon Glyph="{Binding Glyph}" />
@@ -362,8 +380,9 @@
                                 </NavigationViewItem.InfoBadge>
                                 <!-- No ContextFlyout here: a NavigationViewItem declared in an item
                                      template never receives the right-click, so one set here opens
-                                     for nobody. "Remove account" is raised from the NavigationView's
-                                     own ContextRequested instead, MainWindow.Sidebar.cs. -->
+                                     for nobody. The row's menu (New folder, Remove account) is
+                                     raised from the NavigationView's own ContextRequested instead,
+                                     MainWindow.Sidebar.cs. -->
                             </NavigationViewItem>
                         </DataTemplate>
                     </views:SidebarItemTemplateSelector.Account>
@@ -408,6 +427,19 @@
                      is a Window, the generated code fails to compile, naming a line in
                      MainWindow.g.cs. An x:Bind FUNCTION has no such constraint. -->
                 <StackPanel Grid.Row="0" x:Name="ContentBanners">
+                    <!-- A folder change the server refused (docs/folder-pane.md, rule 28). Closable,
+                         unlike the bars below: the user dismissing it is the core's other edge, and
+                         the close tells the core. A later change replaces it. -->
+                    <InfoBar
+                        Margin="12,12,12,0"
+                        AutomationProperties.AutomationId="FolderNotice"
+                        IsOpen="{x:Bind Model.HasFolderNotice, Mode=OneWay}"
+                        Visibility="{x:Bind Shown(Model.HasFolderNotice), Mode=OneWay}"
+                        IsClosable="True"
+                        CloseButtonClick="OnDismissFolderNotice"
+                        Severity="Warning"
+                        Message="{x:Bind Model.FolderNoticeText, Mode=OneWay}" />
+
                     <!-- The device has no network: the mail on screen is the last-synced copy.
                          Non-closable, it clears itself when connectivity returns and the core
                          auto-refreshes. -->
