@@ -102,7 +102,7 @@ public sealed class EventDetailDialog : ContentDialog
         }
         if (!string.IsNullOrWhiteSpace(_detail.Notes))
         {
-            panel.Children.Add(DetailRow(L10n.EventNotes(), _detail.Notes!));
+            panel.Children.Add(DetailRow(L10n.EventNotes(), _detail.Notes!, linked: true));
         }
         panel.Children.Add(DetailRow(L10n.EventReminder(), CalendarEventText.Reminder(_detail.ReminderMinutes)));
         panel.Children.Add(DetailRow(
@@ -178,10 +178,19 @@ public sealed class EventDetailDialog : ContentDialog
     }
 
     // `automationId` names the VALUE, not the row: a label is localised, so a test that finds this
-    // row by its caption passes or fails by the language the developer's machine is in.
-    private static StackPanel DetailRow(string label, string value, string? automationId = null)
+    // row by its caption passes or fails by the language the developer's machine is in. `linked`
+    // makes the value's web and mail addresses clickable, for sender text such as the notes.
+    private static StackPanel DetailRow(string label, string value, string? automationId = null, bool linked = false)
     {
-        var text = new TextBlock { Text = value, TextWrapping = TextWrapping.Wrap };
+        var text = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        if (linked)
+        {
+            LinkedTextBlock.Fill(text, value);
+        }
+        else
+        {
+            text.Text = value;
+        }
         if (automationId is not null)
         {
             AutomationProperties.SetAutomationId(text, automationId);

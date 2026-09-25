@@ -402,6 +402,11 @@ pub(super) fn editor_labels() -> serde_json::Value {
         "deleteRow": l10n::editor_delete_row(),
         "deleteColumn": l10n::editor_delete_column(),
         "deleteTable": l10n::editor_delete_table(),
+        "link": l10n::editor_link(),
+        "linkText": l10n::editor_link_text(),
+        "linkAddress": l10n::editor_link_address(),
+        "linkApply": l10n::editor_link_apply(),
+        "linkRemove": l10n::editor_link_remove(),
     })
 }
 

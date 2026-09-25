@@ -430,6 +430,7 @@ fn rich_document(
                     font_size: None,
                     color: None,
                     highlight: None,
+                    link: None,
                 }),
                 InlineContent::Image(InlineImage {
                     attachment_id: inline_id.clone(),

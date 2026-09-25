@@ -36,6 +36,11 @@ export interface Labels {
   deleteRow: string;
   deleteColumn: string;
   deleteTable: string;
+  link: string;
+  linkText: string;
+  linkAddress: string;
+  linkApply: string;
+  linkRemove: string;
 }
 
 export const DEFAULT_LABELS: Labels = {
@@ -65,6 +70,11 @@ export const DEFAULT_LABELS: Labels = {
   deleteRow: "Delete row",
   deleteColumn: "Delete column",
   deleteTable: "Delete table",
+  link: "Link",
+  linkText: "Text to display",
+  linkAddress: "Address",
+  linkApply: "Apply",
+  linkRemove: "Remove link",
 };
 
 /// Merges a host's (possibly partial, possibly JSON-encoded) label set over the defaults, dropping

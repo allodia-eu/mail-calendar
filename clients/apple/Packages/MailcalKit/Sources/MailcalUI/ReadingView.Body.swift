@@ -134,9 +134,10 @@ extension ReadingView {
     /// already holds it and the header above it, and a scroll of its own on macOS.
     @ViewBuilder
     private func plainBody(_ plain: String) -> some View {
-        let text = Text(plain)
+        let text = Text(LinkedText.attributed(linkingIn: plain))
             .font(.body)
             .textSelection(.enabled)
+            .gatedLinkOpening()
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(readingInset)
         #if os(iOS)

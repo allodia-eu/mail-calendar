@@ -19,8 +19,8 @@ The editor runtime is bundled with the app and loaded from app assets:
 - No runtime package downloads.
 - No network access from the composer document.
 - The editor schema is the product schema: bold, italic, underline, constrained font sizes, **text
-  and highlight colour**, bullets **nested to any depth**, tables, inline images, and regular
-  attachments. Unsupported pasted constructs are dropped or normalised before they enter the shared
+  and highlight colour**, **links** (Gate 16), bullets **nested to any depth**, tables, inline
+  images, and regular attachments. Unsupported pasted constructs are dropped or normalised before they enter the shared
   document.
 - **Colour is `#rrggbb` and nothing else.** The editor normalises what the DOM hands it (engines
   disagree: `#rgb`, `rgb()`, a legacy `<font color>`) and `mailcal_composer::TextColor` re-validates
@@ -281,6 +281,24 @@ port:
       with a reason, because one the user watched disappear from a share sheet is one they will
       assume was attached.
     - **Neither the files nor the text is logged.** Names are the user's own; counts only (Gate 8).
+16. **A link in the body points only where a link in a read message may.** A run's `link` is one
+    of `mailcal_composer::LINK_SCHEMES` (`http`, `https`, `mailto`), the list the reading view's
+    sanitiser and `should_open_external_link` use, so nothing can be sent that our own reader would
+    refuse to open. It is made in the shared bundle and nowhere else:
+    - **The link editor** (the toolbar's Link button, or Ctrl/Cmd+K) takes the words and the
+      address. An address without a scheme becomes `https://`, an email address `mailto:`, and any
+      other scheme is refused in the field. Its selection is saved before the fields take focus and
+      restored before anything is applied.
+    - **An address typed into the body** becomes a link when the word ends with Space or Enter:
+      only the word ending at the caret, only `http://`, `https://`, `mailto:` or a `www.` host,
+      the prefixes the reading view's linkifier recognises, with the sentence's punctuation left
+      outside.
+    - **Rust holds it on submit.** `LinkUrl` re-checks every target (scheme, no whitespace or
+      control character, 2048 bytes at most) and escapes it into the `href`. A target it refuses is
+      dropped and the words are sent as text, the same leniency a colour gets. The plain-text part
+      carries a link as `words <address>`, written once when the words are the address.
+    - **The composer never opens a link.** Gate 4 is unchanged: a click in the editor places the
+      caret, and a link is edited through the link editor or copied through the menu (Gate 14).
 
 ## Per-platform implementation matrix
 
@@ -307,6 +325,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | No arbitrary file/content access | file picking via native panel/picker only; no web file URLs; Rust reads selected paths on submit | `allowFileAccess = false`, `allowContentAccess = false`; native picker stages content to app cache; Rust reads staged paths on submit | no arbitrary file access; native picker only; Rust reads selected paths on submit | file/universal access disabled; native `GtkFileDialog` paths are passed to Rust only on submit |
 | Paste/import sanitisation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | shared editor paste rules plus Rust validation |
 | Pasted picture → inline `cid:` | shared bundle (`imageFilesFrom` + `insertCapturedImage`) | (same: shared bundle) | (same: shared bundle) | shared bundle **plus a host clipboard read**: this WebView hands the page no files at all, so `composer_paste` takes the chord and the context menu's Paste, sniffs the bytes through the core and feeds the same seam a drop does |
+| Links made in the bundle, target re-checked in Rust (Gate 16) | shared bundle (`links.ts`, `link_menu.ts`) plus `mailcal_composer::LinkUrl` on submit | (same: shared bundle and core) | (same: shared bundle and core) | (same: shared bundle and core) |
 | Picture resized by dragging a corner | shared bundle (`installImageResize`), Pointer Events for mouse, trackpad, pen and finger alike | (same: shared bundle) | (same: shared bundle) | (same: shared bundle) |
 | Dropped file → native attachment | `ComposerDropModifier` for the chrome **plus** a drop target on `EditorWebView` for the editor itself, both calling one handler: SwiftUI hit-tests its own tree, so a representable's rectangle is a hole in it and the chrome alone would take drops. `NSDraggingDestination` on macOS; `UIDropInteraction` on iPhone/iPad, which also **stages** each item to a file, a drop there carrying an `NSItemProvider` and never a path | Compose `dragAndDropTarget` + `requestDragAndDropPermissions`, staged to the app cache | `AllowDrop` on the composer grid, `StorageItems` from the data package | `GtkDropTarget` on the composer content, **capture** phase (the WebView installs one of its own) |
 | Dropped picture asks show-or-attach | `confirmationDialog` | Material `AlertDialog` | `ContentDialog` (three answers) | `AdwAlertDialog`; a **pasted** picture is not asked about, because a paste is aimed at the caret and has already answered (Gate 13) |
@@ -367,6 +386,13 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 - **Pasted text stays plain text.** Formatting from Word, Outlook or a browser is dropped on paste,
   which is the strict reading of Gate 7 rather than an oversight. Mapping pasted HTML onto the closed
   document schema is its own piece of work.
+- **Undo does not take back a link the editor made by itself.** An address becoming a link on
+  Space is a DOM edit, not an engine command, so it is not on the WebView's undo stack; Remove link
+  in the link editor is the way back. The `- ` bullet has the same shape.
+- **A picture inside a link is sent without it.** The document gives a picture no link, so a
+  picture selected along with words and linked sends the words as the link and the picture alone.
+- **A pasted address becomes a link only when a space or Enter follows it.** Pasting over a
+  selection does not turn the selection into a link, as some mail clients do.
 - **Colour cannot be cleared from a partial selection.** "Automatic" / "No highlight" clears the mark
   from every element the selection touches, so selecting half a coloured run clears all of it.
   Removing a mark from part of a run means splitting it, which is what `execCommand` exists to do and

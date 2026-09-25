@@ -157,13 +157,16 @@ impl InvitationCardView {
 
     /// The organiser's notes. Already truncated by the core (Gmail sends a wall of filler), and the
     /// card says so rather than implying the text ends there.
+    ///
+    /// The one field here drawn with markup, because a meeting's join link lives in it: the markup
+    /// is built from escaped runs ([`linked_text`](crate::ui::linked_text)), so the organiser's
+    /// text still reaches the screen as text.
     fn append_description(&self, card: &InvitationCard) {
         if card.description.is_empty() {
             return;
         }
-        let notes = untrusted_label(&card.description);
+        let notes = crate::ui::linked_text::label(&card.description);
         notes.add_css_class("dim-label");
-        notes.set_selectable(true);
         self.body.append(&notes);
         if card.description_truncated {
             self.body

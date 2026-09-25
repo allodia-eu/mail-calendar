@@ -153,6 +153,7 @@ impl ReadingPane {
         plain.set_xalign(0.0);
         plain.set_yalign(0.0);
         plain.set_selectable(true);
+        crate::ui::linked_text::open_through_gate(&plain);
         let plain_scroll = gtk::ScrolledWindow::new();
         plain_scroll.set_child(Some(&plain));
         body_stack.add_named(&plain_scroll, Some("plain"));
@@ -303,7 +304,7 @@ impl ReadingPane {
             }
         } else if let Some(plain) = reading.plain.as_deref() {
             self.remote_banner.set_revealed(false);
-            self.plain.set_text(plain);
+            crate::ui::linked_text::set(&self.plain, plain);
             self.show("plain");
         } else {
             self.remote_banner.set_revealed(false);
@@ -315,7 +316,7 @@ impl ReadingPane {
     fn show_fallback(&self, reading: &ReadingSnapshot) {
         self.remote_banner.set_revealed(false);
         if let Some(plain) = reading.plain.as_deref() {
-            self.plain.set_text(plain);
+            crate::ui::linked_text::set(&self.plain, plain);
             self.show("plain");
         } else {
             self.empty.set_text(l10n::reading_webview_unavailable());
