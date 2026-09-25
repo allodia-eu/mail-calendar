@@ -95,5 +95,15 @@ struct AllodiaApp: App {
         }
         .restorationBehavior(.disabled)
         #endif
+
+        #if DEBUG && os(macOS)
+        // Develop → Compare drafts…, a debug build's bench for drafted replies (docs/ai.md,
+        // "Training mode"). A release build has neither the window nor the core's half of it.
+        Window("Compare drafts", id: TrainingWindow.id) {
+            TrainingWindow(session: session)
+        }
+        .restorationBehavior(.disabled)
+        .commands { TrainingCommands() }
+        #endif
     }
 }

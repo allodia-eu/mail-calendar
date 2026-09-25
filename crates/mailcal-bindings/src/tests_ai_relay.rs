@@ -1,0 +1,169 @@
+//! Which backend AI requests go through in a build that carries the Allodia sign-in: the relay
+//! for a signed-in account entitled to `ai`, an own endpoint over it when one is set up, and
+//! nothing once nobody is signed in. The entitlement answer is written into the preferences before
+//! launch, as a previous launch would have left it, so nothing here reaches the service.
+
+use std::{
+    collections::BTreeSet,
+    sync::{Arc, mpsc},
+};
+
+use allodia_license::{Answer, Capability, Entitlement, Stored};
+
+use crate::{
+    AiRoute, JurisdictionClass, LogLevel, MailcalApp,
+    tests::{ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle},
+};
+
+const GRANT: &str = "[allodia]\nemail = \"sam@example.eu\"\nrefresh_token = \"refresh\"\ngranted_scopes = [\"mailcal:entitlement:read\", \"mailcal:ai:use\"]\n";
+
+/// A launch after one that learned the account's entitlement, fresh enough not to ask again.
+fn boot(name: &str, capabilities: &[Capability]) -> (Arc<MailcalApp>, std::path::PathBuf) {
+    boot_after(name, capabilities, |_| {})
+}
+
+/// [`boot`], with `left` writing what the earlier launch left in the data directory.
+fn boot_after(
+    name: &str,
+    capabilities: &[Capability],
+    left: impl FnOnce(&std::path::Path),
+) -> (Arc<MailcalApp>, std::path::PathBuf) {
+    let data_dir = crate::tests::temp_data_dir(name);
+    std::fs::create_dir_all(&data_dir).unwrap();
+    left(&data_dir);
+    let stored = Stored {
+        answer: Answer {
+            entitlement: Entitlement {
+                plan: "personal".to_owned(),
+                capabilities: capabilities.iter().cloned().collect::<BTreeSet<_>>(),
+                payment_status: None,
+                current_period_end: None,
+            },
+            refresh_after_seconds: 86_400,
+        },
+        fetched_at: time::OffsetDateTime::now_utc().unix_timestamp(),
+    };
+    let mut prefs = mailcal_account::Preferences::default();
+    prefs.ai.entitlement_answer = Some(serde_json::to_string(&stored).unwrap());
+    mailcal_account::save_preferences(mailcal_account::preferences_path(&data_dir), &prefs)
+        .unwrap();
+
+    let (tx, _rx) = mpsc::channel();
+    let app = MailcalApp::new_accounts(
+        Box::new(ChannelObserver { tx }),
+        Box::new(NullLogger),
+        LogLevel::Info,
+        vec![GRANT.to_owned()],
+        data_dir.to_string_lossy().into_owned(),
+        "Etc/UTC".to_owned(),
+        crate::analytics::test_device(),
+        Box::new(RecordingStoreHandle(Arc::new(
+            RecordingCredentialStore::default(),
+        ))),
+    )
+    .expect("an app with no mail accounts boots");
+    (app, data_dir)
+}
+
+#[test]
+fn a_signed_in_account_entitled_to_ai_goes_through_the_relay() {
+    let (app, data_dir) = boot(
+        "relay-entitled",
+        &[Capability::AccountsSync, Capability::Ai],
+    );
+    assert!(app.ai_available());
+    assert_eq!(app.writing_styles().route, Some(AiRoute::Relay));
+    // The relay is EU-native by construction, so the strictest mode admits it.
+    assert!(app.writing_styles().refused.is_none());
+    let _ = std::fs::remove_dir_all(data_dir);
+}
+
+/// In a production build the entitlement is what offers writing style at all, the own endpoint
+/// included.
+#[test]
+fn a_production_build_offers_writing_style_to_an_account_entitled_to_ai() {
+    let (entitled, entitled_dir) = boot("relay-production", &[Capability::Ai]);
+    entitled.as_production_build();
+    assert!(entitled.writing_styles().offered);
+    assert_eq!(entitled.writing_styles().route, Some(AiRoute::Relay));
+    entitled
+        .set_own_ai_endpoint(
+            "http://localhost:11434/v1".to_owned(),
+            "mistral-small".to_owned(),
+            Some(JurisdictionClass::EuNative),
+            None,
+        )
+        .unwrap();
+    assert_eq!(entitled.writing_styles().route, Some(AiRoute::OwnEndpoint));
+
+    let (other, other_dir) = boot("relay-production-other", &[Capability::AccountsSync]);
+    other.as_production_build();
+    assert!(!other.writing_styles().offered);
+    let _ = std::fs::remove_dir_all(entitled_dir);
+    let _ = std::fs::remove_dir_all(other_dir);
+}
+
+#[test]
+fn a_plan_without_ai_offers_nothing() {
+    let (app, data_dir) = boot("relay-not-entitled", &[Capability::AccountsSync]);
+    assert!(!app.ai_available());
+    assert!(app.writing_styles().route.is_none());
+    let _ = std::fs::remove_dir_all(data_dir);
+}
+
+#[test]
+fn an_own_endpoint_wins_over_the_relay_and_signing_out_leaves_only_it() {
+    let (app, data_dir) = boot("relay-and-own", &[Capability::Ai]);
+    app.set_own_ai_endpoint(
+        "http://localhost:11434/v1".to_owned(),
+        "mistral-small".to_owned(),
+        Some(JurisdictionClass::EuNative),
+        None,
+    )
+    .unwrap();
+    assert_eq!(app.writing_styles().route, Some(AiRoute::OwnEndpoint));
+
+    app.clear_own_ai_endpoint().unwrap();
+    assert_eq!(app.writing_styles().route, Some(AiRoute::Relay));
+
+    app.sign_out_of_allodia().unwrap();
+    assert!(app.writing_styles().route.is_none());
+    // What the account was entitled to left with it.
+    let prefs = mailcal_account::load_preferences(mailcal_account::preferences_path(&data_dir));
+    assert!(prefs.ai.entitlement_answer.is_none());
+    let _ = std::fs::remove_dir_all(data_dir);
+}
+
+#[test]
+fn feedback_is_offered_while_signed_in_and_what_waits_goes_at_sign_out() {
+    let (app, data_dir) = boot_after("feedback-sign-out", &[Capability::Ai], |dir| {
+        let mut outbox = mailcal_account::AiFeedbackOutbox::default();
+        outbox.push(mailcal_account::AiFeedbackItem {
+            id: "f1".to_owned(),
+            created_at: 1,
+            with_content: true,
+            body: "{}".to_owned(),
+        });
+        mailcal_account::save_ai_feedback_outbox(
+            mailcal_account::ai_feedback_outbox_path(dir),
+            &outbox,
+        )
+        .unwrap();
+    });
+    assert!(app.ai_feedback_available());
+    assert_eq!(app.app.ai_feedback_waiting().len(), 1);
+    // A draft this session never issued is not rated.
+    let up = crate::DraftRating {
+        verdict: crate::DraftVerdict::Up,
+        reasons: Vec::new(),
+        comment: String::new(),
+    };
+    assert!(!app.rate_draft("unknown".to_owned(), up.clone(), false));
+
+    app.sign_out_of_allodia().unwrap();
+    assert!(!app.ai_feedback_available());
+    assert!(!app.rate_draft("unknown".to_owned(), up, false));
+    assert!(app.app.ai_feedback_waiting().is_empty());
+    assert!(!mailcal_account::ai_feedback_outbox_path(&data_dir).exists());
+    let _ = std::fs::remove_dir_all(data_dir);
+}

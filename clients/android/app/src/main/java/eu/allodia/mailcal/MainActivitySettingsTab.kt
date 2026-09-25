@@ -84,6 +84,8 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onSetAccountSignature = { account, slot, signature ->
                                 instance.setAccountSignature(account, slot, signature)
                             },
+                            // Writing style, and the own AI endpoint under Advanced.
+                            writingStyle = writingStyleSettings(instance),
                             // Privacy, withdraw (or belatedly give) the usage-statistics consent.
                             // Echoed locally on write: the core raises no Settings surface for it,
                             // so the switch would otherwise snap back until the next launch.

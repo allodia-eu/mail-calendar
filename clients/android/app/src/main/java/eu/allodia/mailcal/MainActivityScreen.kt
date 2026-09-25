@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
@@ -22,8 +23,14 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
             AppTheme(appearance = appearance) {
               // Mail and calendar render times through the same ambient setting, so the app can
               // never disagree with itself about whether it is 14:05 or 2:05 PM.
+              // Every composer that can answer a message reads whether it may draft the answer.
+              val route = writingStyle.snapshot?.route
+              val drafting = remember(app, route) {
+                  app?.let { core -> route?.let { replyDrafting(core, it, this) } }
+              }
               androidx.compose.runtime.CompositionLocalProvider(
                   LocalUse24Hour provides (displaySettings.timeFormat == TimeFormat.TWENTY_FOUR_HOUR),
+                  LocalReplyDrafting provides drafting,
               ) {
                 // Ask for notification permission (Android 13+) only once at least one account
                 // exists, a returning user is asked on this launch, a first-time user right after

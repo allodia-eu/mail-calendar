@@ -345,6 +345,9 @@ fn sign_in_asks_for_a_refresh_token_and_for_nothing_that_reaches_mail() {
             "mailcal:accounts:write",
             "mailcal:subscription:read",
             "mailcal:subscription:write",
+            "mailcal:ai:use",
+            "mailcal:writing-styles:read",
+            "mailcal:writing-styles:write",
         ]
     );
     assert!(crate::SCOPES.contains(&"offline_access"));
@@ -363,13 +366,15 @@ fn sign_in_asks_for_a_refresh_token_and_for_nothing_that_reaches_mail() {
     // a scope. It is not: what it permits is naming a purchase **a store made**, which the service
     // then reads back from that store before it grants anything, and starting a checkout the
     // service prices. The device asserts no plan and names no account, so the enforcement point
-    // stays where entitlement.md puts it.
+    // stays where entitlement.md puts it. `mailcal:writing-styles:write` is the account list's kind
+    // of write: the person's own style guide from their own devices, which grants nothing.
     assert!(
         crate::SCOPES
             .iter()
             .filter(|scope| scope.contains("write"))
             .all(|scope| *scope == "mailcal:accounts:write"
-                || *scope == "mailcal:subscription:write"),
+                || *scope == "mailcal:subscription:write"
+                || *scope == "mailcal:writing-styles:write"),
         "a new write scope needs deciding against the rule above, not adding beside it"
     );
     // Nothing here reaches mail. An Allodia account and a mail account are different things, and a

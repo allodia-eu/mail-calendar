@@ -121,6 +121,13 @@ final class MailboxModel {
     /// The **pane's** open message: its fetched, sanitised body (pulled on a `Surface::Reading`
     /// signal). `nil` until a message is opened.
     var reading: ReadingSnapshot?
+    #if DEBUG && os(macOS)
+    /// The message the pane last opened, which the training window answers when no row is
+    /// selected.
+    var trainingMessage: TrainingMessage?
+    /// The rows selected in the list, which the training window answers.
+    var trainingSelection: [TrainingMessage] = []
+    #endif
     /// Every detached reading window, keyed by its core reader id (`docs/reading-window.md`).
     ///
     /// One entry per open window, so this is also the list of them: the registry the main window
@@ -170,6 +177,10 @@ final class MailboxModel {
     /// of logos never crosses the FFI just to draw a list of names. Drives the Signatures
     /// settings screen and the composer's override picker.
     var signatures = SignaturesSnapshot(signatures: [], accounts: [])
+    /// Where AI requests go, the learned styles, each account's style, a run in progress and the
+    /// relay's balance (pulled on a `Surface::WritingStyle` signal). `route == nil` means no
+    /// Writing style category and no Draft a reply (docs/ai.md).
+    var writingStyles = MailboxModel.noWritingStyles
     /// The account whose "your name" step is open, or `nil` when none is.
     ///
     /// Set by `accountWasAdded`, the one hook every add route ends at, so the step follows a
@@ -364,7 +375,7 @@ final class MailboxModel {
         // launch by an empty inbox and no way back to setup, the sign-in having, from where they
         // sit, thrown the app into a state they did not ask for. The core routes the entry out
         // before anything reads it as a mailbox; this asks it the same question.
-        needsSetup = configs.allSatisfy { isAllodiaAccountConfig(config: $0) }
+        needsSetup = configs.allSatisfy { isReservedConfig(config: $0) }
         connect(configs)
     }
 

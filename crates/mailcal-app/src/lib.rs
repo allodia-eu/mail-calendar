@@ -123,6 +123,7 @@ mod unfiled_copy;
 mod view_settings;
 mod view_snapshots;
 mod window;
+mod writing_style;
 mod zones;
 
 pub use accounts::Account;
@@ -176,6 +177,10 @@ use tuning::{
 };
 pub use unfiled_copy::UnfiledCopy;
 use view_settings::load_view_mode;
+pub use writing_style::{
+    DraftReply, LearnFailure, LearnRange, LearnReport, ReplyDraftRequest, SyncableStyle,
+    WritingStyleError,
+};
 pub use zones::available_time_zones;
 
 /// The app runtime: owns one [`Engine`] shared across every configured
@@ -280,6 +285,8 @@ pub struct App<P> {
     /// binding layer reads it to (re)configure the server. Off with nothing exposed by default;
     /// see [`mcp_settings`](crate::mcp_settings) for why those two defaults are the design.
     mcp_settings: Mutex<McpSettingsState>,
+    /// The writing-style library, the gated AI backend and a learning run ([`writing_style`]).
+    writing_style: Box<writing_style::WritingStyleState>,
     /// The persisted per-account new-mail high-water-marks driving background-sync
     /// notifications ([`background_sync`](crate::background_sync)): the newest inbound-Inbox
     /// instant already reported per account, so a background pass notifies only newer mail.

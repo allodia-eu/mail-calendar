@@ -25,16 +25,27 @@ mod allodia_health;
 #[cfg(feature = "allodia-license")]
 mod allodia_pass;
 mod allodia_purchase;
+#[cfg(feature = "allodia-license")]
+mod allodia_style_pass;
 mod allodia_subscription;
 mod allodia_sync;
 #[cfg(feature = "allodia-license")]
 mod allodia_tokens;
 #[cfg(feature = "allodia-license")]
 mod allodia_transport;
+// The person's own AI endpoint: its key in the secure store, and which backend AI goes through.
+mod ai_endpoint;
+#[cfg(feature = "allodia-license")]
+mod ai_feedback_pass;
+mod ai_offer;
+#[cfg(feature = "allodia-license")]
+mod ai_relay;
+mod ai_transport;
 mod analytics;
 mod app_accounts;
 mod app_accounts_google;
 mod app_accounts_microsoft;
+mod app_ai_feedback;
 mod app_allodia;
 mod app_allodia_purchase;
 mod app_allodia_subscription;
@@ -47,9 +58,17 @@ mod app_sender_name;
 mod app_settings;
 mod app_signatures;
 mod app_snapshots;
+// Comparing drafts across models and instructions; compiled out of a release build, records and
+// all.
+#[cfg(debug_assertions)]
+mod app_training;
+#[cfg(debug_assertions)]
+mod app_training_run;
+mod app_writing_styles;
 mod autodetect;
 mod background;
 mod background_sync;
+mod blocking;
 mod boot;
 mod composer;
 mod composer_files;
@@ -61,6 +80,7 @@ mod convert;
 mod convert_mailbox;
 mod convert_reading;
 mod convert_settings;
+mod convert_writing_style;
 mod crash;
 mod credential_log;
 pub mod credential_store;
@@ -91,9 +111,11 @@ mod records_folders;
 mod records_outbox;
 pub mod sync_state;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
+mod records_ai_feedback;
 mod records_invitation;
 mod records_recurrence;
 mod records_repeat_summary;
+mod records_writing_style;
 mod rendering;
 mod repeat_editor;
 mod runtime;
@@ -109,9 +131,8 @@ mod token_sink;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use agent_ui::{AgentDraft, AgentHostUi};
-pub use allodia::{
-    AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,
-};
+pub use ai_endpoint::{OwnAiEndpoint, OwnEndpointError, is_reserved_config};
+pub use allodia::{AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available};
 pub use allodia_health::AllodiaGrantHealth;
 pub use allodia_purchase::{
     AllodiaOffer, AllodiaPlan, AllodiaPurchaseError, AllodiaPurchaseReport, AllodiaStore,
@@ -124,12 +145,18 @@ pub use allodia_subscription::{
 };
 pub use allodia_sync::{
     AllodiaAccountChange, AllodiaAccountKind, AllodiaAccountOffer, AllodiaAccountSyncMode,
-    AllodiaSyncReport, setup_from_offer,
+    AllodiaStyleConflict, AllodiaSyncReport, setup_from_offer,
 };
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
 pub use app_display::stored_appearance;
 pub use app_month::calendar_palette;
 pub use app_sender_name::sender_label;
+#[cfg(debug_assertions)]
+pub use app_training::{TrainingResult, TrainingVariant};
+#[cfg(debug_assertions)]
+pub use app_training_run::{
+    TrainingFailureCount, TrainingMessage, TrainingMessageResults, TrainingSummary,
+};
 pub use autodetect::{
     DetectedServerRow, DnsError, MissReason, MxRecord, MxResolution, MxResolver,
     SetupRecommendation, SrvRecord, SrvResolution,
@@ -168,6 +195,7 @@ pub use records::{
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
 };
+pub use records_ai_feedback::{DraftRating, DraftRatingReason, DraftVerdict, TokenUsage};
 pub use records_avatar::Avatar;
 pub use records_calendar::{
     AllDayBand, Appearance, CalendarColor, CalendarLayout, CalendarPage, CalendarRow,
@@ -191,6 +219,12 @@ pub use records_recurrence::{
     RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
+pub use records_writing_style::{
+    AccountWritingStyleRow, AiCharge, AiRoute, CorpusLanguage, CorpusReport, CreditBalance,
+    DraftReply, DraftTask, DraftTaskKind, GateRefusal, HabitFrequency, HabitRow, JurisdictionClass,
+    JurisdictionMode, LanguageStyleRow, LearnReport, LearningProgress, LearningStage,
+    WritingStyleDetail, WritingStyleFailure, WritingStyleRow, WritingStyleSnapshot,
+};
 pub use rendering::{
     MessageCanvas, message_canvas, render_message_html, should_open_external_link,
 };
@@ -288,6 +322,18 @@ pub struct MailcalApp {
     /// What it holds is the grant that lets the app ask Allodia's own service what this person is
     /// entitled to: so it sits beside the account list rather than in it. See [`crate::allodia`].
     allodia: Mutex<Option<allodia::StoredAccount>>,
+    /// The own AI endpoint's key, restored from the host's store at boot ([`crate::ai_endpoint`]).
+    ai_key: Mutex<Option<String>>,
+    /// Whether this is a development build, which offers writing style without an entitlement
+    /// ([`crate::ai_offer`]). Only a test of the production gate turns it off.
+    development_build: std::sync::atomic::AtomicBool,
+    /// This app, weakly: what a callback the core holds (the relay's token source) reaches back
+    /// through without keeping the app alive.
+    #[cfg_attr(
+        not(feature = "allodia-license"),
+        expect(dead_code, reason = "only the relay reaches back")
+    )]
+    this: std::sync::Weak<MailcalApp>,
     /// The host's OS-secure-store writer, supplied **at construction** and shared with the token
     /// sink so a rotated refresh token is re-persisted. One store serves all three OAuth
     /// families; it can never be absent, which is the point; see
@@ -414,3 +460,9 @@ mod tests_calendar;
 
 #[cfg(test)]
 mod tests_setup;
+
+#[cfg(test)]
+mod tests_ai_endpoint;
+
+#[cfg(all(test, feature = "allodia-license"))]
+mod tests_ai_relay;

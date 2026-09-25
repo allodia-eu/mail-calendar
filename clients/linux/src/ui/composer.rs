@@ -20,10 +20,10 @@ use super::{
         show_in_message,
     },
     composer_draft::{DraftGuard, HeaderValues},
+    composer_draft_reply::DraftReplyControl,
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
-    composer_model::{
-        ComposeContext, ComposeKind, ComposerSubmission, PickedFile, plain_text_seed_script,
-    },
+    composer_model::{ComposeContext, ComposeKind, plain_text_seed_script},
+    composer_send::connect_send,
     composer_signature::SignatureControl,
     editor_paste,
     reader::ComposerHost,
@@ -47,6 +47,8 @@ pub(crate) struct ComposerPane {
     /// The draft's signature control. The pane owns the only strong reference; the editor, the
     /// From picker and the menu action all reach it weakly; so tearing the pane down frees it.
     signature: RefCell<Option<Rc<SignatureControl>>>,
+    /// The Draft a reply control, owned here for the signature control's reason.
+    drafted_reply: RefCell<Option<Rc<DraftReplyControl>>>,
     /// The open draft's unsaved-work guard, and the generation it has already been asked about,
     /// so a re-render cannot ask twice for one navigation.
     draft: RefCell<Option<DraftGuard>>,
@@ -62,6 +64,7 @@ impl ComposerPane {
             send: RefCell::new(None),
             fields: RefCell::new(Vec::new()),
             signature: RefCell::new(None),
+            drafted_reply: RefCell::new(None),
             draft: RefCell::new(None),
             checked_generation: Cell::new(None),
         }
@@ -191,12 +194,28 @@ impl ComposerPane {
         if let Some(control) = &signature {
             actions.append(control.widget());
         }
+        let drafted_reply = DraftReplyControl::new(
+            app,
+            request,
+            accounts,
+            &from,
+            web.widget(),
+            &send_button,
+            &files,
+        );
+        if let Some(control) = &drafted_reply {
+            actions.append(control.widget());
+        }
         let editor_host = gtk::Box::new(gtk::Orientation::Vertical, 0);
         editor_host.set_accessible_role(AccessibleRole::Group);
         editor_host.set_hexpand(true);
         editor_host.set_vexpand(true);
         editor_host.append(web.widget());
         editor_paste::install(&editor_host, web.widget(), paste);
+        // A drafted reply's card, between the buttons and the editor: never part of the mail.
+        if let Some(control) = &drafted_reply {
+            content.append(control.card());
+        }
         // Captured once the seeding script returns, so the guard measures the body against what
         // the quote and signature put there rather than against empty.
         let seed = Rc::new(RefCell::new(None));
@@ -253,11 +272,13 @@ impl ComposerPane {
             files,
             error.clone(),
             sender,
+            drafted_reply.as_ref().map(Rc::downgrade),
         );
         web.load(EDITOR_HTML, false);
         self.error.replace(Some(error));
         self.send.replace(Some(send_button));
         self.signature.replace(signature);
+        self.drafted_reply.replace(drafted_reply);
     }
 
     pub(crate) fn show_error(&self, text: &str) {
@@ -295,6 +316,7 @@ impl ComposerPane {
         // and unparents itself on drop.
         self.fields.take();
         self.signature.take();
+        self.drafted_reply.take();
         self.draft.take();
         self.checked_generation.set(None);
         while let Some(child) = self.root.first_child() {
@@ -304,69 +326,6 @@ impl ComposerPane {
         self.error.replace(None);
         self.send.replace(None);
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn connect_send(
-    button: &gtk::Button,
-    editor: &webkit6::WebView,
-    request: ComposeContext,
-    accounts: Vec<(String, String)>,
-    from: gtk::DropDown,
-    to: Rc<RecipientField>,
-    cc: Rc<RecipientField>,
-    bcc: Rc<RecipientField>,
-    subject: gtk::Entry,
-    files: Rc<RefCell<Vec<PickedFile>>>,
-    error: gtk::Label,
-    sender: relm4::Sender<AppInput>,
-) {
-    let editor = editor.clone();
-    let button_clone = button.clone();
-    button.connect_clicked(move |_| {
-        button_clone.set_sensitive(false);
-        error.set_visible(false);
-        let request = request.clone();
-        let to_value = to.text();
-        let cc_value = cc.text();
-        let bcc_value = bcc.text();
-        let subject_value = subject.text().to_string();
-        let files_value = files.borrow().clone();
-        let selected = from.selected();
-        let from_value = usize::try_from(selected)
-            .ok()
-            .and_then(|index| accounts.get(index))
-            .map(|(id, _)| id.clone());
-        let input_sender = sender.clone();
-        let error = error.clone();
-        let button = button_clone.clone();
-        editor.evaluate_javascript(
-            "composerDocument()",
-            None,
-            None,
-            None::<&gio::Cancellable>,
-            move |result| {
-                if let Ok(value) = result {
-                    input_sender.emit(AppInput::SubmitComposer(Box::new(ComposerSubmission {
-                        request,
-                        to: to_value,
-                        cc: cc_value,
-                        bcc: bcc_value,
-                        subject: subject_value,
-                        document_json: value.to_str().to_string(),
-                        files: files_value,
-                        from: from_value,
-                    })));
-                } else {
-                    // The label is shared with the dropped-picture failure, so re-state which
-                    // failure this is rather than leaving the last message standing.
-                    error.set_text(l10n::compose_prepare_error());
-                    error.set_visible(true);
-                    button.set_sensitive(true);
-                }
-            },
-        );
-    });
 }
 
 /// Every string the shared editor's own chrome draws, in the bundle's key names.

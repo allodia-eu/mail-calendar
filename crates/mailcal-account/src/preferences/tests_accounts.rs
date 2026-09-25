@@ -6,6 +6,7 @@
 //! file loads as), to keep both under the 500-line limit.
 
 use super::*;
+use crate::signatures::{SignatureId, SignatureSlot};
 
 #[test]
 fn an_older_preferences_file_without_signature_assignments_defaults_to_empty() {
@@ -160,4 +161,45 @@ fn removing_an_account_drops_its_aliases() {
     assert!(prefs.remove_account_aliases("me@x.test"));
     assert!(prefs.aliases_of("me@x.test").is_empty());
     assert!(!prefs.remove_account_aliases("me@x.test"));
+}
+
+#[test]
+fn a_writing_style_is_assigned_cleared_and_forgotten_without_dangling() {
+    let mut prefs = Preferences::default();
+    let work = crate::WritingStyleId::new("work").unwrap();
+    let home = crate::WritingStyleId::new("home").unwrap();
+    prefs.set_account_writing_style("a@x.test", Some(work.clone()));
+    prefs.set_account_writing_style("b@x.test", Some(work.clone()));
+    prefs.set_account_writing_style("c@x.test", Some(home.clone()));
+    assert_eq!(prefs.writing_style_of("a@x.test"), Some(&work));
+
+    // Forgetting a style clears it from every account that drafted in it, and only those.
+    assert!(prefs.forget_writing_style(&work));
+    assert!(!prefs.forget_writing_style(&work));
+    assert_eq!(prefs.writing_style_of("a@x.test"), None);
+    assert_eq!(prefs.writing_style_of("c@x.test"), Some(&home));
+
+    prefs.set_account_writing_style("c@x.test", None);
+    assert!(prefs.ai.writing_styles.is_empty());
+}
+
+#[test]
+fn removing_an_account_drops_its_writing_style() {
+    let mut prefs = Preferences::default();
+    prefs.set_account_writing_style("a@x.test", crate::WritingStyleId::new("work"));
+    assert!(prefs.remove_account_writing_style("a@x.test"));
+    assert!(!prefs.remove_account_writing_style("a@x.test"));
+}
+
+/// A file written before the AI preferences existed reads as the strictest mode, no styles and
+/// no endpoint.
+#[test]
+fn an_older_file_has_no_ai_preferences_and_the_strictest_mode() {
+    let prefs: Preferences = toml::from_str("display_timezone = \"Europe/Amsterdam\"").unwrap();
+    assert_eq!(
+        prefs.jurisdiction_mode,
+        mailcal_jurisdiction::Mode::EuNative
+    );
+    assert!(prefs.ai.writing_styles.is_empty());
+    assert!(prefs.ai.endpoint.is_none());
 }

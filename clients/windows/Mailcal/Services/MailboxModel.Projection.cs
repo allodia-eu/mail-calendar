@@ -97,6 +97,13 @@ public sealed partial class MailboxModel
             PullContactWriteStatus();
             return;
         }
+        // A writing-style signal redraws what shows the library, the route or a learning run's
+        // progress, and a run signals once per request; none of it touches mail.
+        if (changed == Surface.WritingStyle)
+        {
+            OnWritingStyleSignal();
+            return;
+        }
         // Time the snapshot pull (the FFI marshalling of every row) separately from the
         // reconcile, so the "render leg" cost is attributable against the core's own timing.
         var reloadSw = System.Diagnostics.Stopwatch.StartNew();

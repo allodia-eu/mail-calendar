@@ -31,3 +31,11 @@ internal fun revealsCcBcc(cc: String, bcc: String): Boolean = cc.isNotBlank() ||
 internal fun composerOpensInBody(mode: RichComposeMode, to: String): Boolean =
     mode != RichComposeMode.New || to.isNotBlank()
 
+// The composer's title: what it is for.
+internal fun composerTitle(ctx: android.content.Context, mode: RichComposeMode): String = when (mode) {
+    RichComposeMode.New -> L10n.compose_title_new(ctx)
+    RichComposeMode.Reply -> L10n.action_reply(ctx)
+    RichComposeMode.ReplyAll -> L10n.action_reply_all(ctx)
+    RichComposeMode.Forward -> L10n.action_forward(ctx)
+}
+

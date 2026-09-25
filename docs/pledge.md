@@ -154,7 +154,7 @@ Every paid service has a free counterpart in the open build, so promise 4 stays 
 | Real-time push on mobile (an Allodia relay wakes the device; the signal is content-free) | Local background sync, always on ([`background-sync.md`](background-sync.md)) |
 | Send-later on providers whose protocol lacks it | JMAP-native `sendAt`; best-effort client-side scheduling |
 | Your settings kept the same on every device (an Allodia vault holds them, and holds only ciphertext) | Every setting on each device, from the full Settings surface; your list of mail accounts on every device, which is on the free list above and stays there |
-| Hosted AI, when it ships (metered per the suite entitlement model) | The local MCP server; the AI posture beyond that is decided when AI lands, within these promises |
+| Writing style and drafted replies through Allodia's relay, metered in credits ([`ai.md`](ai.md)) | The same two features over the person's own OpenAI-compatible endpoint (Settings → Advanced), one on their own computer included; and the local MCP server |
 
 The business tier adds centralized deployment and administration, CRM/ERP integrations, and support
 with prioritised (never guaranteed) feature-request handling.
@@ -192,7 +192,11 @@ A paid service is an external dispatch like any other. Each one follows the patt
 relay established ([`analytics.md`](analytics.md), "Sovereignty scope"): operated by Allodia in the
 EU, destination fixed at build time, and payloads that are content-free or end-to-end encrypted.
 The push relay never sees mail content, the settings vault holds only ciphertext, and platform push
-transports (APNs/FCM) carry nothing readable. Every service passes the `JurisdictionGate` or earns
+transports (APNs/FCM) carry nothing readable. **Hosted AI is the one exception, and it is named
+here rather than left to be discovered**: its payload is the text the person asked it to work on,
+which cannot be encrypted from a model that has to read it. So it passes through the relay to an
+EU-native provider only, behind the jurisdiction gate, and is stored by no Allodia service
+([`ai.md`](ai.md)). Every service passes the `JurisdictionGate` or earns
 its own dated, condition-bounded carve-out. **No hosted service ships before
 [`privacy-policy.md`](privacy-policy.md) describes it**: the current policy promises that no
 Allodia backend holds user content, and that promise is kept by design, not weakened. The policy

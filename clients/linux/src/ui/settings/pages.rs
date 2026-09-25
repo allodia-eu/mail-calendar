@@ -350,6 +350,10 @@ pub(super) fn advanced(ctx: &PageContext) -> gtk::Box {
     if let Some(mcp) = super::mcp::section(ctx) {
         content.append(&mcp);
     }
+    // The own AI endpoint only where writing style is offered (docs/ai.md, "Early access").
+    if ctx.app.writing_styles().offered {
+        content.append(&super::ai_endpoint::section(ctx));
+    }
     content
 }
 

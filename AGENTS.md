@@ -113,9 +113,10 @@ attention, human or agent alike. Write the fact, not the story around it.
 
 - **Sovereignty.** Every external dispatch (AI and model calls, voice, conferencing, connectors)
   must pass an in-process jurisdiction check **before data leaves**: never a perimeter it can route
-  around, never air-gapped-exempt. ⚠️ `JurisdictionGate` is the named seam and **is not yet in
-  code**, so the rule binds design rather than a call site: nothing new may ship a dispatch that
-  would have to route around it. Five carve-outs exist, each stated with the condition that ends it
+  around, never air-gapped-exempt. The gate the docs call `JurisdictionGate` is
+  `crates/mailcal-jurisdiction`, and AI requests are the first dispatch through it: they leave only
+  through a `GatedBackend`, which asks it first ([`docs/ai.md`](docs/ai.md)). Nothing new may ship
+  a dispatch that routes around it. Five carve-outs exist, each stated with the condition that ends it
   in the doc
   that owns it: connecting a mail account
   ([`docs/provider-oauth.md`](docs/provider-oauth.md)), consented analytics
@@ -190,6 +191,7 @@ silent. Two couplings apply to everything user-facing: copy may not out-run the 
 | [`reporting.md`](docs/reporting.md) | Marking spam is a **report to the provider**, not a folder move: the report files the message itself, so a client never moves it as well. Which verdicts exist is read from `Capabilities::mail_report` (Gmail has no phishing verdict), and no client may claim the provider acted unless its evidence is `Acknowledged`. A provider that cannot report still gets the message filed. |
 | [`contacts.md`](docs/contacts.md) | One person = a shared canonical email, **never** a name; a merged row says it is a merge and names the accounts; an edit names one **source card**, never the person, and only a writable book is offered. |
 | [`signatures.md`](docs/signatures.md) | Standalone reusable entities in a named library; two independent slots per account; re-resolved when From changes; sanitised on store *and* submit; `data:` images rewritten to `cid:` on send. |
+| [`ai.md`](docs/ai.md) | Writing style and drafted replies. Nothing is trained: a style is a description plus the person's own passages, learned from their sent mail cut to their own words **on the device**, after a consent sheet that says what goes where. Every request **passes the jurisdiction gate** before anything is read or sent; passages never leave the device except inside a request; a draft goes into the open composer above the signature and the quote, and **the AI path never sends**. |
 | [`timestamps.md`](docs/timestamps.md) | Relative label on the list row, full absolute date in the reading header; formatted client-side because the core is tzdata-free; bucket selection is unit-tested. |
 | [`logging.md`](docs/logging.md) | The shared `Logger` port: a rotating, size-capped, privacy-safe local log. Counts, ids, durations and events only, **never** mail content, addresses or credentials. |
 | [`analytics.md`](docs/analytics.md) | Opt-in, default off, EU-wide; the install id is minted **at consent**; the payload is closed-enum labels so it structurally cannot carry content; withdrawal erases locally and at the backend. |
@@ -505,8 +507,10 @@ were broken right now, would this tell me?*
 - **Localisation is client-side.** The core has no runtime locale facility: it emits
   machine-readable data and owns validation plus the security gates, while each client assembles
   localised copy and formats dates. `mailcal-l10n` is **build-time** codegen from the inlang catalog
-  (`messages/<locale>.json`), which the core consumes none of. Localised text baked into a message
-  body, such as a reply attribution, is assembled in the client.
+  (`messages/<locale>.json`). The core produces no copy from it; the one thing it reads is the
+  quote shapes (`quote_attribution` and its neighbours), which `mailcal-ai` recognises in sent mail
+  at build time. Localised text baked into a message body, such as a reply attribution, is
+  assembled in the client.
 - **The catalog is the single source of the language list.** Shipping **en, nl, de, fr, es, it, pt**
   (European pt-PT / es-ES; German formal *Sie*). No client hand-keeps a locale list: `mailcal-l10n`
   emits `L10n.locales` / `LOCALES` / `Locales` / `active_locale` plus `languageName(code)`, and the
@@ -522,8 +526,11 @@ were broken right now, would this tell me?*
      [`showcase.sh`](scripts/dev/showcase.sh), `showcase_marker_for` in
      [`lib.sh`](scripts/dev/lib.sh), the `-Locale` `ValidateSet` in
      [`showcase.ps1`](clients/windows/showcase.ps1).
+  6. A stopword list in [`language.rs`](crates/mailcal-ai/src/language.rs), so sent mail in the
+     language can be learned from; a `mailcal-ai` test fails until it has one.
 
-  No **shipped** client code changes. Four guards hold it: codegen fails the build on a missing
+  No **shipped** client code changes. Five guards hold it: the test in step 6; codegen fails the
+  build on a missing
   `settings_language_<loc>` endonym ("Deutsch", never "German"); `mailcal-bindings` tests assert
   every seed carries English's keys, folders and bodies **and** that no two locales share a calendar
   event-title list, since parity alone passes a seed copied from English; `AppCulture` resolves

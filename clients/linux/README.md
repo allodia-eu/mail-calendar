@@ -207,6 +207,12 @@ not routed focus to the new device by the time the key arrives: measured here, a
 `wtype -k Escape` left a popover open where `wtype -s 300 -k Escape` closed it. `control.sh linux
 key` sleeps first; a hand-rolled `wtype` call needs to as well.
 
+⚠️ **A second window receives no keystroke until some keyboard stays on the seat.** Each `wtype`
+run removes its keyboard when it exits, which leaves GTK with no active window. The main window
+still closes a popover on Escape, but Tab and Escape sent to Settings arrive nowhere, and no node
+in the tree reports `focused`. Hold one open for the session before driving by keyboard:
+`WAYLAND_DISPLAY=<the session's display> wtype -s 3000000 -k Shift_L &`.
+
 **Pointer input works, and the packaged tool for it does not.** `click`, `drag` and `scroll` drive
 a real pointer through [`crates/mailcal-vpointer`](../../crates/mailcal-vpointer), which is built on
 demand and ships in nothing. It is the only way to reach a **gesture** or the **wheel**, and the

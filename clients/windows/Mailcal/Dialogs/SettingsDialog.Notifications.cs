@@ -1,4 +1,4 @@
-// Settings → Notifications (docs/settings.md slot 7): whether new mail raises a desktop toast.
+// Settings → Notifications (docs/settings.md slot 8): whether new mail raises a desktop toast.
 // One switch, the same one Linux, Android and iOS draw, over the same catalog copy.
 //
 // The choice is the HOST's, not the core's: what may appear on this desktop is a question about

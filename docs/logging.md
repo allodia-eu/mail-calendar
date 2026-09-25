@@ -90,6 +90,15 @@ core, the bindings, and the native host land in one stream.
   counts, an `unavailable` source's server-given reason, and a per-pass summary; the reads log
   row/match counts with durations. The point is that "Contacts is empty" resolves to the stage
   that produced nothing instead of to a guess. Same test file gates that the lines exist.
+- **An AI exchange logs its size, its duration and its outcome, and a refusal its server's error
+  fields**: `type`, `code` and `param` when each is a short word, and the message on one line, cut
+  to 200 characters ([`report.rs`](../crates/mailcal-ai/src/report.rs)). A refusal of our own
+  request describes the request's shape, which is what a developer needs to act on. Never the
+  endpoint, the key, the request or the answer; an error page that is not JSON is logged by its size
+  alone, because it can name the host.
+- **Feedback on a draft logs its verdict and its counts**: up or down, how many reasons, whether the
+  email and the draft were included, how many items wait, and a pass's delivered count or the status
+  it stopped at. Never a reason's wording, the comment, the model or anything the draft said.
 
 ## The shared bar
 

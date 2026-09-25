@@ -106,7 +106,7 @@ fn carry_over_allodia_account(mut configs: Vec<String>, stored: Vec<String>) -> 
     configs.extend(
         stored
             .into_iter()
-            .filter(|config| mailcal_bindings::is_allodia_account_config(config.clone())),
+            .filter(|config| mailcal_bindings::is_reserved_config(config.clone())),
     );
     configs
 }

@@ -4,6 +4,7 @@
 use std::fs;
 
 use super::*;
+use crate::signatures::SignatureId;
 
 #[test]
 fn missing_file_loads_defaults() {
@@ -84,6 +85,23 @@ fn save_then_load_round_trips_the_preferences() {
         mcp_accounts: BTreeSet::from(["me@imap.example.com".to_owned()]),
         mcp_allow_direct_send: true,
         mcp_require_known_recipient: false,
+        jurisdiction_mode: mailcal_jurisdiction::Mode::EuHosted,
+        ai: Box::new(AiPreferences {
+            writing_styles: BTreeMap::from([(
+                "me@imap.example.com".to_owned(),
+                crate::WritingStyleId::new("w-1").unwrap(),
+            )]),
+            endpoint: Some(AiEndpoint {
+                base_url: "http://localhost:11434/v1".to_owned(),
+                model: "mistral-small".to_owned(),
+                declared: Some(mailcal_jurisdiction::Class::EuNative),
+            }),
+            entitlement_answer: Some("{\"answer\":{}}".to_owned()),
+            balance: Some(StoredBalance {
+                millicredits: 498_750,
+                as_of: 1_790_000_000,
+            }),
+        }),
         collapsed_accounts: BTreeSet::from(["me@imap.example.com".to_owned()]),
         unified_collapsed: true,
         collapsed_folders: BTreeMap::from([(

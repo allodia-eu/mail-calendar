@@ -9,10 +9,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use mailcal_jurisdiction::Mode;
 use serde::{Deserialize, Serialize};
 
-use crate::signatures::{AccountSignatureAssignment, SignatureId, SignatureSlot};
+use crate::signatures::AccountSignatureAssignment;
 
+// Which writing style each account drafts in, and the person's own AI endpoint.
+mod ai;
 // The reading/composing choices: message grouping, quote style, swipe actions.
 mod behavior;
 mod display;
@@ -21,10 +24,13 @@ mod file;
 mod folder_pane;
 // The per-account "may we email the organiser ourselves?" choice, and its accessors.
 mod reply_fallback;
+// Which signature each account uses, and the accessors that keep no assignment dangling.
+mod signature;
 // The name an account sends under, its sanitiser, and its accessors.
 mod sender_name;
 mod sync;
 
+pub use ai::{AiEndpoint, AiPreferences, StoredBalance};
 pub use behavior::{MessageGrouping, QuoteStyle, SwipeAction};
 pub use display::{
     Appearance, CalendarLayout, CalendarPrefs, DEFAULT_VISIBLE_HOURS, DefaultCalendar,
@@ -239,6 +245,15 @@ pub struct Preferences {
     /// injected instruction chose.
     #[serde(default = "default_true")]
     pub mcp_require_known_recipient: bool,
+    /// How far an external dispatch may reach. EU-native unless this file says otherwise; no
+    /// client offers to change it yet (`docs/ai.md`, "The gate").
+    #[serde(default)]
+    pub jurisdiction_mode: Mode,
+    /// What the AI features remember: each account's writing style and the person's own
+    /// endpoint. Boxed, because four of the core's settings states each hold a whole copy of
+    /// this struct, and every future that holds the app by value carries all four.
+    #[serde(default)]
+    pub ai: Box<AiPreferences>,
     /// The accounts whose folder tree is **shut** in the sidebar, by account id.
     ///
     /// The collapsed ones, not the expanded ones, so an account nobody has touched, and
@@ -306,6 +321,8 @@ impl Default for Preferences {
             mcp_accounts: BTreeSet::new(),
             mcp_allow_direct_send: false,
             mcp_require_known_recipient: true,
+            jurisdiction_mode: Mode::default(),
+            ai: Box::default(),
             collapsed_accounts: BTreeSet::new(),
             unified_collapsed: false,
             collapsed_folders: BTreeMap::new(),
@@ -351,16 +368,6 @@ impl Preferences {
         clamp_visible_hours(self.calendar_visible_hours)
     }
 
-    /// Which signature `account` uses in each slot: the empty assignment (no signature either
-    /// way) for an account nobody has configured.
-    #[must_use]
-    pub fn account_signature(&self, account: &str) -> AccountSignatureAssignment {
-        self.signature_assignments
-            .get(account)
-            .cloned()
-            .unwrap_or_default()
-    }
-
     /// The extra addresses that also belong to `account`; its aliases. Empty for an account
     /// nobody has configured. See the [`account_aliases`](Preferences::account_aliases) field
     /// for why one identity is not enough.
@@ -400,53 +407,6 @@ impl Preferences {
     /// Returns whether anything was stored for it.
     pub fn remove_account_aliases(&mut self, account: &str) -> bool {
         self.account_aliases.remove(account).is_some()
-    }
-
-    /// Assigns (or clears, with `None`) one of `account`'s signature slots. An account left with
-    /// nothing in either slot has its entry dropped rather than persisted as an empty table, so
-    /// the file does not accumulate a row per account the user merely looked at.
-    pub fn set_account_signature(
-        &mut self,
-        account: &str,
-        slot: SignatureSlot,
-        signature: Option<SignatureId>,
-    ) {
-        let entry = self
-            .signature_assignments
-            .entry(account.to_owned())
-            .or_default();
-        entry.set_slot(slot, signature);
-        if entry.is_empty() {
-            self.signature_assignments.remove(account);
-        }
-    }
-
-    /// Drops every signature assignment for an account; used when the account is removed, so a
-    /// later re-add starts with no signature rather than inheriting a pointer to one the user may
-    /// meanwhile have deleted. Returns whether anything was stored for it.
-    pub fn remove_account_signature(&mut self, account: &str) -> bool {
-        self.signature_assignments.remove(account).is_some()
-    }
-
-    /// Clears `signature` from **every** account slot that points at it, and reports whether any
-    /// did. Called when a signature is deleted from the library: an assignment naming a signature
-    /// that no longer exists would silently mean "no signature", which is the same outcome but
-    /// leaves a dangling id in the file to confuse the next reader.
-    pub fn forget_signature(&mut self, signature: &SignatureId) -> bool {
-        let mut cleared = false;
-        for assignment in self.signature_assignments.values_mut() {
-            if assignment.new_message.as_ref() == Some(signature) {
-                assignment.new_message = None;
-                cleared = true;
-            }
-            if assignment.reply_forward.as_ref() == Some(signature) {
-                assignment.reply_forward = None;
-                cleared = true;
-            }
-        }
-        self.signature_assignments
-            .retain(|_, assignment| !assignment.is_empty());
-        cleared
     }
 
     /// The sync depth **in effect** for `account_id`: its own [`AccountSyncSettings::sync_depth`]

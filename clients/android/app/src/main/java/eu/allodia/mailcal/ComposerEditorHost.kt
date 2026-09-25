@@ -21,6 +21,38 @@ internal fun WebView.setComposerSignature(body: SignatureBody?) {
     evaluateJavascript("window.setComposerSignature($argument)", null)
 }
 
+// A drafted reply into the editor, above the signature and the quote (docs/ai.md). Both arguments
+// go in as JSON string literals: the draft is a model's text and may hold anything.
+internal fun composerDraftTextScript(text: String, draftId: String): String =
+    "window.setComposerDraftText(${JSONObject.quote(text)}, ${JSONObject.quote(draftId)})"
+
+internal fun webViewDraftEditor(webView: () -> WebView?): DraftEditor = object : DraftEditor {
+    // An editor that has not loaded holds nothing a draft could replace.
+    override fun leadHasText(answer: (Boolean) -> Unit) {
+        val view = webView() ?: return answer(false)
+        view.evaluateJavascript("window.composerLeadHasText()") { answer(it == "true") }
+    }
+
+    override fun insert(text: String, draftId: String) {
+        webView()?.evaluateJavascript(composerDraftTextScript(text, draftId), null)
+    }
+
+    override fun placeholdersLeft(placeholders: List<String>, answer: (List<String>?) -> Unit) {
+        val view = webView() ?: return answer(null)
+        view.evaluateJavascript(composerPlaceholdersLeftScript(placeholders)) { answer(placeholdersLeftAnswer(it)) }
+    }
+}
+
+// The placeholders go in as the JSON of their list, itself a string literal: each is a model's text.
+internal fun composerPlaceholdersLeftScript(placeholders: List<String>): String =
+    "window.composerPlaceholdersLeft(${JSONObject.quote(JSONArray(placeholders).toString())})"
+
+// `evaluateJavascript` answers with the result's JSON; anything but an array is no answer.
+internal fun placeholdersLeftAnswer(json: String?): List<String>? = runCatching {
+    val list = JSONArray(json ?: return null)
+    List(list.length()) { list.getString(it) }
+}.getOrNull()
+
 // Shows a picture at the caret. The shared editor records the inline attachment behind it and
 // carries the bytes in the document, so the core can turn it into the `cid:` part the sent body
 // points at; the same path a pasted screenshot takes, so a dropped and a pasted picture cannot

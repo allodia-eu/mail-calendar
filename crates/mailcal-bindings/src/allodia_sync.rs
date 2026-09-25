@@ -109,12 +109,26 @@ pub struct AllodiaAccountChange {
     pub also_changed_here: bool,
 }
 
+/// One of this device's writing styles, changed both here and on another device since the two last
+/// agreed.
+///
+/// Neither version is applied until the person picks one with
+/// [`MailcalApp::resolve_writing_style_conflict`](crate::MailcalApp::resolve_writing_style_conflict).
+#[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
+pub struct AllodiaStyleConflict {
+    /// This device's id for the style.
+    pub style_id: String,
+    /// Its name on this device.
+    pub name: String,
+}
+
 /// What one pass did, and what it could not decide alone.
 ///
 /// Everything this device had to say is already said by the time this is returned: an account the
 /// service had not seen is uploaded, a changed one is pushed, and one it turns out to already hold
-/// is adopted. What comes back is only the part that needs a person: accounts to set up, accounts
-/// that moved somewhere else, accounts removed somewhere else.
+/// is adopted; writing styles are sent and taken in both directions. What comes back is only the
+/// part that needs a person: accounts to set up, accounts that moved somewhere else, accounts
+/// removed somewhere else, and writing styles changed on both sides.
 #[derive(uniffi::Record, Debug, Clone, Default, PartialEq, Eq)]
 pub struct AllodiaSyncReport {
     /// Accounts from the person's other devices that this one has not got.
@@ -128,6 +142,10 @@ pub struct AllodiaSyncReport {
     pub removed_elsewhere: Vec<AllodiaAccountChange>,
     /// How many of this device's accounts this pass sent to the service.
     pub sent: u32,
+    /// This device's writing styles changed here and on another device. Empty when the sign-in
+    /// does not include syncing writing styles.
+    #[uniffi(default)]
+    pub style_conflicts: Vec<AllodiaStyleConflict>,
 }
 
 /// The route an offer takes, as the same recommendation detection produces.

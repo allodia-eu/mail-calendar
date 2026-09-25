@@ -177,29 +177,6 @@ impl StoredAccount {
     }
 }
 
-/// Whether a stored credential-store entry is the **Allodia account** rather than a mail account.
-///
-/// Two paths need it, and the second is on every launch.
-///
-/// **Deciding a first run.** A client shows the account-setup screen when the store holds no mail
-/// account, and the store holds this entry too: so the *length* of what it hands over is not the
-/// number of mail accounts. Read as though it were, signing in on the first-run screen and quitting
-/// before adding a mailbox left the next launch convinced setup was finished: an empty inbox, no
-/// route back to the screen that adds an account, and nothing connecting either to the sign-in.
-///
-/// **A debug launch that connects a canned dev account** deliberately does *not* connect the stored
-/// accounts, and would otherwise drop the one entry that is not a mail account, so a sign-in made
-/// in that mode looks like it never stuck.
-///
-/// It is asked rather than pattern-matched because the stored shape belongs here: a client that
-/// looked for the section name itself would be a second reader of it, free to disagree with this
-/// one the moment either moves.
-#[must_use]
-#[uniffi::export]
-pub fn is_allodia_account_config(config: String) -> bool {
-    StoredAccount::from_toml(&config).is_some()
-}
-
 /// Takes the Allodia grant out of the host's stored configs, leaving the mail accounts.
 ///
 /// Called once at boot, before anything reads a config, and **unconditionally**: a build with no
@@ -228,7 +205,8 @@ pub(crate) fn take_stored(configs: &mut Vec<String>) -> Option<StoredAccount> {
 
 #[cfg(test)]
 mod tests {
-    use super::{StoredAccount, is_allodia_account_config, take_stored};
+    use super::{StoredAccount, take_stored};
+    use crate::is_reserved_config;
 
     /// Whether boot would route this config away from the mail parsers.
     fn routed(config: &str) -> bool {
@@ -384,18 +362,18 @@ mod tests {
         }
     }
 
-    /// The exported predicate answers the same question the router does. It has one caller; the
-    /// dev-account boot that carries this entry over by hand, and the failure it prevents is a
-    /// developer's sign-in disappearing at the next launch of the mode they test in.
+    /// The exported predicate answers the same question the router does. The dev-account boot
+    /// carries this entry over by hand, and the failure it prevents is a developer's sign-in
+    /// disappearing at the next launch of the mode they test in.
     #[test]
     fn a_client_can_ask_which_stored_entry_is_the_allodia_one() {
-        assert!(is_allodia_account_config(
+        assert!(is_reserved_config(
             stored().to_toml().expect("serializable")
         ));
-        assert!(!is_allodia_account_config(
+        assert!(!is_reserved_config(
             "[imap]\naddr = \"imap.example.com:993\"\n".to_owned()
         ));
-        assert!(!is_allodia_account_config(String::new()));
+        assert!(!is_reserved_config(String::new()));
     }
 
     /// Every client decides "is this a first run" from the stored configs, and this predicate is
@@ -414,7 +392,7 @@ mod tests {
         let mail = "[imap]\naddr = \"imap.example.com:993\"\n".to_owned();
 
         let first_run =
-            |configs: Vec<String>| configs.iter().all(|c| is_allodia_account_config(c.clone()));
+            |configs: Vec<String>| configs.iter().all(|c| is_reserved_config(c.clone()));
 
         assert!(first_run(vec![]), "nothing stored is a first run");
         assert!(

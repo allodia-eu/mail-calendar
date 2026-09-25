@@ -78,6 +78,11 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Select several messages at once and act on the lot: archive, trash, delete permanently, mark read/unread, flag/unflag. Ctrl/⌘-click and Shift-click on a computer; on a phone a mode, entered by **Select** (iPhone, iPad) or a long press (Android); **Delete** trashes the selection and **Escape** clears it where the list has focus ([docs](docs/list-selection.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Mark as spam / not spam: **reported to the provider**, which trains its filter, not only filed under Junk; the verdicts offered come from the transport's own capability, and a provider that cannot be told still gets the message filed ([docs](docs/reporting.md)) | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
 | AI assistant access (MCP server): opt-in, off by default, desktop-only; read and act on your mail from an MCP client over a local socket (Windows: a named pipe), with an empty account allow list and direct send behind its own toggle ([docs](docs/mcp.md)) | ✅ | ✅ | — | ✅ | — | ✅ |
+| **Writing style**: learned from your own sent mail, cut to your own words on your device, after a sheet that says what is sent where; a description plus a few of your own passages, per language. Nothing is trained, and every request passes the jurisdiction gate first; **early access**: every development build, and in a production build only an account Allodia has given access ([docs](docs/ai.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Draft a reply** in your writing style, into the open composer above your signature and the quote, with a gap in brackets wherever a fact is missing; the AI path never sends; **early access** as above ([docs](docs/ai.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Your own AI endpoint** (any OpenAI-compatible server, one on your own computer included) under Settings → Advanced, with where it runs declared and checked by the gate; **early access** as above ([docs](docs/ai.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Writing style and drafts through Allodia's relay, in credits, and a style synced between your devices ([docs](docs/ai.md)) | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
+| **Rate a drafted reply** while signed in to an Allodia account: thumbs up or down, what was wrong, and the email and the draft only if you include them; kept on the device until Allodia's service takes feedback ([docs](docs/ai.md)) | 🚧 | 🚧 | ✅ | ⬜ | ⬜ | ⬜ |
 | Configurable swipe actions: Trash / Archive / Star per direction, with an undo toast | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | Calendar: agenda + create / delete event | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: write affordances gated on per-row `can_write` (a read-only row offers no delete; New event disabled without a writable calendar) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -160,6 +165,10 @@ is reopened.
 **Unread mail is bold on the subject and the sender**, and on nothing else (not the preview line,
 the date or the badges), because bolding every line of an unread mailbox distinguishes nothing.
 
-Not yet started, and on the roadmap: the `JurisdictionGate`, and AI features of our own.
+The jurisdiction gate is in the core, and the first AI feature of our own, writing style and drafted
+replies, runs behind it. macOS, iOS, Windows, Android and Linux were driven against the local
+harness and a canned endpoint. While it is tested, a production build offers it only to an account
+Allodia has given access. The relay and style sync wait for the service to be deployed
+([`ai.md`](ai.md)).
 
 > Keeping this matrix current is a hard rule: see [`AGENTS.md`](AGENTS.md).

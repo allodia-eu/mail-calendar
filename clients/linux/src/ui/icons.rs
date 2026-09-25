@@ -115,12 +115,18 @@ icons! {
     SETTINGS_READING = "mailcal-mail-read-symbolic";
     SETTINGS_COMPOSING = DRAFTS;
     SETTINGS_SIGNATURES = "mailcal-signature-symbolic";
+    SETTINGS_WRITING_STYLE = "format-text-rich-symbolic";
     SETTINGS_NOTIFICATIONS = "mailcal-bell-symbolic";
     SETTINGS_PRIVACY = "channel-secure-symbolic";
     SETTINGS_ACCOUNTS = INBOX;
     SETTINGS_ADVANCED = "mailcal-wrench-symbolic";
     SETTINGS_DIAGNOSTICS = "mailcal-stethoscope-symbolic";
     SETTINGS_ABOUT = "help-about-symbolic";
+
+    // What a drafted reply leaves to do (docs/ai.md), one glyph per kind.
+    TASK_FILL_IN = DRAFTS;
+    TASK_ATTACH = ATTACHMENT;
+    TASK_DO = "view-list-bullet-symbolic";
 }
 
 #[cfg(test)]

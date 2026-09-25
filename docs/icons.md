@@ -159,6 +159,24 @@ noted beside it, and the two without one are this app's own drawings.
 | Remove an attachment | `xmark.circle` | — | — | `user-trash-symbolic` |
 | Remove a recipient | `xmark.circle.fill` | `ic_close` | `E711` Cancel | `window-close-symbolic` |
 
+### Writing style and drafted replies
+
+The contract is [`ai.md`](ai.md).
+
+| Meaning | Apple | Android | Windows | Linux |
+|---|---|---|---|---|
+| Draft a reply | `text.quote` | `ic_stylus_note` | text | text |
+| A draft that could not be made | `exclamationmark.circle` | — | — | — |
+| A style in the library, and opening it | `text.quote`, `chevron.right` | — | — | `go-next-symbolic` |
+| A placeholder to fill in | `character.cursor.ibeam` | `ic_text_fields` | `E70F` Edit | `document-edit-symbolic` |
+| A file to attach | `paperclip` | `ic_attachment` | `E723` Attach | `mail-attachment-symbolic` |
+| Something to do elsewhere | `checklist` | `ic_task_alt` | `E9D5` CheckList | `view-list-bullet-symbolic` |
+| An item done / not done | `checkmark.square.fill` / `square` | the framework's checkbox | the framework's checkbox | the framework's check button |
+| The reveal: register | `slider.horizontal.3` | `ic_tune` | `E9E9` Equalizer | — |
+| The reveal: structure | `arrowshape.turn.up.left` | `ic_reply` | `E8CA` MailReply | — |
+| The reveal: how they decline and chase | `bubble.left.and.bubble.right` | `ic_forum` | `E8F2` ChatBubbles | — |
+| Rate a draft: up / down, filled once chosen | `hand.thumbsup` / `hand.thumbsdown` | — | — | — |
+
 ### Calendar
 
 | Meaning | Apple | Android | Windows | Linux |
@@ -218,6 +236,7 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 | Reading | `envelope.open` | `ic_mail` | — | `mailcal-mail-read-symbolic` (`mail-read`) |
 | Composing | `square.and.pencil` | `ic_edit` | — | `document-edit-symbolic` |
 | Signatures | `signature` | `ic_signature` | — | `mailcal-signature-symbolic` (`signature`) |
+| Writing style | `text.quote` | `ic_stylus_note` | — | `format-text-rich-symbolic` |
 | Notifications | `bell` | `ic_notifications` | — | `mailcal-bell-symbolic` (`bell`) |
 | Privacy | `hand.raised` | `ic_lock` | — | `channel-secure-symbolic` |
 | Accounts | `tray.2` | `ic_inbox` | — | `mailcal-inbox-symbolic` |

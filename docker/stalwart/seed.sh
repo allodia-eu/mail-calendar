@@ -204,6 +204,23 @@ imap_append "$MAIL_DIR/11-fixed-width-newsletter.eml" INBOX
 log "appending the banded newsletter to INBOX (reading-view reflow, full-bleed bands)"
 imap_append "$MAIL_DIR/12-banded-newsletter.eml" INBOX
 
+# Alice's own replies, in English and Dutch, so learning a writing style has something to read
+# (docs/ai.md); one quotes the message it answers and one carries a signature, for the stripper.
+# Each fixture's `Date: -N days` is rewritten to N days before today, as the living week is
+# anchored on this Monday, so the mail stays inside a new account's sync window. Stalwart names
+# the folder "Sent Items"; the app reads it by its role.
+log "appending alice's sent replies to Sent Items (writing style)"
+SENT_ITEMS="Sent%20Items"
+imap_clear "$SENT_ITEMS"
+for f in "$SEED_DIR"/sent/*.eml; do
+  ago=$(sed -n 's/^Date: -\([0-9]*\) days$/\1/p' "$f")
+  when=$(LC_ALL=C date -u -d "-$ago days" '+%a, %d %b %Y 09:00:00 +0000')
+  dated=$(mktemp)
+  sed "s/^Date: -.*/Date: $when/" "$f" >"$dated"
+  imap_append "$dated" "$SENT_ITEMS"
+  rm -f "$dated"
+done
+
 log "putting calendar fixtures into the default calendar"
 put_calendar "$CAL_DIR/one-off.ics" oneoff-2001
 put_calendar "$CAL_DIR/recurring-weekly.ics" weekly-2002

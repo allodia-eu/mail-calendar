@@ -10,6 +10,7 @@
 
 use std::sync::Arc;
 
+mod ai_feedback_outbox;
 mod autodetect;
 mod calendar;
 mod calendar_drag;
@@ -40,7 +41,13 @@ mod setup;
 mod signatures;
 mod throttle;
 mod tls;
+mod writing_style_observations;
+mod writing_styles;
 
+pub use ai_feedback_outbox::{
+    AI_FEEDBACK_CAP, AiFeedbackItem, AiFeedbackOutbox, ai_feedback_outbox_path,
+    load_ai_feedback_outbox, save_ai_feedback_outbox,
+};
 pub use autodetect::{MissReason, OauthRoutes, ServerSummary, SetupRecommendation, recommend};
 pub use calendar::{EventEdit, build_event_deletion, build_event_draft, build_event_patch};
 pub use calendar_drag::{
@@ -80,13 +87,13 @@ pub use jmap::{
 pub use log_handle::account_log_handle;
 pub use microsoft::{MicrosoftConfig, fetch_primary_address, load_microsoft_str};
 pub use preferences::{
-    AccountSyncSettings, Appearance, CalendarLayout, CalendarPrefs, DEFAULT_POLL_INTERVAL,
-    DEFAULT_VISIBLE_HOURS, DefaultCalendar, EffectiveSync, MAX_PUSH_FOLDERS, MAX_SENDER_NAME_CHARS,
-    MAX_VISIBLE_HOURS, MESSAGE_SIZE_LIMITS_MB, MIN_VISIBLE_HOURS, MessageGrouping,
-    MessageSizeLimit, POLL_INTERVALS, Preferences, QuoteStyle, ReplyFallback, SYNC_DEPTHS,
-    SwipeAction, SyncDepth, SyncStrategy, TimeFormat, WeekStart, cap_push_folders,
-    clamp_visible_hours, effective, load_preferences, preferences_path, sanitize_sender_name,
-    save_preferences, snap_poll_interval,
+    AccountSyncSettings, AiEndpoint, AiPreferences, Appearance, CalendarLayout, CalendarPrefs,
+    DEFAULT_POLL_INTERVAL, DEFAULT_VISIBLE_HOURS, DefaultCalendar, EffectiveSync, MAX_PUSH_FOLDERS,
+    MAX_SENDER_NAME_CHARS, MAX_VISIBLE_HOURS, MESSAGE_SIZE_LIMITS_MB, MIN_VISIBLE_HOURS,
+    MessageGrouping, MessageSizeLimit, POLL_INTERVALS, Preferences, QuoteStyle, ReplyFallback,
+    SYNC_DEPTHS, StoredBalance, SwipeAction, SyncDepth, SyncStrategy, TimeFormat, WeekStart,
+    cap_push_folders, clamp_visible_hours, effective, load_preferences, preferences_path,
+    sanitize_sender_name, save_preferences, snap_poll_interval,
 };
 use provider_caldav::{CalDavConfig, CalDavProvider, Credentials};
 use provider_imap::{DEFAULT_IDLE_KEEPALIVE, ImapConfig, ImapProvider, ImapWatcher};
@@ -105,6 +112,14 @@ pub use setup::{AccountSetup, build_config_toml, imap_default_port, smtp_default
 pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,
+};
+pub use writing_style_observations::{
+    AiAssistedSend, WritingStyleObservations, load_writing_style_observations,
+    save_writing_style_observations, writing_style_observations_path,
+};
+pub use writing_styles::{
+    StoredWritingStyle, WritingStyleId, WritingStyles, load_writing_styles, save_writing_styles,
+    writing_styles_path,
 };
 
 use crate::{setup::normalize_caldav_base_url, tls::account_tls};

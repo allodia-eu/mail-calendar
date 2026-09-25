@@ -111,6 +111,7 @@ That costs nothing, because **every paid capability needs Allodia to do somethin
 | `push` | The relay wakes the device. |
 | `send_later` | A server holds the message and submits it at the hour. |
 | `central_admin` | The administration surfaces are the service. |
+| `ai` | The relay forwards to an EU-native provider and meters the person's credits ([`docs/ai.md`](../docs/ai.md)). |
 
 A build that invents a capability draws a switch and then gets a refusal. What it cannot do is
 take a capability, because the capability is not on the device.
@@ -201,8 +202,8 @@ client now separates the two rather than refusing: Windows and Linux by a namesp
 credential itself (`dev`, `dev-imap`, `dev-multi`), Apple and Android by taking this one entry out
 of the store beside the canned account. Nothing a harness run writes can reach the developer's own
 accounts, and nothing it reads can see them. Which entry is this one is asked of the core
-(`is_allodia_account_config`) rather than matched in a client, so only one place knows the stored
-shape.
+(`is_reserved_config`, which also recognises an own AI endpoint's key) rather than matched in a
+client, so only one place knows the stored shape.
 
 The client registration is **injected at build time** (`MAILCAL_ALLODIA_CLIENT_ID`), so a build
 given none has no Allodia sign-in at all, the same mechanism, and the same absent-is-supported
@@ -389,8 +390,11 @@ Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ pl
   either: the subscription card reads `GET /subscription`, which gates nothing. So what is missing
   is the read rather than the plan, and the grace and degrade rules stay unobserved against a paid
   account.
-- **No client draws a paid capability**, so the grace and degrade rules are unit-tested in the core
-  and unproven in a UI.
+- **No client draws a paid capability yet.** The core reads `GET /entitlement` for the first one,
+  `ai` ([`docs/ai.md`](../docs/ai.md)): in the background, at launch when it is due and after a
+  sign-in, keeping the answer in the preferences so a launch without a network draws what it was
+  last told, and dropping it at sign-out. No client draws Writing style yet, so the grace and
+  degrade rules are still unit-tested in the core and unproven in a UI.
 - **Signing out is local.** It erases this install's copy of the grant, which is what removing a mail
   account does too; the grant itself stays alive at the service until it expires or the person
   revokes it there. The service advertises an RFC 7009 revocation endpoint and nothing calls it.
