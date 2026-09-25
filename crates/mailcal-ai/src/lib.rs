@@ -43,7 +43,7 @@ mod test_support;
 pub use backend::{AiBackend, AiError};
 pub use checklist::{DraftTask, TaskKind};
 #[cfg(debug_assertions)]
-pub use comparison::{ComparisonExport, ComparisonSummary, summarise};
+pub use comparison::{ComparisonExport, ComparisonSummary, ModelLine, summarise};
 pub use draft::{Draft, DraftRequest, THREAD_CHARS, ThreadMessage, draft_reply, draft_reply_with};
 pub use draft_instructions::{DRAFT_INSTRUCTIONS, DRAFT_PLACEHOLDERS};
 pub use endpoint::{EndpointError, OwnEndpoint};

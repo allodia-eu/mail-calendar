@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 
-use super::{ComparisonExport, summarise};
+use super::{ComparisonExport, ModelLine, summarise};
 use crate::{DraftContent, DraftExport, DraftRecord, RatedDraft, Rating, Verdict, wire::Usage};
 
 fn draft(model: &str, variant: Option<&str>, elapsed_ms: u64, failure: Option<&str>) -> RatedDraft {
@@ -131,4 +131,30 @@ fn a_comparison_prints_no_text() {
     let printed = format!("{:?}", run());
     assert!(!printed.contains("tekeningen"));
     assert!(!printed.contains("Hoi Marc"));
+}
+
+#[test]
+fn a_model_line_names_the_model_and_may_ask_for_a_reasoning_effort() {
+    assert_eq!(
+        ModelLine::parse("gemma-4"),
+        Ok(ModelLine {
+            model: "gemma-4",
+            reasoning_effort: None,
+        })
+    );
+    assert_eq!(
+        ModelLine::parse("  gemma-4   reasoning=low "),
+        Ok(ModelLine {
+            model: "gemma-4",
+            reasoning_effort: Some("low"),
+        })
+    );
+    for line in [
+        "gemma-4 reasoning=",
+        "gemma-4 thinking=on",
+        "gemma-4 low",
+        "  ",
+    ] {
+        assert!(ModelLine::parse(line).is_err(), "{line}");
+    }
 }

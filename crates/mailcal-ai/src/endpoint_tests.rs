@@ -118,6 +118,33 @@ fn a_request_carries_the_model_the_key_and_no_streaming() {
 }
 
 #[test]
+fn a_reasoning_effort_is_sent_only_when_one_is_asked_for() {
+    let answer = r#"{"choices":[{"message":{"role":"assistant","content":"Hi"}}]}"#;
+    let plain = CannedTransport::new(200, answer);
+    let plain_sent = Arc::clone(&plain.sent);
+    gated(plain).chat(&request()).unwrap();
+    assert!(
+        plain_sent.lock().unwrap()[0]
+            .body
+            .get("reasoning_effort")
+            .is_none()
+    );
+
+    let thinking = CannedTransport::new(200, answer);
+    let thinking_sent = Arc::clone(&thinking.sent);
+    let endpoint = endpoint("https://api.example.eu/v1")
+        .unwrap()
+        .with_reasoning_effort("low");
+    GatedBackend::own_endpoint(endpoint, Box::new(thinking), Arc::new(|| Mode::EuNative))
+        .chat(&request())
+        .unwrap();
+    assert_eq!(
+        thinking_sent.lock().unwrap()[0].body["reasoning_effort"],
+        "low"
+    );
+}
+
+#[test]
 fn each_failure_status_has_its_own_error() {
     for (status, expected) in [
         (401, AiError::Unauthorized),

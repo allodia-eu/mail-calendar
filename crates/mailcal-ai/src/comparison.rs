@@ -31,6 +31,44 @@ pub struct ComparisonSummary {
     pub completion_tokens: u64,
 }
 
+/// A line of a run's model list: the model, then its options. The one option is
+/// `reasoning=<level>`, sent as `reasoning_effort`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModelLine<'a> {
+    /// The model asked.
+    pub model: &'a str,
+    /// The reasoning effort asked for, when one is.
+    pub reasoning_effort: Option<&'a str>,
+}
+
+impl<'a> ModelLine<'a> {
+    /// Reads `line`.
+    ///
+    /// # Errors
+    ///
+    /// Returns why, in plain words, when the line names no model or carries a word that is not
+    /// an option.
+    pub fn parse(line: &'a str) -> Result<Self, String> {
+        let mut words = line.split_whitespace();
+        let model = words.next().ok_or("the line names no model")?;
+        let mut reasoning_effort = None;
+        for word in words {
+            match word.split_once('=') {
+                Some(("reasoning", level)) if !level.is_empty() => reasoning_effort = Some(level),
+                _ => {
+                    return Err(format!(
+                        "\"{word}\" is not an option; the one option is reasoning=<level>"
+                    ));
+                }
+            }
+        }
+        Ok(Self {
+            model,
+            reasoning_effort,
+        })
+    }
+}
+
 /// A summary line for each model and variant among `drafts`, in the order each first ran.
 #[must_use]
 pub fn summarise<'a>(drafts: impl IntoIterator<Item = &'a RatedDraft>) -> Vec<ComparisonSummary> {

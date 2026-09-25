@@ -23,6 +23,7 @@ pub struct OwnEndpoint {
     api_key: Option<String>,
     model: String,
     declared: Option<Class>,
+    reasoning_effort: Option<String>,
 }
 
 /// Why an own endpoint was not accepted.
@@ -81,7 +82,19 @@ impl OwnEndpoint {
                 .filter(|key| !key.is_empty()),
             model: model.to_owned(),
             declared,
+            reasoning_effort: None,
         })
+    }
+
+    /// The same endpoint, asking for `effort` as `reasoning_effort`: how much a model that can
+    /// think does, in OpenAI's name for it, which routers pass on. Only training mode asks; a draft
+    /// otherwise gets whatever the model does by default.
+    #[must_use]
+    pub fn with_reasoning_effort(self, effort: &str) -> Self {
+        Self {
+            reasoning_effort: Some(effort.to_owned()),
+            ..self
+        }
     }
 
     /// The base URL as validated.
@@ -140,12 +153,16 @@ impl OpenAiCompatibleBackend {
         }
     }
 
-    /// The body as sent: the request, plus the model and an explicit refusal of streaming.
+    /// The body as sent: the request, plus the model, an explicit refusal of streaming and any
+    /// reasoning effort asked for.
     fn body(&self, request: &ChatRequest) -> Result<String, AiError> {
         let mut body = serde_json::to_value(request).map_err(|_| AiError::Malformed)?;
         let object = body.as_object_mut().ok_or(AiError::Malformed)?;
         object.insert("model".to_owned(), self.endpoint.model.clone().into());
         object.insert("stream".to_owned(), false.into());
+        if let Some(effort) = &self.endpoint.reasoning_effort {
+            object.insert("reasoning_effort".to_owned(), effort.clone().into());
+        }
         Ok(body.to_string())
     }
 

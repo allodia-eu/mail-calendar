@@ -62,6 +62,9 @@ public struct TrainingWindow: View {
                     .font(.body.monospaced())
                     .frame(height: 70)
                     .border(Color.secondary.opacity(0.3))
+                Text("After a model, reasoning=none, minimal, low, medium or high sets how much it thinks.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             variantsSection
             runControls

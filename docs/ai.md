@@ -185,6 +185,11 @@ summary (`mailcal-ai`'s `ComparisonExport`, `summarise`), the FFI methods and re
 - **On macOS**, Develop → Compare drafts… opens a window. The developer types the models to ask on
   the configured own endpoint and keeps named variants of the instructions beside the default,
   which is shown read-only; both are remembered in the debug build's `UserDefaults`.
+- **A model line may set how much a model thinks**: `gemma-4 reasoning=low` sends
+  `reasoning_effort: "low"`, OpenAI's name for it, which routers pass on (`none`, `minimal`, `low`,
+  `medium`, `high`); the level is the endpoint's to accept or refuse. Outside training mode a draft
+  sends no level, so a model that can think does whatever it does by default. The whole line is the
+  result's model, so each level has its own summary line.
 - **A run answers several messages**, from one of two sources: the rows selected in the list (a
   conversation by its latest message, and the message open in the reading pane when no row is
   selected), or the newest Inbox messages the person answered, as many as the developer asks for.

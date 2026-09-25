@@ -8,8 +8,8 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use mailcal_ai::{
-    DRAFT_INSTRUCTIONS, DRAFT_PLACEHOLDERS, DraftContent, DraftRecord, GatedBackend, OwnEndpoint,
-    RatedDraft,
+    DRAFT_INSTRUCTIONS, DRAFT_PLACEHOLDERS, DraftContent, DraftRecord, GatedBackend, ModelLine,
+    OwnEndpoint, RatedDraft,
 };
 use mailcal_app::{MessageRef, ReplyDraftRequest, WritingStyleError};
 
@@ -32,7 +32,7 @@ pub struct TrainingVariant {
 /// One draft of a comparison, and its rating once the developer gives one.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct TrainingResult {
-    /// The model asked.
+    /// The model line asked: the model, and any option with it.
     pub model: String,
     /// The variant's name; `None` for the default instructions.
     pub variant: Option<String>,
@@ -142,9 +142,9 @@ impl MailcalApp {
         DRAFT_PLACEHOLDERS.map(str::to_owned).to_vec()
     }
 
-    /// Drafts a reply to the message `key` in `account_id` with `model` on the own endpoint, under
-    /// `variant` or the default instructions, in the account's own style. **Blocking.** Nothing is
-    /// issued to a composer and nothing is sent.
+    /// Drafts a reply to the message `key` in `account_id` with the model line `model` on the own
+    /// endpoint (`ModelLine`), under `variant` or the default instructions, in the account's own
+    /// style. **Blocking.** Nothing is issued to a composer and nothing is sent.
     #[must_use]
     pub fn training_draft(
         &self,
@@ -157,14 +157,25 @@ impl MailcalApp {
         let Some(stored) = self.app.own_ai_endpoint() else {
             return TrainingResult::failed(&model, variant.as_ref(), "no own endpoint".to_owned());
         };
+        let line = match ModelLine::parse(&model) {
+            Ok(line) => line,
+            Err(error) => return TrainingResult::failed(&model, variant.as_ref(), error),
+        };
         let key_for_endpoint = self.ai_key.lock().expect("ai key lock").clone();
-        let endpoint =
-            match OwnEndpoint::new(&stored.base_url, key_for_endpoint, &model, stored.declared) {
-                Ok(endpoint) => endpoint,
-                Err(error) => {
-                    return TrainingResult::failed(&model, variant.as_ref(), error.to_string());
-                }
-            };
+        let endpoint = match OwnEndpoint::new(
+            &stored.base_url,
+            key_for_endpoint,
+            line.model,
+            stored.declared,
+        ) {
+            Ok(endpoint) => match line.reasoning_effort {
+                Some(effort) => endpoint.with_reasoning_effort(effort),
+                None => endpoint,
+            },
+            Err(error) => {
+                return TrainingResult::failed(&model, variant.as_ref(), error.to_string());
+            }
+        };
         let seen = STOPS.load(Ordering::Relaxed);
         let transport = match AiTransport::stoppable(self.runtime.handle().clone(), &STOPS) {
             Ok(transport) => transport,
@@ -193,6 +204,7 @@ impl MailcalApp {
             .runtime
             .block_on(self.app.training_draft(&request, &backend, named))
             .into();
+        result.model = model;
         result.stopped = STOPS.load(Ordering::Relaxed) != seen;
         result
     }
