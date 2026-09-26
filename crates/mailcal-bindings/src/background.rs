@@ -155,6 +155,26 @@ impl BackgroundManager {
         }
     }
 
+    /// [`apply`](Self::apply) with the account's row from the settings in effect now.
+    pub(crate) async fn apply_current(&self, account_id: &str) {
+        let snapshot = self.app.sync_settings().await;
+        let row = snapshot
+            .accounts
+            .iter()
+            .find(|row| row.account_id == account_id);
+        self.apply(account_id, row);
+    }
+
+    /// How many tasks run for one account: a watch per folder, or one poll timer.
+    #[cfg(test)]
+    pub(crate) fn task_count(&self, account_id: &str) -> usize {
+        self.tasks
+            .lock()
+            .expect("background-tasks mutex poisoned")
+            .get(account_id)
+            .map_or(0, Vec::len)
+    }
+
     /// Aborts and forgets every running task for one account.
     fn stop(&self, account_id: &str) {
         if let Some(handles) = self
@@ -168,6 +188,20 @@ impl BackgroundManager {
             }
         }
     }
+}
+
+/// An added account's first sync, with its background work started between the mail and the
+/// warm-up. Before the mail sync a new account has no stored folders, so there is none to watch;
+/// after the warm-up the watches would wait for every body in the window to be cached, which on a
+/// large mailbox is many minutes of new mail arriving unannounced.
+pub(crate) async fn sync_added_account(
+    app: &SharedApp,
+    background: &BackgroundManager,
+    id: &AccountId,
+) {
+    app.sync_added_mail(id).await;
+    background.apply_current(id.as_str()).await;
+    app.warm_added_account(id).await;
 }
 
 /// A standing IMAP `IDLE` watch on one folder: connect, sync once, then sync on every

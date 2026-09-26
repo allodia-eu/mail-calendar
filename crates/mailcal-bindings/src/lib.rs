@@ -369,12 +369,8 @@ impl MailcalApp {
     /// Recomputes and restarts one account's background sync from the current settings;
     /// called after an account is added or its sync behaviour changes.
     fn refresh_background(&self, account_id: &str) {
-        let snapshot = self.runtime.block_on(self.app.sync_settings());
-        let row = snapshot
-            .accounts
-            .iter()
-            .find(|row| row.account_id == account_id);
-        self.background.apply(account_id, row);
+        self.runtime
+            .block_on(self.background.apply_current(account_id));
     }
 }
 
@@ -414,3 +410,6 @@ mod tests_calendar;
 
 #[cfg(test)]
 mod tests_setup;
+
+#[cfg(test)]
+mod tests_background;
