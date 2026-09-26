@@ -9,7 +9,7 @@ use super::{recipient_rows, reveals_cc_bcc};
 use crate::{
     l10n,
     ui::{
-        composer_model::{ComposeContext, ComposeKind},
+        composer_model::{ComposeContext, ComposeKind, new_composition},
         recipients::RecipientField,
     },
 };
@@ -124,6 +124,7 @@ fn request(initial_cc: &str) -> ComposeContext {
         quote: None,
         initial_from: None,
         seeds_signature: true,
+        composition: new_composition(),
         files: Vec::new(),
     }
 }

@@ -254,7 +254,10 @@ impl<P: Provider> App<P> {
     }
 
     /// Forgets the composition, leaving the stored draft where it is.
-    fn close_composition(&self, composition: &CompositionId) {
+    ///
+    /// The host's `Close` for a composer that was dismissed without sending, and the send's own
+    /// tail when the message could not go out ([`send_draft`](Self::send_draft)).
+    pub(crate) fn close_composition(&self, composition: &CompositionId) {
         let _ = self.forget(composition);
     }
 

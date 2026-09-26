@@ -169,7 +169,7 @@ class ComposerDiscardTest {
                 RichComposeMessageDialog(
                     mode = mode,
                     onDismiss = { closed += Unit },
-                    onSubmitRich = { _, _, _, _, _ -> true },
+                    onSubmitRich = { _ -> true },
                     accounts = emptyList(),
                     initialTo = initialTo,
                     initialCc = initialCc,

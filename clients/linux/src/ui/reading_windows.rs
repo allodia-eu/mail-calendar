@@ -122,8 +122,25 @@ impl AppModel {
     }
 
     /// Sent, cancelled, or closed: all three are the same act here, because closing a composer
-    /// window discards the draft exactly as Cancel does (`docs/reading-window.md`).
+    /// window finishes with the draft exactly as Cancel does (`docs/reading-window.md`).
+    ///
+    /// What it finishes with is the composer, not the message: the composition is forgotten and
+    /// whatever it had saved stays in Drafts (`docs/drafts.md`).
     pub(super) fn close_composer_window(&mut self, id: u64) {
+        let composition = self
+            .composer_windows
+            .iter()
+            .find(|draft| draft.id == id)
+            .map(|draft| draft.request.composition.clone());
+        self.forget_composer_window(id);
+        if let Some(composition) = composition {
+            self.close_composition(&composition);
+        }
+    }
+
+    /// Takes the window off screen without forgetting its composition: what a **sent** draft's
+    /// window does, because the send owns the composition from the submit on (`docs/drafts.md`).
+    pub(super) fn forget_composer_window(&mut self, id: u64) {
         self.composer_windows.retain(|draft| draft.id != id);
     }
 

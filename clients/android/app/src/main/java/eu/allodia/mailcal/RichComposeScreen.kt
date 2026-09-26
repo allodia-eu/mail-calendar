@@ -40,13 +40,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import java.io.File
 import org.json.JSONObject
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.ComposerFileAttachment
+import uniffi.mailcal_bindings.DraftStatus
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.Recipients
@@ -57,15 +57,10 @@ import uniffi.mailcal_bindings.senderLabel
 internal fun RichComposeMessageDialog(
     mode: RichComposeMode,
     onDismiss: () -> Unit,
-    // `from` is the account id the user picked in the From dropdown; the core sends as, and
-    // through, that account. Null only when there are no configured accounts to pick from.
-    onSubmitRich: (
-        from: String?,
-        recipients: Recipients,
-        subject: String,
-        documentJson: String,
-        files: List<ComposerFileAttachment>,
-    ) -> Boolean,
+    // Everything the send names, in one value: the account picked in the From dropdown, the
+    // recipients, the subject, the rendered document, the files, and the composition it was
+    // written in (`ComposerSubmission`).
+    onSubmitRich: (ComposerSubmission) -> Boolean,
     // Every configured account, for the From dropdown, and the one it opens on: the account that
     // received the mail being replied to/forwarded, else the selected mailbox's account, else the
     // app-level default send account (all resolved by the caller).
@@ -105,6 +100,12 @@ internal fun RichComposeMessageDialog(
     // The signature library + the two lookups the core answers, or null to leave signatures out of
     // this composer entirely (a screenshot run, a test).
     signatures: ComposerSignatures? = null,
+    // The core verbs this composer keeps its message on the server with, or null to turn draft
+    // saving off (a screenshot run, a test).
+    drafts: ComposerDrafts? = null,
+    // The composition to save under, for a composer the core has already joined to a stored draft.
+    // Every other composer mints its own, which is what the `remember` below does.
+    composition: String? = null,
 ) {
     val ctx = LocalContext.current
     val density = LocalDensity.current
@@ -173,6 +174,25 @@ internal fun RichComposeMessageDialog(
     // open already dirty. Null until the editor answers, which reads as "nothing to lose".
     var seedDocument by remember { mutableStateOf<String?>(null) }
     var confirmingDiscard by remember { mutableStateOf(false) }
+    // This composer's composition, for as long as it is open: the host's handle on one composer,
+    // and what every draft call names. Minted here because the core mints none; a resumed draft
+    // arrives with the one the core already joined to the copy on the server, and taking a fresh
+    // one would store a second draft beside it (`docs/drafts.md`).
+    val compositionId = remember { composition ?: java.util.UUID.randomUUID().toString() }
+    // How many changes the composer has seen, header and body alike. Every one restarts the idle
+    // interval; the value itself is never read for anything else.
+    var draftChanges by remember { mutableIntStateOf(0) }
+    // The header fields, as one value, so one effect covers all of them rather than one per field.
+    // The pre-fill arrives as each field's *initial* value, so it raises no change and no composer
+    // opens counting as edited.
+    val draftHeaders = listOf(to, cc, bcc, subject, attachments.size.toString())
+    LaunchedEffect(draftHeaders) { draftChanges += 1 }
+    // The most recent save's state, re-pulled whenever the core says some composition's moved.
+    var draftStatus by remember { mutableStateOf(DraftStatus.IDLE) }
+    // Whether this composer's message was submitted. From then on the send owns the composition
+    // and finishes with it when the message settles, so forgetting it here as well would race the
+    // cleanup that takes the stored draft away (docs/drafts.md).
+    var draftSubmitted by remember { mutableStateOf(false) }
     // Resolved fresh on every read rather than held in state: the account's assignment can change
     // under an open composer (Settings is reachable from the notification shade), and this is a
     // cheap in-memory core lookup.
@@ -186,6 +206,13 @@ internal fun RichComposeMessageDialog(
         onDispose {
             webView?.destroy()
             webView = null
+            // A composer that closed without sending. Without it the core holds a record per
+            // composer for the life of the process, and the stored draft would be superseded by
+            // whatever the next composer to take this id wrote. Never after a submit: the send
+            // finishes with the composition itself (docs/drafts.md).
+            if (!draftSubmitted) {
+                drafts?.close(compositionId)
+            }
         }
     }
 
@@ -222,6 +249,20 @@ internal fun RichComposeMessageDialog(
         }
     }
 
+    // What the composer holds, for a send or a save. `composition` is named whenever this composer
+    // keeps a draft, so an accepted send takes the stored copy away; a send that omitted it would
+    // leave a duplicate in Drafts of a message already on its way (`docs/drafts.md`).
+    val contentOf = { documentJson: String ->
+        ComposerSubmission(
+            from = from?.id,
+            recipients = Recipients(to, cc, bcc),
+            subject = subject,
+            documentJson = documentJson,
+            files = attachments.map { it.composerFile },
+            composition = compositionId.takeIf { drafts != null },
+        )
+    }
+
     val send = send@{
         composerError = null
         val webViewOrNull = webView
@@ -231,18 +272,26 @@ internal fun RichComposeMessageDialog(
         }
         webViewOrNull.evaluateJavascript("composerDocument()") { encoded ->
             val documentJson = decodeJsString(encoded)
-            if (documentJson != null &&
-                onSubmitRich(
-                    from?.id,
-                    Recipients(to, cc, bcc),
-                    subject,
-                    documentJson,
-                    attachments.map { it.composerFile },
-                )
-            ) {
+            if (documentJson != null && onSubmitRich(contentOf(documentJson))) {
+                draftSubmitted = true
                 onDismiss()
             } else {
                 composerError = L10n.compose_prepare_error(ctx)
+            }
+        }
+    }
+
+    // Stores the draft now, whatever the idle timer is doing. Both triggers land here and the core
+    // cannot tell them apart, which is deliberate: saving an unchanged draft reaches no server.
+    //
+    // A document the editor cannot render is dropped rather than shown. Saving is never something
+    // the user waits for, and never something a composer refuses to be dismissed over; a save the
+    // *server* refuses is reported, through the hint.
+    val saveDraft = {
+        val store = drafts
+        if (store != null) {
+            webView?.evaluateJavascript("composerDocument()") { encoded ->
+                decodeJsString(encoded)?.let { store.save(compositionId, contentOf(it)) }
             }
         }
     }
@@ -274,55 +323,32 @@ internal fun RichComposeMessageDialog(
             Scaffold(
                 modifier = Modifier.imePadding(),
                 topBar = {
-                    TopAppBar(
-                        title = { Text(title) },
-                        navigationIcon = {
-                            IconButton(onClick = requestDismiss) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_close),
-                                    contentDescription = L10n.action_cancel(ctx),
-                                )
-                            }
-                        },
-                        actions = {
-                            // Attach + Signature + Send as app-bar icons, like Gmail/Thunderbird on
-                            // Android. The app bar IS this platform's action bar, which is where
-                            // docs/signatures.md puts the signature control: it is an action you
-                            // take on the message, not a field you address it with. (macOS and iOS
-                            // draw the same three as a bar above the editor, having no app bar.)
-                            IconButton(onClick = { pickAttachments.launch(arrayOf("*/*")) }) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_attachment),
-                                    contentDescription = L10n.action_attach(ctx),
-                                )
-                            }
-                            // Only once the user has written a signature: with an empty library the
-                            // menu would offer nothing but "None", a control that cannot do anything.
-                            if (signatures != null && signatures.library.isNotEmpty()) {
-                                ComposerSignatureAction(
-                                    library = signatures.library,
-                                    selected = signature?.id,
-                                    expanded = signatureMenuOpen,
-                                    onExpand = { signatureMenuOpen = it },
-                                    onSelect = { id ->
-                                        signatureChoice = id?.let(SignatureChoice::Named)
-                                            ?: SignatureChoice.NoSignature
-                                        webView?.setComposerSignature(
-                                            signatures.resolve(signatureChoice, from?.id, mode),
-                                        )
-                                    },
-                                )
-                            }
-                            IconButton(
-                                enabled = to.isNotBlank() && from != null,
-                                onClick = send,
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_send),
-                                    contentDescription = L10n.action_send(ctx),
-                                )
-                            }
-                        },
+                    ComposerTopBar(
+                        title = title,
+                        onClose = requestDismiss,
+                        onAttach = { pickAttachments.launch(arrayOf("*/*")) },
+                        signaturePicker = signatures
+                            ?.takeIf { it.library.isNotEmpty() }
+                            ?.let { library ->
+                                {
+                                    ComposerSignatureAction(
+                                        library = library.library,
+                                        selected = signature?.id,
+                                        expanded = signatureMenuOpen,
+                                        onExpand = { signatureMenuOpen = it },
+                                        onSelect = { id ->
+                                            signatureChoice = id?.let(SignatureChoice::Named)
+                                                ?: SignatureChoice.NoSignature
+                                            webView?.setComposerSignature(
+                                                library.resolve(signatureChoice, from?.id, mode),
+                                            )
+                                        },
+                                    )
+                                }
+                            },
+                        onSaveDraft = saveDraft.takeIf { drafts != null },
+                        sendEnabled = to.isNotBlank() && from != null,
+                        onSend = send,
                     )
                 },
             ) { padding ->
@@ -331,6 +357,15 @@ internal fun RichComposeMessageDialog(
                 // this effect runs on the layout pass that measures the header, which is frames
                 // before the editor bundle has parsed, so on first open the hook it calls does not
                 // exist yet and the call is silently dropped.
+                ComposerDraftEffects(
+                    drafts = drafts,
+                    composition = compositionId,
+                    webView = webView,
+                    changes = draftChanges,
+                    onChanged = { draftChanges += 1 },
+                    onStatus = { draftStatus = it },
+                    onIdle = saveDraft,
+                )
                 LaunchedEffect(headerHeightPx) {
                     if (headerHeightPx > 0) {
                         webView?.evaluateJavascript(
@@ -360,45 +395,22 @@ internal fun RichComposeMessageDialog(
                             droppedPictures = dropped.pictures
                         },
                 ) {
-                    // The WebView fills the surface and owns the scroll (its toolbar pins above the
-                    // keyboard via position:fixed in editor.html). It reports its scroll offset so
-                    // the header overlay above can track it.
-                    AndroidView(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            // The WebView must draw into a layer of its own. Without one its first
-                            // paint washes over the header overlay above it, which stays laid out
-                            // and tappable while invisible, so a tap on what looks like the body
-                            // lands in a hidden address field, and the typing never reaches the
-                            // editor.
-                            .graphicsLayer { clip = true },
-                        factory = { context ->
-                            WebView(context).apply {
-                                configureComposerWebView(
-                                    quote = quote,
-                                    body = initialBody,
-                                    labelsJson = labelsJson,
-                                    // The caret opens where the work starts, the body here, the
-                                    // To field otherwise (`composerOpensInBody`). Raising the
-                                    // keyboard is part of it, rather than making the user tap first.
-                                    focusBody = composerOpensInBody(mode, initialTo),
-                                    // Read at page-finished time, not captured now: the header has
-                                    // been measured by then, so the editor gets its real inset.
-                                    topInsetDp = { headerHeightPx / density.density },
-                                    signature = { signatureSeedJson(currentSignature.value) },
-                                    onScroll = { y -> scrollY = y },
-                                    onSeeded = { seeded -> seedDocument = seeded },
-                                )
-                                loadDataWithBaseURL(
-                                    "https://composer.local/",
-                                    html,
-                                    "text/html",
-                                    "utf-8",
-                                    null,
-                                )
-                                webView = this
-                            }
-                        },
+                    ComposerEditorView(
+                        html = html,
+                        quote = quote,
+                        body = initialBody,
+                        labelsJson = labelsJson,
+                        // The caret opens where the work starts, the body here, the To field
+                        // otherwise (`composerOpensInBody`). Raising the keyboard is part of it,
+                        // rather than making the user tap first.
+                        focusBody = composerOpensInBody(mode, initialTo),
+                        // Read at page-finished time, not captured now: the header has been
+                        // measured by then, so the editor gets its real inset.
+                        topInsetDp = { headerHeightPx / density.density },
+                        signature = { signatureSeedJson(currentSignature.value) },
+                        onScroll = { y -> scrollY = y },
+                        onSeeded = { seeded -> seedDocument = seeded },
+                        onReady = { webView = it },
                     )
                     // The address-field header, overlaid on the WebView and offset by the scroll so
                     // it scrolls up and off as the message grows. Opaque, so the empty editor area
@@ -449,14 +461,7 @@ internal fun RichComposeMessageDialog(
                                 File(attachment.path).delete()
                             },
                         )
-                        composerError?.let { message ->
-                            Text(
-                                text = message,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(bottom = 8.dp),
-                            )
-                        }
+                        ComposerNotices(error = composerError, draftStatus = draftStatus)
                     }
                     // The dropped-picture question. Drawn inside the composer's own Dialog so its
                     // window is created after this one and stacks above it, and so back reaches the
@@ -474,6 +479,11 @@ internal fun RichComposeMessageDialog(
                         DiscardDraftDialog(
                             onDiscard = {
                                 confirmingDiscard = false
+                                // The one path that takes the stored copy off the server; closing
+                                // the composer any other way leaves the draft in Drafts. Before
+                                // the dismiss, which disposes this composer and would otherwise
+                                // forget the composition first (`docs/drafts.md`).
+                                drafts?.discard(compositionId)
                                 onDismiss()
                             },
                             onKeepEditing = { confirmingDiscard = false },

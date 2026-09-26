@@ -68,9 +68,10 @@ pub(crate) fn a_reading_window_is_the_mailbox_peer_and_not_a_second_app() {
     );
 }
 
-/// Closing a composer window discards the draft exactly as Cancel does, and asks no more than
-/// Cancel does: one report, no question.
-pub(crate) fn closing_a_composer_window_discards_without_a_question() {
+/// Closing a composer window finishes with the composer exactly as Cancel does, and asks no more
+/// than Cancel does: one report, no question. What it finishes with is the composer, not the
+/// message: whatever the draft had saved stays in Drafts (`docs/drafts.md`).
+pub(crate) fn closing_a_composer_window_asks_no_question() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let open = composer_window(7, &sender);
 

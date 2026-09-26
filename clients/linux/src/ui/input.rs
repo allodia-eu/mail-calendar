@@ -3,8 +3,8 @@
 use std::{fmt, path::PathBuf};
 
 use mailcal_bindings::{
-    AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget, Intent, MailtoPrefill,
-    SearchScope, SetupRecommendation, SharePrefill, Surface,
+    AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget, DraftResume, Intent,
+    MailtoPrefill, SearchScope, SetupRecommendation, SharePrefill, Surface,
 };
 
 use super::{
@@ -190,6 +190,14 @@ pub(crate) enum AppInput {
     /// Keep the draft, and drop the navigation that was waiting on it.
     KeepEditing,
     SubmitComposer(Box<ComposerSubmission>),
+    /// Store what the composer holds in the Drafts folder, superseding this composition's
+    /// previous save. Both the Save button and the idle timer emit it, and the core cannot tell
+    /// them apart (`docs/drafts.md`).
+    SaveComposerDraft(Box<ComposerSubmission>),
+    /// A draft the core has opened back up, under the composition it was adopted into. `Err`
+    /// means it could not be opened, which is said rather than shown as an empty composer: one
+    /// opened without the draft's content would replace it on its next save.
+    DraftResumed(String, Box<Result<DraftResume, ()>>),
     SaveAttachment {
         source: ReadingSource,
         id: u32,
@@ -392,6 +400,8 @@ impl fmt::Debug for AppInput {
             Self::DiscardDraft => "DiscardDraft",
             Self::KeepEditing => "KeepEditing",
             Self::SubmitComposer(_) => "SubmitComposer",
+            Self::SaveComposerDraft(_) => "SaveComposerDraft",
+            Self::DraftResumed(..) => "DraftResumed",
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::OpenAttachment { .. } => "OpenAttachment",
             Self::AttachmentSaved(_) => "AttachmentSaved",

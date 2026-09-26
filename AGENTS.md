@@ -371,6 +371,14 @@ someone is working on, to produce the answer the runner produces anyway. Run
 `cargo xtask gate --clients`, which already limits itself to what this host owns, and **say
 which platforms went unexercised locally** rather than finding a way to exercise them.
 
+⚠️ **The Linux client breaks differently from the other three, because it is the only one
+consuming the bindings as Rust.** Swift, Kotlin and C# are generated with default arguments, so
+a parameter added to an FFI method is absorbed at every existing call site and those clients go
+on compiling. `mailcal-linux` calls the same method directly, Rust has no default arguments, and
+every call site fails at once. So a change to an FFI signature is exactly the shape that passes
+`--clients` on a Mac and turns the Linux job red: read each call site's argument list against
+the new signature before pushing, position for position.
+
 ⚠️ **A host build compiles against the distribution's GTK, not the runtime's**, so it proves the
 code compiles and its logic holds, not that the toolkit the user gets behaves. What runs against
 the shipped runtime is `test-linux-ui.sh` and `build-and-run.sh`, both defaulting to it via

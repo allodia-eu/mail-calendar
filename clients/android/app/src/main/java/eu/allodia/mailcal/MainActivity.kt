@@ -95,9 +95,23 @@ class MainActivity : AppCompatActivity() {
     // Outbox *and* on the unified inbox (docs/folder-pane.md, rule 18).
     internal var outbox by mutableStateOf<List<QueuedRow>>(emptyList())
     internal var showingOutbox by mutableStateOf(false)
+    // Whether the list is showing the account's Drafts folder, so a row opens into a composer that
+    // saves over it rather than into the reading view (docs/drafts.md). The core answers it from
+    // the folder's role, never from its name.
+    internal var showingDrafts by mutableStateOf(false)
+    // Bumped on every Surface.DRAFT_STATUS signal, so each open composer re-pulls its own
+    // composition's state. The signal says that *some* composition's save moved, not which, and
+    // there is nothing else to publish.
+    internal var draftStatusVersion by mutableStateOf(0)
     // A message the core withdrew from the Outbox so the user can change it. It exists nowhere
     // else by the time it arrives, so it is held until this client's composer has it.
     internal var withdrawnMessage by mutableStateOf<ComposeRequest?>(null)
+    // A draft the core has opened back up, waiting for its composer to be drawn. Null the rest of
+    // the time; set only by a tap on a Drafts-folder row (docs/drafts.md).
+    internal var resumedDraft by mutableStateOf<ResumedDraft?>(null)
+    // Whether to say that a draft could not be opened back into a composer. Raised instead of
+    // opening an empty one, whose next save would replace the draft.
+    internal var draftOpenFailed by mutableStateOf(false)
     // The selected folder key within the selected account (null = all mail). Pulled with the snapshot.
     internal var selectedFolder by mutableStateOf<String?>(null)
     // How far back the active search looked, or null when the list is not a search.

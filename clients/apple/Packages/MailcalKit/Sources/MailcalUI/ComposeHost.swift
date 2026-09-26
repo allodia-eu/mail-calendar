@@ -42,6 +42,21 @@ struct ComposeHost: View {
         )
     }
 
+    /// The core verbs this composer keeps its message on the server with, handed to every mode.
+    /// Built once here so all four save, discard and close through the same calls; the composition
+    /// each one names is the composer's own, minted when it opens.
+    private var drafts: ComposerDrafts {
+        ComposerDrafts(
+            save: { composition, recipients, subject, documentJson, files, from in
+                model.saveDraft(composition, recipients, subject, documentJson, files, from: from)
+            },
+            discard: { model.discardDraft($0) },
+            close: { model.closeComposition($0) },
+            status: { model.draftStatus($0) },
+            version: model.draftStatusVersion
+        )
+    }
+
     var body: some View {
         switch context {
         case .new:
@@ -88,6 +103,8 @@ struct ComposeHost: View {
                 attachments: request.prefill.attachments,
                 error: shareRefusalNotice(request.prefill.rejected)
             )
+        case let .resumedDraft(request):
+            resumedDraft(request)
         case let .forward(account, key, subject, quote, quoteStyle, attachments):
             forwardMessage(
                 account: account, key: key, subject: subject,
@@ -104,9 +121,10 @@ struct ComposeHost: View {
             initialFrom: model.sendAccount(preferring: from)?.id,
             probe: probe,
             suggestionsFor: recipientSuggestions,
-            signatures: signatures
-        ) { recipients, subject, documentJson, files, from in
-            submitted(model.submitRich(recipients, subject, documentJson, files, from: from))
+            signatures: signatures,
+            drafts: drafts
+        ) { submission in
+            submitted(model.submitRich(submission))
         } cancel: { dismiss() }
     }
 
@@ -134,9 +152,38 @@ struct ComposeHost: View {
             initialError: error,
             probe: probe,
             suggestionsFor: recipientSuggestions,
-            signatures: signatures
-        ) { recipients, subject, documentJson, files, from in
-            submitted(model.submitRich(recipients, subject, documentJson, files, from: from))
+            signatures: signatures,
+            drafts: drafts
+        ) { submission in
+            submitted(model.submitRich(submission))
+        } cancel: { dismiss() }
+    }
+
+    /// A draft that was already on the server, opened into a composer that saves **over** it.
+    ///
+    /// Two things separate it from every other new message. The composition is the one the core
+    /// adopted the stored draft into, never a fresh one, or the composer's first save would store
+    /// a second copy beside the one it is showing. And no signature is seeded: the body came back
+    /// as the text of a message that was signed when it was first written, so seeding one would
+    /// put a second signature under it, and the next save would write that to the server.
+    private func resumedDraft(_ request: ResumedDraftRequest) -> some View {
+        RichComposeView(
+            title: L10n.compose_title_new(),
+            mode: .new,
+            accounts: model.accounts,
+            initialFrom: model.sendAccount(preferring: request.draft.account)?.id,
+            initialTo: request.draft.to,
+            initialCc: request.draft.cc,
+            initialBcc: request.draft.bcc,
+            initialSubject: request.draft.subject,
+            initialBody: request.draft.bodyText,
+            initialAttachments: request.draft.attachments,
+            composition: request.composition,
+            probe: probe,
+            suggestionsFor: recipientSuggestions,
+            drafts: drafts
+        ) { submission in
+            submitted(model.submitRich(submission))
         } cancel: { dismiss() }
     }
 
@@ -157,13 +204,10 @@ struct ComposeHost: View {
             quoteStylePerMessage: model.quoteSettings.perMessage,
             probe: probe,
             suggestionsFor: recipientSuggestions,
-            signatures: signatures
-        ) { recipients, subject, documentJson, files, from in
-            submitted(
-                model.submitRichReply(
-                    account, key, recipients, subject, documentJson, files, from: from
-                )
-            )
+            signatures: signatures,
+            drafts: drafts
+        ) { submission in
+            submitted(model.submitRichReply(account, key, submission))
         } cancel: { dismiss() }
     }
 
@@ -184,13 +228,10 @@ struct ComposeHost: View {
             quoteStylePerMessage: model.quoteSettings.perMessage,
             probe: probe,
             suggestionsFor: recipientSuggestions,
-            signatures: signatures
-        ) { recipients, subject, documentJson, files, from in
-            submitted(
-                model.submitRichForward(
-                    account, key, recipients, subject, documentJson, files, from: from
-                )
-            )
+            signatures: signatures,
+            drafts: drafts
+        ) { submission in
+            submitted(model.submitRichForward(account, key, submission))
         } cancel: { dismiss() }
     }
 

@@ -35,27 +35,13 @@ internal fun ReadingComposerOverlay(
     replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
     suggestionsFor: ((String) -> List<RecipientMatch>)?,
     signatures: ComposerSignatures?,
+    // The core verbs this composer keeps its message on the server with (`docs/drafts.md`).
+    drafts: ComposerDrafts?,
     // Screenshot only: sample text to pre-fill the reply composer's body with (plain text).
     composerInitialText: String?,
     onClose: () -> Unit,
-    onReply: (
-        account: String,
-        key: String,
-        from: String?,
-        recipients: Recipients,
-        subject: String,
-        documentJson: String,
-        files: List<ComposerFileAttachment>,
-    ) -> Boolean,
-    onForward: (
-        account: String,
-        key: String,
-        from: String?,
-        recipients: Recipients,
-        subject: String,
-        documentJson: String,
-        files: List<ComposerFileAttachment>,
-    ) -> Boolean,
+    onReply: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
+    onForward: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
 ) {
     val ctx = LocalContext.current
     val prefill = remember(message.key, mode) {
@@ -101,11 +87,12 @@ internal fun ReadingComposerOverlay(
         quoteStyle = quoteSettings.style,
         quoteStylePerMessage = quoteSettings.perMessage,
         onDismiss = onClose,
-        onSubmitRich = { from, recipients, subject, documentJson, files ->
+        drafts = drafts,
+        onSubmitRich = { submission ->
             val sent = if (isForward) {
-                onForward(message.account, message.key, from, recipients, subject, documentJson, files)
+                onForward(message.account, message.key, submission)
             } else {
-                onReply(message.account, message.key, from, recipients, subject, documentJson, files)
+                onReply(message.account, message.key, submission)
             }
             if (sent) {
                 onClose()

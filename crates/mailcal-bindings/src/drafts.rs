@@ -20,7 +20,9 @@ use crate::{
 ///
 /// **A hint, never a gate.** No state here should stop a composer being closed, and none is
 /// worth a modal: saving a draft is not something the user asked about out loud.
-#[derive(uniffi::Enum)]
+// Copy, because the one client that consumes these bindings as Rust keeps a status per open
+// composer and reads it out of a map. It changes nothing for the generated languages.
+#[derive(uniffi::Enum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DraftStatus {
     /// Nothing has been saved this session.
     Idle,
@@ -173,9 +175,15 @@ impl MailcalApp {
     /// Forgets the composition, leaving the stored draft where it is: the composer closed and
     /// the draft stays in Drafts.
     ///
-    /// **A host calls this whenever a composer closes**, including after sending. Without it
-    /// the core holds a record per composer for the life of the process, and a host that
-    /// reuses a composition id would have its next draft supersede the previous one.
+    /// **A host calls this when a composer closes without sending.** Without it the core holds
+    /// a record per composer for the life of the process, and a host that reuses a composition
+    /// id would have its next draft supersede the previous one.
+    ///
+    /// **Never after a submit that was accepted.** The send owns the composition from then on
+    /// and finishes with it when the message settles, taking the stored draft away or leaving
+    /// it. A host that closed it as well would be racing that: the two are separate tasks, and
+    /// this one landing first leaves the send with no record to find and the draft in the
+    /// user's Drafts folder for ever.
     ///
     /// # Errors
     ///

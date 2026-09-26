@@ -41,38 +41,6 @@ enum RichComposeMode {
     case forward
 }
 
-/// Everything the composer needs to seed, swap, and override signatures, the library to list, and
-/// the two lookups the core answers (the account's signature for this mode, and one by id). Passed
-/// as a value rather than the model so `RichComposeView` stays free of it; `nil` turns the feature
-/// off entirely, which is what a preview or a screenshot run wants.
-struct ComposerSignatures {
-    /// The library, for the picker.
-    let library: [SignatureRow]
-    /// The signature `account` uses in `slot`, or `nil` when that slot is unassigned.
-    let forAccount: (String, SignatureSlotKind) -> SignatureBody?
-    /// One signature by id, the per-message override.
-    let byId: (String) -> SignatureBody?
-}
-
-/// What this one message's signature should be. `nil` (the initial state) means **follow the
-/// account**: the signature re-resolves whenever the From dropdown changes, which is what a user
-/// who never touched the picker expects, their work signature when sending from work.
-///
-/// Once they pick explicitly, that choice sticks even across a From change: they chose it *for this
-/// message*, and silently replacing it would undo a deliberate act. (Outlook re-swaps regardless,
-/// which is its most complained-about composer behaviour.)
-/// Spelled `noSignature` rather than `none`: as an `Optional<SignatureChoice>`, which is how it is
-/// held, since `nil` means "follow the account", a case called `none` would collide with
-/// `Optional.none` at every `switch` and pattern match.
-///
-/// Not `private`: RichComposerView.Signature.swift matches on it too.
-enum SignatureChoice: Equatable {
-    /// No signature on this message.
-    case noSignature
-    /// This specific signature, by id.
-    case signature(String)
-}
-
 /// Rich composer for a new message, reply, reply-all, or forward: the shared local editor
 /// bundle plus the editable From/To/Cc/Bcc header fields (and Subject for a new message). `send`
 /// receives the entered [`Recipients`], the Subject (used only for a new message), the
@@ -84,7 +52,7 @@ struct RichComposeView: View {
     let title: String
     var mode: RichComposeMode = .new
     let accounts: [AccountRow]
-    let send: (Recipients, String, String, [ComposerFileAttachment], String?) -> Bool
+    let send: (ComposerSubmission) -> Bool
     let cancel: () -> Void
     /// Ranked address suggestions for a partially-typed recipient, answered by the core from synced
     /// contacts **and** from people the user has written to before, so it works on an account with
@@ -96,6 +64,9 @@ struct RichComposeView: View {
     var probe: ComposeDraftProbe?
     /// The signature library + lookups, or `nil` to disable signatures for this composer.
     var signatures: ComposerSignatures?
+    /// The core verbs this composer keeps its draft on the server with, or `nil` to turn draft
+    /// saving off (a preview, a screenshot run).
+    var drafts: ComposerDrafts?
     /// Whether this compose shows the per-message quote-style picker: it carries a quoted original
     /// (reply/forward) *and* the user opted into per-message styling in Settings.
     private let showsStylePicker: Bool
@@ -106,12 +77,27 @@ struct RichComposeView: View {
     /// The user's explicit signature choice for this message, or `nil` to follow the account.
     /// Not `private`: RichComposerView.Signature.swift reads and sets it too.
     @State var signatureChoice: SignatureChoice?
-    @State private var to: String
-    @State private var cc: String
-    @State private var bcc: String
+    @State var to: String
+    @State var cc: String
+    @State var bcc: String
     /// Whether the Cc/Bcc rows are revealed. Collapsed unless the caller pre-filled one.
     @State private var showsCcBcc: Bool
-    @State private var subject: String
+    @State var subject: String
+    /// This composer's composition, for as long as it is open: the host's handle on one composer,
+    /// and what every draft call names. Minted here because the core mints none, and per composer
+    /// because a desktop can have several open at once (`docs/reading-window.md`).
+    ///
+    /// A **resumed** draft is the exception and arrives with one: the core has already joined that
+    /// id to the copy on the server, so a fresh one here would save a second draft beside it.
+    @State var composition: String
+    /// The most recent save's state, re-pulled whenever the core says some composition's moved.
+    @State var draftStatus: DraftStatus = .idle
+    /// How many changes the composer has seen. Each one restarts the idle interval.
+    @State var draftChanges = 0
+    /// Whether this composer's message was submitted, so the send owns the composition from here
+    /// and closing it as well would race the cleanup that takes the stored draft away
+    /// (`docs/drafts.md`).
+    @State var draftSubmitted = false
     /// The one error line under the composer, which more than one failure writes to: a send that
     /// could not be prepared, a dropped picture that could not be shown, and a forward whose
     /// files could not be read. It carries the message rather than a flag, so each says which.
@@ -150,13 +136,17 @@ struct RichComposeView: View {
         /// An error the composer opens showing, for a failure that happened before it did: the
         /// files a forward was to carry could not be read.
         initialError: String? = nil,
+        /// The composition to save under, for a composer the core has already joined to a stored
+        /// draft. Every other composer mints its own.
+        composition: String? = nil,
         quote: String? = nil,
         quoteStyle: QuoteStyleKind = .indented,
         quoteStylePerMessage: Bool = false,
         probe: ComposeDraftProbe? = nil,
         suggestionsFor: ((String) async -> [RecipientMatch])? = nil,
         signatures: ComposerSignatures? = nil,
-        send: @escaping (Recipients, String, String, [ComposerFileAttachment], String?) -> Bool,
+        drafts: ComposerDrafts? = nil,
+        send: @escaping (ComposerSubmission) -> Bool,
         cancel: @escaping () -> Void
     ) {
         self.title = title
@@ -167,6 +157,7 @@ struct RichComposeView: View {
         self.probe = probe
         self.suggestionsFor = suggestionsFor
         self.signatures = signatures
+        self.drafts = drafts
         self.showsStylePicker = ComposerQuote.showsStylePicker(
             hasQuote: quote != nil,
             perMessage: quoteStylePerMessage
@@ -203,6 +194,7 @@ struct RichComposeView: View {
         // they cannot remove (docs/composer-security.md, Gate 12).
         _showsCcBcc = State(initialValue: revealsCcBcc(cc: initialCc, bcc: initialBcc))
         _subject = State(initialValue: initialSubject)
+        _composition = State(initialValue: composition ?? UUID().uuidString)
         _quoteStyle = State(initialValue: quoteStyle)
         _attachments = State(initialValue: initialAttachments.map(PickedAttachment.init(staged:)))
         _composerError = State(initialValue: initialError)
@@ -258,8 +250,13 @@ struct RichComposeView: View {
         .recipientSuggestionLayer()
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .composeDraftTracking(probe: probe, editor: editor, to: to, cc: cc, bcc: bcc, subject: subject, attachments: attachments.count)
+        .composeDraftTracking(
+            probe: probe, editor: editor, to: to, cc: cc, bcc: bcc, subject: subject,
+            attachments: attachments.count, edited: { draftChanges &+= 1 },
+            discard: discardStoredDraft
+        )
         .modifier(composerDrop)
+        .modifier(draftSaving)
         #else
         // iOS/iPadOS: a full-height sheet with the title + Cancel/Send in the navigation bar.
         NavigationStack {
@@ -279,6 +276,13 @@ struct RichComposeView: View {
         // Inside it, on the scroll view, or on the field, WebKit draws over the list.
         .recipientSuggestionLayer()
         .modifier(composerDrop)
+        // The header fields raise no probe on iOS (there is no row behind the cover to click),
+        // but they still change the message, so the draft tracking runs here for its edits alone.
+        .composeDraftTracking(
+            probe: nil, editor: editor, to: to, cc: cc, bcc: bcc, subject: subject,
+            attachments: attachments.count, edited: { draftChanges &+= 1 }
+        )
+        .modifier(draftSaving)
         #endif
     }
 
@@ -382,6 +386,11 @@ struct RichComposeView: View {
                 .font(.caption)
                 .foregroundStyle(.red)
         }
+        if let draftHint {
+            Text(draftHint)
+                .font(.caption)
+                .foregroundStyle(draftHintFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+        }
     }
 
     /// The composer's action bar, above the editor, Outlook's arrangement, and the reason the
@@ -419,6 +428,18 @@ struct RichComposeView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            if drafts != nil {
+                // Never disabled. A draft is unfinished by definition, so there is no state a
+                // composer can be in that this refuses, and pressing it on an unchanged message
+                // reaches no server.
+                Button {
+                    saveDraftNow()
+                } label: {
+                    Label(L10n.action_save_draft(), systemImage: "tray.and.arrow.down")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
             if showsSignaturePicker {
                 signatureMenu
             }
@@ -431,9 +452,20 @@ struct RichComposeView: View {
         editor.documentJSON { result in
             switch result {
             case .success(let documentJson):
-                let recipients = Recipients(to: to, cc: cc, bcc: bcc)
-                let files = attachments.map(\.composerFile)
-                if !send(recipients, subject, documentJson, files, resolvedFrom) {
+                let submission = ComposerSubmission(
+                    recipients: Recipients(to: to, cc: cc, bcc: bcc),
+                    subject: subject,
+                    documentJson: documentJson,
+                    files: attachments.map(\.composerFile),
+                    from: resolvedFrom,
+                    // Named whenever this composer keeps a draft, so the send takes the stored
+                    // copy away; a send that omitted it would leave a duplicate in Drafts of a
+                    // message already on its way (`docs/drafts.md`).
+                    composition: drafts == nil ? nil : composition
+                )
+                if send(submission) {
+                    draftSubmitted = true
+                } else {
                     composerError = L10n.compose_prepare_error()
                 }
             case .failure:

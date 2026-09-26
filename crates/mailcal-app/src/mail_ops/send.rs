@@ -75,12 +75,24 @@ impl<P: Provider> App<P> {
             SendOutcome::Queued => SendStatus::Queued,
             SendOutcome::Failed => SendStatus::Failed,
         });
-        // The message the composer held now lives somewhere that will deliver it, so the
-        // draft beside it is a copy of a message already on its way, and a copy the user
-        // would find in Drafts long after they sent it. Only a **failed** send keeps it:
-        // the composer is gone by then and those words are nowhere else (`docs/drafts.md`).
-        if let Some(composition) = composition.filter(|_| outcome != SendOutcome::Failed) {
-            self.discard_draft(composition).await;
+        // The send is what finishes with the composition, not the host.
+        //
+        // The message the composer held now lives somewhere that will deliver it, so the draft
+        // beside it is a copy of a message already on its way, and one the user would find in
+        // Drafts long after they sent it. Only a **failed** send keeps it: the composer is gone
+        // by then and those words are nowhere else (`docs/drafts.md`).
+        //
+        // Either way the record goes. A host dismisses the composer the moment the submit is
+        // accepted, which is long before the message has been anywhere, so it cannot be the one
+        // to forget the composition: its `Close` and this run as separate tasks, and a `Close`
+        // landing first would leave this with no record to find and the draft in Drafts for
+        // ever.
+        if let Some(composition) = composition {
+            if outcome == SendOutcome::Failed {
+                self.close_composition(composition);
+            } else {
+                self.discard_draft(composition).await;
+            }
         }
         self.refresh_after_write(account).await;
         self.clear_send_status_after_delay(generation).await;

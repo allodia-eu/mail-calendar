@@ -29,17 +29,53 @@ extension ContentView {
         }
     }
 
-    /// Opens a message for reading: records the header and asks the core to fetch its body.
+    /// Opens a message for reading: records the header and asks the core to fetch its body. In
+    /// the Drafts folder it opens the composer the message was written in instead.
     ///
     /// Guarded: on macOS the composer lives in the detail column, so opening a message would drop
     /// an unsent draft. `openGuardingDraft` asks first when there is something written to lose
     /// (Mailcal.ComposeDraft.swift); on iPhone/iPad it just runs the open.
     func open(_ message: FlatRow) {
-        openGuardingDraft { openNow(message) }
+        openGuardingDraft {
+            resumeOrRead(message.account, message.key) { openNow(message) }
+        }
     }
 
     private func openNow(_ message: FlatRow) {
         openNow(opened(message))
+    }
+
+    /// Opens a Drafts-folder row back into its composer, and every other row for reading.
+    ///
+    /// Told by the **folder**, not by the row: the core answers per message but the list does not
+    /// carry it, so a draft met in a search result or inside a thread opens read-only
+    /// (`docs/drafts.md`, known gaps).
+    ///
+    /// Resuming is a round trip and, unlike a forward, cannot count on the message being cached:
+    /// a draft is opened from a list row, so the first open of one fetches it. The composer
+    /// appears when the answer does. A draft that could not be opened is **said**, and the
+    /// message opens for reading: a composer opened without the draft's content would replace it
+    /// with what was on screen the next time it saved.
+    private func resumeOrRead(
+        _ account: String,
+        _ key: String,
+        otherwise read: @escaping () -> Void
+    ) {
+        guard model.showingDrafts else {
+            read()
+            return
+        }
+        Task { @MainActor in
+            let composition = UUID().uuidString
+            guard let draft = await model.resumeDraft(composition, account, key) else {
+                draftOpenFailed = true
+                read()
+                return
+            }
+            compose = .resumedDraft(
+                ResumedDraftRequest(composition: composition, draft: draft)
+            )
+        }
     }
 
     /// Opens a conversation: expands the thread inline in the list (showing its whole
@@ -65,9 +101,14 @@ extension ContentView {
         }
     }
 
-    /// Opens one message of a conversation (a sub-row) in the reading pane.
+    /// Opens one message of a conversation (a sub-row) in the reading pane, or back into its
+    /// composer when the conversation is being shown in Drafts.
     func openThreadMessage(_ thread: ThreadRow, _ message: ThreadMessage) {
-        openGuardingDraft { openThreadMessageNow(thread, message) }
+        openGuardingDraft {
+            resumeOrRead(message.account, message.key) {
+                openThreadMessageNow(thread, message)
+            }
+        }
     }
 
     // The unguarded open, so `open(_ thread:)`, already inside the guard, doesn't ask twice.

@@ -27,6 +27,13 @@ final class ComposeDraftProbe {
     /// Asks the hosted editor whether its document differs from the seed it opened with.
     var bodyEdited: (() async -> Bool)?
 
+    /// Removes the composer's stored draft from the server, if it has one.
+    ///
+    /// The other direction of the same narrow channel: the composer knows its composition and the
+    /// shell only knows that a draft is up, so Discard has to be handed down rather than reached
+    /// for. `nil` on a composer with draft saving turned off, where there is nothing stored.
+    var discardStored: (() -> Void)?
+
     /// Whether anything has been written since the composer opened.
     ///
     /// A reply that merely carries its quoted original is **not** dirty: the seeded document is the
@@ -41,6 +48,7 @@ final class ComposeDraftProbe {
     func reset() {
         headersEdited = false
         bodyEdited = nil
+        discardStored = nil
     }
 }
 
@@ -63,6 +71,14 @@ extension View {
     /// on every keystroke when the answer is only ever needed at the moment the user clicks away.
     /// The recipient pre-fill of a reply arrives as the field's *initial* value, so it raises no
     /// change and does not make the draft dirty.
+    ///
+    /// `discard` is set beside `bodyEdited`, in the one place the probe is wired, so nothing
+    /// depends on the order two modifiers' `onAppear` run in.
+    ///
+    /// `edited` is called on the same change, for the autosave timer, which restarts on every one
+    /// (`docs/drafts.md`). The two consumers want the same event and differ only in what they do
+    /// with it, so watching the fields twice would be two answers to one question. iOS raises no
+    /// probe (no row is clickable behind a full-screen cover) and still wants the edits.
     func composeDraftTracking(
         probe: ComposeDraftProbe?,
         editor: RichComposerEditor,
@@ -70,17 +86,21 @@ extension View {
         cc: String,
         bcc: String,
         subject: String,
-        attachments: Int
+        attachments: Int,
+        edited: @escaping () -> Void = {},
+        discard: (() -> Void)? = nil
     ) -> some View {
         onAppear {
             probe?.reset()
             probe?.bodyEdited = { await editor.bodyChangedFromSeed() }
+            probe?.discardStored = discard
         }
         .onDisappear { probe?.reset() }
         .onChange(
             of: DraftHeaders(to: to, cc: cc, bcc: bcc, subject: subject, attachments: attachments)
         ) { _, _ in
             probe?.headersEdited = true
+            edited()
         }
     }
 }
@@ -149,6 +169,9 @@ struct DiscardDraftDialog: ViewModifier {
     @Binding var isPresented: Bool
     @Binding var compose: ComposeContext?
     @Binding var pendingOpen: (() -> Void)?
+    /// The composer's own handle, for the one thing this dialog does that the shell cannot: take
+    /// the stored draft off the server.
+    let probe: ComposeDraftProbe
 
     func body(content: Content) -> some View {
         content// An `alert`, not a `confirmationDialog`: iPadOS presents the latter as a popover, and a
@@ -159,6 +182,11 @@ struct DiscardDraftDialog: ViewModifier {
             isPresented: $isPresented
         ) {
             Button(L10n.action_discard(), role: .destructive) {
+                // Before `compose` is cleared, not after: clearing it takes the composer off
+                // screen, and the composer is what knows which composition to remove. Discarding
+                // is also the one path that takes the stored copy off the server; closing the
+                // composer any other way leaves the draft in Drafts (`docs/drafts.md`).
+                probe.discardStored?()
                 compose = nil
                 let open = pendingOpen
                 pendingOpen = nil

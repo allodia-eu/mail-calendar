@@ -34,6 +34,14 @@ pub(crate) struct ComposeContext {
     pub(crate) initial_from: Option<String>,
     /// Whether this client owns the body and should seed and offer its signature library.
     pub(crate) seeds_signature: bool,
+    /// The composition this composer saves its draft under: the host's handle on one composer,
+    /// kept for as long as it is open, and what every draft call names (`docs/drafts.md`).
+    ///
+    /// Minted per composer because the core mints none, and because a desktop can have several
+    /// open at once (`docs/reading-window.md`). A **resumed** draft is the exception and arrives
+    /// with the one the core has already joined to the copy on the server; a fresh one there
+    /// would store a second draft beside the one the composer is showing.
+    pub(crate) composition: String,
     /// Files the composer opens already holding: a share (`docs/os-integration.md`), or the files
     /// a forwarded message carries. Empty for every other route: the picker fills the list itself.
     pub(crate) files: Vec<PickedFile>,
@@ -54,6 +62,7 @@ impl ComposeContext {
             quote: None,
             initial_from,
             seeds_signature: true,
+            composition: new_composition(),
             files: Vec::new(),
         }
     }
@@ -72,6 +81,7 @@ impl ComposeContext {
             quote: None,
             initial_from,
             seeds_signature: false,
+            composition: new_composition(),
             files: Vec::new(),
         }
     }
@@ -99,6 +109,7 @@ impl ComposeContext {
             quote: None,
             initial_from,
             seeds_signature: false,
+            composition: new_composition(),
             files: Vec::new(),
         }
     }
@@ -113,6 +124,20 @@ impl ComposeContext {
     pub(crate) fn opens_in_body(&self) -> bool {
         self.kind != ComposeKind::New || !self.initial_to.trim().is_empty()
     }
+}
+
+/// A fresh composition id, minted as a composer opens.
+///
+/// A counter rather than a UUID, because a composition is **session state**: the core holds the
+/// record joining it to a stored key only while the composer is open, and forgets it on close
+/// (`docs/drafts.md`). So the id has to be unique among the composers of one process and nothing
+/// more, and this client's other window ids are minted the same way.
+pub(crate) fn new_composition() -> String {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    format!(
+        "composer-{}",
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    )
 }
 
 /// The shared editor call for a plain-text seed, encoded as JavaScript data rather than code.

@@ -1690,6 +1690,24 @@
     view.addEventListener("resize", place);
   }
 
+  // src/revision.ts
+  function installRevisionCounter(editor) {
+    let revision = 0;
+    const observer = new (windowOf2(editor)).MutationObserver(() => {
+      revision += 1;
+    });
+    observer.observe(editor, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true
+    });
+    return () => revision;
+  }
+  function windowOf2(node) {
+    return node.ownerDocument.defaultView;
+  }
+
   // src/seeds.ts
   function focusComposerBody(editor) {
     const lead = editor.firstElementChild;
@@ -2113,6 +2131,7 @@
   var toolbar = installToolbar(editor, toolbarRoot, () => labels);
   var chrome = installNativeChrome(editor, toolbarRoot);
   installImageResize(editor);
+  var revision = installRevisionCounter(editor);
   editor.addEventListener("paste", (event) => {
     event.preventDefault();
     const images = imageFilesFrom(event.clipboardData);
@@ -2189,6 +2208,7 @@
     focusEditor(editor);
     insertAtCaret(editor, node);
   };
+  window.composerRevision = () => revision();
   window.composerDocument = () => {
     const blocks = documentBlocks(editor);
     return JSON.stringify({

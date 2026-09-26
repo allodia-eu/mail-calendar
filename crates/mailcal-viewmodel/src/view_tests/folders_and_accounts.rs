@@ -181,3 +181,50 @@ fn the_folder_tree_is_carried_in_every_view_including_one_accounts_own() {
         assert_eq!(snapshot.unified_unread, 3, "selected: {selected:?}");
     }
 }
+
+#[test]
+fn the_snapshot_says_when_the_open_folder_is_the_drafts_folder() {
+    // What a client switches a row's click on: in Drafts a row opens a composer, everywhere
+    // else it opens the reading view.
+    let folders = vec![
+        roled("inbox", "Inbox", MailboxRole::Inbox),
+        roled("drafts", "Drafts", MailboxRole::Drafts),
+    ];
+    let showing = |selected| {
+        build(
+            &[],
+            &folders,
+            &[],
+            vec![],
+            Some("work"),
+            selected,
+            ViewMode::Flat,
+            ALL,
+        )
+        .showing_drafts
+    };
+    assert!(showing(Some("drafts")));
+    assert!(!showing(Some("inbox")));
+    // The account's all-mail view holds the drafts too, and offers no composer for them:
+    // the row a user opens there is as likely to be received mail.
+    assert!(!showing(None));
+}
+
+#[test]
+fn a_folder_merely_named_drafts_is_not_the_drafts_folder() {
+    // The role is the provider's answer; the name is the user's. A folder someone called
+    // Drafts holds ordinary mail, and opening a message of theirs into a composer would
+    // have the first save rewrite it (`docs/drafts.md`).
+    let folders = vec![Mailbox::new(MailboxId::try_from("mine").unwrap(), "Drafts")];
+    let snapshot = build(
+        &[],
+        &folders,
+        &[],
+        vec![],
+        Some("work"),
+        Some("mine"),
+        ViewMode::Flat,
+        ALL,
+    );
+    assert!(!snapshot.showing_drafts);
+}

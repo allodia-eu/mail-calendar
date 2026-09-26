@@ -1,10 +1,42 @@
 // The rich composer's signature resolution and picker: the account's signature by default,
-// overridable for this one message. Split out of RichComposerView.swift to keep it under 500
-// lines.
+// overridable for this one message, plus the two values that describe both. Split out of
+// RichComposerView.swift to keep it under 500 lines.
 
 import Foundation
 import MailcalBindings
 import SwiftUI
+
+/// Everything the composer needs to seed, swap, and override signatures, the library to list, and
+/// the two lookups the core answers (the account's signature for this mode, and one by id). Passed
+/// as a value rather than the model so `RichComposeView` stays free of it; `nil` turns the feature
+/// off entirely, which is what a preview or a screenshot run wants.
+struct ComposerSignatures {
+    /// The library, for the picker.
+    let library: [SignatureRow]
+    /// The signature `account` uses in `slot`, or `nil` when that slot is unassigned.
+    let forAccount: (String, SignatureSlotKind) -> SignatureBody?
+    /// One signature by id, the per-message override.
+    let byId: (String) -> SignatureBody?
+}
+
+/// What this one message's signature should be. `nil` (the initial state) means **follow the
+/// account**: the signature re-resolves whenever the From dropdown changes, which is what a user
+/// who never touched the picker expects, their work signature when sending from work.
+///
+/// Once they pick explicitly, that choice sticks even across a From change: they chose it *for this
+/// message*, and silently replacing it would undo a deliberate act. (Outlook re-swaps regardless,
+/// which is its most complained-about composer behaviour.)
+/// Spelled `noSignature` rather than `none`: as an `Optional<SignatureChoice>`, which is how it is
+/// held, since `nil` means "follow the account", a case called `none` would collide with
+/// `Optional.none` at every `switch` and pattern match.
+///
+/// Not `private`: RichComposerView.Signature.swift matches on it too.
+enum SignatureChoice: Equatable {
+    /// No signature on this message.
+    case noSignature
+    /// This specific signature, by id.
+    case signature(String)
+}
 
 extension RichComposeView {
     /// Whether to show the signature picker: the feature is wired **and** the user has written at

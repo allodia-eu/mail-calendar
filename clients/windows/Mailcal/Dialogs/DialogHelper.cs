@@ -93,6 +93,20 @@ internal static class DialogHelper
             DefaultButton = ContentDialogButton.Close,
         });
 
+    /// <summary>Says something the user can only acknowledge: one button, because there is
+    /// nothing to decide. <paramref name="content"/> may be empty, for a title that is already
+    /// the whole sentence.</summary>
+    public static Task<ContentDialogResult> TellAsync(
+        XamlRoot root, string title, string content = "") =>
+        ShowAsync(new ContentDialog
+        {
+            XamlRoot = root,
+            Title = title,
+            Content = string.IsNullOrEmpty(content) ? null : content,
+            CloseButtonText = L10n.ActionClose(),
+            DefaultButton = ContentDialogButton.Close,
+        });
+
     /// <summary>Asks which occurrences a write on a repeating event meant: <c>Primary</c> is this
     /// event alone, <c>Secondary</c> is the whole series, and closing writes nothing. The core has
     /// no default here and neither does this, acting on one Tuesday and acting on the standup are

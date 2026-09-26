@@ -9,7 +9,7 @@ use super::{
     AppInput, AppModel, PrimaryView,
     calendar::CalendarPane,
     composer::ComposerPane,
-    composer_draft::DiscardDraftDialog,
+    composer_discard::DiscardDraftDialog,
     connectivity::ConnectivityBanners,
     contacts::ContactsPane,
     destinations::DestinationBar,
@@ -22,7 +22,7 @@ use super::{
     mailbox_empty,
     mailbox_progressive::ProgressiveRenderer,
     outbox,
-    reader::ReadingSource,
+    reader::{ComposerHost, ReadingSource},
     reading::{InvitationClock, ReadingPane},
     search::SearchBar,
     selection_bar::{self, SelectionBar, SelectionCountPane},
@@ -369,6 +369,9 @@ impl AppWidgets {
             if let Some(notice) = model.composer_error {
                 self.composer.show_error(notice.text());
             }
+            // How this composition's last save ended, re-read whenever the core says some
+            // composition's moved (`docs/drafts.md`).
+            self.composer.show_draft_hint(model, ComposerHost::Pane);
             // A navigation is waiting on this draft's answer. Issued from here because the model
             // renders behind a shared reference and cannot run the editor round trip itself.
             if let Some(generation) = model.draft_check {

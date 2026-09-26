@@ -7,6 +7,11 @@ package eu.allodia.mailcal
 
 import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.viewinterop.AndroidView
 import org.json.JSONArray
 import org.json.JSONObject
 import uniffi.mailcal_bindings.SignatureBody
@@ -148,6 +153,54 @@ internal fun WebView.configureComposerWebView(
             }
         }
     }
+}
+
+/**
+ * The editor itself: the hardened WebView, loading only the bundled asset, filling its parent and
+ * owning the one scroll (its toolbar pins above the keyboard via `position: fixed`). It reports
+ * its scroll offset so the address-field overlay above can track it.
+ *
+ * A composable here rather than an `AndroidView` inline in RichComposeScreen.kt, which is at the
+ * 500-line limit; everything it configures is `configureComposerWebView` above.
+ */
+@Composable
+internal fun ComposerEditorView(
+    html: String,
+    quote: String?,
+    body: String,
+    labelsJson: String,
+    focusBody: Boolean,
+    topInsetDp: () -> Float,
+    signature: () -> String?,
+    onScroll: (Int) -> Unit,
+    onSeeded: (String?) -> Unit,
+    onReady: (WebView) -> Unit,
+) {
+    AndroidView(
+        modifier = Modifier
+            .fillMaxSize()
+            // The WebView must draw into a layer of its own. Without one its first paint washes
+            // over the header overlay above it, which stays laid out and tappable while invisible,
+            // so a tap on what looks like the body lands in a hidden address field, and the typing
+            // never reaches the editor.
+            .graphicsLayer { clip = true },
+        factory = { context ->
+            WebView(context).apply {
+                configureComposerWebView(
+                    quote = quote,
+                    body = body,
+                    labelsJson = labelsJson,
+                    focusBody = focusBody,
+                    topInsetDp = topInsetDp,
+                    signature = signature,
+                    onScroll = onScroll,
+                    onSeeded = onSeeded,
+                )
+                loadDataWithBaseURL("https://composer.local/", html, "text/html", "utf-8", null)
+                onReady(this)
+            }
+        },
+    )
 }
 
 // Puts the caret in the message body and brings the soft keyboard up, so a reply opens ready to

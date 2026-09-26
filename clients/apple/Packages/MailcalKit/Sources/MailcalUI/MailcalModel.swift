@@ -86,6 +86,10 @@ final class MailboxModel {
     /// Whether the list is showing the Outbox rather than mail. Not derivable from
     /// `selectedAccount`/`selected`: both are `nil` here *and* on the unified inbox.
     var showingOutbox = false
+    /// Whether the list is showing the account's Drafts folder, so a row opens into a composer
+    /// that saves over it rather than into the reading view (`docs/drafts.md`). The core answers
+    /// it from the folder's role, never from its name.
+    var showingDrafts = false
     var selected: String?
     /// How far back the active search looked, or `nil` when the list is not a search, the sync
     /// depth of the accounts its scope covered (`docs/search.md`).
@@ -131,6 +135,14 @@ final class MailboxModel {
     /// The outgoing-send hint (pulled on a `Surface::Sending` signal): `.sending` while a
     /// send is in flight, then the terminal `.sent`/`.failed` which auto-clears to `.idle`.
     var sendStatus: SendStatus = .idle
+    /// Bumped on every `Surface::DraftStatus` signal, so each open composer re-pulls its own
+    /// composition's state.
+    ///
+    /// The signal says that *some* composition's save moved, not which, and a desktop can have
+    /// several composers up at once (`docs/reading-window.md`), so there is nothing to publish
+    /// here but the fact that something changed. This is the composer counterpart of
+    /// `reloadReadingWindows`.
+    var draftStatusVersion = 0
     /// The most recent calendar write's status (pulled on a `Surface::CalendarStatus` signal):
     /// `.saving` while a create/edit/delete settles, then `.saved` or `.failed`. `.failed` means
     /// "could not confirm the local view", not "your change was rejected", the write reached the

@@ -147,7 +147,9 @@ impl AppModel {
             AppInput::SearchMail(query) => self.search_mail(query),
             AppInput::SetSearchScope(scope) => self.set_search_scope(scope),
             AppInput::OpenSyncDepthSettings => self.open_sync_depth_settings(),
-            AppInput::OpenThreadMessage(message) => self.open_message(*message),
+            AppInput::OpenThreadMessage(message) => {
+                self.open_or_resume(*message, sender.input_sender().clone());
+            }
             AppInput::SetThreadExpanded { thread, expanded } => {
                 self.set_thread_expanded(&thread, expanded);
             }
@@ -246,13 +248,17 @@ impl AppModel {
             // Cancel and a closed window are the same act, and both discard without asking
             // (`docs/reading-window.md`).
             AppInput::CancelComposer(host) => match host {
-                ComposerHost::Pane => self.composer = None,
+                ComposerHost::Pane => self.clear_pane_composer(),
                 ComposerHost::Window(id) => self.close_composer_window(id),
             },
             AppInput::ComposerDraftChecked(edited) => self.draft_checked(edited),
-            AppInput::DiscardDraft => self.take_pending_navigation(),
+            AppInput::DiscardDraft => self.discard_draft(),
             AppInput::KeepEditing => self.keep_editing(),
             AppInput::SubmitComposer(submission) => self.submit_composer(&submission),
+            AppInput::SaveComposerDraft(submission) => self.save_composer_draft(&submission),
+            AppInput::DraftResumed(composition, resumed) => {
+                self.draft_resumed(composition, *resumed);
+            }
             AppInput::SaveAttachment {
                 source,
                 id,

@@ -25,6 +25,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock x:Name="TitleText" Grid.Row="0" Style="{StaticResource SubtitleTextBlockStyle}"
@@ -114,6 +115,12 @@
                         <MenuFlyout x:Name="SignatureMenu" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
+                <!-- Never disabled: a draft is unfinished by definition, so there is no state a
+                     composer can be in that this refuses, and pressing it on an unchanged message
+                     reaches no server (docs/drafts.md). Hidden only where the composer keeps no
+                     draft at all. -->
+                <Button x:Name="SaveDraftButton" Visibility="Collapsed"
+                        Content="{x:Bind l10n:L10n.ActionSaveDraft()}" Click="OnSaveDraft" />
             </StackPanel>
             <ListView x:Name="AttachmentList" MaxHeight="92" SelectionMode="Single"
                       DisplayMemberPath="DisplayName" SelectionChanged="OnAttachmentSelectionChanged" />
@@ -124,10 +131,18 @@
                    Style="{StaticResource CaptionTextBlockStyle}"
                    Text="{x:Bind l10n:L10n.ComposePrepareError()}" />
 
+        <!-- How the draft's last save ended. A hint and never a gate: no state here stops the
+             composer being closed, and none of it is worth a dialog (docs/drafts.md). Its own row
+             rather than sharing PrepareError's, so a save that failed cannot erase a send that
+             did. -->
+        <TextBlock x:Name="DraftHint" Grid.Row="8" Visibility="Collapsed"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Style="{StaticResource CaptionTextBlockStyle}" />
+
         <!-- Send / Cancel. These were ContentDialog chrome (PrimaryButton / CloseButton) and the
              send hung off args.Cancel in the dialog's button handler; a pane has no chrome, so the
              composer now owns its own action row. -->
-        <StackPanel Grid.Row="8" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+        <StackPanel Grid.Row="9" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
             <!-- Named like its sibling so a test can press it without knowing the app's language:
                  a harness run is in whatever the developer prefers, not a pinned locale. -->
             <Button x:Name="CancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}" Click="OnCancel" />

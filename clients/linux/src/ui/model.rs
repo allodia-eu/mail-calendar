@@ -38,6 +38,7 @@ pub(super) fn empty_mailbox() -> MailboxListSnapshot {
         // empty one would take the row off screen in any case (`docs/folder-pane.md`,
         // rule 18).
         showing_outbox: false,
+        showing_drafts: false,
         outbox: Vec::new(),
     }
 }

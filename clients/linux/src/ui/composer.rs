@@ -20,10 +20,10 @@ use super::{
         show_in_message,
     },
     composer_draft::{DraftGuard, HeaderValues},
+    composer_drafts::Autosave,
+    composer_fields::{ComposerFields, connect_save_draft, connect_send, read_document},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
-    composer_model::{
-        ComposeContext, ComposeKind, ComposerSubmission, PickedFile, plain_text_seed_script,
-    },
+    composer_model::{ComposeContext, ComposeKind, plain_text_seed_script},
     composer_signature::SignatureControl,
     editor_paste,
     reader::ComposerHost,
@@ -51,6 +51,12 @@ pub(crate) struct ComposerPane {
     /// so a re-render cannot ask twice for one navigation.
     draft: RefCell<Option<DraftGuard>>,
     checked_generation: Cell<Option<u64>>,
+    /// The open draft's autosave: the one timer that notices a change and stores the message once
+    /// the composer has gone quiet (`docs/drafts.md`).
+    autosave: Autosave,
+    /// The line the draft's last save is reported on. Its own label rather than the error line's,
+    /// so a save that failed cannot erase a send that did.
+    hint: RefCell<Option<gtk::Label>>,
 }
 
 impl ComposerPane {
@@ -64,6 +70,8 @@ impl ComposerPane {
             signature: RefCell::new(None),
             draft: RefCell::new(None),
             checked_generation: Cell::new(None),
+            autosave: Autosave::default(),
+            hint: RefCell::new(None),
         }
     }
 
@@ -144,6 +152,11 @@ impl ComposerPane {
         actions.set_halign(gtk::Align::Start);
         let attach = gtk::Button::with_label(l10n::action_attach());
         actions.append(&attach);
+        // Never disabled: a draft is unfinished by definition, so there is no state a composer
+        // can be in that this refuses, and pressing it on an unchanged message reaches no server
+        // (`docs/drafts.md`).
+        let save_draft = gtk::Button::with_label(l10n::action_save_draft());
+        actions.append(&save_draft);
         content.append(&actions);
         let file_list = gtk::ListBox::new();
         file_list.add_css_class("boxed-list");
@@ -158,6 +171,12 @@ impl ComposerPane {
         error.add_css_class("error");
         error.set_visible(false);
         content.append(&error);
+        // How the draft's last save ended. A hint and never a gate: no state here stops the
+        // composer being closed, and none of it is worth a dialog.
+        let hint = gtk::Label::new(None);
+        hint.add_css_class("dim-label");
+        hint.set_visible(false);
+        content.append(&hint);
 
         let web = SecureWebView::new(DocumentKind::Composer, sender.clone());
         // One route into the composer for files, taken twice, so a drop and a paste differ in the
@@ -240,24 +259,67 @@ impl ComposerPane {
             },
             seed,
         )));
-        connect_send(
-            &send_button,
-            web.widget(),
-            request.clone(),
-            accounts.to_vec(),
+        let fields = ComposerFields {
+            request: request.clone(),
+            accounts: accounts.to_vec(),
             from,
             to,
             cc,
             bcc,
             subject,
             files,
+        };
+        connect_send(
+            &send_button,
+            web.widget(),
+            &fields,
             error.clone(),
-            sender,
+            sender.clone(),
         );
+        connect_save_draft(&save_draft, web.widget(), &fields, sender.clone());
+        // The idle save takes the same route the button does, so the two cannot come to store
+        // different messages; the timer samples both the editor and the header fields, because
+        // the page has no channel back to this host and a recipient field keeps one change
+        // callback, which Send already owns.
+        let idle_editor = web.widget().clone();
+        let idle_fields = fields.clone();
+        self.autosave.start(web.widget(), fields, move || {
+            read_document(
+                &idle_editor,
+                &idle_fields,
+                &sender,
+                AppInput::SaveComposerDraft,
+                || {},
+            );
+        });
         web.load(EDITOR_HTML, false);
+        self.hint.replace(Some(hint));
         self.error.replace(Some(error));
         self.send.replace(Some(send_button));
         self.signature.replace(signature);
+    }
+
+    /// Draws what the draft's last save said, or takes the line away when there is nothing to
+    /// say. A hint and never a gate: no state here stops the composer being closed.
+    pub(crate) fn show_draft_hint(&self, model: &super::AppModel, host: ComposerHost) {
+        let Some(label) = self.hint.borrow().clone() else {
+            return;
+        };
+        let status = model.draft_status_of(host);
+        match super::composer_drafts::draft_hint_text(status) {
+            Some(text) => {
+                label.set_text(text);
+                if super::composer_drafts::draft_hint_failed(status) {
+                    label.remove_css_class("dim-label");
+                    label.add_css_class("error");
+                } else {
+                    label.remove_css_class("error");
+                    label.add_css_class("dim-label");
+                }
+                label.set_visible(true);
+            }
+            None => label.set_visible(false),
+        }
     }
 
     pub(crate) fn show_error(&self, text: &str) {
@@ -291,6 +353,9 @@ impl ComposerPane {
     }
 
     pub(crate) fn teardown(&self) {
+        // Before the widgets go: a tick left running would read an editor that has been dropped.
+        self.autosave.stop();
+        self.hint.replace(None);
         // Dropped, not just detached: each field's suggestion popover lives in its own surface
         // and unparents itself on drop.
         self.fields.take();
@@ -304,69 +369,6 @@ impl ComposerPane {
         self.error.replace(None);
         self.send.replace(None);
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn connect_send(
-    button: &gtk::Button,
-    editor: &webkit6::WebView,
-    request: ComposeContext,
-    accounts: Vec<(String, String)>,
-    from: gtk::DropDown,
-    to: Rc<RecipientField>,
-    cc: Rc<RecipientField>,
-    bcc: Rc<RecipientField>,
-    subject: gtk::Entry,
-    files: Rc<RefCell<Vec<PickedFile>>>,
-    error: gtk::Label,
-    sender: relm4::Sender<AppInput>,
-) {
-    let editor = editor.clone();
-    let button_clone = button.clone();
-    button.connect_clicked(move |_| {
-        button_clone.set_sensitive(false);
-        error.set_visible(false);
-        let request = request.clone();
-        let to_value = to.text();
-        let cc_value = cc.text();
-        let bcc_value = bcc.text();
-        let subject_value = subject.text().to_string();
-        let files_value = files.borrow().clone();
-        let selected = from.selected();
-        let from_value = usize::try_from(selected)
-            .ok()
-            .and_then(|index| accounts.get(index))
-            .map(|(id, _)| id.clone());
-        let input_sender = sender.clone();
-        let error = error.clone();
-        let button = button_clone.clone();
-        editor.evaluate_javascript(
-            "composerDocument()",
-            None,
-            None,
-            None::<&gio::Cancellable>,
-            move |result| {
-                if let Ok(value) = result {
-                    input_sender.emit(AppInput::SubmitComposer(Box::new(ComposerSubmission {
-                        request,
-                        to: to_value,
-                        cc: cc_value,
-                        bcc: bcc_value,
-                        subject: subject_value,
-                        document_json: value.to_str().to_string(),
-                        files: files_value,
-                        from: from_value,
-                    })));
-                } else {
-                    // The label is shared with the dropped-picture failure, so re-state which
-                    // failure this is rather than leaving the last message standing.
-                    error.set_text(l10n::compose_prepare_error());
-                    error.set_visible(true);
-                    button.set_sensitive(true);
-                }
-            },
-        );
-    });
 }
 
 /// Every string the shared editor's own chrome draws, in the bundle's key names.

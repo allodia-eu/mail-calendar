@@ -45,6 +45,44 @@ struct ForwardAttachments {
     var failed = false
 }
 
+/// What the composer hands its parent when the user presses Send: everything the three
+/// `submitRich*` calls name, in one value.
+///
+/// A value rather than six positional arguments, because the last two read alike at a call site
+/// and mean opposite things: `from` is which account sends, `composition` is which composer wrote
+/// it. Transposing them compiles.
+struct ComposerSubmission {
+    let recipients: Recipients
+    /// The Subject field as edited. A reply and a forward open with the core's derived
+    /// `Re:`/`Fwd:` already in it.
+    let subject: String
+    /// The rendered editor document.
+    let documentJson: String
+    /// The files the composer holds: picked, dropped, forwarded or resumed.
+    let files: [ComposerFileAttachment]
+    /// The account picked in the From dropdown, or `nil` to let the core derive it.
+    let from: String?
+    /// The composition this message was written in, so an accepted send takes its stored draft
+    /// out of Drafts (`docs/drafts.md`). `nil` only from a composer that keeps no draft.
+    let composition: String?
+}
+
+/// A draft the core has opened back up, and the composition it was adopted into.
+///
+/// The composition travels with it because the core has already joined that id to the copy on the
+/// server: a composer that minted one of its own would save a second draft beside the one it is
+/// showing, and neither would supersede the other (`docs/drafts.md`).
+///
+/// Carries its own id for the reason `MailLinkRequest` does: opening the same draft twice must
+/// open the composer twice rather than compare equal to the first and appear to do nothing.
+struct ResumedDraftRequest: Identifiable, Equatable {
+    let id = UUID()
+    let composition: String
+    let draft: DraftResume
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+}
+
 enum ComposeContext: Identifiable {
     case new
     case reply(account: String, key: String, to: String, cc: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind)
@@ -53,6 +91,7 @@ enum ComposeContext: Identifiable {
     case agentDraft(AgentDraftRequest)
     case mailLink(MailLinkRequest)
     case share(ShareOpenRequest)
+    case resumedDraft(ResumedDraftRequest)
 
     var id: String {
         switch self {
@@ -63,6 +102,7 @@ enum ComposeContext: Identifiable {
         case .agentDraft(let request): return "agent:\(request.id)"
         case .mailLink(let request): return "mailLink:\(request.id)"
         case .share(let request): return "share:\(request.id)"
+        case .resumedDraft(let request): return "draft:\(request.id)"
         }
     }
 
@@ -75,6 +115,8 @@ enum ComposeContext: Identifiable {
              let .replyAll(_, _, _, _, subject, _, _),
              let .forward(_, _, subject, _, _, _):
             return subject.isEmpty ? L10n.compose_title_new() : subject
+        case let .resumedDraft(request):
+            return request.draft.subject.isEmpty ? L10n.compose_title_new() : request.draft.subject
         case .new, .agentDraft, .mailLink, .share:
             return L10n.compose_title_new()
         }
