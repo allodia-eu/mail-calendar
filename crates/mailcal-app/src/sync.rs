@@ -170,9 +170,25 @@ impl<P: Provider> App<P> {
     /// this in the background. The deferred counterpart is
     /// [`refresh_account`](Self::refresh_account): it starts hidden, then shows progress only if
     /// it actually downloads mail. A no-op for an unknown account id.
+    ///
+    /// The two halves are [`sync_added_mail`](Self::sync_added_mail) and
+    /// [`warm_added_account`](Self::warm_added_account), for a host that has to act between them.
     pub async fn sync_added_account(&self, id: &AccountId) {
+        self.sync_added_mail(id).await;
+        self.warm_added_account(id).await;
+    }
+
+    /// The first half of [`sync_added_account`](Self::sync_added_account): the account's mail is
+    /// synced and on screen. A new account's folders are known from here on, and not before, so
+    /// this is the earliest point [`sync_settings`](Self::sync_settings) can name one to watch.
+    pub async fn sync_added_mail(&self, id: &AccountId) {
         self.sync_account(id).await;
         self.rebuild_snapshot().await;
+    }
+
+    /// The second half of [`sync_added_account`](Self::sync_added_account): the calendar and the
+    /// body cache. On a large mailbox the body pass runs for many minutes.
+    pub async fn warm_added_account(&self, id: &AccountId) {
         // Fetch the account's calendar too, for the same reason the bodies below are fetched: the
         // user asked for this account, not for its mail. Without it a brand-new account has no
         // diary until the calendar tab is opened, so the first session: the one where an
