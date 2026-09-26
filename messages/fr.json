@@ -526,6 +526,11 @@
 	"sync_hint_account": "Synchronisation de {account} : {done} dossiers sur {total}",
 	"sync_hint_accounts": "Synchronisation de {count} comptes",
 	"sync_hint_bodies": "Synchronisation de {account} : {done} messages jusqu'ici",
+	"sync_paused": "Synchronisation en pause",
+	"sync_paused_detail": "Le serveur de messagerie de {account} nous a demandé de ralentir. La synchronisation reprend dans environ {count} minutes.",
+	"sync_paused_detail_one": "Le serveur de messagerie de {account} nous a demandé de ralentir. La synchronisation reprend dans environ {count} minute.",
+	"sync_paused_detail_soon": "Le serveur de messagerie de {account} nous a demandé de ralentir. La synchronisation reprend sous peu.",
+	"sync_paused_detail_accounts": "Les serveurs de messagerie de {count} comptes nous ont demandé de ralentir. La synchronisation reprend sous peu.",
 
 	"settings_sync_heading": "Nouveaux messages",
 	"settings_sync_description": "Choisissez comment chaque compte recherche les nouveaux messages.",

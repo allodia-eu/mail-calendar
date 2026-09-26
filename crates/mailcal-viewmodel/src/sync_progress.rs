@@ -11,6 +11,10 @@
 //!   currently pulling mail down, and how far through their folders each one is, so a status line
 //!   can say so in passing.
 //!
+//! - **The pause** ([`throttled`](SyncProgressSnapshot::throttled)) is for an account whose server
+//!   answered promptly and asked to be left alone for a while. Nothing is arriving for it and
+//!   nothing is wrong, which is the one combination the other two surfaces cannot express.
+//!
 //! An account appears in the hint only once its pass has actually committed mail. A poll that
 //! finds nothing says nothing; otherwise a quiet account would blink a hint on a timer forever.
 //!
@@ -35,6 +39,35 @@ pub struct SyncProgressSnapshot {
     /// bar: an awaited download is already explained by it, and saying so twice in two places
     /// is noise.
     pub accounts: Vec<AccountSyncProgress>,
+    /// The accounts whose server has asked us to **slow down**, in a stable order. Empty
+    /// whenever nothing is being made to wait, which is almost always.
+    ///
+    /// Takes precedence over [`accounts`](Self::accounts) in the one status line a host draws:
+    /// a pass that is downloading is already evident from the list filling, and a pass that is
+    /// waiting is evident from nothing at all. An account never appears in both, because the
+    /// projection drops a paused account from the hint rather than leaving five hosts to order
+    /// the two themselves.
+    pub throttled: Vec<ThrottledAccount>,
+}
+
+/// One account a server has asked to wait, and when syncing continues.
+///
+/// This is **not** an outage and not a failure: the server was reached, answered quickly, and
+/// asked for less traffic. The account keeps its mail, its credential and its badge; it is
+/// simply not being synced for the moment.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ThrottledAccount {
+    /// The account, to be named from the host's own account list, exactly as the hint is.
+    pub account_id: String,
+    /// Whole minutes until syncing continues, rounded **up**, where the server named an
+    /// instant. `None` means it refused without saying when, and a host says so rather than
+    /// inventing a figure.
+    ///
+    /// Minutes rather than seconds because the figure is read off a snapshot that is not
+    /// re-pulled on a clock: a second-by-second countdown would be visibly wrong within a
+    /// second of being drawn, while "about a minute" stays true for as long as it is up.
+    /// Rounded up, and never zero, so the wait is overstated rather than promised early.
+    pub resumes_in_minutes: Option<u32>,
 }
 
 /// One account catching up in the background, as far as a status line needs it.

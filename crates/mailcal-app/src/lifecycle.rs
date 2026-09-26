@@ -35,7 +35,7 @@ use crate::{
     surfaced::{Surfaced, SurfacedMap},
     swipe_settings::SwipeSettingsState,
     sync,
-    sync_progress::SyncProgressState,
+    sync_progress_state::SyncProgressState,
     sync_settings::SyncSettingsState,
     timezone::TimeZoneState,
 };

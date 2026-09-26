@@ -1,220 +1,31 @@
-//! Sync-progress aggregation: the bar for a download the user awaits, the hint for one they did
-//! not ask for.
+//! Sync progress, app side: the observer a pass reports through, and the entry points that
+//! raise and clear what a host draws.
 //!
 //! The engine owns per-scope commit aggregation via [`AccountProgress`] and reports each pass's
 //! folders through [`SyncObserver`]. This module keeps only the app policy around it: which pass
 //! is allowed to raise which surface, several passes at once, and signalling
-//! [`Surface::SyncProgress`] when either moves.
+//! [`Surface::SyncProgress`] when any of them moves. The bookkeeping underneath is
+//! [`SyncProgressState`](crate::sync_progress_state::SyncProgressState).
 //!
-//! The split the two surfaces hold to is in [`SyncProgressSnapshot`]: the bar belongs to a pass
-//! the user started and is waiting on; a background pass never raises it, and instead names
+//! The split the three surfaces hold to is in [`SyncProgressSnapshot`]: the bar belongs to a
+//! pass the user started and is waiting on; a background pass never raises it, and instead names
 //! itself in the hint, but only once it has actually committed mail, so a poll that finds
-//! nothing stays silent.
+//! nothing stays silent; and an account whose server asked it to wait says so in the hint's
+//! place, because nothing is arriving for it and nothing is wrong.
 
 use std::{
-    collections::{BTreeMap, HashMap},
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
+    time::Duration,
 };
 
 use engine_api::{AccountId, AccountProgress, Provider, SyncCommit, SyncObserver, SyncScope};
 use engine_core::ids::MailboxId;
-use mailcal_viewmodel::{AccountSyncProgress, SyncProgressSnapshot};
+use mailcal_viewmodel::SyncProgressSnapshot;
 
-use crate::{App, Surface, sync_progress_staged::pretended_progress};
-
-/// One account's folders within a pass, as far as the hint needs them.
-#[derive(Debug, Default)]
-struct AccountPass {
-    folders_total: u32,
-    folders_done: u32,
-    /// Set once this account has committed mail, which is what admits it to the hint.
-    downloading: bool,
-}
-
-#[derive(Debug)]
-struct SyncPass {
-    /// A download the user is waiting on: the bar is up from the moment the pass starts, and
-    /// this pass never appears in the hint.
-    awaited: bool,
-    /// Whether this pass may name itself at all once it downloads. False for the pass that
-    /// follows the user's *own* mail action; see [`App::begin_sync_labeled`].
-    announceable: bool,
-    progress: Arc<AccountProgress>,
-    /// The accounts this pass is syncing, keyed by id so the hint's order is stable across
-    /// snapshots. Only tracked for a pass that could reach the hint.
-    accounts: BTreeMap<String, AccountPass>,
-}
-
-impl SyncPass {
-    /// Whether this pass's accounts can reach the hint, and so are worth tracking.
-    fn hints(&self) -> bool {
-        self.announceable && !self.awaited
-    }
-}
-
-/// The app-level set of in-flight sync passes, and the body warms that follow them.
-#[derive(Debug, Default)]
-pub(crate) struct SyncProgressState {
-    next_id: u64,
-    passes: HashMap<u64, SyncPass>,
-    /// Accounts warming message bodies, and how many are done. A warm is not a pass; it runs
-    /// after one, drains against "what is still missing" rather than a folder list, and belongs
-    /// to no observer: so it is tracked beside them and merged into the hint.
-    warming: BTreeMap<String, u32>,
-}
-
-impl SyncProgressState {
-    fn begin(
-        &mut self,
-        awaited: bool,
-        announceable: bool,
-        scopes: usize,
-    ) -> (u64, Arc<AccountProgress>) {
-        let id = self.next_id;
-        self.next_id = self.next_id.wrapping_add(1);
-        let progress = Arc::new(AccountProgress::new(scopes));
-        progress.begin();
-        self.passes.insert(
-            id,
-            SyncPass {
-                awaited,
-                announceable,
-                progress: Arc::clone(&progress),
-                accounts: BTreeMap::new(),
-            },
-        );
-        (id, progress)
-    }
-
-    fn end(&mut self, id: u64) {
-        if let Some(pass) = self.passes.remove(&id) {
-            pass.progress.finish();
-        }
-    }
-
-    /// Registers an account and how many folders its pass set out to sync.
-    fn account_started(&mut self, id: u64, account: &str, folders: u32) {
-        let Some(pass) = self.passes.get_mut(&id).filter(|pass| pass.hints()) else {
-            return;
-        };
-        pass.accounts.insert(
-            account.to_owned(),
-            AccountPass {
-                folders_total: folders,
-                ..AccountPass::default()
-            },
-        );
-    }
-
-    /// Counts one of an account's folders as done; whether it synced or failed. The hint says
-    /// how far through the folder list the pass is, not how much of it worked.
-    ///
-    /// Returns whether the hint moved, so a quiet pass does not signal the surface per folder.
-    fn folder_finished(&mut self, id: u64, account: &str) -> bool {
-        let Some(pass) = self.passes.get_mut(&id) else {
-            return false;
-        };
-        let Some(entry) = pass.accounts.get_mut(account) else {
-            return false;
-        };
-        entry.folders_done = entry.folders_done.saturating_add(1);
-        entry.downloading
-    }
-
-    /// Drops an account whose pass has finished, so the hint clears per account rather than
-    /// waiting for the slowest one in a multi-account refresh.
-    fn account_finished(&mut self, id: u64, account: &str) -> bool {
-        let Some(pass) = self.passes.get_mut(&id) else {
-            return false;
-        };
-        pass.accounts
-            .remove(account)
-            .is_some_and(|entry| entry.downloading)
-    }
-
-    /// Admits an account to the hint: this pass has committed mail for it. Returns whether that
-    /// changed anything, so the per-message commit path signals once rather than every time.
-    fn downloading(&mut self, id: u64, account: &str) -> bool {
-        let Some(pass) = self.passes.get_mut(&id) else {
-            return false;
-        };
-        let Some(entry) = pass.accounts.get_mut(account) else {
-            return false;
-        };
-        !std::mem::replace(&mut entry.downloading, true)
-    }
-
-    /// Puts `account` in the hint's body phase, or takes it out when the warm ends.
-    ///
-    /// Returns whether the hint moved, so a pass with nothing to warm: the steady state, once a
-    /// mailbox is cached; never signals the surface.
-    fn warming(&mut self, account: &str, done: Option<u32>) -> bool {
-        match done {
-            Some(done) => self.warming.insert(account.to_owned(), done) != Some(done),
-            None => self.warming.remove(account).is_some(),
-        }
-    }
-
-    fn snapshot(&self) -> SyncProgressSnapshot {
-        let awaited: Vec<_> = self.passes.values().filter(|pass| pass.awaited).collect();
-        let active = !awaited.is_empty();
-        let mut fetched = 0_u64;
-        let mut total = Some(0_u64);
-        for pass in awaited {
-            let snap = pass.progress.snapshot();
-            fetched += snap.fetched as u64;
-            total = match (total, snap.total) {
-                (Some(acc), Some(next)) => Some(acc + next as u64),
-                _ => None,
-            };
-        }
-        SyncProgressSnapshot {
-            active,
-            fetched,
-            total: active.then_some(total).flatten(),
-            accounts: self.hint(),
-        }
-    }
-
-    /// The accounts currently catching up in the background, summed across passes; two of them
-    /// (a poll tick and a push refresh, say) can be syncing the same account at once, and the
-    /// hint counts folders, not passes.
-    ///
-    /// A body warm is merged in as the same account's second phase. An account with a pass still
-    /// running keeps its folder counts: the folders are what it is waiting on, and a warm left
-    /// over from the pass before would otherwise overwrite them.
-    fn hint(&self) -> Vec<AccountSyncProgress> {
-        let mut hinted: BTreeMap<&str, AccountSyncProgress> = BTreeMap::new();
-        for pass in self.passes.values().filter(|pass| pass.hints()) {
-            for (account, entry) in pass.accounts.iter().filter(|(_, e)| e.downloading) {
-                let row = hinted
-                    .entry(account.as_str())
-                    .or_insert_with(|| AccountSyncProgress {
-                        account_id: account.clone(),
-                        ..AccountSyncProgress::default()
-                    });
-                row.folders_done = row.folders_done.saturating_add(entry.folders_done);
-                row.folders_total = row.folders_total.saturating_add(entry.folders_total);
-            }
-        }
-        for (account, done) in &self.warming {
-            let row = hinted
-                .entry(account.as_str())
-                .or_insert_with(|| AccountSyncProgress {
-                    account_id: account.clone(),
-                    ..AccountSyncProgress::default()
-                });
-            if row.folders_total == 0 {
-                row.warming_bodies = true;
-                row.bodies_done = *done;
-            }
-        }
-        hinted.into_values().collect()
-    }
-}
+use crate::{App, Surface, sync_progress_staged::pretended_progress, sync_progress_state::Pause};
 
 /// A [`SyncObserver`] that folds one pass's commits into an engine [`AccountProgress`], tracks
 /// its accounts' folders, and signals the host to re-read the progress surface.
@@ -392,6 +203,54 @@ impl<P: Provider> App<P> {
             .downloading(id, account);
     }
 
+    /// Applies one pass's rate-limit verdict to `account`'s paused notice: `Some(true)` raises
+    /// it (with `wait`, the longest instant any scope in the pass named, where one did),
+    /// `Some(false)` clears it, and `None` leaves it exactly as it was, for the pass that proved
+    /// nothing because every scope was already held by another one.
+    ///
+    /// Signals [`Surface::SyncProgress`] only when what a host would draw actually changed, so
+    /// an account that polls into the same one-minute window every tick does not redraw the
+    /// status line each time.
+    pub(crate) fn apply_throttle(
+        &self,
+        account: &AccountId,
+        throttled: Option<bool>,
+        wait: Option<Duration>,
+    ) {
+        let verdict = match (throttled, wait) {
+            (Some(true), Some(wait)) => Pause::Until(wait),
+            (Some(true), None) => Pause::Untimed,
+            (Some(false), _) => Pause::Over,
+            // The pass proved nothing: every scope was already held by another one.
+            (None, _) => return,
+        };
+        if self
+            .sync_progress
+            .lock()
+            .expect("sync-progress mutex poisoned")
+            .paused(account.as_str(), verdict)
+        {
+            // Counts and a reason, never the address (`docs/logging.md`). The figure is worth a
+            // line of its own: a support log that says a server asked for eleven minutes
+            // explains a quiet hour that otherwise reads as a broken sync.
+            match verdict {
+                Pause::Until(wait) => log::info!(
+                    "sync: an account's server asked us to slow down; pausing its sync for \
+                     {}s, as the server stated",
+                    wait.as_secs(),
+                ),
+                Pause::Untimed => log::info!(
+                    "sync: an account's server asked us to slow down without saying for how \
+                     long; pausing its sync until the next scheduled pass",
+                ),
+                Pause::Over => {
+                    log::info!("sync: an account's server is accepting traffic again");
+                }
+            }
+            self.observer.surface_changed(Surface::SyncProgress);
+        }
+    }
+
     /// Reports an account's body warm to the hint: `Some(done)` while it runs, `None` when it
     /// ends. Signals only when the hint actually moved, so a pass with nothing to warm; the
     /// steady state; stays silent.
@@ -406,7 +265,3 @@ impl<P: Provider> App<P> {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "sync_progress_tests.rs"]
-mod progress_tests;

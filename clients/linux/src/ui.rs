@@ -108,6 +108,7 @@ mod shell_sidebar;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 mod showcase_hooks;
 mod signature_image;
+mod sync_line;
 mod time_zone;
 mod timestamps;
 mod unfiled_copy;
@@ -205,11 +206,12 @@ pub(crate) struct AppModel {
     /// Whether the "Discard draft?" question is on screen.
     discard_prompt: bool,
     notice: Option<String>,
-    /// The mail list's bottom-bar caption while a background sync is downloading mail. `None`
-    /// whenever nothing is arriving unasked, which is almost always.
-    sync_hint: Option<String>,
+    /// The mail list's bottom-bar caption: an account a server has asked to wait, or a
+    /// background sync downloading mail. `None` whenever there is nothing to say, which is
+    /// almost always.
+    sync_status: Option<sync_line::SyncStatus>,
     /// The separate foreground-download row. It wins the shared bottom strip while active.
-    sync_bar: Option<model::SyncBar>,
+    sync_bar: Option<sync_line::SyncBar>,
     unfiled_copy: Option<UnfiledCopyNotice>,
     /// The standing "the organiser wasn't told" question, mirrored from the core. `None` is also
     /// how the core says *close the modal*; it clears the question the moment it is answered.
@@ -327,11 +329,11 @@ impl SimpleComponent for AppModel {
         // The core can begin an awaited download before the observer is subscribed. Pull the
         // current progress for the first frame so that opening an unsynced folder never depends on
         // a later progress edge to make its already-active wait visible.
-        let (sync_bar, sync_hint) = app.as_deref().map_or((None, None), |app| {
+        let (sync_bar, sync_status) = app.as_deref().map_or((None, None), |app| {
             let progress = app.sync_progress();
             (
-                model::sync_bar(&progress),
-                model::sync_hint(&progress, &snapshot.accounts),
+                sync_line::sync_bar(&progress),
+                sync_line::sync_status(&progress, &snapshot.accounts),
             )
         });
         // Pull once: a boot outage's signal fired before this model existed.
@@ -390,7 +392,7 @@ impl SimpleComponent for AppModel {
             draft_check_seq: 0,
             discard_prompt: false,
             notice: None,
-            sync_hint,
+            sync_status,
             sync_bar,
             unfiled_copy: None,
             reply_prompt: None,
