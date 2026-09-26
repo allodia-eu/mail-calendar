@@ -8,8 +8,6 @@
 //! so it stays out of logs (see [`Secret`]) and out of version control: a real host
 //! uses the OS keychain; the `probe` binary reads a gitignored file outside the repo.
 
-use std::sync::Arc;
-
 mod autodetect;
 mod calendar;
 mod calendar_drag;
@@ -27,6 +25,7 @@ mod error;
 mod event_detail;
 mod google;
 mod graph;
+mod imap;
 mod jmap;
 mod log_handle;
 mod microsoft;
@@ -54,13 +53,8 @@ pub use config::{
 };
 pub use contacts::connect_carddav_contact_providers;
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
-use engine_core::{
-    error::FailureClass,
-    ids::{AccountId, MailboxId},
-    mail::MailboxRole,
-    sync::SyncUpdate,
-};
-use engine_provider::{Provider, ProviderError, Watch};
+use engine_core::{ids::AccountId, sync::SyncUpdate};
+use engine_provider::Provider;
 pub use error::AccountError;
 pub use event_detail::{DetailOccurrence, EventDetail, project_event_detail};
 pub use google::{
@@ -71,6 +65,9 @@ pub use google::{
 pub use graph::{
     CredentialOrigin, GraphTokenSource, TokenSink, connect_graph_calendar_providers,
     connect_graph_folder, connect_graph_mail_providers,
+};
+pub use imap::{
+    ImapConnections, connect_imap_mailbox, connect_imap_watcher, connect_mail_providers,
 };
 pub use jmap::{
     JmapAccountConfig, JmapOAuth, JmapSetup, build_jmap_config_toml,
@@ -89,8 +86,6 @@ pub use preferences::{
     save_preferences, snap_poll_interval,
 };
 use provider_caldav::{CalDavConfig, CalDavProvider, Credentials};
-use provider_imap::{DEFAULT_IDLE_KEEPALIVE, ImapConfig, ImapProvider, ImapWatcher};
-use reconnect::{ReconnectingImapProvider, Redial};
 pub use recurrence_shape::{
     EventRecurrence, RecurrenceChange, RecurrenceDay, RecurrenceEnd, RecurrenceFrequency,
     RecurrenceWeekday, SimpleRecurrence, describe_recurrence, recurrence_rule_of,
@@ -108,181 +103,6 @@ pub use signatures::{
 };
 
 use crate::{setup::normalize_caldav_base_url, tls::account_tls};
-
-/// Applies the optional sync-depth cutoff to an IMAP config: a `Some(date)` bounds mail
-/// sync to messages delivered on or after it (`ImapConfig::with_since`); `None` syncs the
-/// whole mailbox. One place so every connect path windows consistently.
-fn windowed(config: ImapConfig, since: Option<time::Date>) -> ImapConfig {
-    match since {
-        Some(date) => config.with_since(date),
-        None => config,
-    }
-}
-
-/// Connects to one IMAP `mailbox` of `account` over a certificate-verifying TLS
-/// connector (Mozilla roots), bounding mail sync to `since` (the sync-depth cutoff;
-/// `None` for all mail), returning the provider boxed for the app to sync. Used by the
-/// host's on-demand "sync the folder you open" path.
-///
-/// # Errors
-///
-/// Returns [`AccountError`] if `mailbox` is not a valid id or the connection/login
-/// fails.
-pub async fn connect_imap_mailbox(
-    account: &AccountConfig,
-    mailbox: &str,
-    since: Option<time::Date>,
-) -> Result<Box<dyn Provider>, AccountError> {
-    let mailbox =
-        MailboxId::try_from(mailbox).map_err(|err| AccountError::Mailbox(err.to_string()))?;
-    let config = windowed(account.imap_config(), since);
-    let tls = account_tls(account)?;
-    let provider = ImapProvider::connect(&config, tls.connector(), mailbox.clone()).await?;
-    let provider: Arc<dyn Provider> = Arc::new(provider);
-    let redial = make_imap_redial(config, mailbox.clone(), tls);
-    Ok(Box::new(ReconnectingImapProvider::adopt(
-        provider, mailbox, redial,
-    )))
-}
-
-/// Builds the re-dial closure a [`ReconnectingImapProvider`] uses to rebuild a dropped IMAP
-/// session: it re-runs [`ImapProvider::connect`] with the same **windowed** config and bound
-/// `mailbox`, so a reconnect re-applies the sync-depth window and re-selects the same folder.
-/// The shared TLS config is captured by value and cloned per dial (an `Arc` bump), keeping every
-/// reconnect on the account's selected trust policy.
-fn make_imap_redial(
-    config: ImapConfig,
-    mailbox: MailboxId,
-    tls: engine_tls::TlsClientConfig,
-) -> Redial {
-    Box::new(move || {
-        let config = config.clone();
-        let mailbox = mailbox.clone();
-        let tls = tls.clone();
-        Box::pin(async move {
-            ImapProvider::connect(&config, tls.connector(), mailbox)
-                .await
-                .map(|provider| Arc::new(provider) as Arc<dyn Provider>)
-                .map_err(ProviderError::from)
-        })
-    })
-}
-
-/// Opens a standing IMAP `IDLE` watch on one `mailbox` of `account`, over the same
-/// certificate-verifying TLS connector as the sync providers, returning it boxed behind
-/// the engine's neutral [`Watch`] contract. The watch is a **separate connection** from
-/// the sync provider (a connection in `IDLE` cannot `FETCH`), so the host drives this from
-/// its own task and runs the mailbox's sync on the provider when it reports
-/// [`WatchEvent`](engine_provider::WatchEvent)`::Changed`. No sync-depth window applies; a
-/// watch carries no data, only the signal to sync (the sync itself windows). Used by the
-/// host's "receive emails as they come in" (push) path; the parallel of
-/// [`connect_imap_mailbox`] for watching rather than syncing.
-///
-/// # Errors
-///
-/// Returns [`AccountError`] if `mailbox` is not a valid id, the connection/login fails, or
-/// the server does not advertise `IDLE` (the host then falls back to polling).
-pub async fn connect_imap_watcher(
-    account: &AccountConfig,
-    mailbox: &str,
-) -> Result<Box<dyn Watch>, AccountError> {
-    let mailbox =
-        MailboxId::try_from(mailbox).map_err(|err| AccountError::Mailbox(err.to_string()))?;
-    // A watch carries no mail, so it is never windowed: the sync it triggers applies the
-    // sync-depth cutoff. The keep-alive is the engine's RFC 2177-safe default (clamped by
-    // the adapter); a shorter mobile interval is a future per-platform refinement.
-    let tls = account_tls(account)?;
-    let watcher = ImapWatcher::connect(
-        &account.imap_config(),
-        tls.connector(),
-        mailbox,
-        DEFAULT_IDLE_KEEPALIVE,
-    )
-    .await
-    .map_err(|err| AccountError::Watch(err.to_string()))?;
-    Ok(Box::new(watcher))
-}
-
-/// The non-INBOX folder roles the app eagerly binds a provider to at startup, so their
-/// messages sync and render up front (Sent threads a reply with its original; Trash shows
-/// deleted mail; Drafts / Archive / Junk are the other folders a user navigates first).
-/// Folder names are server-specific, so each is resolved by its SPECIAL-USE role. Any
-/// **other** folder (a server that doesn't tag Archive, or a custom folder) syncs **on
-/// demand** when the user opens it, via the host's `MailboxConnector` +
-/// [`connect_imap_mailbox`]: so no folder is permanently empty.
-const SYNCED_ROLES: &[MailboxRole] = &[
-    MailboxRole::Sent,
-    MailboxRole::Drafts,
-    MailboxRole::Trash,
-    MailboxRole::Archive,
-    MailboxRole::Junk,
-];
-
-/// Connects the IMAP providers the app syncs: the INBOX plus every folder carrying one
-/// of the `SYNCED_ROLES` (Sent, Drafts, Trash, Archive, Junk), each resolved by its
-/// role (its name is server-specific) from the account's folder list. So sent mail
-/// threads with its original and the Trash/Drafts/etc. folders render their contents.
-/// Returns one boxed provider per bound mailbox (just the INBOX when none of the roles
-/// exist).
-///
-/// # Errors
-///
-/// Returns [`AccountError`] if a connection/login fails or the folder list cannot be
-/// fetched.
-pub async fn connect_mail_providers(
-    account: &AccountConfig,
-    account_id: &AccountId,
-    since: Option<time::Date>,
-) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    let config = windowed(account.imap_config(), since);
-    let tls = account_tls(account)?;
-    let inbox_id =
-        MailboxId::try_from("INBOX").map_err(|err| AccountError::Mailbox(err.to_string()))?;
-    // The account's first login, and the only one that can prove the stored password wrong: a
-    // refusal here has nothing to contradict it, while one in the folder loop below has the
-    // success of this connect (see `from_first_imap_login`).
-    let inbox = ImapProvider::connect(&config, tls.connector(), inbox_id.clone())
-        .await
-        .map_err(|err| AccountError::from_first_imap_login(err).over_tls(&tls))?;
-    let inbox: Arc<dyn Provider> = Arc::new(inbox);
-
-    // Enumerate folders to find the role mailboxes (their names vary by server).
-    let listing = inbox
-        .sync_mailboxes(account_id, None)
-        .await
-        .map_err(|err| AccountError::MailboxList(err.to_string()))?;
-    let folders = match listing.update {
-        SyncUpdate::Snapshot { objects, .. } => objects,
-        SyncUpdate::Delta { changed, .. } => changed,
-    };
-    let role_folders: Vec<MailboxId> = folders
-        .into_iter()
-        .filter(|mailbox| {
-            mailbox
-                .role
-                .as_ref()
-                .is_some_and(|role| SYNCED_ROLES.contains(role))
-        })
-        .map(|mailbox| mailbox.id)
-        .collect();
-
-    // Each provider self-heals: on a dropped connection it re-dials a fresh session and
-    // retries, so Refresh / opening a message recovers without an app restart.
-    let mut providers: Vec<Box<dyn Provider>> = vec![Box::new(ReconnectingImapProvider::adopt(
-        inbox,
-        inbox_id.clone(),
-        make_imap_redial(config.clone(), inbox_id, tls.clone()),
-    ))];
-    for id in role_folders {
-        let provider = ImapProvider::connect(&config, tls.connector(), id.clone()).await?;
-        let provider: Arc<dyn Provider> = Arc::new(provider);
-        let redial = make_imap_redial(config.clone(), id.clone(), tls.clone());
-        providers.push(Box::new(ReconnectingImapProvider::adopt(
-            provider, id, redial,
-        )));
-    }
-    Ok(providers)
-}
 
 /// Connects to the CalDAV endpoint of `account`, discovering the calendar home and
 /// binding to the calendar to sync events from, returning the provider boxed for the

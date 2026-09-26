@@ -169,7 +169,7 @@ fn a_password_account_has_nothing_to_rotate() {
         .expect("a valid account id")
         .as_str()
         .to_owned();
-    let _registered = registry.pre_register(id.clone(), ConnectedAccount::Imap(config));
+    let _registered = registry.pre_register(id.clone(), ConnectedAccount::imap_account(config));
 
     let rotation = registry.rotate_refresh_token(&account_id(&id), "new");
 
@@ -204,7 +204,7 @@ fn replacement_credentials_are_built_for_password_and_secret_jmap_accounts_only(
     )
     .expect("a valid IMAP config");
     let imap_id = imap.account_id().unwrap().as_str().to_owned();
-    let _imap = registry.pre_register(imap_id.clone(), ConnectedAccount::Imap(imap));
+    let _imap = registry.pre_register(imap_id.clone(), ConnectedAccount::imap_account(imap));
 
     let jmap_config = JmapAccountConfig {
         email: "jane@example.com".to_owned(),
@@ -359,7 +359,7 @@ fn family_lookups_tolerate_an_account_that_has_been_removed() {
     let (id, entry) = jmap_entry("original-refresh");
     let _registered = registry.pre_register(id.clone(), entry);
     assert!(registry.provider(&id).is_some());
-    assert!(registry.imap_config(&id).is_none(), "JMAP has no IMAP half");
+    assert!(registry.imap(&id).is_none(), "JMAP has no IMAP half");
     assert!(registry.jmap_config(&id).is_ok());
 
     registry.remove(&id);

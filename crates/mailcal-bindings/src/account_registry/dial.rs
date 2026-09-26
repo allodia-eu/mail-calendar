@@ -31,7 +31,9 @@ use std::sync::Arc;
 
 use engine_api::{AccountId, EmailAddress, Provider, TimeZoneId};
 use futures::{StreamExt, stream};
-use mailcal_account::{AccountConfig, AccountError, GraphTokenSource, JmapAccountConfig};
+use mailcal_account::{
+    AccountConfig, AccountError, GraphTokenSource, ImapConnections, JmapAccountConfig,
+};
 use mailcal_app::Account;
 
 use crate::{BoxedAccount, ConnectedAccount, boot};
@@ -46,8 +48,8 @@ use crate::{BoxedAccount, ConnectedAccount, boot};
 ///
 /// Three is a compromise with a reason on each side. Above it, a device with several accounts on
 /// one provider starts looking like a client that is misbehaving; Dovecot's default
-/// `mail_max_userip_connections` is 10 *per user per IP*, and each account is several folders wide
-/// until the engine's connection pool lands. Below it, the last account on a busy device waits for
+/// `mail_max_userip_connections` is 10 *per user per IP*, and each IMAP account may hold up to the
+/// engine's budget of five. Below it, the last account on a busy device waits for
 /// no reason. It is one constant because the number is a statement about how much of the network we
 /// are willing to use at once, and that cannot differ by which code path happened to start the
 /// dial.
@@ -144,8 +146,13 @@ pub(crate) struct DialOutcome {
 /// Obtainable **only** from [`AccountRegistry::dial`](super::AccountRegistry::dial); see this
 /// module's header for why that matters.
 pub(crate) enum AccountDial {
-    /// An IMAP/SMTP/CalDAV account: dial from its config.
-    Imap(AccountConfig),
+    /// An IMAP/SMTP/CalDAV account: dial from its config, through its shared connections.
+    Imap {
+        /// The persisted config.
+        config: AccountConfig,
+        /// The account's connections, the same ones its push watches use.
+        connections: Arc<ImapConnections>,
+    },
     /// A Microsoft account: bind its Graph folder providers through the shared token source.
     Microsoft {
         /// The shared, self-refreshing token source every folder provider uses.
@@ -176,7 +183,13 @@ impl AccountDial {
     /// thing that may build one.
     pub(super) fn from_entry(entry: &ConnectedAccount) -> Self {
         match entry {
-            ConnectedAccount::Imap(config) => Self::Imap(config.clone()),
+            ConnectedAccount::Imap {
+                config,
+                connections,
+            } => Self::Imap {
+                config: config.clone(),
+                connections: Arc::clone(connections),
+            },
             ConnectedAccount::Microsoft { config, tokens } => Self::Microsoft {
                 tokens: Arc::clone(tokens),
                 identity: config.identity(),
@@ -196,7 +209,7 @@ impl AccountDial {
     /// the account type, not an endpoint or a user identity.
     pub(crate) const fn account_type(&self) -> &'static str {
         match self {
-            Self::Imap(_) => "imap",
+            Self::Imap { .. } => "imap",
             Self::Microsoft { .. } => "graph",
             Self::Google { .. } => "google",
             Self::Jmap { .. } => "jmap",
@@ -208,7 +221,7 @@ impl AccountDial {
     /// so carrying the address here is fine: the logs use `account[{index}]`.
     pub(crate) fn label(&self) -> String {
         match self {
-            Self::Imap(config) => config.imap.username.clone(),
+            Self::Imap { config, .. } => config.imap.username.clone(),
             Self::Microsoft { identity, .. } | Self::Google { identity, .. } => {
                 identity.email.clone()
             }
@@ -226,7 +239,10 @@ impl AccountDial {
     /// the same way. That was the fifth copy.
     pub(crate) async fn connect_folder(self, mailbox_key: &str) -> Option<Box<dyn Provider>> {
         match self {
-            Self::Imap(config) => mailcal_account::connect_imap_mailbox(&config, mailbox_key, None)
+            Self::Imap {
+                config,
+                connections,
+            } => mailcal_account::connect_imap_mailbox(&connections, &config, mailbox_key)
                 .await
                 .ok(),
             // Graph binds the folder unwindowed; the app passes the depth per sync.
@@ -263,8 +279,11 @@ impl AccountDial {
         display_zone: TimeZoneId,
     ) -> Result<DialOutcome, ConnectFailure> {
         match self {
-            Self::Imap(config) => {
-                let providers = mailcal_account::connect_mail_providers(&config, id, None)
+            Self::Imap {
+                config,
+                connections,
+            } => {
+                let providers = mailcal_account::connect_mail_providers(&connections, &config, id)
                     .await
                     .map_err(ConnectFailure::from)?;
                 // Calendar and contacts are optional side quests off the mail path, and both talk
