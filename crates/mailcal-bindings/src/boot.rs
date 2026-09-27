@@ -25,6 +25,7 @@ use crate::{
     device_zone, logging,
     observer::{DebouncedObserver, ObserverBridge},
     runtime::build_runtime,
+    store_files::STORE_FILE,
     token_sink::token_sink,
 };
 
@@ -204,8 +205,8 @@ pub(crate) fn build_accounts(
     };
 
     let engine_start = Instant::now();
-    let engine = Engine::open(base.join("mailcal.sqlite"))
-        .map_err(|err| MailcalError::Engine(err.to_string()))?;
+    let engine =
+        Engine::open(base.join(STORE_FILE)).map_err(|err| MailcalError::Engine(err.to_string()))?;
     log::info!(
         "boot: engine open+migrate in {}ms",
         engine_start.elapsed().as_millis(),
