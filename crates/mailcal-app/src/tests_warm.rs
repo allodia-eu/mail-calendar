@@ -7,7 +7,10 @@
 //! an HTTP provider, and it leaves a message **too large to be worth pre-fetching** to the open
 //! that asks for it. The shared fixtures live in `tests_fakes.rs`.
 
-use std::sync::{Arc, Mutex, atomic::Ordering};
+use std::{
+    sync::{Arc, Mutex, atomic::Ordering},
+    time::Duration,
+};
 
 use fakes::{FakeProvider, account, app, flat_previews, message, msg};
 
@@ -348,4 +351,82 @@ async fn grouping_by_folder_keeps_the_warm_newest_first() {
         batches.lock().unwrap().clone(),
         vec![vec!["m4", "m2"], vec!["m3", "m1"]],
     );
+}
+
+fn inbox_of(count: usize) -> Vec<engine_core::mail::Message> {
+    (0..count)
+        .map(|i| message(&format!("m{i}"), "a", &format!("Subject {i}")))
+        .collect()
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_throttle_that_names_no_wait_is_waited_out_in_the_same_pass() {
+    // Stalwart answers an account past its per-minute request budget with a bare `429`, and
+    // the engine hands that back with no wait attached. Dropping those bodies to the next pass
+    // left them unread for however long the poll interval is.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = FakeProvider::with(inbox_of(6)).throttling_fetches(2, None);
+    let fetches = provider.source_fetches();
+    let offline = provider.failure_switch();
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+    let started = tokio::time::Instant::now();
+
+    app.dispatch(Intent::RefreshMail).await;
+
+    // Two refused, then all six fetched once the pause had passed.
+    assert_eq!(fetches.load(Ordering::SeqCst), 8);
+    assert!(
+        started.elapsed() >= Duration::from_mins(1),
+        "the pass waited out a window before asking again",
+    );
+    offline.store(true, Ordering::SeqCst);
+    for i in 0..6 {
+        app.dispatch(Intent::OpenMessage {
+            reader: ReaderId::Pane,
+            message: msg("acct-1", &format!("m{i}")),
+        })
+        .await;
+        assert!(
+            !app.reading_view().load_error,
+            "m{i} was warmed by the same pass"
+        );
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_throttle_that_asks_for_a_long_wait_is_left_for_the_next_pass() {
+    // Ten minutes is a schedule, not a hiccup: the pass does not sleep on it.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = FakeProvider::with(inbox_of(3)).throttling_fetches(1, Some(600));
+    let fetches = provider.source_fetches();
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+    let started = tokio::time::Instant::now();
+
+    app.dispatch(Intent::RefreshMail).await;
+    assert_eq!(
+        fetches.load(Ordering::SeqCst),
+        1,
+        "nothing more was asked this pass"
+    );
+    assert!(
+        started.elapsed() < Duration::from_mins(1),
+        "the pass did not sleep on it"
+    );
+
+    // The next pass finds them still unwarmed and fetches them.
+    app.dispatch(Intent::RefreshMail).await;
+    assert_eq!(fetches.load(Ordering::SeqCst), 4);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_server_that_keeps_refusing_is_asked_a_bounded_number_of_times_per_pass() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = FakeProvider::with(inbox_of(3)).throttling_fetches(usize::MAX, None);
+    let fetches = provider.source_fetches();
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+
+    app.dispatch(Intent::RefreshMail).await;
+
+    // The first ask and one after each of the three pauses; then the pass ends.
+    assert_eq!(fetches.load(Ordering::SeqCst), 4);
 }

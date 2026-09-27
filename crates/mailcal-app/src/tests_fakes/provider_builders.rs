@@ -79,6 +79,8 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            throttled_fetches: Arc::new(AtomicUsize::new(0)),
+            throttle_wait_secs: None,
             edit_gate: None,
         }
     }
@@ -138,6 +140,8 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            throttled_fetches: Arc::new(AtomicUsize::new(0)),
+            throttle_wait_secs: None,
             edit_gate: None,
         }
     }
@@ -176,6 +180,8 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            throttled_fetches: Arc::new(AtomicUsize::new(0)),
+            throttle_wait_secs: None,
             edit_gate: None,
         }
     }
@@ -218,6 +224,8 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            throttled_fetches: Arc::new(AtomicUsize::new(0)),
+            throttle_wait_secs: None,
             edit_gate: None,
         }
     }
@@ -260,6 +268,8 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            throttled_fetches: Arc::new(AtomicUsize::new(0)),
+            throttle_wait_secs: None,
             edit_gate: None,
         }
     }
@@ -302,6 +312,8 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            throttled_fetches: Arc::new(AtomicUsize::new(0)),
+            throttle_wait_secs: None,
             edit_gate: None,
         }
     }
@@ -338,6 +350,8 @@ impl FakeProvider {
             refuses_signin: false,
             source_fetches: Arc::new(AtomicUsize::new(0)),
             source_failures: Vec::new(),
+            throttled_fetches: Arc::new(AtomicUsize::new(0)),
+            throttle_wait_secs: None,
             edit_gate: None,
         }
     }
@@ -407,8 +421,7 @@ impl FakeProvider {
         self
     }
 
-    /// Reports that one batch request carries up to `n` sources, as IMAP's `UID FETCH` over a
-    /// set does.
+    /// Reports that one batch request carries up to `n` sources, as a `UID FETCH` set does.
     pub(crate) fn with_sources_per_request(mut self, n: usize) -> Self {
         self.sources_per_request = n;
         self
@@ -432,6 +445,13 @@ impl FakeProvider {
     /// email from it.
     pub(crate) fn syncs(&self) -> Arc<AtomicUsize> {
         Arc::clone(&self.syncs)
+    }
+
+    /// Refuses the next `count` source fetches as throttled, naming `wait_secs` or no wait.
+    pub(crate) fn throttling_fetches(mut self, count: usize, wait_secs: Option<u64>) -> Self {
+        self.throttled_fetches = Arc::new(AtomicUsize::new(count));
+        self.throttle_wait_secs = wait_secs;
+        self
     }
 
     /// A shared handle to this provider's source-fetch counter; how many times it has been

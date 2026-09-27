@@ -92,6 +92,11 @@ pub(crate) struct FakeProvider {
     /// models stale keys (an IMAP `UIDVALIDITY` renumbering), so a test can prove a
     /// body-warm pass looks past them and triggers the folder re-sync recovery.
     source_failures: Vec<String>,
+    /// How many of the next source fetches the server refuses as throttled, and the wait each
+    /// refusal names (`None`: a bare `429`, as Stalwart sends). Shared, so a test can read how
+    /// many refusals are left.
+    throttled_fetches: Arc<AtomicUsize>,
+    throttle_wait_secs: Option<u64>,
 }
 
 /// Decrements the in-flight count however a source fetch leaves.
@@ -322,6 +327,18 @@ impl Provider for FakeProvider {
         // prove a warmed body is served from the store's cache rather than the network.
         if self.fail.load(Ordering::SeqCst) {
             return Err(ProviderError::retryable("account unreachable"));
+        }
+        let throttled = self
+            .throttled_fetches
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
+                left.checked_sub(1)
+            })
+            .is_ok();
+        if throttled {
+            let wait = self.throttle_wait_secs.map(|secs| {
+                engine_core::time::Duration::from_parts(0, 0, 0, 0, secs, 0).expect("in range")
+            });
+            return Err(ProviderError::rate_limited("too many requests", wait));
         }
         if self
             .source_failures

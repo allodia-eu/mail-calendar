@@ -14,13 +14,17 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use engine_api::{AccountId, Message, Provider, ProviderKey};
 use futures::{StreamExt, stream::FuturesUnordered};
 
-use crate::{App, form_factor::FormFactor};
+use crate::{
+    App,
+    connectivity::{is_throttled, throttled_for},
+    form_factor::FormFactor,
+};
 
 /// Holds an account in the status hint's body phase for as long as a warm is running, and takes
 /// it out however the warm ends.
@@ -75,11 +79,41 @@ pub fn default_prefetch_size_limit() -> Option<u64> {
     FormFactor::current().default_prefetch_size_limit()
 }
 
+/// How long a warm waits after a throttle that named no wait, before asking again.
+///
+/// The engine hands a throttle back without an instant when the server gave none, and leaves the
+/// schedule to the host. The servers measured doing that count per minute: Stalwart refuses an
+/// account past about 1,000 requests a minute with a bare `429`, and Gmail's quotas are stated
+/// per minute. A minute is therefore the wait after which the window has certainly moved on.
+const UNSTATED_THROTTLE_PAUSE: Duration = Duration::from_mins(1);
+
+/// The longest wait a warm sleeps on inside one pass. A server asking for longer has made a
+/// scheduling decision, and a background task asleep for longer than this is
+/// indistinguishable from a hang: the rest waits for the next pass.
+const LONGEST_THROTTLE_PAUSE: Duration = Duration::from_mins(5);
+
+/// How many throttles one pass waits out before leaving the rest for the next pass.
+const THROTTLE_PAUSES_PER_PASS: usize = 3;
+
 /// One batch of a warm: the messages asked for in one provider request, and the folder each
 /// sits in, for the re-sync a stale key calls for.
 struct Batch {
     messages: Vec<Message>,
     folders: Vec<Option<String>>,
+}
+
+/// How a round of batches ended.
+enum Round {
+    /// Every batch ran.
+    Done,
+    /// The pass must stop: offline, or the account is gone.
+    Stopped,
+    /// The server refused for now. `keys` are the messages it refused and those not yet asked
+    /// for; `stated` is the longest wait any refusal named.
+    Throttled {
+        keys: Vec<ProviderKey>,
+        stated: Option<Duration>,
+    },
 }
 
 /// What one warming pass has done so far.
@@ -125,7 +159,11 @@ impl<P: Provider> App<P> {
     /// set until it is empty, so it picks up what a newer sync added). Best-effort: a failed
     /// body is skipped for the rest of the pass (a later pass, or the on-demand open,
     /// retries it), and no new batch starts once the app goes offline or the account is
-    /// removed mid-warm; the batches already out finish. A no-op offline, for an unknown
+    /// removed mid-warm; the batches already out finish. A **throttled** body is not a failed
+    /// one: the pass stops asking, waits the server's stated time (or
+    /// [`UNSTATED_THROTTLE_PAUSE`] where it named none), and asks again for what was refused
+    /// and what it had not reached, up to [`THROTTLE_PAUSES_PER_PASS`] times and never
+    /// sleeping past [`LONGEST_THROTTLE_PAUSE`]. A no-op offline, for an unknown
     /// account, or once the cache is already warm; an all-warm pass is one key scan in the
     /// engine, fetching and deserializing nothing.
     pub(crate) async fn prefetch_account_bodies(&self, account: &AccountId) {
@@ -153,6 +191,7 @@ impl<P: Provider> App<P> {
         // because it is the account's own setting.
         let size_limit = self.effective_message_size_limit(account.as_str());
         let mut pass = Pass::default();
+        let mut pauses = 0usize;
         loop {
             // Widen the query as failures accumulate: the work list is newest-first, so a
             // clump of persistently failing messages would otherwise fill every page and
@@ -181,7 +220,7 @@ impl<P: Provider> App<P> {
                 .plan_batches(account, folders, size_limit, per_request, &mut pass)
                 .await;
             let mut conflicted = HashSet::new();
-            let stopped = self
+            let round = self
                 .run_batches(account, batches, width, &mut pass, &mut conflicted)
                 .await;
             // Once per folder per pass, after the page's batches are in: a re-sync rebuilds the
@@ -191,8 +230,38 @@ impl<P: Provider> App<P> {
                     self.resync_folder(account, &folder, "body-conflict").await;
                 }
             }
-            if stopped {
-                break;
+            match round {
+                Round::Done => {}
+                Round::Stopped => break,
+                Round::Throttled { keys, stated } => {
+                    // Back on the work list, so the next query asks for them again.
+                    for key in &keys {
+                        pass.attempted.remove(key);
+                    }
+                    let pause = stated.unwrap_or(UNSTATED_THROTTLE_PAUSE);
+                    if pauses == THROTTLE_PAUSES_PER_PASS || pause > LONGEST_THROTTLE_PAUSE {
+                        log::info!(
+                            "prefetch: the server is limiting requests; {} bodies are left for \
+                             the next pass",
+                            keys.len(),
+                        );
+                        break;
+                    }
+                    pauses += 1;
+                    log::info!(
+                        "prefetch: the server is limiting requests ({}); resuming in {}s",
+                        if stated.is_some() {
+                            "wait stated"
+                        } else {
+                            "no wait stated"
+                        },
+                        pause.as_secs(),
+                    );
+                    tokio::time::sleep(pause).await;
+                    if !self.is_online() {
+                        break;
+                    }
+                }
             }
         }
         // A warmed body is what gives a row its preview snippet on a provider that sends none
@@ -293,10 +362,10 @@ impl<P: Provider> App<P> {
     /// as it completes and naming in `conflicted` the folders whose keys went stale.
     ///
     /// The account's provider is taken afresh for every batch, so a reconnect is seen by the
-    /// next batch and a removal stops the pass within one. Returns `true` when the pass must
-    /// stop: offline, or the account is gone. The batches already out are waited for rather
-    /// than dropped, because a request abandoned mid-response leaves its connection to be
-    /// drained by whoever borrows it next.
+    /// next batch and a removal stops the pass within one. No new batch starts once the app
+    /// is offline, the account is gone, or the server has refused a message as throttled: the
+    /// batches already out are waited for rather than dropped, because a request abandoned
+    /// mid-response leaves its connection to be drained by whoever borrows it next.
     async fn run_batches(
         &self,
         account: &AccountId,
@@ -304,12 +373,15 @@ impl<P: Provider> App<P> {
         width: usize,
         pass: &mut Pass,
         conflicted: &mut HashSet<String>,
-    ) -> bool {
+    ) -> Round {
         let mut queue = batches.into_iter();
         let mut running = FuturesUnordered::new();
         let mut stopped = false;
+        // Refused as throttled, and the longest wait any refusal named.
+        let mut held: Vec<ProviderKey> = Vec::new();
+        let mut stated: Option<Duration> = None;
         loop {
-            while !stopped && running.len() < width {
+            while !stopped && held.is_empty() && running.len() < width {
                 let Some(batch) = queue.next() else {
                     break;
                 };
@@ -320,21 +392,31 @@ impl<P: Provider> App<P> {
                 };
                 running.push(async move {
                     let Some(provider) = handle.providers.first() else {
-                        return (batch.folders, Vec::new());
+                        return (batch, Vec::new());
                     };
                     let outcomes: Vec<_> = self
                         .engine
                         .warm_message_sources(provider, account, &batch.messages)
                         .collect()
                         .await;
-                    (batch.folders, outcomes)
+                    (batch, outcomes)
                 });
             }
-            let Some((folders, outcomes)) = running.next().await else {
+            let Some((batch, outcomes)) = running.next().await else {
                 break;
             };
+            let folders = &batch.folders;
             for (index, outcome) in outcomes {
                 match outcome {
+                    // Not a failure of the message: the server declined to serve anyone for
+                    // now. Held for the pause the caller takes, rather than dropped to a pass
+                    // that may be half an hour away.
+                    Err(err) if is_throttled(&err) => {
+                        if let Some(message) = batch.messages.get(index) {
+                            held.push(message.id.key().clone());
+                        }
+                        stated = stated.max(throttled_for(&err));
+                    }
                     Ok(()) => {
                         pass.warmed += 1;
                         // Report the warm to the status hint. Not every body: the hint is a
@@ -364,7 +446,14 @@ impl<P: Provider> App<P> {
                 }
             }
         }
-        stopped
+        if stopped {
+            return Round::Stopped;
+        }
+        if held.is_empty() {
+            return Round::Done;
+        }
+        held.extend(queue.flat_map(|batch| batch.messages.into_iter().map(|m| m.id.key().clone())));
+        Round::Throttled { keys: held, stated }
     }
 
     /// Marks `account` as having a warming pass in flight, or returns `None` if one already

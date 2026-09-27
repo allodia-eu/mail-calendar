@@ -6,6 +6,8 @@ Bump: patch
 > On a JMAP server that offers `Blob/get` (RFC 9404), such as Stalwart and Thundermail, the
 > body warm now reads 25 messages per request instead of one. Stalwart also limits an account to
 > about 1,000 requests a minute, which one request per message reached on any sizeable mailbox.
+> When a server does refuse for now, the warm waits (its stated time, or a minute where it names
+> none) and carries on in the same pass, rather than leaving those messages for the next sync.
 
 **English**
 
