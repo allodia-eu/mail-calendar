@@ -31,6 +31,7 @@ pub(crate) fn with_delegate_transport(
         tls_version: delegate.tls_version,
         http_version: delegate.http_version,
         concurrent_fetches: delegate.concurrent_fetches,
+        sources_per_request: delegate.sources_per_request,
         ..capped
     }
 }
@@ -51,6 +52,7 @@ mod tests {
             // A capability the wrapper deliberately does not forward.
             ..ConnectionInfo::new(Capabilities::none().with_mail().with_mail_writes())
                 .with_concurrent_fetches(20)
+                .with_sources_per_request(25)
         }
     }
 
@@ -61,6 +63,7 @@ mod tests {
         // message on exactly the provider that can overlap them.
         let info = with_delegate_transport(capped(), Some(delegate()));
         assert_eq!(info.concurrent_fetches, 20);
+        assert_eq!(info.sources_per_request, 25);
         assert_eq!(info.http_version, Some(HttpVersion::Http2));
     }
 

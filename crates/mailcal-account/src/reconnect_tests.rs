@@ -9,7 +9,7 @@ use std::{
 };
 
 use engine_core::{ids::MessageIdHeader, mail::EmailAddress, sync::SyncUpdate};
-use engine_provider::{ProviderError, TlsVersion};
+use engine_provider::{Capabilities, ProviderError, TlsVersion};
 
 use super::*;
 
@@ -79,6 +79,26 @@ impl Provider for FakeDelegate {
     ) -> ProviderResult<SubmissionReceipt> {
         self.record()?;
         unreachable!("submit tests only script a failing outcome");
+    }
+
+    // A batch of its own, so a test can tell forwarding from the trait's one-at-a-time default:
+    // that would call `fetch_message_source`, which this fake rejects.
+    fn fetch_message_sources<'a>(
+        &'a self,
+        _account: &'a AccountId,
+        messages: &'a [Message],
+    ) -> SourceStream<'a> {
+        let outcome = self.record();
+        let answers: Vec<_> = (0..messages.len())
+            .map(|index| {
+                let answer = match &outcome {
+                    Ok(()) => Ok(RawMime::new(b"Subject: batch\r\n\r\nbody".to_vec())),
+                    Err(err) => Err(ProviderError::new(err.class(), err.to_string())),
+                };
+                (index, answer)
+            })
+            .collect();
+        Box::pin(futures::stream::iter(answers))
     }
 }
 
@@ -212,5 +232,100 @@ async fn a_send_is_never_blind_retried() {
         redials.load(Ordering::SeqCst),
         0,
         "submit invalidates but does not re-dial"
+    );
+}
+
+#[tokio::test]
+async fn a_dropped_session_keeps_reporting_the_width_it_had() {
+    // A body warm reads the width when its pass starts. If that lands between a lost
+    // connection and the redial, the defaults would have it fetch one message per request,
+    // one request at a time, for the whole pass.
+    let info = ConnectionInfo::new(Capabilities::none().with_mail())
+        .with_concurrent_fetches(4)
+        .with_sources_per_request(25);
+    let initial = FakeDelegate::arc_with_info(
+        Arc::new(AtomicUsize::new(0)),
+        Some(FailureClass::Retryable),
+        info,
+    );
+    let provider = ReconnectingImapProvider::adopt(
+        initial,
+        mailbox(),
+        healthy_redial(Arc::new(AtomicUsize::new(0))),
+    );
+    let messages = [inbox_message(1)];
+    let _: Vec<_> = provider
+        .fetch_message_sources(&account(), &messages)
+        .collect()
+        .await;
+
+    let reported = provider.connection_info();
+    assert_eq!(reported.concurrent_fetches, 4);
+    assert_eq!(reported.sources_per_request, 25);
+}
+
+fn inbox_message(uid: u32) -> Message {
+    Message::new(
+        engine_core::ids::MessageId::try_from(format!("imap:v1:u{uid}@INBOX").as_str())
+            .expect("valid message id"),
+        engine_core::membership::Memberships::of_one(mailbox()),
+    )
+}
+
+#[tokio::test]
+async fn a_batch_reaches_the_delegates_own_batch() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let initial = FakeDelegate::arc(Arc::clone(&calls), None);
+    let provider = ReconnectingImapProvider::adopt(
+        initial,
+        mailbox(),
+        healthy_redial(Arc::new(AtomicUsize::new(0))),
+    );
+    let messages = [inbox_message(1), inbox_message(2)];
+
+    let outcomes: Vec<_> = provider
+        .fetch_message_sources(&account(), &messages)
+        .map(|(index, result)| (index, result.is_ok()))
+        .collect()
+        .await;
+
+    assert_eq!(outcomes, vec![(0, true), (1, true)]);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "one batch call, not one per message"
+    );
+}
+
+#[tokio::test]
+async fn a_batch_that_lost_its_connection_redials_the_next_call_rather_than_repeating() {
+    let redials = Arc::new(AtomicUsize::new(0));
+    let initial = FakeDelegate::arc(Arc::new(AtomicUsize::new(0)), Some(FailureClass::Retryable));
+    let provider =
+        ReconnectingImapProvider::adopt(initial, mailbox(), healthy_redial(Arc::clone(&redials)));
+    let messages = [inbox_message(1)];
+
+    let first: Vec<_> = provider
+        .fetch_message_sources(&account(), &messages)
+        .map(|(_, result)| result.is_ok())
+        .collect()
+        .await;
+    assert_eq!(
+        first,
+        vec![false],
+        "the failure is reported, not retried here"
+    );
+    assert_eq!(redials.load(Ordering::SeqCst), 0);
+
+    let second: Vec<_> = provider
+        .fetch_message_sources(&account(), &messages)
+        .map(|(_, result)| result.is_ok())
+        .collect()
+        .await;
+    assert_eq!(second, vec![true]);
+    assert_eq!(
+        redials.load(Ordering::SeqCst),
+        1,
+        "the next call ran on a fresh session"
     );
 }

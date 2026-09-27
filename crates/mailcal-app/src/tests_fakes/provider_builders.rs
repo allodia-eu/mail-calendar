@@ -71,6 +71,8 @@ impl FakeProvider {
             email_mailbox: None,
             concurrent_fetches: 1,
             peak_in_flight: Arc::new(Mutex::new((0, 0))),
+            sources_per_request: 1,
+            batches: Arc::new(Mutex::new(Vec::new())),
             source_override: None,
             stream_gate: None,
             late: Arc::new(Mutex::new(Vec::new())),
@@ -128,6 +130,8 @@ impl FakeProvider {
             email_mailbox: None,
             concurrent_fetches: 1,
             peak_in_flight: Arc::new(Mutex::new((0, 0))),
+            sources_per_request: 1,
+            batches: Arc::new(Mutex::new(Vec::new())),
             source_override: None,
             stream_gate: None,
             late: Arc::new(Mutex::new(Vec::new())),
@@ -164,6 +168,8 @@ impl FakeProvider {
             email_mailbox: None,
             concurrent_fetches: 1,
             peak_in_flight: Arc::new(Mutex::new((0, 0))),
+            sources_per_request: 1,
+            batches: Arc::new(Mutex::new(Vec::new())),
             source_override: None,
             stream_gate: None,
             late: Arc::new(Mutex::new(Vec::new())),
@@ -204,6 +210,8 @@ impl FakeProvider {
             email_mailbox: None,
             concurrent_fetches: 1,
             peak_in_flight: Arc::new(Mutex::new((0, 0))),
+            sources_per_request: 1,
+            batches: Arc::new(Mutex::new(Vec::new())),
             source_override: None,
             stream_gate: None,
             late: Arc::new(Mutex::new(Vec::new())),
@@ -244,6 +252,8 @@ impl FakeProvider {
             email_mailbox: None,
             concurrent_fetches: 1,
             peak_in_flight: Arc::new(Mutex::new((0, 0))),
+            sources_per_request: 1,
+            batches: Arc::new(Mutex::new(Vec::new())),
             source_override: None,
             stream_gate: None,
             late: Arc::new(Mutex::new(Vec::new())),
@@ -284,6 +294,8 @@ impl FakeProvider {
             email_mailbox: None,
             concurrent_fetches: 1,
             peak_in_flight: Arc::new(Mutex::new((0, 0))),
+            sources_per_request: 1,
+            batches: Arc::new(Mutex::new(Vec::new())),
             source_override: None,
             stream_gate: None,
             late: Arc::new(Mutex::new(Vec::new())),
@@ -318,6 +330,8 @@ impl FakeProvider {
             email_mailbox: Some(MailboxId::try_from(mailbox_key).unwrap()),
             concurrent_fetches: 1,
             peak_in_flight: Arc::new(Mutex::new((0, 0))),
+            sources_per_request: 1,
+            batches: Arc::new(Mutex::new(Vec::new())),
             source_override: None,
             stream_gate: None,
             late: Arc::new(Mutex::new(Vec::new())),
@@ -391,6 +405,18 @@ impl FakeProvider {
     pub(crate) fn with_concurrent_fetches(mut self, n: usize) -> Self {
         self.concurrent_fetches = n;
         self
+    }
+
+    /// Reports that one batch request carries up to `n` sources, as IMAP's `UID FETCH` over a
+    /// set does.
+    pub(crate) fn with_sources_per_request(mut self, n: usize) -> Self {
+        self.sources_per_request = n;
+        self
+    }
+
+    /// The keys of every batch the app asked this provider for, in order.
+    pub(crate) fn batches(&self) -> Arc<Mutex<Vec<Vec<String>>>> {
+        Arc::clone(&self.batches)
     }
 
     /// The shared counter recording the most source fetches ever in flight at once.
