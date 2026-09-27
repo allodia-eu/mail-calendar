@@ -189,16 +189,22 @@ impl<P: Provider> App<P> {
     /// The second half of [`sync_added_account`](Self::sync_added_account): the calendar and the
     /// body cache. On a large mailbox the body pass runs for many minutes.
     pub async fn warm_added_account(&self, id: &AccountId) {
-        // Fetch the account's calendar too, for the same reason the bodies below are fetched: the
-        // user asked for this account, not for its mail. Without it a brand-new account has no
-        // diary until the calendar tab is opened, so the first session: the one where an
+        // Fetch the account's calendar too, for the same reason the bodies beside it are fetched:
+        // the user asked for this account, not for its mail. Without it a brand-new account has
+        // no diary until the calendar tab is opened, so the first session: the one where an
         // invitation is most likely to be read; could only answer "we have not looked".
-        self.refresh_calendar_in_background().await;
+        //
         // Warm the body cache for the just-synced window in the background (the bindings already
         // run this method off the UI thread): opening the account's recent mail is then instant
         // and works offline, instead of each first open blocking on (or failing without) a
         // provider fetch. Runs after the list is on screen, so it never delays the first paint.
-        self.prefetch_account_bodies(id).await;
+        //
+        // Side by side, not one after the other: they talk to different servers and neither
+        // needs the other, and a calendar refresh can take longer than the first mail sync did.
+        futures::join!(
+            self.refresh_calendar_in_background(),
+            self.prefetch_account_bodies(id),
+        );
     }
 
     /// A background refresh of one account's eager folders, then a snapshot rebuild; the

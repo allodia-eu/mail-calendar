@@ -270,3 +270,82 @@ async fn a_fresh_app_starts_on_the_cap_its_form_factor_chose() {
         "a build that caps the warm leaves this body for the open; one that does not warms it",
     );
 }
+
+#[tokio::test]
+async fn the_warm_asks_for_as_many_bodies_per_request_as_the_transport_carries() {
+    // One request per body is one round trip of latency per body, and on a first sync that is
+    // the whole cost. A transport that carries ten per request is asked for ten at a time.
+    let messages: Vec<_> = (0..40)
+        .map(|i| message(&format!("m{i}"), "a", &format!("Subject {i}")))
+        .collect();
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = FakeProvider::with(messages)
+        .with_concurrent_fetches(2)
+        .with_sources_per_request(10);
+    let batches = provider.batches();
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+
+    app.dispatch(Intent::RefreshMail).await;
+
+    let batches: Vec<usize> = batches.lock().unwrap().iter().map(Vec::len).collect();
+    assert_eq!(
+        batches.iter().sum::<usize>(),
+        40,
+        "every body was asked for once"
+    );
+    assert_eq!(
+        batches,
+        vec![10, 10, 10, 10],
+        "in requests as full as the transport allows"
+    );
+}
+
+#[tokio::test]
+async fn a_batch_never_mixes_two_folders() {
+    // On IMAP a request is one mailbox's `UID FETCH`: a batch across two folders would be two
+    // requests on one connection, one after the other, where two batches can run side by side.
+    let mut messages: Vec<_> = (0..6)
+        .map(|i| message(&format!("in{i}"), "a", &format!("Inbox {i}")))
+        .collect();
+    messages.extend((0..3).map(|i| message(&format!("out{i}"), "b", &format!("Sent {i}"))));
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = FakeProvider::with(messages)
+        .with_concurrent_fetches(4)
+        .with_sources_per_request(5);
+    let batches = provider.batches();
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+
+    app.dispatch(Intent::RefreshMail).await;
+
+    let mut batches: Vec<usize> = batches.lock().unwrap().iter().map(Vec::len).collect();
+    batches.sort_unstable();
+    assert_eq!(
+        batches,
+        vec![1, 3, 5],
+        "six in one folder make a full batch and one left over; the other folder's three stay \
+         apart",
+    );
+}
+
+#[tokio::test]
+async fn grouping_by_folder_keeps_the_warm_newest_first() {
+    // The work list is newest-first; the key breaks the tie between these undated messages,
+    // so m4 is the newest. Its folder's batch goes first, and each batch keeps the list's order.
+    let messages = vec![
+        message("m1", "a", "One"),
+        message("m2", "b", "Two"),
+        message("m3", "a", "Three"),
+        message("m4", "b", "Four"),
+    ];
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = FakeProvider::with(messages).with_sources_per_request(5);
+    let batches = provider.batches();
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+
+    app.dispatch(Intent::RefreshMail).await;
+
+    assert_eq!(
+        batches.lock().unwrap().clone(),
+        vec![vec!["m4", "m2"], vec!["m3", "m1"]],
+    );
+}
