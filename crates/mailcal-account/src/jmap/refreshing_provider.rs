@@ -22,8 +22,9 @@ use engine_core::{
 };
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, EventDeletion, EventDraft, EventEdit, EventWrite,
-    EventWriteReceipt, MailEdit, MailEditReceipt, MessageReport, Provider, ProviderResult,
-    ReportReceipt, ScopeSync, SenderIdentity, SenderIdentityId, SubmissionReceipt,
+    EventWriteReceipt, MailEdit, MailEditReceipt, MessageReport, Provider, ProviderError,
+    ProviderResult, ReportReceipt, ScopeSync, SenderIdentity, SenderIdentityId, SourceStream,
+    SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -130,6 +131,31 @@ impl Provider for RefreshingJmapProvider {
             .await?
             .fetch_message_source(account, message)
             .await
+    }
+
+    /// Forwarded, because the delegate's batch is one `Blob/get` for the lot where the server
+    /// offers it, and the trait's default would fetch the batch one message at a time through
+    /// [`fetch_message_source`](Self::fetch_message_source) instead.
+    fn fetch_message_sources<'a>(
+        &'a self,
+        account: &'a AccountId,
+        messages: &'a [Message],
+    ) -> SourceStream<'a> {
+        Box::pin(async_stream::stream! {
+            let provider = match self.delegate().await {
+                Ok(provider) => provider,
+                Err(err) => {
+                    for index in 0..messages.len() {
+                        yield (index, Err(ProviderError::new(err.class(), err.to_string())));
+                    }
+                    return;
+                }
+            };
+            let mut sources = provider.fetch_message_sources(account, messages);
+            while let Some(item) = sources.next().await {
+                yield item;
+            }
+        })
     }
 
     fn calendar_scope(&self, account: &AccountId) -> SyncScope {
