@@ -16,6 +16,7 @@
 // and the rows on three different left edges, and stranded the explanatory footnote far below the
 // fields it explains.
 
+import MailcalBindings // L10n
 import SwiftUI
 
 /// The shared setup chrome: a width-capped column, centred and scrollable on iOS/iPadOS, and the
@@ -97,7 +98,11 @@ struct SetupFooter<Content: View>: View {
             Divider()
             HStack(spacing: 12) {
                 if let back {
-                    Button(L10n.a11y_back(), action: back).disabled(backDisabled)
+                    // The identifier is for the UI suite: behind a later add's sheet the calendar's
+                    // previous-week chevron is also a button labelled "Back".
+                    Button(L10n.a11y_back(), action: back)
+                        .disabled(backDisabled)
+                        .accessibilityIdentifier("setup-back")
                 }
                 Spacer()
                 content()

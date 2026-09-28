@@ -266,7 +266,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Untrusted-settings approval gate | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | Refused-certificate acceptance ([`certificate-exceptions.md`](certificate-exceptions.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | "Set up manually" escape + reason line | ✅ | ✅ | 🚧 | ✅ | ✅ |
-| Back from the second step to the address (rule 12) | n/a | 🚧 | ✅ | ✅ system Back | 🚧 |
+| Back from the second step to the address (rule 12) | n/a | ✅ | ✅ | ✅ system Back | 🚧 |
 | MX fallback (host DNS) | ✅ | ✅ libresolv | 🚧 DnsQuery_W | ✅ DnsResolver | ✅ GIO Resolver |
 | JMAP-SRV autodiscovery (`_jmap._tcp`) | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | IMAP/SMTP SRV (`_imaps`/`_submissions`, RFC 6186/8314) | ✅ | ✅ | 🚧 | ✅ | ✅ |
@@ -306,11 +306,13 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
 
 ## Known gaps
 
-- **Rule 12 is driven on Windows alone.** `Onboarding.Tests.ps1` and `AddAccount.Tests.ps1` press
-  "Set up manually", then Back, and read the address back. Apple's button is written and has not
-  been built on a host that can build it, and no Apple suite reaches the second step. Linux has had
-  its Back button all along, but it restarts the flow and so empties the address field. Android
-  steps back with the system Back (`BackNavigationTest`) and draws no button, which the rule allows.
+- **Rule 12 is driven on Windows and iOS, not on macOS.** `Onboarding.Tests.ps1` and
+  `AddAccount.Tests.ps1` press "Set up manually", then Back, and read the address back;
+  `AccountSetupBackTests` does the same on iOS from the found card and the manual form, on a first
+  run and a later add. The Apple UI suite is iOS only, so macOS shares the view but is checked by
+  eye. Linux has had its Back button all along, but it restarts the flow and so empties the address
+  field. Android steps back with the system Back (`BackNavigationTest`) and draws no button, which
+  the rule allows.
 - **The manual form's port and security row is undriven on Apple only.** The rule is rule 11 and
   every client implements it; Windows, Linux and Android have each been driven against a real
   STARTTLS server. Apple carries 🚧 in the matrix until someone runs it.
