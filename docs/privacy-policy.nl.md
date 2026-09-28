@@ -1,12 +1,13 @@
 # Privacybeleid: Allodia Mail & Calendar
 
-**Versie 2.5 · Van kracht: 2026-09-20**
+**Versie 2.6 · Van kracht: 2026-09-28**
 
 Allodia Mail & Calendar is een e-mail- en agenda-app die op je eigen apparaat draait en verbinding
 maakt met de e-mailprovider die **jij** kiest. Dit beleid legt in gewone taal uit wat dat betekent
 voor je gegevens: wat op je apparaat blijft (vrijwel alles), wat de app verstuurt en naar wie
-(standaard niets naar ons), en de twee dingen die je met ons kunt kiezen te delen (een
-Allodia-account, en gebruiksstatistieken, allebei uit tenzij je ze aanzet).
+(standaard niets naar ons), en de dingen die je met ons kunt kiezen te delen (een
+Allodia-account, gebruiksstatistieken en verzoeken aan onze schrijfassistent, elk uit tenzij je
+ervoor kiest).
 
 Daarom heeft dit beleid twee helften. **Zonder Allodia-account**, zoals de app zich installeert,
 hebben wij helemaal niets van je (§2). **Mét een account**, dat de app je aanraadt zodra je je
@@ -16,9 +17,12 @@ e-mail (§3).
 
 ## De korte versie
 
-- **Je e-mail komt nooit langs Allodia.** De app synchroniseert rechtstreeks tussen je apparaat en
-  je eigen e-mailprovider. Wij zitten niet in dat pad, we hebben geen servers in dat pad, en we
-  kunnen je e-mail, je afspraken en je inloggegevens niet lezen.
+- **Je e-mail komt niet langs Allodia, tenzij je daar zelf om vraagt.** De app synchroniseert
+  rechtstreeks tussen je apparaat en je eigen e-mailprovider. Wij zitten niet in dat pad, we hebben
+  geen servers in dat pad, en we kunnen je e-mail, je afspraken en je inloggegevens niet lezen. De
+  enige uitzondering is een verzoek dat je zelf doet: vraag je de schrijfassistent van Allodia een
+  antwoord op te stellen, dan gaat het bericht waarop je antwoordt via onze dienst naar een
+  AI-aanbieder in de EU, en onze dienst bewaart daar niets van (§7.2).
 - **Standaard stuurt de app ons niets.** Geen telemetrie, geen crashrapporten, geen identifiers,
   zelfs niet het feit dát je de app hebt geïnstalleerd.
 - **Een Allodia-account is optioneel, en de app raadt het je aan.** Zodra je je eerste
@@ -32,7 +36,12 @@ e-mail (§3).
   toestemming op elk moment met één klik intrekken.
 - **Een AI-assistent kan toegang tot je e-mail krijgen, en alleen als jij dat zegt.** Het staat
   uit, hij draait op je eigen computer, hij komt nergens bij tot je een account aanvinkt, en
-  Allodia zit ook niet in dat pad (§7).
+  Allodia zit ook niet in dat pad (§7.1).
+- **De schrijfassistent doet niets tot je hem gebruikt, en jij kiest waar hij draait.** Hij leert
+  hoe jij schrijft van je verzonden e-mail pas nadat hij je heeft laten zien wat hij verstuurt en
+  waarheen, en hij stelt alleen een antwoord op als jij daarom vraagt. Laat je hem een AI-model op
+  je eigen computer of op de eigen server van je organisatie gebruiken, dan verlaat je e-mail die
+  niet (§7.2).
 - **Betaal je voor de app, dan zien wij je pas nooit.** Je kunt bij ons kopen, of in de app bij
   Apple of Google. Je betaalgegevens gaan naar onze betaaldienstverlener of naar die store, nooit
   naar ons; wat wij bewaren is het abonnement zelf, zodat het werkt op elk apparaat waarop je
@@ -52,7 +61,8 @@ Voor alles wat in dit beleid staat: **info@allodia.eu**.
 
 We zijn alleen "verwerkingsverantwoordelijke" voor het weinige dat ons daadwerkelijk bereikt: een
 Allodia-account als je er een aanmaakt (§3), een abonnement als je er een koopt (§10), optionele
-gebruiksstatistieken (§6), berichten die je ons stuurt (§8) en de website (§11). Voor alles wat de app op je apparaat verwerkt, zijn we
+gebruiksstatistieken (§6), verzoeken die je via onze schrijfassistent verstuurt (§7.2), berichten
+die je ons stuurt (§8) en de website (§11). Voor alles wat de app op je apparaat verwerkt, zijn we
 verwerkingsverantwoordelijke noch verwerker, want we ontvangen het nooit (§2).
 
 ## 2. Standaard: alles blijft op je apparaat
@@ -159,9 +169,10 @@ wachtwoord aan te pas (dit gebeurt vóór het inloggen), Allodia ontvangt er nie
 
 Er zit geen clouddienst van ons tussen jou en je provider. De app kan je e-mail doorgeven aan een
 AI-assistent op je eigen computer, maar alleen als je dat aanzet en alleen voor de accounts die
-je kiest (zie §7). Voegen we een functie toe die verandert hoe gegevens worden verwerkt, dan
-werken we dit beleid **eerst** bij, en alles wat nieuwe gegevens zou versturen, vraagt het je
-vóórdat het iets verstuurt.
+je kiest (zie §7.1). Ook kan de app antwoorden in je eigen stijl opstellen, via een AI-model dat
+jij kiest, maar alleen als je daarom vraagt (zie §7.2). Voegen we een functie toe die verandert hoe
+gegevens worden verwerkt, dan werken we dit beleid **eerst** bij, en alles wat nieuwe gegevens zou
+versturen, vraagt het je vóórdat het iets verstuurt.
 
 ## 3. Als je inlogt op een Allodia-account (optioneel)
 
@@ -180,16 +191,17 @@ apparaat en de provider die jij hebt gekozen, en wij zitten nog steeds niet in d
 
 **Wat wij hebben.** Je e-mailadres, je weergavenaam als het account die heeft, en de inlog zelf.
 En zodra je op een apparaat bent ingelogd: de lijst met e-mailaccounts op dat apparaat, per account
-het e-mailadres, de servernamen en poorten, de gebruikersnaam en de verbindingsinstellingen. Meer
-is het niet.
+het e-mailadres, de servernamen en poorten, de gebruikersnaam en de verbindingsinstellingen.
+Gebruik je de schrijfassistent, dan ook je schrijfstijlen, zoals §7.2 beschrijft. Meer is het niet.
 
 **Nooit een wachtwoord, en nooit een token voor je provider.** Die blijven in de sleutelopslag van
 je eigen apparaat, gaan nooit naar ons toe, en vul je één keer per apparaat in. Daarom vult
 inloggen op een nieuw apparaat je accounts wel voor je in, maar vraagt het je daarna nog steeds om
 elk wachtwoord.
 
-**Wij kunnen de accountlijst die wij hebben lezen.** Die staat op onze servers in gewone leesbare
-vorm, niet versleuteld op een manier die ons buitensluit. Hij vertelt ons welke providers je
+**Wij kunnen de accountlijst die wij hebben lezen.** Die is versleuteld waar hij op onze servers
+wordt bewaard, zodat een kopie van onze database alleen hem niet prijsgeeft, maar met een sleutel
+die onze servers hebben: hij is niet end-to-end versleuteld, en sluit ons niet buiten. Hij vertelt ons welke providers je
 gebruikt en onder welk adres; hij vertelt ons niets over je e-mail, die wij niet hebben. Vind je
 dat meer dan je wilt delen, dan is dit het deel van de app dat optioneel is: gebruik hem zonder
 Allodia-account en er gaat niets van je apparaat af.
@@ -217,9 +229,10 @@ account niet zelf. Die pagina kun je ook rechtstreeks openen op
 **https://mailcal.allodia.eu/account**, op elk apparaat en zonder de app. Vraag je het liever aan
 ons, mail dan **info@allodia.eu**. Je rechten staan in §14.
 
-**Wat het vandaag doet.** Een identiteit, de accountlijst hierboven, en, als je er een hebt
-gekocht, het abonnement dat het account draagt (§10). Verder doet de app geen enkel verzoek aan
-ons. Elke volgende functie die echt een server van ons nodig heeft, wordt in dit
+**Wat het vandaag doet.** Een identiteit, de accountlijst hierboven, als je er een hebt gekocht
+het abonnement dat het account draagt (§10), en, als je de schrijfassistent gebruikt, je
+schrijfstijlen en de verzoeken die je via onze dienst verstuurt (§7.2). Verder doet de app geen
+enkel verzoek aan ons. Elke volgende functie die echt een server van ons nodig heeft, wordt in dit
 beleid opgenomen **voordat** het uitkomt, en vraagt het je voordat er iets wordt verstuurd (§16).
 
 ## 4. Gegevens die je niet hoeft te verstrekken
@@ -302,7 +315,9 @@ payload kan nooit groeien onder een toestemming die voor minder is gegeven.
 Grondslag: jouw toestemming (AVG art. 6(1)(a); opslaan en uitlezen op je apparaat volgens de
 nationale implementaties van artikel 5(3) van de ePrivacyrichtlijn).
 
-## 7. Toegang voor AI-assistenten (standaard uit)
+## 7. AI (standaard uit)
+
+### 7.1 Een AI-assistent op je computer
 
 De app kan een **AI-assistent op je eigen computer** je e-mail laten lezen en bewerken, via het
 Model Context Protocol (MCP). Dit staat uit tenzij je het aanzet bij **Instellingen → Geavanceerd**,
@@ -332,6 +347,67 @@ je berichtinhoud je apparaat op het moment dat je hem vraagt iets te lezen, omda
 gevraagd. Dat is dezelfde vorm als een bericht doorsturen of een externe afbeelding laden: jouw
 verzending, naar een partij die jij hebt gekozen. Het is de moeite waard om bewust te kiezen welke
 accounts je aanvinkt.
+
+### 7.2 De schrijfassistent
+
+De schrijfassistent leert hoe jij schrijft van je eigen verzonden e-mail, en stelt in die stijl een
+antwoord op een bericht op. Het concept komt in het bericht dat je aan het schrijven bent, zodat jij
+het aanpast en verstuurt; de schrijfassistent verstuurt zelf nooit iets. Nog niet elke versie van
+de app biedt hem aan.
+
+**Er gebeurt niets tot je hem gebruikt.** Voordat hij leert, laat de app je zien hoeveel van je
+verzonden berichten hij zou gebruiken en waar die naartoe zouden gaan, en hij begint pas als je op
+**Leren** drukt. Een antwoord wordt alleen opgesteld als jij daarom vraagt.
+
+**Jij kiest waar het verzoek naartoe gaat.**
+
+- **Een eigen AI-model.** Bij **Instellingen → Geavanceerd** kun je de app naar een server naar
+  keuze laten wijzen die de gangbare chat-completions-interface spreekt: een model op je eigen
+  computer, of een model dat je organisatie draait. Elk verzoek gaat dan daarheen en nergens anders,
+  en Allodia zit niet in dat pad. Draait dat model op je eigen computer of op de eigen server van je
+  organisatie, dan verlaat je e-mail die niet.
+- **De AI-dienst van Allodia.** Zonder eigen model, en als je Allodia-account het omvat, gaat het
+  verzoek via onze dienst naar een AI-aanbieder in de EU die onze dienst kiest. Onze dienst geeft
+  het verzoek door en bewaart er niets van; hij legt geen inhoud vast en telt alleen hoeveel je
+  hebt gebruikt, tegen je tegoed.
+
+**Wat een verzoek meeneemt.** Bij het leren: een steekproef van je eigen woorden uit je verzonden
+e-mail, waarbij de geciteerde e-mail en handtekeningen eronder op je apparaat zijn weggeknipt. Bij
+het opstellen: het bericht waarop je antwoordt, je stijl, een paar passages uit je eigen eerdere
+e-mail als voorbeeld, wat je de laatste keer aan dezelfde persoon schreef, en een eventuele
+instructie die je hebt getypt. Verder niets, nooit een bijlage, en nooit je adresboek.
+
+**Gecontroleerd voordat er iets vertrekt.** Voordat de app je verzonden e-mail leest of een verzoek
+verstuurt, controleert hij waar het verzoek naartoe zou gaan. Hij verstuurt alleen naar een dienst
+die in de EU wordt gedraaid door een bedrijf dat in de EU is gevestigd; al het andere wordt
+geweigerd voordat er ook maar één bericht is gelezen. De AI-dienst van Allodia geeft verzoeken
+alleen door aan aanbieders die daaraan voldoen, en een eigen model telt pas als voldoend zodra jij
+hebt aangegeven dat het dat doet.
+
+**Wat op je apparaat blijft.** Je stijlen, met de passages uit je eigen e-mail die elke stijl als
+voorbeeld bewaart; een lijst van de antwoorden die je vanuit een concept hebt verstuurd, met wat je
+in elk ervan hebt veranderd; en een beoordeling die je aan een concept geeft (hieronder). Een
+passage verlaat het apparaat alleen binnen een verzoek, zoals hierboven.
+
+**Een markering op antwoorden waaraan hij heeft meegeschreven.** Verstuur je een antwoord dat als
+concept begon, dan vraagt de app je e-mailprovider een markering met de naam `writing-assistant` te
+zetten op de kopie in je map Verzonden, waar je provider er een ondersteunt. Die wordt bij je
+e-mail bij je provider bewaard, sommige e-mailapps tonen hem, en hij vertelt je andere apparaten
+dat ze je stijl niet van dat bericht moeten leren, omdat een deel van de woorden van het model
+kwam. Er gaat daarover niets naar Allodia.
+
+**Je stijlen op je andere apparaten.** Ben je ingelogd op een Allodia-account dat de
+schrijfassistent omvat, dan worden van elke stijl de naam, de beschrijving die hij leerde van hoe
+jij schrijft (bijvoorbeeld je gebruikelijke aanhef en hoe je afsluit) en je eigen notities via onze
+servers gelijk gehouden op je apparaten. Ze worden precies zo bewaard als je accountlijst (§3):
+versleuteld op onze servers met een sleutel die onze servers hebben, dus niet end-to-end, en wij
+kunnen ze lezen. De passages uit je e-mail nooit: elk apparaat kiest die zelf uit zijn eigen map
+Verzonden.
+
+**Een concept beoordelen.** Je kunt ons laten weten wat je van een concept vond, zodat we het
+opstellen kunnen verbeteren, en het bericht en het concept alleen meesturen als je dat vakje
+aanvinkt. Zolang het versturen van beoordelingen naar ons niet is ingeschakeld, blijft een
+beoordeling op je apparaat; voordat het dat wel is, staat in dit beleid wat we bewaren en hoe lang.
 
 ## 8. Als je contact met ons opneemt
 
@@ -416,7 +492,9 @@ gehost in Nederland en Duitsland.
 - We gebruiken nooit analyse-, tracking- of advertentie-SDK's van derden in de app.
 - We nemen nooit geautomatiseerde besluiten over je en stellen nooit een profiel van je op (AVG
   art. 22).
-- We trainen nooit AI-modellen op je e-mail. We hebben überhaupt geen toegang tot je e-mail.
+- We trainen nooit AI-modellen op je e-mail. We hebben geen toegang tot je e-mail, behalve tot het
+  bericht dat een verzoek aan onze schrijfassistent meeneemt terwijl onze dienst het doorgeeft, en
+  daarvan bewaren we niets (§7.2).
 - We dragen de persoonsgegevens die we hebben nooit over buiten de EU/EER, met één uitzondering
   die we liever benoemen dan wegstoppen: **een abonnement controleren dat je bij Apple of Google
   hebt gekocht** betekent dat we die store ernaar vragen, en dat zijn allebei Amerikaanse bedrijven
@@ -431,7 +509,9 @@ gehost in Nederland en Duitsland.
 
 | Gegevens | Bewaard | Waar |
 |---|---|---|
-| Je e-mail, afspraken, contacten, instellingen, handtekeningen, diagnostisch logboek | Op je apparaat, onder jouw controle; verwijder de gegevens van de app of de app zelf en het is weg | Je apparaat |
+| Je e-mail, afspraken, contacten, instellingen, handtekeningen, schrijfstijlen, diagnostisch logboek | Op je apparaat, onder jouw controle; verwijder de gegevens van de app of de app zelf en het is weg | Je apparaat |
+| Je schrijfstijlen, als je ze op je apparaten gelijk houdt | Tot je een stijl vergeet, of je Allodia-account verwijdert | Servers beheerd door Allodia, EU |
+| Een verzoek aan onze schrijfassistent | Niet bewaard; alleen hoeveel je hebt gebruikt, tegen je tegoed | Servers beheerd door Allodia, EU, die het doorgeven aan een AI-aanbieder in de EU |
 | Je Allodia-account en de lijst met e-mailaccounts die het gelijk houdt, als je er een aanmaakt | Tot je ons vraagt het te verwijderen | Servers beheerd door Allodia, EU |
 | Gebruiksstatistieken (opt-in) | Tot je ze intrekt, maximaal 24 maanden | Servers beheerd door Allodia, EU |
 | Je abonnement en de betaalgeschiedenis ervan, als je bij ons koopt | Tot je je account verwijdert, facturen uitgezonderd (hieronder) | Servers beheerd door Allodia, EU; betaalafhandeling door Mollie, NL |
