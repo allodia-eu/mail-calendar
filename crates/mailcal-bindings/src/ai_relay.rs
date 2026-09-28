@@ -89,6 +89,15 @@ impl MailcalApp {
         if !self.allodia_grant_permits(Feature::Entitlement) {
             return;
         }
+        let Some(asked_for) = self
+            .allodia
+            .lock()
+            .expect("allodia account lock")
+            .as_ref()
+            .map(|stored| stored.email.clone())
+        else {
+            return;
+        };
         let Ok(token) = self.allodia_access_token("the plan") else {
             return;
         };
@@ -104,6 +113,23 @@ impl MailcalApp {
             }
             Err(_) => Outcome::Unreachable,
         };
+        if self.keep_entitlement_answer(&asked_for, outcome) {
+            log::info!("allodia: the entitlement was read");
+            self.refresh_ai_backend();
+        }
+    }
+
+    /// Stores what the service said about the account signed in as `asked_for`. `false`, and
+    /// nothing stored, when somebody else is signed in by now: the answer is not theirs.
+    ///
+    /// The check and the write happen under the account lock, which a sign-in and a sign-out take
+    /// before clearing the stored answer, so neither can land between them.
+    pub(crate) fn keep_entitlement_answer(&self, asked_for: &str, outcome: Outcome) -> bool {
+        let signed_in = self.allodia.lock().expect("allodia account lock");
+        if signed_in.as_ref().map(|stored| stored.email.as_str()) != Some(asked_for) {
+            log::info!("allodia: an entitlement answer arrived after a sign-in change; dropped");
+            return false;
+        }
         let now = time::OffsetDateTime::now_utc().unix_timestamp();
         let mut cache = self.entitlement_cache();
         cache.apply(outcome, now);
@@ -111,8 +137,7 @@ impl MailcalApp {
             .stored()
             .and_then(|stored| serde_json::to_string(stored).ok());
         self.app.set_entitlement_answer(stored);
-        log::info!("allodia: the entitlement was read");
-        self.refresh_ai_backend();
+        true
     }
 
     /// Asks the relay how many credits are left and records the answer. **Blocking.**

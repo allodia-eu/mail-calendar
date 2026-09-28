@@ -167,3 +167,34 @@ fn feedback_is_offered_while_signed_in_and_what_waits_goes_at_sign_out() {
     assert!(!mailcal_account::ai_feedback_outbox_path(&data_dir).exists());
     let _ = std::fs::remove_dir_all(data_dir);
 }
+
+/// An entitlement read that set out for one account and returns after somebody else signed in
+/// says nothing about the new account, and is not kept.
+#[test]
+fn an_entitlement_answer_for_an_account_no_longer_signed_in_is_not_kept() {
+    let (app, data_dir) = boot("relay-stale-answer", &[Capability::Ai]);
+    let answer = |capabilities: &[Capability]| {
+        allodia_license::Outcome::Answered(Answer {
+            entitlement: Entitlement {
+                plan: "personal".to_owned(),
+                capabilities: capabilities.iter().cloned().collect(),
+                payment_status: None,
+                current_period_end: None,
+            },
+            refresh_after_seconds: 86_400,
+        })
+    };
+    app.sign_out_of_allodia().unwrap();
+    {
+        let mut signed_in = app.allodia.lock().unwrap();
+        *signed_in = crate::allodia::StoredAccount::from_toml(
+            &GRANT.replace("sam@example.eu", "alex@example.eu"),
+        );
+    }
+    app.keep_entitlement_answer("sam@example.eu", answer(&[Capability::Ai]));
+    assert!(app.app.entitlement_answer().is_none());
+
+    app.keep_entitlement_answer("alex@example.eu", answer(&[Capability::Ai]));
+    assert!(app.app.entitlement_answer().is_some());
+    let _ = std::fs::remove_dir_all(data_dir);
+}
