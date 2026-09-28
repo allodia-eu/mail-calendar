@@ -40,6 +40,9 @@ struct AccountSetupDetectView: View {
     var onboarding: MailboxModel?
     /// Whether this is the screen somebody cannot skip.
     var firstRun = true
+    /// Forgets what the abandoned step's attempt left on the model (its error, and a certificate it
+    /// was refused or accepted) when the person steps back to the address.
+    var clearAttempt: () -> Void = {}
 
     private enum Phase {
         case email
@@ -294,6 +297,7 @@ struct AccountSetupDetectView: View {
             error: error,
             rejectedCertificate: rejectedCertificate,
             cancel: cancel,
+            back: stepBack,
             signInMicrosoft: signInMicrosoft,
             signInGoogle: signInGoogle,
             signingIn: signingIn,
@@ -413,8 +417,33 @@ struct AccountSetupDetectView: View {
         }
     }
 
+    /// The found card's footer: Back at the start, and the same Cancel the other two steps carry
+    /// when this is a later add.
     private func footer<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> some View {
-        SetupFooter(content: content)
+        SetupFooter(back: stepBack, backDisabled: busy) {
+            if let cancel {
+                Button(L10n.action_cancel()) { cancel() }
+            }
+            content()
+        }
+    }
+
+    /// A connect or a sign-in is running, and its answer belongs to the step on screen.
+    private var busy: Bool { connecting || signingIn || googleSigningIn }
+
+    /// Back to the address, which keeps what was typed there. Everything the abandoned route
+    /// filled in goes with it: a different address can reach a different server, and nothing is
+    /// accepted that was not shown.
+    private func stepBack() {
+        clearAttempt()
+        password = ""
+        approved = false
+        certificateAccepted = false
+        calendarChoice = nil
+        calendarURL = ""
+        googleEarlyAccessConfirmed = false
+        jmapSignInOffered = false
+        phase = .email
     }
 
     private func route(_ recommendation: SetupRecommendation) -> Phase {

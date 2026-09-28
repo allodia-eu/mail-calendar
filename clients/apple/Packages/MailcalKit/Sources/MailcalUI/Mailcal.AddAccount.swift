@@ -19,9 +19,7 @@ extension ContentView {
             rejectedCertificate: model.setupRejectedCertificate,
             cancel: {
                 model.addingAccount = false
-                model.setupError = nil
-                model.setupRejectedCertificate = nil
-                model.setupAcceptedCertificate = nil
+                clearSetupAttempt()
                 model.setupStartEmail = ""
                 model.setupStartOffer = nil
             },
@@ -61,7 +59,16 @@ extension ContentView {
             // Not the first account, so no card, but the accounts still to set up are not a
             // pitch, and are offered here too (`docs/onboarding.md`).
             onboarding: model,
-            firstRun: false
+            firstRun: false,
+            clearAttempt: clearSetupAttempt
         )
+    }
+
+    /// What the last attempt on the setup form left behind: the error, and a certificate it was
+    /// refused or accepted. Cleared when the person steps back to the address or leaves.
+    func clearSetupAttempt() {
+        model.setupError = nil
+        model.setupRejectedCertificate = nil
+        model.setupAcceptedCertificate = nil
     }
 }

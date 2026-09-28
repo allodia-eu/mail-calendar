@@ -122,8 +122,8 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
 
     private bool _addingAccount;
     /// <summary>
-    /// <c>true</c> while the user is adding another account: the setup form shows over the
-    /// running app (the same form as first run, with a Cancel) and the shell hides behind it.
+    /// <c>true</c> while the user is adding another account: the setup form shows in a dialog
+    /// over the running app (the same form as first run, with a Cancel).
     /// </summary>
     public bool AddingAccount
     {
@@ -132,8 +132,6 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
         {
             if (Set(ref _addingAccount, value))
             {
-                Raise(nameof(SetupVisibility));
-                Raise(nameof(MainVisibility));
                 Raise(nameof(AddingAccountVisibility));
                 Raise(nameof(CancelVisibility));
             }

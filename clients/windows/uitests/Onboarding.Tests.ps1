@@ -176,5 +176,31 @@ $Suite = @{
         Set-UiaText -Element $box -Text ''
       }
     }
+    @{
+      # "Set up manually" is the one way onto the second step that needs no network, and the rule
+      # is the same for the detected card: whatever the second step is, the address is one action
+      # back (docs/account-autodetect.md, rule 12). Last, because it leaves and comes back.
+      Name = 'the second step goes back to the address, which keeps what was typed'
+      Body = {
+        $address = 'someone@example.com'
+        Set-UiaText -Element (Find-UiaElement -AutomationId 'DetectEmail' -Type 'Edit') -Text $address
+        Invoke-UiaElement (Find-UiaElement -AutomationId 'ManualButton' -Type 'Button')
+        Assert-True ($null -ne (Wait-UiaElement -AutomationId 'ImapHost' -Type 'Edit' -TimeoutSec 5)) (
+          '"Set up manually" must open the manual form, or the rest of this case is about a ' +
+          'screen the app is not showing')
+        $back = Find-UiaElement -AutomationId 'BackButton' -Type 'Button'
+        Assert-True ($null -ne $back -and $back.Current.IsEnabled) (
+          'the manual form has a way back to the address step, on a first run as on any later ' +
+          'add; without one, somebody who wanted detection after all is stuck on the form')
+        Invoke-UiaElement $back
+        $box = Wait-UiaElement -AutomationId 'DetectEmail' -Type 'Edit' -TimeoutSec 5
+        Assert-True ($null -ne $box) 'Back must return to the address step'
+        Assert-True ($null -eq (Find-UiaElement -AutomationId 'ImapHost' -Type 'Edit')) (
+          'the manual form must be gone once Back is pressed, not drawn under the address step')
+        Assert-Equal $address (Get-UiaText $box) (
+          'going back keeps the address: the person is changing route, not starting over')
+        Set-UiaText -Element $box -Text ''
+      }
+    }
   )
 }

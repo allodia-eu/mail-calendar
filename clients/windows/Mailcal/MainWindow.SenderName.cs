@@ -32,6 +32,8 @@ public sealed partial class MainWindow
             return;
         }
         var suggestion = await Model.SuggestedSenderNameAsync(account);
+        // The add-account dialog that connected this account may still be on its way out.
+        await DialogHelper.WhenIdleAsync();
         var name = await SenderNameDialog.AskAsync(Content.XamlRoot, suggestion);
         if (name is null)
         {

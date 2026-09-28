@@ -150,6 +150,15 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
     beside the name is the one the user can see. A client splits `host:port` exactly as the core
     does, so what is shown and what is dialled are the same.
 
+12. **The second step always goes back to the address.** The found card and the manual form, on a
+    first run and on a later add alike, carry a way back to the address step, and it keeps the
+    address that was typed: somebody who opened the manual form and wants detection after all is
+    changing route, not starting over. What the abandoned step filled in goes with it, including a
+    certificate it was refused or accepted, because a different address can reach a different
+    server. It is drawn on screen as **Back** at the start of the step's footer; a platform whose
+    own idiom already goes back (Android's system Back) meets the rule by that route. Back waits
+    while a connect or a sign-in is running, whose answer belongs to the step on screen.
+
 ## Strategy order
 
 The whole flow has three stages: **(1)** the five discovery strategies below, raced in priority
@@ -257,6 +266,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Untrusted-settings approval gate | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | Refused-certificate acceptance ([`certificate-exceptions.md`](certificate-exceptions.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | "Set up manually" escape + reason line | ✅ | ✅ | 🚧 | ✅ | ✅ |
+| Back from the second step to the address (rule 12) | n/a | 🚧 | ✅ | ✅ system Back | 🚧 |
 | MX fallback (host DNS) | ✅ | ✅ libresolv | 🚧 DnsQuery_W | ✅ DnsResolver | ✅ GIO Resolver |
 | JMAP-SRV autodiscovery (`_jmap._tcp`) | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | IMAP/SMTP SRV (`_imaps`/`_submissions`, RFC 6186/8314) | ✅ | ✅ | 🚧 | ✅ | ✅ |
@@ -296,6 +306,11 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
 
 ## Known gaps
 
+- **Rule 12 is driven on Windows alone.** `Onboarding.Tests.ps1` and `AddAccount.Tests.ps1` press
+  "Set up manually", then Back, and read the address back. Apple's button is written and has not
+  been built on a host that can build it, and no Apple suite reaches the second step. Linux has had
+  its Back button all along, but it restarts the flow and so empties the address field. Android
+  steps back with the system Back (`BackNavigationTest`) and draws no button, which the rule allows.
 - **The manual form's port and security row is undriven on Apple only.** The rule is rule 11 and
   every client implements it; Windows, Linux and Android have each been driven against a real
   STARTTLS server. Apple carries 🚧 in the matrix until someone runs it.

@@ -212,11 +212,15 @@
             Grid.Row="2"
             Visibility="{x:Bind Model.WelcomeVisibility, Mode=OneWay}" />
 
-        <!-- First run: the account-setup form (no account stored yet). -->
-        <views:AccountSetupView
-            x:Name="SetupView"
+        <!-- First run: the account-setup form (no account stored yet). Adding a later account
+             lifts the same form out of this host and into a dialog over the shell, and puts it
+             back when the dialog closes (MainWindow.AddAccount.cs). -->
+        <Border
+            x:Name="SetupHost"
             Grid.Row="2"
-            Visibility="{x:Bind Model.SetupVisibility, Mode=OneWay}" />
+            Visibility="{x:Bind Model.SetupVisibility, Mode=OneWay}">
+            <views:AccountSetupView x:Name="SetupView" />
+        </Border>
 
         <!-- Connected: the sidebar + detail shell.
 

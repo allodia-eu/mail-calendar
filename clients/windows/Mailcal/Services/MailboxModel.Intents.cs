@@ -184,13 +184,24 @@ public sealed partial class MailboxModel
         AddingAccount = true;
     }
 
+    /// <summary>
+    /// Forgets what the last attempt on the setup form left behind, when the person steps back to
+    /// the address: the error, and a certificate it was refused or accepted.
+    /// </summary>
+    public void ClearSetupAttempt()
+    {
+        SetupError = null;
+        SetupRejectedCertificate = null;
+        SetupAcceptedCertificate = null;
+    }
+
     /// <summary>Back out of adding an account (the user dismissed the form).</summary>
     public void CancelAddAccount()
     {
         AddingAccount = false;
         SetupStartEmail = string.Empty;
         SetupStartOffer = null;
-        SetupError = null;
+        ClearSetupAttempt();
     }
 
     /// <summary>
