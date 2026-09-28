@@ -76,7 +76,8 @@ pub(crate) struct WritingStyleState {
     library: Mutex<WritingStyles>,
     library_path: Option<PathBuf>,
     prefs_path: Option<PathBuf>,
-    /// The assignments when there is no preferences file, as [`crate::signatures`] keeps them.
+    /// The assignments when there is no preferences file, as [`crate::signatures`] keeps them;
+    /// also held across every read, change and write of the file.
     /// Boxed: a `Preferences` is large, and every future that holds the app by value carries it.
     memory: Mutex<Box<Preferences>>,
     backend: Mutex<Option<Arc<GatedBackend>>>,
@@ -117,8 +118,10 @@ impl WritingStyleState {
         }
     }
 
-    /// Reads the preferences, applies `edit`, and writes them back when it changed anything.
+    /// Reads the preferences, applies `edit`, and writes them back when it changed anything. One
+    /// edit at a time: the balance and the entitlement answer are written from background threads.
     fn edit_prefs<T>(&self, edit: impl FnOnce(&mut Preferences) -> T) -> T {
+        let mut memory = self.memory.lock().expect("writing-style memory poisoned");
         match &self.prefs_path {
             Some(path) => {
                 let mut prefs = load_preferences(path);
@@ -129,7 +132,7 @@ impl WritingStyleState {
                 }
                 result
             }
-            None => edit(&mut self.memory.lock().expect("writing-style memory poisoned")),
+            None => edit(&mut memory),
         }
     }
 

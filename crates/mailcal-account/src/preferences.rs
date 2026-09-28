@@ -36,6 +36,7 @@ pub use display::{
     Appearance, CalendarLayout, CalendarPrefs, DEFAULT_VISIBLE_HOURS, DefaultCalendar,
     MAX_VISIBLE_HOURS, MIN_VISIBLE_HOURS, TimeFormat, WeekStart, clamp_visible_hours,
 };
+pub(crate) use file::write_atomically;
 pub use file::{load_preferences, preferences_path, save_preferences};
 pub use reply_fallback::ReplyFallback;
 pub use sender_name::{MAX_SENDER_NAME_CHARS, sanitize_sender_name};
