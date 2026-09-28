@@ -136,9 +136,12 @@ is never learned from**, and never shown to a later draft as the person's own wo
   difference between the draft and what the person actually sent above the signature and the
   quote: the runs they added, the runs they took out, the share of words that changed. A draft sent
   as it was carries no signal at all.
-- The log (`writing_style_observations.toml`) stays on the device, is capped at two hundred
-  entries, and loses a style's entries when the style is forgotten and an account's when the
-  account is removed. Learning and the recipient context both pass over every logged message.
+- The log (`writing_style_observations.toml`) stays on the device and holds two lists. The
+  `Message-ID`s of drafted replies are never capped, because one that fell out would become
+  learnable; they survive a forgotten style, because the reply was drafted all the same, and leave
+  with their account. What the person changed in each draft is their own words, so that list keeps
+  two hundred entries and loses a style's when the style is forgotten. Learning and the recipient
+  context both pass over every drafted reply.
 - Mail the person wrote without a draft stays eligible, as it always was.
 
 ## Feedback
