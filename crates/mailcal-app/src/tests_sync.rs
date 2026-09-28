@@ -250,6 +250,7 @@ async fn providerless_placeholder_sync_is_skipped_not_busy() {
     let outcome = sync_account_providers(
         &app.engine,
         &account,
+        None,
         StreamTuning::new(200, 1),
         &progress,
         0,

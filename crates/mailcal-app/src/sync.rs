@@ -92,8 +92,15 @@ impl<P: Provider> App<P> {
                 let progress = &progress;
                 async move {
                     let started = Instant::now();
-                    let outcome =
-                        sync_account_providers(&self.engine, account, tuning, progress, i).await;
+                    let outcome = sync_account_providers(
+                        &self.engine,
+                        account,
+                        self.connector.as_deref(),
+                        tuning,
+                        progress,
+                        i,
+                    )
+                    .await;
                     (
                         outcome,
                         u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
@@ -125,11 +132,6 @@ impl<P: Provider> App<P> {
             "refresh_mail: sync {sync_ms}ms + rebuild {}ms",
             rebuild_start.elapsed().as_millis(),
         );
-        // The passes above covered the folders bound at startup. A folder the user opened is
-        // in none of them and is not watched, so without this the refresh they just asked for
-        // would republish the same rows it was already showing. Before the warm below, so the
-        // mail it brings back is warmed in the same pass.
-        self.refresh_open_folder(None, "refresh-mail").await;
         // Warm every account's body cache after the list is on screen (this method runs off
         // the UI thread and the rebuild above already published the snapshot), so each synced
         // window becomes instantly openable and readable offline. Concurrent across accounts;
@@ -154,7 +156,15 @@ impl<P: Provider> App<P> {
         let progress = self.begin_sync_labeled(true, true, account.providers.len(), "account-add");
         let tuning = self.sync_tuning_for(id);
         let acct = self.account_ordinal(id).await;
-        let outcome = sync_account_providers(&self.engine, &account, tuning, &progress, acct).await;
+        let outcome = sync_account_providers(
+            &self.engine,
+            &account,
+            self.connector.as_deref(),
+            tuning,
+            &progress,
+            acct,
+        )
+        .await;
         self.end_sync(&progress);
         if let Some(reachable) = outcome.reachable {
             self.set_account_reachable(id, reachable);
@@ -207,7 +217,7 @@ impl<P: Provider> App<P> {
         );
     }
 
-    /// A background refresh of one account's eager folders, then a snapshot rebuild; the
+    /// A background refresh of every folder of one account, then a snapshot rebuild; the
     /// per-account polling timer's per-tick work. Unlike `sync_account` (which shows the bar for
     /// an explicit add), this starts hidden; a periodic poll over already-rendered mail does not
     /// flash a bar unless it actually downloads messages. A no-op for an unknown account id.
@@ -222,9 +232,6 @@ impl<P: Provider> App<P> {
             .refresh_account_once(id, "account-refresh", true)
             .await
             .and_then(|outcome| outcome.throttled_for);
-        // A folder this account binds no provider to is in no pass and is watched by nothing,
-        // so the tick is what keeps it current while the user is standing in it.
-        self.refresh_open_folder(Some(id), "account-refresh").await;
         // Every poll tick tops the body cache up (new mail, and any backlog an earlier
         // interrupted pass left), so the synced window converges on fully-warm. A cheap no-op
         // once it is (one key scan), and single-flight if a pass is already draining.
@@ -329,7 +336,15 @@ impl<P: Provider> App<P> {
         let progress = self.begin_sync_labeled(false, announce, account.providers.len(), label);
         let tuning = self.sync_tuning_for(id);
         let acct = self.account_ordinal(id).await;
-        let outcome = sync_account_providers(&self.engine, &account, tuning, &progress, acct).await;
+        let outcome = sync_account_providers(
+            &self.engine,
+            &account,
+            self.connector.as_deref(),
+            tuning,
+            &progress,
+            acct,
+        )
+        .await;
         self.end_sync(&progress);
         if let Some(reachable) = outcome.reachable {
             self.set_account_reachable(id, reachable);

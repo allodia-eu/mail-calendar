@@ -1,10 +1,10 @@
-//! The host-side on-demand folder connector: the bindings' implementation of
+//! The host-side folder connector: the bindings' implementation of
 //! `mailcal_app::MailboxConnector`.
 //!
-//! When the app needs a folder it hasn't synced (a custom/untagged folder the eager bind skipped),
-//! it asks the registry how to dial that account and opens a provider bound to the one folder. A
-//! failure (unknown account, login error) yields `None`, so the app leaves the folder empty rather
-//! than failing navigation.
+//! When the app needs a folder no provider of the account is bound to (one the account listed
+//! after it connected, or one opened before any pass synced it), it asks the registry how to dial
+//! that account and opens a provider bound to the one folder. A failure (unknown account, login
+//! error) yields `None`, so the app leaves the folder as it is rather than failing navigation.
 //!
 //! Everything family-specific lives in [`AccountDial`](crate::account_registry::AccountDial). This
 //! module used to hold a private four-variant enum cloned out of the registry by hand, which was
@@ -16,7 +16,7 @@ use mailcal_app::MailboxConnector;
 
 use crate::SharedRegistry;
 
-/// Connects a provider for any folder of a registered account, on demand.
+/// Connects a provider for any folder of a registered account.
 pub(crate) struct HostConnector {
     /// The account registry, shared with [`MailcalApp`](crate::MailcalApp).
     pub(crate) registry: SharedRegistry,

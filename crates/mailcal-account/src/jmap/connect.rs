@@ -2,7 +2,7 @@
 //!
 //! One [`JmapProvider`] covers the **whole account**; its email scope is account-wide
 //! (`JmapType { account, Email }`) and each message carries its `mailboxIds` membership, so
-//! unlike IMAP/Graph there are no per-role folder providers to bind, and an on-demand folder
+//! unlike IMAP/Graph there are no per-folder providers to bind, and an on-demand folder
 //! open reconnects that same account-wide provider. Split from the module root to keep both
 //! files under the 500-line cap.
 //!

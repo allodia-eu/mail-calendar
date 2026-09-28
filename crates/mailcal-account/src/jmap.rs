@@ -14,7 +14,7 @@
 //! Unlike IMAP/Graph, one [`JmapProvider`] serves the **whole account**; its
 //! email scope is account-wide (`JmapType { account, Email }`), and each message
 //! carries its `mailboxIds` membership: so a single provider syncs every folder,
-//! and there are no per-role folder providers to bind.
+//! and there are no per-folder providers to bind.
 //!
 //! [`AccountConfig`]: crate::AccountConfig
 //! [`MicrosoftConfig`]: crate::MicrosoftConfig

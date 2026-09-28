@@ -29,6 +29,7 @@ mod imap;
 mod jmap;
 mod log_handle;
 mod microsoft;
+mod pass_folders;
 mod preferences;
 mod reconnect;
 mod recurrence_shape;
@@ -76,6 +77,7 @@ pub use jmap::{
 };
 pub use log_handle::account_log_handle;
 pub use microsoft::{MicrosoftConfig, fetch_primary_address, load_microsoft_str};
+pub use pass_folders::pass_syncs;
 pub use preferences::{
     AccountSyncSettings, Appearance, CalendarLayout, CalendarPrefs, DEFAULT_POLL_INTERVAL,
     DEFAULT_VISIBLE_HOURS, DefaultCalendar, EffectiveSync, MAX_PUSH_FOLDERS, MAX_SENDER_NAME_CHARS,

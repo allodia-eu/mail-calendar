@@ -4,10 +4,11 @@
 //! This is the *runtime* half of the synchronisation-behaviour feature; the *configuration*
 //! (which account pushes vs. polls, which folders) lives in the product core's
 //! `sync_settings` state machine. The manager reads the core's [`SyncSettingsSnapshot`] to
-//! decide what to run, then spawns one task per watched folder (push) or one timer per
-//! account (poll). It lives here, not in the core, because building an [`ImapWatcher`] (and
-//! polling) needs the account credentials (the [`SharedRegistry`] registry) and the runtime
-//! the bindings own: the core stays generic over `Provider` and credential-free.
+//! decide what to run, then spawns one task per watched folder plus a full pass every
+//! [`PUSH_FULL_PASS_MINUTES`] (push), or one timer per account (poll). It lives here, not in the
+//! core, because building an [`ImapWatcher`] (and polling) needs the account credentials (the
+//! [`SharedRegistry`] registry) and the runtime the bindings own: the core stays generic over
+//! `Provider` and credential-free.
 //!
 //! Cancellation is by aborting the per-account [`JoinHandle`]s: a settings change re-applies
 //! the account (abort + respawn), and process teardown drops the runtime (which aborts every
@@ -31,6 +32,14 @@ use crate::SharedRegistry;
 
 /// The app type every account shares (providers boxed behind the trait).
 type SharedApp = Arc<App<Box<dyn Provider>>>;
+
+/// How often an account that receives push also runs a full pass, in minutes.
+///
+/// A watch covers only the folder it names, and an account watches four at most, so without this
+/// every other folder (and the unread count beside it) would be as current as the pass at launch
+/// or at the last reconnect: for a desktop left running, days. The shortest interval an account
+/// that polls can choose, which is also Android's floor for periodic work.
+const PUSH_FULL_PASS_MINUTES: u16 = mailcal_account::POLL_INTERVALS[0];
 
 /// The first reconnect delay after a dropped/failed watch; doubled each further failure up
 /// to [`RECONNECT_BACKOFF_MAX`]. Small so a healthy connection that blips recovers quickly.
@@ -119,8 +128,8 @@ impl BackgroundManager {
     }
 
     /// (Re)applies one account's background work: aborts whatever is running for it, then
-    /// spawns watches (push) or a poll timer per the `row`. `None` (the account has no
-    /// settings row; e.g. it was removed) just stops it.
+    /// spawns watches and a full-pass timer (push) or a poll timer per the `row`. `None` (the
+    /// account has no settings row; e.g. it was removed) just stops it.
     pub(crate) fn apply(&self, account_id: &str, row: Option<&AccountSyncRow>) {
         self.stop(account_id);
         let Some(row) = row else {
@@ -138,6 +147,12 @@ impl BackgroundManager {
                         folder.key.clone(),
                     )));
                 }
+                // Every folder the watches do not name, on the same loop a polling account runs.
+                handles.push(self.handle.spawn(poll_loop(
+                    Arc::clone(&self.app),
+                    account_id.to_owned(),
+                    PUSH_FULL_PASS_MINUTES,
+                )));
             }
             SyncStrategyKind::Poll => {
                 handles.push(self.handle.spawn(poll_loop(
@@ -165,7 +180,8 @@ impl BackgroundManager {
         self.apply(account_id, row);
     }
 
-    /// How many tasks run for one account: a watch per folder, or one poll timer.
+    /// How many tasks run for one account: a watch per folder and the full-pass timer, or one
+    /// poll timer.
     #[cfg(test)]
     pub(crate) fn task_count(&self, account_id: &str) -> usize {
         self.tasks

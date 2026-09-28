@@ -161,6 +161,12 @@ gesture needs a real mouse.
   folder-list sync. The engine reads the field where the API supplies it, so the day that fan-out
   earns its round trips, nothing here changes. Until then Gmail folders show no badge, which rule 6
   makes indistinguishable from "nothing unread".
+- **An IMAP folder that only holds other folders fails on every pass.** The account pass syncs
+  every folder the account lists, and a `\Noselect` container (Gmail's `[Gmail]` over IMAP, a
+  parent created only to hold its children) is in that list with nothing in it to select. Its
+  failure is logged and counts for nothing, so the rest of the pass, the outage badge and the
+  sign-in prompt are unaffected; opening it shows it empty. Skipping it needs the engine's folder
+  list to say which folders can be selected, which it does not yet.
 - **The count refreshes with the folder-list sync, not instantly.** Reading a message updates the
   badge when the sync that follows the action lands, the same moment the row's own unread dot
   clears, so the two never disagree on screen. There is no optimistic local delta.

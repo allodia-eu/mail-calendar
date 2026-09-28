@@ -229,9 +229,9 @@ impl AccountDial {
         }
     }
 
-    /// Opens a provider for **one** folder of this account, for the app's on-demand navigation into
-    /// a folder the eager bind skipped. `None` on any failure, so the app leaves the folder empty
-    /// rather than failing navigation.
+    /// Opens a provider for **one** folder of this account: one the account listed after this
+    /// dial bound its folders, or one opened before any pass synced it. `None` on any failure, so
+    /// the app leaves the folder as it is rather than failing navigation.
     ///
     /// Here rather than in the connector that calls it because it is the same question the rest of
     /// this type answers (*what does this family need in order to open something*) and the

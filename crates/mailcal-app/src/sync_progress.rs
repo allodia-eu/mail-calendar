@@ -275,7 +275,10 @@ impl<P: Provider> SyncObserver for ProgressForwarder<'_, P> {
             .insert(account.as_str().to_owned(), inbox.key().as_str().to_owned());
     }
 
-    fn folder_sync_finished(&self, account: &AccountId, _scope: &SyncScope, _synced: bool) {
+    fn folder_sync_finished(&self, account: &AccountId, scope: &SyncScope, synced: bool) {
+        if synced {
+            self.app.note_folder_synced(account, scope);
+        }
         self.app.note_folder_finished(self.id, account);
     }
 

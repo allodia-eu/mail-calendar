@@ -1,18 +1,17 @@
-//! The host-injected on-demand folder-sync port.
+//! The host-injected port that binds one folder of an account.
 //!
 //! The app is generic over `P: Provider` and cannot itself open IMAP connections; login
-//! blocks, and the TLS trust policy + credentials live in the host. So when the user
-//! opens a folder whose mail has not been synced (a server that doesn't tag Archive with
-//! SPECIAL-USE, or any custom folder; `mailcal_account`'s eager bind covers only INBOX +
-//! the role folders), the app asks this port to connect a provider bound to that one
-//! folder, then streams it. The host implements it over
-//! `mailcal_account::connect_imap_mailbox`; the app applies the active sync-depth window
-//! per sync. A `None` connector (the in-memory demo, tests) simply disables on-demand sync.
+//! blocks, and the TLS trust policy + credentials live in the host. An account binds every
+//! folder it lists when it connects, so the app asks this port for a folder only in two cases:
+//! the account lists it now and did not then (the account pass binds and syncs it), or the user
+//! opened it before any pass had synced it this session (the open downloads it at once). The
+//! host implements it over `mailcal_account::connect_imap_mailbox`; the app applies the active
+//! sync-depth window per sync. A `None` connector (the in-memory demo, tests) disables both.
 
 use async_trait::async_trait;
 use engine_api::AccountId;
 
-/// Connects a provider bound to a single mailbox of an account, on demand.
+/// Connects a provider bound to a single mailbox of an account.
 ///
 /// Implemented by the host (over the blocking IMAP login it owns) and injected into the
 /// [`App`](crate::App). `Send + Sync` so the app can call it across `.await` on its

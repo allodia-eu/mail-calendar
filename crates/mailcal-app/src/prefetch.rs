@@ -125,8 +125,8 @@ struct Pass {
     attempted: HashSet<ProviderKey>,
     /// Folders already re-synced this pass after a fetch **conflict**. A conflict means the
     /// folder's state moved under its stored keys (an IMAP `UIDVALIDITY` renumbering: every key
-    /// in the folder is stale, and for a folder synced on demand nothing else ever re-syncs it,
-    /// so its bodies would fail on every pass forever). The recovery the engine documents is
+    /// in the folder is stale, and until a pass re-syncs the folder its bodies fail on every
+    /// warm). The recovery the engine documents is
     /// "re-sync, then retry": re-sync that one folder once per pass; the re-snapshot replaces
     /// the stale keys, and the drain loop's next query picks the fresh ones up and warms them.
     resynced: HashSet<String>,

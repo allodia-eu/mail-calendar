@@ -67,8 +67,8 @@ fn an_added_account_watches_its_inbox_once_the_first_sync_has_run() {
     runtime.block_on(background.apply_current(id.as_str()));
     assert_eq!(
         background.task_count(id.as_str()),
-        0,
-        "before the first sync there is no folder to watch",
+        1,
+        "before the first sync there is no folder to watch, only the full pass",
     );
 
     runtime.block_on(background::sync_added_account(&app, &background, &id));
@@ -89,7 +89,7 @@ fn an_added_account_watches_its_inbox_once_the_first_sync_has_run() {
     assert_eq!(watched, ["inbox"]);
     assert_eq!(
         background.task_count(id.as_str()),
-        1,
-        "the first sync ends with one watch, on the Inbox",
+        2,
+        "the first sync ends with one watch, on the Inbox, beside the full pass",
     );
 }

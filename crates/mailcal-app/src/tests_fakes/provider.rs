@@ -117,6 +117,22 @@ pub(crate) struct EditGate {
     release: Arc<Notify>,
 }
 
+impl FakeProvider {
+    /// An IMAP-shaped Inbox provider: bound to the folder `a`, and listing it as the Inbox
+    /// beside a role-less folder per key in `others`, the way the provider an IMAP account's
+    /// folder list is read from reports every folder while syncing only its own.
+    pub(crate) fn imap_inbox(messages: Vec<Message>, others: &[&str]) -> Self {
+        let mut inbox = Mailbox::new(MailboxId::try_from("a").unwrap(), "Inbox");
+        inbox.role = Some(MailboxRole::Inbox);
+        let listed = others
+            .iter()
+            .map(|key| Mailbox::new(MailboxId::try_from(*key).unwrap(), *key));
+        let mut provider = Self::folder("a", messages);
+        provider.mailboxes = std::iter::once(inbox).chain(listed).collect();
+        provider
+    }
+}
+
 impl EditGate {
     pub(crate) fn new() -> Self {
         Self {
