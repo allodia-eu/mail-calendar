@@ -321,6 +321,8 @@ pub(crate) fn build_accounts(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        ai_feedback_flight: crate::ai_feedback_pass::SingleFlight::default(),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(allodia),
         ai_key: Mutex::new(ai_key),

@@ -312,6 +312,9 @@ pub struct MailcalApp {
     /// Nothing in it is written down and nothing needs to be: the store is the durable copy.
     #[cfg(feature = "allodia-license")]
     allodia_purchases: Mutex<allodia_license::Ledger>,
+    /// Whether a feedback pass is running, so two never post the same items.
+    #[cfg(feature = "allodia-license")]
+    ai_feedback_flight: ai_feedback_pass::SingleFlight,
     /// Where this device remembers what it has synced with the account service, once a host has
     /// installed somewhere to keep it. `None` until then, which is a wiring bug rather than a
     /// state a pass may quietly run in; see [`crate::app_allodia_sync`].

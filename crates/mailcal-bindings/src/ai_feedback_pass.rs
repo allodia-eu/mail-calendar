@@ -5,6 +5,8 @@
 //! a token, while `allodia_license::AI_FEEDBACK_ROUTE_LIVE` is false. A delivered item leaves the
 //! outbox; anything else leaves it for the next pass.
 
+use std::sync::Mutex;
+
 use allodia_license::{AccountService, Feature, FeedbackSender};
 
 use crate::{MailcalApp, ai_transport::AiTransport};
@@ -20,8 +22,23 @@ impl MailcalApp {
         });
     }
 
-    /// One pass. **Blocking.**
+    /// Passes until nothing new was asked for meanwhile. **Blocking.** A call while a pass runs
+    /// returns at once and has that pass go round once more, so a rating given during a pass is
+    /// sent without any item being posted twice.
     fn send_ai_feedback(&self) {
+        if !self.ai_feedback_flight.begin() {
+            return;
+        }
+        loop {
+            self.send_ai_feedback_once();
+            if !self.ai_feedback_flight.again() {
+                break;
+            }
+        }
+    }
+
+    /// One pass over what waits now.
+    fn send_ai_feedback_once(&self) {
         let waiting = self.app.ai_feedback_waiting();
         let signed_in = self.allodia.lock().expect("allodia account lock").is_some();
         if waiting.is_empty() || !signed_in {
@@ -57,5 +74,56 @@ impl MailcalApp {
         if let Some(stopped) = delivery.stopped {
             log::info!("ai: feedback stays waiting; {stopped}");
         }
+    }
+}
+
+/// At most one pass at a time, and one more when another was asked for while it ran.
+#[derive(Debug, Default)]
+pub(crate) struct SingleFlight(Mutex<Flight>);
+
+#[derive(Debug, Default)]
+struct Flight {
+    running: bool,
+    again: bool,
+}
+
+impl SingleFlight {
+    /// `true` when the caller is to run the pass; `false` when one runs already, which then goes
+    /// round once more.
+    fn begin(&self) -> bool {
+        let mut flight = self.0.lock().expect("feedback flight lock");
+        if flight.running {
+            flight.again = true;
+            return false;
+        }
+        flight.running = true;
+        true
+    }
+
+    /// Called as a pass ends: `true` when it is to run again, `false` when it is over.
+    fn again(&self) -> bool {
+        let mut flight = self.0.lock().expect("feedback flight lock");
+        if flight.again {
+            flight.again = false;
+            return true;
+        }
+        flight.running = false;
+        false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SingleFlight;
+
+    #[test]
+    fn a_pass_asked_for_while_one_runs_is_folded_into_it() {
+        let flight = SingleFlight::default();
+        assert!(flight.begin());
+        assert!(!flight.begin(), "a second pass never runs beside the first");
+        assert!(!flight.begin());
+        assert!(flight.again(), "the running pass goes round once more");
+        assert!(!flight.again());
+        assert!(flight.begin(), "and once it is over the next one starts");
     }
 }

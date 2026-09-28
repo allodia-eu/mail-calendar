@@ -95,6 +95,8 @@ pub(crate) fn build_demo(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        ai_feedback_flight: crate::ai_feedback_pass::SingleFlight::default(),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
         ai_key: Mutex::new(None),
@@ -262,6 +264,8 @@ fn finish_showcase(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        ai_feedback_flight: crate::ai_feedback_pass::SingleFlight::default(),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
         ai_key: Mutex::new(None),
