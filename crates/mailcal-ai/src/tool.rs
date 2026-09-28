@@ -4,9 +4,12 @@
 //! that type, so what a model is shown and what is parsed cannot drift. A backend that answers in
 //! text instead of calling the tool (some self-hosted servers ignore `tool_choice`) is read from
 //! the first JSON object in its text; anything else is [`AiError::Malformed`], never a guess.
+//! A member a model sent as `null` reads as absent, so a defaulted field takes its default rather
+//! than failing the whole answer.
 
 use schemars::{JsonSchema, SchemaGenerator, generate::SchemaSettings};
 use serde::de::DeserializeOwned;
+use serde_json::Value;
 
 use crate::{
     AiError,
@@ -59,9 +62,26 @@ pub(crate) fn read<T: DeserializeOwned>(response: &ChatResponse) -> Result<T, Ai
         .iter()
         .find(|call| call.function.name == NAME)
     {
-        return serde_json::from_str(&call.function.arguments).map_err(|_| AiError::Malformed);
+        return parse(&call.function.arguments);
     }
     from_text(answer)
+}
+
+fn parse<T: DeserializeOwned>(json: &str) -> Result<T, AiError> {
+    let mut value: Value = serde_json::from_str(json).map_err(|_| AiError::Malformed)?;
+    without_nulls(&mut value);
+    serde_json::from_value(value).map_err(|_| AiError::Malformed)
+}
+
+fn without_nulls(value: &mut Value) {
+    match value {
+        Value::Object(members) => {
+            members.retain(|_, member| !member.is_null());
+            members.values_mut().for_each(without_nulls);
+        }
+        Value::Array(items) => items.iter_mut().for_each(without_nulls),
+        _ => {}
+    }
 }
 
 fn from_text<T: DeserializeOwned>(answer: &AssistantMessage) -> Result<T, AiError> {
@@ -72,7 +92,7 @@ fn from_text<T: DeserializeOwned>(answer: &AssistantMessage) -> Result<T, AiErro
     if end < start {
         return Err(AiError::Malformed);
     }
-    serde_json::from_str(&text[start..=end]).map_err(|_| AiError::Malformed)
+    parse(&text[start..=end])
 }
 
 #[cfg(test)]
@@ -116,6 +136,17 @@ mod tests {
         let answer = text_answer("Here you go:\n```json\n{\"register\": \"u\"}\n```");
         let style: LanguageStyle = read(&answer).unwrap();
         assert_eq!(style.register, "u");
+    }
+
+    #[test]
+    fn a_null_member_takes_its_default() {
+        let style: LanguageStyle = read(&tool_answer(
+            &json!({ "register": "je", "signs_as": null, "greetings": null }),
+        ))
+        .unwrap();
+        assert_eq!(style.register, "je");
+        assert!(style.signs_as.is_empty());
+        assert!(style.greetings.is_empty());
     }
 
     #[test]
