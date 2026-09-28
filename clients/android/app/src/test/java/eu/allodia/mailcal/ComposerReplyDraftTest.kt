@@ -39,6 +39,9 @@ class ComposerReplyDraftTest {
     private val asked = mutableListOf<Asked>()
     private val inserted = mutableListOf<Pair<String, String>>()
     private var written = false
+
+    // The editor's document at each read; the draft is asked for between the first two.
+    private var document: () -> String? = { "{}" }
     private var answer: () -> DraftReply = { DraftReply("draft-1", "Hi Anna,\n\nYes.", emptyList(), "", emptyList(), "en", null, null) }
 
     // What the editor says is left of the placeholders it is asked about.
@@ -47,6 +50,8 @@ class ComposerReplyDraftTest {
 
     private val editor = object : DraftEditor {
         override fun leadHasText(answer: (Boolean) -> Unit) = answer(written)
+
+        override fun document(answer: (String?) -> Unit) = answer(document())
 
         override fun insert(text: String, draftId: String) {
             inserted += text to draftId
@@ -122,6 +127,30 @@ class ComposerReplyDraftTest {
         assertEquals(listOf("Hi Anna,\n\nYes." to "draft-1"), inserted)
         assertFalse(control.busy)
         assertFalse(control.checkBrackets)
+    }
+
+    /** The composer stays usable while a draft is written, so text typed meanwhile is asked about. */
+    @Test
+    fun text_written_while_drafting_is_not_replaced_without_asking() {
+        val reads = ArrayDeque(listOf("{\"blocks\":[]}", "{\"blocks\":[\"typed\"]}"))
+        document = { reads.removeFirst() }
+        control.create(from = "acct-work")
+        assertTrue(control.confirmingReplace)
+        assertTrue("nothing replaced before the answer", inserted.isEmpty())
+
+        control.replace()
+        assertFalse(control.confirmingReplace)
+        assertEquals(listOf("Hi Anna,\n\nYes." to "draft-1"), inserted)
+        assertEquals("the draft is not asked for twice", 1, asked.size)
+    }
+
+    @Test
+    fun a_draft_is_dropped_when_the_person_keeps_what_they_wrote_meanwhile() {
+        val reads = ArrayDeque(listOf("{\"blocks\":[]}", "{\"blocks\":[\"typed\"]}"))
+        document = { reads.removeFirst() }
+        control.create(from = "acct-work")
+        control.keep()
+        assertTrue(inserted.isEmpty())
     }
 
     @Test

@@ -27,10 +27,17 @@ internal fun composerDraftTextScript(text: String, draftId: String): String =
     "window.setComposerDraftText(${JSONObject.quote(text)}, ${JSONObject.quote(draftId)})"
 
 internal fun webViewDraftEditor(webView: () -> WebView?): DraftEditor = object : DraftEditor {
-    // An editor that has not loaded holds nothing a draft could replace.
+    // An editor that has not loaded holds nothing a draft could replace. Any answer but an explicit
+    // `false` (a hook not yet defined, or one that threw) counts as text, so the person is asked.
     override fun leadHasText(answer: (Boolean) -> Unit) {
         val view = webView() ?: return answer(false)
-        view.evaluateJavascript("window.composerLeadHasText()") { answer(it == "true") }
+        view.evaluateJavascript("window.composerLeadHasText()") { answer(it != "false") }
+    }
+
+    // `composerDocument` returns a string, so a readable answer is a JSON string literal.
+    override fun document(answer: (String?) -> Unit) {
+        val view = webView() ?: return answer(null)
+        view.evaluateJavascript("window.composerDocument()") { answer(it?.takeIf { it.startsWith("\"") }) }
     }
 
     override fun insert(text: String, draftId: String) {

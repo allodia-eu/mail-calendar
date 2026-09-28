@@ -239,6 +239,13 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
         )
     }
 
+    /// The whole document, or `nil` when it could not be read.
+    func document() async -> String? {
+        await withCheckedContinuation { continuation in
+            documentJSON { continuation.resume(returning: try? $0.get()) }
+        }
+    }
+
     /// Whether the person has written anything above the signature and the quote. A read that
     /// fails answers yes, so a draft never replaces text without asking.
     func leadHasText() async -> Bool {

@@ -50,6 +50,9 @@ final class ComposerDraftStatus {
     /// A draft waiting on "replace what you have written?", with the intent it was asked with.
     var confirmingReplace = false
     var pendingIntent: String?
+    /// A finished draft waiting on the same question, because the person wrote while it was on
+    /// its way.
+    var pendingDraft: DraftReply?
 }
 
 extension RichComposeView {
@@ -76,9 +79,17 @@ extension RichComposeView {
         }
         .alert(L10n.composer_draft_replace_title(), isPresented: $draftStatus.confirmingReplace) {
             Button(L10n.composer_draft_replace(), role: .destructive) {
-                runDraft(draftReply, intent: draftStatus.pendingIntent)
+                if let draft = draftStatus.pendingDraft {
+                    draftStatus.pendingDraft = nil
+                    put(draft)
+                } else {
+                    runDraft(draftReply, intent: draftStatus.pendingIntent)
+                }
             }
-            Button(L10n.action_cancel(), role: .cancel) { draftStatus.pendingIntent = nil }
+            Button(L10n.action_cancel(), role: .cancel) {
+                draftStatus.pendingIntent = nil
+                draftStatus.pendingDraft = nil
+            }
         } message: {
             Text(L10n.composer_draft_replace_message())
         }
@@ -129,21 +140,34 @@ extension RichComposeView {
         draftStatus.drafting = true
         let from = draftReplyFrom(answered: draftReply.account, sending: resolvedFrom)
         Task {
+            let before = await editor.document()
             let result = await draftReply.draft(from, intent)
             draftStatus.drafting = false
             switch result {
             case let .success(draft):
-                editor.setDraftText(draft.text, draftId: draft.draftId)
-                draftStatus.checklist.show(
-                    summary: draft.summary, tasks: draft.tasks, attachments: attachments.count
-                )
-                draftStatus.feedback.start(draftId: draft.draftId)
-                draftStatus.checkBrackets = !draft.gaps.isEmpty && draft.tasks.isEmpty
-                draftStatus.intent = ""
+                // The composer stayed usable while the draft was on its way, so what the person
+                // wrote meanwhile is asked about too, never replaced unseen.
+                let now = await editor.document()
+                if before == nil || now != before {
+                    draftStatus.pendingDraft = draft
+                    draftStatus.confirmingReplace = true
+                } else {
+                    put(draft)
+                }
             case let .failure(failure):
                 draftStatus.failure = writingStyleFailureText(failure, route: draftReply.route)
             }
         }
+    }
+
+    private func put(_ draft: DraftReply) {
+        editor.setDraftText(draft.text, draftId: draft.draftId)
+        draftStatus.checklist.show(
+            summary: draft.summary, tasks: draft.tasks, attachments: attachments.count
+        )
+        draftStatus.feedback.start(draftId: draft.draftId)
+        draftStatus.checkBrackets = !draft.gaps.isEmpty && draft.tasks.isEmpty
+        draftStatus.intent = ""
     }
 }
 

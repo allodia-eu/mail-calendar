@@ -27,6 +27,9 @@ use super::{
 };
 use crate::l10n;
 
+/// What Replace does once the person agrees.
+type OnReplace = Rc<dyn Fn(&Rc<DraftReplyControl>)>;
+
 /// The live control. The composer pane owns the only strong reference; every handler reaches it
 /// weakly, so tearing the composer down frees it and a draft finishing afterwards lands nowhere.
 pub(super) struct DraftReplyControl {
@@ -224,13 +227,14 @@ impl DraftReplyControl {
                 if lead_is_empty(answer.as_deref()) {
                     control.draft();
                 } else {
-                    control.confirm_replace();
+                    control.confirm_replace(Rc::new(Self::draft));
                 }
             },
         );
     }
 
-    fn confirm_replace(self: &Rc<Self>) {
+    /// Asks before what the person wrote is replaced; `then` runs on Replace.
+    fn confirm_replace(self: &Rc<Self>, then: OnReplace) {
         let Some(parent) = self.root.root().and_downcast::<gtk::Window>() else {
             return;
         };
@@ -258,7 +262,7 @@ impl DraftReplyControl {
         replace.connect_clicked(move |_| {
             window.close();
             if let Some(control) = weak.upgrade() {
-                control.draft();
+                then(&control);
             }
         });
         actions.append(&replace);
@@ -275,6 +279,29 @@ impl DraftReplyControl {
         self.spinner.set_visible(true);
         self.spinner.set_spinning(true);
         self.show_status(l10n::composer_drafting(), false);
+        self.read_document(Self::request);
+    }
+
+    /// The editor's whole document, or `None` when it could not be read.
+    fn read_document(self: &Rc<Self>, then: impl FnOnce(&Rc<Self>, Option<String>) + 'static) {
+        let weak = Rc::downgrade(self);
+        self.editor.evaluate_javascript(
+            "window.composerDocument()",
+            None,
+            None,
+            None::<&gio::Cancellable>,
+            move |answer| {
+                if let Some(control) = weak.upgrade() {
+                    then(
+                        &control,
+                        answer.ok().map(|value| value.to_str().to_string()),
+                    );
+                }
+            },
+        );
+    }
+
+    fn request(self: &Rc<Self>, before: Option<String>) {
         let app = Arc::clone(&self.app);
         let (account, key) = (self.account.clone(), self.key.clone());
         let from = changed_sender(self.selected().as_deref(), self.opened_from.as_deref());
@@ -286,36 +313,51 @@ impl DraftReplyControl {
             move || app.draft_reply(account, key, from, None, intent, None, language),
             move |drafted| {
                 if let Some(control) = weak.upgrade() {
-                    control.drafted(drafted);
+                    control.drafted(before, drafted);
                 }
             },
         );
     }
 
-    fn drafted(self: &Rc<Self>, drafted: Result<DraftReply, WritingStyleFailure>) {
+    /// The composer stayed usable while the draft was on its way, so what the person wrote
+    /// meanwhile is asked about too, never replaced unseen.
+    fn drafted(
+        self: &Rc<Self>,
+        before: Option<String>,
+        drafted: Result<DraftReply, WritingStyleFailure>,
+    ) {
         self.drafting.set(false);
         self.spinner.set_spinning(false);
         self.spinner.set_visible(false);
         match drafted {
-            Ok(draft) => {
-                self.editor.evaluate_javascript(
-                    &draft_script(&draft.text, &draft.draft_id),
-                    None,
-                    None,
-                    None::<&gio::Cancellable>,
-                    |_| {},
-                );
-                // The card's checklist names every gap, so the reminder stands only without one.
-                if draft.gaps.is_empty() || !draft.tasks.is_empty() {
-                    self.status.set_visible(false);
+            Ok(draft) => self.read_document(move |control, now| {
+                if before.is_some() && now == before {
+                    control.put(&draft);
                 } else {
-                    self.show_status(l10n::composer_draft_check_brackets(), false);
+                    control.status.set_visible(false);
+                    control.confirm_replace(Rc::new(move |control| control.put(&draft)));
                 }
-                self.show_checklist(&draft.summary, &draft.tasks);
-            }
+            }),
             Err(failure) => self.show_status(&failure_text(&failure, Some(self.route)), true),
         }
         self.refresh();
+    }
+
+    fn put(self: &Rc<Self>, draft: &DraftReply) {
+        self.editor.evaluate_javascript(
+            &draft_script(&draft.text, &draft.draft_id),
+            None,
+            None,
+            None::<&gio::Cancellable>,
+            |_| {},
+        );
+        // The card's checklist names every gap, so the reminder stands only without one.
+        if draft.gaps.is_empty() || !draft.tasks.is_empty() {
+            self.status.set_visible(false);
+        } else {
+            self.show_status(l10n::composer_draft_check_brackets(), false);
+        }
+        self.show_checklist(&draft.summary, &draft.tasks);
     }
 
     /// Replaces the card with a draft's, and follows the editor and the files while an item that

@@ -50,6 +50,9 @@ internal interface DraftEditor {
     // Whether the person has written anything above the signature and the quote.
     fun leadHasText(answer: (Boolean) -> Unit)
 
+    // The whole document, or null when the editor did not answer.
+    fun document(answer: (String?) -> Unit)
+
     fun insert(text: String, draftId: String)
 
     // Which of `placeholders` are still in the reply above the signature and the quote; null when
@@ -96,6 +99,9 @@ internal class ReplyDraftControl(
 
     private var confirmingFrom: String? = null
 
+    // A finished draft waiting on "replace?", because the person wrote while it was on its way.
+    private var pendingDraft: DraftReply? = null
+
     // A From account with no style has nothing to draft in; the control says so rather than
     // failing after a round trip.
     fun hasStyle(from: String?): Boolean = from != null && drafting.styleFor(from) != null
@@ -123,11 +129,14 @@ internal class ReplyDraftControl(
 
     fun replace() {
         confirmingReplace = false
-        draft(confirmingFrom)
+        val waiting = pendingDraft
+        pendingDraft = null
+        if (waiting != null) put(waiting) else draft(confirmingFrom)
     }
 
     fun keep() {
         confirmingReplace = false
+        pendingDraft = null
     }
 
     fun sending() {
@@ -185,15 +194,30 @@ internal class ReplyDraftControl(
         // `from` only when the person moved the reply off the account that received the message.
         val sender = from?.takeIf { it != target.account }
         val said = intent.trim().ifEmpty { null }
-        drafting.background.run({ drafting.draft(target.account, target.key, sender, said) }) { result ->
-            busy = false
-            result.onSuccess {
-                editor.insert(it.text, it.draftId)
-                checklist.show(it.summary, it.tasks, attachments)
-                checkBrackets = it.gaps.isNotEmpty() && it.tasks.isEmpty()
-            }.onFailure {
-                failure = it.asWritingStyleFailure()
+        editor.document { before ->
+            drafting.background.run({ drafting.draft(target.account, target.key, sender, said) }) { result ->
+                busy = false
+                result.onSuccess { drafted ->
+                    // The composer stayed usable while the draft was on its way, so what the person
+                    // wrote meanwhile is asked about too, never replaced unseen.
+                    editor.document { now ->
+                        if (before != null && now == before) {
+                            put(drafted)
+                        } else {
+                            pendingDraft = drafted
+                            confirmingReplace = true
+                        }
+                    }
+                }.onFailure {
+                    failure = it.asWritingStyleFailure()
+                }
             }
         }
+    }
+
+    private fun put(drafted: DraftReply) {
+        editor.insert(drafted.text, drafted.draftId)
+        checklist.show(drafted.summary, drafted.tasks, attachments)
+        checkBrackets = drafted.gaps.isNotEmpty() && drafted.tasks.isEmpty()
     }
 }
