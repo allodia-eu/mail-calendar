@@ -102,6 +102,7 @@ impl Provider for FakeDelegate {
     }
 }
 
+impl engine_api::MailboxWrites for FakeDelegate {}
 impl CalendarWrites for FakeDelegate {}
 
 fn account() -> AccountId {

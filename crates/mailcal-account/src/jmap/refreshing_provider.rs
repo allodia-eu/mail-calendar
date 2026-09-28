@@ -22,9 +22,9 @@ use engine_core::{
 };
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, EventDeletion, EventDraft, EventEdit, EventWrite,
-    EventWriteReceipt, MailEdit, MailEditReceipt, MessageReport, Provider, ProviderError,
-    ProviderResult, ReportReceipt, ScopeSync, SenderIdentity, SenderIdentityId, SourceStream,
-    SubmissionReceipt,
+    EventWriteReceipt, MailEdit, MailEditReceipt, MailboxEdit, MailboxEditReceipt, MailboxWrites,
+    MessageReport, Provider, ProviderError, ProviderResult, ReportReceipt, ScopeSync,
+    SenderIdentity, SenderIdentityId, SourceStream, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -220,6 +220,17 @@ impl Provider for RefreshingJmapProvider {
         report: &MessageReport,
     ) -> ProviderResult<ReportReceipt> {
         self.delegate().await?.report_message(account, report).await
+    }
+}
+
+#[async_trait]
+impl MailboxWrites for RefreshingJmapProvider {
+    async fn edit_mailbox(
+        &self,
+        account: &AccountId,
+        edit: &MailboxEdit,
+    ) -> ProviderResult<MailboxEditReceipt> {
+        self.delegate().await?.edit_mailbox(account, edit).await
     }
 }
 

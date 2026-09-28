@@ -108,6 +108,7 @@ impl Provider for WindowProvider {
     }
 }
 
+impl engine_api::MailboxWrites for WindowProvider {}
 impl CalendarWrites for WindowProvider {}
 
 /// What a new account should start at on the target running the suite.

@@ -87,6 +87,8 @@ impl RefreshingGraphProvider {
             capabilities: Capabilities::none()
                 .with_mail()
                 .with_mail_writes()
+                // Forwarded by this wrapper's `MailboxWrites`.
+                .with_mailbox_writes()
                 // Forwarded by this wrapper's `Provider`. A flag omitted here is a
                 // flag the account does not have however loudly the delegate advertises it,
                 // so advertising and forwarding have to move together.

@@ -126,6 +126,7 @@ impl Provider for ShowcaseMailProvider {
     }
 }
 
+impl engine_api::MailboxWrites for ShowcaseMailProvider {}
 impl CalendarWrites for ShowcaseMailProvider {}
 
 /// A plain `text/html` body built from a message's preview, for the messages that carry no
@@ -250,6 +251,8 @@ impl Provider for ShowcaseCalendarProvider {
         ))
     }
 }
+
+impl engine_api::MailboxWrites for ShowcaseCalendarProvider {}
 
 #[async_trait::async_trait]
 impl CalendarWrites for ShowcaseCalendarProvider {
