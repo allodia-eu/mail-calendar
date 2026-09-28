@@ -3,7 +3,7 @@
 //! The engine bounds an account's sockets only when every folder is bound through **one**
 //! [`provider_imap::ImapAccount`]: it holds the account's connection budget, and a second one for
 //! the same account is a second budget. [`ImapConnections`] is where that one lives, one per
-//! registered account, so the eager dial, a folder opened on demand and every push watch all draw
+//! registered account, so the dial, a folder bound after it and every push watch all draw
 //! from it.
 
 use std::sync::{Arc, Mutex};
@@ -19,27 +19,13 @@ use tokio::net::TcpStream;
 use tokio_rustls::client::TlsStream;
 
 use crate::{
-    AccountConfig, AccountError,
+    AccountConfig, AccountError, pass_syncs,
     reconnect::{ReconnectingImapProvider, Redial},
     tls::account_tls,
 };
 
 /// The engine's account type over the TLS stream every live connection uses.
 type LiveImapAccount = provider_imap::ImapAccount<TlsStream<TcpStream>>;
-
-/// The folder roles the app binds a provider to at startup, besides the INBOX, so their messages
-/// sync and render up front (Sent threads a reply with its original; Trash shows deleted mail;
-/// Drafts, Archive and Junk are the other folders a user navigates first). Folder names are
-/// server-specific, so each is resolved by its SPECIAL-USE role. Any **other** folder syncs **on
-/// demand** when the user opens it, through [`connect_imap_mailbox`], so no folder is permanently
-/// empty.
-const SYNCED_ROLES: &[MailboxRole] = &[
-    MailboxRole::Sent,
-    MailboxRole::Drafts,
-    MailboxRole::Trash,
-    MailboxRole::Archive,
-    MailboxRole::Junk,
-];
 
 /// One registered IMAP account's connections: the engine account every folder provider and push
 /// watch of it is bound through, connected on first use.
@@ -160,8 +146,9 @@ fn make_imap_redial(imap: Arc<LiveImapAccount>, mailbox: MailboxId) -> Redial {
     })
 }
 
-/// Opens one IMAP `mailbox` of `account` through its `connections`, for the host's on-demand
-/// "sync the folder you open" path. Dials nothing when the account is already connected.
+/// Opens one IMAP `mailbox` of `account` through its `connections`: for a folder the account
+/// listed after it was dialled, and for a folder opened before any pass has synced it. Dials
+/// nothing when the account is already connected.
 ///
 /// # Errors
 ///
@@ -203,11 +190,15 @@ pub async fn connect_imap_watcher(
     Ok(Box::new(watcher))
 }
 
-/// Connects `account` afresh through its `connections` and binds the folders the app syncs: the
-/// INBOX plus every folder carrying one of the roles in `SYNCED_ROLES`, each resolved by its role
-/// from the account's folder list. Returns one boxed provider per bound mailbox (just the INBOX
-/// when none of the roles exist). All of them share the account's connections, so binding the role
-/// folders opens no socket of its own.
+/// Connects `account` afresh through its `connections` and binds **every folder** the account
+/// lists that [`pass_syncs`], the INBOX first. An account pass syncs what is bound, so a folder
+/// left out would be in no pass and watched by nothing, and its mail would arrive only when someone
+/// opened it. Every provider draws on the account's connections, so binding a folder opens no
+/// socket.
+///
+/// The INBOX is bound by its reserved name and the row the server lists for it is skipped, so it
+/// is bound once however the server spells it. A folder the account lists later is bound by the
+/// pass that first sees it, through [`connect_imap_mailbox`].
 ///
 /// # Errors
 ///
@@ -222,7 +213,6 @@ pub async fn connect_mail_providers(
     let inbox_id = mailbox_id("INBOX")?;
     let inbox = imap.provider(inbox_id.clone());
 
-    // Enumerate folders to find the role mailboxes (their names vary by server).
     let listing = inbox
         .sync_mailboxes(account_id, None)
         .await
@@ -231,15 +221,12 @@ pub async fn connect_mail_providers(
         SyncUpdate::Snapshot { objects, .. } => objects,
         SyncUpdate::Delta { changed, .. } => changed,
     };
-    let role_folders = folders.into_iter().filter_map(|mailbox| {
-        mailbox
-            .role
-            .as_ref()
-            .is_some_and(|role| SYNCED_ROLES.contains(role))
-            .then_some(mailbox.id)
-    });
+    let others = folders
+        .into_iter()
+        .filter(|mailbox| mailbox.role != Some(MailboxRole::Inbox) && pass_syncs(mailbox))
+        .map(|mailbox| mailbox.id);
     Ok(std::iter::once(inbox_id)
-        .chain(role_folders)
+        .chain(others)
         .map(|mailbox| bind(&imap, mailbox))
         .collect())
 }

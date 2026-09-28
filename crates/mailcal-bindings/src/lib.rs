@@ -325,7 +325,7 @@ impl MailcalApp {
     /// Re-runs the full connect for every account sitting **disconnected** (a boot outage kept
     /// as a placeholder, or a prior retry that failed) and joins each that succeeds back into the
     /// app with live providers: so a recovered provider heals without an app restart, regaining
-    /// its role folders, capabilities, and calendar (not a degraded INBOX-only state). The
+    /// every folder, its capabilities, and its calendar (not a degraded INBOX-only state). The
     /// disconnected set is drained optimistically so a concurrent trigger (a Refresh racing a
     /// return-to-online) never dials an account twice; a still-failing account is re-queued for
     /// the next attempt. Fire-and-forget on the runtime, so a slow re-dial never blocks the

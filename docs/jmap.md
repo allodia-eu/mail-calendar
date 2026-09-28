@@ -82,8 +82,8 @@ optional OAuth sign-in, and secure storage of the resulting config.
 
 7. **One provider per account.** Unlike IMAP/Graph (a provider per folder), a single JMAP
    provider covers the whole account: its mail scope is account-wide and each message
-   carries its `mailboxIds` membership, so every folder syncs through it, and on-demand
-   folder opens reconnect that same account-wide provider. An **OAuth** account wraps that
+   carries its `mailboxIds` membership, so every folder syncs through it, and a folder
+   opened before the first pass reconnects that same account-wide provider. An **OAuth** account wraps that
    provider in a `RefreshingJmapProvider`, which re-mints the access token and rebuilds the
    delegate whenever it changes (~hourly). The engine still only ever sees a finished bearer
    token, and needs no OAuth code of its own.

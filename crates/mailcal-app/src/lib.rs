@@ -116,6 +116,7 @@ mod sync_folder;
 mod sync_progress;
 mod sync_progress_staged;
 mod sync_settings;
+mod sync_unbound;
 mod telemetry;
 mod timezone;
 mod tuning;
@@ -299,12 +300,16 @@ pub struct App<P> {
     contact_write_status: Mutex<ContactWriteStatus>,
     /// Aggregated background-sync download progress, surfaced via [`Surface::SyncProgress`].
     sync_progress: Mutex<SyncProgressState>,
-    /// The host-injected port for on-demand "sync the folder you open"; `None` disables it
-    /// (the demo / tests), so opening an unsynced folder just shows it empty.
+    /// The host-injected port that binds one folder of an account: for a folder the account
+    /// lists that no provider of it is bound to, and for one opened before any pass synced it.
+    /// `None` disables both (the demo / tests), so such a folder just shows empty.
     connector: Option<Box<dyn MailboxConnector<P>>>,
     /// Folders an on-demand sync has already been attempted for this session (by
     /// `(account, folder key)`), so re-selecting one does not reconnect it.
     attempted_folders: Mutex<HashSet<(String, String)>>,
+    /// The folders bound to a scope of their own that a pass or a refresh has synced this
+    /// session, by `(account, folder key)`.
+    synced_folders: Mutex<HashSet<(String, String)>>,
     /// Accounts (by id) with a body-warming pass currently in flight, so overlapping
     /// post-sync prefetch triggers collapse into the one running drain (`prefetch`).
     prefetching: Mutex<HashSet<String>>,
@@ -446,6 +451,8 @@ mod tests_contacts;
 mod tests_default_mail_app;
 #[cfg(test)]
 mod tests_depth;
+#[cfg(test)]
+mod tests_folder_coverage;
 #[cfg(test)]
 mod tests_folder_tree;
 #[cfg(test)]

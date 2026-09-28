@@ -122,6 +122,7 @@ impl<P: Provider> App<P> {
             sync_progress: Mutex::new(SyncProgressState::default()),
             connector,
             attempted_folders: Mutex::new(HashSet::new()),
+            synced_folders: Mutex::new(HashSet::new()),
             prefetching: Mutex::new(HashSet::new()),
             avatar_photos: Mutex::new(HashMap::new()),
             avatar_pass_running: Mutex::new(false),

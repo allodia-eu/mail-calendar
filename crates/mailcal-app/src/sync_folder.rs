@@ -9,9 +9,9 @@
 
 use std::time::Instant;
 
-use engine_api::{AccountId, MailSyncReport, MailboxRole, Provider};
+use engine_api::{AccountId, MailSyncReport, MailboxRole, Provider, SyncScope};
 
-use crate::App;
+use crate::{App, sync_unbound::scope_folder};
 
 impl<P: Provider> App<P> {
     /// Re-syncs a single watched folder on an IMAP `IDLE` push notification, then rebuilds the
@@ -83,40 +83,6 @@ impl<P: Provider> App<P> {
         changed
     }
 
-    /// Re-syncs the folder on screen when the account pass that just ran could not reach it.
-    ///
-    /// An account pass syncs the providers bound when the account connected: INBOX and the
-    /// folders the server tagged with SPECIAL-USE. Every other folder is downloaded once, by
-    /// [`ensure_folder_synced`](Self::ensure_folder_synced), and nothing names it again: it is
-    /// in no pass, and only the Inbox is watched. So standing in a mailing-list folder, every
-    /// refresh; the pull, the poll tick, the return to network; left the list exactly as it was
-    /// when the folder was opened, and a restart was the only way to see new mail in it.
-    ///
-    /// `pass_account` is the account the pass covered, or `None` for a pass over every account:
-    /// one account's poll tick has no business connecting a folder of another.
-    pub(crate) async fn refresh_open_folder(
-        &self,
-        pass_account: Option<&AccountId>,
-        label: &'static str,
-    ) {
-        let open = {
-            let scope = self.scope.lock().expect("scope mutex poisoned");
-            scope
-                .folder()
-                .and_then(|key| Some((scope.account()?.clone(), key.to_owned())))
-        };
-        let Some((account, key)) = open else {
-            return;
-        };
-        if pass_account.is_some_and(|id| id != &account) {
-            return;
-        }
-        if self.is_eagerly_bound(&account, &key).await {
-            return;
-        }
-        self.resync_folder(&account, &key, label).await;
-    }
-
     /// Whether the **shown list** is one folder still waiting for its first download.
     ///
     /// The unified view and an account's all-mail view draw on folders that are already bound, so
@@ -139,10 +105,10 @@ impl<P: Provider> App<P> {
     /// it is empty there is a claim we have not checked yet, and it would be wrong for exactly the
     /// folders that do have mail (`docs/folder-pane.md`, rule 20).
     ///
-    /// A folder the account bound at sign-in is never pending: it syncs with the account, so it
-    /// has already been looked at.
+    /// A folder the account pass covers is never pending, and neither is one whose open already
+    /// ran its download.
     pub(crate) async fn folder_download_pending(&self, account: &AccountId, key: &str) -> bool {
-        if self.connector.is_none() || self.is_eagerly_bound(account, key).await {
+        if self.connector.is_none() || self.pass_covers(account, key).await {
             return false;
         }
         !self
@@ -152,46 +118,72 @@ impl<P: Provider> App<P> {
             .contains(&(account.as_str().to_owned(), key.to_owned()))
     }
 
-    /// Whether the account bound a provider to `key` when it connected: INBOX and the folders
-    /// the server tagged with SPECIAL-USE (Sent/Drafts/Trash/Archive/Junk). Those sync with
-    /// every account pass; every other folder is this module's business.
-    ///
-    /// Reads the folder's role from the (small) folder list; scanning every message was an
-    /// O(N) stall on a large mailbox, on every folder open.
-    async fn is_eagerly_bound(&self, account: &AccountId, key: &str) -> bool {
-        self.engine
-            .mailboxes(account)
-            .await
-            .unwrap_or_default()
-            .iter()
-            .find(|mailbox| mailbox.id.key().as_str() == key)
-            .is_some_and(|mailbox| {
-                matches!(
-                    mailbox.role,
-                    Some(
-                        MailboxRole::Inbox
-                            | MailboxRole::Sent
-                            | MailboxRole::Drafts
-                            | MailboxRole::Trash
-                            | MailboxRole::Archive
-                            | MailboxRole::Junk
-                    )
-                )
-            })
+    /// Records that a pass or a refresh synced `scope` of `account` this session, for a scope
+    /// bound to one folder.
+    pub(crate) fn note_folder_synced(&self, account: &AccountId, scope: &SyncScope) {
+        if let Some(folder) = scope_folder(scope) {
+            self.synced_folders
+                .lock()
+                .expect("synced-folders mutex poisoned")
+                .insert((
+                    account.as_str().to_owned(),
+                    folder.key().as_str().to_owned(),
+                ));
+        }
     }
 
-    /// Downloads a folder's mail on demand the first time it is opened, if it isn't synced
-    /// already: the "sync the folder you open" path for custom/untagged folders. A no-op
-    /// without a [`MailboxConnector`](crate::MailboxConnector) (the demo / tests).
+    /// Whether the account pass syncs folder `key` of `account`: a folder one of its providers
+    /// is bound to, every folder of an account whose provider covers them all (JMAP, Gmail), and
+    /// the Inbox, which IMAP binds by its reserved name whatever the listed row calls it. A folder
+    /// the account listed after it connected is bound by the pass that first lists it and then
+    /// dropped, so it counts once a pass has synced it this session.
+    ///
+    /// Such a folder is never downloaded on its own when opened: the pass has it, and a pass still
+    /// running holds its scope, so a second download would only wait for it or fail. The price is
+    /// a new account's first pass, during which a folder it has not reached yet shows empty.
+    async fn pass_covers(&self, account: &AccountId, key: &str) -> bool {
+        if self
+            .synced_folders
+            .lock()
+            .expect("synced-folders mutex poisoned")
+            .contains(&(account.as_str().to_owned(), key.to_owned()))
+        {
+            return true;
+        }
+        let Some(handle) = self.account_handle(account).await else {
+            return false;
+        };
+        let bound = handle.providers.iter().any(|provider| {
+            scope_folder(&provider.email_scope(account))
+                .is_none_or(|folder| folder.key().as_str() == key)
+        });
+        bound
+            || self
+                .engine
+                .mailboxes(account)
+                .await
+                .unwrap_or_default()
+                .iter()
+                .any(|mailbox| {
+                    mailbox.id.key().as_str() == key && mailbox.role == Some(MailboxRole::Inbox)
+                })
+    }
+
+    /// Downloads a folder's mail when it is opened and no account pass covers it: one the account
+    /// listed after it connected, before a pass has reached it. A no-op without a
+    /// [`MailboxConnector`](crate::MailboxConnector) (the demo / tests).
     ///
     /// Returns whether mail was actually downloaded, so the caller can skip the rebuild that
     /// would only republish the snapshot it already has. Most folder opens land in one of the
-    /// early returns below: the eager bind covers the role folders, and any folder opens at
-    /// most once a session.
+    /// early returns below: the account pass covers every folder it binds, and any folder
+    /// downloads here at most once a session.
     pub(crate) async fn ensure_folder_synced(&self, account: &AccountId, key: &str) -> bool {
         let Some(connector) = self.connector.as_ref() else {
             return false;
         };
+        if self.pass_covers(account, key).await {
+            return false;
+        }
         // Attempt each folder at most once per session.
         let first_attempt = self
             .attempted_folders
@@ -199,11 +191,6 @@ impl<P: Provider> App<P> {
             .expect("attempted-folders mutex poisoned")
             .insert((account.as_str().to_owned(), key.to_owned()));
         if !first_attempt {
-            return false;
-        }
-        // Only a folder the eager bind skipped (a custom folder, or a role folder the server
-        // didn't tag; e.g. an untagged Archive) needs an on-demand connection.
-        if self.is_eagerly_bound(account, key).await {
             return false;
         }
         let connect_start = Instant::now();
@@ -246,11 +233,8 @@ impl<P: Provider> App<P> {
         // No body prefetch here: `SelectFolder` awaits this method *before* it rebuilds the
         // snapshot, so a warm pass would hold the just-opened folder's rows off screen. The
         // folder's messages are in the mail index now, so the next poll tick's prefetch warms
-        // them like any other synced mail.
-        // The connection is dropped here: the folder's mail is now cached in the store and
-        // stays visible. Keeping it up to date afterwards is
-        // [`refresh_open_folder`](Self::refresh_open_folder)'s job, which connects again for as
-        // long as the folder is the one on screen.
+        // them like any other synced mail. Keeping the folder current from here on is the
+        // account pass's job, which syncs every folder the account lists.
         drop(provider);
         // A completed download changes the list whether or not it carried mail: either rows
         // arrived, or the folder is now known to hold none in the window, which the list says in

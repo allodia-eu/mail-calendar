@@ -6,7 +6,7 @@
 //! "sign in again" prompt when the server itself refused the stored credential.
 //!
 //! It is also the mid-session retry (a Refresh, a return to online), which is why the two are one
-//! function: a recovered provider must heal into its full state; role folders, capabilities,
+//! function: a recovered provider must heal into its full state; every folder, capabilities,
 //! calendar; rather than a degraded INBOX-only one, and that is the same work either way.
 //!
 //! **How** an account is dialed is not here. That is

@@ -3,14 +3,15 @@
 //!
 //! The server here is a small scripted IMAP responder over TLS that counts the connections it
 //! accepts, because the connection is what a server with a per-user limit counts. It answers every
-//! command generically and reports three role folders, which is all the dial needs.
+//! command generically and reports a folder list with role folders, an untagged folder and a
+//! nested one, which is all the dial needs.
 
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
 
-use engine_core::ids::AccountId;
+use engine_core::{ids::AccountId, sync::SyncScope};
 use engine_provider::Provider as _;
 use mailcal_account::{
     AccountConfig, CertificateException, ImapConnections, connect_imap_mailbox,
@@ -23,11 +24,16 @@ use tokio::{
 };
 use tokio_rustls::TlsAcceptor;
 
-/// The folder list the server reports: the INBOX and three role folders the dial binds.
+/// The folder list the server reports. Archive is tagged `\All`, as some servers do for a real
+/// folder, Starred is a `\Flagged` view of mail filed elsewhere, and two folders carry no role.
 const LIST: &str = "* LIST (\\HasNoChildren) \"/\" \"INBOX\"\r\n\
                     * LIST (\\HasNoChildren \\Sent) \"/\" \"Sent\"\r\n\
                     * LIST (\\HasNoChildren \\Drafts) \"/\" \"Drafts\"\r\n\
-                    * LIST (\\HasNoChildren \\Trash) \"/\" \"Trash\"\r\n";
+                    * LIST (\\HasNoChildren \\Trash) \"/\" \"Trash\"\r\n\
+                    * LIST (\\HasNoChildren \\All) \"/\" \"Archive\"\r\n\
+                    * LIST (\\HasNoChildren \\Flagged) \"/\" \"Starred\"\r\n\
+                    * LIST (\\HasChildren) \"/\" \"Projects\"\r\n\
+                    * LIST (\\HasNoChildren) \"/\" \"Projects/2026\"\r\n";
 
 /// The reply to one tagged command line.
 fn reply(line: &str) -> String {
@@ -122,8 +128,46 @@ fn account_id() -> AccountId {
     AccountId::try_from("someone@127.0.0.1").expect("account id")
 }
 
+/// The mailbox each provider is bound to, in the order the dial returned them.
+fn bound_mailboxes(providers: &[Box<dyn engine_provider::Provider>]) -> Vec<String> {
+    providers
+        .iter()
+        .map(|provider| match provider.email_scope(&account_id()) {
+            SyncScope::ImapMailbox { mailbox, .. } => mailbox.as_str().to_owned(),
+            other => panic!("an IMAP folder provider bound to {other:?}"),
+        })
+        .collect()
+}
+
 #[tokio::test]
-async fn a_dial_binds_every_role_folder_over_one_login() {
+async fn a_dial_binds_every_folder_the_account_lists() {
+    // A folder the dial leaves out is in no account pass and is watched by nothing, so its mail
+    // arrives only when someone opens it. Role or none, nested or not, every listed folder is
+    // bound, and the Inbox once, first; a view of mail filed elsewhere (Starred) is not.
+    let (port, served, _accepted) = imap_server().await;
+    let config = account(port, &served);
+    let connections = ImapConnections::new();
+
+    let providers = connect_mail_providers(&connections, &config, &account_id())
+        .await
+        .expect("the dial");
+
+    assert_eq!(
+        bound_mailboxes(&providers),
+        [
+            "INBOX",
+            "Sent",
+            "Drafts",
+            "Trash",
+            "Archive",
+            "Projects",
+            "Projects/2026",
+        ],
+    );
+}
+
+#[tokio::test]
+async fn a_dial_binds_every_folder_over_one_login() {
     let (port, served, accepted) = imap_server().await;
     let config = account(port, &served);
     let connections = ImapConnections::new();
@@ -135,7 +179,7 @@ async fn a_dial_binds_every_role_folder_over_one_login() {
         .await
         .expect("a folder opened on demand");
 
-    assert_eq!(providers.len(), 4, "INBOX, Sent, Drafts and Trash");
+    assert_eq!(providers.len(), 7, "every listed folder");
     drop(opened);
     assert_eq!(
         accepted.load(Ordering::SeqCst),

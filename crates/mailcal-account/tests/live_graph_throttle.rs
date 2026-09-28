@@ -9,7 +9,7 @@
 //! thing (a field on `GraphTokenSource`, of which a host builds one per core).
 //!
 //! What it drives is the shape the app actually produces: `connect_graph_mail_providers`
-//! binds one `RefreshingGraphProvider` per eager role folder, six of them, and the engine
+//! binds one `RefreshingGraphProvider` per folder the account lists, and the engine
 //! then streams them **five at a time** (`MAX_CONCURRENT_FOLDERS`). Five folder syncs against
 //! a mailbox Exchange Online allows four concurrent requests is the reported symptom, so this
 //! runs at that width deliberately rather than at a comfortable one.
@@ -140,10 +140,10 @@ fn config() -> Option<MicrosoftConfig> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn live_the_eager_folder_pass_is_not_throttled_on_a_large_mailbox() {
+async fn live_the_folder_pass_is_not_throttled_on_a_large_mailbox() {
     let Some(config) = config() else {
         eprintln!(
-            "skipping live_the_eager_folder_pass_is_not_throttled_on_a_large_mailbox: \
+            "skipping live_the_folder_pass_is_not_throttled_on_a_large_mailbox: \
              MS_REFRESH_TOKEN / MS_CLIENT_ID / MS_TEST_ADDRESS unset"
         );
         return;
@@ -155,7 +155,7 @@ async fn live_the_eager_folder_pass_is_not_throttled_on_a_large_mailbox() {
     let tokens = GraphTokenSource::new(&config, account.clone(), None, CredentialOrigin::Stored)
         .expect("token source");
 
-    // Exactly what the app connects at startup: one provider per eager role folder.
+    // Exactly what the app connects at startup: one provider per listed folder.
     let providers = connect_graph_mail_providers(&account, Arc::clone(&tokens), None)
         .await
         .expect("connect the account's mail providers");
@@ -163,7 +163,7 @@ async fn live_the_eager_folder_pass_is_not_throttled_on_a_large_mailbox() {
         providers.len() > 1,
         "a single-folder account proves nothing about a fan-out",
     );
-    eprintln!("connected {} eager folder providers", providers.len());
+    eprintln!("connected {} folder providers", providers.len());
 
     // The wiring, asserted directly rather than inferred from the absence of throttles: the
     // account's own gate, the one `GraphTokenSource::retry` hands every provider above, has

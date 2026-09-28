@@ -28,7 +28,8 @@ fn new_account_sync_depth_months() -> u16 {
 pub struct Account<P> {
     /// The account's id (scopes everything in the shared engine store).
     pub id: AccountId,
-    /// The mail providers, one per synced folder (INBOX + role folders).
+    /// The mail providers: one per folder the account listed when it connected where mail syncs
+    /// per folder (IMAP, Graph), one for the whole account otherwise (JMAP, Gmail).
     pub providers: Vec<P>,
     /// The calendar providers (one per synced calendar), if calendar is configured.
     pub calendar_providers: Vec<P>,
@@ -176,6 +177,10 @@ impl<P: Provider> App<P> {
         self.attempted_folders
             .lock()
             .expect("attempted-folders mutex poisoned")
+            .retain(|(a, _)| a != acct);
+        self.synced_folders
+            .lock()
+            .expect("synced-folders mutex poisoned")
             .retain(|(a, _)| a != acct);
         self.inbox_keys
             .lock()

@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use engine_core::{
     error::FailureClass,
     ids::{AccountId, MailboxId},
-    mail::{Mailbox, MailboxRole},
+    mail::Mailbox,
     sync::SyncUpdate,
     time::CalendarDate,
 };
@@ -35,20 +35,7 @@ mod token_source;
 pub use calendar::connect_graph_calendar_providers;
 pub use token_source::{CredentialOrigin, GraphTokenSource, TokenSink};
 
-use crate::{AccountError, log_handle::account_log_handle, tls::tls_with};
-
-/// The folder roles a Microsoft account eagerly binds a provider to at startup; the
-/// same set as IMAP plus the Inbox (Graph resolves the Inbox as a role, whereas IMAP
-/// connects the literal `INBOX` separately). Any other folder (a custom folder, role
-/// `None`) syncs **on demand** via [`connect_graph_folder`].
-const GRAPH_SYNCED_ROLES: &[MailboxRole] = &[
-    MailboxRole::Inbox,
-    MailboxRole::Sent,
-    MailboxRole::Drafts,
-    MailboxRole::Trash,
-    MailboxRole::Archive,
-    MailboxRole::Junk,
-];
+use crate::{AccountError, log_handle::account_log_handle, pass_syncs, tls::tls_with};
 
 /// A [`Provider`] bound to one Graph mail folder that refreshes its access token before
 /// every network call and delegates to a freshly built [`GraphProvider`]. Internal; the
@@ -175,11 +162,12 @@ fn calendar_date(date: Date) -> Option<CalendarDate> {
     CalendarDate::new(date.year(), u8::from(date.month()), date.day()).ok()
 }
 
-/// Connects the Graph mail providers a Microsoft account syncs: one per eagerly bound
-/// role folder (`GRAPH_SYNCED_ROLES`). Enumerates the account's folders once (a fresh
-/// token), then binds a shared-token `RefreshingGraphProvider` to each role folder's
-/// real id: the Graph parallel of [`connect_mail_providers`](crate::connect_mail_providers).
-/// The `tokens` source carries the account's credentials and id.
+/// Connects the Graph mail providers a Microsoft account syncs: one per folder the account
+/// lists that [`pass_syncs`]. Enumerates the account's folders once (a fresh token), then binds a
+/// shared-token `RefreshingGraphProvider` to each folder's id: the Graph parallel of
+/// [`connect_mail_providers`](crate::connect_mail_providers), and bound in full for the same
+/// reason, since an account pass syncs what is bound and nothing else. The `tokens` source
+/// carries the account's credentials and id.
 ///
 /// # Errors
 ///
@@ -193,12 +181,7 @@ pub async fn connect_graph_mail_providers(
     let folders = list_folders(&tokens, account_id, &tls).await?;
     let providers = folders
         .into_iter()
-        .filter(|mailbox| {
-            mailbox
-                .role
-                .as_ref()
-                .is_some_and(|role| GRAPH_SYNCED_ROLES.contains(role))
-        })
+        .filter(pass_syncs)
         .map(|mailbox| {
             Box::new(RefreshingGraphProvider::new(
                 mailbox.id,
@@ -211,9 +194,9 @@ pub async fn connect_graph_mail_providers(
     Ok(providers)
 }
 
-/// Builds an on-demand Graph provider bound to one folder of a Microsoft account (a
-/// custom folder the eager bind skipped), sharing the account's `tokens`. Sync; the
-/// token is fetched lazily on the first call. The Graph parallel of
+/// Builds a Graph provider bound to one folder of a Microsoft account (one listed after the
+/// account connected, or opened before any pass synced it), sharing the account's `tokens`. Sync;
+/// the token is fetched lazily on the first call. The Graph parallel of
 /// [`connect_imap_mailbox`](crate::connect_imap_mailbox).
 ///
 /// # Errors

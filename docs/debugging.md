@@ -297,7 +297,7 @@ adb shell am start -n eu.allodia.mailcal/.MainActivity \
 ```
 
 The proxy prints a line per connection (`conn[5] login REFUSED`) to correlate against the app log.
-`--refuse-every 5` lands on a **role folder** after the INBOX has authenticated, which is the mixed
+`--refuse-every 5` lands on **another folder** after the INBOX has authenticated, which is the mixed
 dial; `--refuse-all` refuses the account's first login. To make the credential work again **without**
 relaunching, restart the proxy with no flags: a plain pass-through keeps the same certificate, so
 re-pointing the reverse back at the harness instead fails the next dial with `UnknownIssuer` (the app

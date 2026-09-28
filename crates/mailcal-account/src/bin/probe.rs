@@ -1,5 +1,5 @@
-//! `probe`; connect to a real IMAP account from a config file, sync its Inbox + Sent
-//! folders through an on-disk engine and report what synced (+ a CalDAV
+//! `probe`; connect to a real IMAP account from a config file, sync every folder it lists
+//! through an on-disk engine and report what synced (+ a CalDAV
 //! calendar sync when configured). It proves the engine ⇄ provider path; including
 //! cross-folder threading; against a *real* server (e.g. Soverin) rather than the
 //! harness, which is what the native apps otherwise exercise.
@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let providers =
         mailcal_account::connect_mail_providers(&connections, &config, &account).await?;
 
-    eprintln!("Syncing {} folder(s) (Inbox + Sent)…", providers.len());
+    eprintln!("Syncing {} folder(s)…", providers.len());
     // One pass over the whole account: the engine syncs the folder list once and fans the
     // folders out itself, which is what the app does too.
     let report = engine

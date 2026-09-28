@@ -2,17 +2,19 @@
 //!
 //! Split out of `sync.rs` to keep each file under the size limit. [`sync_account_providers`]
 //! hands the account's providers to the engine, which syncs the folder list once and fans the
-//! folders out itself, and turns the per-scope report back into the two product answers only
-//! this layer can give: whether the account reached its server ([`Reach`], for the outage badge)
-//! and whether its sign-in was refused. It also writes the pass to the diagnostic log.
+//! folders out itself, syncs any folder the list names that no provider is bound to yet
+//! (`sync_unbound`), and turns the per-scope report back into the two product answers only this
+//! layer can give: whether the account reached its server ([`Reach`], for the outage badge) and
+//! whether its sign-in was refused. It also writes the pass to the diagnostic log.
 
 use std::time::Duration;
 
 use engine_api::{Engine, MailSyncReport, Provider, StreamTuning, SyncError, SyncObserver};
 
 use crate::{
-    Account,
+    Account, MailboxConnector,
     connectivity::{is_signin_expired, is_throttled, throttled_for},
+    sync_unbound::{still_listed, sync_unbound_folders},
 };
 
 /// The result of one per-account sync pass.
@@ -37,7 +39,9 @@ pub(crate) struct SyncAccountOutcome {
 }
 
 /// Syncs one account's mail **concurrently**: sync the folder list **once**, then stream
-/// **every folder's email in parallel** (distinct per-folder scopes never contend).
+/// **every folder's email in parallel** (distinct per-folder scopes never contend). A folder the
+/// list names that no provider is bound to is bound through `connector` and synced in the same
+/// pass, so every folder the account lists is synced by every pass.
 /// A free function (not a method) so callers can run it while holding
 /// the `accounts` read guard, and so several accounts can run it at once under one `join_all`.
 ///
@@ -50,6 +54,7 @@ pub(crate) struct SyncAccountOutcome {
 pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
     engine: &Engine,
     account: &Account<P>,
+    connector: Option<&dyn MailboxConnector<P>>,
     tuning: StreamTuning,
     observer: &K,
     acct: usize,
@@ -69,14 +74,44 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
     // The engine owns the fan-out: the folder list once, then the folders bounded and Inbox
     // first. What comes back is per scope, which is the whole reason this can still tell an
     // outage from a refused credential from a scope another pass is holding.
-    let report = engine
+    let mut report = engine
         .sync_mail(&account.providers, &account.id, tuning, observer)
         .await;
+    // The folder list as this pass left it, when the pass read one: where the folders no
+    // provider is bound to are found, and what tells a folder the server no longer has from one
+    // that failed.
+    let listed = match &report.mailboxes {
+        Some(Ok(_)) => engine.mailboxes(&account.id).await.ok(),
+        _ => None,
+    };
+    if let Some(listed) = &listed {
+        sync_unbound_folders(
+            engine,
+            account,
+            listed,
+            connector,
+            tuning,
+            observer,
+            &mut report,
+        )
+        .await;
+    }
 
     // `None` means this pass never looked at the folder list, which says nothing about whether
     // the server answered: the same standing as a scope another pass was holding.
     let list_reach = report.mailboxes.as_ref().map_or(Reach::Busy, reach_of);
-    let folder_reaches: Vec<Reach> = report.folders.iter().map(|f| reach_of(&f.result)).collect();
+    let folder_reaches: Vec<Reach> = report
+        .folders
+        .iter()
+        .map(|folder| match (reach_of(&folder.result), &listed) {
+            // Only a failure that would otherwise read as an outage: a refused credential or a
+            // throttle says the same about the account whichever folder it came from.
+            (Reach::Unreachable, Some(listed)) if !still_listed(listed, &folder.scope) => {
+                Reach::Gone
+            }
+            (reach, _) => reach,
+        })
+        .collect();
 
     log_pass(acct, &report, &folder_reaches);
 
@@ -133,12 +168,16 @@ fn log_pass(acct: usize, report: &MailSyncReport, reaches: &[Reach]) {
             Err(_) if *reach == Reach::Busy => {
                 log::debug!("sync[a{acct}]: folder[{index}] busy in {ms}ms");
             }
+            Err(_) if *reach == Reach::Gone => {
+                log::debug!("sync[a{acct}]: folder[{index}] is no longer listed");
+            }
             Err(err) => log::warn!("sync[a{acct}]: folder[{index}] failed in {ms}ms: {err}"),
         }
     }
 
     let busy = reaches.iter().filter(|r| **r == Reach::Busy).count();
-    let failed = report.folders.len() - report.folders_synced();
+    let gone = reaches.iter().filter(|r| **r == Reach::Gone).count();
+    let failed = report.folders.len() - report.folders_synced() - gone;
     // Summed across folders, which run concurrently: so these routinely exceed the pass's own
     // wall time, and the line says "work across concurrent folders" so that reads as arithmetic
     // rather than as a bug. They measure work done; the wall time measures what the user waited
@@ -197,6 +236,10 @@ enum Reach {
     /// The op was skipped because a concurrent sync held the scope ([`ApiError::Busy`]); no
     /// bearing on reachability.
     Busy,
+    /// The op failed on a folder the account's folder list no longer holds: deleted or renamed
+    /// since the account connected, so its provider names a folder the server does not have.
+    /// No bearing on reachability, and not a scope to wait for either.
+    Gone,
 }
 
 /// The furthest-out instant any scope in this pass was given.
@@ -250,7 +293,7 @@ fn reachability(list: Reach, folders: impl Iterator<Item = Reach>) -> Option<boo
             Reach::Reached | Reach::Throttled => any_reached = true,
             Reach::Expired => any_expired = true,
             Reach::Unreachable => any_unreachable = true,
-            Reach::Busy => {}
+            Reach::Busy | Reach::Gone => {}
         }
     }
     if any_reached || any_expired {
@@ -287,7 +330,7 @@ fn signin_expired(list: Reach, folders: impl Iterator<Item = Reach>) -> Option<b
             // A throttle proves the server answered, but says nothing about the
             // *credential*, which is refused before it is examined. So it neither raises the
             // prompt nor retracts one the user still has to act on.
-            Reach::Throttled | Reach::Unreachable | Reach::Busy => {}
+            Reach::Throttled | Reach::Unreachable | Reach::Busy | Reach::Gone => {}
         }
     }
     match (any_reached, any_expired) {
@@ -412,6 +455,21 @@ mod reachability_tests {
                 [Reach::Unreachable, Reach::Unreachable].into_iter(),
             ),
             Some(false),
+        );
+    }
+
+    #[test]
+    fn a_folder_the_server_no_longer_lists_says_nothing_about_the_account() {
+        // Deleted or renamed in another client, it fails on every pass until the account
+        // reconnects. That is the folder's absence, not the server's.
+        assert_eq!(
+            reachability(Reach::Reached, [Reach::Gone].into_iter()),
+            Some(true)
+        );
+        assert_eq!(reachability(Reach::Busy, [Reach::Gone].into_iter()), None);
+        assert_eq!(
+            signin_expired(Reach::Reached, [Reach::Gone].into_iter()),
+            Some(false)
         );
     }
 
