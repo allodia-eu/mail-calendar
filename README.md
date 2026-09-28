@@ -25,7 +25,7 @@ the line around a paid Allodia service is drawn.
 | | |
 |---|---|
 | macOS, iPhone, iPad | [App Store](https://apps.apple.com/app/allodia-mail-calendar/id6792350379) |
-| Windows | [Microsoft Store](https://apps.microsoft.com/detail/9nj7866z2nd3) |
+| Windows | [Microsoft Store](https://apps.microsoft.com/detail/9nj7866z2nd3) or [direct installer](https://dl.allodia.eu/windows/AllodiaMailCalendar.appinstaller) |
 | Android | [Google Play](https://play.google.com/store/apps/details?id=eu.allodia.mailcal) |
 | Linux | [Flatpak](https://dl.allodia.eu/flatpak/eu.allodia.mailcal.flatpakref) |
 

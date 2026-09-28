@@ -56,6 +56,14 @@ impl DemoProvider {
             ],
         }
     }
+
+    /// The same mailbox on a server that offers `IDLE`, so its account defaults to push.
+    #[cfg(test)]
+    pub(crate) fn with_idle() -> Self {
+        let mut provider = Self::new();
+        provider.caps = provider.caps.with_idle();
+        provider
+    }
 }
 
 fn sample_message(id: &str, subject: &str, preview: &str) -> Message {

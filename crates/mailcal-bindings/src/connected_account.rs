@@ -8,7 +8,8 @@
 use std::sync::Arc;
 
 use mailcal_account::{
-    AccountConfig, GoogleConfig, GraphTokenSource, JmapAccountConfig, MicrosoftConfig,
+    AccountConfig, GoogleConfig, GraphTokenSource, ImapConnections, JmapAccountConfig,
+    MicrosoftConfig,
 };
 
 /// One connected account's re-connection state, kept so the on-demand [`HostConnector`]
@@ -18,8 +19,14 @@ use mailcal_account::{
 /// Both hold credentials in memory only (never logged; their `Debug` redacts secrets).
 #[derive(Debug)]
 pub(crate) enum ConnectedAccount {
-    /// An IMAP/SMTP/CalDAV (password) account.
-    Imap(AccountConfig),
+    /// An IMAP/SMTP/CalDAV (password) account and its connections.
+    Imap {
+        /// The persisted config.
+        config: AccountConfig,
+        /// The account's IMAP connections, shared by every folder provider and push watch, so
+        /// the account's socket count is the engine's budget however many folders are bound.
+        connections: Arc<ImapConnections>,
+    },
     /// A Microsoft 365 (Graph/OAuth) account and its shared token source.
     Microsoft {
         /// The persisted config (its refresh token is updated in place on rotation).
@@ -56,7 +63,7 @@ impl ConnectedAccount {
     /// protocol/provider kind, not an endpoint or user identity.
     pub(crate) const fn account_type(&self) -> &'static str {
         match self {
-            Self::Imap(_) => "imap",
+            Self::Imap { .. } => "imap",
             Self::Microsoft { .. } => "graph",
             Self::Google { .. } => "google",
             Self::Jmap { .. } => "jmap",
@@ -69,7 +76,7 @@ impl ConnectedAccount {
     /// only layer that can answer this; hence `App::set_accounts`.
     pub(crate) const fn protocol(&self) -> mailcal_app::Protocol {
         match self {
-            Self::Imap(_) => mailcal_app::Protocol::Imap,
+            Self::Imap { .. } => mailcal_app::Protocol::Imap,
             Self::Microsoft { .. } => mailcal_app::Protocol::Graph,
             Self::Google { .. } => mailcal_app::Protocol::Google,
             Self::Jmap { .. } => mailcal_app::Protocol::Jmap,
@@ -86,7 +93,7 @@ impl ConnectedAccount {
     /// in Settings. Only the account's own config knows which it is.
     pub(crate) fn provider(&self) -> crate::AccountProvider {
         match self {
-            Self::Imap(_) => crate::AccountProvider::Password,
+            Self::Imap { .. } => crate::AccountProvider::Password,
             Self::Microsoft { .. } => crate::AccountProvider::Microsoft,
             Self::Google { .. } => crate::AccountProvider::Google,
             Self::Jmap { config, .. } if config.is_oauth() => crate::AccountProvider::JmapOauth,
@@ -94,11 +101,23 @@ impl ConnectedAccount {
         }
     }
 
-    /// The IMAP config, or `None` for a Microsoft/JMAP account: so an IMAP-only path
-    /// (an `IDLE` watch) can skip non-IMAP entries.
-    pub(crate) fn imap(&self) -> Option<&AccountConfig> {
+    /// A newly registered IMAP account, with connections of its own: nothing is connected until
+    /// the first dial or watch.
+    pub(crate) fn imap_account(config: AccountConfig) -> Self {
+        Self::Imap {
+            config,
+            connections: ImapConnections::new(),
+        }
+    }
+
+    /// The IMAP config and connections, or `None` for a Microsoft/JMAP account: so an IMAP-only
+    /// path (an `IDLE` watch) can skip non-IMAP entries.
+    pub(crate) fn imap(&self) -> Option<(&AccountConfig, &Arc<ImapConnections>)> {
         match self {
-            Self::Imap(config) => Some(config),
+            Self::Imap {
+                config,
+                connections,
+            } => Some((config, connections)),
             Self::Microsoft { .. } | Self::Google { .. } | Self::Jmap { .. } => None,
         }
     }

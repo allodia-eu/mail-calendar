@@ -91,7 +91,7 @@ pub(crate) fn prepare_stored_account(
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
         let identity = EmailAddress::new(config.imap.username.clone());
-        (id, identity, ConnectedAccount::Imap(config))
+        (id, identity, ConnectedAccount::imap_account(config))
     };
     Ok(PreparedAccount {
         account: Account {

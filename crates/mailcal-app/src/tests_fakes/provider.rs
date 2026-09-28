@@ -16,8 +16,9 @@ use engine_core::{
 };
 use engine_provider::{
     Capabilities, ConnectionInfo, EmailChunk, EmailStream, MailEdit, MailEditReceipt,
-    MessageReport, Provider, ProviderError, ProviderResult, ReportReceipt, ScopeSync,
+    MessageReport, Provider, ProviderError, ProviderResult, ReportReceipt, ScopeSync, SourceStream,
 };
+use futures::StreamExt;
 use tokio::sync::Notify;
 
 use super::message;
@@ -45,6 +46,13 @@ pub(crate) struct FakeProvider {
     /// single-object fetches a caller may keep in flight. `1` models a session protocol
     /// sharing one socket (IMAP); higher models an HTTP transport.
     concurrent_fetches: usize,
+    /// What [`Provider::connection_info`] reports as the sources one batch request carries;
+    /// `1` models a transport with no batch, higher models an IMAP `UID FETCH` over a set.
+    sources_per_request: usize,
+    /// The keys of every [`Provider::fetch_message_sources`] call, in order, so a test can
+    /// prove the warm batches its fetches rather than asking one message at a time, and in
+    /// which order it asks.
+    batches: Arc<Mutex<Vec<Vec<String>>>>,
     /// The most [`Provider::fetch_message_source`] calls that were ever in flight at once,
     /// so a test can prove the body warm actually overlaps them rather than trickling.
     peak_in_flight: Arc<Mutex<(usize, usize)>>,
@@ -84,6 +92,11 @@ pub(crate) struct FakeProvider {
     /// models stale keys (an IMAP `UIDVALIDITY` renumbering), so a test can prove a
     /// body-warm pass looks past them and triggers the folder re-sync recovery.
     source_failures: Vec<String>,
+    /// How many of the next source fetches the server refuses as throttled, and the wait each
+    /// refusal names (`None`: a bare `429`, as Stalwart sends). Shared, so a test can read how
+    /// many refusals are left.
+    throttled_fetches: Arc<AtomicUsize>,
+    throttle_wait_secs: Option<u64>,
 }
 
 /// Decrements the in-flight count however a source fetch leaves.
@@ -139,7 +152,29 @@ struct StreamGate {
 #[async_trait::async_trait]
 impl Provider for FakeProvider {
     fn connection_info(&self) -> ConnectionInfo {
-        ConnectionInfo::new(self.caps).with_concurrent_fetches(self.concurrent_fetches)
+        ConnectionInfo::new(self.caps)
+            .with_concurrent_fetches(self.concurrent_fetches)
+            .with_sources_per_request(self.sources_per_request)
+    }
+
+    // Each message still goes through `fetch_message_source`, so the in-flight counter and the
+    // scripted failures apply to a batch exactly as to a single fetch.
+    fn fetch_message_sources<'a>(
+        &'a self,
+        account: &'a AccountId,
+        messages: &'a [Message],
+    ) -> SourceStream<'a> {
+        self.batches.lock().unwrap().push(
+            messages
+                .iter()
+                .map(|message| message.id.key().as_str().to_owned())
+                .collect(),
+        );
+        Box::pin(futures::stream::iter(messages.iter().enumerate()).then(
+            move |(index, message)| async move {
+                (index, self.fetch_message_source(account, message).await)
+            },
+        ))
     }
 
     fn mailbox_scope(&self, account: &AccountId) -> SyncScope {
@@ -292,6 +327,18 @@ impl Provider for FakeProvider {
         // prove a warmed body is served from the store's cache rather than the network.
         if self.fail.load(Ordering::SeqCst) {
             return Err(ProviderError::retryable("account unreachable"));
+        }
+        let throttled = self
+            .throttled_fetches
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
+                left.checked_sub(1)
+            })
+            .is_ok();
+        if throttled {
+            let wait = self.throttle_wait_secs.map(|secs| {
+                engine_core::time::Duration::from_parts(0, 0, 0, 0, secs, 0).expect("in range")
+            });
+            return Err(ProviderError::rate_limited("too many requests", wait));
         }
         if self
             .source_failures

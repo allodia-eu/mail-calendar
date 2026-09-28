@@ -126,6 +126,7 @@ mod showcase;
 mod showcase_bodies;
 mod showcase_contacts;
 mod showcase_data;
+mod store_files;
 mod timezone;
 mod token_sink;
 
@@ -240,6 +241,7 @@ pub use showcase_data::{
     ShowcaseInvitation, ShowcaseLocale, ShowcaseReply, showcase_invitation,
     showcase_locale_for_language, showcase_now, showcase_reply,
 };
+pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;
 pub use timezone::{available_time_zones, device_time_zone};
@@ -415,12 +417,8 @@ impl MailcalApp {
     /// Recomputes and restarts one account's background sync from the current settings;
     /// called after an account is added or its sync behaviour changes.
     fn refresh_background(&self, account_id: &str) {
-        let snapshot = self.runtime.block_on(self.app.sync_settings());
-        let row = snapshot
-            .accounts
-            .iter()
-            .find(|row| row.account_id == account_id);
-        self.background.apply(account_id, row);
+        self.runtime
+            .block_on(self.background.apply_current(account_id));
     }
 }
 
@@ -463,6 +461,9 @@ mod tests_setup;
 
 #[cfg(test)]
 mod tests_ai_endpoint;
+
+#[cfg(test)]
+mod tests_background;
 
 #[cfg(all(test, feature = "allodia-license"))]
 mod tests_ai_relay;

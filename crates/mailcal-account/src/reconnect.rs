@@ -1,19 +1,18 @@
-//! An IMAP [`Provider`] wrapper that transparently reconnects a dropped session.
+//! An IMAP [`Provider`] wrapper that retries a call once after its socket died.
 //!
-//! The engine's `ImapProvider` holds **one** persistent `Mutex<Connection>` and never
-//! re-dials: once its TLS socket dies (the machine slept, or the network dropped), every
-//! reuse fails instantly with a [`FailureClass::Retryable`] transport error (`Broken pipe`,
-//! `peer closed connection without sending TLS close_notify`) and stays dead until the
-//! provider is rebuilt. The app holds its providers behind an immutable `Arc`, so nothing
-//! rebuilds them and only an app restart recovers, which is exactly the "Refresh does
-//! nothing / can't load this message" bug.
+//! The engine's `ImapProvider` borrows a connection from its account per call and replaces a
+//! dead one on the *next* call, but the call that found it dead has already failed with a
+//! [`FailureClass::Retryable`] transport error (`Broken pipe`, `peer closed connection without
+//! sending TLS close_notify`). After the machine slept or the network dropped, that is the first
+//! thing the user does: a Refresh, or opening a message, and it would fail once for no reason
+//! they can see.
 //!
-//! [`ReconnectingImapProvider`] fixes it the same way [`RefreshingGraphProvider`] fixes the
+//! [`ReconnectingImapProvider`] retries it the same way [`RefreshingGraphProvider`] does on the
 //! Graph side ([`crate::graph`]): it caches a live delegate and, on a retryable transport
-//! failure, drops the dead session, re-dials a fresh one, and retries the (idempotent) call
-//! once. The re-dial is an **injected closure** ([`Redial`]) so the reconnect path is
-//! unit-testable without a real socket; the live closure ([`crate::make_imap_redial`])
-//! re-runs `ImapProvider::connect`.
+//! failure, drops it, takes a fresh one, and retries the (idempotent) call once. The fresh one
+//! comes from an **injected closure** ([`Redial`]) so the path is unit-testable without a real
+//! socket; the live closure (`imap::make_imap_redial`) drops the account's resting connections
+//! and binds the folder again, so the retry runs on a connection dialled for it.
 //!
 //! [`RefreshingGraphProvider`]: crate::graph
 
@@ -33,8 +32,8 @@ use engine_core::{
     sync::{SyncScope, SyncState, SyncWindow},
 };
 use engine_provider::{
-    Capabilities, ConnectionInfo, Draft, EmailStream, MailEdit, MailEditReceipt, MessageReport,
-    Provider, ProviderResult, ReportReceipt, ScopeSync, SubmissionReceipt,
+    ConnectionInfo, Draft, EmailStream, MailEdit, MailEditReceipt, MessageReport, Provider,
+    ProviderError, ProviderResult, ReportReceipt, ScopeSync, SourceStream, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -54,9 +53,12 @@ pub(crate) struct ReconnectingImapProvider {
     /// The mailbox this provider is bound to; used to report the sync scopes without
     /// touching the (possibly dead) delegate, exactly as [`crate::graph`] does for Graph.
     mailbox: MailboxId,
-    /// Captured once from the initial connect, so the wrapper can still report data-domain
-    /// support while no live session is cached.
-    capabilities: Capabilities,
+    /// What the live delegate last reported, so the wrapper still reports it while no session
+    /// is cached. Not the defaults: those say one fetch at a time and one message per request,
+    /// and a body warm that reads them in the moment between a lost connection and the redial
+    /// runs its whole pass that way. The width describes the account's pool, which outlives
+    /// any one session, so the last value is the right one to keep.
+    last_info: Mutex<ConnectionInfo>,
     /// The live delegate, or `None` after a retryable failure invalidated it (the next call
     /// re-dials). Held behind a std mutex read only to clone the `Arc`; never across an
     /// `.await`; like `RefreshingGraphProvider`'s `cached`.
@@ -67,21 +69,21 @@ impl core::fmt::Debug for ReconnectingImapProvider {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("ReconnectingImapProvider")
             .field("mailbox", &self.mailbox)
-            .field("capabilities", &self.capabilities)
+            .field("last_info", &self.last_info)
             .finish_non_exhaustive()
     }
 }
 
 impl ReconnectingImapProvider {
-    /// Adopts an already-connected `initial` provider bound to `mailbox`, capturing its
-    /// capabilities and the `redial` closure that rebuilds a fresh session after a drop. No
+    /// Adopts an already-connected `initial` provider bound to `mailbox`, capturing what it
+    /// reports and the `redial` closure that rebuilds a fresh session after a drop. No
     /// second connect happens: the initial session is used until it fails.
     pub(crate) fn adopt(initial: Arc<dyn Provider>, mailbox: MailboxId, redial: Redial) -> Self {
-        let capabilities = initial.connection_info().capabilities;
+        let last_info = Mutex::new(initial.connection_info());
         Self {
             redial,
             mailbox,
-            capabilities,
+            last_info,
             cached: Mutex::new(Some(initial)),
         }
     }
@@ -130,14 +132,17 @@ impl ReconnectingImapProvider {
 #[async_trait]
 impl Provider for ReconnectingImapProvider {
     fn connection_info(&self) -> ConnectionInfo {
-        self.cached
+        let live = self
+            .cached
             .lock()
             .expect("imap delegate mutex poisoned")
             .as_ref()
-            .map_or_else(
-                || ConnectionInfo::new(self.capabilities),
-                |provider| provider.connection_info(),
-            )
+            .map(|provider| provider.connection_info());
+        let mut last = self.last_info.lock().expect("imap info mutex poisoned");
+        if let Some(live) = live {
+            *last = live;
+        }
+        *last
     }
 
     fn mailbox_scope(&self, account: &AccountId) -> SyncScope {
@@ -254,6 +259,41 @@ impl Provider for ReconnectingImapProvider {
             async move { provider.fetch_message_source(&account, &message).await }
         })
         .await
+    }
+
+    /// Forwarded to the delegate, whose batch is what makes a warm fast: without this the
+    /// trait's default would fetch the batch one message at a time. Not retried as a whole,
+    /// because the engine already asks once more on a fresh connection for what a lost one had
+    /// not delivered, and repeating the batch here would fetch again what already arrived. A
+    /// lost connection still drops the session, so the next call redials, as a single fetch's
+    /// would.
+    fn fetch_message_sources<'a>(
+        &'a self,
+        account: &'a AccountId,
+        messages: &'a [Message],
+    ) -> SourceStream<'a> {
+        Box::pin(async_stream::stream! {
+            let provider = match self.delegate().await {
+                Ok(provider) => provider,
+                Err(err) => {
+                    for index in 0..messages.len() {
+                        yield (index, Err(ProviderError::new(err.class(), err.to_string())));
+                    }
+                    return;
+                }
+            };
+            let mut lost = false;
+            {
+                let mut sources = provider.fetch_message_sources(account, messages);
+                while let Some((index, result)) = sources.next().await {
+                    lost |= matches!(&result, Err(err) if err.class() == FailureClass::Retryable);
+                    yield (index, result);
+                }
+            }
+            if lost {
+                self.invalidate();
+            }
+        })
     }
 
     /// Submitting is **not** auto-retried: a send is not idempotent (a post-`DATA` drop may

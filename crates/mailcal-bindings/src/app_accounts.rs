@@ -11,7 +11,7 @@ use engine_api::AccountId;
 
 use crate::{
     AccountCredentialStore, AccountRow, DeviceInfo, LogLevel, Logger, MailcalApp, MailcalError,
-    Observer, ShowcaseLocale, boot, connection_log,
+    Observer, ShowcaseLocale, background, boot, connection_log,
 };
 
 #[uniffi::export]
@@ -287,13 +287,14 @@ impl MailcalApp {
         let app = Arc::clone(&self.app);
         self.runtime
             .block_on(async move { app.add_new_account_deferred(account).await });
-        // Start this account's background sync (push watches / poll timer) per its settings.
-        self.refresh_background(&row.id);
         // The first sync runs with the download bar **visible**; adding an account is an explicit
-        // download the user is waiting on, so it shows progress immediately.
+        // download the user is waiting on, so it shows progress immediately. The account's push
+        // watches / poll timer start inside it, once its folders are known.
         let app_sync = Arc::clone(&self.app);
-        self.runtime
-            .spawn(async move { app_sync.sync_added_account(&sync_id).await });
+        let background = Arc::clone(&self.background);
+        self.runtime.spawn(async move {
+            background::sync_added_account(&app_sync, &background, &sync_id).await;
+        });
         // Closes the narration the way the Microsoft path does: connected, stored, registered,
         // and how long the whole transaction took: so the next line in the log being a sync is
         // an expected continuation rather than the first evidence that anything worked.
