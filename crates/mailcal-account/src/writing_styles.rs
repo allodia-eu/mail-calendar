@@ -149,13 +149,29 @@ pub fn writing_styles_path(base: impl AsRef<Path>) -> PathBuf {
 }
 
 /// Loads the library from `path`; empty when the file is absent or unreadable, as the signature
-/// library is.
+/// library is. An entry whose id is not a valid one is left out.
 #[must_use]
 pub fn load_writing_styles(path: impl AsRef<Path>) -> WritingStyles {
     fs::read_to_string(path)
         .ok()
-        .and_then(|body| toml::from_str(&body).ok())
+        .and_then(|body| toml::from_str::<WritingStyles>(&body).ok())
+        .map(WritingStyles::keep_valid_ids)
         .unwrap_or_default()
+}
+
+impl WritingStyles {
+    /// Drops the entries whose id breaks [`WritingStyleId::new`]'s rule, keeping the rest.
+    fn keep_valid_ids(mut self) -> Self {
+        let valid = |id: &WritingStyleId| WritingStyleId::new(id.as_str()).is_some();
+        let before = self.entries.len();
+        self.entries.retain(|id, _| valid(id));
+        self.order.retain(valid);
+        let dropped = before - self.entries.len();
+        if dropped > 0 {
+            log::warn!("ai: {dropped} writing style(s) with an unreadable id were left out");
+        }
+        self
+    }
 }
 
 /// Writes the library to `path`, creating its directory when needed.

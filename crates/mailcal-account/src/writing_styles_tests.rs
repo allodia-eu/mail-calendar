@@ -95,3 +95,32 @@ fn debug_output_carries_lengths_not_text() {
     assert!(!printed.contains("Work"), "{printed}");
     assert!(printed.contains("exemplars_len"));
 }
+
+/// The file is one a person can edit, so an id read back is held to the rule
+/// [`WritingStyleId::new`] states. Only the entry that breaks it goes: refusing the file would lose
+/// every style at the next save.
+#[test]
+fn an_entry_whose_id_breaks_the_rule_is_dropped_and_the_rest_kept() {
+    let dir = std::env::temp_dir().join("mailcal-writing-styles-invalid-id-test");
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = writing_styles_path(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        &path,
+        "order = [\"work\", \"   \", \"bad\\u0007\"]\n\
+         [entries.work]\nname = \"Work\"\nguide_json = \"{}\"\n\
+         [entries.\"   \"]\nname = \"Blank\"\nguide_json = \"{}\"\n\
+         [entries.\"bad\\u0007\"]\nname = \"Bell\"\nguide_json = \"{}\"\n",
+    )
+    .unwrap();
+
+    let loaded = load_writing_styles(&path);
+    let names: Vec<&str> = loaded
+        .ordered()
+        .iter()
+        .map(|(_, style)| style.name.as_str())
+        .collect();
+    assert_eq!(names, ["Work"]);
+    assert_eq!(loaded.order, [id("work")]);
+    let _ = std::fs::remove_dir_all(&dir);
+}
