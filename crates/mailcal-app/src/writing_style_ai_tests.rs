@@ -117,6 +117,8 @@ fn account_id() -> AccountId {
 
 #[path = "writing_style_feedback_tests.rs"]
 mod feedback;
+#[path = "writing_style_mark_tests.rs"]
+mod mark;
 #[cfg(debug_assertions)]
 #[path = "writing_style_training_tests.rs"]
 mod training;
@@ -395,14 +397,6 @@ async fn learning_passes_over_a_message_sent_from_a_draft() {
     });
 
     assert_eq!(found_in(&app).await, 2);
-}
-
-/// A draft id the session never issued (one from before a restart, or made up) logs nothing.
-#[tokio::test]
-async fn an_unknown_draft_id_logs_nothing() {
-    let (app, _) = fixture().await;
-    app.note_ai_draft_sent("acct-1", "never-issued", "Hello", "x@y");
-    assert!(app.writing_style.observed.sends().is_empty());
 }
 
 /// A style from another device arrives with no passages. This device picks its own from its own

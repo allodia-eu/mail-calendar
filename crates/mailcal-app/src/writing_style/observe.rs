@@ -4,7 +4,9 @@
 //! The composer carries the draft's id back on submit (`ai_draft` in its document), and the reply
 //! path hands it here with the text the person actually sent above the signature and the quote. The
 //! sent message's `Message-ID` goes into the log, which keeps it out of every later learning run:
-//! a style learned from a model's words would drift towards the model.
+//! a style learned from a model's words would drift towards the model. The log is this device's;
+//! the [`WRITING_ASSISTANT`] keyword on the filed Sent copy is what tells the person's other
+//! devices, where the provider keeps one.
 //!
 //! A draft id the session did not issue, one issued before a restart, or a draft saved and
 //! resumed later, logs nothing: the reply is then treated as the person's own.
@@ -15,7 +17,7 @@
 
 use std::{collections::VecDeque, path::PathBuf, sync::Mutex};
 
-use engine_api::Provider;
+use engine_api::{Draft, Keyword, Message, Provider};
 use mailcal_account::{
     AiAssistedSend, WritingStyleId, WritingStyleObservations, load_writing_style_observations,
     save_writing_style_observations,
@@ -24,6 +26,16 @@ use mailcal_ai::DraftRecord;
 use mailcal_composer::{Block, ComposerDocument};
 
 use crate::App;
+
+/// The keyword a reply sent from a draft carries on its filed Sent copy.
+///
+/// Fixed and untranslated: every device has to recognise it, whatever language it runs in.
+pub(crate) const WRITING_ASSISTANT: &str = "writing-assistant";
+
+/// Whether `message` carries [`WRITING_ASSISTANT`].
+pub(crate) fn marked_as_drafted(message: &Message) -> bool {
+    Keyword::new(WRITING_ASSISTANT).is_ok_and(|keyword| message.has_keyword(&keyword))
+}
 
 /// The most drafts remembered at once; an older one sent later counts as the person's own.
 const ISSUED_CAP: usize = 32;
@@ -140,20 +152,21 @@ pub(crate) fn lead_text(document: &ComposerDocument) -> String {
 
 impl<P: Provider> App<P> {
     /// Logs a reply sent from the draft `draft_id`: `sent` is the text above its signature and
-    /// quote, `message_id` the `Message-ID` it went out under. A draft this session did not issue
-    /// logs nothing.
+    /// quote, and `draft` the message about to go out. Returns `draft` asking for
+    /// [`WRITING_ASSISTANT`] on its Sent copy when it was logged; a draft this session did not
+    /// issue logs nothing and comes back as it was.
     pub(crate) fn note_ai_draft_sent(
         &self,
         account: &str,
         draft_id: &str,
         sent: &str,
-        message_id: &str,
-    ) {
+        draft: Draft,
+    ) -> Draft {
         let observed = &self.writing_style.observed;
         let issued = {
             let mut issued = observed.issued.lock().expect("issued drafts poisoned");
             let Some(at) = issued.iter().position(|draft| draft.id == draft_id) else {
-                return;
+                return draft;
             };
             issued.remove(at).expect("the position was just found")
         };
@@ -165,7 +178,7 @@ impl<P: Provider> App<P> {
         );
         observed.edit(|log| {
             log.record(AiAssistedSend {
-                message_id: message_id.to_owned(),
+                message_id: draft.message_id.as_str().to_owned(),
                 account: account.to_owned(),
                 style: issued.style.as_str().to_owned(),
                 language: issued.record.language,
@@ -175,5 +188,9 @@ impl<P: Provider> App<P> {
                 removed: correction.removed,
             });
         });
+        match Keyword::new(WRITING_ASSISTANT) {
+            Ok(keyword) => draft.with_sent_copy_keyword(keyword),
+            Err(_) => draft,
+        }
     }
 }

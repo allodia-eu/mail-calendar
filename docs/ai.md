@@ -142,6 +142,11 @@ is never learned from**, and never shown to a later draft as the person's own wo
   with their account. What the person changed in each draft is their own words, so that list keeps
   two hundred entries and loses a style's when the style is forgotten. Learning and the recipient
   context both pass over every drafted reply.
+- The log is one device's. So the reply also asks for the keyword `writing-assistant` on its filed
+  Sent copy, which reaches every device that syncs the account. It is fixed and untranslated,
+  because every device has to recognise it whatever language it runs in. A keyword never delays or
+  fails a send: where the provider cannot keep one, the copy is filed without it and the log is the
+  only sign. A message counts as drafted when it carries the keyword **or** is in the log.
 - Mail the person wrote without a draft stays eligible, as it always was.
 
 ## Feedback
@@ -444,6 +449,10 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 
 ## Known gaps
 
+- **On Gmail and Microsoft accounts the Sent copy carries no keyword** yet, because the engine keeps
+  one only on IMAP and JMAP (`Capabilities::sent_copy_keywords`). A reply drafted on one device is
+  left out of learning there and can be learned from on the person's other devices. The same holds
+  on an IMAP server that does not accept new keywords.
 - **No client has been driven as a production build under the early-access gate**: that takes a
   store or TestFlight build signed in once to an account with `ai` and once to one without.
 - **On Android the gate's refusal and the account slot have not been driven**, and iPad was not

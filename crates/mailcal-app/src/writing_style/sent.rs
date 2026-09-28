@@ -138,12 +138,16 @@ impl<P: Provider> App<P> {
 
     /// Whether `message` was sent from an AI draft: never learned from, and never shown to a
     /// draft as the person's own words.
+    ///
+    /// Either sign is enough: the keyword reaches every device where the provider keeps one, and
+    /// the log covers this device where it does not.
     fn sent_from_a_draft(&self, message: &Message) -> bool {
-        message
-            .envelope
-            .message_id
-            .first()
-            .is_some_and(|id| self.writing_style.observed.is_assisted(id.as_str()))
+        super::observe::marked_as_drafted(message)
+            || message
+                .envelope
+                .message_id
+                .first()
+                .is_some_and(|id| self.writing_style.observed.is_assisted(id.as_str()))
     }
 
     /// A message's body as plain text, or `None` when it cannot be read.

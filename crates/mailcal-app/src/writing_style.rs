@@ -41,6 +41,8 @@ mod training;
 
 pub use draft::{DraftReply, ReplyDraftRequest};
 pub use learn::{LearnFailure, LearnRange, LearnReport};
+#[cfg(test)]
+pub(crate) use observe::WRITING_ASSISTANT;
 pub(crate) use observe::lead_text;
 pub use synced::SyncableStyle;
 

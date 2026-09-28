@@ -163,7 +163,7 @@ impl<P: Provider> App<P> {
             draft = draft.in_reply_to(parent.clone(), references);
         }
         if let (Some(draft_id), Some(sent)) = (&ai_draft, &sent_lead) {
-            self.note_ai_draft_sent(account.as_str(), draft_id, sent, draft.message_id.as_str());
+            draft = self.note_ai_draft_sent(account.as_str(), draft_id, sent, draft);
         }
         self.send_draft(&account, &draft, composition.as_ref())
             .await;
