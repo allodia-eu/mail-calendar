@@ -160,7 +160,10 @@ impl Pass<'_> {
                     account_id,
                     also_changed_here: true,
                 }),
-                Decision::RemovedElsewhere { account_id } => {
+                Decision::RemovedElsewhere {
+                    account_id,
+                    changed_here,
+                } => {
                     let email = by_id
                         .get(account_id.as_str())
                         .map(|config| config.email().to_owned())
@@ -168,7 +171,7 @@ impl Pass<'_> {
                     sync_report.removed_elsewhere.push(AllodiaAccountChange {
                         account_id,
                         email,
-                        also_changed_here: false,
+                        also_changed_here: changed_here,
                     });
                 }
             }

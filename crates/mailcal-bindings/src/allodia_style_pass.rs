@@ -275,7 +275,25 @@ impl<'a> StylePass<'a> {
                 Verdict::Adopt { local_id, current } => {
                     self.remember(&local_id, &current, fingerprint(&current.style));
                 }
-                Verdict::RemovedElsewhere { local_id } => self.forget_here(&local_id),
+                Verdict::RemovedElsewhere {
+                    local_id,
+                    changed_here: false,
+                } => self.forget_here(&local_id),
+                Verdict::RemovedElsewhere {
+                    local_id,
+                    changed_here: true,
+                } => {
+                    // An edit made here outlives a removal made elsewhere: the style goes up again
+                    // as a new record, and meanwhile it is simply one this device never synced.
+                    self.forget_entry(&local_id);
+                    self.drop_create_key(&local_id);
+                    if self.writes
+                        && !full
+                        && let Some(mine) = find(&local_id)
+                    {
+                        full = !self.upload(&local_id, &mine.style);
+                    }
+                }
             }
         }
         conflicts
@@ -304,6 +322,8 @@ impl<'a> StylePass<'a> {
                 false
             }
             Err(error @ Error::Conflict(Some(ConflictWith::Tombstone(_)))) => {
+                // An earlier attempt was stored and then forgotten elsewhere. The style stays here
+                // and goes up again under a fresh key, as an account does.
                 self.drop_create_key(style_id);
                 log::warn!("allodia: [style {style_id}] was forgotten while it was sent; {error}");
                 true

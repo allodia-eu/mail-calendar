@@ -134,6 +134,52 @@ fn a_style_forgotten_elsewhere_is_forgotten_here_with_every_account_s_choice_of_
     let _ = std::fs::remove_dir_all(data_dir);
 }
 
+#[test]
+fn a_create_answered_with_a_tombstone_keeps_the_style_here_and_drops_its_key() {
+    let (app, data_dir) = device("style-create-tombstone", &[("s1", &style("A", ""))], None);
+    let refused = json!({ "defined": true, "code": "CONFLICT", "status": 409,
+                          "data": { "current": serde_json::from_str::<Value>(tombstone()).unwrap() } })
+    .to_string();
+    let transport = Scripted::new(&[(200, &listing(&[], &[])), (409, &refused)]);
+    let book = book();
+
+    sync(&app, &transport, &book);
+
+    assert_eq!(transport.requests().len(), 2);
+    assert_eq!(app.app.syncable_writing_styles().len(), 1);
+    assert!(book.style("s1").is_none());
+    assert!(book.pending_style_create_key("s1").is_none());
+    let _ = std::fs::remove_dir_all(data_dir);
+}
+
+#[test]
+fn a_style_edited_here_and_forgotten_elsewhere_goes_up_again_as_a_new_record() {
+    let before = style("Work", "Short.");
+    let after = style("Work", "Short, and never before nine.");
+    let (app, data_dir) = device("style-edited-forgotten", &[("s1", &after)], None);
+    let book = book();
+    in_step(&book, "s1", "rec-1", 3, &before);
+    let stored = record("rec-2", 1, &after).to_string();
+    let transport = Scripted::new(&[(200, &listing(&[], &[("rec-1", 4)])), (200, &stored)]);
+
+    sync(&app, &transport, &book);
+
+    let sent = transport.requests();
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[1].method, Method::Post);
+    assert_eq!(
+        body_of(&sent[1])["style"]["guide"]["notes"],
+        after.guide.notes
+    );
+    let here = app.app.syncable_writing_styles();
+    assert_eq!(here.len(), 1);
+    assert_eq!(here[0].guide.notes, after.guide.notes);
+    let entry = book.style("s1").expect("the device knows the new record");
+    assert_eq!((entry.id.as_str(), entry.version), ("rec-2", 1));
+    assert!(book.pending_style_create_key("s1").is_none());
+    let _ = std::fs::remove_dir_all(data_dir);
+}
+
 /// Past the service's cap every further create is refused alike, so the pass stops asking.
 #[test]
 fn a_full_service_stops_the_uploads_for_the_pass() {

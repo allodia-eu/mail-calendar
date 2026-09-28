@@ -188,7 +188,22 @@ fn a_style_forgotten_elsewhere_is_removed_here() {
     assert_eq!(
         reconcile_styles(&local, &list(vec![], vec![gone("rec-1", 5)])),
         vec![Verdict::RemovedElsewhere {
-            local_id: "s1".to_owned()
+            local_id: "s1".to_owned(),
+            changed_here: false,
+        }]
+    );
+}
+
+#[test]
+fn a_style_forgotten_elsewhere_after_an_edit_here_says_so() {
+    let base = style("Work", "Short.");
+    let mut local = vec![synced("s1", &base, "rec-1", 4)];
+    local[0].style = style("Work", "Short, and warm.");
+    assert_eq!(
+        reconcile_styles(&local, &list(vec![], vec![gone("rec-1", 5)])),
+        vec![Verdict::RemovedElsewhere {
+            local_id: "s1".to_owned(),
+            changed_here: true,
         }]
     );
 }
@@ -208,4 +223,37 @@ fn a_style_missing_from_a_delta_is_not_treated_as_forgotten() {
     let base = style("Work", "Short.");
     let local = vec![synced("s1", &base, "rec-1", 4)];
     assert!(reconcile_styles(&local, &list(vec![], vec![])).is_empty());
+}
+
+/// A record already spoken for is never adopted a second time, whichever item comes first:
+/// forgetting either style would then delete the other everywhere.
+#[test]
+fn a_record_another_style_owns_is_not_adopted() {
+    let same = style("Work", "Short.");
+    let local = vec![
+        new_here("s2", same.clone()),
+        synced("s1", &same, "rec-1", 3),
+    ];
+    assert_eq!(
+        reconcile_styles(&local, &list(vec![record("rec-1", 3, same)], vec![])),
+        vec![Verdict::Upload {
+            local_id: "s2".to_owned()
+        }]
+    );
+}
+
+#[test]
+fn two_identical_new_styles_adopt_one_record_and_upload_the_other() {
+    let same = style("Work", "Short.");
+    let local = vec![new_here("s1", same.clone()), new_here("s2", same.clone())];
+    match &reconcile_styles(&local, &list(vec![record("rec-1", 3, same)], vec![]))[..] {
+        [
+            Verdict::Adopt { local_id, current },
+            Verdict::Upload { local_id: other },
+        ] => {
+            assert_eq!((local_id.as_str(), current.id.as_str()), ("s1", "rec-1"));
+            assert_eq!(other, "s2");
+        }
+        other => panic!("expected one adoption and one upload, got {other:?}"),
+    }
 }

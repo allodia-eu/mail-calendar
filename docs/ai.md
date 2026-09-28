@@ -33,6 +33,10 @@ for the style it drafts in. Forgetting a style clears it from every account that
 an account drops its slot. A learned style takes the slot of the account it was learned from when
 that slot was empty.
 
+With an Allodia account, a style's name and guide follow the person to their other devices, under
+the account list's rules. A style forgotten on one device is forgotten on the others, unless one of
+them changed it since they last agreed: that edit wins, and the style goes up again as a new record.
+
 Both halves carry a `schema_version` and keep every field they do not model, so an older device
 that edits a newer guide (its notes, its name) writes the newer fields back untouched.
 

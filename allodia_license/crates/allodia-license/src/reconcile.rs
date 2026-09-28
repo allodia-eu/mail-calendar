@@ -16,6 +16,10 @@
 //! looked like then. Without that second half, "the server is newer" cannot be told from "we both
 //! changed", and an update would silently overwrite an edit made here.
 //!
+//! **A removal elsewhere says whether this device changed the item since.** The reconciler only
+//! reports it: an account removed elsewhere is always a question to the person, and a style changed
+//! here outlives the removal and goes up again.
+//!
 //! One set of rules for every collection: [`Verdict`] is what they share, and [`Decision`] is the
 //! same thing in the account list's own words.
 
@@ -115,6 +119,8 @@ pub enum Decision {
     RemovedElsewhere {
         /// Which local account.
         account_id: String,
+        /// This device changed the account since it last synced, so removing it here loses that.
+        changed_here: bool,
     },
 }
 
@@ -166,6 +172,8 @@ pub enum Verdict<R> {
     RemovedElsewhere {
         /// This device's id for it.
         local_id: String,
+        /// This device changed the item since it last synced, so removing it here loses that.
+        changed_here: bool,
     },
 }
 
@@ -197,8 +205,12 @@ impl From<Verdict<SyncedAccount>> for Decision {
                 account_id: local_id,
                 current,
             },
-            Verdict::RemovedElsewhere { local_id } => Self::RemovedElsewhere {
+            Verdict::RemovedElsewhere {
+                local_id,
+                changed_here,
+            } => Self::RemovedElsewhere {
                 account_id: local_id,
+                changed_here,
             },
         }
     }
@@ -237,24 +249,22 @@ pub(crate) fn decide<'a, R: SyncedRecord>(
 where
     R::Payload: 'a,
 {
+    let local: Vec<_> = local.into_iter().collect();
     let mut verdicts = Vec::new();
-    let mut claimed: Vec<String> = Vec::new();
+    // Every record a synced item speaks for is claimed before any unsynced item looks for one to
+    // adopt, so an item listed earlier cannot take a record a later one owns.
+    let mut claimed: Vec<String> = local
+        .iter()
+        .filter_map(|item| item.sync.map(|state| state.id.clone()))
+        .collect();
 
-    for item in local {
-        // A detached item is invisible in both directions. Its id stays claimed so the record is
-        // not offered back as if this device had never seen it.
-        if let Some(state) = item.sync
-            && state.detached
-        {
-            claimed.push(state.id.clone());
-            continue;
-        }
+    for item in &local {
         match item.sync {
-            Some(state) => {
-                claimed.push(state.id.clone());
-                verdicts.extend(known(&item, state, records, deleted));
-            }
-            None => verdicts.push(unknown(&item, records, &mut claimed)),
+            // A detached item is invisible in both directions. Its id stays claimed so the record
+            // is not offered back as if this device had never seen it.
+            Some(state) if state.detached => {}
+            Some(state) => verdicts.extend(known(item, state, records, deleted)),
+            None => verdicts.push(unknown(item, records, &mut claimed)),
         }
     }
 
@@ -279,10 +289,13 @@ fn known<R: SyncedRecord>(
     deleted: &[Tombstone],
 ) -> Option<Verdict<R>> {
     let local_id = item.local_id.to_owned();
-    if deleted.iter().any(|gone| gone.id == state.id) {
-        return Some(Verdict::RemovedElsewhere { local_id });
-    }
     let here = fingerprint(item.payload) != state.fingerprint;
+    if deleted.iter().any(|gone| gone.id == state.id) {
+        return Some(Verdict::RemovedElsewhere {
+            local_id,
+            changed_here: here,
+        });
+    }
     let Some(record) = records.iter().find(|held| held.id() == state.id) else {
         // Not in this answer at all, which a `since` delta says nothing about: a record that did
         // not change is simply absent. Silence is not a deletion.
@@ -315,16 +328,18 @@ fn known<R: SyncedRecord>(
 ///
 /// It may still be one the service knows: two devices setting the same mailbox up independently is
 /// ordinary, and uploading a second record for it is the duplicate the opaque id was chosen to
-/// avoid. What counts as the same is the payload's own rule ([`Fingerprint::is_same_as`]).
+/// avoid. What counts as the same is the payload's own rule ([`Fingerprint::is_same_as`]). A record
+/// another item already speaks for is never adopted again: two items on one record would each
+/// delete the other everywhere when forgotten.
 fn unknown<R: SyncedRecord>(
     item: &Mine<'_, R::Payload>,
     records: &[R],
     claimed: &mut Vec<String>,
 ) -> Verdict<R> {
     let local_id = item.local_id.to_owned();
-    let existing = records
-        .iter()
-        .find(|record| item.payload.is_same_as(record.payload()));
+    let existing = records.iter().find(|record| {
+        !claimed.iter().any(|mine| mine == record.id()) && item.payload.is_same_as(record.payload())
+    });
     match existing {
         Some(record) => {
             claimed.push(record.id().to_owned());

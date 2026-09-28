@@ -105,7 +105,8 @@ pub struct AllodiaAccountChange {
     /// Both sides moved, so there is no answer that is right by itself: taking the other device's
     /// settings discards an edit made here, and keeping this device's means it stops syncing.
     /// Moving this account to
-    /// [`AllodiaAccountSyncMode::Paused`] is the second of those.
+    /// [`AllodiaAccountSyncMode::Paused`] is the second of those. For an account removed
+    /// elsewhere, removing it here as well discards that edit.
     pub also_changed_here: bool,
 }
 
