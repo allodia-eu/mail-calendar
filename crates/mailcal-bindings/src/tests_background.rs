@@ -28,6 +28,8 @@ fn pushing_account() -> Account<Box<dyn Provider>> {
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("push@allodia.local"),
+        dialled: true,
+        uses_mail: true,
     }
 }
 

@@ -154,6 +154,10 @@ pub(crate) struct DialOutcome {
 ///
 /// Obtainable **only** from [`AccountRegistry::dial`](super::AccountRegistry::dial); see this
 /// module's header for why that matters.
+///
+/// The IMAP variant is the wider one because it carries a whole standards config. Boxing it would
+/// buy nothing: a dial is built once per account per connect and consumed by it.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum AccountDial {
     /// An IMAP/SMTP/CalDAV account: dial from its config, through its shared connections.
     Imap {
@@ -256,7 +260,7 @@ impl AccountDial {
     /// so carrying the address here is fine: the logs use `account[{index}]`.
     pub(crate) fn label(&self) -> String {
         match self {
-            Self::Imap { config, .. } => config.imap.username.clone(),
+            Self::Imap { config, .. } => config.username().to_owned(),
             Self::Microsoft { identity, .. } | Self::Google { identity, .. } => {
                 identity.email.clone()
             }

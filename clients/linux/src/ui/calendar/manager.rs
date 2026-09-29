@@ -4,9 +4,7 @@ use std::{cell::RefCell, collections::BTreeMap, rc::Rc, sync::Arc};
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
-use mailcal_bindings::{
-    AccountRow, CalendarColor, CalendarRow, MailcalApp, Swatch, calendar_palette,
-};
+use mailcal_bindings::{CalendarColor, CalendarRow, MailcalApp, Swatch, calendar_palette};
 
 use crate::l10n;
 
@@ -22,7 +20,6 @@ impl CalendarManager {
         generation: u64,
         parent: &adw::ApplicationWindow,
         app: Option<&Arc<MailcalApp>>,
-        accounts: &[AccountRow],
     ) {
         if generation == 0 || generation == self.rendered_generation {
             return;
@@ -36,19 +33,14 @@ impl CalendarManager {
         let (window, header) =
             crate::ui::modal::new(parent, l10n::calendar_manage(), 560, Some(640));
         window.set_modal(false);
-        window.set_child(Some(&content(&window, &header, app, accounts)));
+        window.set_child(Some(&content(&window, &header, app)));
         window.present();
         self.window = Some(window);
         self.rendered_generation = generation;
     }
 }
 
-fn content(
-    window: &gtk::Window,
-    header: &adw::HeaderBar,
-    app: &Arc<MailcalApp>,
-    accounts: &[AccountRow],
-) -> gtk::Box {
+fn content(window: &gtk::Window, header: &adw::HeaderBar, app: &Arc<MailcalApp>) -> gtk::Box {
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let done = gtk::Button::with_label(l10n::action_done());
     let dialog = window.clone();
@@ -64,10 +56,6 @@ fn content(
         return root;
     }
 
-    let labels = accounts
-        .iter()
-        .map(|account| (account.id.as_str(), account.email.as_str()))
-        .collect::<BTreeMap<_, _>>();
     let mut grouped = BTreeMap::<&str, Vec<&CalendarRow>>::new();
     for calendar in &calendars {
         grouped.entry(&calendar.account).or_default().push(calendar);
@@ -78,9 +66,12 @@ fn content(
     list.set_margin_top(18);
     list.set_margin_bottom(18);
     for (account, calendars) in grouped {
-        let group = adw::PreferencesGroup::builder()
-            .title(labels.get(account).copied().unwrap_or(account))
-            .build();
+        // Headed by the address, the one a person recognises; grouped by the id, which is what is
+        // unique.
+        let title = calendars
+            .first()
+            .map_or(account, |calendar| calendar.account_address.as_str());
+        let group = adw::PreferencesGroup::builder().title(title).build();
         for calendar in calendars {
             group.add(&calendar_row(Arc::clone(app), calendar));
         }

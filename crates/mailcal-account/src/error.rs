@@ -81,6 +81,10 @@ pub enum AccountError {
     /// CalDAV was requested but the config has no `[caldav]` section.
     #[error("no caldav endpoint configured")]
     NoCalDav,
+    /// The account has no mailbox: it is used for its calendar or its contacts alone, so there
+    /// is no IMAP endpoint to connect to.
+    #[error("no imap endpoint configured")]
+    NoImap,
     /// The CalDAV connection or discovery failed.
     #[error("caldav: {0}")]
     CalDav(#[from] provider_caldav::CalDavError),

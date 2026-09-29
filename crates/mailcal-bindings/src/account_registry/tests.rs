@@ -233,7 +233,14 @@ fn replacement_credentials_are_built_for_password_and_secret_jmap_accounts_only(
         .expect("IMAP passwords can be replaced");
     let parsed_imap = mailcal_account::load_str(&imap_toml).expect("valid IMAP TOML");
     assert_eq!(
-        parsed_imap.imap.password.as_ref().unwrap().expose(),
+        parsed_imap
+            .imap
+            .as_ref()
+            .unwrap()
+            .password
+            .as_ref()
+            .unwrap()
+            .expose(),
         "new-imap"
     );
     assert_eq!(

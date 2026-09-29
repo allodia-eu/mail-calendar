@@ -36,13 +36,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::open(&db)?;
     let account = AccountId::try_from("probe")?;
 
-    let security = match config.imap.security {
+    let imap = config
+        .imap
+        .as_ref()
+        .ok_or(mailcal_account::AccountError::NoImap)?;
+    let security = match imap.security {
         mailcal_account::ConnectionSecurity::ImplicitTls => "implicit TLS",
         mailcal_account::ConnectionSecurity::StartTls => "STARTTLS",
     };
     eprintln!(
         "Connecting to {} as {} ({security}, verifying)…",
-        config.imap.addr, config.imap.username
+        imap.addr, imap.username
     );
     // The probe syncs the whole mailbox (no sync-depth window) for the de-risk run.
     let connections = mailcal_account::ImapConnections::new();

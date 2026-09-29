@@ -35,6 +35,8 @@ private fun calendar(
     isDefault: Boolean = false,
 ) = CalendarRow(
     account = account,
+    // The address a person reads, distinct from the id the rows are grouped by.
+    accountAddress = "${account.substringBefore('@')}@example.org",
     id = id,
     name = name,
     color = CalendarColor(hex = "#2f6fa8", light = swatch(), dark = swatch()),
@@ -105,8 +107,8 @@ class SettingsDefaultCalendarTest {
 
     @Test
     fun more_than_one_account_gets_a_heading_each_instead_of_a_suffix_per_row() {
-        // The nit this fixes: an account id is `address@provider-host`, and repeating it beside
-        // every calendar wrapped each row over three lines. It belongs above the group, once.
+        // Repeating the account beside every calendar wrapped each row over three lines. It
+        // belongs above the group, once, and as the address rather than the id.
         compose.setContent {
             DefaultCalendarSettingsRows(
                 calendars = listOf(
@@ -117,12 +119,13 @@ class SettingsDefaultCalendarTest {
                 onSetDefaultCalendar = { _, _ -> },
             )
         }
-        // One heading per account, and the rows carry the bare calendar name.
-        compose.onNodeWithText("a@imap.example.com").assertIsDisplayed()
-        compose.onNodeWithText("b@graph.example.com").assertIsDisplayed()
+        // One heading per account, by its address, and the rows carry the bare calendar name.
+        compose.onNodeWithText("a@example.org").assertIsDisplayed()
+        compose.onNodeWithText("b@example.org").assertIsDisplayed()
+        compose.onNodeWithText("b@graph.example.com").assertDoesNotExist()
         compose.onNodeWithText("Agenda").assertIsDisplayed()
         compose.onNodeWithText("Todoist").assertIsDisplayed()
-        compose.onNodeWithText("Agenda, b@graph.example.com").assertDoesNotExist()
+        compose.onNodeWithText("Agenda, b@example.org").assertDoesNotExist()
     }
 
     @Test

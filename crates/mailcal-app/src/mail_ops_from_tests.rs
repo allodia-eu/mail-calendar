@@ -66,6 +66,8 @@ fn two_account_app(messages: Vec<Message>) -> (Arc<App<ThreadProvider>>, Outboxe
                 calendar_providers: Vec::new(),
                 contact_providers: Vec::new(),
                 identity: EmailAddress::new("me@allodia.local"),
+                dialled: true,
+                uses_mail: true,
             },
             Account {
                 id: AccountId::try_from("acct-2").unwrap(),
@@ -73,6 +75,8 @@ fn two_account_app(messages: Vec<Message>) -> (Arc<App<ThreadProvider>>, Outboxe
                 calendar_providers: Vec::new(),
                 contact_providers: Vec::new(),
                 identity: EmailAddress::new("other@allodia.local"),
+                dialled: true,
+                uses_mail: true,
             },
         ],
         TimeZoneInit {

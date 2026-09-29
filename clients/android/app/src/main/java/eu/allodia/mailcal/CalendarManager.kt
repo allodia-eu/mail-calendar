@@ -96,8 +96,10 @@ internal fun CalendarManagerScreen(
             LazyColumn(modifier = Modifier.weight(1f)) {
                 byAccount.forEach { (account, rows) ->
                     item(key = "acct-$account") {
+                        // Headed by the address, the one a person recognises; grouped by the id,
+                        // which is what is unique.
                         Text(
-                            text = account,
+                            text = rows.firstOrNull()?.accountAddress ?: account,
                             modifier = Modifier.padding(
                                 start = 16.dp,
                                 end = 16.dp,

@@ -73,10 +73,11 @@ public sealed class CalendarManagerDialog : ContentDialog
         // with a "work" calendar must read as two rows under two headings.
         foreach (var group in calendars.GroupBy(c => c.Account))
         {
-            var account = _model.Accounts.FirstOrDefault(a => a.Id == group.Key);
+            // Headed by the address the core puts on every row: an account used for its calendar
+            // alone is not in the switcher's list, so that list cannot name it.
             _list.Children.Add(new TextBlock
             {
-                Text = account?.Email ?? group.Key,
+                Text = group.First().AccountAddress,
                 FontWeight = FontWeights.SemiBold,
             });
             foreach (var row in group)

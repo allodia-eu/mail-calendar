@@ -103,6 +103,8 @@ async fn open_message_waits_for_a_still_dialing_account_then_loads() {
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
+        dialled: true,
+        uses_mail: true,
     })
     .await;
 
@@ -158,6 +160,8 @@ async fn open_message_gives_up_after_the_dial_window_when_no_provider_connects()
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
+        dialled: true,
+        uses_mail: true,
     })
     .await;
 
@@ -222,6 +226,8 @@ async fn an_open_that_outlasts_the_threshold_announces_the_wait_first() {
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
+        dialled: true,
+        uses_mail: true,
     })
     .await;
 

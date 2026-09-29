@@ -17,7 +17,7 @@ public class CalendarWriteGatingTests
     {
         var swatch = new Swatch("#336699", "#ffffff", "#224466");
         return new CalendarRow(
-            "acct-1", id, "Calendar " + id, new CalendarColor("#336699", swatch, swatch),
+            "acct-1", "me@example.org", id, "Calendar " + id, new CalendarColor("#336699", swatch, swatch),
             true, canWrite, canWrite);
     }
 

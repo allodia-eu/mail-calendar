@@ -131,7 +131,8 @@ impl<P: Provider> App<P> {
     pub async fn sync_settings(&self) -> SyncSettingsSnapshot {
         let accounts = self.account_handles().await;
         let mut rows = Vec::with_capacity(accounts.len());
-        for account in &accounts {
+        // How mail syncs, so only for an account that has mail.
+        for account in accounts.iter().filter(|account| account.uses_mail) {
             // IDLE is a server property, so any provider's capability answers for the
             // account; checking all is cheap and robust to which folder bound first.
             let idle_supported = account

@@ -51,6 +51,7 @@ internal val GRID_DISPLAY =
 
 internal val GRID_WORK = CalendarRow(
     account = "acct-1",
+    accountAddress = "me@example.org",
     id = "work",
     name = "Work",
     color = CalendarColor(

@@ -299,9 +299,11 @@ store has a calendar":
 - An account that connected and **reported no calendar** will never produce one. Withholding the
   window there leaves "loading this period…" on screen for the life of the account, over a grid
   that is empty as a matter of fact.
-- An account **nobody has dialed yet** looks identical by that test, and is the opposite case. What
-  separates them is that a boot placeholder has no providers *of any kind*, so "has a mail provider
-  but no calendar provider" is the shape that means *asked and answered*.
+- An account **nobody has dialled yet** looks identical by that test, and is the opposite case. The
+  account says which it is (`Account::dialled`, `false` only on the placeholder a launch lists
+  before its dial lands). It is stated rather than inferred from the providers an account holds,
+  because an account used for its contacts alone holds neither a mail nor a calendar provider and
+  has still been asked and answered ([`accounts.md`](accounts.md)).
 
 Both are decided in `rebuild_calendar_cache`, once, so no surface can hold a different opinion.
 

@@ -29,6 +29,7 @@ private val WORK = CalendarChoice(account = "acct", id = "work", name = "Work")
 private val CALENDARS = listOf(
     CalendarRow(
         account = "acct",
+        accountAddress = "me@example.org",
         id = "work",
         name = "Work",
         color = CalendarColor(

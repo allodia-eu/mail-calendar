@@ -227,8 +227,11 @@ mod tests {
     fn build_config_toml_defaults_ports_and_derives_server_names() {
         let config = load_str(&build_config_toml(&full_setup()).unwrap()).unwrap();
         // A bare host gets the standard secure port; the TLS server name is the host.
-        assert_eq!(config.imap.addr, "imap.example.net:993");
-        assert_eq!(config.imap.server_name, "imap.example.net");
+        assert_eq!(config.imap.as_ref().unwrap().addr, "imap.example.net:993");
+        assert_eq!(
+            config.imap.as_ref().unwrap().server_name,
+            "imap.example.net"
+        );
         let smtp = config.smtp.unwrap();
         assert_eq!(smtp.addr, "smtp.example.net:465");
         assert_eq!(smtp.server_name, "smtp.example.net");
@@ -265,8 +268,11 @@ mod tests {
         setup.imap_security = ConnectionSecurity::StartTls;
         setup.smtp_security = ConnectionSecurity::StartTls;
         let config = load_str(&build_config_toml(&setup).unwrap()).unwrap();
-        assert_eq!(config.imap.addr, "imap.example.net:143");
-        assert_eq!(config.imap.security, ConnectionSecurity::StartTls);
+        assert_eq!(config.imap.as_ref().unwrap().addr, "imap.example.net:143");
+        assert_eq!(
+            config.imap.as_ref().unwrap().security,
+            ConnectionSecurity::StartTls
+        );
         let smtp = config.smtp.unwrap();
         assert_eq!(smtp.addr, "smtp.example.net:587");
         assert_eq!(smtp.security, ConnectionSecurity::StartTls);
@@ -285,17 +291,27 @@ mod tests {
         let mut setup = full_setup();
         setup.imap_host = "imap.example.net:1993".to_owned();
         let config = load_str(&build_config_toml(&setup).unwrap()).unwrap();
-        assert_eq!(config.imap.addr, "imap.example.net:1993");
-        assert_eq!(config.imap.server_name, "imap.example.net");
+        assert_eq!(config.imap.as_ref().unwrap().addr, "imap.example.net:1993");
+        assert_eq!(
+            config.imap.as_ref().unwrap().server_name,
+            "imap.example.net"
+        );
     }
 
     #[test]
     fn build_config_toml_round_trips_credentials_through_load_str() {
         let config = load_str(&build_config_toml(&full_setup()).unwrap()).unwrap();
-        assert_eq!(config.imap.username, "me@example.net");
+        assert_eq!(config.imap.as_ref().unwrap().username, "me@example.net");
         // The password survives TOML escaping exactly (no plaintext seed file needed).
         assert_eq!(
-            config.imap.password.as_ref().unwrap().expose(),
+            config
+                .imap
+                .as_ref()
+                .unwrap()
+                .password
+                .as_ref()
+                .unwrap()
+                .expose(),
             "p@ss\"with'quotes\\and=signs"
         );
         let caldav = config.caldav.unwrap();

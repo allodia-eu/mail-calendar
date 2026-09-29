@@ -52,7 +52,7 @@ fn the_completed_account_stores_the_grant_and_no_secret_anywhere() {
     let config = mailcal_account::load_str(&toml).expect("round-trips");
 
     assert!(config.is_oauth());
-    assert!(config.imap.password.is_none());
+    assert!(config.imap.as_ref().unwrap().password.is_none());
     // The calendar rides on the same grant: writing a password there would leave a stored
     // secret nothing ever presents.
     assert!(config.caldav.as_ref().unwrap().password.is_none());
@@ -72,9 +72,9 @@ fn the_detected_transports_survive_into_the_stored_account() {
     let (setup, _grant) = pending().into_grant("rt".to_owned());
     let config = mailcal_account::load_str(&mailcal_account::build_config_toml(&setup).unwrap())
         .expect("round-trips");
-    assert_eq!(config.imap.addr, "imap.example.com:143");
+    assert_eq!(config.imap.as_ref().unwrap().addr, "imap.example.com:143");
     assert_eq!(
-        config.imap.security,
+        config.imap.as_ref().unwrap().security,
         mailcal_account::ConnectionSecurity::StartTls
     );
     let smtp = config.smtp.as_ref().expect("smtp");

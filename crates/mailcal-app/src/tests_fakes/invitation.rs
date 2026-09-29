@@ -472,6 +472,8 @@ pub(crate) fn invitation_app_with_prefs(
         },
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@test.local"),
+        dialled: true,
+        uses_mail: true,
     };
     App::new(
         Engine::open_in_memory().unwrap(),

@@ -51,7 +51,7 @@ impl AccountDial {
                 tokens,
                 ..
             } => {
-                let username = config.imap.username.clone();
+                let username = config.username().to_owned();
                 // Calendar and contacts both talk to the same CalDAV host, so they run
                 // concurrently with mail rather than making the mailbox wait for either.
                 let (mail, calendar, contacts) = tokio::join!(
@@ -83,6 +83,7 @@ impl AccountDial {
                     .map(|failure| format!("{username}: {failure}"));
                 Ok(outcome(
                     id,
+                    on(Capability::Mail),
                     EmailAddress::new(username),
                     assembled,
                     calendar_error,
@@ -125,6 +126,7 @@ impl AccountDial {
                 let assembled = assemble(mail, calendar, contacts)?;
                 Ok(outcome(
                     id,
+                    on(Capability::Mail),
                     identity,
                     assembled,
                     None,
@@ -156,7 +158,14 @@ impl AccountDial {
                     ),
                 );
                 let assembled = assemble(mail, calendar, contacts)?;
-                Ok(outcome(id, identity, assembled, None, false))
+                Ok(outcome(
+                    id,
+                    on(Capability::Mail),
+                    identity,
+                    assembled,
+                    None,
+                    false,
+                ))
             }
             Self::Jmap { config, tokens, .. } => {
                 let identity = config.identity();
@@ -184,7 +193,14 @@ impl AccountDial {
                     Part::Off
                 };
                 let assembled = assemble(mail, calendar, contacts)?;
-                Ok(outcome(id, identity, assembled, None, false))
+                Ok(outcome(
+                    id,
+                    on(Capability::Mail),
+                    identity,
+                    assembled,
+                    None,
+                    false,
+                ))
             }
         }
     }
@@ -193,6 +209,7 @@ impl AccountDial {
 /// The dial's result, from what [`assemble`] kept.
 fn outcome(
     id: &AccountId,
+    uses_mail: bool,
     identity: EmailAddress,
     assembled: Assembled<
         Box<dyn engine_api::Provider>,
@@ -209,6 +226,8 @@ fn outcome(
             calendar_providers: assembled.calendar,
             contact_providers: assembled.contacts,
             identity,
+            dialled: true,
+            uses_mail,
         },
         calendar_error,
         calendar_reauth_required,

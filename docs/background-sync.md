@@ -37,6 +37,9 @@ They call it after the live IDLE/poll runtime publishes a mailbox change. It sca
 cache and shares the same persisted marks, so delivery and notification cadence remain the user's
 configured live-runtime cadence.
 
+It covers accounts used for mail only: an account used for its calendar or contacts alone has no
+Inbox to watch and no mail to report ([`accounts.md`](accounts.md)).
+
 It reports only mail received **after the core was built**. A desktop launch opens with a catch-up
 sync, and everything that sync commits is on screen in the list before a host could raise anything,
 so the catch-up advances the marks and announces nothing; opening the app after a weekend used to

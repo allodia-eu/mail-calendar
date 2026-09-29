@@ -223,8 +223,11 @@ impl<P: Provider> App<P> {
     pub async fn signatures(&self) -> SignaturesSnapshot {
         let accounts = self.account_handles().await;
         let guard = self.signatures.lock().expect("signatures mutex poisoned");
+        // A signature is added to mail the account sends, so only an account used for mail has
+        // slots.
         let rows = accounts
             .iter()
+            .filter(|account| account.uses_mail)
             .map(|account| {
                 let (new_message, reply_forward) = guard.assignments(account.id.as_str());
                 AccountSignatureRow {

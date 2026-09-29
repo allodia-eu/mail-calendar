@@ -213,7 +213,8 @@ fn a_rejected_replacement_keeps_the_registered_and_stored_password() {
             .expect("the displaced entry was restored")
             .0
             .imap
-            .password
+            .as_ref()
+            .and_then(|imap| imap.password.as_ref())
             .expect("a password account keeps its stored secret")
             .expose(),
         "old-password",
