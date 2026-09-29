@@ -435,16 +435,6 @@ struct AccountSetupDetectView: View {
         }
     }
 
-    /// The host of a discovered URL (CalDAV endpoint, JMAP base), for a compact confirmation
-    /// line, so an untrusted result's "check the server names" has a name to check; the full
-    /// URL is the fallback if it somehow doesn't parse.
-    private func urlHost(_ url: String) -> String {
-        URLComponents(string: url)?.host ?? url
-    }
-
-    /// The failure, in the transport's own words. Suppressed while a certificate panel is
-    /// up: that panel says the same thing in the reader's language and with the certificate
-    /// beside it, and the raw text under it is a second, worse copy of the question.
     /// The failure, in the transport's own words. Suppressed where a certificate panel is up:
     /// that panel says the same thing in the reader's language and with the certificate beside
     /// it, and the raw text under it is a second, worse copy of the question.
@@ -463,13 +453,6 @@ struct AccountSetupDetectView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(!enabled)
             }
-        }
-    }
-
-    private func progress(_ label: String) -> some View {
-        HStack(spacing: 8) {
-            ProgressView().controlSize(.small)
-            Text(label).foregroundStyle(.secondary)
         }
     }
 
@@ -507,38 +490,5 @@ struct AccountSetupDetectView: View {
             return .manual(reason, nil)
         }
         return .found(recommendation)
-    }
-}
-
-/// What to prefill in the manual form when the user edits a discovered config.
-private struct ManualPrefill {
-    var kind: AccountKind = .imap
-    var email = ""
-    var imapHost = ""
-    var smtpHost = ""
-    var jmapServer = ""
-}
-
-private func manualPrefill(_ edit: SetupRecommendation?, typedEmail: String) -> ManualPrefill {
-    switch edit {
-    case let .imap(email, imapHost, smtpHost, _, _, _, _, _, _, _, _):
-        return ManualPrefill(kind: .imap, email: email, imapHost: imapHost, smtpHost: smtpHost ?? "")
-    case let .jmap(email, serverURL, _, _):
-        return ManualPrefill(kind: .jmap, email: email, jmapServer: serverURL)
-    case let .microsoft(email):
-        return ManualPrefill(kind: .microsoft, email: email)
-    case let .google(email):
-        return ManualPrefill(kind: .google, email: email)
-    default:
-        return ManualPrefill(email: typedEmail)
-    }
-}
-
-/// The localised line explaining why detection sent the user to manual setup.
-private func reasonNote(_ reason: MissReason) -> String {
-    switch reason {
-    case .networkError: return L10n.setup_detect_reason_network()
-    case .oauthOnlyProvider: return L10n.setup_detect_reason_oauth_only()
-    case .nothingFound, .invalidEmail: return L10n.setup_detect_reason_nothing()
     }
 }
