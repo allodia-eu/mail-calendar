@@ -6,7 +6,7 @@
     xmlns:l10n="using:Allodia.Mailcal">
 
     <ScrollViewer>
-        <StackPanel MaxWidth="480" Margin="24" Spacing="12" HorizontalAlignment="Center">
+        <StackPanel x:Name="FormRoot" MaxWidth="480" Margin="24" Spacing="12" HorizontalAlignment="Center">
 
             <!-- Email-first detection step: type only an email; the shared core looks up the
                  provider's settings and routes to the prefilled form below. "Set up manually"
@@ -37,6 +37,8 @@
                     <TextBlock x:Name="DetectingText" VerticalAlignment="Center" Visibility="Collapsed"
                                Text="{x:Bind l10n:L10n.SetupDetectLooking()}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button x:Name="DetectCancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}"
+                            Visibility="{x:Bind Model.AddingAccountVisibility, Mode=OneWay}" Click="OnCancel" />
                     <Button x:Name="ManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual()}" Click="OnSetUpManually" />
                     <Button x:Name="ContinueButton" Content="{x:Bind l10n:L10n.SetupDetectAction()}"
                             Style="{StaticResource AccentButtonStyle}" IsEnabled="False" Click="OnContinueDetect" />
@@ -266,28 +268,38 @@
                     Title="{x:Bind l10n:L10n.SetupErrorTitle()}"
                     Message="{x:Bind Model.SetupError, Mode=OneWay}" />
 
-                <!-- Connect (IMAP/JMAP) or Sign in (Microsoft / Google); Cancel when adding another
+                <!-- Back to the address step at the start; Connect (IMAP/JMAP) or Sign in
+                     (Microsoft / Google) at the end, with Cancel beside it when adding another
                      account. The Google button's IsEnabled is driven in code-behind, it depends on
                      the Early Access checkbox as well as the submitting state. -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" VerticalAlignment="Center">
-                    <ProgressRing Width="20" Height="20" VerticalAlignment="Center"
-                                  IsActive="{x:Bind Model.IsSubmitting, Mode=OneWay}"
-                                  Visibility="{x:Bind Model.SubmittingVisibility, Mode=OneWay}" />
-                    <Button x:Name="CancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}"
-                            Visibility="{x:Bind Model.CancelVisibility, Mode=OneWay}"
-                            IsEnabled="{x:Bind Model.CancelEnabled, Mode=OneWay}" Click="OnCancel" />
-                    <Button x:Name="ConnectButton" Content="{x:Bind Model.ConnectButtonText, Mode=OneWay}"
-                            Style="{StaticResource AccentButtonStyle}"
-                            IsEnabled="False" Click="OnConnect" />
-                    <Button x:Name="MicrosoftButton" Content="{x:Bind l10n:L10n.SetupMicrosoftSignin()}"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Visibility="Collapsed"
-                            IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnSignInMicrosoft" />
-                    <Button x:Name="GoogleButton" Content="{x:Bind l10n:L10n.SetupGoogleSignin()}"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Visibility="Collapsed"
-                            IsEnabled="False" Click="OnSignInGoogle" />
-                </StackPanel>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="BackButton" Content="{x:Bind l10n:L10n.A11yBack()}"
+                            VerticalAlignment="Center"
+                            IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnBackToDetect" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" VerticalAlignment="Center">
+                        <ProgressRing Width="20" Height="20" VerticalAlignment="Center"
+                                      IsActive="{x:Bind Model.IsSubmitting, Mode=OneWay}"
+                                      Visibility="{x:Bind Model.SubmittingVisibility, Mode=OneWay}" />
+                        <Button x:Name="CancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}"
+                                Visibility="{x:Bind Model.CancelVisibility, Mode=OneWay}"
+                                IsEnabled="{x:Bind Model.CancelEnabled, Mode=OneWay}" Click="OnCancel" />
+                        <Button x:Name="ConnectButton" Content="{x:Bind Model.ConnectButtonText, Mode=OneWay}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                IsEnabled="False" Click="OnConnect" />
+                        <Button x:Name="MicrosoftButton" Content="{x:Bind l10n:L10n.SetupMicrosoftSignin()}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Visibility="Collapsed"
+                                IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnSignInMicrosoft" />
+                        <Button x:Name="GoogleButton" Content="{x:Bind l10n:L10n.SetupGoogleSignin()}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Visibility="Collapsed"
+                                IsEnabled="False" Click="OnSignInGoogle" />
+                    </StackPanel>
+                </Grid>
 
                 <!-- Advanced escape from a detected result: reveal the full account-type picker with
                      the detected settings prefilled, for users who want to edit servers or choose a

@@ -31,6 +31,22 @@ internal static class DialogHelper
     public static bool IsShowing => _open;
 
     /// <summary>
+    /// Completes once no dialog is open, for a caller that must not lose its question.
+    /// </summary>
+    /// <remarks>
+    /// <c>Hide()</c> does not close a dialog synchronously: <see cref="IsShowing"/> stays true
+    /// until the awaited show resumes, so a dialog raised in the same turn as another's close
+    /// would be dropped.
+    /// </remarks>
+    public static async Task WhenIdleAsync()
+    {
+        while (_open)
+        {
+            await Task.Delay(50);
+        }
+    }
+
+    /// <summary>
     /// Shows <paramref name="dialog"/>, or returns <c>None</c> if one is already open or this one
     /// has nowhere to open.
     /// </summary>

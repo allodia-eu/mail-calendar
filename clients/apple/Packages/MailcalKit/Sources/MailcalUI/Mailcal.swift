@@ -144,7 +144,8 @@ public struct ContentView: View {
                     },
                     detect: { email in await model.detectSetup(email: email) },
                     // The first account, so the recommendation is offered here and only here.
-                    onboarding: model
+                    onboarding: model,
+                    clearAttempt: clearSetupAttempt
                 )
             } else {
                 mainView

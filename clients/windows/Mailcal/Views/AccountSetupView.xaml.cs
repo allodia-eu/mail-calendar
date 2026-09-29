@@ -413,15 +413,13 @@ public sealed partial class AccountSetupView : UserControl
 
     // Cancel means "abort the browser sign-in" while one is outstanding (it can hang forever), and
     // "back out of adding an account" otherwise. During a sign-in this leaves the user on the form
-    // to retry; a second Cancel then backs out as usual.
+    // to retry; a second Cancel then backs out as usual. The address step's Cancel shares this
+    // handler, and nothing signs in from there.
     private void OnCancel(object sender, RoutedEventArgs e)
     {
         if (Model?.IsSigningIn == true)
         {
-            // Only one browser sign-in runs at a time; cancelling the others is a safe no-op.
-            Model.CancelMicrosoftSignIn();
-            Model.CancelGoogleSignIn();
-            Model.CancelJmapSignIn();
+            CancelSignIns();
         }
         else
         {
@@ -456,13 +454,7 @@ public sealed partial class AccountSetupView : UserControl
     private void ResetToDetect()
     {
         DetectEmail.Text = Model?.SetupStartEmail ?? string.Empty;
-        ClearManualFields();
-        _needsApproval = false;
-        ApprovalPanel.Visibility = Visibility.Collapsed;
-        DetectNote.Visibility = Visibility.Collapsed;
-        SetupPanel.Visibility = Visibility.Collapsed;
-        DetectPanel.Visibility = Visibility.Visible;
-        ContinueButton.IsEnabled = !string.IsNullOrWhiteSpace(DetectEmail.Text);
+        ShowDetectStep();
         // An offer opened from elsewhere, the Settings list, lands on its own route, the same as
         // one pressed on this screen.
         if (Model?.SetupStartOffer is { } offer)

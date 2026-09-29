@@ -51,6 +51,8 @@ struct AccountSetupView: View {
     var rejectedCertificate: RejectedCertificate? = nil
     /// Shown only when adding another account (the form as a sheet); `nil` on first run.
     var cancel: (() -> Void)? = nil
+    /// Back to the address step, when the email-first flow routed here.
+    var back: (() -> Void)? = nil
     /// Starts the Microsoft 365 sign-in (browser OAuth); the model handles the redirect.
     let signInMicrosoft: (String?) -> Void
     /// Starts the Google sign-in (browser OAuth); the model handles the redirect. Gated on the
@@ -111,6 +113,7 @@ struct AccountSetupView: View {
         error: String?,
         rejectedCertificate: RejectedCertificate? = nil,
         cancel: (() -> Void)? = nil,
+        back: (() -> Void)? = nil,
         signInMicrosoft: @escaping (String?) -> Void,
         signInGoogle: @escaping (String?) -> Void,
         signingIn: Bool = false,
@@ -130,6 +133,7 @@ struct AccountSetupView: View {
         self.error = error
         self.rejectedCertificate = rejectedCertificate
         self.cancel = cancel
+        self.back = back
         self.signInMicrosoft = signInMicrosoft
         self.signInGoogle = signInGoogle
         self.signingIn = signingIn
@@ -211,7 +215,7 @@ struct AccountSetupView: View {
                 )
             }
 
-            SetupFooter {
+            SetupFooter(back: back, backDisabled: connecting || signingIn || googleSigningIn) {
                 if let cancel {
                     Button(L10n.action_cancel()) { cancel() }
                 }
