@@ -45,7 +45,11 @@ fn provider(source: GraphContactSource) -> RefreshingGraphContactProvider {
 #[test]
 fn binds_the_default_folder_first_then_the_others_then_the_directory() {
     let root = root_book();
-    let sources = bound_sources(&root, [book("folder-b"), root.clone(), book("folder-a")]);
+    let sources = bound_sources(
+        &root,
+        [book("folder-b"), root.clone(), book("folder-a")],
+        true,
+    );
     assert_eq!(
         sources,
         vec![
@@ -63,7 +67,22 @@ fn binds_the_default_folder_first_then_the_others_then_the_directory() {
 fn never_binds_organisational_contacts() {
     let root = root_book();
     assert!(
-        !bound_sources(&root, [book("folder-a")]).contains(&GraphContactSource::Organizational)
+        !bound_sources(&root, [book("folder-a")], true)
+            .contains(&GraphContactSource::Organizational)
+    );
+}
+
+/// Colleagues are a choice of their own: without it the account reads its own folders and never
+/// the tenant directory, which is the permission a strict tenant is most likely to refuse.
+#[test]
+fn binds_the_directory_only_when_colleagues_were_chosen() {
+    let root = root_book();
+    assert_eq!(
+        bound_sources(&root, [book("folder-a")], false),
+        vec![
+            GraphContactSource::Personal(root),
+            GraphContactSource::Personal(book("folder-a")),
+        ],
     );
 }
 

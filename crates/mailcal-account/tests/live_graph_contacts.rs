@@ -81,7 +81,7 @@ async fn live_a_microsoft_account_binds_syncs_and_round_trips_an_edit() {
     let tokens = GraphTokenSource::new(&config, account.clone(), None, CredentialOrigin::Stored)
         .expect("token source");
 
-    let providers = connect_graph_contact_providers(&account, tokens)
+    let providers = connect_graph_contact_providers(&account, tokens, true)
         .await
         .expect("contacts connect");
     let first = providers.first().expect("at least the default folder");

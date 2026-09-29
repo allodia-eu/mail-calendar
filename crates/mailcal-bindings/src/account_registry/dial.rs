@@ -29,14 +29,14 @@
 
 use std::sync::Arc;
 
-use engine_api::{AccountId, EmailAddress, Provider, TimeZoneId};
+use engine_api::{EmailAddress, Provider};
 use futures::{StreamExt, stream};
 use mailcal_account::{
-    AccountConfig, AccountError, GraphTokenSource, ImapConnections, JmapAccountConfig,
+    AccountConfig, AccountError, Capabilities, Capability, GraphTokenSource, ImapConnections,
+    JmapAccountConfig,
 };
-use mailcal_app::Account;
 
-use crate::{BoxedAccount, ConnectedAccount, boot};
+use crate::{BoxedAccount, ConnectedAccount};
 
 /// The most accounts dialed at once, shared by every path that dials more than one.
 ///
@@ -83,6 +83,15 @@ pub(crate) struct ConnectFailure {
 }
 
 impl ConnectFailure {
+    /// A server that did not answer in time, which is an outage rather than a refused sign-in.
+    pub(crate) const fn unreachable(detail: String) -> Self {
+        Self {
+            detail,
+            signin_expired: false,
+            certificate: None,
+        }
+    }
+
     /// Whether the server refused the stored sign-in: the caller raises the reconnect prompt
     /// instead of an outage badge.
     pub(crate) const fn signin_expired(&self) -> bool {
@@ -154,6 +163,8 @@ pub(crate) enum AccountDial {
         connections: Arc<ImapConnections>,
         /// The shared token source, for an OAuth account only.
         tokens: Option<Arc<GraphTokenSource>>,
+        /// What the account is used for; a capability it is not used for is never opened.
+        capabilities: Capabilities,
     },
     /// A Microsoft account: bind its Graph folder providers through the shared token source.
     Microsoft {
@@ -161,6 +172,8 @@ pub(crate) enum AccountDial {
         tokens: Arc<GraphTokenSource>,
         /// The account's send/display identity (its Graph config carries no `imap.username`).
         identity: EmailAddress,
+        /// What the account is used for; a capability it is not used for is never opened.
+        capabilities: Capabilities,
     },
     /// A Google account: bind its account-global Gmail provider (+ calendar) through the shared
     /// token source.
@@ -169,6 +182,8 @@ pub(crate) enum AccountDial {
         tokens: Arc<GraphTokenSource>,
         /// The account's send/display identity (its Google config carries no `imap.username`).
         identity: EmailAddress,
+        /// What the account is used for; a capability it is not used for is never opened.
+        capabilities: Capabilities,
     },
     /// A JMAP account: dial its account-wide mail provider (+ calendar when advertised) from its
     /// config, minting a fresh access token first when the account is OAuth.
@@ -177,6 +192,8 @@ pub(crate) enum AccountDial {
         config: JmapAccountConfig,
         /// The shared token source, for an OAuth account only.
         tokens: Option<Arc<GraphTokenSource>>,
+        /// What the account is used for; a capability it is not used for is never opened.
+        capabilities: Capabilities,
     },
 }
 
@@ -193,19 +210,33 @@ impl AccountDial {
                 config: config.clone(),
                 connections: Arc::clone(connections),
                 tokens: tokens.clone(),
+                capabilities: config.capabilities(),
             },
             ConnectedAccount::Microsoft { config, tokens } => Self::Microsoft {
                 tokens: Arc::clone(tokens),
                 identity: config.identity(),
+                capabilities: config.capabilities(),
             },
             ConnectedAccount::Google { config, tokens } => Self::Google {
                 tokens: Arc::clone(tokens),
                 identity: config.identity(),
+                capabilities: config.capabilities(),
             },
             ConnectedAccount::Jmap { config, tokens } => Self::Jmap {
                 config: config.clone(),
                 tokens: tokens.clone(),
+                capabilities: config.capabilities(),
             },
+        }
+    }
+
+    /// What the account is used for.
+    pub(crate) const fn capabilities(&self) -> &Capabilities {
+        match self {
+            Self::Imap { capabilities, .. }
+            | Self::Microsoft { capabilities, .. }
+            | Self::Google { capabilities, .. }
+            | Self::Jmap { capabilities, .. } => capabilities,
         }
     }
 
@@ -242,11 +273,15 @@ impl AccountDial {
     /// connector had grown a private enum with the same four variants, cloned out of the registry
     /// the same way. That was the fifth copy.
     pub(crate) async fn connect_folder(self, mailbox_key: &str) -> Option<Box<dyn Provider>> {
+        if !self.capabilities().contains(Capability::Mail) {
+            return None;
+        }
         match self {
             Self::Imap {
                 config,
                 connections,
                 tokens,
+                ..
             } => mailcal_account::connect_imap_mailbox(
                 &connections,
                 &config,
@@ -265,151 +300,10 @@ impl AccountDial {
                 mailcal_account::connect_google_folder(tokens, None).ok()
             }
             // JMAP's provider is account-wide for the same reason.
-            Self::Jmap { config, tokens } => {
+            Self::Jmap { config, tokens, .. } => {
                 mailcal_account::connect_jmap_folder(&config, tokens.as_ref())
                     .await
                     .ok()
-            }
-        }
-    }
-
-    /// Opens the account's providers: mail, plus calendar and contacts where it has them.
-    ///
-    /// `display_zone` is the `Prefer: outlook.timezone` a Microsoft account binds its Graph
-    /// calendar with. A calendar failure is non-fatal and reported in the [`DialOutcome`]; a
-    /// **mail** failure is the whole account's failure.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ConnectFailure`] when the mail connect fails, carrying whether the stored sign-in
-    /// is dead rather than the server unreachable.
-    pub(crate) async fn run(
-        self,
-        id: &AccountId,
-        display_zone: TimeZoneId,
-    ) -> Result<DialOutcome, ConnectFailure> {
-        match self {
-            Self::Imap {
-                config,
-                connections,
-                tokens,
-            } => {
-                let providers = mailcal_account::connect_mail_providers(
-                    &connections,
-                    &config,
-                    tokens.as_ref(),
-                    id,
-                )
-                .await
-                .map_err(ConnectFailure::from)?;
-                // Calendar and contacts are optional side quests off the mail path, and both talk
-                // to the same CalDAV host: so run them CONCURRENTLY rather than
-                // making the mailbox wait for one and then the other.
-                let (calendar, contact_providers) = tokio::join!(
-                    async {
-                        let mut calendar_error = None;
-                        let providers: Vec<Box<dyn Provider>> = if config.caldav.is_some() {
-                            match mailcal_account::connect_caldav(&config, tokens.as_ref()).await {
-                                Ok(provider) => vec![provider],
-                                Err(err) => {
-                                    calendar_error =
-                                        Some(format!("{}: {err}", config.imap.username));
-                                    Vec::new()
-                                }
-                            }
-                        } else {
-                            Vec::new()
-                        };
-                        (providers, calendar_error)
-                    },
-                    boot::connect_caldav_contacts(&config, tokens.as_ref()),
-                );
-                let (calendar_providers, calendar_error) = calendar;
-                Ok(DialOutcome {
-                    account: Account {
-                        id: id.clone(),
-                        providers,
-                        calendar_providers,
-                        contact_providers,
-                        identity: EmailAddress::new(config.imap.username.clone()),
-                    },
-                    calendar_error,
-                    calendar_reauth_required: false,
-                })
-            }
-            Self::Microsoft { tokens, identity } => {
-                let providers =
-                    mailcal_account::connect_graph_mail_providers(id, Arc::clone(&tokens), None)
-                        .await
-                        .map_err(ConnectFailure::from)?;
-                // The same Graph token also syncs the calendar and contacts, concurrently and
-                // each non-fatally (mail up, empty agenda or address book). A scope-denied `403`
-                // on the calendar sets `calendar_reauth_required`.
-                let (calendar, contact_providers) = tokio::join!(
-                    boot::connect_graph_calendars(id, Arc::clone(&tokens), display_zone),
-                    boot::connect_graph_contacts(id, tokens),
-                );
-                let (calendar_providers, calendar_reauth_required) = calendar;
-                Ok(DialOutcome {
-                    account: Account {
-                        id: id.clone(),
-                        providers,
-                        calendar_providers,
-                        contact_providers,
-                        identity,
-                    },
-                    calendar_error: None,
-                    calendar_reauth_required,
-                })
-            }
-            Self::Google { tokens, identity } => {
-                let providers =
-                    mailcal_account::connect_google_mail_providers(Arc::clone(&tokens), None)
-                        .await
-                        .map_err(ConnectFailure::from)?;
-                // Google requests every scope at sign-in, so there is no "connected before
-                // calendar support" case and never a calendar re-consent to report. Calendar
-                // and contacts are optional side quests off the mail path and both spend the
-                // same token, so run them CONCURRENTLY rather than making the mailbox wait for
-                // one and then the other.
-                let (calendar_providers, contact_providers) = tokio::join!(
-                    boot::connect_google_calendars(id, Arc::clone(&tokens)),
-                    boot::connect_google_contacts(tokens),
-                );
-                Ok(DialOutcome {
-                    account: Account {
-                        id: id.clone(),
-                        providers,
-                        calendar_providers,
-                        contact_providers,
-                        identity,
-                    },
-                    calendar_error: None,
-                    calendar_reauth_required: false,
-                })
-            }
-            Self::Jmap { config, tokens } => {
-                let identity = config.identity();
-                let providers =
-                    mailcal_account::connect_jmap_mail_providers(&config, tokens.as_ref())
-                        .await
-                        .map_err(ConnectFailure::from)?;
-                // JMAP serves calendars from the same account when the session advertises them.
-                let calendar_providers =
-                    boot::connect_jmap_calendars(&config, tokens.as_ref(), &providers).await;
-                let contact_providers =
-                    boot::connect_jmap_contacts(&config, tokens.as_ref(), &providers).await;
-                Ok(DialOutcome {
-                    account: Account {
-                        id: id.clone(),
-                        providers,
-                        calendar_providers,
-                        contact_providers,
-                        identity,
-                    },
-                    calendar_error: None,
-                    calendar_reauth_required: false,
-                })
             }
         }
     }

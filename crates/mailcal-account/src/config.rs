@@ -301,6 +301,23 @@ impl AccountConfig {
         }
     }
 
+    /// What this account is used for: its stored choice, or what the kind has always meant (mail,
+    /// plus the calendar and the address book beside it when a calendar endpoint is
+    /// configured).
+    #[must_use]
+    pub fn capabilities(&self) -> crate::Capabilities {
+        let with_dav = self.caldav.is_some();
+        self.shape.capabilities_or(
+            [
+                Some(crate::Capability::Mail),
+                with_dav.then_some(crate::Capability::Calendar),
+                with_dav.then_some(crate::Capability::Contacts),
+            ]
+            .into_iter()
+            .flatten(),
+        )
+    }
+
     /// This account's id: the one pinned in its stored config when there is one, and otherwise
     /// the one [`derived_account_id`](Self::derived_account_id) derives. A pinned id is what lets
     /// the settings it was derived from be edited without the account becoming another one.

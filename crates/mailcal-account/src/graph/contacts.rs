@@ -240,7 +240,8 @@ impl ContactsProvider for RefreshingGraphContactProvider {
 }
 
 /// Connects the Graph contact adapters a Microsoft account syncs its address books through:
-/// one per personal contacts folder, then the tenant directory.
+/// one per personal contacts folder, then the tenant directory when `directory` says the person
+/// chose colleagues from their organisation.
 ///
 /// One token is minted here and seeded into every provider, so the fan-out costs a single
 /// refresh, and each provider answers its synchronous questions from the moment it is bound.
@@ -253,6 +254,7 @@ impl ContactsProvider for RefreshingGraphContactProvider {
 pub async fn connect_graph_contact_providers(
     account_id: &AccountId,
     tokens: Arc<GraphTokenSource>,
+    directory: bool,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
     let tls = tls_with(&[])?;
     let token = tokens.access_token().await?;
@@ -278,7 +280,7 @@ pub async fn connect_graph_contact_providers(
             return Err(AccountError::Graph(unavailable.reason));
         }
     };
-    let sources = bound_sources(&root_book, books.into_iter().map(|book| book.id));
+    let sources = bound_sources(&root_book, books.into_iter().map(|book| book.id), directory);
     let mut providers: Vec<Box<dyn ContactsProvider>> = Vec::with_capacity(sources.len());
     for source in sources {
         let delegate = Arc::new(build(&source, &token, &tls, &tokens.retry()).map_err(graph)?);
@@ -293,10 +295,12 @@ pub async fn connect_graph_contact_providers(
 }
 
 /// The sources an account binds, in binding order: the default contacts folder first, so it is
-/// the create target a client preselects; then the other folders; then the directory.
+/// the create target a client preselects; then the other folders; then the directory, when the
+/// person chose colleagues from their organisation.
 fn bound_sources(
     root: &AddressBookId,
     discovered: impl IntoIterator<Item = AddressBookId>,
+    directory: bool,
 ) -> Vec<GraphContactSource> {
     let mut sources = vec![GraphContactSource::Personal(root.clone())];
     sources.extend(
@@ -305,7 +309,9 @@ fn bound_sources(
             .filter(|book| book != root)
             .map(GraphContactSource::Personal),
     );
-    sources.push(GraphContactSource::Directory);
+    if directory {
+        sources.push(GraphContactSource::Directory);
+    }
     sources
 }
 
