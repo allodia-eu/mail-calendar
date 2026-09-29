@@ -272,50 +272,6 @@ public sealed partial class AccountSetupView : UserControl
         : GoogleChoice?.IsChecked == true ? DetectTab.Google
         : DetectTab.Imap;
 
-    /// <summary>
-    /// What the certificate claims about itself, one claim per line. Absent claims are left out
-    /// rather than shown empty; the fingerprint is always there, because it is taken over the
-    /// bytes rather than read out of them. Dates are formatted here, from the epoch seconds the
-    /// core sends (docs/timestamps.md).
-    /// </summary>
-    private static string CertificateClaimLines(RejectedCertificate certificate)
-    {
-        var lines = new List<string>();
-        var subject = Party(certificate.SubjectCommonName, certificate.SubjectOrganisation);
-        if (subject is not null)
-        {
-            lines.Add($"{L10n.SetupCertificateIssuedTo()}: {subject}");
-        }
-        var issuer = Party(certificate.IssuerCommonName, certificate.IssuerOrganisation);
-        if (issuer is not null)
-        {
-            lines.Add($"{L10n.SetupCertificateIssuedBy()}: {issuer}");
-        }
-        if (certificate.NotBefore is { } from && certificate.NotAfter is { } until)
-        {
-            lines.Add($"{L10n.SetupCertificateValid()}: {Day(from)} – {Day(until)}");
-        }
-        lines.Add($"{L10n.SetupCertificateFingerprint()}: {certificate.Sha256}");
-        return string.Join(Environment.NewLine, lines);
-    }
-
-    // The process culture is already pinned to the app's language choice (AppCulture), so the
-    // long-date format follows the words on screen rather than the host's region.
-    private static string Day(long epochSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(epochSeconds).ToLocalTime().ToString("D");
-
-    /// <summary>
-    /// "name (organisation)", or whichever of the two the certificate carries. <c>null</c> when it
-    /// names neither, which is when there is nothing to show rather than an empty line.
-    /// </summary>
-    private static string? Party(string? commonName, string? organisation) => (commonName, organisation) switch
-    {
-        (not null, not null) => $"{commonName} ({organisation})",
-        (not null, null) => commonName,
-        (null, not null) => organisation,
-        _ => null,
-    };
-
     // What gates Connect depends on the active tab and, for a detected result, the approval: IMAP
     // needs mail server + email + password; JMAP needs email + one secret (server is discovered);
     // an untrusted result also needs the approval box. A connect in flight disables it.
