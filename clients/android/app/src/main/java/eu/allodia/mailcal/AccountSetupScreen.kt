@@ -195,7 +195,7 @@ internal fun AccountSetupScreen(
     // password somebody is in the middle of typing), so an answer can only ever *add* the button
     // or a line of explanation.
     if (onCheckImapAuth != null) {
-        androidx.compose.runtime.LaunchedEffect(kind, username, imapHost) {
+        androidx.compose.runtime.LaunchedEffect(kind, username, imapHost, servers) {
             imapAuth = ImapAuthState.Password
             if (kind != AccountKind.PASSWORD || !username.contains('@') || imapHost.isBlank()) {
                 return@LaunchedEffect
@@ -203,7 +203,7 @@ internal fun AccountSetupScreen(
             kotlinx.coroutines.delay(JMAP_SIGNIN_PROBE_DEBOUNCE_MS)
             imapAuth = ImapAuthState.of(
                 onCheckImapAuth(
-                    typedImapLoginRequest(username, imapHost, smtpHost, caldavBaseUrl)
+                    typedImapLoginRequest(username, imapHost, smtpHost, caldavBaseUrl, servers)
                 )
             )
         }
@@ -310,7 +310,7 @@ internal fun AccountSetupScreen(
                         label = L10n.setup_imap_signin_button(ctx),
                     ) {
                         onSignInImap(
-                            typedImapLoginRequest(username, imapHost, smtpHost, caldavBaseUrl)
+                            typedImapLoginRequest(username, imapHost, smtpHost, caldavBaseUrl, servers)
                         )
                     }
                 }

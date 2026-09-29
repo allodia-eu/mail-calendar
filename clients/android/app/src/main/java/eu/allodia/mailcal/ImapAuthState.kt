@@ -8,7 +8,6 @@
 // Compose-free, so the JVM suite drives it without composing anything.
 package eu.allodia.mailcal
 
-import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.ImapAuthOffer
 import uniffi.mailcal_bindings.ImapLoginRequest
 import uniffi.mailcal_bindings.SetupRecommendation
@@ -78,14 +77,14 @@ internal fun typedImapLoginRequest(
     imapHost: String,
     smtpHost: String,
     caldavUrl: String,
+    servers: ManualServerPair,
 ): ImapLoginRequest = ImapLoginRequest(
     email = email,
-    imapHost = imapHost,
-    smtpHost = smtpHost.ifBlank { null },
+    // The port and security the person chose for each server, as the Connect button submits them.
+    imapHost = servers.imap.dial(imapHost),
+    smtpHost = smtpHost.ifBlank { null }?.let { servers.smtp.dial(it) },
     caldavBaseUrl = caldavUrl.ifBlank { null },
-    // The manual form is implicit-TLS only; a STARTTLS server arrives through autodetection
-    // (docs/account-autodetect.md → Known gaps).
-    imapSecurity = ConnectionSecurity.IMPLICIT_TLS,
-    smtpSecurity = ConnectionSecurity.IMPLICIT_TLS,
+    imapSecurity = servers.imap.security,
+    smtpSecurity = servers.smtp.security,
     oauthIssuer = null,
 )

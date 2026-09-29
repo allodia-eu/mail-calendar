@@ -455,44 +455,6 @@ private fun ServerRow(row: uniffi.mailcal_bindings.DetectedServerRow) {
     )
 }
 
-// A small section header, e.g. "✉  Email" / "📅  Calendar", grouping the found card.
-@Composable
-private fun SectionHeader(icon: String, label: String) {
-    Text("$icon $label", style = MaterialTheme.typography.titleSmall)
-}
-
-// The Calendar section of the found card. When detection discovered a CalDAV endpoint the
-// toggle is pre-checked (opt-out) and its host is shown; otherwise it's an opt-in toggle that
-// reveals a manual CalDAV field. Calendar reuses the IMAP credentials at connect.
-@Composable
-private fun CalendarSection(
-    discovered: String?,
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    url: String,
-    onUrlChange: (String) -> Unit,
-) {
-    val ctx = LocalContext.current
-    SectionHeader("📅", L10n.setup_detect_section_calendar(ctx))
-    val label = if (discovered != null) L10n.setup_detect_calendar_enable(ctx) else L10n.setup_detect_calendar_add(ctx)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = enabled, onCheckedChange = onEnabledChange)
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-    }
-    if (enabled) {
-        if (discovered != null) {
-            Text(urlHost(discovered), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            SetupField(url, onUrlChange, L10n.setup_field_caldav(ctx), L10n.setup_hint_caldav(ctx))
-        }
-    }
-}
-
-// The host of a discovered URL (CalDAV endpoint, JMAP base), for a compact confirmation line:
-// so an untrusted result's "check the server names" has a name to check; the full URL is the
-// fallback if it somehow doesn't parse.
-private fun urlHost(url: String): String = runCatching { java.net.URI(url).host }.getOrNull() ?: url
-
 @Composable
 private fun UntrustedApproval(needed: Boolean, approved: Boolean, onApprove: (Boolean) -> Unit) {
     if (!needed) return

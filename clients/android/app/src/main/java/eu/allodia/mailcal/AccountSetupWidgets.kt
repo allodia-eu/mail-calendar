@@ -16,13 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -36,8 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountSetup
 import uniffi.mailcal_bindings.JmapSetup
@@ -172,43 +168,4 @@ internal fun ConnectButton(
             Text(label)
         }
     }
-}
-
-// A single-line text field for the setup form; [placeholder] is shown when empty and
-// [keyboardType] tailors the soft keyboard (email/password vs. plain text).
-@androidx.compose.runtime.Composable
-internal fun SetupField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    placeholder: String? = null,
-    keyboardType: KeyboardType = KeyboardType.Text,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        label = { Text(label) },
-        placeholder = placeholder?.let { text -> { Text(text) } },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-    )
-}
-
-// A single-line, masked field for a password or API token in the setup form.
-@androidx.compose.runtime.Composable
-internal fun PasswordField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        label = { Text(label) },
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-    )
 }

@@ -10,7 +10,7 @@
 package eu.allodia.mailcal
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -87,7 +87,8 @@ class AccountSetupImapSignInTest {
             )
         )
         typeAccount()
-        compose.onNodeWithText(SIGN_IN).assertIsDisplayed()
+        // Scrolled to: the port and security rows push it down a scrolling form.
+        compose.onNodeWithText(SIGN_IN).performScrollTo().assertIsDisplayed()
         // Scrolled to rather than merely asserted: the explanation and the button push it down a
         // scrolling form, and "off the bottom" is not the same as "gone".
         compose.onNodeWithText(FIELD_PASSWORD).performScrollTo().assertIsDisplayed()
@@ -116,7 +117,7 @@ class AccountSetupImapSignInTest {
             )
         )
         typeAccount()
-        compose.onNodeWithText(SIGN_IN).performClick()
+        compose.onNodeWithText(SIGN_IN).performScrollTo().performClick()
         compose.waitForIdle()
 
         assertEquals(1, signInStarts.size)
