@@ -49,6 +49,8 @@ fn config() -> Option<MicrosoftConfig> {
         redirect_uri: "http://localhost".to_owned(),
         scopes,
         refresh_token: Secret::new(var("MS_REFRESH_TOKEN")?),
+        granted_scopes: None,
+        shape: mailcal_account::AccountShape::default(),
     })
 }
 

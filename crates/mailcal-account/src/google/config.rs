@@ -57,9 +57,33 @@ pub struct GoogleConfig {
     /// The OAuth refresh token: the only stored secret; access tokens are minted from it at
     /// connect time and never persisted.
     pub refresh_token: Secret,
+    /// The scopes the provider actually granted, from the token response, which may be fewer
+    /// than were requested: a person can untick one on the consent screen. `None` for a grant
+    /// stored before this was recorded, which is read as withholding nothing.
+    #[serde(default)]
+    pub granted_scopes: Option<Vec<String>>,
+    /// What the account is used for, its pinned id and its links: the keys every kind shares at
+    /// the document's root ([`AccountShape`](crate::AccountShape)). Read by the loader beside the
+    /// kind's own section.
+    #[serde(skip)]
+    pub shape: crate::AccountShape,
 }
 
 impl GoogleConfig {
+    /// This account's id: the one pinned in its stored config when there is one, and otherwise
+    /// the one [`derived_account_id`](Self::derived_account_id) derives. A pinned id is what lets
+    /// the settings it was derived from be edited without the account becoming another one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IdError`] only if there is no pinned id and the derived one is empty.
+    pub fn account_id(&self) -> Result<AccountId, IdError> {
+        match &self.shape.id {
+            Some(id) => Ok(id.clone()),
+            None => self.derived_account_id(),
+        }
+    }
+
     /// Derives this account's stable [`AccountId`] from its **lowercased address** plus the
     /// Google host sentinel; stable across launches, and distinct from an IMAP (or Microsoft)
     /// account for the same address (see `GOOGLE_ID_HOST`).
@@ -67,7 +91,7 @@ impl GoogleConfig {
     /// # Errors
     ///
     /// Returns [`IdError`] only if the address is empty (an empty id).
-    pub fn account_id(&self) -> Result<AccountId, IdError> {
+    pub fn derived_account_id(&self) -> Result<AccountId, IdError> {
         let email = self.email.trim().to_lowercase();
         AccountId::try_from(format!("{email}@{GOOGLE_ID_HOST}").as_str())
     }
@@ -118,7 +142,14 @@ impl GoogleConfig {
             "refresh_token".into(),
             self.refresh_token.expose().to_owned().into(),
         );
+        if let Some(granted) = &self.granted_scopes {
+            google.insert(
+                "granted_scopes".into(),
+                toml::Value::Array(granted.iter().map(|s| s.clone().into()).collect()),
+            );
+        }
         let mut root = toml::Table::new();
+        self.shape.write_into(&mut root);
         root.insert("google".into(), google.into());
         Ok(toml::to_string(&root)?)
     }
@@ -138,7 +169,9 @@ struct GoogleDocument {
 /// Returns [`ConfigError::Parse`] if the text is not a valid `[google]` config.
 pub fn load_google_str(text: &str) -> Result<GoogleConfig, ConfigError> {
     let doc: GoogleDocument = toml::from_str(text)?;
-    Ok(doc.google)
+    let mut config = doc.google;
+    config.shape = crate::AccountShape::read(text)?;
+    Ok(config)
 }
 
 /// Looks up the signed-in account's own email address via the Gmail `users/me/profile`
@@ -193,6 +226,8 @@ mod tests {
                 "https://www.googleapis.com/auth/calendar".to_owned(),
             ],
             refresh_token: Secret::new("secret-refresh-token".to_owned()),
+            granted_scopes: None,
+            shape: crate::AccountShape::default(),
         }
     }
 

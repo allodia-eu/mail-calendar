@@ -166,6 +166,8 @@ pub(crate) async fn authorize(
         redirect_uri: pending.redirect_uri,
         scopes: pending.scopes,
         refresh_token: Secret::new(refresh_token.expose().to_owned()),
+        granted_scopes: None,
+        shape: mailcal_account::AccountShape::default(),
     };
     Ok(GoogleAuthorized {
         config,

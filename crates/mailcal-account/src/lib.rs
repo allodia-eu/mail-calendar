@@ -8,6 +8,7 @@
 //! so it stays out of logs (see [`Secret`]) and out of version control: a real host
 //! uses the OS keychain; the `probe` binary reads a gitignored file outside the repo.
 
+mod account_shape;
 mod autodetect;
 mod calendar;
 mod calendar_drag;
@@ -44,6 +45,7 @@ mod signatures;
 mod throttle;
 mod tls;
 
+pub use account_shape::{AccountLinks, AccountShape, Capabilities, Capability};
 pub use autodetect::{MissReason, OauthRoutes, ServerSummary, SetupRecommendation, recommend};
 pub use calendar::{EventEdit, build_event_deletion, build_event_draft, build_event_patch};
 pub use calendar_drag::{
