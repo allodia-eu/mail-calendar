@@ -49,7 +49,7 @@ pub(crate) struct HostDevice {
 // detection, plus the FFI-surface tests.
 pub(crate) use connect::{connect_google_calendars, connect_jmap_calendars};
 pub(crate) use contacts::{
-    connect_caldav_contacts, connect_google_contacts, connect_jmap_contacts,
+    connect_caldav_contacts, connect_google_contacts, connect_graph_contacts, connect_jmap_contacts,
 };
 // The in-memory demo/showcase builders (no real account, no network) live in their own module.
 pub(crate) use inmemory::{build_demo, build_showcase, build_showcase_first_run};

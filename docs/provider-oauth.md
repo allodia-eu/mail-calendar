@@ -283,13 +283,11 @@ capturing the redirect), because that is inherently platform-specific.
     "Yes" there would put every user in such a tenant behind their administrator before they
     could connect.
 
-    **Contacts are requested read *and* write although the product only reads them.** Widening a
-    scope later costs every existing account a forced re-authentication (rule 11), so a capability
-    we know is coming is cheaper to ask for once, up front. The consent screen says "full access
-    to your contacts" and the app does less than that; what bounds it is
-    [`privacy-policy.md`](privacy-policy.md), which states the read-only behaviour plainly and
-    explains the gap. If contact editing is ever dropped, narrow both back to their read-only
-    spellings (`Contacts.Read`, `contacts.readonly`).
+    **Contacts are requested read *and* write because the app adds and edits them.** It never
+    deletes one, which the consent screen's "full access to your contacts" would allow; what
+    bounds that is [`privacy-policy.md`](privacy-policy.md), which says so plainly. If contact
+    editing is ever dropped, narrow both back to their read-only spellings (`Contacts.Read`,
+    `contacts.readonly`).
 
     **All three OAuth providers moved together, deliberately.** Microsoft requests
     `Contacts.ReadWrite` + `User.ReadBasic.All`; Google requests `contacts`,

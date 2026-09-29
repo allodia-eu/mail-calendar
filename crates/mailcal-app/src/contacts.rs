@@ -137,7 +137,7 @@ impl<P: Provider> App<P> {
         } else {
             // `{contributing} of {total}` rather than a single account count, because the gap
             // between them is itself a finding: three accounts and one contributing is either
-            // expected (two are Graph/Google) or the bug being reported.
+            // expected (two are IMAP accounts with no CardDAV endpoint) or the bug being reported.
             log::info!(
                 "refresh_contacts: {sources} source(s) on {contributing} of {} account(s); \
                  {synced} synced, {unavailable} unavailable, {failed} failed in {}ms",
