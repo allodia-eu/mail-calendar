@@ -159,7 +159,7 @@ extension MailboxModel {
     /// same; Windows reads its whole dev namespace, which its own store's per-mode isolation makes
     /// safe there.
     private func storedDevConfigs() -> [String] {
-        KeychainStore.configs().filter { isAllodiaAccountConfig(config: $0) }
+        KeychainStore.configs().filter { isReservedConfig(config: $0) }
     }
 }
 #endif

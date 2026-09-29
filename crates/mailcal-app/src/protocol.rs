@@ -73,6 +73,9 @@ pub enum Surface {
     /// screen at the same time and mean opposite things: a composer can be saving a draft
     /// while an earlier message is still going out.
     DraftStatus,
+    /// The Writing style surface (pulled via `App::writing_styles`): the learned styles, which
+    /// account drafts in which, whether AI is available, and a learning run's progress.
+    WritingStyle,
 }
 
 /// A host implements this to learn a [`Surface`] changed, then pulls its snapshot.

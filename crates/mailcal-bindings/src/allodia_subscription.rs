@@ -383,7 +383,8 @@ mod from_license {
                 Refusal::NotSwitchable => Self::NotSwitchable,
                 Refusal::NotFound => Self::NotFound,
                 Refusal::Unavailable => Self::Unavailable,
-                Refusal::Other(_) => Self::Other,
+                // A writing-style refusal; no subscription call is ever answered with it.
+                Refusal::TooManyStyles | Refusal::Other(_) => Self::Other,
             }
         }
     }

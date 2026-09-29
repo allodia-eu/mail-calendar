@@ -67,8 +67,9 @@ impl MailcalApp {
     /// what could not be decided without them.
     ///
     /// This device's own half is done before this returns: an account the service has not seen is
-    /// uploaded, one changed here is pushed, one the service already holds is adopted. What comes
-    /// back is the part that needs a person.
+    /// uploaded, one changed here is pushed, one the service already holds is adopted. When the
+    /// sign-in includes it, the writing styles follow in both directions, their names and guides
+    /// and never their passages. What comes back is the part that needs a person.
     ///
     /// **Blocking**; call it off the main thread.
     ///
@@ -85,6 +86,35 @@ impl MailcalApp {
         #[cfg(feature = "allodia-license")]
         {
             self.run_allodia_pass()
+        }
+    }
+
+    /// Settles a writing style changed both here and on another device, which a pass reported in
+    /// [`AllodiaSyncReport::style_conflicts`]. `keep_this_device` writes this device's version
+    /// over the service's current one; otherwise the service's replaces this device's. The
+    /// style's passages and the accounts that draft in it stay as they are either way.
+    ///
+    /// **Blocking**; call it off the main thread.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Config`] when this build carries no Allodia sign-in, nobody is
+    /// signed in, no bookkeeping store has been installed, or the style has never been synced;
+    /// [`MailcalError::Connect`] when the service could not be reached, refused this device's
+    /// sign-in or the write, or the sign-in does not include syncing writing styles.
+    pub fn resolve_writing_style_conflict(
+        &self,
+        style_id: String,
+        keep_this_device: bool,
+    ) -> Result<(), MailcalError> {
+        #[cfg(not(feature = "allodia-license"))]
+        {
+            drop((style_id, keep_this_device));
+            crate::app_allodia::unavailable()
+        }
+        #[cfg(feature = "allodia-license")]
+        {
+            self.run_style_conflict_resolution(&style_id, keep_this_device)
         }
     }
 
@@ -234,7 +264,9 @@ mod enabled {
                 local.len(),
                 remote.accounts.len(),
             );
-            Ok(pass.apply(&local, &remote))
+            let mut report = pass.apply(&local, &remote);
+            report.style_conflicts = self.sync_writing_styles(&pass);
+            Ok(report)
         }
 
         /// Move one account to `mode`, doing whatever that position takes.

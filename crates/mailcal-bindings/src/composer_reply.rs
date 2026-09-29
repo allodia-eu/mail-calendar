@@ -64,6 +64,7 @@ impl MailcalApp {
             document,
             blobs,
             composition: sent_composition(composition)?,
+            ai_draft: crate::composer::ai_draft_of(&document_json),
         });
         Ok(())
     }

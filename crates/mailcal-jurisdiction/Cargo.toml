@@ -1,0 +1,19 @@
+[package]
+name = "mailcal-jurisdiction"
+description = "The jurisdiction gate: the in-process check every external dispatch passes before data leaves the device. Decides, never sends: no network, no I/O."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+# The mode is a stored preference and the class a stored declaration, so both round-trip through
+# the preferences file.
+serde = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }
+
+[lints]
+workspace = true

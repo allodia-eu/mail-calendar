@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Allodia
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Where a device remembers what it knows about syncing its accounts.
+//! Where a device remembers what it knows about syncing its accounts and its writing styles.
 //!
 //! One blob rather than an entry per account, and it is written whole. What it holds is a *set* of
 //! relationships (an id claimed here is an id not offered there) so a half-written map is worse
@@ -126,6 +126,23 @@ struct Blob {
     /// Minted when an upload is first attempted, reused by every retry of *that* upload, and
     /// dropped the moment the service confirms it. An account with no entry here is one whose next
     /// create is genuinely new.
+    #[serde(default)]
+    pending_creates: std::collections::BTreeMap<String, String>,
+    /// What this device knows about its writing styles, apart from the accounts: a style's id and
+    /// an account's are different things, and one map would let either be read as the other.
+    /// Absent from a blob written before styles were synced.
+    #[serde(default)]
+    styles: StyleEntries,
+}
+
+/// The writing styles' half of the blob: the same two things the accounts keep, for the same
+/// reasons.
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+struct StyleEntries {
+    /// Style id to what this device knows about it.
+    #[serde(default)]
+    entries: Entries,
+    /// The idempotency key of a create attempted and not yet confirmed, per style.
     #[serde(default)]
     pending_creates: std::collections::BTreeMap<String, String>,
 }
@@ -259,10 +276,10 @@ impl SyncBookkeeping {
 
     /// Forget every conversation this device has had with the service, on sign-out.
     ///
-    /// The entries and the in-flight creates describe **one Allodia account's** records, so they
-    /// mean nothing to the next sign-in and are actively wrong if it is a different account: an id
-    /// that matches no record claims nothing, and a device that claims nothing is offered back the
-    /// mail accounts it already has.
+    /// The entries and the in-flight creates, for accounts and styles alike, describe **one Allodia
+    /// account's** records, so they mean nothing to the next sign-in and are actively wrong if it
+    /// is a different account: an id that matches no record claims nothing, and a device that
+    /// claims nothing is offered back the mail accounts it already has.
     ///
     /// **The exclusions stay.** They are not a conversation with the service; they are what the
     /// person answered about *this device's* mail accounts, and dropping them would put an account
@@ -277,6 +294,84 @@ impl SyncBookkeeping {
         self.write(|blob| {
             blob.accounts.clear();
             blob.pending_creates.clear();
+            blob.styles = StyleEntries::default();
+        })
+    }
+
+    /// What this device knows about the writing style `style_id`.
+    pub fn style(&self, style_id: &str) -> Option<StoredSyncState> {
+        self.blob
+            .lock()
+            .expect("sync bookkeeping lock")
+            .styles
+            .entries
+            .get(style_id)
+            .cloned()
+    }
+
+    /// Every writing style's entry.
+    pub fn styles(&self) -> Entries {
+        self.blob
+            .lock()
+            .expect("sync bookkeeping lock")
+            .styles
+            .entries
+            .clone()
+    }
+
+    /// Records what this device now knows about a writing style, and writes it through.
+    ///
+    /// # Errors
+    ///
+    /// As [`SyncBookkeeping::set`].
+    pub fn set_style(&self, style_id: &str, state: StoredSyncState) -> Result<(), SyncStateError> {
+        self.write(|blob| {
+            blob.styles.entries.insert(style_id.to_owned(), state);
+        })
+    }
+
+    /// Forgets a writing style's entry and any create still in flight for it.
+    ///
+    /// # Errors
+    ///
+    /// As [`SyncBookkeeping::set`].
+    pub fn forget_style(&self, style_id: &str) -> Result<(), SyncStateError> {
+        self.write(|blob| {
+            blob.styles.entries.remove(style_id);
+            blob.styles.pending_creates.remove(style_id);
+        })
+    }
+
+    /// The key of a create attempted for the writing style `style_id` and not yet confirmed.
+    pub fn pending_style_create_key(&self, style_id: &str) -> Option<String> {
+        self.blob
+            .lock()
+            .expect("sync bookkeeping lock")
+            .styles
+            .pending_creates
+            .get(style_id)
+            .cloned()
+    }
+
+    /// Records the key of a writing style's create about to be attempted, or drops it.
+    ///
+    /// # Errors
+    ///
+    /// As [`SyncBookkeeping::set`].
+    pub fn set_pending_style_create_key(
+        &self,
+        style_id: &str,
+        key: Option<&str>,
+    ) -> Result<(), SyncStateError> {
+        self.write(|blob| match key {
+            Some(key) => {
+                blob.styles
+                    .pending_creates
+                    .insert(style_id.to_owned(), key.to_owned());
+            }
+            None => {
+                blob.styles.pending_creates.remove(style_id);
+            }
         })
     }
 

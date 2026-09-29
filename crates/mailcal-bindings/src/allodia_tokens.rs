@@ -25,7 +25,7 @@ use mailcal_oauth::TokenSet;
 use time::{Duration, OffsetDateTime};
 
 use crate::{
-    AllodiaGrantHealth, MailcalApp, MailcalError, allodia::ACCOUNT_ID, allodia_transport::block_on,
+    AllodiaGrantHealth, MailcalApp, MailcalError, allodia::ACCOUNT_ID, blocking::block_on,
 };
 
 /// How long before expiry a token is treated as spent.

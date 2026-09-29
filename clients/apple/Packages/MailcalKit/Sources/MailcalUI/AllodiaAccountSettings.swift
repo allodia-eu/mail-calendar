@@ -9,6 +9,7 @@
 // The CATEGORY is dropped when `allodiaSignInAvailable()` says this build carries no route, so a
 // build from source has no such screen at all, absent, never present-and-broken.
 
+import Foundation
 import MailcalBindings
 import SwiftUI
 
@@ -55,6 +56,10 @@ struct AllodiaAccountSettings: View {
             .padding(6)
         }
         .task { account = model.currentAllodiaAccount() }
+        // Only when AI goes through the relay; a failure leaves the stored line as it was.
+        .task(id: account?.email) {
+            if account != nil { await model.refreshAiBalance() }
+        }
     }
 
     @ViewBuilder
@@ -75,6 +80,17 @@ struct AllodiaAccountSettings: View {
                 Text(L10n.settings_allodia_signed_in(email: account.email))
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                // What the relay last reported; opening the screen asks it again (below).
+                if let balance = model.writingStyles.balance {
+                    Text(writingStyleCreditsLine(
+                        balance,
+                        now: Date(),
+                        zone: TimeZone(identifier: model.activeZone) ?? .current,
+                        locale: L10n.appLocale
+                    ))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                }
                 // Managing and deleting are the same page, named twice on purpose: an account
                 // someone can create has to offer deletion somewhere findable, and "Manage
                 // account" is not the word anybody looks for when they want out.

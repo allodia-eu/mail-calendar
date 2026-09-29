@@ -169,6 +169,7 @@ impl<P: Provider> App<P> {
                 document,
                 blobs,
                 composition,
+                ai_draft,
             } => {
                 self.submit_rich_reply(
                     message,
@@ -180,6 +181,7 @@ impl<P: Provider> App<P> {
                     document,
                     blobs,
                     composition,
+                    ai_draft,
                 )
                 .await;
             }

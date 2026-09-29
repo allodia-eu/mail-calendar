@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,6 +31,7 @@ import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AllodiaAccount
 import uniffi.mailcal_bindings.AccountSignatureRow
+import uniffi.mailcal_bindings.AiRoute
 import uniffi.mailcal_bindings.Attribution
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.SignatureRow
@@ -40,6 +42,7 @@ import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.ViewMode
 import uniffi.mailcal_bindings.WeekStart
+import uniffi.mailcal_bindings.WritingStyleSnapshot
 
 /**
  * The About payload the screen renders. A record, not a core call: this suite never loads the
@@ -68,6 +71,8 @@ class SettingsHubTest {
         initialCategory: SettingsCategory? = null,
         allodia: AllodiaSettings = AllodiaSettings(),
         allodiaSync: AllodiaSyncState = AllodiaSyncState(),
+        // Defaults to a build with nowhere for AI to go: no relay, no own endpoint.
+        writingStyle: WritingStyleSnapshot? = writingStyleSnapshot(route = null),
     ) {
         compose.setContent {
             SettingsScreen(
@@ -104,6 +109,12 @@ class SettingsHubTest {
                 onUpdateSignature = { _, _, _, _ -> },
                 onDeleteSignature = {},
                 onSetAccountSignature = { _, _, _ -> },
+                writingStyle = WritingStyleSettings(
+                    snapshot = writingStyle,
+                    ownEndpoint = null,
+                    actions = FakeWritingStyleActions(),
+                    background = ImmediateBackground,
+                ),
                 analyticsEnabled = false,
                 onSetAnalytics = {},
                 analyticsPayloadPreview = { "{}" },
@@ -158,6 +169,7 @@ class SettingsHubTest {
                 SettingsCategory.READING,
                 SettingsCategory.COMPOSING,
                 SettingsCategory.SIGNATURES,
+                SettingsCategory.WRITING_STYLE,
                 SettingsCategory.NOTIFICATIONS,
                 SettingsCategory.PRIVACY,
                 SettingsCategory.ACCOUNTS,
@@ -191,7 +203,7 @@ class SettingsHubTest {
     @Test
     fun the_hub_lists_every_category_with_its_summary() {
         show()
-        for (category in SettingsCategory.shown(allodiaAvailable = false)) {
+        for (category in SettingsCategory.shown(allodiaAvailable = false, writingStyleAvailable = false)) {
             compose.onNodeWithText(category.title(ctx())).performScrollTo().assertIsDisplayed()
             compose.onNodeWithText(category.summary(ctx())).performScrollTo().assertIsDisplayed()
         }
@@ -212,7 +224,7 @@ class SettingsHubTest {
         assertEquals(
             "General is first when the account category is absent",
             SettingsCategory.GENERAL,
-            SettingsCategory.shown(allodiaAvailable = false).first(),
+            SettingsCategory.shown(allodiaAvailable = false, writingStyleAvailable = false).first(),
         )
     }
 
@@ -222,8 +234,54 @@ class SettingsHubTest {
         compose.onNodeWithText(L10n.settings_allodia_heading(ctx())).assertIsDisplayed()
         assertEquals(
             SettingsCategory.ALLODIA,
-            SettingsCategory.shown(allodiaAvailable = true).first(),
+            SettingsCategory.shown(allodiaAvailable = true, writingStyleAvailable = false).first(),
         )
+    }
+
+    /**
+     * Writing style is the same kind of thing as a signature, a named library assigned per account,
+     * so it sits directly after Signatures; and it is in the hub only while AI has somewhere to go
+     * (docs/settings.md row 7). A row that opens onto a feature with no route is a dead end.
+     */
+    @Test
+    fun writing_style_follows_signatures_when_ai_is_available_and_is_absent_otherwise() {
+        val shown = SettingsCategory.shown(allodiaAvailable = false, writingStyleAvailable = true)
+        assertEquals(
+            SettingsCategory.WRITING_STYLE,
+            shown[shown.indexOf(SettingsCategory.SIGNATURES) + 1],
+        )
+        assertFalse(
+            SettingsCategory.WRITING_STYLE in
+                SettingsCategory.shown(allodiaAvailable = true, writingStyleAvailable = false),
+        )
+
+        show()
+        compose.onAllNodesWithText(L10n.settings_category_writing_style(ctx())).assertCountEquals(0)
+    }
+
+    @Test
+    fun an_own_endpoint_puts_writing_style_in_the_hub() {
+        show(writingStyle = writingStyleSnapshot(route = AiRoute.OWN_ENDPOINT))
+        compose.onNodeWithText(L10n.settings_category_writing_style(ctx())).performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText(L10n.settings_category_writing_style_summary(ctx())).performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** Where writing style is offered, Advanced has the own endpoint before AI is available. */
+    @Test
+    fun advanced_offers_the_own_endpoint_without_ai_available() {
+        show(initialCategory = SettingsCategory.ADVANCED)
+        compose.onNodeWithText(L10n.ai_endpoint_title(ctx())).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(L10n.ai_endpoint_save(ctx())).performScrollTo().assertIsDisplayed()
+        // Nothing is set up, so there is nothing to remove.
+        compose.onAllNodesWithText(L10n.ai_endpoint_remove(ctx())).assertCountEquals(0)
+    }
+
+    @Test
+    fun advanced_has_no_own_endpoint_where_writing_style_is_not_offered() {
+        show(SettingsCategory.ADVANCED, writingStyle = writingStyleSnapshot(offered = false, route = null))
+        compose.onAllNodesWithText(L10n.ai_endpoint_title(ctx())).assertCountEquals(0)
     }
 
     /**

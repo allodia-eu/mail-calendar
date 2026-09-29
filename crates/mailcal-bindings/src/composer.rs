@@ -187,6 +187,21 @@ pub(crate) fn prepare_rich(
     Ok((document, blobs))
 }
 
+/// The id of the AI draft a reply was written from, which the editor carries as `ai_draft` beside
+/// the document's blocks (`docs/ai.md`). Read apart from the document, because it describes the
+/// composition rather than anything rendered into the message.
+pub(crate) fn ai_draft_of(document_json: &str) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct Tag {
+        #[serde(default)]
+        ai_draft: Option<String>,
+    }
+    serde_json::from_str::<Tag>(document_json)
+        .ok()?
+        .ai_draft
+        .filter(|id| !id.trim().is_empty())
+}
+
 /// Binds a row's owning-account id and provider `key` into one [`MessageRef`], mapping a
 /// malformed pair to [`MailcalError::Engine`]: so a reply/forward can't carry a key
 /// without (or mismatched against) its owning account. Shared by the file-attachment and

@@ -60,6 +60,7 @@ async fn rich_reply_threads_and_carries_the_composer_html() {
         document,
         blobs,
         composition: None,
+        ai_draft: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
     assert_eq!(app.send_status(), SendStatus::Sent);
@@ -201,6 +202,7 @@ async fn rich_reply_with_no_recipients_fails_without_sending() {
         document,
         blobs,
         composition: None,
+        ai_draft: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Failed).await;
     assert_eq!(app.send_status(), SendStatus::Failed);

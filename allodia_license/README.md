@@ -61,7 +61,7 @@ the build does not notice.
   `mailcal-oauth` rather than carrying a second OAuth client, and its own workspace would have meant
   a second engine on disk for one small crate. `default-members` is an explicit list rather than a
   subtraction, so nothing joins the default build by accident.
-- **The one line that connects them**: `crates/mailcal-app/Cargo.toml` carries the crate as an
+- **The one line that connects them**: `crates/mailcal-bindings/Cargo.toml` carries the crate as an
   **optional** dependency behind an `allodia-license` feature, off by default. `cargo build` does
   not compile it and `cargo tree` does not list it; `cargo build --features allodia-license` does
   both. `cargo xtask check-license-dir` allows exactly that line and the feature that gates it.

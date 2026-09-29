@@ -187,6 +187,7 @@ async fn a_reply_from_another_account_still_threads_off_the_original() {
         document,
         blobs,
         composition: None,
+        ai_draft: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
@@ -226,6 +227,7 @@ async fn a_reply_without_a_from_still_sends_from_the_receiving_account() {
         document,
         blobs,
         composition: None,
+        ai_draft: None,
     };
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 

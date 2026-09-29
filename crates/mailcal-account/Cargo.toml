@@ -41,6 +41,8 @@ mailcal-autodetect = { workspace = true }
 # deciding for itself what an unanswered organiser means. A leaf crate (engine-api only), so
 # depending on it here adds no cycle and no weight.
 mailcal-viewmodel = { workspace = true }
+# The jurisdiction mode and an own endpoint's declared class are stored preferences.
+mailcal-jurisdiction = { workspace = true }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 # Names the stream an IMAP account's connections run over (`imap::ImapConnections`); the
 # engine is generic over it and exports no alias.

@@ -77,7 +77,8 @@ pub(crate) fn build_demo(
         )),
         runtime.handle().clone(),
     ));
-    Arc::new(MailcalApp {
+    Arc::new_cyclic(|this| MailcalApp {
+        this: this.clone(),
         runtime,
         app,
         account_connect_errors: Mutex::new(Vec::new()),
@@ -94,8 +95,12 @@ pub(crate) fn build_demo(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        ai_feedback_flight: crate::ai_feedback_pass::SingleFlight::default(),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
+        ai_key: Mutex::new(None),
+        development_build: std::sync::atomic::AtomicBool::new(crate::ai_offer::DEVELOPMENT_BUILD),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
         // The demo connects no real accounts, so nothing is ever disconnected.
         disconnected: Arc::new(Mutex::new(HashSet::new())),
@@ -241,7 +246,8 @@ fn finish_showcase(
         )),
         runtime.handle().clone(),
     ));
-    Arc::new(MailcalApp {
+    Arc::new_cyclic(|this| MailcalApp {
+        this: this.clone(),
         runtime,
         app,
         account_connect_errors: Mutex::new(Vec::new()),
@@ -258,8 +264,12 @@ fn finish_showcase(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        ai_feedback_flight: crate::ai_feedback_pass::SingleFlight::default(),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
+        ai_key: Mutex::new(None),
+        development_build: std::sync::atomic::AtomicBool::new(crate::ai_offer::DEVELOPMENT_BUILD),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
         // The showcase connects no real accounts, so nothing is ever disconnected.
         disconnected: Arc::new(Mutex::new(HashSet::new())),

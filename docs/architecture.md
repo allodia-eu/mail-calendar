@@ -97,7 +97,8 @@ flowchart TD
         COMP["<b>mailcal-composer</b><br/>ComposerDocument →<br/>deterministic HTML + text<br/>+ attachment/CID manifest"]
         TEL["<b>mailcal-telemetry</b><br/>consented analytics<br/>delivery: the core itself<br/>stays network-free"]
         MCP["<b>mailcal-mcp</b><br/>the agent adapter:<br/>JSON-RPC tools over<br/>query_* / act_*, the only<br/>crate that can listen"]
-        GATE["<b>JurisdictionGate</b><br/>planned<br/>gates every AI/model<br/>dispatch, in-process:<br/>all · eu-hosted · eu-native"]
+        AI["<b>mailcal-ai</b><br/>writing style, drafts:<br/>corpus · prompts ·<br/>GatedBackend, no socket"]
+        GATE["<b>mailcal-jurisdiction</b><br/>the gate every external<br/>dispatch passes, in-process:<br/>all · eu-hosted · eu-native"]
     end
 
     subgraph ENGINE["PIM sync engine: public repo"]
@@ -110,6 +111,8 @@ flowchart TD
     APP --> ACC
     APP --> COMP
     APP -. TelemetrySink .-> TEL
+    APP --> AI
+    AI --> GATE
     ACC --> OAUTH
     APP ==>|owns one| EAPI
     ACC -->|constructs| PROV
@@ -118,12 +121,10 @@ flowchart TD
 
     classDef ffi fill:#fdf1e2,stroke:#F6A24A,color:#7c4a03
     classDef corec fill:#e3edf6,stroke:#16598D,color:#0c2f4e
-    classDef planned fill:none,stroke:#16598D,color:#16598D,stroke-dasharray: 5 4
     classDef external fill:#e2e8f0,stroke:#64748b,color:#1e293b
 
     class FFI ffi
-    class APP,VM,ACC,OAUTH,COMP,TEL corec
-    class GATE planned
+    class APP,VM,ACC,OAUTH,COMP,TEL,AI,GATE corec
     class EAPI,PROV external
     style CORE fill:none,stroke:#94a3b8,stroke-dasharray: 6 4
     style ENGINE fill:none,stroke:#94a3b8,stroke-dasharray: 6 4
@@ -153,8 +154,11 @@ Reading the map:
   sign-in and is a complete mail and calendar client, which `cargo xtask check-license-dir`
   exists to keep true ([`../allodia_license/entitlement.md`](../allodia_license/entitlement.md),
   [`pledge.md`](pledge.md) promise 4).
-- **`JurisdictionGate`** is not yet in code. The sovereignty rule it will enforce is stated in
-  [`../AGENTS.md`](../AGENTS.md) → "Non-negotiables".
+- **`mailcal-jurisdiction`** is the jurisdiction gate: pure, no I/O, it classifies a destination
+  and compares the class with the mode. **`mailcal-ai`** is its first caller: every AI request
+  leaves through a `GatedBackend`, which asks the gate first, and like the core it opens no socket;
+  `mailcal-bindings` implements its transport. The rule is in [`../AGENTS.md`](../AGENTS.md) →
+  "Non-negotiables", the feature in [`ai.md`](ai.md).
 
 ## What each platform plugs in: the host-service ports
 

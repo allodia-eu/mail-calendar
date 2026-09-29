@@ -128,6 +128,9 @@ public sealed partial class ComposerView
     // that programmatic selection is not the user changing sender.
     private async void OnFromChanged(object sender, SelectionChangedEventArgs e)
     {
+        // A draft is written in the sender's style, so whether one can be asked for moves with
+        // the sender too (ComposerView.DraftReply.cs).
+        UpdateDraftReplyAvailability();
         if (!_editorReady)
         {
             return;

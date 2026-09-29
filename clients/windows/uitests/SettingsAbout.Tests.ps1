@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Settings → About (docs/settings.md slot 11): the release this build is, where to ask for help,
+# Settings → About (docs/settings.md slot 13): the release this build is, where to ask for help,
 # and the toolkit this client actually links.
 #
 # Why it is here and not in `Mailcal.Tests`: `about_info` is already covered in Rust, but a pure
@@ -52,7 +52,7 @@ $Suite = @{
         $dialog = Get-SettingsDialog
         $categories = @(Get-SettingsCategories -Dialog $dialog)
         Assert-True ($categories -contains 'About') (
-          'docs/settings.md slot 11 puts About in every client. Settings holds: ' +
+          'docs/settings.md slot 13 puts About in every client. Settings holds: ' +
           ($categories -join ' | '))
         Assert-Equal 'About' $categories[-1] (
           'About is last because it is the thing you go looking for rather than adjust ' +

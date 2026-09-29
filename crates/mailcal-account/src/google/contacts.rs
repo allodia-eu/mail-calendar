@@ -153,6 +153,7 @@ impl Provider for RefreshingGoogleContactProvider {
     }
 }
 
+impl engine_api::MailboxWrites for RefreshingGoogleContactProvider {}
 impl CalendarWrites for RefreshingGoogleContactProvider {}
 
 #[async_trait]

@@ -46,6 +46,7 @@ impl From<AppSurface> for Surface {
             AppSurface::CalendarStatus => Self::CalendarStatus,
             AppSurface::ComposeRequest => Self::ComposeRequest,
             AppSurface::DraftStatus => Self::DraftStatus,
+            AppSurface::WritingStyle => Self::WritingStyle,
             AppSurface::Contacts => Self::Contacts,
             AppSurface::ContactsStatus => Self::ContactsStatus,
             AppSurface::InvitationReply => Self::InvitationReply,

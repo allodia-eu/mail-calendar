@@ -6,7 +6,7 @@ package eu.allodia.mailcal
 import android.util.Log
 import uniffi.mailcal_bindings.JmapSetup
 import uniffi.mailcal_bindings.MailcalApp
-import uniffi.mailcal_bindings.isAllodiaAccountConfig
+import uniffi.mailcal_bindings.isReservedConfig
 import uniffi.mailcal_bindings.jmapAccountConfigToml
 
 private const val TAG = "Mailcal"
@@ -58,7 +58,7 @@ internal fun MainActivity.devConfigs(devMode: String?): List<String>? {
 // function calling the core directly would be a decision no test could see.
 internal fun devCarriedOverConfigs(
     stored: List<String>,
-    isAllodiaAccount: (String) -> Boolean = ::isAllodiaAccountConfig,
+    isAllodiaAccount: (String) -> Boolean = ::isReservedConfig,
 ): List<String> = stored.filter(isAllodiaAccount)
 
 // Writes the harness IMAP cert (base64-PEM in the MAILCAL_EXTRA_CA_PEM intent extra) into the app's

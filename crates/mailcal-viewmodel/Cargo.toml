@@ -10,6 +10,8 @@ license.workspace = true
 [dependencies]
 # The engine domain types the snapshots project from (Message/Mailbox/Event).
 engine-api = { workspace = true }
+# The gate's mode and class, which the Writing style surface reports a refusal by.
+mailcal-jurisdiction = { workspace = true }
 
 [dev-dependencies]
 # Domain constructors (ids/membership/time) build the fixtures the projections run over.

@@ -45,7 +45,7 @@ struct SettingsHubView: View {
     /// detail → hub; Done closes the sheet.
     private var iPhoneHub: some View {
         NavigationStack {
-            List(SettingsCategory.displayed) { category in
+            List(SettingsCategory.displayed(aiRoute: model.writingStyles.route)) { category in
                 NavigationLink {
                     // Scrolled, like the iPad detail beside it. A category's detail is as tall as
                     // its content, Accounts grows a card per account, each with its own pickers:
@@ -77,7 +77,7 @@ struct SettingsHubView: View {
     /// NavigationStack keeps the section title visible in the detail column.
     private var iPadSplit: some View {
         NavigationSplitView {
-            List(SettingsCategory.displayed, selection: $selection) { category in
+            List(SettingsCategory.displayed(aiRoute: model.writingStyles.route), selection: $selection) { category in
                 Label(category.title, systemImage: category.icon).tag(category)
             }
             .navigationTitle(L10n.settings_title())

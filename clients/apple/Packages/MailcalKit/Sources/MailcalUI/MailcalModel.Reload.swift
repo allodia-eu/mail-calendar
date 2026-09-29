@@ -85,6 +85,11 @@ extension MailboxModel {
             if let settings = app?.displaySettings() { displaySettings = settings }
             return
         }
+        // The library, an assignment, the backend or a learning run's progress changed.
+        if case .writingStyle = surface {
+            writingStyles = app?.writingStyles() ?? MailboxModel.noWritingStyles
+            return
+        }
         // A calendar signal only updates the agenda, pull just the events, not the mailbox
         // list. (Keeping this off the hot mailbox path below matters during a sync.)
         if case .calendar = surface {

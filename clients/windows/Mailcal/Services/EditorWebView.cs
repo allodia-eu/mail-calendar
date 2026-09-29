@@ -73,6 +73,15 @@ internal sealed class EditorWebViewHost
         return JsonSerializer.Deserialize<string>(encoded);
     }
 
+    /// <summary>Runs <paramref name="script"/> and returns its result still JSON-encoded, as
+    /// WebView2 hands it back: for a hook that answers something other than a string
+    /// (<c>composerLeadHasText()</c> answers a boolean).</summary>
+    internal async Task<string> EvaluateAsync(string script)
+    {
+        await EnsureAsync();
+        return await _view.CoreWebView2!.ExecuteScriptAsync(script);
+    }
+
     /// <summary>Releases the WebView2 backing this host. Safe to call on one that never
     /// initialised.</summary>
     internal void Close()

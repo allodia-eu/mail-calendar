@@ -39,6 +39,16 @@ warmed. Two guarantee tests (`crates/mailcal-app/src/tests_query.rs`) exist sole
 contributor collapsing this back into one path; one of them is paired in the same file with
 its contrast, so it states *why* the query layer exists rather than only that it works.
 
+## Sovereignty scope
+
+A carve-out from the jurisdiction gate, and a narrow one: the server **dispatches to nothing**. It
+listens on this device for a client the signed-in user runs, and answers it; no request leaves the
+app on its behalf. What the connected assistant then sends to its own provider is the user's
+dispatch to a party they chose, which the gate cannot see and does not govern ("What this does not
+defend against, said plainly", below; [`privacy-policy.md`](privacy-policy.md) §6). The carve-out
+ends the moment the server makes an outbound call of its own: that call passes the gate like any
+other ([`ai.md`](ai.md), "The gate").
+
 ## The transport
 
 ```

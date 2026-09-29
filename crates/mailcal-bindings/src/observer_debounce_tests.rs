@@ -32,6 +32,7 @@ fn to_app(surface: Surface) -> AppSurface {
         Surface::InvitationReply => AppSurface::InvitationReply,
         Surface::UnfiledCopy => AppSurface::UnfiledCopy,
         Surface::DraftStatus => AppSurface::DraftStatus,
+        Surface::WritingStyle => AppSurface::WritingStyle,
     }
 }
 

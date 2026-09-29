@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Settings → Notifications (docs/settings.md slot 7): the switch that decides whether new mail
+# Settings → Notifications (docs/settings.md slot 8): the switch that decides whether new mail
 # raises a desktop notification.
 #
 # Why it is here and not in `Mailcal.Tests`: what a pass SAYS is already pinned there
@@ -16,8 +16,11 @@
 # The dataset is `showcase`: the setting is the host's and does not depend on an account, and a
 # suite must never open real mail.
 
-# The taxonomy's own neighbours, so the assertion states the CONTRACT (Signatures · Notifications ·
-# Privacy) rather than an index that moves whenever a category is added above it.
+# The taxonomy's own neighbours, so the assertion states the CONTRACT (Signatures · Writing style ·
+# Notifications · Privacy) rather than an index that moves whenever a category is added above it.
+# Writing style is drawn only while AI has somewhere to go (docs/settings.md slot 7), so which
+# category sits above Notifications depends on the store the suite launched against.
+$NotificationsAboveWithAi = 'Writing style'
 $NotificationsAbove = 'Signatures'
 $NotificationsBelow = 'Privacy'
 
@@ -42,7 +45,7 @@ function Get-NotificationsToggle {
   $dialog = Open-SettingsCategory 'Notifications'
   $toggle = Find-UiaElement -AutomationId 'NotificationsToggle' -Root $dialog
   Assert-True ($null -ne $toggle) (
-    'the Notifications category must draw the new-mail switch (docs/settings.md slot 7); the ' +
+    'the Notifications category must draw the new-mail switch (docs/settings.md slot 8); the ' +
     'panel opened without it')
   $toggle
 }
@@ -56,16 +59,27 @@ $Suite = @{
   Dataset = 'showcase'
   Cases   = @(
     @{
-      Name = 'Settings offers Notifications, between Signatures and Privacy'
+      Name = 'Settings offers Notifications, between Signatures (or Writing style) and Privacy'
       Body = {
         $categories = @(Get-NotificationSuiteCategories -Dialog (Get-SettingsDialog))
         Assert-True ($categories -contains 'Notifications') (
-          'this client raises new-mail notifications, so docs/settings.md slot 7 applies to it. ' +
+          'this client raises new-mail notifications, so docs/settings.md slot 8 applies to it. ' +
           "Settings holds: $($categories -join ' | ')")
         $index = [array]::IndexOf($categories, 'Notifications')
-        Assert-Equal $NotificationsAbove $categories[$index - 1] (
-          'the taxonomy is decided once and binds every client: Notifications follows Signatures ' +
-          "(docs/settings.md). The order is: $($categories -join ' | ')")
+        if ($categories -contains $NotificationsAboveWithAi) {
+          # Writing style sits between the two, directly after Signatures.
+          Assert-Equal $NotificationsAboveWithAi $categories[$index - 1] (
+            'Writing style is drawn, so Notifications follows it (docs/settings.md). The order ' +
+            "is: $($categories -join ' | ')")
+          Assert-Equal $NotificationsAbove $categories[$index - 2] (
+            'Writing style follows Signatures directly, being the same kind of thing ' +
+            "(docs/settings.md slot 7). The order is: $($categories -join ' | ')")
+        }
+        else {
+          Assert-Equal $NotificationsAbove $categories[$index - 1] (
+            'the taxonomy is decided once and binds every client: Notifications follows ' +
+            "Signatures when AI has nowhere to go (docs/settings.md). The order is: $($categories -join ' | ')")
+        }
         Assert-Equal $NotificationsBelow $categories[$index + 1] (
           'and precedes Privacy, so "Settings → Notifications" names the same place on every ' +
           "platform. The order is: $($categories -join ' | ')")

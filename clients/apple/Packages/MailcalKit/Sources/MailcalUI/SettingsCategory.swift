@@ -11,20 +11,24 @@ import SwiftUI
 /// function (mirroring Outlook) so there is room to grow: Composing gains auto-replies, Accounts
 /// gains per-account identity, etc. Declaration order is the display order everywhere.
 enum SettingsCategory: String, CaseIterable, Identifiable {
-    case allodia, general, calendar, reading, composing, signatures, notifications, privacy,
-         accounts, advanced, diagnostics, about
+    case allodia, general, calendar, reading, composing, signatures, writingStyle, notifications,
+         privacy, accounts, advanced, diagnostics, about
 
     var id: String { rawValue }
 
     /// The categories to show on this platform, in taxonomy order.
     ///
-    /// Allodia is the one that goes, and at runtime: a build carrying no registration has no
-    /// Allodia sign-in at all, and the whole category goes rather than its contents, a row that
-    /// opens an empty pane reads as a broken pane, and it is what every build from source shows.
-    static var displayed: [SettingsCategory] {
+    /// Two go, and at runtime: a build carrying no registration has no Allodia sign-in at all, and
+    /// the whole category goes rather than its contents, a row that opens an empty pane reads as a
+    /// broken pane, and it is what every build from source shows. Writing style goes while AI has
+    /// nowhere to go (`WritingStyleSnapshot.route`, docs/settings.md).
+    static func displayed(aiRoute: AiRoute?) -> [SettingsCategory] {
         var shown = allCases
         if !allodiaSignInAvailable() {
             shown.removeAll { $0 == .allodia }
+        }
+        if aiRoute == nil {
+            shown.removeAll { $0 == .writingStyle }
         }
         return shown
     }
@@ -39,6 +43,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .reading: return L10n.settings_category_reading()
         case .composing: return L10n.settings_category_composing()
         case .signatures: return L10n.settings_category_signatures()
+        case .writingStyle: return L10n.settings_category_writing_style()
         case .notifications: return L10n.settings_category_notifications()
         case .privacy: return L10n.settings_category_privacy()
         case .accounts: return L10n.settings_category_accounts()
@@ -59,6 +64,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .reading: return L10n.settings_category_reading_summary()
         case .composing: return L10n.settings_category_composing_summary()
         case .signatures: return L10n.settings_category_signatures_summary()
+        case .writingStyle: return L10n.settings_category_writing_style_summary()
         case .notifications: return L10n.settings_category_notifications_summary()
         case .privacy: return L10n.settings_category_privacy_summary()
         case .accounts: return L10n.settings_category_accounts_summary()
@@ -81,6 +87,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .reading: return "envelope.open"
         case .composing: return "square.and.pencil"
         case .signatures: return "signature"
+        case .writingStyle: return "text.quote"
         case .notifications: return "bell"
         case .privacy: return "hand.raised"
         case .accounts: return "tray.2"

@@ -243,6 +243,7 @@ internal fun FlatMessageRow(
         RichComposeMessageDialog(
             suggestionsFor = suggestionsFor,
             signatures = signatures,
+            replyTo = ReplyTarget(message.account, message.key),
             mode = mode,
             accounts = accounts,
             // A reply/forward opens on the account that received the mail, the address it was

@@ -26,7 +26,7 @@ mod report;
 pub(crate) mod result;
 mod send;
 
-use folders::resolve_move_target;
+pub(crate) use folders::resolve_move_target;
 use result::MailActionError;
 
 /// What an optimistic removal actually asks the provider to do.

@@ -5,7 +5,9 @@
 
 use adw::prelude::*;
 
-use super::{CATEGORIES, Category, SettingsState, SettingsWindow, initial_category};
+use super::{
+    CATEGORIES, Category, SettingsState, SettingsWindow, initial_category, visible_categories,
+};
 
 /// A generation is either a request to **open** the window or a redraw of an open one, and the
 /// two must not leak into each other.
@@ -150,6 +152,7 @@ fn taxonomy_order_matches_the_cross_platform_contract() {
             Category::Reading,
             Category::Composing,
             Category::Signatures,
+            Category::WritingStyle,
             Category::Notifications,
             Category::Privacy,
             Category::Accounts,
@@ -157,5 +160,23 @@ fn taxonomy_order_matches_the_cross_platform_contract() {
             Category::Diagnostics,
             Category::About,
         ]
+    );
+}
+
+/// Writing style is there only while AI has somewhere to go, and then directly after Signatures:
+/// a sidebar row opening onto a Learn button that can only fail reads as a broken page.
+#[test]
+fn writing_style_follows_signatures_and_only_when_ai_is_available() {
+    assert!(!visible_categories(false).contains(&Category::WritingStyle));
+    let shown = visible_categories(true);
+    let signatures = shown
+        .iter()
+        .position(|category| *category == Category::Signatures)
+        .expect("Signatures is on every build");
+    assert_eq!(shown.get(signatures + 1), Some(&Category::WritingStyle));
+    assert_eq!(
+        visible_categories(false).len() + 1,
+        shown.len(),
+        "nothing else moves"
     );
 }

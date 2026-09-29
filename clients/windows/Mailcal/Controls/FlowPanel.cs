@@ -1,12 +1,15 @@
 // A panel that lays its children left to right and wraps onto a new line when the next one does not
-// fit, what the composer's recipient pills are arranged in.
+// fit: the composer's recipient pills with the address being typed after them, and the reveal's
+// chips. Where each child goes is FlowLayout, which Mailcal.Tests pins.
 //
 // WinUI ships no flow container, and the alternatives are wrong for pills in the same way SwiftUI's
 // were for the Apple client (which grew its own `RecipientFlowLayout` for this): a horizontal
 // StackPanel runs a long recipient list off the side of the pane, and a UniformGridLayout gives
 // every recipient a column of the same width whether it is `jo@x.eu` or a 40-character address.
 
-using System;
+using System.Collections.Generic;
+using System.Linq;
+using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Foundation;
@@ -19,47 +22,46 @@ public sealed class FlowPanel : Panel
     /// <summary>The gap between children, horizontally and between wrapped rows.</summary>
     public double Spacing { get; set; } = 6;
 
+    /// <summary>
+    /// Above zero, the last child fills the rest of its line, and starts a new line when less than
+    /// this is left: the recipient field's input, which must stay wide enough to type into.
+    /// </summary>
+    public double FillLast { get; set; }
+
     /// <inheritdoc/>
     protected override Size MeasureOverride(Size availableSize)
     {
-        // An unconstrained width (inside a horizontally scrolling parent) would wrap nowhere; treat
-        // it as one long row rather than dividing by infinity.
-        var limit = double.IsInfinity(availableSize.Width) ? double.MaxValue : availableSize.Width;
-        double x = 0, y = 0, lineHeight = 0, widest = 0;
         foreach (var child in Children)
         {
-            child.Measure(new Size(limit, double.PositiveInfinity));
-            var size = child.DesiredSize;
-            if (x > 0 && x + size.Width > limit)
-            {
-                x = 0;
-                y += lineHeight + Spacing;
-                lineHeight = 0;
-            }
-            x += size.Width + Spacing;
-            widest = Math.Max(widest, x - Spacing);
-            lineHeight = Math.Max(lineHeight, size.Height);
+            child.Measure(new Size(availableSize.Width, double.PositiveInfinity));
         }
-        return new Size(widest, y + lineHeight);
+        var flow = Flow(availableSize.Width);
+        // A filling child is re-measured at the width it will get, so a TextBox reports the height
+        // it has at that width rather than at the panel's.
+        if (FillLast > 0 && Children.Count > 0)
+        {
+            var last = flow.Slots[^1];
+            Children[^1].Measure(new Size(last.Width, double.PositiveInfinity));
+        }
+        var width = FillLast > 0 && !double.IsInfinity(availableSize.Width) ? availableSize.Width : flow.Width;
+        return new Size(width, flow.Height);
     }
 
     /// <inheritdoc/>
     protected override Size ArrangeOverride(Size finalSize)
     {
-        double x = 0, y = 0, lineHeight = 0;
-        foreach (var child in Children)
+        var flow = Flow(finalSize.Width);
+        for (var index = 0; index < Children.Count; index++)
         {
-            var size = child.DesiredSize;
-            if (x > 0 && x + size.Width > finalSize.Width)
-            {
-                x = 0;
-                y += lineHeight + Spacing;
-                lineHeight = 0;
-            }
-            child.Arrange(new Rect(x, y, size.Width, size.Height));
-            x += size.Width + Spacing;
-            lineHeight = Math.Max(lineHeight, size.Height);
+            var slot = flow.Slots[index];
+            Children[index].Arrange(new Rect(slot.X, slot.Y, slot.Width, slot.Height));
         }
         return finalSize;
+    }
+
+    private FlowResult Flow(double width)
+    {
+        List<(double, double)> sizes = Children.Select(child => (child.DesiredSize.Width, child.DesiredSize.Height)).ToList();
+        return FlowLayout.Arrange(sizes, width, Spacing, FillLast);
     }
 }

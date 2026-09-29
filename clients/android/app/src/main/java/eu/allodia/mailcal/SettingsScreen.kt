@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
@@ -100,6 +101,9 @@ internal fun SettingsScreen(
     onUpdateSignature: (id: String, name: String, bodyHtml: String, bodyPlain: String) -> Unit,
     onDeleteSignature: (String) -> Unit,
     onSetAccountSignature: (account: String, slot: SignatureSlotKind, signature: String?) -> Unit,
+    // Writing style, and the own AI endpoint under Advanced. The category is in the hub only while
+    // the snapshot names a route (docs/settings.md).
+    writingStyle: WritingStyleSettings,
     // About, read once by the caller: it is a call into the cdylib (SettingsAbout.kt).
     about: AboutInfo,
     // Privacy
@@ -160,8 +164,9 @@ internal fun SettingsScreen(
         if (open != null) open = null else onBack()
     }
 
-    // Outside the Scaffold, so the system bars are this screen's own problem (see WelcomeScreen).
-    Column(modifier = Modifier.fillMaxSize().systemBarsPadding().padding(16.dp)) {
+    // Outside the Scaffold, so the system bars and the keyboard are this screen's own problem (see
+    // WelcomeScreen). Without the keyboard's inset, a field near the foot stays behind it.
+    Column(modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(16.dp)) {
         val current = open
         if (current == null) {
             Row(
@@ -174,7 +179,10 @@ internal fun SettingsScreen(
             }
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                 Spacer(modifier = Modifier.height(4.dp))
-                SettingsCategory.shown(allodia.available).forEach { category ->
+                SettingsCategory.shown(
+                    allodiaAvailable = allodia.available,
+                    writingStyleAvailable = writingStyle.snapshot?.route != null,
+                ).forEach { category ->
                     // Diagnostics is a full-screen log viewer swapped in at the activity level
                     // (DiagnosticsScreen.kt), not an inline CategoryDetail, so its hub row opens
                     // that screen rather than a detail pane.
@@ -227,6 +235,7 @@ internal fun SettingsScreen(
                     onUpdateSignature = onUpdateSignature,
                     onDeleteSignature = onDeleteSignature,
                     onSetAccountSignature = onSetAccountSignature,
+                    writingStyle = writingStyle,
                     about = about,
                     analyticsEnabled = analyticsEnabled,
                     onSetAnalytics = onSetAnalytics,

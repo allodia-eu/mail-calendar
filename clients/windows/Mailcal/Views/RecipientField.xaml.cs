@@ -25,6 +25,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
@@ -49,7 +50,6 @@ public sealed partial class RecipientField : UserControl
     /// </remarks>
     private const int SuggestionDebounceMs = 120;
 
-    private readonly ObservableCollection<RecipientPillItem> _pills = new();
     private readonly ObservableCollection<RecipientSuggestionItem> _matches = new();
 
     /// <summary>The whole field, comma-separated, the composer's source of truth.</summary>
@@ -68,7 +68,8 @@ public sealed partial class RecipientField : UserControl
     public RecipientField()
     {
         this.InitializeComponent();
-        Pills.ItemsSource = _pills;
+        HeaderField.Attach(Input, FocusLine);
+        AutomationProperties.SetLabeledBy(Input, LabelText);
         SuggestionList.ItemsSource = _matches;
         // A Popup lives in its own layer, rooted at the XamlRoot rather than at this control, so
         // it does NOT go away with the composer that owned it. Close it explicitly, or a draft
@@ -92,11 +93,22 @@ public sealed partial class RecipientField : UserControl
         }
     }
 
-    /// <summary>A control drawn at the trailing edge of the input, the To row's Cc/Bcc chevron.</summary>
+    /// <summary>The width the label takes, so the composer can line the labels of its rows up.</summary>
+    internal double LabelWidth
+    {
+        get
+        {
+            LabelText.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            return LabelText.DesiredSize.Width;
+        }
+        set => LabelColumn.Width = new GridLength(value);
+    }
+
+    /// <summary>A control drawn at the trailing edge of the field, the To row's Cc/Bcc chevron.</summary>
     /// <remarks>
     /// A plain CLR property, which XAML property-element syntax sets just as well as a dependency
-    /// one; nothing binds to it. It lands in the input's own grid row, so the two stay aligned
-    /// however tall the field grows, see the note in the XAML.
+    /// one; nothing binds to it. It sits on the input's line however many lines of pills there are,
+    /// see the note in the XAML.
     /// </remarks>
     public object? Trailing
     {
@@ -223,10 +235,10 @@ public sealed partial class RecipientField : UserControl
         return false;
     }
 
-    // The popup is placed against the input but not sized by it, so a list as wide as its longest
-    // address would hang off the edge of a narrow composer pane. Match the input's width instead.
-    private void OnInputSizeChanged(object sender, SizeChangedEventArgs e) =>
-        SuggestionSurface.Width = Input.ActualWidth;
+    // The popup is placed against the field but not sized by it, so a list as wide as its longest
+    // address would hang off the edge of a narrow composer pane. Match the field's width instead.
+    private void OnFieldSizeChanged(object sender, SizeChangedEventArgs e) =>
+        SuggestionSurface.Width = Field.ActualWidth;
 
     private void OnSuggestionPicked(object sender, ItemClickEventArgs e)
     {
@@ -247,15 +259,48 @@ public sealed partial class RecipientField : UserControl
     /// </summary>
     public void FocusInput() => Input.Focus(FocusState.Programmatic);
 
+    // The pills go into the line before the input, which stays its last child.
     private void RebuildPills()
     {
+        while (Line.Children.Count > 1)
+        {
+            Line.Children.RemoveAt(0);
+        }
         var committed = RecipientTokens.Committed(_text);
-        _pills.Clear();
         for (var index = 0; index < committed.Count; index++)
         {
-            _pills.Add(new RecipientPillItem { Text = committed[index], Index = index });
+            Line.Children.Insert(index, Pill(new RecipientPillItem { Text = committed[index], Index = index }));
         }
-        Pills.Visibility = _pills.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // A finished recipient: its address and a button that removes it, named for the recipient it
+    // would remove.
+    private Border Pill(RecipientPillItem pill)
+    {
+        var remove = new Button
+        {
+            Tag = pill.Index,
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(4),
+            MinWidth = 0,
+            Content = new FontIcon { Glyph = "\uE711", FontSize = 10 },
+        };
+        AutomationProperties.SetName(remove, pill.RemoveLabel);
+        ToolTipService.SetToolTip(remove, pill.RemoveLabel);
+        remove.Click += OnRemoveRecipient;
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+        content.Children.Add(new TextBlock
+        {
+            Text = pill.Text,
+            VerticalAlignment = VerticalAlignment.Center,
+            MaxLines = 1,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 240,
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+        });
+        content.Children.Add(remove);
+        return new Border { Style = (Style)Resources["PillStyle"], Child = content };
     }
 
     // Debounced, off-the-UI-thread lookup. A per-keystroke call would stall the composer whenever a
@@ -302,7 +347,7 @@ public sealed partial class RecipientField : UserControl
             // Width is set here as well as on SizeChanged: the first open usually happens without
             // the input ever having resized, so the handler alone would leave the surface at its
             // content width.
-            SuggestionSurface.Width = Input.ActualWidth;
+            SuggestionSurface.Width = Field.ActualWidth;
         }
         SuggestionPopup.IsOpen = show;
     }

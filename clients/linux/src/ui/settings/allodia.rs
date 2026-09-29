@@ -32,6 +32,10 @@ pub(super) fn page(ctx: &PageContext) -> gtk::Box {
     if let Some(section) = allodia(ctx) {
         content.append(&section);
     }
+    // What the relay's credits stand at, under the account they belong to (`docs/ai.md`).
+    if ctx.app.allodia_account().is_some() {
+        content.append(&super::writing_style::credits_group(ctx));
+    }
     // The subscription sits under the account it belongs to, and is drawn only while somebody is
     // signed in (`super::subscription`).
     if let Some(section) = super::subscription::subscription(ctx) {

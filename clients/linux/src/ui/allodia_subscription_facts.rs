@@ -274,7 +274,7 @@ pub(crate) fn minor_units(minor: i64, currency: &str, locale: &str) -> String {
 
 /// What this language puts between the units and the hundredths. English is the one the catalog
 /// ships that writes a point.
-fn decimal_separator(locale: &str) -> char {
+pub(crate) fn decimal_separator(locale: &str) -> char {
     if locale == "en" { '.' } else { ',' }
 }
 

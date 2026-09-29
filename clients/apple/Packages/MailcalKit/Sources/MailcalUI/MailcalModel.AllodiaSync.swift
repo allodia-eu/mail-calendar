@@ -98,7 +98,8 @@ extension MailboxModel {
                     offers: report.offers,
                     changedElsewhere: report.changedElsewhere.filter { $0.accountId != accountId },
                     removedElsewhere: report.removedElsewhere.filter { $0.accountId != accountId },
-                    sent: report.sent
+                    sent: report.sent,
+                    styleConflicts: report.styleConflicts
                 )
             }
         } catch {

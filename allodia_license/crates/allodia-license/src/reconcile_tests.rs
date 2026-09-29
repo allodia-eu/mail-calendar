@@ -227,7 +227,29 @@ fn an_account_removed_elsewhere_is_a_question_rather_than_a_removal() {
     assert_eq!(
         reconcile(&local, &remote),
         vec![Decision::RemovedElsewhere {
-            account_id: "a".to_owned()
+            account_id: "a".to_owned(),
+            changed_here: false,
+        }]
+    );
+}
+
+#[test]
+fn an_account_removed_elsewhere_after_an_edit_here_says_so() {
+    let local = vec![LocalAccount {
+        config: imap("someone@example.com", "mail.example.com"),
+        ..synced(
+            "a",
+            imap("someone@example.com", "imap.example.com"),
+            "rec-1",
+            4,
+        )
+    }];
+    let remote = list(vec![], vec![gone("rec-1", 5)]);
+    assert_eq!(
+        reconcile(&local, &remote),
+        vec![Decision::RemovedElsewhere {
+            account_id: "a".to_owned(),
+            changed_here: true,
         }]
     );
 }

@@ -5,20 +5,28 @@
 // keyboard up. The caller owns the state, including whether Cc/Bcc are revealed.
 package eu.allodia.mailcal
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -26,6 +34,29 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.RecipientMatch
+
+// The header laid over the editor, moved up by the editor's scroll so it scrolls away with the
+// message. It is measured at its own height, never at the room the keyboard leaves: that height is
+// the editor's top inset, and squeezed into less room its last rows (a drafted reply's card) would
+// be cut off.
+@Composable
+internal fun ComposerHeaderOverlay(
+    scrollY: () -> Int,
+    onHeight: (Int) -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight(Alignment.Top, unbounded = true)
+            .onSizeChanged { onHeight(it.height) }
+            .graphicsLayer { translationY = -scrollY().toFloat() }
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 16.dp)
+            .padding(top = 8.dp),
+        content = content,
+    )
+}
 
 @Composable
 internal fun ComposerHeaderFields(

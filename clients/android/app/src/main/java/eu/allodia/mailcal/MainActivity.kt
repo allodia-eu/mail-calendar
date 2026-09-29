@@ -148,6 +148,9 @@ class MainActivity : AppCompatActivity() {
     // body is fetched one at a time, so opening Settings never drags every embedded logo across the
     // FFI. Null until the first pull.
     internal var signatures by mutableStateOf<SignaturesSnapshot?>(null)
+    // Writing style and the own AI endpoint, pulled on connect and on every WRITING_STYLE signal
+    // (MainActivityWritingStyle.kt).
+    internal val writingStyle = WritingStyleState()
 
     // The outgoing-send hint, pulled on a SENDING surface change: SENDING while a send is in
     // flight, then the terminal SENT/FAILED which auto-clears back to IDLE after a moment.

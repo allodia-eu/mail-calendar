@@ -7,6 +7,7 @@
 use std::{
     fs, io,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use super::Preferences;
@@ -45,8 +46,27 @@ pub fn load_preferences(path: impl AsRef<Path>) -> Preferences {
 pub fn save_preferences(path: impl AsRef<Path>, prefs: &Preferences) -> io::Result<()> {
     let body =
         toml::to_string(prefs).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-    if let Some(parent) = path.as_ref().parent() {
+    write_atomically(path.as_ref(), &body)
+}
+
+/// Writes `body` beside `path` and renames it over the file, creating the directory when needed.
+///
+/// A reader meeting a half-written file would load defaults and could save them back, so every
+/// file several threads write goes through this.
+pub(crate) fn write_atomically(path: &Path, body: &str) -> io::Result<()> {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(path, body)
+    let mut staged = path.as_os_str().to_owned();
+    staged.push(format!(
+        ".{}.{}.tmp",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let staged = PathBuf::from(staged);
+    fs::write(&staged, body)?;
+    fs::rename(&staged, path).inspect_err(|_| {
+        let _ = fs::remove_file(&staged);
+    })
 }

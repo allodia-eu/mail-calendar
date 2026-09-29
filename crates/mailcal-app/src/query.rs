@@ -35,6 +35,8 @@ mod list;
 mod search;
 mod text;
 
+pub(crate) use text::to_plain;
+
 /// The deepest store read a query will drive, in messages.
 ///
 /// Paging here is a **window, not a cursor** (see [`MessagePage::windowed`]), so `offset + limit`

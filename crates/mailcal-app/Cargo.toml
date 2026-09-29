@@ -49,6 +49,10 @@ serde_json = { workspace = true }
 # dependency graph via rustls, so neither adds a crate.
 ring = { workspace = true }
 base64 = { workspace = true }
+# Writing style and drafted replies: the corpus, the prompts and the gated backend. Opens no
+# socket; the binding layer injects the backend (`App::set_ai_backend`).
+mailcal-ai = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 # (`engine-core` (a fake `Provider` and domain objects drive the engine offline in tests) is a

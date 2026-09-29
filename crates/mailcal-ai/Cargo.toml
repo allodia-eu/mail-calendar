@@ -1,0 +1,31 @@
+[package]
+name = "mailcal-ai"
+description = "Writing style and drafted replies: learns how a person writes from their own sent mail and drafts replies in that voice over any OpenAI-compatible backend, every request passing the jurisdiction gate first. Opens no socket: the host implements its transport port."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+# Every request passes the gate before it reaches a backend; `GatedBackend` is where.
+mailcal-jurisdiction = { workspace = true }
+# The OpenAI-compatible wire types, the style guide and the exemplars.
+serde = { workspace = true }
+serde_json = { workspace = true }
+# The `emit_json` tool's parameters are derived from the type the answer is read into, so the
+# schema a model is shown and the parser cannot drift.
+schemars = { workspace = true }
+thiserror = { workspace = true }
+# Counts, stages and refusal labels only; never a prompt, a draft or an address.
+log = { workspace = true }
+# Validates an own endpoint's base URL before a key is ever sent to it.
+url = { workspace = true }
+
+[build-dependencies]
+# `build.rs` reads the quote shapes from the message catalog, so a change of copy moves the
+# stripper that recognises it.
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

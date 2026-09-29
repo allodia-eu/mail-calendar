@@ -1690,6 +1690,74 @@
     view.addEventListener("resize", place);
   }
 
+  // src/drafttext.ts
+  var BULLET = /^\s*[-*•]\s+(.*)$/;
+  var NUMBERED = /^\s*\d{1,3}[.)]\s+(.*)$/;
+  var HEADING = /^\s*#{1,3}\s+(.*)$/;
+  var INLINE = /\*\*(\S(?:.*?\S)?)\*\*|\*(\S(?:.*?\S)?)\*/g;
+  function draftBlocks(doc, text) {
+    const lines = text.split(`
+`);
+    const blocks = [];
+    let list = null;
+    lines.forEach((line, index) => {
+      const item = listItem2(line);
+      if (item) {
+        if (!list || list.tagName !== item.tag) {
+          list = doc.createElement(item.tag);
+          blocks.push(list);
+        }
+        const li = doc.createElement("li");
+        appendInline(doc, li, item.rest);
+        list.appendChild(li);
+        return;
+      }
+      if (line.trim() === "" && list && continuesList(lines, index, list.tagName))
+        return;
+      list = null;
+      const div = doc.createElement("div");
+      const heading = HEADING.exec(line);
+      if (heading) {
+        const bold = doc.createElement("b");
+        bold.textContent = heading[1] ?? "";
+        div.appendChild(bold);
+      } else if (line.length > 0) {
+        appendInline(doc, div, line);
+      } else {
+        div.appendChild(doc.createElement("br"));
+      }
+      blocks.push(div);
+    });
+    return blocks;
+  }
+  function listItem2(line) {
+    const bullet = BULLET.exec(line);
+    if (bullet)
+      return { tag: "UL", rest: bullet[1] ?? "" };
+    const numbered = NUMBERED.exec(line);
+    if (numbered)
+      return { tag: "OL", rest: numbered[1] ?? "" };
+    return null;
+  }
+  function continuesList(lines, blank, tag) {
+    const next = lines.slice(blank + 1).find((line) => line.trim() !== "");
+    return next !== undefined && listItem2(next)?.tag === tag;
+  }
+  function appendInline(doc, parent, text) {
+    let from = 0;
+    for (const match of text.matchAll(INLINE)) {
+      const at = match.index ?? 0;
+      if (at > from)
+        parent.appendChild(doc.createTextNode(text.slice(from, at)));
+      const mark = doc.createElement(match[1] !== undefined ? "b" : "i");
+      mark.textContent = match[1] ?? match[2] ?? "";
+      parent.appendChild(mark);
+      from = at + match[0].length;
+    }
+    if (from < text.length)
+      parent.appendChild(doc.createTextNode(text.slice(from)));
+  }
+
   // src/seeds.ts
   function focusComposerBody(editor) {
     const lead = editor.firstElementChild;
@@ -1698,17 +1766,69 @@
     focusEditor(editor);
   }
   function setPlainText(editor, text) {
-    const doc = documentOf(editor);
     editor.textContent = "";
-    for (const line of String(text ?? "").split(`
-`)) {
+    for (const div of lineDivs(editor, text))
+      editor.appendChild(div);
+  }
+  function setComposerDraftText(editor, text, draftId) {
+    if (typeof draftId === "string" && draftId.length > 0)
+      editor.dataset.aiDraft = draftId;
+    const boundary = leadBoundary(editor);
+    while (editor.firstChild && editor.firstChild !== boundary) {
+      editor.removeChild(editor.firstChild);
+    }
+    const blocks = draftBlocks(documentOf(editor), String(text ?? ""));
+    for (const block of blocks)
+      editor.insertBefore(block, boundary);
+    const last = blocks[blocks.length - 1];
+    if (last)
+      caretInto(last.lastElementChild?.tagName === "LI" ? last.lastElementChild : last, false);
+  }
+  function composerLeadHasText(editor) {
+    const boundary = leadBoundary(editor);
+    for (let node = editor.firstChild;node && node !== boundary; node = node.nextSibling) {
+      if ((node.textContent ?? "").trim().length > 0)
+        return true;
+      if (node instanceof windowOf(editor).Element) {
+        if (node.nodeName === "IMG" || node.querySelector("img"))
+          return true;
+      }
+    }
+    return false;
+  }
+  function composerPlaceholdersLeft(editor, placeholders) {
+    const list = typeof placeholders === "string" ? parsedList(placeholders) : placeholders;
+    if (!Array.isArray(list))
+      return [];
+    const boundary = leadBoundary(editor);
+    let lead = "";
+    for (let node = editor.firstChild;node && node !== boundary; node = node.nextSibling) {
+      lead += `${node.textContent ?? ""}
+`;
+    }
+    return list.filter((item) => typeof item === "string" && lead.includes(item));
+  }
+  function parsedList(json) {
+    try {
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  }
+  function leadBoundary(editor) {
+    return Array.from(editor.children).find((child) => child.classList.contains("allodia-signature") || child.classList.contains("allodia-quote")) ?? null;
+  }
+  function lineDivs(editor, text) {
+    const doc = documentOf(editor);
+    return String(text ?? "").split(`
+`).map((line) => {
       const div = doc.createElement("div");
       if (line.length > 0)
         div.textContent = line;
       else
         div.appendChild(doc.createElement("br"));
-      editor.appendChild(div);
-    }
+      return div;
+    });
   }
 
   // src/tables.ts
@@ -2170,6 +2290,9 @@
   window.signatureBody = () => JSON.stringify(signatureBody(editor));
   window.focusComposerBody = () => focusComposerBody(editor);
   window.setPlainText = (text) => setPlainText(editor, text);
+  window.setComposerDraftText = (text, draftId) => setComposerDraftText(editor, text, draftId);
+  window.composerLeadHasText = () => composerLeadHasText(editor);
+  window.composerPlaceholdersLeft = (placeholders) => composerPlaceholdersLeft(editor, placeholders);
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerLabels = (incoming) => {
@@ -2193,7 +2316,8 @@
     const blocks = documentBlocks(editor);
     return JSON.stringify({
       blocks,
-      attachments: attachments.list(referencedAttachmentIds(blocks))
+      attachments: attachments.list(referencedAttachmentIds(blocks)),
+      ai_draft: editor.dataset.aiDraft
     });
   };
 })();

@@ -417,6 +417,9 @@ impl AppModel {
             AppInput::ReadAccountsSynced => self.read_accounts_synced(),
             AppInput::SettingsCategoryShown(category) => {
                 self.settings.record_category(category);
+                if category == super::settings::Category::Allodia {
+                    self.refresh_ai_balance();
+                }
             }
             AppInput::SetAllodiaAccountSyncMode(account_id, mode) => {
                 self.set_allodia_account_sync_mode(

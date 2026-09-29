@@ -21,7 +21,7 @@ use engine_api::{Mailbox, MailboxRole};
 /// no-op** on every Gmail account. It is deliberately last: a server that tags a real
 /// `\Archive` folder, or names one conventionally, still wins: so this can only turn a
 /// no-op into a move, never redirect an existing one.
-pub(super) fn resolve_move_target<'a>(
+pub(crate) fn resolve_move_target<'a>(
     mailboxes: &'a [Mailbox],
     role: &MailboxRole,
 ) -> Option<&'a Mailbox> {

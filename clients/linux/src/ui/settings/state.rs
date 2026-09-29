@@ -34,6 +34,10 @@ pub(in crate::ui) struct SettingsState {
     /// What the subscription section has learned, for the same reason: its read is a network
     /// round trip and its writes are three more.
     pub(in crate::ui) allodia_subscription: crate::ui::allodia_subscription::SubscriptionState,
+    /// The Writing style snapshot the model last pulled, pushed into an open window so it redraws
+    /// in place: a learning run's progress arrives many times, and a rebuild would take a
+    /// half-typed note with it.
+    pub(in crate::ui) writing_style: crate::ui::writing_style::WritingStyleFeed,
 }
 
 impl Default for SettingsState {
@@ -48,6 +52,7 @@ impl Default for SettingsState {
             allodia_failure: None,
             allodia_sync: crate::ui::allodia_sync::AllodiaSyncState::default(),
             allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
+            writing_style: crate::ui::writing_style::WritingStyleFeed::default(),
         }
     }
 }

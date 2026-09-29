@@ -61,6 +61,7 @@ public sealed partial class ComposerView : UserControl
     public ComposerView()
     {
         this.InitializeComponent();
+        StyleHeader();
         _editor = new EditorWebViewHost(Editor) { PageReady = OnEditorReadyAsync };
     }
 
@@ -110,7 +111,7 @@ public sealed partial class ComposerView : UserControl
         if (model.Accounts.Count <= 1)
         {
             FromBox.Visibility = Visibility.Collapsed;
-            FromRow.Visibility = Visibility.Visible;
+            FromAddress.Visibility = Visibility.Visible;
             FromAddress.Text = (FromBox.SelectedItem as AccountItem)?.SendLabel ?? string.Empty;
         }
 
@@ -129,6 +130,7 @@ public sealed partial class ComposerView : UserControl
             field.SuggestionsFor = model.RecipientSuggestionsAsync;
             field.RecipientsChanged += OnRecipientsChanged;
         }
+        InitHeader();
         // Seeded, not assigned raw: every address the request carries is finished, so all of them
         // render as pills. The field's own rule reads whatever follows the last comma as the token
         // the user is typing, which is right for a keystroke and wrong for a pre-fill, it left a
@@ -173,6 +175,8 @@ public sealed partial class ComposerView : UserControl
         // The Signature control and the library behind it (ComposerView.Signature.cs). Built before
         // the editor loads, because the page-ready seeding reads the resolved signature off it.
         InitSignatures();
+        // Draft a reply, beside it (ComposerView.DraftReply.cs).
+        InitDraftReply();
 
         // Pre-filled recipients are the request's doing, not the user's, arm the dirty tracking
         // only once they are in place, so a reply doesn't open already "dirty".
@@ -219,7 +223,11 @@ public sealed partial class ComposerView : UserControl
     /// <summary>Tears the editor down. The composer is built fresh per draft rather than reused, so
     /// nothing, a document, a quote, an attachment list, can leak from one message into the next;
     /// this releases the WebView2 that backed it.</summary>
-    internal void Teardown() => _editor.Close();
+    internal void Teardown()
+    {
+        CloseDraftCard();
+        _editor.Close();
+    }
 
     private async void OnSend(object sender, RoutedEventArgs e)
     {
@@ -230,6 +238,12 @@ public sealed partial class ComposerView : UserControl
         SendButton.IsEnabled = false;
         try
         {
+            // A drafted reply's open items are asked about once (ComposerView.DraftChecklist.cs).
+            if (!await ConfirmOpenItemsAsync())
+            {
+                SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);
+                return;
+            }
             var documentJson = await ReadDocumentAsync();
             // The pills are a rendering of these strings, never a second source of truth, so what
             // is submitted is exactly what the user can see in the fields.
@@ -355,6 +369,7 @@ public sealed partial class ComposerView : UserControl
         }
         AttachmentList.ItemsSource = null;
         AttachmentList.ItemsSource = _attachments;
+        OnAttachmentsChanged();
     }
 
     private void OnRemoveAttachment(object sender, RoutedEventArgs e)
@@ -367,6 +382,7 @@ public sealed partial class ComposerView : UserControl
         AttachmentList.ItemsSource = null;
         AttachmentList.ItemsSource = _attachments;
         RemoveAttachmentButton.IsEnabled = false;
+        OnAttachmentsChanged();
     }
 
     private void OnAttachmentSelectionChanged(object sender, SelectionChangedEventArgs e) =>

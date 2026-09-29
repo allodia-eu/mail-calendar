@@ -87,6 +87,7 @@ public sealed partial class ComposerView
         {
             AttachmentList.ItemsSource = null;
             AttachmentList.ItemsSource = _attachments;
+            OnAttachmentsChanged();
         }
     }
 

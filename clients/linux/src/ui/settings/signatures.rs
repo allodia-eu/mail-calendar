@@ -359,7 +359,7 @@ impl Library {
 /// title as Pango markup by default, so "Sales & Marketing" renders blank and a name shaped like
 /// `<b>…</b>` is applied rather than shown. A property builder cannot promise the order, because
 /// `g_object_new` applies properties in its own.
-fn named_row(text: &str) -> adw::ActionRow {
+pub(super) fn named_row(text: &str) -> adw::ActionRow {
     let row = plain_text_row();
     row.set_title(text);
     row
@@ -386,7 +386,7 @@ fn slot_picker(label: &str, names: &gtk::StringList) -> adw::ComboRow {
 /// A slot can name a signature that has since been deleted only if the core failed to clear it (it
 /// clears every assignment on delete), so falling back to **None** here is a display detail, not a
 /// second teardown path.
-fn slot_selection(selected: Option<&str>, ids: &[String]) -> u32 {
+pub(super) fn slot_selection(selected: Option<&str>, ids: &[String]) -> u32 {
     selected
         .and_then(|id| ids.iter().position(|candidate| candidate == id))
         .and_then(|index| u32::try_from(index + 1).ok())
@@ -395,7 +395,7 @@ fn slot_selection(selected: Option<&str>, ids: &[String]) -> u32 {
 
 /// What picking entry `index` assigns: a signature id, or `None` for the first entry: which is a
 /// real assignment ("this account sends no signature"), not the absence of one.
-fn slot_choice(index: u32, ids: &[String]) -> Option<String> {
+pub(super) fn slot_choice(index: u32, ids: &[String]) -> Option<String> {
     usize::try_from(index)
         .ok()
         .filter(|index| *index > 0)

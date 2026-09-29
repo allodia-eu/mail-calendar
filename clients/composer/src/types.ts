@@ -119,6 +119,9 @@ export interface DraftAttachment {
 export interface ComposerDocument {
   blocks: Block[];
   attachments: DraftAttachment[];
+  /// The AI draft the message was written from, when it was (`docs/ai.md`). Beside the document
+  /// rather than in it: it describes the composition, and nothing of it is rendered.
+  ai_draft?: string;
 }
 
 /// The marks in force at a point in the tree, accumulated as `inlinesFrom` descends.

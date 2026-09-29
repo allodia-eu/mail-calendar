@@ -107,6 +107,10 @@ that same file.
   logic error: the same code draws correctly on macOS and on iPhone, and wrongly only on iPad,
   where the size class is the only one of the three that is per-column.
 
+- **On iPhone an inline SwiftUI `Picker` outside a `Form` is a wheel, and a wheel shows its first
+  row as chosen when nothing is.** A choice that must start unanswered, such as where an own AI
+  endpoint runs, then reads as already made. `ChoiceList` draws such a choice as rows with a
+  checkmark instead.
 - **On iOS/iPadOS a `sheet` or `fullScreenCover` does not follow the app's light/dark setting.**
   `preferredColorScheme` travels *up* to a hosting controller, and a modal presentation gets its
   own: it copies the presenter's scheme once, at presentation, and never again, so the screen the
