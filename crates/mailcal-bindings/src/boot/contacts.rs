@@ -5,9 +5,6 @@
 //! them an empty Contacts list, not their inbox. So every path here logs and yields an empty
 //! vector rather than propagating.
 //!
-//! CardDAV, JMAP and Google are wired. Microsoft Graph is not: its contact scopes are requested
-//! at sign-in but no adapter is bound yet (`docs/contacts.md`, Known gaps).
-//!
 //! # Why every helper carries a deadline
 //!
 //! Discovery runs on the path that produces the user's **mailbox**, so its worst case is the
@@ -31,7 +28,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use engine_api::{ContactsProvider, Provider};
+use engine_api::{AccountId, ContactsProvider, Provider};
 use mailcal_account::{AccountConfig, GraphTokenSource, JmapAccountConfig};
 
 /// How long contact-source discovery may hold up an account's connect before it is abandoned.
@@ -119,6 +116,48 @@ pub(crate) async fn connect_google_contacts(
         Err(_) => {
             log::warn!(
                 "google: contacts connect timed out after {}s, mail only",
+                DISCOVERY_DEADLINE.as_secs(),
+            );
+            Vec::new()
+        }
+    }
+}
+
+/// Binds a Microsoft account's Graph contact adapters: one per personal contacts folder, then
+/// the tenant directory.
+///
+/// The folder listing is the one network call before binding, and it is what an account whose
+/// grant lacks the contact scopes fails on, so that account connects with mail and calendar and
+/// an empty Contacts list until it signs in again.
+pub(crate) async fn connect_graph_contacts(
+    id: &AccountId,
+    tokens: Arc<GraphTokenSource>,
+) -> Vec<Box<dyn ContactsProvider>> {
+    let started = Instant::now();
+    match tokio::time::timeout(
+        DISCOVERY_DEADLINE,
+        mailcal_account::connect_graph_contact_providers(id, tokens),
+    )
+    .await
+    {
+        Ok(Ok(providers)) => {
+            log::info!(
+                "graph: bound {} contact source(s) in {}ms",
+                providers.len(),
+                started.elapsed().as_millis(),
+            );
+            providers
+        }
+        Ok(Err(err)) => {
+            log::warn!(
+                "graph: contacts connect failed after {}ms, mail only: {err}",
+                started.elapsed().as_millis(),
+            );
+            Vec::new()
+        }
+        Err(_) => {
+            log::warn!(
+                "graph: contacts discovery timed out after {}s, mail only",
                 DISCOVERY_DEADLINE.as_secs(),
             );
             Vec::new()

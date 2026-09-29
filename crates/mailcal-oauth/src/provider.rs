@@ -39,13 +39,10 @@ const MS_AUTHORITY: &str = "https://login.microsoftonline.com";
 /// either would put every user in a tenant that requires admin approval behind their
 /// administrator before they could connect an account.
 ///
-/// **Contacts are requested read *and write* while the product only reads them.** The
-/// alternative is asking every Microsoft user to re-consent a second time the moment contact
-/// editing ships, and a forced re-authentication is a worse experience than one broader prompt
-/// now. What the app actually does is bounded by
-/// [`docs/privacy-policy.md`](../../../docs/privacy-policy.md), which states the read-only
-/// behaviour plainly and explains the gap: the promise is kept by the policy and the code, not
-/// by the narrowness of the scope. Revisit if contact editing is dropped.
+/// **Contacts are requested read *and write* because the app adds and edits them.** It never
+/// deletes one, which the scope would allow; that promise is kept by
+/// [`docs/privacy-policy.md`](../../../docs/privacy-policy.md) and the code, not by the
+/// narrowness of the scope. Revisit if contact editing is dropped.
 pub const MICROSOFT_GRAPH_SCOPES: &[&str] = &[
     "offline_access",
     "openid",

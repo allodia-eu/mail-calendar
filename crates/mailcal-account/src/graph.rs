@@ -29,10 +29,12 @@ use provider_graph::{GraphClient, GraphProvider, MailboxPrincipal};
 use time::Date;
 
 mod calendar;
+mod contacts;
 mod mail_provider;
 mod token_source;
 
 pub use calendar::connect_graph_calendar_providers;
+pub use contacts::connect_graph_contact_providers;
 pub use token_source::{CredentialOrigin, GraphTokenSource, TokenSink};
 
 use crate::{AccountError, log_handle::account_log_handle, pass_syncs, tls::tls_with};

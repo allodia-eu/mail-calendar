@@ -326,18 +326,20 @@ impl AccountDial {
                     mailcal_account::connect_graph_mail_providers(id, Arc::clone(&tokens), None)
                         .await
                         .map_err(ConnectFailure::from)?;
-                // The same Graph token also syncs the calendar; a failure is non-fatal (mail up,
-                // empty agenda). A scope-denied `403` sets `calendar_reauth_required`.
-                let (calendar_providers, calendar_reauth_required) =
-                    boot::connect_graph_calendars(id, tokens, display_zone).await;
+                // The same Graph token also syncs the calendar and contacts, concurrently and
+                // each non-fatally (mail up, empty agenda or address book). A scope-denied `403`
+                // on the calendar sets `calendar_reauth_required`.
+                let (calendar, contact_providers) = tokio::join!(
+                    boot::connect_graph_calendars(id, Arc::clone(&tokens), display_zone),
+                    boot::connect_graph_contacts(id, tokens),
+                );
+                let (calendar_providers, calendar_reauth_required) = calendar;
                 Ok(DialOutcome {
                     account: Account {
                         id: id.clone(),
                         providers,
                         calendar_providers,
-                        // Graph's contact scopes are requested at sign-in, but no adapter is
-                        // bound yet (`docs/contacts.md`, Known gaps).
-                        contact_providers: Vec::new(),
+                        contact_providers,
                         identity,
                     },
                     calendar_error: None,
