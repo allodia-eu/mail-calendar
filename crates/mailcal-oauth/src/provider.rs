@@ -10,44 +10,35 @@
 /// The Microsoft identity-platform authority host (worldwide/public cloud).
 const MS_AUTHORITY: &str = "https://login.microsoftonline.com";
 
-/// The delegated Graph scopes a Microsoft account requests:
-/// `offline_access` (to be issued a refresh token at all), the OIDC scopes that name the
-/// signed-in user, `Mail.ReadWrite` for the Graph mail sync **and** the write actions
-/// (mark-read/flag, move/archive, permanent delete), `Mail.Send` for submission
-/// (`POST /me/sendMail`: a distinct scope; `Mail.ReadWrite` does **not** grant send),
-/// `Calendars.ReadWrite` for the calendar read/sync + create/patch/delete, `User.Read`
-/// so the core can look up the account's own address (`GET /me`) to name it,
-/// `Contacts.ReadWrite` for the account's saved contacts, and `User.ReadBasic.All` for
-/// the tenant directory: the people a work/school account actually corresponds with,
-/// and the permission a colleague's profile photo is read through.
+/// The delegated Graph scopes a Microsoft account requests. Each one has a call site, named in
+/// the per-scope table of [`docs/provider-oauth.md`](../../../docs/provider-oauth.md) (rule 10),
+/// which is what an administrator approving the app reads: `offline_access` (a refresh token at
+/// all), `User.Read` (`GET /me`, the account's own address), `Mail.ReadWrite` (mail sync and every
+/// mail write), `Mail.Send` (`POST /me/sendMail`; `Mail.ReadWrite` does **not** grant send),
+/// `Calendars.ReadWrite`, `Contacts.ReadWrite` (the account's own cards) and `User.ReadBasic.All`
+/// (the tenant directory, and the permission a colleague's photo is read through).
 ///
-/// Scopes are granted by **incremental consent**: an account whose stored grant predates a
-/// scope 403s (`ErrorAccessDenied`) on that capability until it re-authenticates: a reconnect
-/// re-requests this whole set, so re-consenting for any one scope grants them all. So widening
-/// what is *requested* here makes every existing account re-authenticate before the new
-/// capability works. Each scope must also be a delegated permission on the Azure app
-/// registration or consent fails.
+/// **No OpenID Connect scope.** Nothing reads an ID token, and Microsoft issues a refresh token
+/// for `offline_access` alone, so `openid`, `profile` and `email` would each be a line on the
+/// consent screen with no feature behind it.
+///
+/// A widened set reaches an existing account only when it signs in again: a refresh re-uses the
+/// original grant. Each scope must also be a delegated permission on the app registration, or
+/// consent fails.
 ///
 /// **A scope the account cannot grant fails at *connect*, not at use.** Microsoft answers
 /// `access_denied` during consent, so an unregistered (or admin-gated) scope does not cost one
-/// capability, it stops the account being added at all
-/// ([`docs/provider-oauth.md`](../../../docs/provider-oauth.md) rule 10). That is why this set
-/// stays to permissions a *user* can consent to for themselves, and why two Graph contact
-/// permissions are deliberately absent: `ProfilePhoto.Read.All`, which grants nothing
-/// `User.ReadBasic.All` does not (verified against a real tenant), and `OrgContact.Read.All`,
-/// which covers a source the product does not read. Both are tenant-wide reads; requesting
-/// either would put every user in a tenant that requires admin approval behind their
-/// administrator before they could connect an account.
+/// capability, it stops the account being added at all. That is why this set stays to
+/// permissions a *user* can consent to for themselves, and why `ProfilePhoto.Read.All` (which
+/// grants nothing `User.ReadBasic.All` does not, verified against a real tenant) and
+/// `OrgContact.Read.All` (a source the product does not read) are absent.
 ///
 /// **Contacts are requested read *and write* because the app adds and edits them.** It never
 /// deletes one, which the scope would allow; that promise is kept by
 /// [`docs/privacy-policy.md`](../../../docs/privacy-policy.md) and the code, not by the
-/// narrowness of the scope. Revisit if contact editing is dropped.
+/// narrowness of the scope.
 pub const MICROSOFT_GRAPH_SCOPES: &[&str] = &[
     "offline_access",
-    "openid",
-    "profile",
-    "email",
     "https://graph.microsoft.com/Mail.ReadWrite",
     "https://graph.microsoft.com/Mail.Send",
     "https://graph.microsoft.com/Calendars.ReadWrite",
