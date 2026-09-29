@@ -284,10 +284,10 @@ change updates in every catalog locale.
 | Composer recipients as **pills**, with per-recipient removal | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions **float**: the form below them does not move | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The caret opens in **To**, or in the body when already addressed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| CardDAV contact sources (one adapter per address book) | ✅ | — | — | — | — | — |
+| CardDAV contact sources (one adapter per address book) | ✅ | — | — | — | — | ✅ |
 | JMAP contact sources (account-global adapter) | ✅ | — | — | — | — | — |
 | Google People contact sources (one adapter per source: connections, Other Contacts, directory) | ✅ | — | — | — | — | — |
-| Microsoft Graph contact sources (one adapter per source: each personal contacts folder, directory) | ✅ | — | — | — | — | — |
+| Microsoft Graph contact sources (one adapter per source: each personal contacts folder, directory) | ✅ | — | — | — | — | ✅ |
 
 ---
 
