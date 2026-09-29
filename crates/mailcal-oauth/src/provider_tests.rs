@@ -106,6 +106,19 @@ fn requests_the_calendar_scope_so_graph_calendar_sync_works() {
     assert!(MICROSOFT_GRAPH_SCOPES.contains(&"https://graph.microsoft.com/Calendars.ReadWrite"));
 }
 
+/// Nothing reads an ID token: the address comes from `GET /me`, which `User.Read` covers, and
+/// Microsoft issues a refresh token for `offline_access` alone. An administrator approving the
+/// set reads every scope, so one without a call site costs an approval for nothing.
+#[test]
+fn microsoft_requests_no_openid_connect_scope() {
+    for scope in ["openid", "profile", "email"] {
+        assert!(
+            !MICROSOFT_GRAPH_SCOPES.contains(&scope),
+            "{scope} is requested"
+        );
+    }
+}
+
 fn google() -> OAuthProviderConfig {
     OAuthProviderConfig::google(
         "google-client",
@@ -217,10 +230,9 @@ fn google_requests_full_gmail_and_calendar_scopes() {
 /// The photo a mail row draws comes from the directory rather than from a saved card for
 /// most correspondents, so both scopes are load-bearing.
 ///
-/// Contacts are asked for read **and write** deliberately, ahead of the editing feature:
-/// widening later would force every Microsoft account through a second re-authentication,
-/// which is worse than one broader prompt now. The read-only promise lives in the privacy
-/// policy and in what the code does, not in the narrowness of the scope.
+/// Contacts are asked for read **and write** because the app adds and edits a Microsoft
+/// account's own cards. It never deletes one; that promise lives in the privacy policy and in
+/// what the code does, not in the narrowness of the scope.
 #[test]
 fn requests_the_contact_scopes_so_saved_and_directory_people_resolve() {
     assert!(MICROSOFT_GRAPH_SCOPES.contains(&"https://graph.microsoft.com/Contacts.ReadWrite"));

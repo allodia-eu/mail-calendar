@@ -263,13 +263,26 @@ capturing the redirect), because that is inherently platform-specific.
    email-first flow's Microsoft found-card).
 
 10. **The requested Graph scopes must be granted in the Azure app registration, and widening
-    them re-consents.** `MICROSOFT_GRAPH_SCOPES` requests `Mail.ReadWrite` (mail sync **and** the
-    write actions: mark-read/flag, move/archive, delete), `Mail.Send` (submission: a scope
-    **distinct** from `Mail.ReadWrite`, which does not grant send), `Calendars.ReadWrite`,
-    `User.Read`, `Contacts.ReadWrite` (the account's saved contacts) and `User.ReadBasic.All`
-    (the tenant directory, and the permission a colleague's profile photo is read through), plus
-    `offline_access` and the OIDC scopes. Each must be a delegated permission on the Azure app
-    registration's **API permissions** or Microsoft returns `access_denied` at consent.
+    them re-consents.** `MICROSOFT_GRAPH_SCOPES` requests exactly the scopes below. Each must be a
+    delegated permission on the Azure app registration's **API permissions** or Microsoft returns
+    `access_denied` at consent. The table is the justification an administrator reviewing the app
+    asks for: every scope names the calls it permits and what the user gets from them. Graph paths
+    are relative to `https://graph.microsoft.com/v1.0/me`.
+
+    | Scope | Calls | What it provides |
+    |---|---|---|
+    | `offline_access` | the token endpoint | a refresh token, so the account keeps working past the first hour |
+    | `User.Read` | `GET /me` | the account's own address and name |
+    | `Mail.ReadWrite` | `/mailFolders`, `/messages` (delta, read, attachments), `PATCH /messages/{id}`, `POST /messages/{id}/move`, `POST /messages/{id}/permanentDelete`, `POST /messages/{id}/reportMessage`, draft create and replace | reading mail; read and flag state, moving, archiving, deleting, reporting spam, drafts |
+    | `Mail.Send` | `POST /sendMail` | sending; `Mail.ReadWrite` does not grant it |
+    | `Calendars.ReadWrite` | `/calendars`, `/events`, `POST /events/{id}/accept`, `decline`, `tentativelyAccept` | the calendar, event edits, answering invitations |
+    | `Contacts.ReadWrite` | `/contacts`, `/contactFolders`, `/contacts/delta` | the account's own contacts, adding and editing them |
+    | `User.ReadBasic.All` | `GET /users` (at the tenant, not under `/me`), `/users/{id}/photo` | colleagues from a work or school directory, and their photos |
+
+    **No OpenID Connect scope is requested.** Nothing reads an ID token (the address comes from
+    `GET /me`), and Microsoft issues a refresh token for `offline_access` alone, so `openid`,
+    `profile` and `email` would be lines on the consent screen with no feature behind them. A grant
+    that already holds them keeps them; nobody is asked to consent again for their absence.
 
     ⚠️ **A scope the account cannot grant is a setup failure, not a missing feature.** That
     `access_denied` happens *during consent*, so an unregistered or admin-gated permission does
