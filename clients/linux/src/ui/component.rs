@@ -14,8 +14,8 @@ use relm4::{ComponentParts, ComponentSender, SimpleComponent};
 use super::{
     AppInput, AppModel, PrimaryView, SetupState, allodia_sync, calendar::CalendarModel,
     calendar_actions, connectivity, contacts::ContactsModel, host_tasks::HostTasks, mcp, model,
-    model::ReadingState, preferences, runtime_timers, search::SearchState, selection::Selection, settings,
-    setup_onboarding, shell::AppWidgets, time_zone, welcome,
+    model::ReadingState, preferences, runtime_timers, search::SearchState, selection::Selection,
+    settings, setup_onboarding, shell::AppWidgets, time_zone, welcome,
 };
 use crate::{appearance, boot, crash, logger, observer::SurfaceObserver};
 

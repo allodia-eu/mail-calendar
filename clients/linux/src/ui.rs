@@ -102,9 +102,9 @@ mod setup_server_field;
 #[cfg(test)]
 mod setup_server_field_tests;
 mod setup_server_row;
-mod setup_state;
 #[cfg(test)]
 mod setup_signin_tests;
+mod setup_state;
 #[cfg(test)]
 mod setup_widget_tests;
 mod setup_widgets;

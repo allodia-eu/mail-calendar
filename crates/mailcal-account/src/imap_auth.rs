@@ -7,7 +7,7 @@
 //! 1. **Sign in.** The server takes an OAuth token *and* an authorization server was found that
 //!    this install can register with (RFC 8414 → RFC 7591), or that this build already holds a
 //!    registration for. The user signs in at their provider and types nothing here.
-//! 2. **Sign-in exists, but not for us.** The server takes a token and no usable authorization
+//! 2. **Sign-in exists, but not for us.** The server takes a token and no usable authorisation
 //!    server was found: the provider admits only applications it registered in advance. Saying so
 //!    is worth a line of copy, because "use a password instead" without the reason reads like the
 //!    app is broken.

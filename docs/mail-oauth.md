@@ -103,9 +103,9 @@ is recorded here.
    fresh one. On a **password** account it triggers none: the same secret would go back to the
    same server, at a provider that may be counting attempts toward a lockout.
 
-10. **An OAuth account stores no password anywhere.** Its `[imap]` section carries a grant and
-    no secret, its calendar and address book present the same bearer token rather than a reused
-    password, and "repair this account" is a re-authorisation rather than a typed secret. The
+10. **An OAuth account stores no password anywhere.** The grant is stored once, at the root
+    (`[oauth]`), because every endpoint presents it: IMAP and SMTP over SASL, the calendar and
+    address book as the same bearer token rather than a reused password, and "repair this account" is a re-authorisation rather than a typed secret. The
     `calendars` and `contacts` scopes are requested at sign-in precisely so the second half
     works.
 
