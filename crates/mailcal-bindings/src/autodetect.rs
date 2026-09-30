@@ -356,12 +356,16 @@ impl mailcal_autodetect::MxResolver for CallbackMxResolver {
     }
 }
 
-/// The production detection tuning, plus the debug/dev-harness well-known-base override
-/// (`MAILCAL_AUTODETECT_WELL_KNOWN_BASE`) so `alice@test.local` reaches the local
-/// Stalwart. The override is compiled out of a release build without `dev-harness`.
+/// The production detection tuning over the account layer's trust policy, plus the
+/// debug/dev-harness well-known-base override (`MAILCAL_AUTODETECT_WELL_KNOWN_BASE`) so
+/// `alice@test.local` reaches the local Stalwart. The override, and the policy's harness
+/// roots, are compiled out of a release build without `dev-harness`.
 fn detect_config() -> mailcal_autodetect::DetectConfig {
     #[allow(unused_mut)]
-    let mut config = mailcal_autodetect::DetectConfig::default();
+    let mut config = mailcal_autodetect::DetectConfig {
+        tls_policy: mailcal_account::setup_trust_policy(),
+        ..mailcal_autodetect::DetectConfig::default()
+    };
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
     if let Ok(base) = std::env::var("MAILCAL_AUTODETECT_WELL_KNOWN_BASE") {
         match url::Url::parse(&base) {

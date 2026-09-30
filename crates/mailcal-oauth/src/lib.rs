@@ -42,7 +42,7 @@ use std::collections::HashMap;
 
 pub use discovery::{
     AuthServerMetadata, DiscoveryError, ProtectedResource, discover_auth_server,
-    discover_protected_resource, discovery_client,
+    discover_protected_resource, discovery_client, discovery_client_with,
 };
 pub use grant::{GrantRefusal, GrantedScopes};
 pub use mail_providers::{StaticMailProvider, provider_for_host, static_mail_providers};

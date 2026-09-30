@@ -3,13 +3,14 @@
 //! dev loop, whose core is `--release`). A production release **without** that feature excludes it
 //! entirely. The gate is `#[cfg(any(debug_assertions, feature = "dev-harness"))]` (see `lib.rs`).
 //!
-//! It loads an extra CA certificate named by the `MAILCAL_EXTRA_CA` environment variable and
-//! folds it into the account's [`TlsPolicy`](engine_tls::TlsPolicy) as a custom root, so a debug
-//! build can drive a local test server (the Stalwart harness, whose IMAP listener serves a
-//! self-signed cert) over TLS. This only **adds** a trust anchor: standard rustls chain and
-//! hostname verification still run, so it never accepts an invalid certificate and never skips a
-//! check; it is not `danger_accept_invalid_certs`. Real accounts keep verifying against bundled
-//! and OS roots exactly as before. See `docker/stalwart/README.md`.
+//! It loads the extra CA certificates named by the `MAILCAL_EXTRA_CA` environment variable and
+//! folds them into the account's [`TlsPolicy`](engine_tls::TlsPolicy) as custom roots, so a debug
+//! build can drive a local test server over TLS: the Stalwart harness's IMAP listeners, and the
+//! HTTPS front that setup reads a sign-in's autoconfig and metadata from. This only **adds** trust
+//! anchors: standard rustls chain and hostname verification still run, so it never accepts an
+//! invalid certificate and never skips a check; it is not `danger_accept_invalid_certs`. Real
+//! accounts keep verifying against bundled and OS roots exactly as before. See
+//! `docker/stalwart/README.md`.
 
 use engine_tls::CertificateDer;
 use rustls_pki_types::pem::PemObject;

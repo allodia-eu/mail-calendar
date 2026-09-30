@@ -78,14 +78,14 @@ impl Fetch for Fetcher {
 }
 
 impl Fetcher {
-    /// Builds the fetcher over the shared TLS trust store, with redirects disabled and
+    /// Builds the fetcher over the configured TLS trust policy, with redirects disabled and
     /// both connect and total per-request timeouts set.
     ///
     /// # Errors
     ///
     /// Returns [`DetectError::Tls`] if the trust store or HTTP client cannot be built.
     pub(crate) fn new(config: &DetectConfig) -> Result<Self, DetectError> {
-        let tls = engine_tls::client_config(&engine_tls::TlsPolicy::bundled_and_system())
+        let tls = engine_tls::client_config(&config.tls_policy)
             .map_err(|e| DetectError::Tls(e.to_string()))?;
         let client = tls
             .reqwest_builder()

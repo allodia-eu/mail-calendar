@@ -71,8 +71,19 @@ const OIDC_WELL_KNOWN: &str = "/.well-known/openid-configuration";
 /// Returns [`OAuthError::Tls`] if the shared TLS policy cannot be built, or
 /// [`OAuthError::Transport`] if the client cannot be constructed.
 pub fn discovery_client() -> Result<reqwest::Client, OAuthError> {
-    let tls = engine_tls::client_config(&engine_tls::TlsPolicy::bundled_and_system())
-        .map_err(OAuthError::Tls)?;
+    discovery_client_with(&engine_tls::TlsPolicy::bundled_and_system())
+}
+
+/// [`discovery_client`] over the caller's trust `policy`, for the account layer, which decides
+/// what a mail account's setup trusts.
+///
+/// # Errors
+///
+/// As [`discovery_client`].
+pub fn discovery_client_with(
+    policy: &engine_tls::TlsPolicy,
+) -> Result<reqwest::Client, OAuthError> {
+    let tls = engine_tls::client_config(policy).map_err(OAuthError::Tls)?;
     tls.reqwest_builder()
         .redirect(reqwest::redirect::Policy::none())
         .build()

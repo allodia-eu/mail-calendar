@@ -111,6 +111,7 @@ pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,
 };
+pub use tls::setup_trust_policy;
 
 use crate::{setup::normalize_caldav_base_url, tls::account_tls};
 
