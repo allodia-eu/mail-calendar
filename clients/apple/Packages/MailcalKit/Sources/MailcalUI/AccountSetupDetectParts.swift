@@ -54,3 +54,18 @@ func reasonNote(_ reason: MissReason) -> String {
     case .nothingFound, .invalidEmail: return L10n.setup_detect_reason_nothing()
     }
 }
+
+extension AccountSetupDetectView {
+    /// Connect, or a progress readout while a connect runs.
+    func connectButton(enabled: Bool, action: @escaping () -> Void) -> some View {
+        Group {
+            if connecting {
+                progress(L10n.status_connecting())
+            } else {
+                Button(L10n.action_connect(), action: action)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!enabled)
+            }
+        }
+    }
+}

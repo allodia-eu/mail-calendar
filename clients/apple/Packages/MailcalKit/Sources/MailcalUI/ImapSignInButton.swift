@@ -7,7 +7,7 @@
 // wondering why the button their colleague has is missing.
 //
 // The password route is never removed where it works. Sign-in leads, because that is what the
-// server said it prefers; a password field sits below it and always connects.
+// server said it prefers, and the password field waits behind "Use a password instead".
 
 import MailcalBindings // L10n
 import SwiftUI
@@ -64,6 +64,22 @@ enum ImapAuthState: Equatable {
         case let .signIn(passwordAlsoWorks): return passwordAlsoWorks
         case .registrationNeeded, .password, .failed: return true
         }
+    }
+
+    /// Whether the password field is drawn, given whether the person asked for the password route.
+    ///
+    /// Beside a sign-in it waits behind "Use a password instead" (docs/mail-oauth.md rule 2): a
+    /// field on screen reads as "type your password here", whatever the button under it says.
+    func showsPasswordField(chosen: Bool) -> Bool {
+        if case .signIn = self { return showsPassword && chosen }
+        return showsPassword
+    }
+
+    /// Whether "Use a password instead" is offered: beside a sign-in, where a password also works,
+    /// until it has been chosen.
+    func offersPasswordInstead(chosen: Bool) -> Bool {
+        if case .signIn = self { return showsPassword && !chosen }
+        return false
     }
 }
 
@@ -143,26 +159,59 @@ struct ImapAuthExplanation: View {
     }
 }
 
-/// The sign-in button, shown only where the server said it takes one.
+/// The sign-in, drawn where the server said it takes one: a large button inside the card, directly
+/// under the line that explains it, and the password route as a quiet link beneath.
+///
+/// It leads until the person asks for a password. After that it stays, as an ordinary button above
+/// the field, so changing their mind is one click, and Connect becomes the form's primary action
+/// (docs/mail-oauth.md rule 2).
 struct ImapSignInButton: View {
     /// The account the sign-in is for: the same request the pre-flight asked about.
     let request: ImapLoginRequest
     /// Runs the browser sign-in and, on success, adds + stores the account.
     let signIn: (ImapLoginRequest) async -> ImapSignInOutcome
+    /// Set while the browser is up, so the form can hold its other actions until it answers.
+    @Binding var signingIn: Bool
+    /// Whether the sign-in is the form's primary action, which it is until a password is chosen.
+    var leads = true
+    /// Offers the password route under the button, where a password also works and it has not
+    /// been chosen yet.
+    var passwordInstead: (() -> Void)? = nil
     /// Told when a sign-in was started and did not finish, so the card can bring the password
     /// route back and say why.
     let failed: () -> Void
 
-    @State private var signingIn = false
-
     var body: some View {
-        if signingIn {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text(L10n.status_connecting()).foregroundStyle(.secondary)
+        VStack(spacing: 10) {
+            if signingIn {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(L10n.status_connecting()).foregroundStyle(.secondary)
+                }
+                .frame(minHeight: 32)
+            } else {
+                button
             }
+            if let passwordInstead {
+                Button(L10n.setup_imap_signin_password_instead(), action: passwordInstead)
+                    .modifier(LinkButtonStyle())
+                    .disabled(signingIn)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder private var button: some View {
+        let label = Button { start() } label: {
+            Label(L10n.setup_imap_signin_button(), systemImage: "person.badge.key.fill")
+                .frame(maxWidth: .infinity)
+        }
+        .controlSize(.large)
+        if leads {
+            label.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
         } else {
-            Button(L10n.setup_imap_signin_button()) { start() }
+            label.buttonStyle(.bordered)
         }
     }
 
@@ -174,5 +223,17 @@ struct ImapSignInButton: View {
             // A dismissed browser is not a failure: say nothing and leave the button as it was.
             if case .failed = outcome { failed() }
         }
+    }
+}
+
+/// A text-only button that reads as a link: the platform's own link style on macOS, and on iOS the
+/// borderless button, which is the tinted text iOS uses for the same thing.
+private struct LinkButtonStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.buttonStyle(.link)
+        #else
+        content.buttonStyle(.borderless)
+        #endif
     }
 }

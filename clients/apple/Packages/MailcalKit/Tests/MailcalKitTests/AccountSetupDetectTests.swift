@@ -81,6 +81,16 @@ struct AccountSetupDetectTests {
         #expect(form.canConnect)
     }
 
+    @Test func untrustedImapIsApprovedBeforeASignIn() {
+        // The config decides which server the token is presented to, so approving it matters as
+        // much for a sign-in as for a typed password.
+        var form = DetectedConnectForm(recommendation: imap(false))
+        #expect(!form.canSignIn)
+        form.approved = true
+        #expect(form.canSignIn)
+        #expect(DetectedConnectForm(recommendation: imap(true)).canSignIn)
+    }
+
     /// A refused certificate gates Connect the way an untrusted result does, and nothing is
     /// handed back to store until somebody has accepted it (`docs/certificate-exceptions.md`).
     @Test func aRefusedCertificateGatesConnectUntilItIsAccepted() {
@@ -182,6 +192,34 @@ struct AccountSetupDetectTests {
         )
         #expect(state.offersSignIn)
         #expect(!state.showsPassword)
+    }
+
+    @Test func besideASignInThePasswordFieldWaitsUntilItIsAskedFor() {
+        // A field on screen reads as "type your password here", whatever the button under it
+        // says, so beside a sign-in it stays behind "Use a password instead" (rule 2).
+        let state = ImapAuthState(
+            .signIn(issuer: "https://login.example.com", providerLabel: nil, passwordAlsoWorks: true)
+        )
+        #expect(!state.showsPasswordField(chosen: false))
+        #expect(state.offersPasswordInstead(chosen: false))
+        #expect(state.showsPasswordField(chosen: true))
+        #expect(!state.offersPasswordInstead(chosen: true))
+    }
+
+    @Test func noPasswordRouteIsOfferedWhereTheServerRefusesOne() {
+        let state = ImapAuthState(
+            .signIn(issuer: "https://login.example.com", providerLabel: nil, passwordAlsoWorks: false)
+        )
+        #expect(!state.offersPasswordInstead(chosen: false))
+        #expect(!state.showsPasswordField(chosen: true))
+    }
+
+    @Test func withoutASignInThePasswordFieldNeedsNoAsking() {
+        for state in [ImapAuthState.password, .registrationNeeded, .failed] {
+            #expect(state.showsPasswordField(chosen: false))
+            #expect(!state.offersPasswordInstead(chosen: false))
+        }
+        #expect(!ImapAuthState.checking.showsPasswordField(chosen: true))
     }
 
     @Test func aClosedSignInStillLeadsToThePasswordField() {

@@ -91,6 +91,10 @@ struct AccountSetupView: View {
     /// What the typed mail server said it accepts. `.password` until it answers, because this
     /// pane's password field is already on screen and must not be taken away to say nothing.
     @State private var imapAuth: ImapAuthState = .password
+    /// Set while the IMAP sign-in's browser is up.
+    @State private var imapSigningIn = false
+    /// The person asked for the password route beside a sign-in.
+    @State private var passwordChosen = false
     /// Asks the mail server what it accepts. `nil` where there is no core to ask, which is a
     /// preview or a test: the pane then simply never offers a sign-in.
     let imapAuthOptions: ((ImapLoginRequest) async -> ImapAuthOffer)?
@@ -228,7 +232,7 @@ struct AccountSetupView: View {
                 )
             }
 
-            SetupFooter(back: back, backDisabled: connecting || signingIn || googleSigningIn) {
+            SetupFooter(back: back, backDisabled: connecting || signingIn || googleSigningIn || imapSigningIn) {
                 if let cancel {
                     Button(L10n.action_cancel()) { cancel() }
                 }
@@ -248,17 +252,13 @@ struct AccountSetupView: View {
         case .imap:
             if connecting {
                 connectingLabel(L10n.status_connecting())
+            } else if imapAuth.offersSignIn, !imapAuth.showsPasswordField(chosen: passwordRouteChosen) {
+                // The sign-in leads from the card, under the line that explains it.
+                EmptyView()
             } else {
-                Button(L10n.action_connect()) {
-                    // The manual form only offers implicit-TLS setup today (STARTTLS
-                    // arrives via autodetection).
-                    submit(
-                        servers.imap.dial(imapHost), username, password,
-                        servers.smtp.dial(smtpHost), caldavURL,
-                        servers.imap.security, servers.smtp.security, acceptedCertificate)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canConnect || !certificateOK)
+                Button(L10n.action_connect(), action: submitImap)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canConnect || !certificateOK)
             }
         case .jmap:
             if connecting {
@@ -311,13 +311,18 @@ struct AccountSetupView: View {
                 ImapAuthExplanation(state: imapAuth)
                 if imapAuth.offersSignIn, let signInImap {
                     ImapSignInButton(
-                        request: typedImapRequest,
-                        signIn: signInImap,
+                        request: typedImapRequest, signIn: signInImap, signingIn: $imapSigningIn,
+                        leads: !passwordRouteChosen,
+                        passwordInstead: imapAuth.offersPasswordInstead(chosen: passwordRouteChosen)
+                            ? { passwordChosen = true } : nil,
                         failed: { imapAuth = .failed }
                     )
+                    .disabled(connecting)
                 }
-                SecureField(L10n.setup_field_password(), text: $password)
-                    .setupField(.password)
+                if imapAuth.showsPasswordField(chosen: passwordRouteChosen) {
+                    SecureField(L10n.setup_field_password(), text: $password)
+                        .setupField(.password)
+                }
             }
             .task(id: ImapAuthQuestion(typedImapRequest)) {
                 await askTypedImapServer()
@@ -398,6 +403,19 @@ struct AccountSetupView: View {
 }
 
 extension AccountSetupView {
+    /// A password already typed counts as the route chosen: an answer arriving mid-typing must
+    /// not take the field away.
+    var passwordRouteChosen: Bool { passwordChosen || !password.isEmpty }
+
+    func submitImap() {
+        // The manual form only offers implicit-TLS setup today (STARTTLS
+        // arrives via autodetection).
+        submit(
+            servers.imap.dial(imapHost), username, password,
+            servers.smtp.dial(smtpHost), caldavURL,
+            servers.imap.security, servers.smtp.security, acceptedCertificate)
+    }
+
     /// The account the typed fields describe, as the pre-flight and the sign-in both take it.
     var typedImapRequest: ImapLoginRequest {
         imapLoginRequest(
@@ -419,6 +437,7 @@ extension AccountSetupView {
     /// debounced so a network round trip does not go out per keystroke.
     func askTypedImapServer() async {
         imapAuth = .password
+        passwordChosen = false
         guard let imapAuthOptions, kind == .imap,
               JmapOAuthProbe.looksLikeAddress(username), !imapHost.isEmpty
         else { return }

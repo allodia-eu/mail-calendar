@@ -83,6 +83,10 @@ struct AccountSetupDetectView: View {
     /// draws no credential field in the meantime: one that appears and is then taken away reads
     /// as the app changing its mind (docs/mail-oauth.md rule 8).
     @State private var imapAuth: ImapAuthState = .checking
+    /// Set while the IMAP sign-in's browser is up.
+    @State private var imapSigningIn = false
+    /// The person asked for the password route beside a sign-in.
+    @State private var passwordChosen = false
 
     var body: some View {
         // The manual form brings its own scaffold (it *is* AccountSetupView), so it is not wrapped
@@ -277,6 +281,9 @@ struct AccountSetupDetectView: View {
                 imapEmail, imapHost, smtpHost, imapSecurity, smtpSecurity, incoming, outgoing,
                 caldavURL, oauthIssuer, _, _
             ):
+                let connectImap = {
+                    submit(imapHost, imapEmail, password, smtpHost ?? "", form.effectiveCaldavURL ?? "", imapSecurity, smtpSecurity, form.acceptedCertificate)
+                }
                 SetupCard(title: L10n.setup_detect_section_email(), systemImage: "envelope") {
                     serverRow(incoming)
                     if let outgoing { serverRow(outgoing) }
@@ -289,11 +296,14 @@ struct AccountSetupDetectView: View {
                                 caldavURL: form.effectiveCaldavURL, imapSecurity: imapSecurity,
                                 smtpSecurity: smtpSecurity, oauthIssuer: oauthIssuer
                             ),
-                            signIn: signInImap,
+                            signIn: signInImap, signingIn: $imapSigningIn, leads: !passwordChosen,
+                            passwordInstead: imapAuth.offersPasswordInstead(chosen: passwordChosen)
+                                ? { passwordChosen = true } : nil,
                             failed: { imapAuth = .failed }
                         )
+                        .disabled(!form.canSignIn || connecting)
                     }
-                    if imapAuth.showsPassword {
+                    if imapAuth.showsPasswordField(chosen: passwordChosen) {
                         Text(L10n.setup_detect_app_password_hint())
                             .font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -304,6 +314,7 @@ struct AccountSetupDetectView: View {
                 }
                 .task(id: "\(imapEmail)|\(imapHost)") {
                     imapAuth = .checking
+                    passwordChosen = false
                     // The card shows nothing to act on while it asks, so a server that never
                     // answers must not be able to hold somebody here. Whichever answer lands
                     // first decides: both apply themselves only while the state is still
@@ -329,12 +340,11 @@ struct AccountSetupDetectView: View {
                 }
                 calendarSection(discovered: caldavURL)
                 inlineError(suppressed: form.refusedCertificate != nil)
-                // Back and Cancel whatever the server said; Connect only beside a password field.
+                // Back and Cancel whatever the server said; Connect once a password field is shown.
+                // A sign-in that leads is drawn in the card, under the line that explains it.
                 footer {
-                    if imapAuth.showsPassword {
-                        connectButton(enabled: form.canConnect) {
-                            submit(imapHost, imapEmail, password, smtpHost ?? "", form.effectiveCaldavURL ?? "", imapSecurity, smtpSecurity, form.acceptedCertificate)
-                        }
+                    if imapAuth.showsPasswordField(chosen: passwordChosen) {
+                        connectButton(enabled: form.canConnect && !imapSigningIn, action: connectImap)
                     }
                 }
             case .manual:
@@ -445,18 +455,6 @@ struct AccountSetupDetectView: View {
         }
     }
 
-    private func connectButton(enabled: Bool, action: @escaping () -> Void) -> some View {
-        Group {
-            if connecting {
-                progress(L10n.status_connecting())
-            } else {
-                Button(L10n.action_connect(), action: action)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!enabled)
-            }
-        }
-    }
-
     /// The found card's footer: Back at the start, and the same Cancel the other two steps carry
     /// when this is a later add.
     private func footer<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> some View {
@@ -469,7 +467,7 @@ struct AccountSetupDetectView: View {
     }
 
     /// A connect or a sign-in is running, and its answer belongs to the step on screen.
-    private var busy: Bool { connecting || signingIn || googleSigningIn }
+    private var busy: Bool { connecting || signingIn || googleSigningIn || imapSigningIn }
 
     /// Back to the address, which keeps what was typed there. Everything the abandoned route
     /// filled in goes with it: a different address can reach a different server, and nothing is
@@ -483,6 +481,7 @@ struct AccountSetupDetectView: View {
         calendarURL = ""
         googleEarlyAccessConfirmed = false
         jmapSignInOffered = false
+        passwordChosen = false
         phase = .email
     }
 
