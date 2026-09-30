@@ -67,7 +67,9 @@ pub async fn connect_carddav_contact_providers(
     // When a DAV ceiling is measured, this needs the account id threading through.
     .with_retry(ungated_retry());
 
-    let discovery = CardDavProvider::connect(config.clone()).await?;
+    let discovery = CardDavProvider::connect(config.clone())
+        .await
+        .map_err(AccountError::from_first_dav_connect)?;
     // Ask the server before assuming: an account whose CalDAV origin serves no CardDAV
     // reports no contacts capability, and syncing it would fail once per pass forever.
     if !discovery.connection_info().capabilities.contacts() {

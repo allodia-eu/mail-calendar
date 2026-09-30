@@ -154,7 +154,9 @@ pub async fn connect_caldav(
     .with_retry(throttle::ungated_retry())
     .with_connect_observer(connect_log::connect_logger("caldav"));
     let provider = match &caldav.calendar {
-        Some(calendar) => CalDavProvider::connect(config.with_calendar(calendar.clone())).await?,
+        Some(calendar) => CalDavProvider::connect(config.with_calendar(calendar.clone()))
+            .await
+            .map_err(AccountError::from_first_dav_connect)?,
         None => connect_primary_calendar(config).await?,
     };
     Ok(Box::new(provider))
@@ -163,7 +165,9 @@ pub async fn connect_caldav(
 /// Connects and rebinds to the account's first discovered calendar, for a config
 /// that did not name one (see [`connect_caldav`]).
 async fn connect_primary_calendar(config: CalDavConfig) -> Result<CalDavProvider, AccountError> {
-    let provider = CalDavProvider::connect(config).await?;
+    let provider = CalDavProvider::connect(config)
+        .await
+        .map_err(AccountError::from_first_dav_connect)?;
     // The account scopes the listing but not which collections come back, so a
     // placeholder id is fine here.
     let account =

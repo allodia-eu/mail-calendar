@@ -162,4 +162,21 @@ impl AccountError {
             Self::Jmap(err.to_string())
         }
     }
+
+    /// The verdict for the connect that first presents a DAV endpoint's credential: an
+    /// [authentication-class](FailureClass::Authentication) refusal becomes
+    /// [`Self::SigninRejected`], anything else [`Self::CalDav`].
+    ///
+    /// It decides something only for an account without mail, whose calendar or contacts are
+    /// what say whether its sign-in still works (`docs/accounts.md` rule 7). Beside a mailbox the
+    /// mailbox decides, and a DAV failure only leaves the calendar or contacts empty. The requests
+    /// that follow the connect convert the ordinary way, for the reason
+    /// [`Self::from_first_imap_login`] gives.
+    pub(crate) fn from_first_dav_connect(err: provider_caldav::CalDavError) -> Self {
+        if err.failure_class() == FailureClass::Authentication {
+            Self::SigninRejected(err.to_string())
+        } else {
+            Self::CalDav(err)
+        }
+    }
 }

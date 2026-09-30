@@ -391,6 +391,9 @@ capturing the redirect), because that is inherently platform-specific.
     built (`AccountError::from_first_imap_login`), not a check a caller can forget: every other
     conversion of the same engine error keeps the family's own variant. JMAP has no such sequence
     (session discovery authenticates on every connect), so its mail connect is its first login.
+    A CalDAV or CardDAV connect is the first login of its own capability
+    (`AccountError::from_first_dav_connect`), and decides the account's verdict only for an
+    account without mail ([`accounts.md`](accounts.md) rule 7).
 
     **It must be classified at *both* ends, because a dead grant usually never reaches a sync.**
     The interactive app connects **nothing** synchronously at boot (it paints cached mail and
