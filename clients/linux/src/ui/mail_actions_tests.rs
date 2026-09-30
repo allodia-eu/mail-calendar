@@ -11,7 +11,7 @@ use crate::{
     l10n,
     ui::{
         AppInput,
-        mail_actions_menu::{message_menu_button, thread_menu_button},
+        mail_actions_menu::{RowMenus, message_menu_button, thread_menu_button},
         model,
     },
 };
@@ -143,11 +143,13 @@ pub(crate) fn the_action_menus_dispatch_the_message_and_thread_the_user_chose() 
     let opened = crate::ui::model::OpenedMessage::from_row(&mailcal_bindings::SnapshotRow::Flat {
         row: row.clone(),
     });
-    let menu = message_menu_button(&row, &opened, false, &sender);
+    let anchor = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    let menu = message_menu_button(&anchor, &row, &opened, &RowMenus::default(), &sender);
     let menu_root = popover_child(&menu);
     assert!(button(&menu_root, l10n::action_mark_read()).is_some());
     assert!(button(&menu_root, l10n::action_flag()).is_some());
     assert!(button(&menu_root, l10n::action_archive()).is_some());
+    assert!(button(&menu_root, l10n::action_move_to_folder()).is_some());
     assert!(button(&menu_root, l10n::action_move_to_trash()).is_some());
     assert!(button(&menu_root, l10n::action_mark_as_spam()).is_some());
     assert!(button(&menu_root, l10n::action_delete_permanently()).is_some());
@@ -174,12 +176,22 @@ pub(crate) fn the_action_menus_dispatch_the_message_and_thread_the_user_chose() 
     };
     assert_eq!(request, target());
 
-    let junk_menu = message_menu_button(&row, &opened, true, &sender);
+    let in_junk = RowMenus {
+        in_junk_folder: true,
+        ..RowMenus::default()
+    };
+    let junk_menu = message_menu_button(&anchor, &row, &opened, &in_junk, &sender);
     let junk_root = popover_child(&junk_menu);
     assert!(button(&junk_root, l10n::action_mark_as_not_spam()).is_some());
     assert!(button(&junk_root, l10n::action_mark_as_spam()).is_none());
 
-    let thread_menu = thread_menu_button("account-a", "thread-a", &sender);
+    let thread_menu = thread_menu_button(
+        &anchor,
+        "account-a",
+        "thread-a",
+        &RowMenus::default(),
+        &sender,
+    );
     button(&popover_child(&thread_menu), l10n::thread_archive())
         .expect("archive-conversation action")
         .emit_clicked();

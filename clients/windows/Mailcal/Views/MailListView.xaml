@@ -35,7 +35,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid.ContextFlyout>
-                    <MenuFlyout>
+                    <MenuFlyout Opening="OnRowMenuOpening">
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpen()}" Tag="{x:Bind}" Click="OnOpen" />
                         <!-- The same thing a double-click does (docs/reading-window.md). It is here
                              because the gesture is not an affordance for everyone: it cannot be
@@ -54,6 +54,11 @@
                         <!-- Archive was missing entirely (it existed only on the *thread* menu), so a
                              mouse-only user could not reach a swipe action bound to it. -->
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionArchive()}" Tag="{x:Bind}" Click="OnArchive" />
+                        <!-- Shown as the menu opens only when there is somewhere to move to
+                             (MailListView.MoveToFolder.cs, docs/folder-pane.md rule 24). -->
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToFolder()}" Tag="{x:Bind}"
+                                        AutomationProperties.AutomationId="MoveToFolderItem"
+                                        Click="OnMoveToFolder" />
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToTrash()}" Tag="{x:Bind}" Click="OnDelete" />
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionDeletePermanently()}" Tag="{x:Bind}" Click="OnPermanentlyDelete" />
                     </MenuFlyout>
@@ -99,14 +104,18 @@
         </DataTemplate>
 
         <!-- A conversation: a header (chevron, subject, count, latest sender) that expands inline
-             into the whole thread as indented sub-rows; right-click → Archive conversation. A tap
-             on the header (list ItemClick) toggles it and opens the latest in the reading pane. -->
+             into the whole thread as indented sub-rows; its right-click menu holds Move to
+             folder… and Archive conversation. A tap on the header (list ItemClick) toggles it and
+             opens the latest in the reading pane. -->
         <DataTemplate x:Key="ThreadRowTemplate" x:DataType="vm:MailRow">
             <StackPanel>
                 <Grid Padding="4,6" ColumnSpacing="10">
                     <Grid.ContextFlyout>
-                        <MenuFlyout>
+                        <MenuFlyout Opening="OnRowMenuOpening">
                             <MenuFlyoutItem Text="{x:Bind l10n:L10n.ThreadArchive()}" Tag="{x:Bind}" Click="OnArchiveThread" />
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToFolder()}" Tag="{x:Bind}"
+                                            AutomationProperties.AutomationId="MoveToFolderItem"
+                                            Click="OnMoveToFolder" />
                         </MenuFlyout>
                     </Grid.ContextFlyout>
                     <Grid.ColumnDefinitions>

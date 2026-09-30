@@ -320,7 +320,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     let (widget, records) = glib_records(|| {
         flat_row(
             &fixture_from("Research & Development", "Allodia Mail & Calendar"),
-            false,
+            &super::RowMenus::default(),
             "UTC",
             &row_sender,
         )
@@ -347,7 +347,12 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         "the row's date must render beside it: {shown:?}"
     );
 
-    let hostile = flat_row(&fixture("<b>Wire transfer</b>"), false, "UTC", &row_sender);
+    let hostile = flat_row(
+        &fixture("<b>Wire transfer</b>"),
+        &super::RowMenus::default(),
+        "UTC",
+        &row_sender,
+    );
     let hostile_shown = rendered_labels(hostile.upcast_ref::<gtk::Widget>());
     assert!(
         hostile_shown
@@ -357,7 +362,12 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     );
 
     let (action_sender, action_receiver) = relm4::channel::<AppInput>();
-    let actionable = flat_row(&fixture("Quarterly planning"), false, "UTC", &action_sender);
+    let actionable = flat_row(
+        &fixture("Quarterly planning"),
+        &super::RowMenus::default(),
+        "UTC",
+        &action_sender,
+    );
     actionable
         .activatable_widget()
         .and_downcast::<gtk::Button>()

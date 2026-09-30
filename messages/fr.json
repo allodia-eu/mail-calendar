@@ -111,6 +111,8 @@
 	"action_mark_read": "Marquer comme lu",
 	"action_mark_unread": "Marquer comme non lu",
 	"action_move_to_trash": "Mettre à la corbeille",
+	"action_move_to_folder": "Déplacer vers un dossier…",
+	"message_move_title": "Déplacer vers un dossier",
 	"action_mark_as_spam": "Marquer comme indésirable",
 	"action_mark_as_not_spam": "Marquer comme légitime",
 	"action_delete_permanently": "Supprimer définitivement",

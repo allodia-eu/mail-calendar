@@ -285,7 +285,10 @@ public struct ContentView: View {
         .safeAreaInset(edge: .top) { signInExpiredBanner }
         .safeAreaInset(edge: .top) { accountNoticeBanner }
         .safeAreaInset(edge: .top) { folderNoticeBanner }
-        .modifier(FolderDialogs(model: model, sheet: $folderSheet, deleting: $folderToDelete))
+        .modifier(FolderDialogs(
+            model: model, sheet: $folderSheet, deleting: $folderToDelete,
+            fileMessages: { offer, key in fileMessages(offer, in: key) }
+        ))
         .overlay(alignment: .top) { sendStatusBanner }
         .overlay(alignment: .bottom) { swipeUndoToast }
         .task(id: swipeUndo.pending?.id) { await runUndoWindow() }

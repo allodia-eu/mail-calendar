@@ -111,6 +111,8 @@
 	"action_mark_read": "Marcar como leído",
 	"action_mark_unread": "Marcar como no leído",
 	"action_move_to_trash": "Mover a la papelera",
+	"action_move_to_folder": "Mover a una carpeta…",
+	"message_move_title": "Mover a una carpeta",
 	"action_mark_as_spam": "Marcar como spam",
 	"action_mark_as_not_spam": "Marcar como correo legítimo",
 	"action_delete_permanently": "Eliminar definitivamente",

@@ -131,7 +131,7 @@ fn dropped(drag: PaneDrag, into: Option<String>) -> FolderInput {
             key,
             parent: into,
         }),
-        Dragged::Mail(row) => FolderInput::DropMail {
+        Dragged::Mail(row) => FolderInput::MoveMail {
             row,
             account: drag.account,
             key: into.unwrap_or_default(),

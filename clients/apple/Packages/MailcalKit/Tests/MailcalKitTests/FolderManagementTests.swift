@@ -64,8 +64,8 @@ import Testing
     @Test func moveToLeavesOutTheFolderItsBranchAndWhereItAlreadyIs() {
         let destinations = moveDestinations(for: tree[3], in: tree)
 
-        #expect(destinations.first == MoveDestination(parent: nil, label: L10n.folder_move_top_level()))
-        let parents = destinations.map(\.parent)
+        #expect(destinations.first == MoveDestination(key: nil, label: L10n.folder_move_top_level()))
+        let parents = destinations.map(\.key)
         #expect(!parents.contains("w2024"), "not into itself")
         #expect(!parents.contains("q1"), "not into its own subfolder")
         #expect(!parents.contains("work"), "not where it already is")
@@ -74,15 +74,65 @@ import Testing
     }
 
     @Test func aTopLevelFolderIsNotOfferedTheTopLevel() {
-        let parents = moveDestinations(for: tree[2], in: tree).map(\.parent)
+        let parents = moveDestinations(for: tree[2], in: tree).map(\.key)
         #expect(!parents.contains(nil))
     }
 
     @Test func aDestinationIsNamedByItsPath() {
-        let q1 = moveDestinations(for: row("x", "X"), in: tree).first { $0.parent == "q1" }
+        let q1 = moveDestinations(for: row("x", "X"), in: tree).first { $0.key == "q1" }
         #expect(q1?.label == "Work / 2024 / Q1")
-        let inbox = moveDestinations(for: row("x", "X"), in: tree).first { $0.parent == "inbox" }
+        let inbox = moveDestinations(for: row("x", "X"), in: tree).first { $0.key == "inbox" }
         #expect(inbox?.label == L10n.folder_inbox(), "a role folder takes the app's word")
+    }
+
+    // MARK: rule 24, Move to folder… on a message row
+
+    @Test func mailIsOfferedEveryFolderThatTakesItButTheOneTheListShows() {
+        var folders = tree
+        folders.append(row("drafts", "Drafts", role: .drafts, editable: false, acceptsFolders: false, acceptsMessages: false))
+        folders.append(row("new", "Travel", pending: true, editable: false, acceptsFolders: false, acceptsMessages: false))
+        let mailbox = AccountFolderRow(accountId: "acct-1", folders: folders, managesFolders: true)
+
+        let keys = messageDestinations(in: mailbox, showing: "inbox").map(\.key)
+        #expect(keys == ["work", "w2024", "q1"])
+        #expect(!keys.contains(nil), "mail always sits in a folder, so there is no Top level")
+        #expect(!keys.contains("junk"), "spam is a report")
+        #expect(!keys.contains("drafts"))
+        #expect(!keys.contains("new"), "a folder still being made takes nothing")
+        #expect(!keys.contains("inbox"), "not the folder the mail is already in")
+        #expect(messageDestinations(in: mailbox, showing: nil).map(\.key).contains("inbox"))
+        #expect(
+            messageDestinations(in: mailbox, showing: nil).first { $0.key == "q1" }?.label
+                == "Work / 2024 / Q1"
+        )
+    }
+
+    @Test func noFolderLeftToOfferMeansNoItem() {
+        let only = AccountFolderRow(
+            accountId: "acct-1",
+            folders: [row("inbox", "INBOX", role: .inbox, editable: false), tree[1]],
+            managesFolders: true
+        )
+        #expect(!offersMessageMove(in: only, showing: "inbox"))
+        #expect(offersMessageMove(in: only, showing: nil))
+        #expect(offersMessageMove(in: account(manages: false), showing: nil), "filing mail needs no folder writes")
+    }
+
+    /// One message row of `account`, as a menu names it.
+    private func mail(_ account: String, _ key: String) -> SelectionKey {
+        let swatch = Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB")
+        return SelectionKey(.flat(row: FlatRow(
+            account: account, key: key, subject: "Subject", from: "sender",
+            avatar: Avatar(initials: "S", light: swatch, dark: swatch, imagePath: nil),
+            date: "2026-07-20", unread: false, flagged: false, hasAttachment: false, preview: ""
+        )))
+    }
+
+    @Test func mailOfTwoAccountsIsOfferedNoFolder() {
+        #expect(soleAccount(of: [mail("acct-1", "m1")]) == "acct-1")
+        #expect(soleAccount(of: [mail("acct-1", "m1"), mail("acct-1", "m3")]) == "acct-1")
+        #expect(soleAccount(of: [mail("acct-1", "m1"), mail("acct-2", "m2")]) == nil, "mail never crosses accounts")
+        #expect(soleAccount(of: []) == nil)
     }
 
     // MARK: rules 22 and 24, drops

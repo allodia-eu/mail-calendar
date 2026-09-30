@@ -111,6 +111,8 @@
 	"action_mark_read": "Als gelesen markieren",
 	"action_mark_unread": "Als ungelesen markieren",
 	"action_move_to_trash": "In den Papierkorb",
+	"action_move_to_folder": "In Ordner verschieben…",
+	"message_move_title": "In Ordner verschieben",
 	"action_mark_as_spam": "Als Spam markieren",
 	"action_mark_as_not_spam": "Nicht als Spam markieren",
 	"action_delete_permanently": "Endgültig löschen",

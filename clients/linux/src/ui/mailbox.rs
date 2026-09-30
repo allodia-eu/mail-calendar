@@ -9,7 +9,6 @@ use mailcal_bindings::{
     FlatRow, MailboxListSnapshot, SelectedRow, SnapshotRow, ThreadMessage, ThreadRow,
 };
 
-pub(super) use super::mailbox_display::MailboxRendering;
 #[cfg(test)]
 pub(super) use super::mailbox_display::display_row;
 use super::{
@@ -18,6 +17,7 @@ use super::{
     model::OpenedMessage,
     row_action, timestamps,
 };
+pub(super) use super::{mail_actions_menu::RowMenus, mailbox_display::MailboxRendering};
 #[cfg(test)]
 use super::{mailbox_display::DisplayRow, mailbox_reconcile::reconcile};
 use crate::l10n;
@@ -61,29 +61,27 @@ pub(crate) fn render_messages(
         .iter()
         .map(|row| display_row(row, zone))
         .collect();
+    let menus = RowMenus {
+        in_junk_folder,
+        ..RowMenus::default()
+    };
     reconcile(list, previous, &next, |index| {
-        build_row(
-            &snapshot.rows[index],
-            expanded,
-            in_junk_folder,
-            zone,
-            sender,
-        )
+        build_row(&snapshot.rows[index], expanded, &menus, zone, sender)
     });
 }
 
 pub(super) fn build_row(
     row: &SnapshotRow,
     expanded: &HashSet<ThreadKey>,
-    in_junk_folder: bool,
+    menus: &RowMenus,
     zone: &str,
     sender: &relm4::Sender<AppInput>,
 ) -> gtk::Widget {
     match row {
-        SnapshotRow::Flat { row } => flat_row(row, in_junk_folder, zone, sender).upcast(),
+        SnapshotRow::Flat { row } => flat_row(row, menus, zone, sender).upcast(),
         SnapshotRow::Thread { row } => {
             let key = ThreadKey::of(row);
-            thread_row(row, expanded.contains(&key), zone, sender).upcast()
+            thread_row(row, expanded.contains(&key), menus, zone, sender).upcast()
         }
     }
 }
@@ -175,7 +173,7 @@ pub(super) fn plain_text_row() -> adw::ActionRow {
 /// A single message: subject over sender, with the date trailing.
 fn flat_row(
     row: &FlatRow,
-    in_junk_folder: bool,
+    menus: &RowMenus,
     zone: &str,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ActionRow {
@@ -207,10 +205,7 @@ fn flat_row(
         avatar: display.avatar,
     };
     widget.add_suffix(&mail_actions_menu::message_menu_button(
-        row,
-        &opened,
-        in_junk_folder,
-        sender,
+        &widget, row, &opened, menus, sender,
     ));
     opens_in_window(&widget, &opened, sender);
     mail_drag(
@@ -280,6 +275,7 @@ fn opens_in_window(
 fn thread_row(
     row: &ThreadRow,
     expanded: bool,
+    menus: &RowMenus,
     zone: &str,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ExpanderRow {
@@ -302,8 +298,10 @@ fn thread_row(
     }
     widget.add_suffix(&meta_label(&timestamps::relative_date(&display.date, zone)));
     widget.add_suffix(&mail_actions_menu::thread_menu_button(
+        &widget,
         &row.account,
         &row.thread_id,
+        menus,
         sender,
     ));
     mail_drag(
@@ -374,7 +372,7 @@ fn thread_message_row(
         avatar: display.avatar,
     };
     widget.add_suffix(&mail_actions_menu::message_window_menu_button(
-        &opened, sender,
+        &widget, &opened, sender,
     ));
     opens_in_window(&widget, &opened, sender);
     let input = sender.clone();

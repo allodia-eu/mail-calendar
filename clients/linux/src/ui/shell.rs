@@ -352,6 +352,7 @@ impl AppWidgets {
         // After the rows, always: a plain click has already moved the widget's own selection, and
         // this is what brings it back to what the model says (`selection_gesture`).
         sync_selection(&self.messages, model);
+        self.mailbox_renderer.set_moves(model.move_context());
         let selection = model.selection.summary(&model.snapshot.rows);
         self.selection_bar.render(selection);
         self.selection_pane.render(selection, &model.snapshot.mode);

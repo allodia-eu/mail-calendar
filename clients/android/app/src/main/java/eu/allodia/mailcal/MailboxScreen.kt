@@ -123,6 +123,8 @@ internal fun MailboxScreen(
     // The signature library + lookups for the reply/forward composer, or null to leave signatures
     // out (a screenshot run, a test).
     signatures: ComposerSignatures? = null,
+    // Where a row's Move to folder… may file its message, or null to leave the item out.
+    messageFiling: MessageFiling? = null,
     onSubmitRich: (
         from: String?,
         recipients: Recipients,
@@ -363,6 +365,7 @@ internal fun MailboxScreen(
                                 stageForwardFiles = stageForwardFiles,
                                 suggestionsFor = suggestionsFor,
                                 signatures = signatures,
+                                messageFiling = messageFiling,
                             )
                             is SnapshotRow.Thread -> ThreadConversationRow(
                                 thread = row.row,

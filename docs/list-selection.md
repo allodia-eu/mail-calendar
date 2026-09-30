@@ -130,6 +130,11 @@ selection itself is the client's, and rule 1 says why.
     Items with no batch form stay single-row, which is Open, Reply, Reply all and Forward
     everywhere, plus spam and not-spam for the reason under **Known gaps**.
 
+    **Move to folder…** follows the same rule through the intent a drop onto a folder dispatches,
+    `FolderIntent::MoveMessages`, because a named folder is not a `BulkAction`. What it lists and
+    when it is offered is [`folder-pane.md`](folder-pane.md), rule 24. A move takes the rows out
+    of the list, so the selection clears with them, as it does for Archive.
+
     Two consequences follow from reaching the batch rather than the single-row path. A selected
     row's archive or delete loses the **undo window** the single-row path has where that platform
     offers one, because no bulk action has an undo anywhere; and a permanent delete over a
@@ -168,9 +173,9 @@ all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
 - **A bulk action has no undo.** The swipe undo window (`docs/settings.md`, swipe actions) covers
   a gesture that is easy to trigger by accident; a deliberate select-then-click is not that. The
   actions the bar offers are recoverable in the mailbox instead.
-- **No "Move to folder…" item on the bar.** The core takes the move (`FolderIntent::MoveMessages`
-  names any folder); what is missing is a picker on the bar, which is also what would give a
-  phone a way to file a selection.
+- **No "Move to folder…" item on the bar.** A row menu has one (rule 12), and the core takes the
+  move (`FolderIntent::MoveMessages` names any folder); what is missing is the item on the bar,
+  which is also what would give Android, whose long press selects, a way to file a selection.
 - **Spam and not-spam are not bulk actions.** They are reports, not moves
   ([`reporting.md`](reporting.md)), only two clients offer them at all, and which verdicts exist
   is read per account from `Capabilities::mail_report`; a bar button would have to be gated on the

@@ -49,12 +49,13 @@ func folderPath(_ row: FolderRow, in folders: [FolderRow]) -> String {
     return parts.reversed().joined(separator: " / ")
 }
 
-/// One place Move to… offers (rule 24): a folder, or the top of the tree when `parent` is `nil`.
+/// One place a Move to… list offers (rule 24): the folder the move goes into, or the top of the
+/// tree when `key` is `nil`.
 struct MoveDestination: Identifiable, Equatable {
-    let parent: String?
+    let key: String?
     let label: String
 
-    var id: String { parent ?? "" }
+    var id: String { key ?? "" }
 }
 
 /// Where `row` may be moved to: Top level first, then every folder that takes folders, by path,
@@ -63,15 +64,53 @@ func moveDestinations(for row: FolderRow, in folders: [FolderRow]) -> [MoveDesti
     let excluded = folderSubtree(row.key, in: folders)
     var destinations: [MoveDestination] = []
     if row.parent != nil {
-        destinations.append(MoveDestination(parent: nil, label: L10n.folder_move_top_level()))
+        destinations.append(MoveDestination(key: nil, label: L10n.folder_move_top_level()))
     }
     for candidate in folders
     where candidate.acceptsFolders && !excluded.contains(candidate.key) && candidate.key != row.parent {
         destinations.append(
-            MoveDestination(parent: candidate.key, label: folderPath(candidate, in: folders))
+            MoveDestination(key: candidate.key, label: folderPath(candidate, in: folders))
         )
     }
     return destinations
+}
+
+/// The one account Move to folder… would file `rows` in, or `nil` when there are none or they span
+/// accounts: mail never crosses accounts (rule 24).
+func soleAccount(of rows: [SelectionKey]) -> String? {
+    guard let account = rows.first?.account, rows.allSatisfy({ $0.account == account }) else {
+        return nil
+    }
+    return account
+}
+
+/// Whether `row` is somewhere Move to folder… files mail: a folder that takes it, other than
+/// `showing`, the folder the list is on.
+private func takesMovedMail(_ row: FolderRow, showing: String?) -> Bool {
+    row.acceptsMessages && row.key != showing
+}
+
+/// Whether a message row menu offers Move to folder… for mail of `tree`'s account. Answered
+/// without naming a path, because every row's menu asks it on every redraw.
+func offersMessageMove(in tree: AccountFolderRow, showing: String?) -> Bool {
+    tree.folders.contains { takesMovedMail($0, showing: showing) }
+}
+
+/// Where Move to folder… offers to file mail of `tree`'s account (rule 24): every folder that
+/// takes mail, by path, leaving out the folder the list is on. No Top level: mail sits in a folder.
+func messageDestinations(in tree: AccountFolderRow, showing: String?) -> [MoveDestination] {
+    tree.folders
+        .filter { takesMovedMail($0, showing: showing) }
+        .map { MoveDestination(key: $0.key, label: folderPath($0, in: tree.folders)) }
+}
+
+/// Mail a row menu is filing, and where it may go.
+struct MessageMoveOffer: Identifiable, Equatable {
+    let account: String
+    let rows: [SelectionKey]
+    let destinations: [MoveDestination]
+
+    var id: String { "\(account)/" + rows.map(\.id).joined(separator: ",") }
 }
 
 /// What a row of the pane carries when it is dragged: a folder, or the messages it stands for.
@@ -267,15 +306,17 @@ enum FolderNameRequest: Identifiable, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 }
 
-/// Which folder sheet is open: a name dialog, or Move to….
+/// Which folder sheet is open: a name dialog, Move to… for a folder, or Move to folder… for mail.
 enum FolderSheet: Identifiable, Equatable {
     case name(FolderNameRequest)
     case move(FolderTarget)
+    case moveMessages(MessageMoveOffer)
 
     var id: String {
         switch self {
         case .name(let request): "name/\(request.id)"
         case .move(let target): "move/\(target.id)"
+        case .moveMessages(let offer): "messages/\(offer.id)"
         }
     }
 }

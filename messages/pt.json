@@ -111,6 +111,8 @@
 	"action_mark_read": "Marcar como lida",
 	"action_mark_unread": "Marcar como não lida",
 	"action_move_to_trash": "Mover para o lixo",
+	"action_move_to_folder": "Mover para uma pasta…",
+	"message_move_title": "Mover para uma pasta",
 	"action_mark_as_spam": "Marcar como spam",
 	"action_mark_as_not_spam": "Marcar como não sendo spam",
 	"action_delete_permanently": "Eliminar definitivamente",
