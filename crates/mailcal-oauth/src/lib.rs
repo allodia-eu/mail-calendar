@@ -187,15 +187,17 @@ impl OAuthClient {
     }
 
     /// Completes a flow from the raw redirect `callback_url`: validates the echoed
-    /// `state` against `expected_state`, then exchanges the `code` (+ PKCE verifier)
-    /// for tokens. `now` timestamps the access token's absolute expiry.
+    /// `state`, and the `iss` when the provider config expects one, then exchanges the
+    /// `code` (+ PKCE verifier) for tokens. `now` timestamps the access token's absolute
+    /// expiry.
     ///
     /// # Errors
     ///
-    /// Returns [`OAuthError::Callback`] if the callback is malformed or its `state`
-    /// doesn't match, [`OAuthError::Endpoint`] if the provider carried an `error` back
-    /// or rejects the exchange, or [`OAuthError::Transport`]/[`OAuthError::Decode`] on a
-    /// transport/parse failure.
+    /// Returns [`OAuthError::Callback`] if the callback is malformed, its `state`
+    /// doesn't match, or its `iss` names a different authorization server;
+    /// [`OAuthError::Endpoint`] if the provider carried an `error` back or rejects the
+    /// exchange; or [`OAuthError::Transport`]/[`OAuthError::Decode`] on a transport/parse
+    /// failure.
     pub async fn complete(
         &self,
         callback_url: &str,
@@ -203,7 +205,11 @@ impl OAuthClient {
         pkce_verifier: &str,
         now: OffsetDateTime,
     ) -> Result<TokenSet, OAuthError> {
-        let code = parse_callback(expected_state, callback_url)?;
+        let code = parse_callback(
+            expected_state,
+            self.provider.expected_issuer.as_deref(),
+            callback_url,
+        )?;
         exchange_code(&self.http, &self.provider, &code, pkce_verifier, now).await
     }
 
@@ -223,19 +229,29 @@ impl OAuthClient {
 }
 
 /// Parses a redirect `callback_url`, returning the authorisation `code` once the
-/// echoed `state` matches `expected_state`.
+/// echoed `state` matches `expected_state` and, when `expected_issuer` is given, the
+/// `iss` names that same authorization server.
 ///
 /// Handles the custom-scheme redirect the OS auth session hands back (e.g.
 /// `eu.allodia.mailcal://oauth?code=…&state=…`). A provider `error` in the callback,
 /// a missing `code`, a missing/mismatched `state`, or an unparseable URL are all
 /// rejected.
 ///
+/// `expected_issuer` is `Some` only for a server that **advertised** it sends `iss`
+/// (RFC 9207); the parameter is then mandatory and a response without one is refused,
+/// because a stripped `iss` is precisely what a mix-up attack produces. `None` means the
+/// server never claimed to send one, so there is nothing to check.
+///
 /// # Errors
 ///
 /// Returns [`OAuthError::Endpoint`] if the callback carries a provider `error`, or
-/// [`OAuthError::Callback`] if it is unparseable, forged (`state` mismatch), or missing
-/// the `code`.
-pub fn parse_callback(expected_state: &str, callback_url: &str) -> Result<String, OAuthError> {
+/// [`OAuthError::Callback`] if it is unparseable, forged (a `state` or `iss` mismatch),
+/// or missing the `code`.
+pub fn parse_callback(
+    expected_state: &str,
+    expected_issuer: Option<&str>,
+    callback_url: &str,
+) -> Result<String, OAuthError> {
     let url = url::Url::parse(callback_url)
         .map_err(|err| OAuthError::Callback(format!("unparseable redirect URL: {err}")))?;
     let params: HashMap<String, String> = url.query_pairs().into_owned().collect();
@@ -255,10 +271,34 @@ pub fn parse_callback(expected_state: &str, callback_url: &str) -> Result<String
         }
         None => return Err(OAuthError::Callback("callback missing state".to_owned())),
     }
+    if let Some(expected) = expected_issuer {
+        check_issuer(expected, params.get("iss").map(String::as_str))?;
+    }
     params
         .get("code")
         .cloned()
         .ok_or_else(|| OAuthError::Callback("callback missing code".to_owned()))
+}
+
+/// Checks an authorization response's `iss` against the issuer whose metadata we read
+/// (RFC 9207 §2.4). A trailing slash is not significant in an issuer identifier.
+///
+/// An absent `iss` is a failure rather than a pass. The check only runs for a server that
+/// said it sends one, and the attack it defends against is a relay that hands us another
+/// server's code: treating "it did not arrive" as "nothing to verify" would let the
+/// attacker turn the check off by deleting a query parameter.
+fn check_issuer(expected: &str, received: Option<&str>) -> Result<(), OAuthError> {
+    let Some(received) = received else {
+        return Err(OAuthError::Callback(
+            "callback missing iss, which this server advertises it sends".to_owned(),
+        ));
+    };
+    if received.trim_end_matches('/') == expected.trim_end_matches('/') {
+        return Ok(());
+    }
+    Err(OAuthError::Callback(format!(
+        "iss names {received}, not the authorization server this flow began with"
+    )))
 }
 
 #[cfg(test)]
@@ -286,6 +326,7 @@ mod tests {
     fn parse_callback_extracts_the_code_from_a_custom_scheme_redirect() {
         let code = parse_callback(
             "state-xyz",
+            None,
             "eu.allodia.mailcal://oauth?code=the-code&state=state-xyz",
         )
         .unwrap();
@@ -299,6 +340,7 @@ mod tests {
         // still extracts code/state from it, not just the simpler `scheme://host` form.
         let code = parse_callback(
             "state-xyz",
+            None,
             "msauth.eu.allodia.mailcal://auth?code=the-code&state=state-xyz",
         )
         .unwrap();
@@ -309,6 +351,7 @@ mod tests {
     fn parse_callback_rejects_a_state_mismatch() {
         let err = parse_callback(
             "expected",
+            None,
             "eu.allodia.mailcal://oauth?code=c&state=attacker",
         )
         .unwrap_err();
@@ -317,7 +360,8 @@ mod tests {
 
     #[test]
     fn parse_callback_rejects_a_missing_state() {
-        let err = parse_callback("expected", "eu.allodia.mailcal://oauth?code=c").unwrap_err();
+        let err =
+            parse_callback("expected", None, "eu.allodia.mailcal://oauth?code=c").unwrap_err();
         assert!(matches!(err, OAuthError::Callback(msg) if msg.contains("state")));
     }
 
@@ -326,6 +370,7 @@ mod tests {
         // The user cancelled / consent was denied → Microsoft redirects with `error`.
         let err = parse_callback(
             "state-xyz",
+            None,
             "eu.allodia.mailcal://oauth?error=access_denied&error_description=user%20cancelled&state=state-xyz",
         )
         .unwrap_err();
@@ -340,8 +385,62 @@ mod tests {
 
     #[test]
     fn parse_callback_rejects_a_missing_code() {
-        let err = parse_callback("s", "eu.allodia.mailcal://oauth?state=s").unwrap_err();
+        let err = parse_callback("s", None, "eu.allodia.mailcal://oauth?state=s").unwrap_err();
         assert!(matches!(err, OAuthError::Callback(msg) if msg.contains("code")));
+    }
+
+    #[test]
+    fn a_matching_iss_passes_and_a_trailing_slash_is_not_a_difference() {
+        // RFC 9207: the happy path, and the one textual difference an issuer identifier is
+        // allowed to have. Rejecting on a slash would break real servers for no security gain.
+        let code = parse_callback(
+            "s",
+            Some("https://as.example.com"),
+            "eu.allodia.mailcal://oauth?code=c&state=s&iss=https%3A%2F%2Fas.example.com%2F",
+        )
+        .unwrap();
+        assert_eq!(code, "c");
+    }
+
+    #[test]
+    fn an_iss_naming_another_server_aborts_before_the_code_is_sent_anywhere() {
+        // The mix-up attack: an honest server's code arrives at the client after a malicious
+        // authorization server relayed the request. `state` matches (the attacker saw the
+        // request and could replay it), so `iss` is the only thing that catches this, and the
+        // code must never reach a token endpoint.
+        let err = parse_callback(
+            "s",
+            Some("https://honest.example.com"),
+            "eu.allodia.mailcal://oauth?code=c&state=s&iss=https%3A%2F%2Fattacker.example.net",
+        )
+        .unwrap_err();
+        assert!(matches!(err, OAuthError::Callback(msg) if msg.contains("attacker.example.net")));
+    }
+
+    #[test]
+    fn a_missing_iss_is_a_failure_when_the_server_said_it_sends_one() {
+        // "Absent" must not read as "nothing to verify": deleting a query parameter would
+        // otherwise be all it takes to switch the check off.
+        let err = parse_callback(
+            "s",
+            Some("https://as.example.com"),
+            "eu.allodia.mailcal://oauth?code=c&state=s",
+        )
+        .unwrap_err();
+        assert!(matches!(err, OAuthError::Callback(msg) if msg.contains("iss")));
+    }
+
+    #[test]
+    fn no_expected_issuer_ignores_whatever_iss_arrives() {
+        // A server that never advertised the parameter gives us nothing to compare against, so
+        // an `iss` that turns up anyway is not evidence of anything and changes no decision.
+        let code = parse_callback(
+            "s",
+            None,
+            "eu.allodia.mailcal://oauth?code=c&state=s&iss=https%3A%2F%2Fanything.example.net",
+        )
+        .unwrap();
+        assert_eq!(code, "c");
     }
 
     #[test]

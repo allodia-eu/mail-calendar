@@ -15,6 +15,12 @@ use mailcal_oauth::{
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
+#[path = "signin_scopes.rs"]
+mod scopes;
+
+pub use scopes::SCOPES;
+pub(crate) use scopes::scopes_for;
+
 /// The account service this build talks to.
 ///
 /// One address, chosen at build time and with no runtime path to it, which is what the
@@ -27,59 +33,6 @@ use time::OffsetDateTime;
 #[must_use]
 pub fn host() -> String {
     credentials::allodia_host()
-}
-
-/// What sign-in asks for, and every one is a scope the service advertises.
-///
-/// `openid`, `profile` and `email` identify the person, so a client can say which account is signed
-/// in. **`offline_access` is the load-bearing one**: without it the service issues no refresh
-/// token, and the sign-in silently becomes a session that expires with no way back, which is the
-/// whole problem OAuth was chosen to solve here.
-///
-/// `mailcal:entitlement:read` is what the entitlement endpoint requires, and it is the narrowest
-/// thing this app needs: permission to read which plan an account is on, and nothing else. Nothing
-/// here reaches mail: an Allodia account and a mail account are different things, and a token
-/// issued for this app cannot touch the second.
-pub const SCOPES: &[&str] = &[
-    "openid",
-    "profile",
-    "email",
-    "offline_access",
-    "mailcal:entitlement:read",
-    "mailcal:accounts:read",
-    "mailcal:accounts:write",
-    "mailcal:subscription:read",
-    "mailcal:subscription:write",
-];
-
-/// The ones a sign-in is not worth completing without, sent whether or not the service lists them.
-///
-/// `offline_access` is the load-bearing one and `openid`/`profile`/`email` are how the app learns
-/// whose account it is. Filtering these against an incomplete `scopes_supported` would turn a
-/// service that simply under-advertises into a sign-in that succeeds and then cannot say who
-/// signed in, or one that expires within the hour with no way back.
-const REQUIRED_SCOPES: &[&str] = &["openid", "profile", "email", "offline_access"];
-
-/// What a build asks for **only** where the service says it accepts it.
-///
-/// These gate features rather than the sign-in itself, so a client that reaches a deployment
-/// predating them should lose the feature and keep the sign-in. Asking for a scope a server has
-/// not advertised is refused outright by enough of them that the alternative is a client which
-/// cannot sign in at all until the server catches up.
-fn optional_scopes(advertised: &[String]) -> Vec<String> {
-    SCOPES
-        .iter()
-        .filter(|scope| !REQUIRED_SCOPES.contains(*scope))
-        .filter(|scope| advertised.iter().any(|offered| offered == *scope))
-        .map(|scope| (*scope).to_owned())
-        .collect()
-}
-
-/// Everything to ask for, given what the service says it accepts.
-pub(crate) fn scopes_for(advertised: &[String]) -> Vec<String> {
-    let mut scopes: Vec<String> = REQUIRED_SCOPES.iter().map(|s| (*s).to_owned()).collect();
-    scopes.extend(optional_scopes(advertised));
-    scopes
 }
 
 /// The host component of the custom-scheme redirect: `<application-id>://account-oauth`.
@@ -204,6 +157,11 @@ pub struct Endpoints {
     /// the authorization request did.
     #[serde(default)]
     pub scopes: Vec<String>,
+    /// The issuer the redirect's `iss` must name (RFC 9207), when the service advertised that it
+    /// sends one. `None` for a handle minted before this was carried, which is the
+    /// pre-RFC-9207 status quo rather than a fault.
+    #[serde(default)]
+    pub issuer: Option<String>,
 }
 
 /// Which first step the person needs.
@@ -250,6 +208,11 @@ pub(crate) async fn discovered_client(
         // refuses anything not minted for itself -- so this is not optional, and omitting it fails
         // as a `401` that names neither cause.
         resource: resource.resource.or_else(|| Some(api_url())),
+        // RFC 9207, and only when the service says it sends the parameter: a mix-up defence is
+        // worth having on the one flow that names a *person*, not a mailbox.
+        expected_issuer: metadata
+            .issuer_parameter_supported
+            .then(|| metadata.issuer.clone()),
         // Discovered, not integrated: send only what RFC 6749 and RFC 7636 define. Nothing here
         // may guess at an extension the server has not advertised.
         style: AuthStyle::Discovered,
@@ -335,6 +298,7 @@ impl SignIn {
                 endpoints.scopes.clone()
             },
             resource: endpoints.resource,
+            expected_issuer: endpoints.issuer,
             style: AuthStyle::Discovered,
         })?;
         Ok(Self {
@@ -358,6 +322,7 @@ impl SignIn {
             end_session_endpoint: self.end_session_endpoint.clone(),
             prompt_values_supported: self.prompt_values_supported.clone(),
             scopes: provider.scopes.clone(),
+            issuer: provider.expected_issuer.clone(),
         }
     }
 

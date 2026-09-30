@@ -12,6 +12,7 @@ use super::*;
 
 fn raw(issuer: &str, pkce: &[&str]) -> RawAuthServerMetadata {
     RawAuthServerMetadata {
+        authorization_response_iss_parameter_supported: false,
         issuer: issuer.to_owned(),
         authorization_endpoint: Some("https://as.example.com/authorize".to_owned()),
         token_endpoint: Some("https://as.example.com/token".to_owned()),
@@ -23,6 +24,26 @@ fn raw(issuer: &str, pkce: &[&str]) -> RawAuthServerMetadata {
         end_session_endpoint: None,
         prompt_values_supported: Vec::new(),
     }
+}
+
+#[test]
+fn the_issuer_parameter_flag_is_carried_off_the_document() {
+    // What a caller does with it is refuse a callback whose `iss` is missing or wrong
+    // (`parse_callback`), so reading it as `false` when the server said `true` would silently
+    // switch the mix-up defence off for every account on that server.
+    let mut advertised = raw("https://as.example.com", &["S256"]);
+    advertised.authorization_response_iss_parameter_supported = true;
+    let metadata = validate(advertised, "https://as.example.com", "url").unwrap();
+    assert!(metadata.issuer_parameter_supported);
+
+    // Absent is the pre-RFC-9207 status quo: nothing to compare, and not a reason to refuse.
+    let metadata = validate(
+        raw("https://as.example.com", &["S256"]),
+        "https://as.example.com",
+        "url",
+    )
+    .unwrap();
+    assert!(!metadata.issuer_parameter_supported);
 }
 
 #[test]

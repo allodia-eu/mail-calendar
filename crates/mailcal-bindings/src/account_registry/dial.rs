@@ -152,6 +152,8 @@ pub(crate) enum AccountDial {
         config: AccountConfig,
         /// The account's connections, the same ones its push watches use.
         connections: Arc<ImapConnections>,
+        /// The shared token source, for an OAuth account only.
+        tokens: Option<Arc<GraphTokenSource>>,
     },
     /// A Microsoft account: bind its Graph folder providers through the shared token source.
     Microsoft {
@@ -186,9 +188,11 @@ impl AccountDial {
             ConnectedAccount::Imap {
                 config,
                 connections,
+                tokens,
             } => Self::Imap {
                 config: config.clone(),
                 connections: Arc::clone(connections),
+                tokens: tokens.clone(),
             },
             ConnectedAccount::Microsoft { config, tokens } => Self::Microsoft {
                 tokens: Arc::clone(tokens),
@@ -242,9 +246,15 @@ impl AccountDial {
             Self::Imap {
                 config,
                 connections,
-            } => mailcal_account::connect_imap_mailbox(&connections, &config, mailbox_key)
-                .await
-                .ok(),
+                tokens,
+            } => mailcal_account::connect_imap_mailbox(
+                &connections,
+                &config,
+                tokens.as_ref(),
+                mailbox_key,
+            )
+            .await
+            .ok(),
             // Graph binds the folder unwindowed; the app passes the depth per sync.
             Self::Microsoft { tokens, .. } => {
                 mailcal_account::connect_graph_folder(tokens, mailbox_key, None).ok()
@@ -282,10 +292,16 @@ impl AccountDial {
             Self::Imap {
                 config,
                 connections,
+                tokens,
             } => {
-                let providers = mailcal_account::connect_mail_providers(&connections, &config, id)
-                    .await
-                    .map_err(ConnectFailure::from)?;
+                let providers = mailcal_account::connect_mail_providers(
+                    &connections,
+                    &config,
+                    tokens.as_ref(),
+                    id,
+                )
+                .await
+                .map_err(ConnectFailure::from)?;
                 // Calendar and contacts are optional side quests off the mail path, and both talk
                 // to the same CalDAV host: so run them CONCURRENTLY rather than
                 // making the mailbox wait for one and then the other.
@@ -293,7 +309,7 @@ impl AccountDial {
                     async {
                         let mut calendar_error = None;
                         let providers: Vec<Box<dyn Provider>> = if config.caldav.is_some() {
-                            match mailcal_account::connect_caldav(&config).await {
+                            match mailcal_account::connect_caldav(&config, tokens.as_ref()).await {
                                 Ok(provider) => vec![provider],
                                 Err(err) => {
                                     calendar_error =
@@ -306,7 +322,7 @@ impl AccountDial {
                         };
                         (providers, calendar_error)
                     },
-                    boot::connect_caldav_contacts(&config),
+                    boot::connect_caldav_contacts(&config, tokens.as_ref()),
                 );
                 let (calendar_providers, calendar_error) = calendar;
                 Ok(DialOutcome {

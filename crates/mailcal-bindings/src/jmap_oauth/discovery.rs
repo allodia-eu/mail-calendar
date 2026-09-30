@@ -20,7 +20,7 @@ use crate::MailcalError;
 /// already hold is also simply correct: same software, same install, same server.
 ///
 /// Session-scoped on purpose. Once a sign-in *completes*, the client id is persisted with the
-/// account and no further registration ever happens for it (`JmapOAuth::client_id`), so the only
+/// account and no further registration ever happens for it (`OAuthGrant::client_id`), so the only
 /// case left to cover is repeated attempts before that, which is exactly the case that leaked.
 /// Making it survive a relaunch would need a new host storage port for a credential that belongs
 /// to no account yet, that is deliberately not built here.

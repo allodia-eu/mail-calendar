@@ -13,7 +13,7 @@
 //! [`MailcalApp::begin_jmap_reauth`] makes **no network calls**. It reads the account's own
 //! `[jmap.oauth]` grant: the authorization endpoint, the registered client id, the redirect URI,
 //! the scopes and the RFC 8707 resource indicator, and builds a fresh PKCE authorisation from
-//! exactly those. That is what those fields are persisted for (`mailcal_account::JmapOAuth`:
+//! exactly those. That is what those fields are persisted for (`mailcal_account::OAuthGrant`:
 //! "kept so a re-consent needs no re-discovery"), and it is the only way to be sure the
 //! re-authorisation asks the *same* server, as the *same* registered client, for the *same*
 //! scopes. Re-running RFC 7591 registration instead would mint a **second** client id on the
@@ -184,13 +184,13 @@ fn same_account(account_id: &str, config: &JmapAccountConfig) -> Result<AccountI
 
 #[cfg(test)]
 mod tests {
-    use mailcal_account::{JmapOAuth, Secret};
+    use mailcal_account::{OAuthGrant, Secret};
 
     use super::{JmapAccountConfig, same_account};
     use crate::{AccountProvider, ConnectedAccount};
 
-    fn grant() -> JmapOAuth {
-        JmapOAuth {
+    fn grant() -> OAuthGrant {
+        OAuthGrant {
             client_id: "client-abc".to_owned(),
             client_secret: None,
             refresh_token: Secret::new("rt-value".to_owned()),
@@ -199,10 +199,11 @@ mod tests {
             redirect_uri: "eu.allodia.mailcal://jmap-oauth".to_owned(),
             scopes: vec!["offline_access".to_owned()],
             resource: Some("https://api.example.com/jmap/session".to_owned()),
+            issuer: None,
         }
     }
 
-    fn config(email: &str, oauth: Option<JmapOAuth>) -> JmapAccountConfig {
+    fn config(email: &str, oauth: Option<OAuthGrant>) -> JmapAccountConfig {
         JmapAccountConfig {
             email: email.to_owned(),
             base_url: "https://api.example.com".to_owned(),

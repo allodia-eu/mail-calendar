@@ -150,6 +150,29 @@ impl GraphTokenSource {
         state.last_failure = None;
     }
 
+    /// A valid access token other than `refused`, which a server has just turned down.
+    ///
+    /// The cached token is dropped when it is still the refused one, so this refreshes even
+    /// before the token's stated expiry. Callers renewing the same refused token share one
+    /// refresh: the first replaces it, and the rest find the replacement cached.
+    ///
+    /// # Errors
+    ///
+    /// As [`access_token`](Self::access_token).
+    pub async fn access_token_replacing(&self, refused: &str) -> Result<String, AccountError> {
+        {
+            let mut state = self
+                .credential
+                .state
+                .lock()
+                .expect("token state mutex poisoned");
+            if state.access_token == refused {
+                state.access_token.clear();
+            }
+        }
+        self.access_token().await
+    }
+
     /// The cached access token, when it is still comfortably valid at `now`. Never holds the
     /// lock across an `await`.
     fn cached(&self, now: OffsetDateTime) -> Option<String> {
