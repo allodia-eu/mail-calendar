@@ -236,9 +236,11 @@ gesture needs a real mouse.
   `FolderActionsTests.cs` and the gesture itself needs a real mouse.
 - **Nothing is undone from the notice.** A refused change says so and the tree shows the
   server's copy; redoing the change is the user's, from the row menu.
-- **The Graph and Gmail folder writes have not yet run against a real mailbox.** They are built
-  to the documented request shapes and pass offline; their live suites exist in the engine and
-  wait for a test account (`providers.md` there).
+- **The Graph folder writes have not yet run against a real mailbox.** They are built to the
+  documented request shapes and pass offline; their live suite exists in the engine and waits for
+  a test account (`providers.md` there). Gmail's have run from the iOS client against a real
+  account: a folder made, renamed, moved and deleted, and a move under the Inbox refused by Gmail
+  and said on the pane. The engine's own Gmail live suite has not.
 - **The group has one child.** A unified Sent, Drafts and Archive are what rule 16's shape is for,
   and none of them exists: the core's unified scope reaches every account's **Inbox** only
   ([`scope.rs`](../crates/mailcal-app/src/scope.rs)), so a second child would need a scope to
