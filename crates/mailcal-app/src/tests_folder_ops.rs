@@ -332,3 +332,22 @@ async fn mail_is_not_moved_into_a_folder_whose_row_does_not_take_it() {
         "Junk takes mail through a report, never a move",
     );
 }
+
+#[tokio::test]
+async fn a_message_sent_to_the_folder_it_is_in_is_not_moved() {
+    // A unified list leaves no folder out of Move to folder…, so a message can be sent to the
+    // folder it already sits in.
+    let provider = provider();
+    let edits = provider.edits();
+    let app = tree_app(provider);
+    app.dispatch(Intent::RefreshMail).await;
+
+    app.dispatch(Intent::Folders(FolderIntent::MoveMessages {
+        rows: vec![RowRef::Message(msg(ACCOUNT, "m1"))],
+        folder: folder("a"),
+    }))
+    .await;
+
+    assert!(edits.lock().unwrap().is_empty());
+    assert_eq!(app.mailbox_list().rows.len(), 1, "the row stays on screen");
+}

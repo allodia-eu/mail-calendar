@@ -196,7 +196,20 @@ impl<P: Provider> App<P> {
                 ),
             }
         }
-        let keys = deduplicated(keys);
+        let mut keys = deduplicated(keys);
+        // Named or not, a message already in the destination has nowhere to go.
+        if let Some(destination) = &destination {
+            let already: HashSet<String> = self
+                .engine
+                .mail_by_keys(account, &keys)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|row| row.mailboxes.iter().any(|id| id.key() == destination.key()))
+                .map(|row| row.mail.key.as_str().to_owned())
+                .collect();
+            keys.retain(|key| !already.contains(key.as_str()));
+        }
         if keys.is_empty() {
             return;
         }
