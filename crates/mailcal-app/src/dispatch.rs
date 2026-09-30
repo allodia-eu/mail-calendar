@@ -129,6 +129,7 @@ impl<P: Provider> App<P> {
             Intent::Contacts(contacts) => self.dispatch_contacts(contacts).await,
             Intent::Outbox(outbox) => self.dispatch_outbox(outbox).await,
             Intent::Drafts(drafts) => self.dispatch_drafts(drafts).await,
+            Intent::Folders(folders) => self.dispatch_folders(folders).await,
             Intent::DismissComposeRequest => self.dismiss_compose_request(),
             // The mail-mutation handlers report whether the edit applied, for the agent adapter
             // (`mail_ops::result`). An intent stays fire-and-forget: the interactive surface

@@ -31,13 +31,16 @@ namespace Allodia.Mailcal.ViewModels;
 /// <param name="QueuedLabel">The same for the Outbox's badge, "3 waiting to send". Its own
 /// sentence, not <paramref name="UnreadLabel"/>: those are messages nobody has read, these are
 /// messages nobody has received, and only one of the two is something to go and do.</param>
+/// <param name="Pending">What a folder whose change has not reached the server says it is doing
+/// (docs/folder-pane.md, rule 27).</param>
 public readonly record struct SidebarLabels(
     string AllAccounts,
     string UnifiedInbox,
     string AddAccount,
     string Outbox,
     Func<uint, string> UnreadLabel,
-    Func<uint, string> QueuedLabel);
+    Func<uint, string> QueuedLabel,
+    string Pending);
 
 /// <summary>The Segoe Fluent glyphs the sidebar entries carry.</summary>
 /// <param name="Account">A contact, for an account.</param>
@@ -167,6 +170,9 @@ public static class SidebarTree
             };
             item.Content = account.Email;
             item.ShowBadge = isUnreachable(account.Id);
+            // On an account row this is the account's own capability: New folder, and a folder
+            // dropped here to the top of its tree (rule 22).
+            item.AcceptsFolders = account.ManagesFolders;
             // Its folders, on every destination, even the ones that draw no mail tree. A row
             // that is emptied and refilled is a row the framework has already realised with
             // nothing in it, and such a row can be told it is open but cannot then show anything
@@ -326,6 +332,13 @@ public static class SidebarTree
             }
             item.Content = folder.Name;
             SetUnread(item, folder.Unread, labels);
+            // What the row offers is the core's answer, copied, never decided here (rule 22).
+            item.IsPending = folder.Pending;
+            item.PendingLabel = folder.Pending ? labels.Pending : string.Empty;
+            item.Editable = folder.Editable;
+            item.AcceptsFolders = folder.AcceptsFolders;
+            item.AcceptsMessages = folder.AcceptsMessages;
+            item.InTrash = folder.InTrash;
             // Recorded rather than applied: every row in the pane is opened together once the
             // whole tree is attached, by ApplyExpansion, which says why.
             expansion.Add((item, folder.HasChildren && folder.Expanded));

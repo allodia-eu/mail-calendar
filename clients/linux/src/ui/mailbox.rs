@@ -5,7 +5,9 @@ use std::{collections::HashSet, sync::Once};
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
-use mailcal_bindings::{FlatRow, MailboxListSnapshot, SnapshotRow, ThreadMessage, ThreadRow};
+use mailcal_bindings::{
+    FlatRow, MailboxListSnapshot, SelectedRow, SnapshotRow, ThreadMessage, ThreadRow,
+};
 
 pub(super) use super::mailbox_display::MailboxRendering;
 #[cfg(test)]
@@ -211,11 +213,31 @@ fn flat_row(
         sender,
     ));
     opens_in_window(&widget, &opened, sender);
+    mail_drag(
+        &widget,
+        &row.account,
+        SelectedRow::Message {
+            account: row.account.clone(),
+            key: row.key.clone(),
+        },
+    );
     let input = sender.clone();
     row_action::action_row(&widget, move || {
         input.emit(AppInput::OpenThreadMessage(Box::new(opened.clone())));
     });
     widget
+}
+
+/// Lets a list row be dragged onto a folder (`docs/folder-pane.md`, rule 24). A selected row takes
+/// the selection with it, which the model decides at the drop.
+fn mail_drag(widget: &impl IsA<gtk::Widget>, account: &str, row: SelectedRow) {
+    super::folder_drag::source(
+        widget,
+        super::folder_drag::PaneDrag {
+            account: account.to_owned(),
+            dragged: super::folder_actions::Dragged::Mail(row),
+        },
+    );
 }
 
 /// A double-click on a message row opens it in a window of its own
@@ -284,6 +306,14 @@ fn thread_row(
         &row.thread_id,
         sender,
     ));
+    mail_drag(
+        &widget,
+        &row.account,
+        SelectedRow::Thread {
+            account: row.account.clone(),
+            thread_id: row.thread_id.clone(),
+        },
+    );
     let opened = OpenedMessage::from_thread(row);
     let input = sender.clone();
     row_action::expander_row(&widget, move || {

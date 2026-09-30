@@ -7,6 +7,7 @@ package eu.allodia.mailcal
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -23,18 +24,25 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.AccountFolderRow
 import uniffi.mailcal_bindings.AccountRow
+import uniffi.mailcal_bindings.FolderIntent
+import uniffi.mailcal_bindings.FolderNotice
 import uniffi.mailcal_bindings.FolderRole
 import uniffi.mailcal_bindings.FolderRow
 
@@ -57,6 +65,10 @@ internal fun FolderDrawerScaffold(
     onSetExpanded: (id: String, expanded: Boolean) -> Unit,
     onSetFolderExpanded: (account: String, key: String, expanded: Boolean) -> Unit,
     onShowOutbox: () -> Unit,
+    // The core's doors for changing folders; null offers no folder menu at all.
+    folderEditing: FolderEditing? = null,
+    // A folder change the server refused, standing above the list until closed (rule 28).
+    folderNotice: FolderNotice? = null,
     content: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -78,6 +90,7 @@ internal fun FolderDrawerScaffold(
                 onSetExpanded = onSetExpanded,
                 onSetFolderExpanded = onSetFolderExpanded,
                 onShowOutbox = onShowOutbox,
+                folderEditing = folderEditing,
             )
         },
         content = {
@@ -109,7 +122,14 @@ internal fun FolderDrawerScaffold(
                     onSelectAccount(null)
                 }
             }
-            content()
+            Column {
+                if (folderNotice != null && folderEditing != null) {
+                    FolderNoticeCard(folderNotice) {
+                        folderEditing.dispatch(FolderIntent.DismissNotice)
+                    }
+                }
+                content()
+            }
         },
     )
 }
@@ -129,12 +149,15 @@ private fun FolderDrawerSheet(
     onSetExpanded: (id: String, expanded: Boolean) -> Unit,
     onSetFolderExpanded: (account: String, key: String, expanded: Boolean) -> Unit,
     onShowOutbox: () -> Unit,
+    folderEditing: FolderEditing?,
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val foldersByAccount = remember(accountFolders) {
         accountFolders.associateBy { it.accountId }
     }
+    var dialog by remember { mutableStateOf<FolderDialog?>(null) }
+    folderEditing?.let { FolderDialogHost(dialog, it) { dialog = null } }
     ModalDrawerSheet {
         LazyColumn {
             // The Outbox, above everything and **only while something is in it** (rule 18). Not
@@ -189,17 +212,24 @@ private fun FolderDrawerSheet(
                 // Account header: the chevron opens or shuts the tree (persisted, and nothing
                 // else moves); the row itself selects the account's all-mail view.
                 item(key = "header-${account.id}") {
-                    AccountHeader(
-                        account = account,
-                        expanded = isExpanded,
-                        selected = account.id == selectedAccount && selectedFolder == null,
-                        onToggle = { onSetExpanded(account.id, !isExpanded) },
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onSelectAccount(account.id)
-                        },
-                        ctx = ctx,
-                    )
+                    FolderRowWithMenu(
+                        items = if (folderEditing == null) emptyList()
+                        else accountMenu(foldersByAccount[account.id]),
+                        onPick = { dialog = FolderDialog.Create(account.id, parent = null) },
+                    ) { menu ->
+                        AccountHeader(
+                            account = account,
+                            expanded = isExpanded,
+                            selected = account.id == selectedAccount && selectedFolder == null,
+                            onToggle = { onSetExpanded(account.id, !isExpanded) },
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                onSelectAccount(account.id)
+                            },
+                            ctx = ctx,
+                            modifier = menu,
+                        )
+                    }
                 }
                 if (isExpanded) {
                     // A folder inside a folder the user shut is not drawn. The core has walked
@@ -207,6 +237,10 @@ private fun FolderDrawerSheet(
                     // up it here.
                     val onScreen = folders.filter { it.visible }
                     items(onScreen, key = { "folder-${account.id}-${it.key}" }) { folder ->
+                      FolderRowWithMenu(
+                        items = if (folderEditing == null) emptyList() else folderMenu(folder),
+                        onPick = { dialog = dialogFor(it, account.id, folder, folders, ctx) },
+                      ) { menu ->
                         NavigationDrawerItem(
                             label = { Text(folderLabel(folder.role, folder.name, ctx)) },
                             icon = {
@@ -236,11 +270,15 @@ private fun FolderDrawerSheet(
                             },
                             // One step per level below the account's own indent, so a branch
                             // reads as a branch rather than as a longer list.
-                            modifier = Modifier.padding(
-                                start = 24.dp + (FOLDER_INDENT * folder.depth.toInt()),
-                                end = 12.dp,
-                            ),
+                            modifier = Modifier
+                                .padding(
+                                    start = 24.dp + (FOLDER_INDENT * folder.depth.toInt()),
+                                    end = 12.dp,
+                                )
+                                .then(menu)
+                                .pendingStyle(folder.pending, ctx),
                         )
+                      }
                     }
                 }
             }
@@ -251,6 +289,15 @@ private fun FolderDrawerSheet(
 
 // One step of indent per level of folders inside folders.
 private val FOLDER_INDENT = 16.dp
+
+// Rule 27: a change the server has not confirmed is drawn at once, dimmed, and says so to a
+// screen reader.
+private fun Modifier.pendingStyle(pending: Boolean, ctx: android.content.Context): Modifier =
+    if (!pending) {
+        this
+    } else {
+        alpha(0.5f).semantics { stateDescription = L10n.folder_pending(ctx) }
+    }
 
 // The control that opens or shuts the folders inside a folder, or the blank of the same width
 // where it holds none.
@@ -335,6 +382,7 @@ private fun AccountHeader(
     onToggle: () -> Unit,
     onClick: () -> Unit,
     ctx: android.content.Context,
+    modifier: Modifier = Modifier,
 ) {
     NavigationDrawerItem(
         label = { Text(account.email, maxLines = 1) },
@@ -356,7 +404,7 @@ private fun AccountHeader(
         },
         selected = selected,
         onClick = onClick,
-        modifier = Modifier.padding(horizontal = 12.dp),
+        modifier = Modifier.padding(horizontal = 12.dp).then(modifier),
     )
 }
 

@@ -11,12 +11,14 @@ use mailcal_composer::DraftBlobHandle;
 mod intent;
 mod intent_contacts;
 mod intent_drafts;
+mod intent_folders;
 mod intent_outbox;
 mod status;
 
 pub use intent::Intent;
 pub use intent_contacts::ContactsIntent;
 pub use intent_drafts::{CompositionId, DraftsIntent};
+pub use intent_folders::FolderIntent;
 pub use intent_outbox::OutboxIntent;
 pub use status::{CalendarWriteStatus, ContactWriteStatus, DraftStatus, SendStatus};
 

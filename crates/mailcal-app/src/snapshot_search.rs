@@ -14,8 +14,8 @@ use std::{collections::HashSet, sync::Arc, time::Instant};
 use engine_api::{AccountId, MailListRow, Mailbox, MailboxRole, Provider, ProviderKey, ThreadId};
 use mailcal_account::SyncDepth;
 use mailcal_viewmodel::{
-    AccountFolderRow, AccountMessage, AccountRow, MailboxListSnapshot, SearchHorizon, ViewMode,
-    sorted_folder_rows, view,
+    AccountMessage, AccountRow, MailboxListSnapshot, SearchHorizon, ViewMode, sorted_folder_rows,
+    view,
 };
 
 use crate::{
@@ -60,13 +60,9 @@ impl<P: Provider> App<P> {
             self.complete_search_threads(&mut hits, account_rows, &mailboxes)
                 .await;
         }
-        let account_folders: Vec<AccountFolderRow> = mailboxes
-            .iter()
-            .map(|(id, folders)| AccountFolderRow {
-                account_id: id.as_str().to_owned(),
-                folders: sorted_folder_rows(folders),
-            })
-            .collect();
+        // The pane beside a search is the same pane (rule 1), queued changes and row actions
+        // included, so it is built the way every other view builds it.
+        let account_folders = self.all_account_folders(account_rows).await;
         let mut snapshot =
             view::search_results(&hits, account_rows, account_folders, mode, SEARCH_LIMIT);
         // Keep the host's navigation on the searched scope: a search must not flip the account

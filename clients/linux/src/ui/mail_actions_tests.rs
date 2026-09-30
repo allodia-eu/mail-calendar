@@ -111,6 +111,11 @@ fn only_the_selected_junk_role_reverses_the_spam_action() {
         has_children: false,
         expanded: false,
         visible: true,
+        pending: false,
+        in_trash: false,
+        editable: false,
+        accepts_folders: false,
+        accepts_messages: false,
     }];
     assert!(in_junk_folder(&snapshot));
 

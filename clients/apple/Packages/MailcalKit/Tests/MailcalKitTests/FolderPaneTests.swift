@@ -25,7 +25,12 @@ import Testing
             depth: 0,
             hasChildren: false,
             expanded: false,
-            visible: true
+            visible: true,
+            pending: false,
+            inTrash: false,
+            editable: false,
+            acceptsFolders: false,
+            acceptsMessages: false
         )
     }
 

@@ -294,19 +294,9 @@ impl<P: Provider> App<P> {
         items
     }
 
-    /// Every optimistically-removed `(account, key)`; just archived or deleted, the move not yet
-    /// reflected by a sync. Read-only sibling of the prune in [`cached_rows`](Self::cached_rows),
-    /// so thread completion honours the same hiding without re-running the prune.
-    pub(crate) fn pending_hidden_keys(&self) -> HashSet<(String, String)> {
-        self.pending_removals
-            .lock()
-            .expect("pending-removals mutex poisoned")
-            .clone()
-    }
-
     /// The windowed rows for projection: the [`load_rows`](Self::load_rows) set with any
-    /// **optimistically removed** rows filtered out. A hidden key the store no longer reports is
-    /// pruned here (once the move lands the hint has done its job) so the set self-prunes and a
+    /// **optimistically removed** rows filtered out. A hide the store shows has landed is pruned
+    /// here ([`prune_hidden_rows`](Self::prune_hidden_rows)), so the set self-prunes and a
     /// message that legitimately returns is shown again. The hot path (nothing hidden) returns
     /// the shared cache untouched.
     pub(crate) async fn cached_rows(
@@ -315,26 +305,10 @@ impl<P: Provider> App<P> {
         window: usize,
     ) -> Arc<Vec<Arc<MailListRow>>> {
         let base = self.load_rows(accounts, window).await;
-        let mut removals = self
-            .pending_removals
-            .lock()
-            .expect("pending-removals mutex poisoned");
-        if removals.is_empty() {
+        if self.pending_hidden_keys().is_empty() {
             return base;
         }
-        // Prune confirmed removals: once the store stops reporting a hidden key, the move has
-        // landed, so drop the hint (a failed edit was already un-hidden by its caller). Only the
-        // accounts actually read can be judged; one absent from this window says nothing.
-        let read: HashSet<&str> = accounts.iter().map(AccountId::as_str).collect();
-        let present: HashSet<(&str, &str)> = base
-            .iter()
-            .map(|row| (row.account.as_str(), row.mail.key.as_str()))
-            .collect();
-        removals.retain(|(account, key)| {
-            !read.contains(account.as_str()) || present.contains(&(account.as_str(), key.as_str()))
-        });
-        let hidden: HashSet<(String, String)> = removals.clone();
-        drop(removals);
+        let hidden = self.prune_hidden_rows(accounts, &base);
         Arc::new(
             base.iter()
                 .filter(|row| {

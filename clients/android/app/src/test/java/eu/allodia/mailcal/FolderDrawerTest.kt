@@ -34,7 +34,7 @@ import uniffi.mailcal_bindings.FolderRow
 
 private fun ctx(): Context = RuntimeEnvironment.getApplication()
 
-private fun folder(
+internal fun folder(
     key: String,
     name: String,
     role: FolderRole?,
@@ -44,6 +44,11 @@ private fun folder(
     hasChildren: Boolean = false,
     expanded: Boolean = false,
     visible: Boolean = true,
+    pending: Boolean = false,
+    inTrash: Boolean = false,
+    editable: Boolean = false,
+    acceptsFolders: Boolean = false,
+    acceptsMessages: Boolean = false,
 ) = FolderRow(
     key = key,
     name = name,
@@ -54,7 +59,16 @@ private fun folder(
     hasChildren = hasChildren,
     expanded = expanded,
     visible = visible,
+    pending = pending,
+    inTrash = inTrash,
+    editable = editable,
+    acceptsFolders = acceptsFolders,
+    acceptsMessages = acceptsMessages,
 )
+
+// One account's tree; `managesFolders` is false unless a test is about changing folders.
+internal fun accountFolderRow(id: String, folders: List<FolderRow>, managesFolders: Boolean = false) =
+    AccountFolderRow(id, folders, managesFolders)
 
 @RunWith(RobolectricTestRunner::class)
 class FolderDrawerTest {
@@ -104,7 +118,7 @@ class FolderDrawerTest {
         drawer(
             accounts = listOf(account("work", "me@work.example", expanded = true)),
             accountFolders = listOf(
-                AccountFolderRow(
+                accountFolderRow(
                     "work",
                     listOf(
                         folder("clients", "Clients", role = null, hasChildren = true, expanded = true),
@@ -132,7 +146,7 @@ class FolderDrawerTest {
         drawer(
             accounts = listOf(account("work", "me@work.example", expanded = true)),
             accountFolders = listOf(
-                AccountFolderRow(
+                accountFolderRow(
                     "work",
                     listOf(
                         folder("clients", "Clients", role = null, hasChildren = true),
@@ -159,7 +173,7 @@ class FolderDrawerTest {
         drawer(
             accounts = listOf(account("work", "me@work.example", expanded = true)),
             accountFolders = listOf(
-                AccountFolderRow("work", listOf(folder("w1", "Tenders", role = null))),
+                accountFolderRow("work", listOf(folder("w1", "Tenders", role = null))),
             ),
         )
 
@@ -178,8 +192,8 @@ class FolderDrawerTest {
             // Folders the user made, so each keeps a name of its own to assert on: a folder with a
             // role is named by the app (rule 12), and both accounts' inboxes would read "Inbox".
             accountFolders = listOf(
-                AccountFolderRow("work", listOf(folder("w1", "Tenders", role = null))),
-                AccountFolderRow("home", listOf(folder("h1", "Receipts", role = null))),
+                accountFolderRow("work", listOf(folder("w1", "Tenders", role = null))),
+                accountFolderRow("home", listOf(folder("h1", "Receipts", role = null))),
             ),
             // "work" is selected; "home" must still be showing its folders.
             selectedAccount = "work",
@@ -194,7 +208,7 @@ class FolderDrawerTest {
         drawer(
             accounts = listOf(account("work", "me@work.example", expanded = true)),
             accountFolders = listOf(
-                AccountFolderRow(
+                accountFolderRow(
                     "work",
                     listOf(
                         // What a server really calls them: the one name IMAP mandates, and
@@ -220,7 +234,7 @@ class FolderDrawerTest {
         drawer(
             accounts = listOf(account("work", "me@work.example", expanded = false)),
             accountFolders = listOf(
-                AccountFolderRow("work", listOf(folder("w1", "Tenders", role = null))),
+                accountFolderRow("work", listOf(folder("w1", "Tenders", role = null))),
             ),
             selectedAccount = "work",
         )
@@ -236,7 +250,7 @@ class FolderDrawerTest {
         drawer(
             accounts = listOf(account("work", "me@work.example", expanded = true)),
             accountFolders = listOf(
-                AccountFolderRow("work", listOf(folder("w1", "Work Inbox", FolderRole.INBOX))),
+                accountFolderRow("work", listOf(folder("w1", "Work Inbox", FolderRole.INBOX))),
             ),
         )
 
@@ -252,7 +266,7 @@ class FolderDrawerTest {
     fun `the account row itself still selects the account`() {
         drawer(
             accounts = listOf(account("work", "me@work.example", expanded = true)),
-            accountFolders = listOf(AccountFolderRow("work", emptyList())),
+            accountFolders = listOf(accountFolderRow("work", emptyList())),
         )
 
         compose.onNodeWithText("me@work.example").performClick()
@@ -273,8 +287,8 @@ class FolderDrawerTest {
                 account("home", "me@home.example", expanded = true),
             ),
             accountFolders = listOf(
-                AccountFolderRow("work", listOf(folder("archive", "Work Filing", role = null))),
-                AccountFolderRow("home", listOf(folder("archive", "Home Filing", role = null))),
+                accountFolderRow("work", listOf(folder("archive", "Work Filing", role = null))),
+                accountFolderRow("home", listOf(folder("archive", "Home Filing", role = null))),
             ),
             // "work" is the selected account, and the tap is on the OTHER one's folder, which
             // is exactly the case a bare key gets wrong.
@@ -300,7 +314,7 @@ class FolderDrawerTest {
                 account("home", "me@home.example", expanded = true),
             ),
             accountFolders = listOf(
-                AccountFolderRow(
+                accountFolderRow(
                     "work",
                     listOf(
                         folder("w1", "INBOX", FolderRole.INBOX, unread = 4u),
@@ -308,7 +322,7 @@ class FolderDrawerTest {
                         folder("w2", "Sent Items", FolderRole.SENT, unread = 0u),
                     ),
                 ),
-                AccountFolderRow(
+                accountFolderRow(
                     "home",
                     listOf(folder("h1", "INBOX", FolderRole.INBOX, unread = 1u)),
                 ),

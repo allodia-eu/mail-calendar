@@ -13,6 +13,7 @@ pub mod calendar;
 pub mod color;
 pub mod connectivity;
 pub mod contacts;
+mod folder_changes;
 mod folders;
 pub mod invitation;
 mod outbox;
@@ -29,6 +30,10 @@ pub use avatar::Avatar;
 pub use calendar::{CalendarSnapshot, EventRow};
 pub use connectivity::ConnectivitySnapshot;
 pub use contacts::{ContactCardRef, ContactDetail, ContactRow, ContactValue, ContactsSnapshot};
+pub use folder_changes::{
+    FolderAction, FolderNameCheck, FolderNotice, FolderProblem, QueuedFolderChange,
+    check_folder_name, pending_folder_key, stamp_folder_actions, with_folder_changes,
+};
 pub use folders::{
     AccountFolderRow, FolderRole, FolderRow, folder_paths, folder_role, inbox_unread,
     sorted_folder_rows,

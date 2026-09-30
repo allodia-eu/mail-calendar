@@ -54,6 +54,7 @@ mod folder_pane;
 mod folder_pane_snapshot;
 mod form_factor;
 mod helpers;
+mod hidden_rows;
 mod html;
 mod outbox_ops;
 // The meeting-invitation card: the RSVP gate and the text/conflict rules (pure), and the
@@ -149,8 +150,8 @@ use mcp_settings::McpSettingsState;
 pub use prefetch::default_prefetch_size_limit;
 pub use protocol::{
     AppObserver, BulkAction, CalendarWriteStatus, ComposerBlob, CompositionId, ContactWriteStatus,
-    ContactsIntent, DraftStatus, DraftsIntent, Intent, OutboxIntent, RecipientSuggestion,
-    SearchScope, SendStatus, StagedAttachment, Surface,
+    ContactsIntent, DraftStatus, DraftsIntent, FolderIntent, Intent, OutboxIntent,
+    RecipientSuggestion, SearchScope, SendStatus, StagedAttachment, Surface,
 };
 pub use query::{MessageDetail, MessagePage};
 use quote_settings::QuoteSettingsState;
@@ -347,9 +348,9 @@ pub struct App<P> {
     /// instant the user archives/deletes one, so the row leaves the list without waiting for
     /// the move to land server-side and the re-sync to observe the expunge (IMAP deltas don't
     /// carry it, and a fresh snapshot can lag a beat). A key stays here only while the store
-    /// still reports the message; [`cached_rows`](crate::App::cached_rows) drops it once the
-    /// store agrees it's gone, so the set self-prunes and a failed edit reappears.
-    pending_removals: Mutex<HashSet<(String, String)>>,
+    /// reports it filed where it was; [`cached_rows`](crate::App::cached_rows) drops it once the
+    /// store has it gone or elsewhere, so the set self-prunes and a failed edit reappears.
+    pending_removals: Mutex<hidden_rows::HiddenRows>,
     /// Bumped on every [`invalidate_list_cache`](Self::invalidate_list_cache). A row load
     /// captures this before reading the store and refuses to cache its result if the value
     /// moved while the read was in flight: so a slow pre-sync load can't land after the

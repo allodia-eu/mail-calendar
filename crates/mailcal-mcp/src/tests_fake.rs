@@ -116,6 +116,11 @@ impl MailBackend for FakeBackend {
             has_children: false,
             expanded: false,
             visible: true,
+            pending: false,
+            in_trash: false,
+            editable: false,
+            accepts_folders: false,
+            accepts_messages: false,
         }]
     }
 

@@ -40,6 +40,11 @@ fn folder(key: &str, name: &str, role: Option<FolderRole>, unread: u32) -> Folde
         has_children: false,
         expanded: false,
         visible: true,
+        pending: false,
+        in_trash: false,
+        editable: false,
+        accepts_folders: false,
+        accepts_messages: false,
     }
 }
 
@@ -64,6 +69,7 @@ fn two_accounts() -> MailboxListSnapshot {
         account_folders: vec![
             AccountFolderRow {
                 account_id: "acct-1".to_owned(),
+                manages_folders: false,
                 folders: vec![
                     folder("inbox", "INBOX", Some(FolderRole::Inbox), 545),
                     folder("sent", "Sent Items", Some(FolderRole::Sent), 0),
@@ -72,6 +78,7 @@ fn two_accounts() -> MailboxListSnapshot {
             },
             AccountFolderRow {
                 account_id: "acct-2".to_owned(),
+                manages_folders: false,
                 folders: vec![folder("inbox", "INBOX", Some(FolderRole::Inbox), 7)],
             },
         ],
@@ -86,7 +93,8 @@ fn pane_with_unreachable(
 ) -> (gtk::ListBox, relm4::Receiver<AppInput>) {
     let list = gtk::ListBox::new();
     let (sender, receiver) = relm4::channel::<AppInput>();
-    render(&list, snapshot, unreachable, &sender);
+    let check = crate::ui::folder_actions::name_check(None);
+    render(&list, snapshot, unreachable, &check, &sender);
     (list, receiver)
 }
 

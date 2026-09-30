@@ -82,6 +82,40 @@ public sealed class FolderItem
     /// <summary>Whether the folders inside this one are showing. The core owns and persists it
     /// (docs/folder-pane.md, rule 3).</summary>
     public bool Expanded { get; init; }
+
+    /// <summary>Whether a change to this folder, or to one it sits inside, has not reached the
+    /// server yet (docs/folder-pane.md, rule 27). A pending row offers nothing.</summary>
+    public bool Pending { get; init; }
+
+    /// <summary>Whether the folder sits inside Trash, where deleting it is permanent.</summary>
+    public bool InTrash { get; init; }
+
+    /// <summary>Whether the core offers Rename, Move to… and Delete on this folder, and lets it be
+    /// dragged (rule 22).</summary>
+    public bool Editable { get; init; }
+
+    /// <summary>Whether a new folder may be made in this one, or a folder dropped onto it.</summary>
+    public bool AcceptsFolders { get; init; }
+
+    /// <summary>Whether messages may be dropped onto this folder.</summary>
+    public bool AcceptsMessages { get; init; }
+
+    /// <summary>This folder with its tree opened or shut, everything else carried over.</summary>
+    public FolderItem WithExpanded(bool expanded) => new()
+    {
+        Key = Key,
+        Name = Name,
+        Role = Role,
+        Unread = Unread,
+        Parent = Parent,
+        HasChildren = HasChildren,
+        Expanded = expanded,
+        Pending = Pending,
+        InTrash = InTrash,
+        Editable = Editable,
+        AcceptsFolders = AcceptsFolders,
+        AcceptsMessages = AcceptsMessages,
+    };
 }
 
 /// <summary>One account in the sidebar switcher: its id, email (display label), and whether its
@@ -109,8 +143,23 @@ public sealed class AccountItem
     /// Independent of which account is selected.</summary>
     public bool Expanded { get; init; }
 
+    /// <summary>Whether this account's folders can be changed at all: its row then offers New
+    /// folder and takes a folder dropped on it (docs/folder-pane.md, rule 22).</summary>
+    public bool ManagesFolders { get; init; }
+
     /// <summary>This account's folders, in the core's canonical order. Every account carries its
     /// own, in every view, which is what keeps the other accounts' trees on screen while one of
     /// them is selected.</summary>
     public IReadOnlyList<FolderItem> Folders { get; init; } = [];
+
+    /// <summary>This account with its tree state replaced, everything else carried over.</summary>
+    public AccountItem With(bool expanded, IReadOnlyList<FolderItem> folders) => new()
+    {
+        Id = Id,
+        Email = Email,
+        SendLabel = SendLabel,
+        Expanded = expanded,
+        ManagesFolders = ManagesFolders,
+        Folders = folders,
+    };
 }

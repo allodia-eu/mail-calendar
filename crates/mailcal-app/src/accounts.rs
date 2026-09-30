@@ -173,7 +173,7 @@ impl<P: Provider> App<P> {
         self.pending_removals
             .lock()
             .expect("pending-removals mutex poisoned")
-            .retain(|(a, _)| a != acct);
+            .retain(|(a, _), _| a != acct);
         self.attempted_folders
             .lock()
             .expect("attempted-folders mutex poisoned")

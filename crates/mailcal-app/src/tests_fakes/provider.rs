@@ -15,8 +15,9 @@ use engine_core::{
     sync::{JmapDataType, SyncScope, SyncState, SyncUpdate, SyncWindow},
 };
 use engine_provider::{
-    Capabilities, ConnectionInfo, EmailChunk, EmailStream, MailEdit, MailEditReceipt,
-    MessageReport, Provider, ProviderError, ProviderResult, ReportReceipt, ScopeSync, SourceStream,
+    Capabilities, ConnectionInfo, EmailChunk, EmailStream, MailEdit, MailEditReceipt, MailboxEdit,
+    MailboxEditReceipt, MessageReport, Provider, ProviderError, ProviderResult, ReportReceipt,
+    ScopeSync, SourceStream,
 };
 use futures::StreamExt;
 use tokio::sync::Notify;
@@ -97,6 +98,10 @@ pub(crate) struct FakeProvider {
     /// many refusals are left.
     throttled_fetches: Arc<AtomicUsize>,
     throttle_wait_secs: Option<u64>,
+    /// A folder tree the account can change, when set: every folder-list sync reads it whole
+    /// and every folder change is applied to it, with ids that survive a rename (the JMAP
+    /// shape). `None` is a provider without folder writes.
+    tree: Option<Arc<Mutex<Vec<Mailbox>>>>,
 }
 
 /// Decrements the in-flight count however a source fetch leaves.
@@ -115,22 +120,6 @@ pub(crate) struct EditGate {
     entered: Arc<Notify>,
     /// Awaited by each edit; a test releases them by notifying.
     release: Arc<Notify>,
-}
-
-impl FakeProvider {
-    /// An IMAP-shaped Inbox provider: bound to the folder `a`, and listing it as the Inbox
-    /// beside a role-less folder per key in `others`, the way the provider an IMAP account's
-    /// folder list is read from reports every folder while syncing only its own.
-    pub(crate) fn imap_inbox(messages: Vec<Message>, others: &[&str]) -> Self {
-        let mut inbox = Mailbox::new(MailboxId::try_from("a").unwrap(), "Inbox");
-        inbox.role = Some(MailboxRole::Inbox);
-        let listed = others
-            .iter()
-            .map(|key| Mailbox::new(MailboxId::try_from(*key).unwrap(), *key));
-        let mut provider = Self::folder("a", messages);
-        provider.mailboxes = std::iter::once(inbox).chain(listed).collect();
-        provider
-    }
 }
 
 impl EditGate {
@@ -223,6 +212,14 @@ impl Provider for FakeProvider {
         }
         if self.fail.load(Ordering::SeqCst) {
             return Err(ProviderError::retryable("account unreachable"));
+        }
+        if let Some(tree) = &self.tree {
+            let folders = tree.lock().unwrap().clone();
+            let present = folders.iter().map(|m| m.id.key().clone()).collect();
+            return Ok(ScopeSync::new(
+                SyncUpdate::snapshot(folders, present),
+                SyncState::new("tree"),
+            ));
         }
         if cursor.is_some() {
             return Ok(ScopeSync::new(
@@ -403,6 +400,56 @@ impl Provider for FakeProvider {
     }
 }
 
+#[async_trait::async_trait]
+impl engine_api::MailboxWrites for FakeProvider {
+    async fn edit_mailbox(
+        &self,
+        _account: &AccountId,
+        edit: &MailboxEdit,
+    ) -> ProviderResult<MailboxEditReceipt> {
+        if self.fail.load(Ordering::SeqCst) {
+            return Err(ProviderError::retryable("account unreachable"));
+        }
+        let Some(tree) = &self.tree else {
+            return Err(ProviderError::invalid_state("no folder writes"));
+        };
+        let mut folders = tree.lock().unwrap();
+        let mut place = |target: &MailboxId, name: &str, parent: Option<&MailboxId>| {
+            let folder = folders.iter_mut().find(|m| &m.id == target).unwrap();
+            folder.name = name.to_owned();
+            folder.parent = parent.cloned();
+        };
+        Ok(match edit {
+            MailboxEdit::Create { name, parent } => {
+                let id = MailboxId::try_from(format!("made-{name}").as_str()).unwrap();
+                let mut made = Mailbox::new(id.clone(), name.clone());
+                made.parent.clone_from(parent);
+                folders.push(made);
+                MailboxEditReceipt::resolved(id)
+            }
+            MailboxEdit::Update {
+                target,
+                name,
+                parent,
+            } => {
+                place(target, name, parent.as_ref());
+                MailboxEditReceipt::resolved(target.clone())
+            }
+            MailboxEdit::Trash {
+                target,
+                trash,
+                name,
+            } => {
+                place(target, name, Some(trash));
+                MailboxEditReceipt::resolved(target.clone())
+            }
+            MailboxEdit::Delete { target } => {
+                folders.retain(|m| &m.id != target);
+                MailboxEditReceipt::removed()
+            }
+        })
+    }
+}
 impl CalendarWrites for FakeProvider {}
 
 /// Splits `messages` the way a real adapter yields them: `chunk_size` per chunk, `0` meaning

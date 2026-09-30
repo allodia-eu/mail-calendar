@@ -35,6 +35,10 @@ pub enum FolderRole {
 
 /// One sidebar folder: its key, display name, optional special role, unread count, and where
 /// it sits in the account's folder tree.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent facts a pane reads one at a time, not the states of one machine"
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FolderRow {
     /// The mailbox's provider key (stable identity, used to select it).
@@ -86,6 +90,19 @@ pub struct FolderRow {
     /// (Windows) renders the tree and lets the framework hide what is shut, so it reads
     /// [`expanded`](FolderRow::expanded) and ignores this.
     pub visible: bool,
+    /// Whether a change to this folder, or to one it sits inside, has not reached the server
+    /// yet: queued while offline, or still on its way. A pending folder takes no further
+    /// change, no subfolder and no mail until the server has it, because its key may still move.
+    pub pending: bool,
+    /// Whether the folder sits inside the account's Trash, where deleting it is permanent.
+    pub in_trash: bool,
+    /// Whether the user may rename, move or delete this folder. Never a folder with a role,
+    /// which the app names and places itself (`docs/folder-pane.md`, rules 12 and 19).
+    pub editable: bool,
+    /// Whether a new folder may be made inside this one, or a folder dropped onto it.
+    pub accepts_folders: bool,
+    /// Whether messages may be dropped onto this folder.
+    pub accepts_messages: bool,
 }
 
 /// One account's sorted folder list; used by the folder pane to show every
@@ -96,6 +113,9 @@ pub struct AccountFolderRow {
     pub account_id: String,
     /// The account's sorted folder rows, ready for the sidebar.
     pub folders: Vec<FolderRow>,
+    /// Whether this account's folders can be created, renamed, moved and deleted from here.
+    /// What decides whether its account row offers "New folder" and takes a dropped folder.
+    pub manages_folders: bool,
 }
 
 /// One mailbox's client-visible role, or `None` for an ordinary folder.
@@ -127,6 +147,12 @@ fn folder_row(
         // then; the same reason the account rows' own expansion is stamped there.
         expanded: has_children,
         visible: true,
+        // Stamped by `stamp_folder_actions`, which knows the account and what is queued.
+        pending: false,
+        in_trash: false,
+        editable: false,
+        accepts_folders: false,
+        accepts_messages: false,
     }
 }
 

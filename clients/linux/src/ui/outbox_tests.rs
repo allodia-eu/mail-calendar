@@ -138,7 +138,13 @@ pub(crate) fn the_pane_row_appears_only_while_something_is_waiting() {
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let list = gtk::ListBox::new();
     let empty = empty_mailbox();
-    crate::ui::folder_pane::render(&list, &empty, &HashSet::default(), &sender);
+    crate::ui::folder_pane::render(
+        &list,
+        &empty,
+        &HashSet::default(),
+        &crate::ui::folder_actions::name_check(None),
+        &sender,
+    );
     let labels = rendered_labels(list.clone().upcast_ref());
     assert!(
         !labels.iter().any(|label| label == l10n::folder_outbox()),
@@ -150,7 +156,13 @@ pub(crate) fn the_pane_row_appears_only_while_something_is_waiting() {
         queued(2, "bob@example.test", "Notes", QueuedState::Waiting),
     ]);
     let list = gtk::ListBox::new();
-    crate::ui::folder_pane::render(&list, &waiting, &HashSet::default(), &sender);
+    crate::ui::folder_pane::render(
+        &list,
+        &waiting,
+        &HashSet::default(),
+        &crate::ui::folder_actions::name_check(None),
+        &sender,
+    );
     let labels = rendered_labels(list.clone().upcast_ref());
     assert!(
         labels.iter().any(|label| label == l10n::folder_outbox()),
@@ -181,7 +193,13 @@ pub(crate) fn the_pane_highlights_the_outbox_rather_than_everyones_inbox() {
         QueuedState::Waiting,
     )]);
     let list = gtk::ListBox::new();
-    crate::ui::folder_pane::render(&list, &snapshot, &HashSet::default(), &sender);
+    crate::ui::folder_pane::render(
+        &list,
+        &snapshot,
+        &HashSet::default(),
+        &crate::ui::folder_actions::name_check(None),
+        &sender,
+    );
     let selected = list.selected_row().expect("the Outbox row is selected");
     assert_eq!(selected.index(), 0, "and it is the row above the trees");
 
@@ -192,7 +210,13 @@ pub(crate) fn the_pane_highlights_the_outbox_rather_than_everyones_inbox() {
         ..snapshot
     };
     let list = gtk::ListBox::new();
-    crate::ui::folder_pane::render(&list, &unified, &HashSet::default(), &sender);
+    crate::ui::folder_pane::render(
+        &list,
+        &unified,
+        &HashSet::default(),
+        &crate::ui::folder_actions::name_check(None),
+        &sender,
+    );
     let selected = list.selected_row().expect("All Inboxes is selected");
     assert_eq!(
         selected.index(),
@@ -216,7 +240,13 @@ pub(crate) fn opening_the_outbox_moves_a_highlight_the_selection_cache_would_hav
         ..with_outbox(vec![queued_row()])
     };
     let list = gtk::ListBox::new();
-    crate::ui::folder_pane::render(&list, &unified, &HashSet::default(), &sender);
+    crate::ui::folder_pane::render(
+        &list,
+        &unified,
+        &HashSet::default(),
+        &crate::ui::folder_actions::name_check(None),
+        &sender,
+    );
     let mut selection = crate::ui::folder_pane::FolderPaneSelection::default();
     selection.sync(&list, &unified);
     assert_eq!(

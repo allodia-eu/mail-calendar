@@ -30,7 +30,7 @@ use crate::{
     AccountSyncProgress, BulkAction, CalendarSnapshot, CalendarWriteStatus, ConnectionInfo,
     ConnectivitySnapshot, ContactWriteStatus, EventEdge, EventRow, HttpVersion, Intent,
     InvitationResponse, OutboxIntent, RecipientSuggestion, SearchScope, SelectedRow, SendStatus,
-    Surface, SyncProgressSnapshot, TlsVersion,
+    Surface, SyncProgressSnapshot, TlsVersion, convert_folders::folder_intent,
 };
 
 impl From<AppSurface> for Surface {
@@ -192,6 +192,7 @@ impl TryFrom<Intent> for AppIntent {
             Intent::SubmitMail { to, subject, body } => Self::SubmitMail { to, subject, body },
             Intent::RefreshCalendar => Self::RefreshCalendar,
             Intent::Outbox { intent } => Self::Outbox(outbox_intent(intent)?),
+            Intent::Folders { intent } => Self::Folders(folder_intent(intent)?),
             Intent::DismissComposeRequest => Self::DismissComposeRequest,
             Intent::RefreshContacts => Self::Contacts(AppContactsIntent::RefreshContacts),
             Intent::SearchContacts { query } => {

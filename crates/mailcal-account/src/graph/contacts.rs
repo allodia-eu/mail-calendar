@@ -155,6 +155,7 @@ impl Provider for RefreshingGraphContactProvider {
     }
 }
 
+impl engine_api::MailboxWrites for RefreshingGraphContactProvider {}
 impl CalendarWrites for RefreshingGraphContactProvider {}
 
 #[async_trait]

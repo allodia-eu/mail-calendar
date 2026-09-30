@@ -28,6 +28,7 @@ fn snapshot(horizon: Option<SearchHorizon>) -> MailboxListSnapshot {
         selected: Some("custom".to_owned()),
         account_folders: vec![AccountFolderRow {
             account_id: "acct-1".to_owned(),
+            manages_folders: false,
             folders: vec![FolderRow {
                 key: "custom".to_owned(),
                 name: "Sales & Marketing".to_owned(),
@@ -38,6 +39,11 @@ fn snapshot(horizon: Option<SearchHorizon>) -> MailboxListSnapshot {
                 has_children: false,
                 expanded: false,
                 visible: true,
+                pending: false,
+                in_trash: false,
+                editable: false,
+                accepts_folders: false,
+                accepts_messages: false,
             }],
         }],
         search_horizon: horizon,

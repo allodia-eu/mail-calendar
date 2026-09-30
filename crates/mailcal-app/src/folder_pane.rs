@@ -14,7 +14,7 @@ use std::path::PathBuf;
 
 use engine_api::Provider;
 use mailcal_account::{Preferences, load_preferences, save_preferences};
-use mailcal_viewmodel::FolderRow;
+use mailcal_viewmodel::{FolderNotice, FolderRow};
 
 use crate::{App, reference::FolderRef};
 
@@ -22,6 +22,9 @@ use crate::{App, reference::FolderRef};
 pub(crate) struct FolderPaneState {
     prefs: Preferences,
     prefs_path: Option<PathBuf>,
+    /// A folder change the server refused, until dismissed or superseded. Not persisted: it
+    /// describes this session's attempt, and a relaunch reads the tree afresh.
+    notice: Option<FolderNotice>,
 }
 
 impl FolderPaneState {
@@ -30,7 +33,21 @@ impl FolderPaneState {
         let prefs = prefs_path
             .as_ref()
             .map_or_else(Preferences::default, load_preferences);
-        Self { prefs, prefs_path }
+        Self {
+            prefs,
+            prefs_path,
+            notice: None,
+        }
+    }
+
+    /// The standing folder notice, if any.
+    pub(crate) fn notice(&self) -> Option<FolderNotice> {
+        self.notice.clone()
+    }
+
+    /// Replaces the standing folder notice.
+    pub(crate) fn set_notice(&mut self, notice: Option<FolderNotice>) {
+        self.notice = notice;
     }
 
     /// Whether `account`'s folder tree is open; `true` for an account nobody has shut.
