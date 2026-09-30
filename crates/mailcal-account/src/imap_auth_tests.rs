@@ -115,10 +115,10 @@ fn a_registrable_domain_is_the_last_two_labels() {
     assert_eq!(registrable_domain("localhost"), "localhost");
 }
 
-#[tokio::test]
-async fn an_issuer_that_never_answers_cannot_hold_the_setup_screen() {
-    // A host that accepts the connection and then says nothing: a mail host with nothing behind
-    // its 443 behaves this way, and a request to it has no end of its own.
+/// A host that accepts connections and then says nothing, returning its port. A mail host with
+/// nothing behind its 443 behaves this way, as does a server that stalls after the handshake, and
+/// a request to either has no end of its own.
+async fn silent_host() -> u16 {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {
@@ -127,6 +127,26 @@ async fn an_issuer_that_never_answers_cannot_hold_the_setup_screen() {
             held.push(socket);
         }
     });
+    port
+}
+
+#[tokio::test]
+async fn a_mail_server_that_never_answers_cannot_hold_the_setup_screen() {
+    let query = query(
+        &format!("127.0.0.1:{}", silent_host().await),
+        "alice@example.invalid",
+    );
+
+    let budget = Duration::from_millis(300);
+    let offer = tokio::time::timeout(Duration::from_secs(3), probe(&query, budget))
+        .await
+        .expect("the capability probe outlived its own budget");
+    assert!(offer.is_none());
+}
+
+#[tokio::test]
+async fn an_issuer_that_never_answers_cannot_hold_the_setup_screen() {
+    let port = silent_host().await;
     let query = ImapAuthQuery {
         autoconfig_issuer: Some(format!("https://127.0.0.1:{port}")),
         ..query("imap.example.invalid", "alice@example.invalid")

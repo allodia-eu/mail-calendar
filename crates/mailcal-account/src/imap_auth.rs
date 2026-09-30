@@ -86,13 +86,13 @@ pub struct ImapAuthQuery {
 }
 
 /// Decides what setup should ask for. **Blocking-ish**: makes one TLS connection to the mail
-/// server, then searches for an issuer for a few seconds at most.
+/// server, then searches for an issuer, each for a few seconds at most.
 ///
 /// Never fails. Every unanswered question resolves to [`ImapAuth::Password`], which works
 /// everywhere; a setup screen that showed an error here would be blocking the user on a
 /// question they did not ask.
 pub async fn decide_imap_auth(query: &ImapAuthQuery) -> ImapAuth {
-    let Some(offer) = probe(query).await else {
+    let Some(offer) = probe(query, PROBE_BUDGET).await else {
         return ImapAuth::Password;
     };
     if !offer.oauth {
@@ -141,7 +141,12 @@ pub async fn decide_imap_auth(query: &ImapAuthQuery) -> ImapAuth {
     }
 }
 
-/// Asks the mail server what it accepts, or `None` when it did not answer.
+/// How long the capability probe may take. A server can complete the handshake and then say
+/// nothing, and neither the probe nor the TLS connector bounds that wait; with
+/// [`ISSUER_SEARCH_BUDGET`] after it, the whole decision stays inside the 10 s a client waits.
+const PROBE_BUDGET: Duration = Duration::from_secs(3);
+
+/// Asks the mail server what it accepts, or `None` when it did not answer within `budget`.
 ///
 /// Over verified TLS only: nothing has been accepted before an account exists, so a server
 /// whose certificate does not verify gets no answer, which is the password form, and the
@@ -151,12 +156,21 @@ pub async fn decide_imap_auth(query: &ImapAuthQuery) -> ImapAuth {
 /// probe runs only to say something useful in the log when the two disagree, which is a
 /// provider misconfiguration a user would otherwise meet as "sending doesn't work" weeks
 /// later.
-async fn probe(query: &ImapAuthQuery) -> Option<AuthOffer> {
+async fn probe(query: &ImapAuthQuery, budget: Duration) -> Option<AuthOffer> {
     let tls = tls_with(&[]).ok()?;
     let host = host_of(&query.imap_host);
     let addr = dial_addr(&query.imap_host, query.imap_security);
     let security = engine_security(query.imap_security);
-    match probe_imap_auth(&addr, host, security, &tls.connector()).await {
+    let connector = tls.connector();
+    let asked = probe_imap_auth(&addr, host, security, &connector);
+    let Ok(answered) = tokio::time::timeout(budget, asked).await else {
+        log::info!(
+            "imap auth: {host} did not answer the capability probe within {} s",
+            budget.as_secs()
+        );
+        return None;
+    };
+    match answered {
         Ok(offer) => {
             log::info!(
                 "imap auth: {host} offers [{}] (oauth: {}, password: {})",
@@ -176,8 +190,8 @@ async fn probe(query: &ImapAuthQuery) -> Option<AuthOffer> {
 /// How long the decision searches for an issuer before answering without one.
 ///
 /// A client stops waiting 10 s after it asked (`docs/mail-oauth.md` rule 8), and the capability
-/// probe comes first, so the search must finish well inside that for its answer to be drawn at
-/// all. The bound is needed because a candidate can accept a connection and never answer: the
+/// probe comes first, so the search must finish inside what is left for its answer to be drawn
+/// at all. The bound is needed because a candidate can accept a connection and never answer: the
 /// mail host of a provider with nothing behind its 443 does, and the discovery client has no
 /// timeout of its own.
 const ISSUER_SEARCH_BUDGET: Duration = Duration::from_secs(6);

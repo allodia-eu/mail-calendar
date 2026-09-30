@@ -94,8 +94,9 @@ is recorded here.
    probe** (10 s). Whichever lands first decides, and only the first answer for a given server
    counts: a late one would rebuild a card the person is already typing into. A credential
    field that appears and is then taken away reads as the app changing its mind. The core
-   bounds its issuer search to 6 s, well inside the deadline, because a candidate can accept a
-   connection and never answer; running out is an issuer not found.
+   bounds its own work inside the deadline, because a server can accept a connection and never
+   answer: 3 s for the capability probe, where running out is a server that did not answer, and
+   6 s for the issuer search, where it is an issuer not found.
 
 9. **The credential is resolved per dial, and one authentication failure is worth one
    re-dial.** An access token expires within the hour while an IMAP session does not, so a
