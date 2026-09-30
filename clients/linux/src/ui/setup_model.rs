@@ -98,6 +98,11 @@ pub(crate) struct ImapForm {
     pub(super) trusted: bool,
     pub(super) incoming: DetectedServer,
     pub(super) outgoing: Option<DetectedServer>,
+    /// The issuer the provider's own autoconfig named, passed straight back to the core when
+    /// the sign-in pre-flight runs. `None` is the ordinary case.
+    pub(super) oauth_issuer: Option<String>,
+    /// What the mail server said it accepts, as answered by the core's fail-soft pre-flight.
+    pub(super) sign_in: ImapSignIn,
 }
 
 /// A server detection found. The FFI record it comes from is not cloneable and the form is,
@@ -174,6 +179,10 @@ pub(crate) struct ManualForm {
     /// Each server's port and connection security. The host fields above hold the name alone;
     /// the port sits beside it, where the user can see and change it.
     pub(super) servers: ServerPair,
+    /// What the typed IMAP server said it accepts. The manual pane keeps its password field
+    /// throughout (it is already on screen, and rebuilding over a secret being typed would
+    /// erase it), so this only ever *adds* a sign-in button or a line of explanation.
+    pub(super) imap_sign_in: ImapSignIn,
     /// Why detection sent the user here, when it did.
     pub(super) note: Option<String>,
 }
@@ -184,6 +193,17 @@ impl ManualForm {
         self.kind == AccountKind::Jmap
             && self.sign_in == JmapSignIn::Checking
             && !self.email.trim().is_empty()
+    }
+
+    /// Whether an IMAP auth pre-flight is worth running for what is typed now.
+    ///
+    /// A server is required as well as an address: the question is what *that server*
+    /// accepts, and there is nothing to dial without one.
+    pub(super) fn probes_imap_sign_in(&self) -> bool {
+        self.kind == AccountKind::Imap
+            && self.imap_sign_in == ImapSignIn::Checking
+            && !self.email.trim().is_empty()
+            && !self.imap_host.trim().is_empty()
     }
 }
 
@@ -279,6 +299,7 @@ pub(super) fn recommendation_form(
             incoming,
             outgoing,
             caldav_url,
+            oauth_issuer,
             is_trusted,
             ..
         } => SetupForm::Detected(DetectedForm::Imap(Box::new(ImapForm {
@@ -291,6 +312,8 @@ pub(super) fn recommendation_form(
             trusted: is_trusted,
             incoming: incoming.into(),
             outgoing: outgoing.map(Into::into),
+            oauth_issuer,
+            sign_in: ImapSignIn::Checking,
         }))),
         SetupRecommendation::Microsoft { email } => {
             SetupForm::Detected(DetectedForm::Microsoft(OAuthForm { email }))
@@ -333,6 +356,9 @@ pub(super) fn edit_manually(form: &DetectedForm) -> SetupForm {
                 smtp_host: split_host(&imap.smtp_host).0.to_owned(),
                 caldav_url: imap.caldav_url.clone(),
                 servers,
+                // The card already asked this server; the manual pane asks again for whatever
+                // the user edits the server to.
+                imap_sign_in: imap.sign_in.clone(),
                 ..ManualForm::default()
             }
         }
@@ -372,6 +398,11 @@ fn miss_reason(reason: MissReason) -> String {
 fn non_empty(value: String) -> Option<String> {
     (!value.trim().is_empty()).then_some(value)
 }
+
+/// The IMAP pre-flight's answer, and the manual form as the shape a sign-in takes.
+#[path = "setup_model_imap.rs"]
+mod imap;
+pub(crate) use imap::ImapSignIn;
 
 #[cfg(test)]
 #[path = "setup_model_tests.rs"]

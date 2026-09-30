@@ -265,7 +265,7 @@ struct AccountSetupDetectView: View {
                         submitJmap(jmapEmail, serverURL, password)
                     }
                 }
-            case let .imap(imapEmail, imapHost, smtpHost, imapSecurity, smtpSecurity, incoming, outgoing, caldavURL, _, _):
+            case let .imap(imapEmail, imapHost, smtpHost, imapSecurity, smtpSecurity, incoming, outgoing, caldavURL, _, _, _):
                 SetupCard(title: L10n.setup_detect_section_email(), systemImage: "envelope") {
                     serverRow(incoming)
                     if let outgoing { serverRow(outgoing) }
@@ -465,7 +465,7 @@ private struct ManualPrefill {
 
 private func manualPrefill(_ edit: SetupRecommendation?, typedEmail: String) -> ManualPrefill {
     switch edit {
-    case let .imap(email, imapHost, smtpHost, _, _, _, _, _, _, _):
+    case let .imap(email, imapHost, smtpHost, _, _, _, _, _, _, _, _):
         return ManualPrefill(kind: .imap, email: email, imapHost: imapHost, smtpHost: smtpHost ?? "")
     case let .jmap(email, serverURL, _, _):
         return ManualPrefill(kind: .jmap, email: email, jmapServer: serverURL)

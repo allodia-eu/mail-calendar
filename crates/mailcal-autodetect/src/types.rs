@@ -153,6 +153,16 @@ pub struct DetectedMailSettings {
     pub is_trusted: bool,
     /// Which strategy and URL produced the config.
     pub source: Source,
+    /// The OAuth issuer the provider's **own** autoconfig named (`<oAuth2><issuer>`), as an
+    /// HTTPS URL, or `None`.
+    ///
+    /// Only the endpoints an *issuer* publishes about itself are ever used, never the
+    /// `authURL`/`tokenURL`/`clientID` a document writes beside the issuer, and only a
+    /// provider describing itself over HTTPS may name one at all: the ISPDB's block is
+    /// dropped (`docs/account-autodetect.md` rule 7). `None` is the ordinary case, and the
+    /// setup path then looks for an issuer at the provider's own well-known locations
+    /// instead.
+    pub oauth_issuer: Option<String>,
     /// A CalDAV endpoint discovered for this account, if any: a follow-on RFC 6764
     /// probe (autoconfig/ISPDB describe mail only) found the account's email domain or
     /// its provider's registrable domain advertising `.well-known/caldav` over HTTPS.

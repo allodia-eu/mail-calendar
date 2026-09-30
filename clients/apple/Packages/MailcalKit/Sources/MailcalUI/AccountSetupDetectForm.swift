@@ -32,7 +32,7 @@ struct DetectedConnectForm {
     var isTrusted: Bool {
         switch recommendation {
         case let .jmap(_, _, isTrusted, _): return isTrusted
-        case let .imap(_, _, _, _, _, _, _, _, isTrusted, _): return isTrusted
+        case let .imap(_, _, _, _, _, _, _, _, _, isTrusted, _): return isTrusted
         default: return true
         }
     }
@@ -68,7 +68,7 @@ struct DetectedConnectForm {
     var discoveredCaldav: String? { Self.discoveredCaldav(recommendation) }
 
     private static func discoveredCaldav(_ recommendation: SetupRecommendation) -> String? {
-        if case let .imap(_, _, _, _, _, _, _, caldavURL, _, _) = recommendation { return caldavURL }
+        if case let .imap(_, _, _, _, _, _, _, caldavURL, _, _, _) = recommendation { return caldavURL }
         return nil
     }
 

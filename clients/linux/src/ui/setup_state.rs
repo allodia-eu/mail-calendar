@@ -4,7 +4,7 @@
 //! two answer different questions. Nothing here draws.
 
 use super::{
-    setup_model::{AccountKind, DetectedForm, JmapSignIn, ManualForm, SetupForm, edit_manually},
+    setup_model::{ImapSignIn, JmapSignIn, ManualForm, SetupForm, edit_manually},
     setup_onboarding::Onboarding,
 };
 
@@ -24,6 +24,7 @@ pub(super) enum Phase {
     GoogleSigningIn,
     MicrosoftSigningIn,
     JmapSigningIn,
+    ImapSigningIn,
     Connecting,
 }
 
@@ -134,6 +135,7 @@ impl SetupState {
         let form = SetupForm::Manual(ManualForm {
             // A type the user has just switched to has not been asked about yet.
             sign_in: JmapSignIn::Checking,
+            imap_sign_in: ImapSignIn::Checking,
             ..form
         });
         let probe = manual_probe(&form);
@@ -166,6 +168,30 @@ impl SetupState {
         probe
     }
 
+    /// Records what the manual IMAP pane holds now and answers whether that server still
+    /// needs a pre-flight. Deliberately does **not** rebuild: nothing on screen changes when a
+    /// probe starts, and a rebuild would take the password the user may already be typing.
+    pub(super) fn adopt_manual_imap(&mut self, typed: ManualForm) -> Option<ManualForm> {
+        if self.phase != Phase::Form {
+            return None;
+        }
+        let Some(SetupForm::Manual(current)) = self.form.as_ref() else {
+            return None;
+        };
+        // Same account, nothing to ask: either the pre-flight is in flight for it or it has
+        // already answered. Leaving a field a second time must not spend another dial.
+        if current.email == typed.email && current.imap_host == typed.imap_host {
+            return None;
+        }
+        let form = ManualForm {
+            imap_sign_in: ImapSignIn::Checking,
+            ..typed
+        };
+        let probe = form.probes_imap_sign_in().then(|| form.clone());
+        self.form = Some(SetupForm::Manual(form));
+        probe
+    }
+
     pub(super) fn connecting(&mut self) {
         self.phase = Phase::Connecting;
         self.error = None;
@@ -194,73 +220,11 @@ impl SetupState {
         self.bump();
     }
 
-    /// The pre-flight's answer, applied to whichever pane asked for it; the detected card or
-    /// the manual form. Returns whether it belonged to what is on screen.
-    ///
-    /// Only the **first** answer for an address counts, which is what lets a deadline race the
-    /// probe: whichever arrives first decides, and the loser finds a state that is no longer
-    /// `Checking` and is dropped.
-    pub(super) fn jmap_oauth_available(
-        &mut self,
-        email: &str,
-        server_url: &str,
-        available: bool,
-    ) -> bool {
-        if self.phase != Phase::Form {
-            return false;
-        }
-        let answer = if available {
-            JmapSignIn::Offered
-        } else {
-            JmapSignIn::Unavailable
-        };
-        let rebuild = match self.form.as_mut() {
-            Some(SetupForm::Detected(DetectedForm::Jmap(form)))
-                if form.email == email
-                    && form.server_url == server_url
-                    && form.sign_in == JmapSignIn::Checking =>
-            {
-                form.sign_in = answer;
-                // The card shows neither the offer nor a secret field while it asks, so both
-                // answers change what is on screen.
-                true
-            }
-            Some(SetupForm::Manual(form))
-                if form.kind == AccountKind::Jmap
-                    && form.email == email
-                    && form.jmap_server == server_url
-                    && form.sign_in == JmapSignIn::Checking =>
-            {
-                form.sign_in = answer;
-                // The manual pane's secret field is already there and stays either way; only an
-                // offer is new. Rebuilding on a negative answer would erase a secret being typed
-                // to say nothing.
-                available
-            }
-            _ => return false,
-        };
-        if rebuild {
-            self.bump();
-        }
-        true
-    }
-
-    pub(super) fn jmap_sign_in_failed(&mut self) {
-        if let Some(sign_in) = self.any_jmap_sign_in() {
-            *sign_in = JmapSignIn::Failed;
-            self.phase = Phase::Form;
-            self.error = None;
-            self.certificate = None;
-            self.bump();
-        }
-    }
-
-    fn any_jmap_sign_in(&mut self) -> Option<&mut JmapSignIn> {
-        match self.form.as_mut()? {
-            SetupForm::Detected(DetectedForm::Jmap(form)) => Some(&mut form.sign_in),
-            SetupForm::Manual(form) if form.kind == AccountKind::Jmap => Some(&mut form.sign_in),
-            _ => None,
-        }
+    pub(super) fn imap_signing_in(&mut self) {
+        self.phase = Phase::ImapSigningIn;
+        self.error = None;
+        self.certificate = None;
+        self.bump();
     }
 
     pub(super) fn retry_form(&mut self) {
@@ -323,3 +287,8 @@ impl SetupState {
         self.generation = self.generation.wrapping_add(1);
     }
 }
+
+/// The pre-flights' answers and what they change on screen. A child module, so it reaches
+/// `Phase` and the state's own fields.
+#[path = "setup_signin.rs"]
+mod signin;

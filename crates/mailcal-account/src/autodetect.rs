@@ -8,7 +8,7 @@
 //! and the setup builders take a bare host with an assumed standard port. Keeping the
 //! decision here means `mailcal-autodetect` stays product-neutral.
 
-use mailcal_autodetect::{AuthKind, Detected, DetectedServer, SocketKind};
+use mailcal_autodetect::{Detected, DetectedServer, SocketKind};
 
 use crate::ConnectionSecurity;
 
@@ -67,6 +67,11 @@ pub enum SetupRecommendation {
         /// manual CalDAV field. This is a discovery hint: the engine does the real
         /// authenticated collection discovery at connect.
         caldav_url: Option<String>,
+        /// The OAuth issuer the provider's own autoconfig named, when it named one. The client
+        /// passes it back on [`ImapAuthQuery`](crate::ImapAuthQuery), where it is the first
+        /// authorization server tried; `None` is the ordinary case, and the well-known probe
+        /// then answers instead.
+        oauth_issuer: Option<String>,
         /// Whether the settings were obtained tamper-resistantly.
         is_trusted: bool,
         /// Provenance, for diagnostics.
@@ -223,22 +228,18 @@ fn recommend_mail(
         };
     }
 
-    let Some(incoming) = settings
-        .incoming
-        .iter()
-        .find(|server| is_connectable(server))
-    else {
-        // Every detected server is TLS or STARTTLS (plaintext is a parse error), so the
-        // only way nothing is connectable is that no server offers a password login: an
-        // OAuth-only provider we have no integration for.
+    // The document's first choice, which is its preference order. There is no
+    // connectable-or-not filter here any more: the parser only ever yields TLS or STARTTLS
+    // servers offering a password or `OAuth2`, and since IMAP gained OAuth this client speaks
+    // both. A filter that cannot reject anything is a gate that would stay green over a
+    // broken build. Which of the two credentials is actually asked for is settled against the
+    // live server (`crate::imap_auth`), not against this document.
+    let Some(incoming) = settings.incoming.first() else {
         return SetupRecommendation::Manual {
-            reason: MissReason::OauthOnlyProvider,
+            reason: MissReason::NothingFound,
         };
     };
-    let outgoing = settings
-        .outgoing
-        .iter()
-        .find(|server| is_connectable(server));
+    let outgoing = settings.outgoing.first();
 
     SetupRecommendation::Imap {
         email: email.to_owned(),
@@ -249,23 +250,10 @@ fn recommend_mail(
         incoming: summary(incoming, "IMAP"),
         outgoing: outgoing.map(|server| summary(server, "SMTP")),
         caldav_url: settings.caldav_url.clone(),
+        oauth_issuer: settings.oauth_issuer.clone(),
         is_trusted: settings.is_trusted,
         source: settings.source.url.clone(),
     }
-}
-
-/// Whether our engine can connect this server: a TLS-secured link (implicit TLS or
-/// STARTTLS; both carry credentials only over TLS) with a password login.
-fn is_connectable(server: &DetectedServer) -> bool {
-    server.auth.iter().copied().any(is_password)
-}
-
-/// Whether an auth method is a password scheme (either is a password over the TLS link).
-fn is_password(auth: AuthKind) -> bool {
-    matches!(
-        auth,
-        AuthKind::PasswordCleartext | AuthKind::PasswordEncrypted
-    )
 }
 
 /// Maps a detected socket kind onto the account layer's connection-security setting the

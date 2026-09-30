@@ -1,8 +1,10 @@
 # Provider OAuth: token & redirect contract
 
-The cross-platform contract for connecting an **OAuth mail account** (Microsoft 365 and
-**Google** (Gmail + Google Calendar) today; IMAP/SMTP `XOAUTH2` later reuses the same
-machinery). It governs how the browser sign-in is run, how tokens are held, and how they are
+The cross-platform contract for connecting an **OAuth mail account** at a provider this app
+holds a registration for: Microsoft 365 and **Google** (Gmail + Google Calendar). A provider we
+have never met, discovered from the standards, is [`mail-oauth.md`](mail-oauth.md), which
+reuses this machinery and adds the decision this one never has to make: which credential to ask
+for at all. It governs how the browser sign-in is run, how tokens are held, and how they are
 refreshed, so every client does it the same safe way rather than each reinventing it. The
 rules below are written for Microsoft; **"## Google" records only where Google differs**; the
 rest of the contract is shared verbatim.

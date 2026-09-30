@@ -25,6 +25,11 @@ pub(crate) struct ParsedServers {
     pub incoming: Vec<DetectedServer>,
     /// The `smtp` outgoing servers.
     pub outgoing: Vec<DetectedServer>,
+    /// The `<oAuth2><issuer>` the document names, as an HTTPS URL. The format writes it as a
+    /// bare host (`login.example.com`), while RFC 8414 requires an issuer identifier to be an
+    /// HTTPS URL, so a bare one gets the scheme here. `None` when the document names none, or
+    /// names one that is not a hostname.
+    pub oauth_issuer: Option<String>,
 }
 
 /// Why an autoconfig document could not be turned into usable settings. Each variant is
@@ -128,6 +133,7 @@ fn parse_email_provider(
     let mut has_valid_domain = false;
     let mut incoming = Vec::new();
     let mut outgoing = Vec::new();
+    let mut oauth_issuer = None;
 
     loop {
         match read(reader)? {
@@ -148,6 +154,7 @@ fn parse_email_provider(
                             outgoing.push(server);
                         }
                     }
+                    "oAuth2" => oauth_issuer = parse_oauth_issuer(reader)?,
                     _ => skip(reader, &name)?,
                 }
             }
@@ -166,7 +173,53 @@ fn parse_email_provider(
     if outgoing.is_empty() {
         return Err(ParseError::NoOutgoingServer);
     }
-    Ok(ParsedServers { incoming, outgoing })
+    Ok(ParsedServers {
+        incoming,
+        outgoing,
+        oauth_issuer,
+    })
+}
+
+/// Reads an `<oAuth2>` block for its `<issuer>`, skipping the endpoint and client-id
+/// elements beside it.
+///
+/// The issuer is written as a bare hostname in this format and must be an HTTPS URL to be
+/// an RFC 8414 issuer identifier, so a bare one gets the scheme. Anything that is not a
+/// hostname is dropped rather than passed on: an issuer decides which server a person types
+/// their password into, and half-understanding one is worse than not offering sign-in.
+fn parse_oauth_issuer(reader: &mut Reader<&[u8]>) -> Result<Option<String>, ParseError> {
+    let mut issuer = None;
+    loop {
+        match read(reader)? {
+            Event::Start(e) => {
+                let name = local_name(&e.name());
+                if name == "issuer" {
+                    let value = read_text(reader, &name)?.trim().to_owned();
+                    issuer = normalize_issuer(&value);
+                } else {
+                    skip(reader, &name)?;
+                }
+            }
+            Event::End(e) if local_name(&e.name()) == "oAuth2" => break,
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    Ok(issuer)
+}
+
+/// An `<issuer>` value as an HTTPS URL, or `None` when it is not a hostname.
+///
+/// An `https://` prefix already present is kept (some documents write the full URL);
+/// `http://` is refused outright rather than upgraded, because a document that names a
+/// plaintext issuer is describing something we will not talk to either way.
+fn normalize_issuer(value: &str) -> Option<String> {
+    let host = value.strip_prefix("https://").unwrap_or(value);
+    if host.contains("://") {
+        return None;
+    }
+    let host = host.trim_end_matches('/');
+    valid_host_or_ip(host).then(|| format!("https://{host}"))
 }
 
 /// Parses one `incomingServer`/`outgoingServer`. Returns `None` (consuming the element)
