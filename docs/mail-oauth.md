@@ -48,6 +48,12 @@ is recorded here.
    showing one bare password form for both leaves a person wondering why the button their
    colleague has is missing.
 
+   **Behind means not drawn until asked for.** A field on screen reads as "type your password
+   here" whatever the buttons around it say, so a sign-in with a password field beside it does
+   not lead, however it is styled. The sign-in sits in the content, directly under the line that
+   explains it, with "Use a password instead" beneath; choosing that draws the field and makes
+   Connect the form's action, and the sign-in stays on screen as an ordinary button.
+
 3. **A password is offered only where one works.** `AUTH=PLAIN`/`AUTH=LOGIN`, or the absence
    of `LOGINDISABLED`. A server that has switched password authentication off (Microsoft 365's
    shape) gets no password field: it would be a dead end nobody finds until they have typed
