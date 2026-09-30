@@ -356,7 +356,9 @@ async fn blocks_drawn(rule: &SimpleRecurrence) -> usize {
     let provider = CalendarFake::with_events(vec![event]);
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
-    app.dispatch(Intent::RefreshCalendar).await;
+    // Boxed so the helper's own future stays small: every test awaits it, and clippy's
+    // `large_futures` bound sits just under what the refresh future weighs on some targets.
+    Box::pin(app.dispatch(Intent::RefreshCalendar)).await;
     app.calendar_range(day_from_today(-30), 400)
         .grid
         .timed

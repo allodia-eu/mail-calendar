@@ -46,7 +46,9 @@ async fn detail_for(
         )],
         &surfaces,
     );
-    app.dispatch(Intent::RefreshCalendar).await;
+    // Boxed so the helper's own future stays small: every test awaits it, and clippy's
+    // `large_futures` bound sits just under what the refresh future weighs on some targets.
+    Box::pin(app.dispatch(Intent::RefreshCalendar)).await;
     app.event_detail(&evt("acct-a", "standup"), occurrence)
         .await
         .expect("the event is in the store")
