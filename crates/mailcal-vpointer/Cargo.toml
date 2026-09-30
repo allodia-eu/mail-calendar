@@ -12,8 +12,11 @@ license.workspace = true
 # share the lockfile and the target directory.
 #
 # Why this exists at all rather than a packaged tool: `wlrctl` speaks the same protocol and cannot
-# do the job. See src/main.rs.
-[dependencies]
+# do the job. See src/wayland.rs.
+#
+# Linux only, because a member is compiled by every `--workspace` command on every host and
+# `wayland-sys` does not build on Windows. Elsewhere the binary is a stub (src/main.rs).
+[target.'cfg(target_os = "linux")'.dependencies]
 wayland-client = { workspace = true }
 wayland-protocols-wlr = { workspace = true }
 

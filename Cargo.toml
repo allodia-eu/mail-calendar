@@ -234,7 +234,7 @@ missing_panics_doc = "allow"
 mailcal-buildenv = { path = "crates/mailcal-buildenv" }
 
 # Wayland client plumbing for `mailcal-vpointer`, the pointer-input tool the Linux UI tests drive
-# their headless compositor with. A dependency of that crate alone, which is outside
+# their headless compositor with. A Linux-only dependency of that crate alone, which is outside
 # `default-members`, so nothing that ships links either of them.
 wayland-client = "0.31"
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
