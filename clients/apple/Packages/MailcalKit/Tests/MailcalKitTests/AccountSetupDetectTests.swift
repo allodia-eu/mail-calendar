@@ -196,4 +196,41 @@ struct AccountSetupDetectTests {
         #expect(ImapAuthState.failed.showsPassword)
         #expect(!ImapAuthState.failed.offersSignIn)
     }
+
+    // What the manual pane asks the server about. Its answer depends on every field the probe
+    // reads, so a change to any of them must ask again, and only those.
+
+    private func typed(
+        _ servers: ManualServerPair, smtpHost: String? = nil, caldavURL: String? = nil
+    ) -> ImapLoginRequest {
+        imapLoginRequest(
+            email: "alice@example.com", imapHost: servers.imap.dial("imap.example.com"),
+            smtpHost: smtpHost, caldavURL: caldavURL, imapSecurity: servers.imap.security,
+            smtpSecurity: servers.smtp.security, oauthIssuer: nil
+        )
+    }
+
+    @Test func aChangedPortAsksTheServerAgain() {
+        // Otherwise the answer on screen is about a listener the account will never dial.
+        var servers = ManualServerPair()
+        let before = ImapAuthQuestion(typed(servers))
+        servers.imap.typePort("12993")
+        #expect(ImapAuthQuestion(typed(servers)) != before)
+    }
+
+    @Test func aChangedSecurityAsksTheServerAgain() {
+        var servers = ManualServerPair()
+        let before = ImapAuthQuestion(typed(servers))
+        servers.imap.choose(.startTls)
+        #expect(ImapAuthQuestion(typed(servers)) != before)
+    }
+
+    @Test func theOutgoingServerAndCalendarAreNotPartOfTheQuestion() {
+        // The probe reads neither, so typing them must not send another one.
+        let servers = ManualServerPair()
+        #expect(
+            ImapAuthQuestion(typed(servers, smtpHost: "smtp.example.com", caldavURL: "https://dav.example.com"))
+                == ImapAuthQuestion(typed(servers))
+        )
+    }
 }

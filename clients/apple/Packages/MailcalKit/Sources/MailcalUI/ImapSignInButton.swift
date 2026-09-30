@@ -53,12 +53,6 @@ enum ImapAuthState: Equatable {
         return false
     }
 
-    /// Whether to explain that this provider admits only pre-registered applications.
-    var explainsRegistration: Bool {
-        if case .registrationNeeded = self { return true }
-        return false
-    }
-
     /// Whether the password field belongs on screen.
     ///
     /// Not while the server is still being asked, and not when it said a password is refused: on
@@ -96,6 +90,23 @@ func imapLoginRequest(
         smtpSecurity: smtpSecurity,
         oauthIssuer: oauthIssuer
     )
+}
+
+/// What a pre-flight asks about: the fields of a request the core's probe and issuer search
+/// read, and no others. A form keys its pre-flight on this, so a change to any of them asks again
+/// and typing an outgoing server or a calendar does not.
+struct ImapAuthQuestion: Hashable {
+    let email: String
+    let imapHost: String
+    let imapSecurity: ConnectionSecurity?
+    let oauthIssuer: String?
+
+    init(_ request: ImapLoginRequest) {
+        email = request.email
+        imapHost = request.imapHost
+        imapSecurity = request.imapSecurity
+        oauthIssuer = request.oauthIssuer
+    }
 }
 
 /// The line that says what the server answered, when it says something.

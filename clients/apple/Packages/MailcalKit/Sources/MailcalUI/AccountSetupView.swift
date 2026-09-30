@@ -308,9 +308,7 @@ struct AccountSetupView: View {
                     field: $servers.imap)
                 TextField(L10n.setup_field_email(), text: $username)
                     .setupField(.email)
-                if imapAuth.offersSignIn || imapAuth.explainsRegistration {
-                    ImapAuthExplanation(state: imapAuth)
-                }
+                ImapAuthExplanation(state: imapAuth)
                 if imapAuth.offersSignIn, let signInImap {
                     ImapSignInButton(
                         request: typedImapRequest,
@@ -321,7 +319,7 @@ struct AccountSetupView: View {
                 SecureField(L10n.setup_field_password(), text: $password)
                     .setupField(.password)
             }
-            .task(id: "\(username)|\(imapHost)") {
+            .task(id: ImapAuthQuestion(typedImapRequest)) {
                 await askTypedImapServer()
             }
             SetupCard(title: L10n.setup_section_advanced(), systemImage: "slider.horizontal.3") {
@@ -417,8 +415,8 @@ extension AccountSetupView {
         )
     }
 
-    /// Asks again whenever the address or the server changes, debounced so a network round trip
-    /// does not go out per keystroke.
+    /// Asks again whenever the address or the server, its port and security included, changes;
+    /// debounced so a network round trip does not go out per keystroke.
     func askTypedImapServer() async {
         imapAuth = .password
         guard let imapAuthOptions, kind == .imap,
