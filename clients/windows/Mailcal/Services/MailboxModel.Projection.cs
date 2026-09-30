@@ -227,9 +227,9 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
-    /// Rebuilds <see cref="Accounts"/> only when the account set actually changes, so the
-    /// sidebar switcher isn't churned on every snapshot refresh (the rows that change are the
-    /// mail rows). Order is preserved (the core keeps add order).
+    /// Updates <see cref="Accounts"/> only where an account actually changed, so the sidebar
+    /// isn't churned on every snapshot refresh (the rows that change are the mail rows). Order is
+    /// preserved (the core keeps add order).
     /// </summary>
     /// <remarks>
     /// Each account carries its **own** folders, taken from the snapshot's `account_folders`,
@@ -262,15 +262,9 @@ public sealed partial class MailboxModel
                 };
             })
             .ToArray();
-        if (Accounts.Count == wanted.Length && Accounts.Zip(wanted).All(pair => Same(pair.First, pair.Second)))
-        {
-            return;
-        }
-        Accounts.Clear();
-        foreach (var account in wanted)
-        {
-            Accounts.Add(account);
-        }
+        // In place, never Clear() and refill: the folder pane reconciles on every event this
+        // raises (AccountList.Update says what a Clear() did to it).
+        AccountList.Update(Accounts, wanted, Same);
     }
 
     private static FolderItem ToFolderItem(FolderRow folder)
