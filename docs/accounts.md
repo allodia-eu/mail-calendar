@@ -65,6 +65,10 @@ its own.
 - **Nothing creates an account without mail yet.** Setup offers no calendar-and-contacts account
   and no capability choice, so every account on a device is used for mail; the core paths above
   run only for a stored document that says otherwise.
+- **An account without mail cannot be removed.** Every client draws "Remove account" only on
+  surfaces rule 6 keeps it out of (the folder tree, Settings → Accounts), both built from rows the
+  core filters. Whatever creates such an account gives it a place to be removed from in the same
+  change.
 - **Links are stored but not acted on.** An invitation still files into, and answers from, the
   account whose mail it arrived in, and "save contact" still writes to the account in view.
 - **A capability has two states, on and off.** "Needs permission" (chosen but not granted),
