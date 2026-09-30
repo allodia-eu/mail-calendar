@@ -36,7 +36,11 @@ internal sealed record DetectRoute(
     // implicit TLS or STARTTLS to match. The manual/JMAP/Microsoft routes leave the implicit-TLS
     // default (the manual form offers implicit TLS only today).
     ConnectionSecurity ImapSecurity = ConnectionSecurity.ImplicitTls,
-    ConnectionSecurity SmtpSecurity = ConnectionSecurity.ImplicitTls);
+    ConnectionSecurity SmtpSecurity = ConnectionSecurity.ImplicitTls,
+    // The issuer the provider's own autoconfig named, when it named one. Carried so the setup
+    // form's pre-flight asks that server first rather than probing well-known paths for one the
+    // provider has already pointed at (docs/mail-oauth.md rule 4).
+    string? OauthIssuer = null);
 
 /// <summary>Pure routing + connect-gating for the detection flow (no WinUI types, so it's testable).</summary>
 internal static class AccountDetectForm
@@ -55,7 +59,8 @@ internal static class AccountDetectForm
             IsManual: false, Tab: DetectTab.Imap, Email: imap.Email,
             ImapHost: imap.ImapHost, SmtpHost: imap.SmtpHost ?? string.Empty, JmapServer: string.Empty,
             CaldavUrl: imap.CaldavUrl ?? string.Empty, NeedsApproval: !imap.IsTrusted, Reason: null,
-            ImapSecurity: imap.ImapSecurity, SmtpSecurity: imap.SmtpSecurity),
+            ImapSecurity: imap.ImapSecurity, SmtpSecurity: imap.SmtpSecurity,
+            OauthIssuer: imap.OauthIssuer),
 
         SetupRecommendation.Microsoft microsoft => new DetectRoute(
             IsManual: false, Tab: DetectTab.Microsoft, Email: microsoft.Email,
@@ -78,7 +83,8 @@ internal static class AccountDetectForm
     /// Whether Connect is allowed for a detected result: the field requirements for the tab, plus
     /// the untrusted-approval gate (when the settings need approval, the user must have approved)
     /// and, when a connect was refused for a certificate, that certificate's acceptance
-    /// (docs/certificate-exceptions.md).
+    /// (docs/certificate-exceptions.md). An IMAP password is required only while the field is on
+    /// screen: on a server that refuses passwords it is not, and the sign-in is the action there.
     /// </summary>
     internal static bool CanConnect(
         DetectTab tab,
@@ -89,7 +95,8 @@ internal static class AccountDetectForm
         string password,
         string jmapSecret,
         bool certificateRefused = false,
-        bool certificateAccepted = false)
+        bool certificateAccepted = false,
+        bool passwordShown = true)
     {
         if (needsApproval && !approved)
         {
@@ -104,7 +111,7 @@ internal static class AccountDetectForm
             DetectTab.Jmap => JmapSetupForm.CanConnect(email, jmapSecret),
             DetectTab.Imap => !string.IsNullOrWhiteSpace(imapHost)
                 && !string.IsNullOrWhiteSpace(email)
-                && !string.IsNullOrEmpty(password),
+                && (!passwordShown || !string.IsNullOrEmpty(password)),
             _ => false,
         };
     }

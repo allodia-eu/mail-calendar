@@ -43,14 +43,18 @@ class LogSliceSinceTests(unittest.TestCase):
         self.dir = Path(tempfile.mkdtemp())
         self.log = self.dir / "mailcal.log"
 
+    # Every fixture is written with LF: the offsets below are counted in characters, and on Windows
+    # `write_text` would otherwise write CRLF and put each one a byte short per line.
     def test_returns_what_was_appended_after_the_offset(self):
-        self.log.write_text("earlier\nlaunch marker\n", encoding="utf-8")
+        self.log.write_text("earlier\nlaunch marker\n", encoding="utf-8", newline="\n")
         self.assertEqual(slice_since(self.log, len("earlier\n")), "launch marker\n")
 
     def test_a_rotation_during_the_launch_keeps_the_lines_written_before_it(self):
         before = "earlier session\n"
-        self.log.with_name("mailcal.log.1").write_text(before + "launch marker\n", encoding="utf-8")
-        self.log.write_text("after rotation\n", encoding="utf-8")
+        self.log.with_name("mailcal.log.1").write_text(
+            before + "launch marker\n", encoding="utf-8", newline="\n"
+        )
+        self.log.write_text("after rotation\n", encoding="utf-8", newline="\n")
         self.assertEqual(slice_since(self.log, len(before)), "launch marker\nafter rotation\n")
 
     def test_a_missing_log_is_an_empty_slice(self):

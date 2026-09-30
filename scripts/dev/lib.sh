@@ -58,10 +58,12 @@ STALWART_DIR="$REPO_ROOT/docker/stalwart"
 STALWART_HTTP_ADDR="127.0.0.1:28080"
 STALWART_OAUTH_HTTP_ADDR="localhost:28081" # the sign-in server; `localhost` is part of its issuer
 STALWART_IMAP_ADDR="127.0.0.1:12993"      # implicit-TLS IMAP (harness.sh deliver appends here)
+STALWART_OAUTH_IMAP_ADDR="localhost:12995" # the sign-in server's IMAP; its cert names `localhost`
 STALWART_ALICE_PW="harness-alice-pw"      # the seeded alice@test.local password (a fixture, not a secret)
-# The extracted harness IMAP cert (self-signed, SAN=localhost) a dev build trusts via
-# MAILCAL_EXTRA_CA for the `stalwart-imap` mode. Regenerated each up/reset (it changes when the
-# volumes are wiped), so it is gitignored, not committed.
+# Every certificate the harness serves, which a dev build trusts via MAILCAL_EXTRA_CA: the seeded
+# server's IMAP listener (the `stalwart-imap` mode), and the sign-in server's IMAP listener and
+# HTTPS front (an IMAP account's sign-in). All self-signed. Regenerated each up/reset (they change
+# when the volumes are wiped), so the bundle is gitignored, not committed.
 HARNESS_CA="$STALWART_DIR/tls/harness-ca.pem"
 
 # ---- logging ----------------------------------------------------------------------------------
@@ -383,19 +385,25 @@ require_harness() {
   harness_healthy || die "the Stalwart harness is not healthy: start it with: scripts/dev/harness.sh up"
 }
 
-# Extract the harness's served IMAP TLS cert (self-signed, SAN=localhost) to $HARNESS_CA, so a
-# dev build can add it as a custom root via MAILCAL_EXTRA_CA (the `stalwart-imap` mode).
-# Best-effort: warns and returns 1 on failure. The dial IP is irrelevant to the cert; server_name
-# is `localhost`.
+# Extract every certificate the harness serves into the one bundle at $HARNESS_CA, so a dev build
+# can add them as custom roots via MAILCAL_EXTRA_CA. Each is read off its own listener, as a client
+# meets it: the seeded IMAP (12993), the sign-in server's IMAP (12995) and its HTTPS front (443).
+# The dial IP is irrelevant to the cert; server_name is `localhost` for all three. Best-effort:
+# warns and returns 1 when any is missing, and leaves the bundle as it was.
 extract_harness_ca() {
-  command -v openssl >/dev/null 2>&1 || { warn "openssl not found; cannot extract the harness IMAP cert"; return 1; }
+  command -v openssl >/dev/null 2>&1 || { warn "openssl not found; cannot extract the harness certificates"; return 1; }
   mkdir -p "$(dirname "$HARNESS_CA")"
-  if echo | openssl s_client -connect 127.0.0.1:12993 2>/dev/null | openssl x509 >"$HARNESS_CA" 2>/dev/null \
-    && grep -q "BEGIN CERTIFICATE" "$HARNESS_CA"; then
-    return 0
-  fi
-  warn "could not extract the harness IMAP cert from 127.0.0.1:12993"
-  return 1
+  local bundle="$HARNESS_CA.tmp" port
+  : >"$bundle"
+  for port in 12993 12995 443; do
+    if ! echo | openssl s_client -connect "127.0.0.1:$port" -servername localhost 2>/dev/null \
+      | openssl x509 >>"$bundle" 2>/dev/null; then
+      rm -f "$bundle"
+      warn "could not extract the harness certificate served on 127.0.0.1:$port"
+      return 1
+    fi
+  done
+  mv "$bundle" "$HARNESS_CA"
 }
 
 # ---- platform validation ----------------------------------------------------------------------

@@ -61,7 +61,8 @@ is recorded here.
 
 4. **An issuer comes from the provider describing itself, never from a third party.** Two
    channels, in order: the `<oAuth2><issuer>` of the provider's **own** autoconfig, fetched
-   over HTTPS from its own domain; failing that, an RFC 8414 well-known probe of the **email
+   over HTTPS from its own domain and read beside `<emailProvider>`, where the format puts it
+   (inside it is accepted too); failing that, an RFC 8414 well-known probe of the **email
    domain** and the mail server's **registrable domain**. The ISPDB's `<oAuth2>` block is
    dropped, and so is any issuer read off an **untrusted** (non-HTTPS) hop: those settings are
    approved by the user before a credential is *sent*
@@ -148,21 +149,40 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Server asked before a credential field is drawn | ✅ | ✅ | ⬜ | ✅ | ✅ |
-| Sign-in primary, password behind a secondary control | ✅ | ✅ | ⬜ | ✅ | ✅ |
-| "Only pre-registered apps" explained rather than shown as a bare form | ✅ | ✅ | ⬜ | ✅ | ✅ |
-| No password field where the server refuses passwords | ✅ | ✅ | ⬜ | ✅ | ✅ |
-| Nothing to act on until the answer, with a deadline racing it | ✅ | ✅ | ⬜ | ✅ under the spinner | ✅ |
-| Browser sign-in + redirect capture | n/a | ✅ `ASWebAuthenticationSession` | ⬜ | ✅ Custom Tab | ✅ loopback |
+| Server asked before a credential field is drawn | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sign-in primary, password behind a secondary control | ✅ | ✅ | ⬜ beside it | ⬜ beside it | ⬜ beside it |
+| "Only pre-registered apps" explained rather than shown as a bare form | ✅ | ✅ | ✅ | ✅ | ✅ |
+| No password field where the server refuses passwords | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Nothing to act on until the answer, with a deadline racing it | ✅ | ✅ | ⬜ no deadline | ✅ under the spinner | ✅ |
+| Browser sign-in + redirect capture | n/a | ✅ `ASWebAuthenticationSession` | ✅ protocol activation | ✅ Custom Tab | ✅ loopback |
 | Grant stored with no password beside it | ✅ | n/a | n/a | n/a | ✅ |
 | One re-dial on an expired token | ✅ | n/a | n/a | n/a | n/a |
 
 ## Known gaps
 
-- **Windows still draws the password form only.** It carries the core's answer no further than
-  the binding: it connects an OAuth account correctly once one exists, and cannot yet create
-  one. Until it ships the surface, a person there sees exactly what they saw before, which is a
-  working password setup and not a broken screen.
+- **Windows puts no deadline in front of the pre-flight.** The core bounds its own work (rule 8),
+  so the call returns within 9 s whatever the server does, but until it does a Windows screen
+  shows no password field and no Connect. The other clients draw the password form at ten
+  seconds, and the core's bound means that is rarely reached.
+- **Linux, Android and Windows draw the password field beside the sign-in**, which rule 2 now
+  says is not "behind" it. Linux submits the field with a secondary "Use a password instead"
+  (`setup_imap_signin_password_instead`), Android and Windows draw it under the sign-in button
+  with Connect; on all three the field is on screen before anybody asks for it. Apple's panel is
+  the layout the rule describes.
+- **Windows takes the password field away when the address or server changes.** The answer
+  belongs to the account it was asked about, so an edit makes it unknown and the field and
+  Connect go until the next answer, two to twelve seconds later. That is the field appearing and
+  being taken away that rule 8 warns against, and on the manual form the server field sits above
+  the password.
+- **A provider that admits only pre-registered apps and refuses passwords still gets a password
+  field**, with copy telling the person to use it. `RegistrationNeeded` carries
+  `password_also_works`, and every client draws the field regardless, against rule 3. The honest
+  screen for that server says it cannot be added here yet; none is written.
+- **Windows' screen is verified by hand, not by its UI suite.** On 2026-09-30, against the
+  harness on Windows 11 arm64: each of the three answers, the sign-in-only screen, a failed
+  sign-in handing the password back, a cancel returning quietly, a late answer for an edited
+  server being dropped, and the full sign-in through the browser and protocol activation to a
+  connected account. `uitests/run-ui-tests.ps1` asserts none of it yet.
 - **Android has no "still asking" state, deliberately.** It resolves the answer under the
   "Looking…" spinner that detection already shows, before the card exists, so the card renders
   in its final shape rather than settling into one. That is a stricter reading of rule 8 than a
@@ -177,14 +197,15 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   registration provider gets. Yahoo is the one people meet; its mail scopes are granted only
   after a developer-access review, and no entry is written until we know what that grant
   actually allows.
-- **The full sign-in is not automatable end to end.** The authorisation step needs a browser
-  and a person, so what CI proves is the probe, the decision, the handle that survives the
-  browser hop, and the account the completion writes. The step between is driven by hand.
-- **The local harness cannot serve a reachable issuer.** Stalwart derives its issuer from its
-  configured hostname (`https://mail.test.local`), and the harness maps only a loopback HTTP
-  port, so the metadata URL that issuer implies does not resolve from the host. The harness
-  does enable open registration, so the registration endpoint itself is exercisable; the
-  discovery step is proven against the standards' own shapes offline instead.
+- **The browser hop is driven by hand.** CI runs the rest of the sign-in against the harness
+  (`live_imap_oauth.rs`) and posts the login page's own form in place of the person; what it
+  cannot reach is a client opening the browser and catching the redirect.
+- **The harness's sign-in is reached through a rewritten document.** The sign-in server
+  publishes `http://localhost:28081`, which neither issuer channel may name, so its HTTPS front
+  republishes the metadata under `https://127.0.0.1` and withdraws the RFC 9207 flag with the
+  issuer (`docker/stalwart/front/nginx.conf`). Rule 11 is therefore proven offline only. The
+  seeded server keeps publishing `https://mail.test.local`, which resolves nowhere, and answers
+  "only pre-registered apps".
 - **A rotated refresh token needs the host's credential store.** Every client already has one
   (it is how Microsoft, Google and JMAP accounts survive a rotation), so this is a note rather
   than a gap: an OAuth IMAP account added on a host without one would die at its first
@@ -208,11 +229,14 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   and somewhere else: a dropped `redirect_uri` is rejected on the next refresh, a dropped
   `issuer` silently stops checking RFC 9207, a dropped STARTTLS flag connects the account to a
   port the provider may not have open.
-- **Live, harness-gated** (`mailcal-account/tests/live_imap_auth.rs`): the decision against a real
-  server, which is the one thing the offline suite cannot show. It needs the harness CA and the
-  hostname the certificate actually carries; both are in the file's header, because getting
-  either wrong fail-softs to "ask for a password", which is indistinguishable from the code being
-  broken.
+- **Live, harness-gated**, both in CI: `mailcal-account/tests/live_imap_auth.rs` holds the
+  decision against two real servers (the seeded one answers "only pre-registered apps", the
+  sign-in server offers a sign-in once its autoconfig names the issuer), and
+  `mailcal-bindings/tests/live_imap_oauth.rs` runs the sign-in end to end through the FFI a
+  client calls, from detection to an account connected over OAUTHBEARER. Both need the harness's
+  certificate bundle and the hostname the certificates carry; the headers say how, because
+  getting either wrong fail-softs to "ask for a password", which is indistinguishable from the
+  code being broken.
 - **Clients**: Linux drives the three screens through a real widget tree under Xvfb, asserting
   the half a screenshot cannot check: that no credential field is on screen while the server is
   being asked, that the offer and the password route appear together when both work, and that

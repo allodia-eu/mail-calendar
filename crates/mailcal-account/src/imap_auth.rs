@@ -221,7 +221,7 @@ async fn imap_issuer_within(query: &ImapAuthQuery, budget: Duration) -> Option<A
 /// needs every field of it and re-fetching would be a second round trip that could disagree
 /// with the first.
 pub async fn imap_issuer(query: &ImapAuthQuery) -> Option<AuthServerMetadata> {
-    let http = mailcal_oauth::discovery_client().ok()?;
+    let http = mailcal_oauth::discovery_client_with(&crate::tls::setup_trust_policy()).ok()?;
     let host = host_of(&query.imap_host);
     for issuer in issuer_candidates(query, host) {
         match mailcal_oauth::discover_auth_server(&http, &issuer).await {

@@ -94,9 +94,10 @@ touches the count-asserted CI fixtures, so CI (`SEED_BULK` unset ⇒ 0) is unaff
 **IMAP fidelity (`stalwart-imap`).** For full mail-action + IDLE testing, `scripts/dev/boot.sh
 <platform> --account stalwart-imap` drives the harness over IMAP (implicit TLS on 12993). Since
 that listener serves a **self-signed** cert (`CN=rcgen self signed cert`, SAN `localhost`),
-`harness.sh up` extracts it to `docker/stalwart/tls/harness-ca.pem` (gitignored) and `boot.sh`
-delivers it so the **dev-only** trust path in the core adds it as an extra anchor. Standard
-verification otherwise unchanged. Dial `127.0.0.1:12993` (Android emulator `10.0.2.2:12993`) with
+`harness.sh up` extracts it, with the sign-in server's two certificates below, to
+`docker/stalwart/tls/harness-ca.pem` (gitignored), and `boot.sh` delivers that bundle so the
+**dev-only** trust path in the core adds each as an extra anchor. Standard verification otherwise
+unchanged. Dial `127.0.0.1:12993` (Android emulator `10.0.2.2:12993`) with
 `server_name = localhost`. Supported on **every** platform: macOS, the iOS/iPad simulators,
 Windows, and the Android emulator (see [`../../docs/debugging.md`](../../docs/debugging.md)).
 
@@ -111,6 +112,9 @@ Windows, and the Android emulator (see [`../../docs/debugging.md`](../../docs/de
 | IMAP                          | 993       | `12993` | implicit TLS (self-signed) |
 | IMAP                          | 143       | `12143` | STARTTLS (self-signed), entrypoint-provisioned |
 | HTTP: JMAP + OAuth (`stalwart-oauth`) | 8080 | `28081` | plaintext, reached as `localhost` |
+| IMAP (`stalwart-oauth`)       | 993       | `12995` | implicit TLS (self-signed) |
+| SMTP submission (`stalwart-oauth`) | 465  | `12467` | implicit TLS (self-signed) |
+| HTTPS front (`stalwart-oauth-front`) | 443 | `443` | TLS (self-signed), reached as `localhost` and `127.0.0.1` |
 
 ### Why these are not the engine's numbers
 
@@ -149,6 +153,33 @@ the host port and the public URL together.
 
 The test signs in on the login page by posting that page's own form to `/api/auth`. It is
 Stalwart's web UI API rather than a standard, so a bump that moves it fails at that step, by name.
+
+### Signing in to an IMAP account
+
+An IMAP account learns its authorization server over HTTPS only
+([`docs/mail-oauth.md`](../../docs/mail-oauth.md) rule 4), and `http://localhost:28081` is
+neither. `stalwart-oauth-front` presents the sign-in server the way a provider on the internet
+would, and [`front/nginx.conf`](front/nginx.conf) says why it has two names and what its rewrite
+costs:
+
+- `https://localhost` serves an autoconfig for `alice@localhost`: IMAP on `12995`, submission on
+  `12467`, and `127.0.0.1` as the issuer. Nothing else, because the seeded server is dialled as
+  `localhost` too, and metadata here would offer it a sign-in its token check refuses.
+- `https://127.0.0.1` serves the sign-in server's metadata, republished under that issuer. Every
+  endpoint in it stays `http://localhost:28081`, so the **browser** needs no certificate trusted.
+
+Only the core's own fetches reach the front, and a debug build trusts its certificate the way it
+trusts the IMAP listeners: `harness.sh up` puts all three in the bundle, and `boot.sh` delivers it
+for every harness account, `first-run` included. To try it by hand, add an account for
+**`alice@localhost`**: detection finds the autoconfig, setup offers "Sign in with your provider",
+and the browser opens the Stalwart login, where alice signs in as `alice@test.local` /
+`harness-alice-pw`. Typed on the manual form instead, the same server gets "only pre-registered
+apps", because no autoconfig carried the issuer.
+
+[`live_imap_oauth.rs`](../../crates/mailcal-bindings/tests/live_imap_oauth.rs) runs that sign-in
+end to end in CI, and [`live_imap_auth.rs`](../../crates/mailcal-account/tests/live_imap_auth.rs)
+holds both servers' answers. By hand on an Android emulator, `localhost` is the emulator itself,
+so `adb reverse` has to carry `443`, `12995` and `28081` first; that route has not been tried.
 
 ## Seeded accounts
 

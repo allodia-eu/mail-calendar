@@ -51,6 +51,7 @@ mod test_fakes;
 
 use std::time::Duration;
 
+use engine_tls::TlsPolicy;
 pub use mx::{MxError, MxRecord, MxResolution, MxResolver, SrvRecord, SrvResolution};
 pub use orchestrator::detect;
 pub use types::{
@@ -75,6 +76,10 @@ pub struct DetectConfig {
     pub max_body_bytes: usize,
     /// Budget for one host-side MX resolution.
     pub dns_timeout: Duration,
+    /// Which certificates detection's HTTPS fetches trust. Production is bundled plus OS
+    /// roots; the bindings pass the account layer's policy, which in a debug or dev-harness
+    /// build also trusts the local harness, so its autoconfig counts as the provider's own.
+    pub tls_policy: TlsPolicy,
     /// Dev-harness escape hatch: rebases the JMAP well-known probe onto a local server
     /// (e.g. `http://127.0.0.1:28080` for Stalwart) that the typed domain can't reach,
     /// and waives the probe's HTTPS requirement. Only the bindings' debug/dev-harness
@@ -90,6 +95,7 @@ impl Default for DetectConfig {
             max_redirects: 5,
             max_body_bytes: 256 * 1024,
             dns_timeout: Duration::from_secs(3),
+            tls_policy: TlsPolicy::bundled_and_system(),
             well_known_base_override: None,
         }
     }

@@ -25,13 +25,24 @@ pub(crate) fn account_tls(account: &AccountConfig) -> Result<TlsClientConfig, Tl
 /// The same config for a connection that belongs to no [`AccountConfig`] (a JMAP account
 /// keeps its own), so one place decides the policy.
 pub(crate) fn tls_with(exceptions: &[CertificateException]) -> Result<TlsClientConfig, TlsError> {
+    client_config_with_exceptions(&setup_trust_policy(), exceptions)
+}
+
+/// The trust policy, with no exceptions, for the HTTPS setup makes before an account exists:
+/// detection's autoconfig fetches, and the metadata that decides where a mail account signs in.
+///
+/// The same policy the account's own connections get, so a debug build that trusts the harness's
+/// IMAP listener also trusts the HTTPS front that names its authorization server. Anything
+/// fetched past that point (registration, the code exchange, a refresh) is not covered, which the
+/// harness never needs: those endpoints are the sign-in server's own plain loopback HTTP.
+#[must_use]
+pub fn setup_trust_policy() -> TlsPolicy {
     let custom = custom_roots();
-    let policy = if custom.is_empty() {
+    if custom.is_empty() {
         TlsPolicy::bundled_and_system()
     } else {
         TlsPolicy::roots(true, true, custom)
-    };
-    client_config_with_exceptions(&policy, exceptions)
+    }
 }
 
 #[cfg(any(debug_assertions, feature = "dev-harness"))]

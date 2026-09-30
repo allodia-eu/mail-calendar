@@ -30,6 +30,9 @@ public sealed partial class AccountSetupView : UserControl
     // Set while the code is writing the fields, so echoing a value back does not read as the user
     // typing it and take the port away from the picker.
     private bool _fillingServerFields;
+    // The issuer the detected route's provider named for itself, read by the IMAP pre-flight and
+    // the sign-in, which must describe the same account the connect will dial.
+    private string? _detectedOauthIssuer;
 
     /// <summary>Initialises the control.</summary>
     public AccountSetupView()
@@ -131,6 +134,7 @@ public sealed partial class AccountSetupView : UserControl
         _needsApproval = route.NeedsApproval;
         _imap.AdoptDetected(route.ImapHost, route.ImapSecurity);
         _smtp.AdoptDetected(route.SmtpHost, route.SmtpSecurity);
+        _detectedOauthIssuer = route.OauthIssuer;
         // Whether the JMAP fields are a detected result or the manual form decides whether an
         // offered sign-in stands beside the secret field or replaces it. Set before the tab is
         // selected below, since selecting one lays the section out immediately.
@@ -212,7 +216,18 @@ public sealed partial class AccountSetupView : UserControl
         UpdateCanConnect();
     }
 
-    private void OnFieldChanged(object sender, TextChangedEventArgs e) => UpdateCanConnect();
+    private void OnFieldChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateCanConnect();
+        // TextChanged can fire while the tree is still being built, before the later fields exist.
+        if (ImapSignInPanel is null)
+        {
+            return;
+        }
+        _imapSignIn.FieldsChanged(Username.Text, ImapHost.Text);
+        UpdateImapSignIn();
+        ScheduleImapProbe();
+    }
 
     private void OnPasswordChanged(object sender, RoutedEventArgs e) => UpdateCanConnect();
 
@@ -257,50 +272,6 @@ public sealed partial class AccountSetupView : UserControl
         : GoogleChoice?.IsChecked == true ? DetectTab.Google
         : DetectTab.Imap;
 
-    /// <summary>
-    /// What the certificate claims about itself, one claim per line. Absent claims are left out
-    /// rather than shown empty; the fingerprint is always there, because it is taken over the
-    /// bytes rather than read out of them. Dates are formatted here, from the epoch seconds the
-    /// core sends (docs/timestamps.md).
-    /// </summary>
-    private static string CertificateClaimLines(RejectedCertificate certificate)
-    {
-        var lines = new List<string>();
-        var subject = Party(certificate.SubjectCommonName, certificate.SubjectOrganisation);
-        if (subject is not null)
-        {
-            lines.Add($"{L10n.SetupCertificateIssuedTo()}: {subject}");
-        }
-        var issuer = Party(certificate.IssuerCommonName, certificate.IssuerOrganisation);
-        if (issuer is not null)
-        {
-            lines.Add($"{L10n.SetupCertificateIssuedBy()}: {issuer}");
-        }
-        if (certificate.NotBefore is { } from && certificate.NotAfter is { } until)
-        {
-            lines.Add($"{L10n.SetupCertificateValid()}: {Day(from)} – {Day(until)}");
-        }
-        lines.Add($"{L10n.SetupCertificateFingerprint()}: {certificate.Sha256}");
-        return string.Join(Environment.NewLine, lines);
-    }
-
-    // The process culture is already pinned to the app's language choice (AppCulture), so the
-    // long-date format follows the words on screen rather than the host's region.
-    private static string Day(long epochSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(epochSeconds).ToLocalTime().ToString("D");
-
-    /// <summary>
-    /// "name (organisation)", or whichever of the two the certificate carries. <c>null</c> when it
-    /// names neither, which is when there is nothing to show rather than an empty line.
-    /// </summary>
-    private static string? Party(string? commonName, string? organisation) => (commonName, organisation) switch
-    {
-        (not null, not null) => $"{commonName} ({organisation})",
-        (not null, null) => commonName,
-        (null, not null) => organisation,
-        _ => null,
-    };
-
     // What gates Connect depends on the active tab and, for a detected result, the approval: IMAP
     // needs mail server + email + password; JMAP needs email + one secret (server is discovered);
     // an untrusted result also needs the approval box. A connect in flight disables it.
@@ -326,7 +297,10 @@ public sealed partial class AccountSetupView : UserControl
             Password.Password,
             JmapPassword.Password,
             certificateRefused: RefusedCertificate() is not null,
-            certificateAccepted: CertificateCheck.IsChecked == true);
+            certificateAccepted: CertificateCheck.IsChecked == true,
+            // On a server that refuses passwords the field is not on screen, and gating Connect
+            // on it would disable a button nobody is looking at anyway.
+            passwordShown: _imapSignIn.ShowPassword);
     }
 
     // Show the fields for the chosen account type, and re-gate Connect (requirements differ per tab).
@@ -476,6 +450,7 @@ public sealed partial class AccountSetupView : UserControl
         JmapPassword.Password = string.Empty;
         JmapServer.Text = string.Empty;
         ResetJmapSignIn();
+        ResetImapSignIn();
         GoogleEarlyAccessCheck.IsChecked = false;
         ConnectButton.IsEnabled = false;
     }

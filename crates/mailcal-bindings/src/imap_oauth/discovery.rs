@@ -79,8 +79,8 @@ pub(super) async fn discover_registration(
     if let Some(registration) = static_registration(query) {
         return Ok(registration);
     }
-    let http =
-        mailcal_oauth::discovery_client().map_err(|err| MailcalError::Connect(err.to_string()))?;
+    let http = mailcal_oauth::discovery_client_with(&mailcal_account::setup_trust_policy())
+        .map_err(|err| MailcalError::Connect(err.to_string()))?;
     // The same metadata the setup screen's decision was made from, not a second reading of
     // it: two fetches could disagree, and the one the user was shown is the one to honour.
     let metadata = mailcal_account::imap_issuer(query)

@@ -18,9 +18,10 @@ namespace Allodia.Mailcal.Views;
 
 public sealed partial class AccountSetupView
 {
-    // How long after the last keystroke the availability probe runs. Long enough that typing an
-    // address end to end costs one round trip, short enough that the button appears while the user
-    // is still looking at the field.
+    // How long after the last keystroke a pre-flight runs. Long enough that typing an address end
+    // to end costs one round trip, short enough that the button appears while the user is still
+    // looking at the field. Shared with the IMAP half (AccountSetupView.ImapSignIn.cs): both ask a
+    // server the same kind of question, and two copies would be two places to change it.
     private static readonly TimeSpan ProbeDebounce = TimeSpan.FromMilliseconds(600);
 
     private readonly JmapSignInGate _jmapSignIn = new();

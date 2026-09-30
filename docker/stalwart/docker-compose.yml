@@ -99,6 +99,10 @@ services:
   # The hostname has to be `localhost` as well: Stalwart accepts an RFC 8707 resource indicator
   # only when its host is the server's own hostname, and the resource it publishes is the public
   # URL. Alice only, nothing seeded.
+  #
+  # Its IMAP and submission listeners are published too, for an IMAP account's sign-in, whose
+  # authorization server is found over HTTPS only: `stalwart-oauth-front` below is how this server
+  # appears to one (docs/mail-oauth.md rule 4).
   stalwart-oauth:
     build: .
     pull_policy: build
@@ -109,13 +113,18 @@ services:
       STALWART_PUBLIC_URL: "http://localhost:28081"
       HARNESS_ADMIN_PW: "harness-admin-pw"
       HARNESS_SEED: "0"
+      HARNESS_FRONT_TLS_DIR: "/harness/front-tls"
     volumes:
       - ./entrypoint.sh:/harness/entrypoint.sh:ro
       - stalwart-oauth-etc:/etc/stalwart
       - stalwart-oauth-data:/var/lib/stalwart
+      - stalwart-oauth-front-tls:/harness/front-tls
     ports:
       # The host port is part of the issuer above, so the two change together.
       - "127.0.0.1:28081:8080" # HTTP: JMAP + OAuth
+      # Clear of the seeded server's 12993/12465, and of 12994, where imap-fault-proxy.py listens.
+      - "127.0.0.1:12995:993" # IMAP (implicit TLS)
+      - "127.0.0.1:12467:465" # SMTP submission (implicit TLS)
     healthcheck:
       test:
         - CMD-SHELL
@@ -125,8 +134,43 @@ services:
       retries: 80
       start_period: 10s
 
+  # The sign-in server as a provider on the internet would present it to an IMAP client: its
+  # autoconfig at https://localhost, naming https://127.0.0.1 as the issuer, and its metadata
+  # there, republished under that HTTPS issuer. Why two names, and what the rewrite costs, is in
+  # ./front/nginx.conf. The certificate is minted by `stalwart-oauth` (entrypoint.sh), so this
+  # starts once that server is healthy.
+  #
+  # Host port 443, because an issuer candidate carries no port: setup asks `https://<domain>`
+  # itself. A machine that already serves 443 on loopback cannot start this service, and
+  # `harness.sh up` fails on it by name.
+  stalwart-oauth-front:
+    # Pinned by multi-arch index digest, like ./Dockerfile's images.
+    image: nginx:1.30-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+    depends_on:
+      stalwart-oauth:
+        condition: service_healthy
+    volumes:
+      - ./front/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./front/autoconfig.xml:/usr/share/harness/autoconfig.xml:ro
+      - stalwart-oauth-front-tls:/etc/nginx/harness-tls:ro
+    ports:
+      - "127.0.0.1:443:443" # HTTPS: autoconfig (localhost) + metadata (127.0.0.1)
+    # Healthy once the republished metadata names the HTTPS issuer, which proves the rewrite
+    # rather than merely that nginx started.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- --header 'Host: 127.0.0.1' http://127.0.0.1:8081/.well-known/oauth-authorization-server
+          | grep -q '"issuer":"https://127.0.0.1"'
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 5s
+
 volumes:
   stalwart-etc:
   stalwart-data:
   stalwart-oauth-etc:
   stalwart-oauth-data:
+  stalwart-oauth-front-tls:
