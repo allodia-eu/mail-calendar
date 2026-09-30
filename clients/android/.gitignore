@@ -15,6 +15,9 @@ build/
 app/build/
 .gradle/
 
+# The Kotlin compiler's session state and crash logs.
+.kotlin/
+
 # Machine-specific SDK path.
 local.properties
 
