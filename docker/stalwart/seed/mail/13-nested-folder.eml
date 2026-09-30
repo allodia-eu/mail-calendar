@@ -1,0 +1,10 @@
+From: Acme Projects <projects@acme.example>
+To: Alice Tester <alice@test.local>
+Subject: Kickoff notes
+Date: Wed, 14 Jan 2026 10:00:00 +0000
+Message-ID: <nested-0013@test.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Filed two levels down, in Projects/Clients/Acme, so a client has mail to open, drag and mark in a
+folder whose parent is itself a subfolder.

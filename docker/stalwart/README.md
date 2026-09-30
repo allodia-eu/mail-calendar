@@ -240,6 +240,24 @@ Gmail's duplicate chip) belong to the unit suite: these two prove the transport,
 address messages by IMAP **sequence number**, so an `APPEND` earlier in the file silently re-points
 them at the wrong message.
 
+## Nested folders
+
+Beside the flat custom folders (`Projects`, `QResync`, `Idle`) the seed creates a small tree, so a
+folder pane has open subfolders to draw and keep in place ([`folder-pane.md`](../../docs/folder-pane.md)):
+
+```
+Archive/2025
+Archive/2026
+Projects/Clients/Acme      "Kickoff notes" (13-nested-folder.eml)
+Projects/Internal
+```
+
+`Archive`'s children are the load-bearing part: `Archive` sorts near the top of the pane, so a pane
+scrolled down to the custom folders has open rows above the ones it shows, which is where a pane
+that rebuilds its rows visibly jumps. `clients/windows/uitests/FolderPanePosition.Tests.ps1` scrolls
+past them and moves `Acme`'s unread count. Rename or move either and that suite stops finding what
+it expands.
+
 ## Everything you APPEND here arrives READ
 
 `imap_append` (and `harness.sh deliver`, and any hand-rolled `curl --upload-file`) sends no flag list,

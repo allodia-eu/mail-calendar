@@ -72,8 +72,10 @@ function Invoke-PointerDrag {
     [Allodia.UiaPointer]::mouse_event((0x0001 -bor 0x8000 -bor 0x4000), $nx, $ny, 0, [UIntPtr]::Zero)
   }
   $fromX = $a.X + $a.Width / 2; $fromY = $a.Y + $a.Height / 2
-  # Onto the label, clear of the chevron and the unread count at either end of the row.
-  $toX = $b.X + [Math]::Min(120, $b.Width / 3); $toY = $b.Y + $b.Height / 2
+  # Onto the label, clear of the chevron and the unread count at either end of the row. Onto the
+  # row's own line, 20 epx down: an open folder's bounds take in its subfolders' rows, and the
+  # middle of those is one of them.
+  $toX = $b.X + [Math]::Min(120, $b.Width / 3); $toY = $b.Y + [Math]::Min($b.Height / 2, (ConvertTo-UiaPixels 20))
   & $moveTo $fromX $fromY
   Start-Sleep -Milliseconds 200
   [Allodia.UiaPointer]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)   # LEFTDOWN
