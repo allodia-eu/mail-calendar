@@ -234,6 +234,9 @@ gesture needs a real mouse.
 - **Dragging onto the pane is not automatable on Windows**: synthetic pointer input does not
   reach WinUI content (the resize drag above is the same trap), so the drop rules are pinned in
   `FolderActionsTests.cs` and the gesture itself needs a real mouse.
+- **A change the server throttles waits for the next sync.** It stays pending until a sync pass
+  drains the outbox (the account's poll, or a pull-to-refresh): nothing retries a queued write
+  when the server's stated wait ends. Every queued mail write shares this; it is not the tree's.
 - **Nothing is undone from the notice.** A refused change says so and the tree shows the
   server's copy; redoing the change is the user's, from the row menu.
 - **The Graph folder writes have not yet run against a real mailbox.** They are built to the

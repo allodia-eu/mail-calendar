@@ -128,7 +128,7 @@ impl<P: Provider> App<P> {
             avatar_pass_running: Mutex::new(false),
             row_cache: Mutex::new(None),
             row_cache_dropped: AtomicBool::new(false),
-            pending_removals: Mutex::new(HashSet::new()),
+            pending_removals: Mutex::new(HashMap::new()),
             row_cache_generation: AtomicU64::new(0),
             inbox_keys: Mutex::new(HashMap::new()),
             send_status_generation: AtomicU64::new(0),

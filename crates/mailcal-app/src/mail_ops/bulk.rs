@@ -192,7 +192,7 @@ impl<P: Provider> App<P> {
         if keys.is_empty() {
             return;
         }
-        self.hide_rows(account, &keys);
+        self.hide_rows(account, &keys).await;
         self.rebuild_snapshot().await;
         for key in &keys {
             let edit = match &destination {
@@ -209,26 +209,6 @@ impl<P: Provider> App<P> {
             }
         }
         self.refresh_after_write(account).await;
-    }
-
-    /// Hides `keys` from the list optimistically, all at once, so one republish takes the whole
-    /// batch off screen rather than a row at a time.
-    fn hide_rows(&self, account: &AccountId, keys: &[ProviderKey]) {
-        let mut removals = self
-            .pending_removals
-            .lock()
-            .expect("pending-removals mutex poisoned");
-        for key in keys {
-            removals.insert((account.as_str().to_owned(), key.as_str().to_owned()));
-        }
-    }
-
-    /// Undoes one row's hide, so a refused write puts that row back on the next rebuild.
-    fn restore_row(&self, account: &AccountId, key: &ProviderKey) {
-        self.pending_removals
-            .lock()
-            .expect("pending-removals mutex poisoned")
-            .remove(&(account.as_str().to_owned(), key.as_str().to_owned()));
     }
 }
 

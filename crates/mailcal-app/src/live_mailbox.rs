@@ -152,7 +152,7 @@ impl<P: Provider> App<P> {
         self.pending_removals
             .lock()
             .expect("pending-removals mutex poisoned")
-            .retain(|(acct, key)| acct != account || !removed.contains(key.as_str()));
+            .retain(|(acct, key), _| acct != account || !removed.contains(key.as_str()));
     }
 
     fn rebuild_live_mailbox_snapshot(&self) -> bool {
@@ -268,9 +268,6 @@ impl<P: Provider> App<P> {
     }
 
     fn live_hidden_keys(&self) -> HashSet<(String, String)> {
-        self.pending_removals
-            .lock()
-            .expect("pending-removals mutex poisoned")
-            .clone()
+        self.pending_hidden_keys()
     }
 }
