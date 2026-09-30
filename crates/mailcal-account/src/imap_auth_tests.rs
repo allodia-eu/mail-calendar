@@ -114,3 +114,27 @@ fn a_registrable_domain_is_the_last_two_labels() {
     // A single label has no shorter form to derive; returned unchanged rather than emptied.
     assert_eq!(registrable_domain("localhost"), "localhost");
 }
+
+#[tokio::test]
+async fn an_issuer_that_never_answers_cannot_hold_the_setup_screen() {
+    // A host that accepts the connection and then says nothing: a mail host with nothing behind
+    // its 443 behaves this way, and a request to it has no end of its own.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        let mut held = Vec::new();
+        while let Ok((socket, _)) = listener.accept().await {
+            held.push(socket);
+        }
+    });
+    let query = ImapAuthQuery {
+        autoconfig_issuer: Some(format!("https://127.0.0.1:{port}")),
+        ..query("imap.example.invalid", "alice@example.invalid")
+    };
+
+    let budget = Duration::from_millis(300);
+    let found = tokio::time::timeout(Duration::from_secs(3), imap_issuer_within(&query, budget))
+        .await
+        .expect("the issuer search outlived its own budget");
+    assert!(found.is_none());
+}

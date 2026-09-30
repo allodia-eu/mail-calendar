@@ -33,6 +33,8 @@
 //! A JMAP account gets its issuer from an RFC 9728 `401` challenge instead. IMAP has no such
 //! HTTP surface to be challenged on, which is why this exists at all.
 
+use std::time::Duration;
+
 use mailcal_oauth::AuthServerMetadata;
 use provider_imap::{AuthOffer, ImapSecurity, probe_imap_auth, probe_smtp_auth};
 
@@ -84,7 +86,7 @@ pub struct ImapAuthQuery {
 }
 
 /// Decides what setup should ask for. **Blocking-ish**: makes one TLS connection to the mail
-/// server and up to four short HTTPS requests, all bounded by their own clients' timeouts.
+/// server, then searches for an issuer for a few seconds at most.
 ///
 /// Never fails. Every unanswered question resolves to [`ImapAuth::Password`], which works
 /// everywhere; a setup screen that showed an error here would be blocking the user on a
@@ -120,7 +122,7 @@ pub async fn decide_imap_auth(query: &ImapAuthQuery) -> ImapAuth {
         };
     }
 
-    if let Some(metadata) = imap_issuer(query).await {
+    if let Some(metadata) = imap_issuer_within(query, ISSUER_SEARCH_BUDGET).await {
         log::info!(
             "imap auth: {} offers open registration; sign-in can be offered",
             metadata.issuer,
@@ -169,6 +171,28 @@ async fn probe(query: &ImapAuthQuery) -> Option<AuthOffer> {
             None
         }
     }
+}
+
+/// How long the decision searches for an issuer before answering without one.
+///
+/// A client stops waiting 10 s after it asked (`docs/mail-oauth.md` rule 8), and the capability
+/// probe comes first, so the search must finish well inside that for its answer to be drawn at
+/// all. The bound is needed because a candidate can accept a connection and never answer: the
+/// mail host of a provider with nothing behind its 443 does, and the discovery client has no
+/// timeout of its own.
+const ISSUER_SEARCH_BUDGET: Duration = Duration::from_secs(6);
+
+/// [`imap_issuer`], giving up after `budget`. Running out is an issuer not found, which is what
+/// a candidate that never answers amounts to; the requests still in flight are dropped with it.
+async fn imap_issuer_within(query: &ImapAuthQuery, budget: Duration) -> Option<AuthServerMetadata> {
+    let found = tokio::time::timeout(budget, imap_issuer(query)).await;
+    found.unwrap_or_else(|_| {
+        log::info!(
+            "imap auth: no authorization server answered within {} s",
+            budget.as_secs()
+        );
+        None
+    })
 }
 
 /// Finds an authorization server for this account, preferring what the provider's own
