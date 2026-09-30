@@ -150,7 +150,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Server asked before a credential field is drawn | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Sign-in primary, password behind a secondary control | ✅ | ✅ | ⬜ beside it | ✅ | ✅ |
+| Sign-in primary, password behind a secondary control | ✅ | ✅ | ⬜ beside it | ⬜ beside it | ⬜ beside it |
 | "Only pre-registered apps" explained rather than shown as a bare form | ✅ | ✅ | ✅ | ✅ | ✅ |
 | No password field where the server refuses passwords | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Nothing to act on until the answer, with a deadline racing it | ✅ | ✅ | ⬜ no deadline | ✅ under the spinner | ✅ |
@@ -164,9 +164,11 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   so the call returns within 9 s whatever the server does, but until it does a Windows screen
   shows no password field and no Connect. The other clients draw the password form at ten
   seconds, and the core's bound means that is rarely reached.
-- **Windows shows the password beside the sign-in, not behind a secondary control.** Rule 2's
-  first row; Linux puts it behind "Use a password instead" (`setup_imap_signin_password_instead`),
-  and Windows draws the field outright under the button.
+- **Linux, Android and Windows draw the password field beside the sign-in**, which rule 2 now
+  says is not "behind" it. Linux submits the field with a secondary "Use a password instead"
+  (`setup_imap_signin_password_instead`), Android and Windows draw it under the sign-in button
+  with Connect; on all three the field is on screen before anybody asks for it. Apple's panel is
+  the layout the rule describes.
 - **Windows takes the password field away when the address or server changes.** The answer
   belongs to the account it was asked about, so an edit makes it unknown and the field and
   Connect go until the next answer, two to twelve seconds later. That is the field appearing and
