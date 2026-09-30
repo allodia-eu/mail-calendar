@@ -1,0 +1,239 @@
+// What a mail account's setup screen asks for, once its server has answered: the state, the line
+// that explains it, and the sign-in button.
+//
+// Three states rather than a flag, from docs/mail-oauth.md rule 2, and the middle one is why: a
+// provider whose sign-in exists but admits only applications it registered in advance is not the
+// same as one that offers none, and showing one bare password form for both leaves somebody
+// wondering why the button their colleague has is missing.
+//
+// The password route is never removed where it works. Sign-in leads, because that is what the
+// server said it prefers, and the password field waits behind "Use a password instead".
+
+import MailcalBindings // L10n
+import SwiftUI
+
+/// What the mail server said it accepts, plus the two states the *card* has that the server does
+/// not: still asking, and a sign-in that was started and did not finish.
+enum ImapAuthState: Equatable {
+    /// The server has not answered. Nothing to act on is drawn: a credential field that appears
+    /// and is then taken away reads as the app changing its mind.
+    case checking
+    /// Sign in with the provider. `passwordAlsoWorks` decides whether the password field sits
+    /// below it, or whether that route would be a dead end.
+    case signIn(passwordAlsoWorks: Bool)
+    /// The provider's sign-in exists but is closed to this application.
+    case registrationNeeded
+    /// No sign-in here: the password form, as it always was.
+    case password
+    /// A sign-in was started and did not finish. The password field comes back, because that is
+    /// the route left, and the reason is said rather than left to be guessed at.
+    case failed
+
+    /// How long the card waits before falling back to the password field.
+    ///
+    /// The card shows nothing to act on while it asks, so a server that never answers must not be
+    /// able to hold somebody there. Long enough for a TLS handshake to a slow host plus a couple
+    /// of metadata requests.
+    static let deadline = Duration.seconds(10)
+
+    init(_ offer: ImapAuthOffer) {
+        switch offer {
+        case let .signIn(_, _, passwordAlsoWorks):
+            self = .signIn(passwordAlsoWorks: passwordAlsoWorks)
+        case .registrationNeeded:
+            self = .registrationNeeded
+        case .password:
+            self = .password
+        }
+    }
+
+    /// Whether the sign-in button belongs on screen.
+    var offersSignIn: Bool {
+        if case .signIn = self { return true }
+        return false
+    }
+
+    /// Whether the password field belongs on screen.
+    ///
+    /// Not while the server is still being asked, and not when it said a password is refused: on
+    /// a provider that has switched password authentication off, that field is a dead end nobody
+    /// finds until they have typed one.
+    var showsPassword: Bool {
+        switch self {
+        case .checking: return false
+        case let .signIn(passwordAlsoWorks): return passwordAlsoWorks
+        case .registrationNeeded, .password, .failed: return true
+        }
+    }
+
+    /// Whether the password field is drawn, given whether the person asked for the password route.
+    ///
+    /// Beside a sign-in it waits behind "Use a password instead" (docs/mail-oauth.md rule 2): a
+    /// field on screen reads as "type your password here", whatever the button under it says.
+    func showsPasswordField(chosen: Bool) -> Bool {
+        if case .signIn = self { return showsPassword && chosen }
+        return showsPassword
+    }
+
+    /// Whether "Use a password instead" is offered: beside a sign-in, where a password also works,
+    /// until it has been chosen.
+    func offersPasswordInstead(chosen: Bool) -> Bool {
+        if case .signIn = self { return showsPassword && !chosen }
+        return false
+    }
+}
+
+/// The account a pre-flight and a sign-in both describe.
+///
+/// One builder, used by both, so the two cannot come to different conclusions about the same
+/// account: a pre-flight that probed a different server from the one the sign-in registers
+/// against would offer a button that fails at the provider.
+func imapLoginRequest(
+    email: String,
+    imapHost: String,
+    smtpHost: String?,
+    caldavURL: String?,
+    imapSecurity: ConnectionSecurity,
+    smtpSecurity: ConnectionSecurity,
+    oauthIssuer: String?
+) -> ImapLoginRequest {
+    ImapLoginRequest(
+        email: email,
+        imapHost: imapHost,
+        smtpHost: smtpHost,
+        caldavBaseUrl: caldavURL,
+        imapSecurity: imapSecurity,
+        smtpSecurity: smtpSecurity,
+        oauthIssuer: oauthIssuer
+    )
+}
+
+/// What a pre-flight asks about: the fields of a request the core's probe and issuer search
+/// read, and no others. A form keys its pre-flight on this, so a change to any of them asks again
+/// and typing an outgoing server or a calendar does not.
+struct ImapAuthQuestion: Hashable {
+    let email: String
+    let imapHost: String
+    let imapSecurity: ConnectionSecurity?
+    let oauthIssuer: String?
+
+    init(_ request: ImapLoginRequest) {
+        email = request.email
+        imapHost = request.imapHost
+        imapSecurity = request.imapSecurity
+        oauthIssuer = request.oauthIssuer
+    }
+}
+
+/// The line that says what the server answered, when it says something.
+///
+/// Silent in the ordinary case, a provider that takes a password and always did: there is nothing
+/// to explain, and a line saying so would be noise on every setup.
+struct ImapAuthExplanation: View {
+    let state: ImapAuthState
+
+    var body: some View {
+        switch state {
+        case .checking:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(L10n.setup_imap_signin_checking()).foregroundStyle(.secondary)
+            }
+            .font(.caption)
+        case .signIn:
+            caption(L10n.setup_imap_signin_note(), .secondary)
+        case .registrationNeeded:
+            caption(L10n.setup_imap_signin_registration_needed(), .secondary)
+        case .failed:
+            caption(L10n.setup_imap_signin_failed(), .red)
+        case .password:
+            EmptyView()
+        }
+    }
+
+    private func caption(_ text: String, _ colour: Color) -> some View {
+        Text(text)
+            .font(.caption).foregroundStyle(colour)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The sign-in, drawn where the server said it takes one: a large button inside the card, directly
+/// under the line that explains it, and the password route as a quiet link beneath.
+///
+/// It leads until the person asks for a password. After that it stays, as an ordinary button above
+/// the field, so changing their mind is one click, and Connect becomes the form's primary action
+/// (docs/mail-oauth.md rule 2).
+struct ImapSignInButton: View {
+    /// The account the sign-in is for: the same request the pre-flight asked about.
+    let request: ImapLoginRequest
+    /// Runs the browser sign-in and, on success, adds + stores the account.
+    let signIn: (ImapLoginRequest) async -> ImapSignInOutcome
+    /// Set while the browser is up, so the form can hold its other actions until it answers.
+    @Binding var signingIn: Bool
+    /// Whether the sign-in is the form's primary action, which it is until a password is chosen.
+    var leads = true
+    /// Offers the password route under the button, where a password also works and it has not
+    /// been chosen yet.
+    var passwordInstead: (() -> Void)? = nil
+    /// Told when a sign-in was started and did not finish, so the card can bring the password
+    /// route back and say why.
+    let failed: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            if signingIn {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(L10n.status_connecting()).foregroundStyle(.secondary)
+                }
+                .frame(minHeight: 32)
+            } else {
+                button
+            }
+            if let passwordInstead {
+                Button(L10n.setup_imap_signin_password_instead(), action: passwordInstead)
+                    .modifier(LinkButtonStyle())
+                    .disabled(signingIn)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder private var button: some View {
+        let label = Button { start() } label: {
+            Label(L10n.setup_imap_signin_button(), systemImage: "person.badge.key.fill")
+                .frame(maxWidth: .infinity)
+        }
+        .controlSize(.large)
+        if leads {
+            label.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+        } else {
+            label.buttonStyle(.bordered)
+        }
+    }
+
+    private func start() {
+        Task {
+            signingIn = true
+            let outcome = await signIn(request)
+            signingIn = false
+            // A dismissed browser is not a failure: say nothing and leave the button as it was.
+            if case .failed = outcome { failed() }
+        }
+    }
+}
+
+/// A text-only button that reads as a link: the platform's own link style on macOS, and on iOS the
+/// borderless button, which is the tinted text iOS uses for the same thing.
+private struct LinkButtonStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.buttonStyle(.link)
+        #else
+        content.buttonStyle(.borderless)
+        #endif
+    }
+}

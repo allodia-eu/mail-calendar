@@ -48,6 +48,12 @@ is recorded here.
    showing one bare password form for both leaves a person wondering why the button their
    colleague has is missing.
 
+   **Behind means not drawn until asked for.** A field on screen reads as "type your password
+   here" whatever the buttons around it say, so a sign-in with a password field beside it does
+   not lead, however it is styled. The sign-in sits in the content, directly under the line that
+   explains it, with "Use a password instead" beneath; choosing that draws the field and makes
+   Connect the form's action, and the sign-in stays on screen as an ordinary button.
+
 3. **A password is offered only where one works.** `AUTH=PLAIN`/`AUTH=LOGIN`, or the absence
    of `LOGINDISABLED`. A server that has switched password authentication off (Microsoft 365's
    shape) gets no password field: it would be a dead end nobody finds until they have typed
@@ -142,21 +148,27 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Server asked before a credential field is drawn | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
-| Sign-in primary, password behind a secondary control | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
-| "Only pre-registered apps" explained rather than shown as a bare form | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
-| No password field where the server refuses passwords | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
-| Nothing to act on until the answer, with a deadline racing it | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
-| Browser sign-in + redirect capture | n/a | ⬜ | ⬜ | ⬜ | ✅ loopback |
+| Server asked before a credential field is drawn | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| Sign-in primary, password behind a secondary control | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| "Only pre-registered apps" explained rather than shown as a bare form | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| No password field where the server refuses passwords | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| Nothing to act on until the answer, with a deadline racing it | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| Browser sign-in + redirect capture | n/a | ✅ `ASWebAuthenticationSession` | ⬜ | ⬜ | ✅ loopback |
 | Grant stored with no password beside it | ✅ | n/a | n/a | n/a | ✅ |
 | One re-dial on an expired token | ✅ | n/a | n/a | n/a | n/a |
 
 ## Known gaps
 
-- **Three clients still draw the password form only.** Apple, Windows and Android carry the
-  core's answer no further than the FFI: they connect an OAuth account correctly once one
-  exists, and cannot yet create one. Until each ships the surface, a person on those platforms
-  sees exactly what they saw before, which is a working password setup and not a broken screen.
+- **Two clients still draw the password form only.** Windows and Android carry the core's
+  answer no further than the binding: they connect an OAuth account correctly once one exists,
+  and cannot yet create one. Until each ships the surface, a person on those platforms sees
+  exactly what they saw before, which is a working password setup and not a broken screen.
+- **Apple's screen is verified by hand, on macOS.** On 2026-09-30, against the harness and two
+  public providers: each of the three answers on the detected card, "only pre-registered apps" on
+  the manual form, Back and Cancel while the server is asked, a changed port asking again, a
+  cancel returning quietly, and the full sign-in through `ASWebAuthenticationSession` to an
+  account connected over OAUTHBEARER. iOS draws the same views and CI compiles it for the
+  simulator; it has not been run. `clients/apple/Scripts/test-ui.sh` asserts none of it yet.
 - **The static-provider table is empty**, so rule 2's middle row is what every closed-
   registration provider gets. Yahoo is the one people meet; its mail scopes are granted only
   after a developer-access review, and no entry is written until we know what that grant

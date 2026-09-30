@@ -56,9 +56,16 @@ struct DetectedConnectForm {
         certificateAccepted ? refusedCertificate : nil
     }
 
+    /// Whether the sign-in may start. An untrusted config decides which server the token is
+    /// presented to, so it is approved first, exactly as before a typed password.
+    var canSignIn: Bool { approvalOK }
+
     var canConnect: Bool {
         switch recommendation {
         case .jmap: return !password.isEmpty && approvalOK && certificateOK
+        // On the IMAP route the password field is only on screen when the server takes one; when
+        // it does not, Connect is not the action either (the sign-in button is), so gating on a
+        // password would disable a button nobody is looking at.
         case .imap: return !password.isEmpty && approvalOK && certificateOK
         default: return false
         }

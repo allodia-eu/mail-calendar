@@ -1,6 +1,6 @@
 # Sign in to a mail account instead of typing a password
 
-Platforms: linux
+Platforms: linux, macos, ios
 Bump: minor
 
 > The setup screen asks the mail server what it accepts before it draws a field, so which
@@ -12,8 +12,8 @@ Bump: minor
 > An issuer is only ever taken from the provider describing itself over HTTPS, never from a
 > third-party database and never from an untrusted hop, and the endpoints come from that
 > issuer's own metadata. An account that signs in stores no password anywhere, including for
-> its calendar. `Platforms:` is Linux alone: the core decides for every client, and the other
-> three carry the answer no further than the binding until each ships the surface
+> its calendar. `Platforms:` names the clients that draw the surface: the core decides for every
+> client, and one that does not draw it yet carries the answer no further than the binding
 > (`docs/mail-oauth.md` → Known gaps).
 
 **English**

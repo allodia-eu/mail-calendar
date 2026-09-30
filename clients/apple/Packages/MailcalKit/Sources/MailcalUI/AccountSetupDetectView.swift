@@ -26,6 +26,10 @@ struct AccountSetupDetectView: View {
     let jmapOAuthAvailable: (String, String) async -> Bool
     /// Runs the JMAP browser sign-in and, on success, adds + stores the account.
     let signInJmap: (String, String) async -> JmapSignInOutcome
+    /// Asks the mail server what it accepts, before any credential field is drawn.
+    let imapAuthOptions: (ImapLoginRequest) async -> ImapAuthOffer
+    /// Runs the IMAP browser sign-in and, on success, adds + stores the account.
+    let signInImap: (ImapLoginRequest) async -> ImapSignInOutcome
     /// Runs the (blocking) core lookup; the caller hops off the main thread.
     let detect: (String) async -> SetupRecommendation
     /// The address an account offered by one of the person's other devices is for, filling the
@@ -75,6 +79,14 @@ struct AccountSetupDetectView: View {
     @State private var googleEarlyAccessConfirmed = false
     /// Whether the detected JMAP server advertises OAuth sign-in, as answered by `jmapOAuthProbe`.
     @State private var jmapSignInOffered = false
+    /// What the detected IMAP server said it accepts. `.checking` until it answers, so the card
+    /// draws no credential field in the meantime: one that appears and is then taken away reads
+    /// as the app changing its mind (docs/mail-oauth.md rule 8).
+    @State private var imapAuth: ImapAuthState = .checking
+    /// Set while the IMAP sign-in's browser is up.
+    @State private var imapSigningIn = false
+    /// The person asked for the password route beside a sign-in.
+    @State private var passwordChosen = false
 
     var body: some View {
         // The manual form brings its own scaffold (it *is* AccountSetupView), so it is not wrapped
@@ -265,21 +277,74 @@ struct AccountSetupDetectView: View {
                         submitJmap(jmapEmail, serverURL, password)
                     }
                 }
-            case let .imap(imapEmail, imapHost, smtpHost, imapSecurity, smtpSecurity, incoming, outgoing, caldavURL, _, _, _):
+            case let .imap(
+                imapEmail, imapHost, smtpHost, imapSecurity, smtpSecurity, incoming, outgoing,
+                caldavURL, oauthIssuer, _, _
+            ):
+                let connectImap = {
+                    submit(imapHost, imapEmail, password, smtpHost ?? "", form.effectiveCaldavURL ?? "", imapSecurity, smtpSecurity, form.acceptedCertificate)
+                }
                 SetupCard(title: L10n.setup_detect_section_email(), systemImage: "envelope") {
                     serverRow(incoming)
                     if let outgoing { serverRow(outgoing) }
-                    Text(L10n.setup_detect_app_password_hint()).font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    ImapAuthExplanation(state: imapAuth)
                     approvalControls(form)
-                    SecureField(L10n.setup_field_password(), text: $password).setupField(.password)
-                    certificateControls(form)
+                    if imapAuth.offersSignIn {
+                        ImapSignInButton(
+                            request: imapLoginRequest(
+                                email: imapEmail, imapHost: imapHost, smtpHost: smtpHost,
+                                caldavURL: form.effectiveCaldavURL, imapSecurity: imapSecurity,
+                                smtpSecurity: smtpSecurity, oauthIssuer: oauthIssuer
+                            ),
+                            signIn: signInImap, signingIn: $imapSigningIn, leads: !passwordChosen,
+                            passwordInstead: imapAuth.offersPasswordInstead(chosen: passwordChosen)
+                                ? { passwordChosen = true } : nil,
+                            failed: { imapAuth = .failed }
+                        )
+                        .disabled(!form.canSignIn || connecting)
+                    }
+                    if imapAuth.showsPasswordField(chosen: passwordChosen) {
+                        Text(L10n.setup_detect_app_password_hint())
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        SecureField(L10n.setup_field_password(), text: $password)
+                            .setupField(.password)
+                        certificateControls(form)
+                    }
+                }
+                .task(id: "\(imapEmail)|\(imapHost)") {
+                    imapAuth = .checking
+                    passwordChosen = false
+                    // The card shows nothing to act on while it asks, so a server that never
+                    // answers must not be able to hold somebody here. Whichever answer lands
+                    // first decides: both apply themselves only while the state is still
+                    // `.checking`, so the loser is dropped rather than rebuilding a card the
+                    // person has started using (docs/mail-oauth.md rule 8).
+                    let deadline = Task { @MainActor in
+                        try? await Task.sleep(for: ImapAuthState.deadline)
+                        if case .checking = imapAuth { imapAuth = .password }
+                    }
+                    let offer = await imapAuthOptions(
+                        imapLoginRequest(
+                            email: imapEmail, imapHost: imapHost, smtpHost: smtpHost,
+                            caldavURL: nil, imapSecurity: imapSecurity,
+                            smtpSecurity: smtpSecurity, oauthIssuer: oauthIssuer
+                        )
+                    )
+                    deadline.cancel()
+                    // The person may have edited the address while the (blocking,
+                    // uncancellable) call ran; `.task(id:)` has already restarted for the
+                    // server they moved on to.
+                    guard !Task.isCancelled else { return }
+                    if case .checking = imapAuth { imapAuth = ImapAuthState(offer) }
                 }
                 calendarSection(discovered: caldavURL)
                 inlineError(suppressed: form.refusedCertificate != nil)
+                // Back and Cancel whatever the server said; Connect once a password field is shown.
+                // A sign-in that leads is drawn in the card, under the line that explains it.
                 footer {
-                    connectButton(enabled: form.canConnect) {
-                        submit(imapHost, imapEmail, password, smtpHost ?? "", form.effectiveCaldavURL ?? "", imapSecurity, smtpSecurity, form.acceptedCertificate)
+                    if imapAuth.showsPasswordField(chosen: passwordChosen) {
+                        connectButton(enabled: form.canConnect && !imapSigningIn, action: connectImap)
                     }
                 }
             case .manual:
@@ -307,6 +372,8 @@ struct AccountSetupDetectView: View {
             submitJmap: submitJmap,
             jmapOAuthAvailable: jmapOAuthAvailable,
             signInJmap: signInJmap,
+            imapAuthOptions: imapAuthOptions,
+            signInImap: signInImap,
             initialKind: prefill.kind,
             prefillEmail: prefill.email,
             prefillImapHost: prefill.imapHost,
@@ -379,41 +446,12 @@ struct AccountSetupDetectView: View {
         }
     }
 
-    /// The host of a discovered URL (CalDAV endpoint, JMAP base), for a compact confirmation
-    /// line, so an untrusted result's "check the server names" has a name to check; the full
-    /// URL is the fallback if it somehow doesn't parse.
-    private func urlHost(_ url: String) -> String {
-        URLComponents(string: url)?.host ?? url
-    }
-
-    /// The failure, in the transport's own words. Suppressed while a certificate panel is
-    /// up: that panel says the same thing in the reader's language and with the certificate
-    /// beside it, and the raw text under it is a second, worse copy of the question.
     /// The failure, in the transport's own words. Suppressed where a certificate panel is up:
     /// that panel says the same thing in the reader's language and with the certificate beside
     /// it, and the raw text under it is a second, worse copy of the question.
     @ViewBuilder private func inlineError(suppressed: Bool = false) -> some View {
         if let error, !suppressed {
             Text(error).font(.callout).foregroundStyle(.red)
-        }
-    }
-
-    private func connectButton(enabled: Bool, action: @escaping () -> Void) -> some View {
-        Group {
-            if connecting {
-                progress(L10n.status_connecting())
-            } else {
-                Button(L10n.action_connect(), action: action)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!enabled)
-            }
-        }
-    }
-
-    private func progress(_ label: String) -> some View {
-        HStack(spacing: 8) {
-            ProgressView().controlSize(.small)
-            Text(label).foregroundStyle(.secondary)
         }
     }
 
@@ -429,7 +467,7 @@ struct AccountSetupDetectView: View {
     }
 
     /// A connect or a sign-in is running, and its answer belongs to the step on screen.
-    private var busy: Bool { connecting || signingIn || googleSigningIn }
+    private var busy: Bool { connecting || signingIn || googleSigningIn || imapSigningIn }
 
     /// Back to the address, which keeps what was typed there. Everything the abandoned route
     /// filled in goes with it: a different address can reach a different server, and nothing is
@@ -443,6 +481,7 @@ struct AccountSetupDetectView: View {
         calendarURL = ""
         googleEarlyAccessConfirmed = false
         jmapSignInOffered = false
+        passwordChosen = false
         phase = .email
     }
 
@@ -451,38 +490,5 @@ struct AccountSetupDetectView: View {
             return .manual(reason, nil)
         }
         return .found(recommendation)
-    }
-}
-
-/// What to prefill in the manual form when the user edits a discovered config.
-private struct ManualPrefill {
-    var kind: AccountKind = .imap
-    var email = ""
-    var imapHost = ""
-    var smtpHost = ""
-    var jmapServer = ""
-}
-
-private func manualPrefill(_ edit: SetupRecommendation?, typedEmail: String) -> ManualPrefill {
-    switch edit {
-    case let .imap(email, imapHost, smtpHost, _, _, _, _, _, _, _, _):
-        return ManualPrefill(kind: .imap, email: email, imapHost: imapHost, smtpHost: smtpHost ?? "")
-    case let .jmap(email, serverURL, _, _):
-        return ManualPrefill(kind: .jmap, email: email, jmapServer: serverURL)
-    case let .microsoft(email):
-        return ManualPrefill(kind: .microsoft, email: email)
-    case let .google(email):
-        return ManualPrefill(kind: .google, email: email)
-    default:
-        return ManualPrefill(email: typedEmail)
-    }
-}
-
-/// The localised line explaining why detection sent the user to manual setup.
-private func reasonNote(_ reason: MissReason) -> String {
-    switch reason {
-    case .networkError: return L10n.setup_detect_reason_network()
-    case .oauthOnlyProvider: return L10n.setup_detect_reason_oauth_only()
-    case .nothingFound, .invalidEmail: return L10n.setup_detect_reason_nothing()
     }
 }
