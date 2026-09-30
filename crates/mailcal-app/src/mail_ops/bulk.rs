@@ -60,15 +60,23 @@ impl<P: Provider> App<P> {
         }
     }
 
-    /// Moves the dropped `rows` into `folder`: the drop of a selection, or of one row, on a
-    /// folder in the pane. Only rows of the folder's own account move; mail never crosses
-    /// accounts, and a client that let such a drop through has nothing to ask of the others.
+    /// Moves `rows` into `folder`: a selection, or one row, dropped on a folder in the pane or
+    /// sent there from a row menu. Only rows of the folder's own account move; mail never
+    /// crosses accounts, and a client that let such a move through has nothing to ask of the
+    /// others. A folder whose row does not take mail takes none from here either.
     pub(crate) async fn move_to_folder(&self, rows: Vec<RowRef>, folder: &FolderRef) {
         let rows: Vec<RowRef> = rows
             .into_iter()
             .filter(|row| row.account() == &folder.account)
             .collect();
         if rows.is_empty() {
+            return;
+        }
+        let offered = self.account_folders(&folder.account).await.folders;
+        if !offered
+            .iter()
+            .any(|row| row.key == folder.key && row.accepts_messages)
+        {
             return;
         }
         self.bulk_move(

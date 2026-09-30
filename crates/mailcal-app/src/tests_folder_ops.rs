@@ -309,3 +309,26 @@ async fn an_account_that_cannot_change_folders_offers_and_does_nothing() {
     .await;
     assert!(app.mailbox_list().folder_notice.is_none());
 }
+
+#[tokio::test]
+async fn mail_is_not_moved_into_a_folder_whose_row_does_not_take_it() {
+    let provider = provider();
+    let mut junk = Mailbox::new(MailboxId::try_from("junk").unwrap(), "Junk");
+    junk.role = Some(engine_api::MailboxRole::Junk);
+    provider.folder_tree().lock().unwrap().push(junk);
+    let edits = provider.edits();
+    let app = tree_app(provider);
+    app.dispatch(Intent::RefreshMail).await;
+    assert!(!row(&rows(&app), "junk").accepts_messages);
+
+    app.dispatch(Intent::Folders(FolderIntent::MoveMessages {
+        rows: vec![RowRef::Message(msg(ACCOUNT, "m1"))],
+        folder: folder("junk"),
+    }))
+    .await;
+
+    assert!(
+        edits.lock().unwrap().is_empty(),
+        "Junk takes mail through a report, never a move",
+    );
+}
