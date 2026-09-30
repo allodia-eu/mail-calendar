@@ -26,7 +26,15 @@ $Catalog = Get-Content -LiteralPath (Join-Path $CatalogDir 'en.json') -Raw -Enco
 function Get-PaneRowMenu {
   param([Parameter(Mandatory)] [object] $Row)
   $bounds = $Row.Current.BoundingRectangle
-  [void][ReadWin.Input]::SetCursorPos([int] ($bounds.X + 40), [int] ($bounds.Y + $bounds.Height / 2))
+  # An expanded row's bounds take in its whole subtree, so their middle is one of its folders.
+  # The row's own header is the part above its first child row.
+  $header = $bounds.Height
+  $child = [System.Windows.Automation.TreeWalker]::ControlViewWalker.GetFirstChild($Row)
+  if ($child -and $child.Current.ControlType -eq [System.Windows.Automation.ControlType]::ListItem -and
+      -not $child.Current.BoundingRectangle.IsEmpty) {
+    $header = $child.Current.BoundingRectangle.Y - $bounds.Y
+  }
+  [void][ReadWin.Input]::SetCursorPos([int] ($bounds.X + 40), [int] ($bounds.Y + $header / 2))
   Start-Sleep -Milliseconds 120
   [ReadWin.Input]::mouse_event(0x0008, 0, 0, 0, [UIntPtr]::Zero)   # RIGHTDOWN
   [ReadWin.Input]::mouse_event(0x0010, 0, 0, 0, [UIntPtr]::Zero)   # RIGHTUP
