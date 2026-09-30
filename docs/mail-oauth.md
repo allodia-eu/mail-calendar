@@ -160,13 +160,10 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 
 ## Known gaps
 
-- **The pre-flight has no timeout of its own, and Windows puts no deadline in front of it.** The
-  engine's `probe_imap_auth` bounds neither the greeting nor the capability read, and
-  `decide_imap_auth` adds nothing, so a server that completes TLS and then says nothing holds the
-  call for as long as it holds the socket. On Windows that is the whole screen: no password field
-  and no Connect, observed for the full 120 s a test server held the connection. The other
-  clients cap what they draw at ten seconds, but the core call behind them keeps running. Issuer
-  discovery adds its own wait on top: ten of the 12.5 s the seeded harness takes to answer.
+- **Windows puts no deadline in front of the pre-flight.** The core bounds its own work (rule 8),
+  so the call returns within 9 s whatever the server does, but until it does a Windows screen
+  shows no password field and no Connect. The other clients draw the password form at ten
+  seconds, and the core's bound means that is rarely reached.
 - **Windows shows the password beside the sign-in, not behind a secondary control.** Rule 2's
   first row; Linux puts it behind "Use a password instead" (`setup_imap_signin_password_instead`),
   and Windows draws the field outright under the button.
