@@ -157,6 +157,22 @@ if ! imap_cmd INBOX "MOVE 9 Projects" >/dev/null 2>&1; then
   imap_cmd INBOX "EXPUNGE" >/dev/null
 fi
 
+# Nested folders, so a folder pane has open subfolders to draw, keep in place and drop onto:
+#
+#   Archive/2025, Archive/2026      children of a folder near the TOP of the pane, which is what
+#                                   puts open rows above a pane scrolled to the custom folders
+#   Projects/Clients/Acme           three levels, the deepest holding one message
+#   Projects/Internal               a sibling, so Projects' children are a list and not one row
+#
+# The message in Acme arrives read like every other (README.md, "Everything you APPEND here arrives
+# READ"); a suite that needs a count to move marks it unread and back itself.
+log "creating nested folders and filing a message two levels down"
+for mbox in Archive/2025 Archive/2026 Projects/Clients Projects/Clients/Acme Projects/Internal; do
+  imap_cmd INBOX "CREATE $mbox" >/dev/null 2>&1 || true
+done
+imap_clear Projects/Clients/Acme
+imap_append "$MAIL_DIR/13-nested-folder.eml" Projects/Clients/Acme
+
 # The HTML fixture is appended LAST, after every STORE/COPY/MOVE above has run.
 # Those steps address messages by IMAP sequence number, and an APPEND earlier in
 # the list would renumber the ones after it, silently re-pointing "STORE 6"
