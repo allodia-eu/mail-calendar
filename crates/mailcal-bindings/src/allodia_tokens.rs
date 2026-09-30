@@ -297,28 +297,25 @@ impl MailcalApp {
         *self.allodia_health.lock().expect("allodia health lock")
     }
 
-    /// Store the scope set a token response named, and read the health off it.
+    /// Store the scope set a refresh named, and read the health off it.
     ///
-    /// The response names one only when it differs from the request (RFC 6749 §5.1), so the
-    /// refresher's own requested set is the fallback; `GrantedScopes::from_response` holds that
-    /// rule. Persisting it is what makes the next launch's check local instead of a round trip
-    /// that fails.
+    /// A refresh that names none leaves the stored set as it is (`GrantedScopes::from_refresh`
+    /// holds that rule). Persisting it is what makes the next launch's check local instead of a
+    /// round trip that fails.
     fn record_allodia_grant_scopes(&self, minted: &TokenSet) {
-        let Some(refresher) = self.allodia_tokens.refresher.get() else {
+        let Some(granted) = mailcal_oauth::GrantedScopes::from_refresh(&minted.scope) else {
             return;
         };
-        let granted = mailcal_oauth::GrantedScopes::from_response(
-            &minted.scope,
-            refresher.requested_scopes(),
-        );
         let health = {
             let mut signed_in = self.allodia.lock().expect("allodia account lock");
             let Some(stored) = signed_in.as_mut() else {
                 return;
             };
-            let scopes = granted.as_slice().to_vec();
-            let changed = stored.granted_scopes.as_ref() != Some(&scopes);
-            stored.granted_scopes = Some(scopes);
+            let changed = !stored
+                .granted_scopes
+                .as_deref()
+                .is_some_and(|held| granted.same_as(held));
+            stored.granted_scopes = Some(granted.as_slice().to_vec());
             let health = crate::allodia_health::health_from_scopes(stored.granted_scopes.as_ref());
             (changed, health)
         };

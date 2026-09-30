@@ -63,3 +63,21 @@ fn whitespace_between_scopes_is_however_the_server_wrote_it() {
     assert!(granted.grants("offline_access"));
     assert_eq!(granted.as_slice().len(), 2);
 }
+
+/// A refresh asks for no scope, so a response naming none is the grant unchanged, not the grant
+/// widened to whatever this build now requests.
+#[test]
+fn a_refresh_that_names_no_scope_says_nothing_about_the_grant() {
+    assert!(GrantedScopes::from_refresh("").is_none());
+    assert!(GrantedScopes::from_refresh("  \n ").is_none());
+    let narrowed = GrantedScopes::from_refresh("offline_access Mail.Read").expect("named");
+    assert_eq!(narrowed.as_slice(), ["offline_access", "Mail.Read"]);
+}
+
+#[test]
+fn the_same_scopes_in_another_order_are_the_same_grant() {
+    let granted = GrantedScopes::from_stored(vec!["b".to_owned(), "a".to_owned()]);
+    assert!(granted.same_as(&["a".to_owned(), "b".to_owned()]));
+    assert!(!granted.same_as(&["a".to_owned()]));
+    assert!(!granted.same_as(&["a".to_owned(), "b".to_owned(), "c".to_owned()]));
+}

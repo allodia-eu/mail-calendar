@@ -170,9 +170,11 @@ outage.
 scope at all ([RFC 6749 §6](https://www.rfc-editor.org/rfc/rfc6749#section-6): omitted means the
 scope originally granted), because sending the build's *current* list is refused with
 `invalid_scope` by every grant issued before the list grew, which kills the account, not just the
-new feature. What a grant actually carries is recorded beside it, from the token response's `scope`
-(or, when the response names none, from what was requested; §5.1 makes it optional when they
-match). A feature names the scope it needs (`allodia_license::Feature`), so adding one is one line
+new feature. What a grant actually carries is recorded beside it, from the token response's `scope`.
+A sign-in whose response names none records what it requested (§5.1 makes the field optional when
+the two match). A refresh whose response names none leaves the record as it is: it asked for no
+scope, so it was given the original grant, and filling in this build's request would claim scopes
+a grant issued before that request grew never had. A feature names the scope it needs (`allodia_license::Feature`), so adding one is one line
 and the prompt follows on its own.
 
 ⚠️ **A grant whose scopes were never recorded is not a grant with no scopes.** Every entry stored

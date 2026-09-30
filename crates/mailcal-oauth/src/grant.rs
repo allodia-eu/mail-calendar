@@ -88,6 +88,29 @@ impl GrantedScopes {
         )
     }
 
+    /// What a **refresh** response says the grant now carries, or `None` when it names nothing.
+    ///
+    /// A refresh sends no scope (`refresh`), which RFC 6749 §6 reads as the original grant, so a
+    /// response that names none says "unchanged" and the stored set stands. Falling back to the
+    /// requested set here, as [`from_response`](Self::from_response) does for an authorisation,
+    /// would record this build's list over a grant issued before that list grew.
+    #[must_use]
+    pub fn from_refresh(response_scope: &str) -> Option<Self> {
+        (!response_scope.trim().is_empty()).then(|| Self::from_response(response_scope, &[]))
+    }
+
+    /// Whether `other` carries the same scopes, in whatever order each server wrote them.
+    #[must_use]
+    pub fn same_as(&self, other: &[String]) -> bool {
+        let mut mine: Vec<&String> = self.0.iter().collect();
+        let mut theirs: Vec<&String> = other.iter().collect();
+        mine.sort_unstable();
+        mine.dedup();
+        theirs.sort_unstable();
+        theirs.dedup();
+        mine == theirs
+    }
+
     /// What was recorded for a grant a previous launch stored.
     #[must_use]
     pub fn from_stored(scopes: Vec<String>) -> Self {
