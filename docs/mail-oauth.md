@@ -142,12 +142,12 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Server asked before a credential field is drawn | ✅ | 🚧 | ⬜ | ⬜ | ✅ |
-| Sign-in primary, password behind a secondary control | ✅ | 🚧 | ⬜ | ⬜ | ✅ |
-| "Only pre-registered apps" explained rather than shown as a bare form | ✅ | 🚧 | ⬜ | ⬜ | ✅ |
-| No password field where the server refuses passwords | ✅ | 🚧 | ⬜ | ⬜ | ✅ |
-| Nothing to act on until the answer, with a deadline racing it | ✅ | 🚧 | ⬜ | ⬜ | ✅ |
-| Browser sign-in + redirect capture | n/a | 🚧 `ASWebAuthenticationSession` | ⬜ | ⬜ | ✅ loopback |
+| Server asked before a credential field is drawn | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| Sign-in primary, password behind a secondary control | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| "Only pre-registered apps" explained rather than shown as a bare form | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| No password field where the server refuses passwords | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| Nothing to act on until the answer, with a deadline racing it | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| Browser sign-in + redirect capture | n/a | ✅ `ASWebAuthenticationSession` | ⬜ | ⬜ | ✅ loopback |
 | Grant stored with no password beside it | ✅ | n/a | n/a | n/a | ✅ |
 | One re-dial on an expired token | ✅ | n/a | n/a | n/a | n/a |
 
@@ -157,11 +157,12 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   answer no further than the binding: they connect an OAuth account correctly once one exists,
   and cannot yet create one. Until each ships the surface, a person on those platforms sees
   exactly what they saw before, which is a working password setup and not a broken screen.
-- **Apple's surface is compiled and has never been run.** CI builds it on a macOS runner, the
-  package suite plus `xcodebuild` for macOS and iOS Simulator, which is the isolated-batch build
-  the trap in [`AGENTS.md`](../AGENTS.md) warns `swift build` alone would not give. There is no
-  Apple UI-test target, so no assertion reaches the screen: what the three answers look like, and
-  that the sign-in sheet returns to the right card, are verified by hand on a Mac.
+- **Apple's screen is verified by hand, on macOS.** On 2026-09-30, against the harness and two
+  public providers: each of the three answers on the detected card, "only pre-registered apps" on
+  the manual form, Back and Cancel while the server is asked, a changed port asking again, a
+  cancel returning quietly, and the full sign-in through `ASWebAuthenticationSession` to an
+  account connected over OAUTHBEARER. iOS draws the same views and CI compiles it for the
+  simulator; it has not been run. `clients/apple/Scripts/test-ui.sh` asserts none of it yet.
 - **The static-provider table is empty**, so rule 2's middle row is what every closed-
   registration provider gets. Yahoo is the one people meet; its mail scopes are granted only
   after a developer-access review, and no entry is written until we know what that grant
