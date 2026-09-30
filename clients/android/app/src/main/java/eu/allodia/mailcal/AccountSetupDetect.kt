@@ -65,6 +65,13 @@ internal fun AccountSetupFlow(
     // Whether this JMAP server offers discoverable OAuth sign-in, and how to start it. Both are
     // threaded straight through to the detected card and the manual form.
     onCheckJmapSignIn: (suspend (String, String) -> Boolean)? = null,
+    // Asks the mail server what it accepts, before any credential field is drawn. Null where
+    // there is no core to ask, which is a preview or a test: the card then shows the password
+    // form, which is what works everywhere.
+    onCheckImapAuth: (suspend (uniffi.mailcal_bindings.ImapLoginRequest) -> uniffi.mailcal_bindings.ImapAuthOffer)? = null,
+    // Runs the IMAP browser sign-in.
+    onSignInImap: ((uniffi.mailcal_bindings.ImapLoginRequest) -> Unit)? = null,
+    signingInImap: Boolean = false,
     onSignInJmap: (String, String) -> Unit = { _, _ -> },
     signingInJmap: Boolean = false,
     // The core's standard port for a server kind and security, threaded through to the manual
@@ -188,7 +195,16 @@ internal fun AccountSetupFlow(
                                 val jmap = recommendation as SetupRecommendation.Jmap
                                 check(jmap.email, jmap.serverUrl)
                             } ?: false
-                        phase = route(recommendation, signInOffered)
+                        // The IMAP half of the same question, asked under the same spinner and
+                        // for the same reason: a card that decides what to ask for after it is
+                        // on screen changes shape under the person reading it.
+                        val imapAuth = onCheckImapAuth
+                            ?.takeIf { recommendation is SetupRecommendation.Imap }
+                            ?.let { check ->
+                                val imap = recommendation as SetupRecommendation.Imap
+                                ImapAuthState.of(check(imapLoginRequest(imap)))
+                            } ?: ImapAuthState.Password
+                        phase = route(recommendation, signInOffered, imapAuth)
                     }
                 },
                 enabled = email.isNotBlank(),
@@ -214,6 +230,9 @@ internal fun AccountSetupFlow(
         is DetectPhase.Found -> FoundView(
             recommendation = current.recommendation,
             signInOffered = current.signInOffered,
+            imapAuth = current.imapAuth,
+            onSignInImap = onSignInImap,
+            signingInImap = signingInImap,
             connecting = connecting,
             signingIn = signingIn,
             signingInGoogle = signingInGoogle,
@@ -245,6 +264,9 @@ internal fun AccountSetupFlow(
                 onCheckJmapSignIn = onCheckJmapSignIn,
                 onSignInJmap = onSignInJmap,
                 signingInJmap = signingInJmap,
+                onCheckImapAuth = onCheckImapAuth,
+                onSignInImap = onSignInImap,
+                signingInImap = signingInImap,
                 initialKind = prefill.kind,
                 offeredKinds = offeredKinds,
                 prefillEmail = email.ifBlank { prefill.email },
@@ -273,6 +295,9 @@ private fun FoundView(
     signInOffered: Boolean,
     onSignInJmap: (String, String) -> Unit,
     signingInJmap: Boolean,
+    imapAuth: ImapAuthState,
+    onSignInImap: ((uniffi.mailcal_bindings.ImapLoginRequest) -> Unit)?,
+    signingInImap: Boolean,
     onManual: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -384,9 +409,19 @@ private fun FoundView(
                 SectionHeader("✉", L10n.setup_detect_section_email(ctx))
                 ServerRow(recommendation.incoming)
                 recommendation.outgoing?.let { ServerRow(it) }
-                Text(L10n.setup_detect_app_password_hint(ctx), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                ImapAuthExplanation(imapAuth)
                 UntrustedApproval(form.needsApproval, approved) { approved = it }
-                PasswordField(password, { password = it }, L10n.setup_field_password(ctx))
+                if (imapAuth.offersSignIn && onSignInImap != null) {
+                    SignInButton(
+                        enabled = !signingInImap && (!form.needsApproval || approved),
+                        signingIn = signingInImap,
+                        label = L10n.setup_imap_signin_button(ctx),
+                    ) { onSignInImap(imapLoginRequest(recommendation, form.effectiveCaldavUrl)) }
+                }
+                if (imapAuth.showsPassword) {
+                    Text(L10n.setup_detect_app_password_hint(ctx), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    PasswordField(password, { password = it }, L10n.setup_field_password(ctx))
+                }
                 CalendarSection(
                     discovered = recommendation.caldavUrl,
                     enabled = calendarEnabled,
@@ -395,11 +430,13 @@ private fun FoundView(
                     onUrlChange = { calendarUrl = it },
                 )
                 InlineError(error ?: externalError)
-                form.refusedCertificate?.let {
-                    CertificateExceptionPanel(it, certificateAccepted) { on -> certificateAccepted = on }
-                }
-                ConnectButton(form.canConnect && !connecting, connecting, L10n.action_connect(ctx)) {
-                    ownFailure = onConnect(form.imapSetup())
+                if (imapAuth.showsPassword) {
+                    form.refusedCertificate?.let {
+                        CertificateExceptionPanel(it, certificateAccepted) { on -> certificateAccepted = on }
+                    }
+                    ConnectButton(form.canConnect && !connecting, connecting, L10n.action_connect(ctx)) {
+                        ownFailure = onConnect(form.imapSetup())
+                    }
                 }
             }
             is SetupRecommendation.Manual -> Unit // never routed here
@@ -417,44 +454,6 @@ private fun ServerRow(row: uniffi.mailcal_bindings.DetectedServerRow) {
         style = MaterialTheme.typography.bodyMedium,
     )
 }
-
-// A small section header, e.g. "✉  Email" / "📅  Calendar", grouping the found card.
-@Composable
-private fun SectionHeader(icon: String, label: String) {
-    Text("$icon $label", style = MaterialTheme.typography.titleSmall)
-}
-
-// The Calendar section of the found card. When detection discovered a CalDAV endpoint the
-// toggle is pre-checked (opt-out) and its host is shown; otherwise it's an opt-in toggle that
-// reveals a manual CalDAV field. Calendar reuses the IMAP credentials at connect.
-@Composable
-private fun CalendarSection(
-    discovered: String?,
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    url: String,
-    onUrlChange: (String) -> Unit,
-) {
-    val ctx = LocalContext.current
-    SectionHeader("📅", L10n.setup_detect_section_calendar(ctx))
-    val label = if (discovered != null) L10n.setup_detect_calendar_enable(ctx) else L10n.setup_detect_calendar_add(ctx)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = enabled, onCheckedChange = onEnabledChange)
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-    }
-    if (enabled) {
-        if (discovered != null) {
-            Text(urlHost(discovered), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            SetupField(url, onUrlChange, L10n.setup_field_caldav(ctx), L10n.setup_hint_caldav(ctx))
-        }
-    }
-}
-
-// The host of a discovered URL (CalDAV endpoint, JMAP base), for a compact confirmation line:
-// so an untrusted result's "check the server names" has a name to check; the full URL is the
-// fallback if it somehow doesn't parse.
-private fun urlHost(url: String): String = runCatching { java.net.URI(url).host }.getOrNull() ?: url
 
 @Composable
 private fun UntrustedApproval(needed: Boolean, approved: Boolean, onApprove: (Boolean) -> Unit) {
