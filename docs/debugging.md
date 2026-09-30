@@ -271,6 +271,15 @@ only; it also waives the probe's HTTPS requirement for the local plaintext serve
   - **macOS**: `MAILCAL_AUTODETECT_WELL_KNOWN_BASE=http://127.0.0.1:28080` in the app's
     environment before launch.
 
+### Signing in to an IMAP account against the harness
+
+Add an account for **`alice@localhost`** from any harness boot, `--account first-run` included:
+detection finds the sign-in server's autoconfig, setup offers "Sign in with your provider", and
+the browser opens the Stalwart login (`alice@test.local` / `harness-alice-pw`). `boot.sh` delivers
+the certificates this needs whenever the harness is up. What serves it, and why it has two names,
+is under "Signing in to an IMAP account" in
+[`docker/stalwart/README.md`](../docker/stalwart/README.md).
+
 ### Making the server refuse a login that is valid
 
 A server can reject a credential that works: Dovecot answers `[AUTHENTICATIONFAILED]` after its

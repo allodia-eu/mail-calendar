@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<!-- What `alice@localhost` detects: the sign-in server's IMAP and submission listeners, and the
+     front's HTTPS name for its authorization server (see nginx.conf beside this file). The
+     `<oAuth2>` block sits beside the provider rather than inside it, which is where the format,
+     and every provider copying Thunderbird's own documents, puts it. -->
+
+<clientConfig version="1.1">
+  <emailProvider id="localhost">
+    <domain>localhost</domain>
+    <displayName>Stalwart sign-in harness</displayName>
+    <incomingServer type="imap">
+      <hostname>localhost</hostname>
+      <port>12995</port>
+      <socketType>SSL</socketType>
+      <username>%EMAILADDRESS%</username>
+      <authentication>OAuth2</authentication>
+      <authentication>password-cleartext</authentication>
+    </incomingServer>
+    <outgoingServer type="smtp">
+      <hostname>localhost</hostname>
+      <port>12467</port>
+      <socketType>SSL</socketType>
+      <username>%EMAILADDRESS%</username>
+      <authentication>OAuth2</authentication>
+      <authentication>password-cleartext</authentication>
+    </outgoingServer>
+  </emailProvider>
+  <oAuth2>
+    <issuer>127.0.0.1</issuer>
+    <scope>urn:ietf:params:oauth:scope:mail</scope>
+  </oAuth2>
+</clientConfig>

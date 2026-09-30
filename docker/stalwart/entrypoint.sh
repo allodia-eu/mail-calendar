@@ -117,6 +117,20 @@ if [ "${HARNESS_SEED:-1}" != 0 ]; then
   SEED_DIR="${SEED_DIR:-/harness/seed}" /bin/sh /harness/seed.sh
 fi
 
+# The HTTPS front's certificate (`stalwart-oauth-front` in docker-compose.yml), minted here because
+# this image carries openssl and nginx's does not. Self-signed and not a CA, because a debug build
+# adds it as a trust anchor for exactly these two names; kept across restarts so a client that has
+# already read it keeps verifying.
+if [ -n "${HARNESS_FRONT_TLS_DIR:-}" ] && [ ! -s "$HARNESS_FRONT_TLS_DIR/front.pem" ]; then
+  log "minting the HTTPS front's certificate"
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 3650 \
+    -subj "/CN=Stalwart harness sign-in front" \
+    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+    -addext "basicConstraints=critical,CA:FALSE" \
+    -addext "extendedKeyUsage=serverAuth" \
+    -keyout "$HARNESS_FRONT_TLS_DIR/front.key" -out "$HARNESS_FRONT_TLS_DIR/front.pem" 2>/dev/null
+fi
+
 touch "$MARKER"
 log "harness ready"
 
