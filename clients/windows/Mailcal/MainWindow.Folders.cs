@@ -147,10 +147,14 @@ public sealed partial class MainWindow
     private void OnSidebarDropCompleted(UIElement sender, DropCompletedEventArgs args) =>
         FolderActions.Dragged = null;
 
-    /// <summary>Says over each row whether the drag in hand would land there.</summary>
-    private void OnNavDragOver(object sender, DragEventArgs e)
+    /// <summary>
+    /// Says over a row whether the drag in hand would land there. Handled on the row itself: a
+    /// drag event raised on a row never reaches the NavigationView's own DragOver. Marking it
+    /// handled keeps a folder's answer from being overwritten by the row it sits inside.
+    /// </summary>
+    private void OnSidebarDragOver(object sender, DragEventArgs e)
     {
-        if (DropTarget(e) is not { } row)
+        if (DropTarget(sender, e) is not { } row)
         {
             return;
         }
@@ -159,9 +163,9 @@ public sealed partial class MainWindow
     }
 
     /// <summary>Moves what was dropped, when the row takes it.</summary>
-    private void OnNavDrop(object sender, DragEventArgs e)
+    private void OnSidebarDrop(object sender, DragEventArgs e)
     {
-        if (DropTarget(e) is not { } row)
+        if (DropTarget(sender, e) is not { } row)
         {
             return;
         }
@@ -184,12 +188,11 @@ public sealed partial class MainWindow
         FolderActions.Dragged = null;
     }
 
-    /// <summary>The account or folder row under a drag of ours, or <c>null</c>: a drag from
-    /// elsewhere (a file) or over any other row is none of this code's business.</summary>
-    private static SidebarItem? DropTarget(DragEventArgs e) =>
+    /// <summary>The account or folder row a drag of ours is over, or <c>null</c>: a drag from
+    /// elsewhere (a file) is none of this code's business.</summary>
+    private static SidebarItem? DropTarget(object sender, DragEventArgs e) =>
         e.DataView.Contains(FolderActions.DragFormat)
-        && e.OriginalSource is DependencyObject source
-        && Ancestor<NavigationViewItem>(source) is { DataContext: SidebarItem row }
+        && sender is FrameworkElement { DataContext: SidebarItem row }
         && (row.AccountId is not null || row.OwnerAccountId is not null)
             ? row
             : null;
