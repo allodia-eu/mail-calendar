@@ -151,7 +151,8 @@ fn folder_row(
         pending: false,
         in_trash: false,
         editable: false,
-        accepts_folders: false,
+        // What the server allows; the stamp narrows it and never widens it.
+        accepts_folders: mailbox.accepts_children,
         accepts_messages: false,
     }
 }

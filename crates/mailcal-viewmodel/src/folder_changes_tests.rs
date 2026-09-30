@@ -180,6 +180,19 @@ fn an_account_that_cannot_change_folders_offers_nothing_but_mail_drops() {
 }
 
 #[test]
+fn a_folder_the_server_will_not_build_in_offers_no_subfolder_but_takes_mail() {
+    // Gmail's Inbox: a system label, which no label can be nested under.
+    let mut folders = stored();
+    folders[0].accepts_children = false;
+    let rows = stamped(&folders, &BTreeSet::new(), true);
+
+    let inbox = row(&rows, "inbox");
+    assert!(!inbox.accepts_folders, "the server would refuse it");
+    assert!(inbox.accepts_messages);
+    assert!(row(&rows, "work").accepts_folders);
+}
+
+#[test]
 fn a_name_is_checked_against_its_siblings_without_case() {
     let folders = stored();
     assert_eq!(

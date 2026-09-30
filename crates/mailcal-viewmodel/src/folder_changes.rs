@@ -108,6 +108,9 @@ fn subtree(folders: &[Mailbox], root: &MailboxId) -> BTreeSet<String> {
 ///
 /// `manages_folders` is the account's: whether its provider can change the tree at all.
 /// Dropping mail needs no such capability; every provider that syncs mail can move it.
+/// `accepts_folders` arrives holding what the server allows (`Mailbox::accepts_children`,
+/// set by [`sorted_folder_rows`](crate::sorted_folder_rows)), so a folder the server will not
+/// build in is never offered as one, whatever its role.
 pub fn stamp_folder_actions(
     rows: &mut [FolderRow],
     manages_folders: bool,
@@ -129,7 +132,8 @@ pub fn stamp_folder_actions(
         seen.insert(row.key.clone(), (row.pending, row.in_trash || own_trash));
 
         row.editable = manages_folders && row.role.is_none() && !row.pending;
-        row.accepts_folders = manages_folders
+        row.accepts_folders = row.accepts_folders
+            && manages_folders
             && !row.pending
             && !row.in_trash
             && !matches!(
