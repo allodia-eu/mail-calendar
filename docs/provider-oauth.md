@@ -64,6 +64,18 @@ capturing the redirect), because that is inherently platform-specific.
    asked for on the **authorisation** request, which is where consent is given and what signing in
    again re-runs.
 
+   **What a grant carries is the token response's word, and the stored copy follows it.** A
+   Microsoft or Google account stores `granted_scopes` so that what it may do can be answered at
+   launch and offline, but the value is a cache: sign-in writes the scopes the code exchange
+   named (the requested set when it named none, per RFC 6749 §5.1), and every refresh that names
+   a different set overwrites it, narrower included, since consent withdrawn at the provider
+   reaches this app in no other way. A refresh that names none leaves it alone: it asked for the
+   original grant and was given it. The access token is never read for this: Google's is opaque,
+   and Microsoft's belongs to the resource, which may change or encrypt its format. An unchanged
+   set is not written, because a secure-store write per refresh is a keychain prompt on some
+   hosts. A reader compares what it needs against the set as the provider spelled it, which is
+   not always how it was requested.
+
    **A refusal is classified, never matched on text.** `OAuthError::refusal()` answers with a
    `GrantRefusal`: `Dead` (`invalid_grant`: revoked or expired), `Underscoped` (`invalid_scope`:
    alive but narrower than this build needs), or `Indeterminate` (everything else, which says

@@ -35,6 +35,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use engine_api::AccountId;
 use mailcal_account::TokenSink;
+use mailcal_oauth::GrantedScopes;
 
 use crate::{SharedRegistry, account_registry::Rotation, credential_store::AccountCredentialStore};
 
@@ -119,6 +120,32 @@ impl TokenSink for BindingTokenSink {
             ),
         }
     }
+
+    /// Stores what the provider now grants, when it moved. Losing this write costs less than
+    /// losing a rotation: the next refresh names the scopes again, and nothing is spent.
+    async fn scopes_granted(&self, account: &AccountId, granted: &GrantedScopes) {
+        let Some((family, encoded)) = self.registry.record_granted_scopes(account, granted) else {
+            return;
+        };
+        let handle = mailcal_account::account_log_handle(account.as_str());
+        let stored = encoded.and_then(|config_toml| {
+            self.store
+                .persist(account.as_str().to_owned(), config_toml)
+                .map_err(|err| err.to_string())
+        });
+        match stored {
+            Ok(()) => log::info!(
+                "oauth: [{handle}] the {family} server now grants this account {} permission(s); \
+                 saved to this device's secure store",
+                granted.as_slice().len(),
+            ),
+            Err(err) => log::warn!(
+                "oauth: [{handle}] the {family} server now grants this account {} permission(s), \
+                 but they could not be saved ({err}); the next renewal tries again",
+                granted.as_slice().len(),
+            ),
+        }
+    }
 }
 
 /// Builds the shared [`TokenSink`] over the registry + the host's one credential store.
@@ -131,6 +158,10 @@ pub(crate) fn token_sink(
         store: Arc::clone(store),
     })
 }
+
+#[cfg(test)]
+#[path = "token_sink_scope_tests.rs"]
+mod scope_tests;
 
 #[cfg(test)]
 mod token_sink_tests {

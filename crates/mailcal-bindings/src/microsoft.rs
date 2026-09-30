@@ -157,6 +157,8 @@ pub(crate) async fn authorize(
     let refresh_token = tokens.refresh_token.ok_or_else(|| {
         MailcalError::Connect("Microsoft issued no refresh token (offline_access scope)".to_owned())
     })?;
+    // What consent actually granted, which a person can make narrower than was asked for.
+    let granted = mailcal_oauth::GrantedScopes::from_response(&tokens.scope, &pending.scopes);
     let access_token = tokens.access_token.expose().to_owned();
     let email = mailcal_account::fetch_primary_address(&access_token)
         .await
@@ -168,7 +170,7 @@ pub(crate) async fn authorize(
         redirect_uri: pending.redirect_uri,
         scopes: pending.scopes,
         refresh_token: Secret::new(refresh_token.expose().to_owned()),
-        granted_scopes: None,
+        granted_scopes: Some(granted.as_slice().to_vec()),
         shape: mailcal_account::AccountShape::default(),
     };
     Ok(MicrosoftAuthorized {

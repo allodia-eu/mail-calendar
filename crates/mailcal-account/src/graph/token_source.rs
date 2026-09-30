@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use engine_core::ids::AccountId;
-use mailcal_oauth::{OAuthClient, TokenRequestReach};
+use mailcal_oauth::{GrantedScopes, OAuthClient, TokenRequestReach};
 use time::{Duration, OffsetDateTime};
 
 use crate::{AccountError, MicrosoftConfig};
@@ -42,6 +42,12 @@ pub trait TokenSink: Send + Sync {
     /// Reports that `account`'s refresh token was rotated to `new_refresh_token`; the
     /// host re-serializes and re-persists that account's config.
     async fn refresh_token_rotated(&self, account: &AccountId, new_refresh_token: &str);
+
+    /// Reports the scope set a refresh response named for `account`, on every refresh that
+    /// named one. The host records it over the stored set when the two differ: the response is
+    /// what the provider grants now, and consent withdrawn since the last one shows up nowhere
+    /// else.
+    async fn scopes_granted(&self, account: &AccountId, granted: &GrantedScopes);
 }
 
 /// A shared, self-refreshing source of Graph access tokens for one account.
@@ -431,6 +437,12 @@ impl GraphTokenSource {
                  to authenticate after the next restart",
             ),
             (_, None) => {}
+        }
+        if let (Some(sink), Some(granted)) = (
+            self.sink.as_ref(),
+            GrantedScopes::from_refresh(&tokens.scope),
+        ) {
+            sink.scopes_granted(&self.account, &granted).await;
         }
         Ok(access)
     }

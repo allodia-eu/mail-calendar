@@ -45,9 +45,12 @@ pub struct MicrosoftConfig {
     /// The OAuth refresh token: the only stored secret; access tokens are minted from
     /// it at connect time and never persisted.
     pub refresh_token: Secret,
-    /// The scopes the provider actually granted, from the token response, which may be fewer
-    /// than were requested: a person can untick one on the consent screen. `None` for a grant
-    /// stored before this was recorded, which is read as withholding nothing.
+    /// The scopes the provider actually granted, which may be fewer than were requested: a
+    /// person can untick one on the consent screen, or withdraw one later. A copy of the last
+    /// token response that named them, written at sign-in and overwritten by any refresh that
+    /// names a different set, so it is only ever as old as the last refresh. `None` for a grant
+    /// stored before this was recorded, which is read as withholding nothing until a refresh says
+    /// otherwise.
     #[serde(default)]
     pub granted_scopes: Option<Vec<String>>,
     /// What the account is used for, its pinned id and its links: the keys every kind shares at

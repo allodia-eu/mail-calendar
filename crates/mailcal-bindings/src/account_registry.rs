@@ -39,6 +39,7 @@ use std::{
 
 use engine_api::AccountId;
 use mailcal_account::{AccountConfig, GraphTokenSource, ImapConnections, Secret};
+use mailcal_oauth::GrantedScopes;
 
 /// One IMAP account's config, connections and (for an OAuth account) token source, as a watch
 /// needs them.
@@ -376,6 +377,39 @@ impl AccountRegistry {
                 family,
             },
         }
+    }
+
+    /// Records `granted` as `id`'s granted scopes and re-serializes its config, when it differs
+    /// from what is stored.
+    ///
+    /// `None` when there is nothing to write: the set is unchanged, or the account keeps no
+    /// granted scopes (only Microsoft and Google do). Unchanged is the answer on almost every
+    /// refresh, and a store write per refresh is a keychain prompt on some hosts.
+    pub(crate) fn record_granted_scopes(
+        &self,
+        id: &AccountId,
+        granted: &GrantedScopes,
+    ) -> Option<(&'static str, Result<String, String>)> {
+        let unchanged = |stored: Option<&[String]>| stored.is_some_and(|set| granted.same_as(set));
+        let mut entries = self.entries.lock().ok()?;
+        let (family, encoded) = match entries.get_mut(id.as_str())? {
+            ConnectedAccount::Microsoft { config, .. } => {
+                if unchanged(config.granted_scopes.as_deref()) {
+                    return None;
+                }
+                config.granted_scopes = Some(granted.as_slice().to_vec());
+                ("graph", config.to_toml())
+            }
+            ConnectedAccount::Google { config, .. } => {
+                if unchanged(config.granted_scopes.as_deref()) {
+                    return None;
+                }
+                config.granted_scopes = Some(granted.as_slice().to_vec());
+                ("google", config.to_toml())
+            }
+            ConnectedAccount::Jmap { .. } | ConnectedAccount::Imap { .. } => return None,
+        };
+        Some((family, encoded.map_err(|err| err.to_string())))
     }
 }
 
