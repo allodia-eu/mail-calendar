@@ -329,8 +329,9 @@ struct AccountSetupDetectView: View {
                 }
                 calendarSection(discovered: caldavURL)
                 inlineError(suppressed: form.refusedCertificate != nil)
-                if imapAuth.showsPassword {
-                    footer {
+                // Back and Cancel whatever the server said; Connect only beside a password field.
+                footer {
+                    if imapAuth.showsPassword {
                         connectButton(enabled: form.canConnect) {
                             submit(imapHost, imapEmail, password, smtpHost ?? "", form.effectiveCaldavURL ?? "", imapSecurity, smtpSecurity, form.acceptedCertificate)
                         }
