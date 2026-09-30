@@ -304,13 +304,33 @@ fn multiple_imap_servers_are_kept_in_order() {
 }
 
 #[test]
-fn top_level_oauth2_block_is_ignored() {
+fn the_oauth_issuer_is_read_beside_the_provider_where_the_format_puts_it() {
+    // `<oAuth2>` is a child of `<clientConfig>`, after `</emailProvider>`: that is where
+    // Thunderbird's own documents put it (gmail.com's, for one). Read only from inside the
+    // provider, every standard-shaped document named no issuer at all.
     let xml = MINIMAL.replace(
         "</emailProvider>",
         "</emailProvider>\n  <oAuth2>\n    <issuer>accounts.example.com</issuer>\n    <authURL>https://accounts.example.com/auth</authURL>\n  </oAuth2>",
     );
-    // The oAuth2 endpoints are ignored; parsing still succeeds from the servers alone.
-    assert!(parse(&xml).is_ok());
+    let parsed = parse(&xml).expect("valid document");
+    assert_eq!(
+        parsed.oauth_issuer.as_deref(),
+        Some("https://accounts.example.com")
+    );
+    assert_eq!(parsed.incoming.len(), 1);
+}
+
+#[test]
+fn a_tail_that_will_not_parse_costs_the_issuer_and_never_the_servers() {
+    // Nothing after the provider was read before the issuer was looked for there, so a
+    // malformed tail must not turn a usable config into a miss.
+    let xml = MINIMAL.replace(
+        "</emailProvider>",
+        "</emailProvider>\n  <oAuth2><issuer>accounts.example.com</wrong></oAuth2>",
+    );
+    let parsed = parse(&xml).expect("the servers still parse");
+    assert_eq!(parsed.oauth_issuer, None);
+    assert_eq!(parsed.outgoing.len(), 1);
 }
 
 #[test]

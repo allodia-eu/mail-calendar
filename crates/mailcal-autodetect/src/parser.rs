@@ -6,9 +6,9 @@
 //! `socketType`, or no recognised authentication is an error, not a lenient partial
 //! parse: a malformed config must fold to "nothing found", never to a plaintext or
 //! half-formed account. Only `incomingServer type="imap"` and `outgoingServer
-//! type="smtp"` are read (POP3 is skipped); unknown elements; including the ISPDB's
-//! top-level `<oAuth2>` endpoint block, are skipped, because OAuth endpoints come from
-//! the app's own trusted table, never from a fetched file.
+//! type="smtp"` are read (POP3 is skipped), and unknown elements are skipped. Of the
+//! `<oAuth2>` block only the issuer is read; its endpoints and client id never are, because
+//! the issuer's own metadata says what the endpoints are.
 
 use quick_xml::{Reader, escape::resolve_predefined_entity, events::Event, name::QName};
 
@@ -103,8 +103,8 @@ pub(crate) fn parse_autoconfig(
     }
 }
 
-/// Parses the children of `clientConfig`: requires an `emailProvider`, everything else
-/// (including a stray top-level `<oAuth2>`) is skipped.
+/// Parses the children of `clientConfig`: requires an `emailProvider`, then reads an
+/// `<oAuth2>` beside it for its issuer. Everything else is skipped.
 fn parse_client_config(
     reader: &mut Reader<&[u8]>,
     email: &EmailParts,
@@ -117,7 +117,11 @@ fn parse_client_config(
                 if !valid_host_or_ip(&id) {
                     return Err(ParseError::InvalidProviderId(id));
                 }
-                return parse_email_provider(reader, email);
+                let mut servers = parse_email_provider(reader, email)?;
+                if servers.oauth_issuer.is_none() {
+                    servers.oauth_issuer = issuer_beside_the_provider(reader);
+                }
+                return Ok(servers);
             }
             Event::Eof => return Err(ParseError::MissingEmailProvider),
             _ => {}
@@ -178,6 +182,28 @@ fn parse_email_provider(
         outgoing,
         oauth_issuer,
     })
+}
+
+/// The issuer of an `<oAuth2>` that follows the provider, which is where the format puts it
+/// (Thunderbird's own documents do); one nested inside the provider is read there instead.
+///
+/// Lenient where the rest of this parser is strict, and deliberately: the servers are already
+/// parsed, and a tail that will not parse costs only the issuer. The worst it can do is leave
+/// the sign-in unoffered, which is the password field, never a half-read account.
+fn issuer_beside_the_provider(reader: &mut Reader<&[u8]>) -> Option<String> {
+    loop {
+        match read(reader).ok()? {
+            Event::Start(e) => {
+                let name = local_name(&e.name());
+                if name == "oAuth2" {
+                    return parse_oauth_issuer(reader).ok().flatten();
+                }
+                skip(reader, &name).ok()?;
+            }
+            Event::End(_) | Event::Eof => return None,
+            _ => {}
+        }
+    }
 }
 
 /// Reads an `<oAuth2>` block for its `<issuer>`, skipping the endpoint and client-id
