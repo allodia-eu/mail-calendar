@@ -5,7 +5,9 @@
 //! server name is derived from the host, so users never type ports or a separate "server
 //! name". Credentials go straight into the stored TOML; never a plaintext seed file.
 
-use crate::{CertificateException, ConfigError, ConnectionSecurity, OAuthGrant};
+use crate::{
+    Capabilities, Capability, CertificateException, ConfigError, ConnectionSecurity, OAuthGrant,
+};
 
 /// What the account will authenticate with, from the screen that collected it.
 ///
@@ -30,7 +32,8 @@ pub enum SetupCredential {
 /// `host:port`.
 #[derive(Debug, Clone)]
 pub struct AccountSetup {
-    /// IMAP mail server: a host (`imap.example.net`) or `host:port`.
+    /// IMAP mail server: a host (`imap.example.net`) or `host:port`. Ignored, with
+    /// `smtp_host`, when `uses` leaves mail out.
     pub imap_host: String,
     /// Login username (the full email address).
     pub username: String,
@@ -40,6 +43,9 @@ pub struct AccountSetup {
     pub smtp_host: Option<String>,
     /// CalDAV base URL, if calendar sync is configured.
     pub caldav_base_url: Option<String>,
+    /// CardDAV base URL, for an address book that is not on the calendar's server or an
+    /// account without a calendar. Contacts are otherwise looked for at the calendar's endpoint.
+    pub carddav_base_url: Option<String>,
     /// How the IMAP connection is secured; picks the default port (993 vs 143) and the
     /// engine's connect path. Defaults to implicit TLS.
     pub imap_security: ConnectionSecurity,
@@ -50,6 +56,10 @@ pub struct AccountSetup {
     /// because it did not verify (`docs/certificate-exceptions.md`). `None` for every
     /// setup that never met one, which is nearly all of them.
     pub accepted_certificate: Option<CertificateException>,
+    /// What the account is used for, when the person chose; `None` for what its servers mean
+    /// (mail, plus calendar and contacts beside a CalDAV endpoint). Stored only when it differs
+    /// from that, so an account set up without a choice is stored as it always was.
+    pub uses: Option<Capabilities>,
 }
 
 /// The standard implicit-TLS IMAP port, assumed when a host gives none.
@@ -130,11 +140,24 @@ pub(crate) fn normalize_caldav_base_url(input: &str) -> String {
 ///
 /// # Errors
 ///
-/// Returns [`ConfigError::Incomplete`] if a required field (mail server, username,
-/// password) is empty, or [`ConfigError::Serialize`] on a serialization error.
+/// Returns [`ConfigError::Incomplete`] if a required field (username, password, the server of
+/// a chosen use) is empty or nothing is chosen, [`ConfigError::Refused`] for colleagues, which
+/// only a provider's directory offers, or [`ConfigError::Serialize`] on a serialization error.
 pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
-    if setup.imap_host.trim().is_empty() {
+    let caldav_url = given(setup.caldav_base_url.as_ref());
+    let carddav_url = given(setup.carddav_base_url.as_ref());
+    let chosen = |capability| {
+        setup
+            .uses
+            .as_ref()
+            .is_none_or(|uses| uses.contains(capability))
+    };
+    let mail = chosen(Capability::Mail);
+    if mail && setup.imap_host.trim().is_empty() {
         return Err(ConfigError::Incomplete("mail server"));
+    }
+    if let Some(uses) = &setup.uses {
+        check_uses(uses, caldav_url.is_some(), carddav_url.is_some())?;
     }
     if setup.username.trim().is_empty() {
         return Err(ConfigError::Incomplete("username"));
@@ -144,52 +167,98 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
     }
 
     let username = setup.username.trim();
-    let (imap_name, imap_addr) = host_and_addr(
-        setup.imap_host.trim(),
-        imap_default_port(setup.imap_security),
-    );
-    let mut imap = toml::Table::new();
-    imap.insert("addr".into(), imap_addr.into());
-    imap.insert("server_name".into(), imap_name.into());
-    imap.insert("username".into(), username.into());
-    if let SetupCredential::Password(password) = &setup.credential {
-        imap.insert("password".into(), password.clone().into());
-    }
-    insert_security(&mut imap, setup.imap_security);
+    let mut root = toml::Table::new();
+    if mail {
+        let (imap_name, imap_addr) = host_and_addr(
+            setup.imap_host.trim(),
+            imap_default_port(setup.imap_security),
+        );
+        let mut imap = toml::Table::new();
+        imap.insert("addr".into(), imap_addr.into());
+        imap.insert("server_name".into(), imap_name.into());
+        imap.insert("username".into(), username.into());
+        if let SetupCredential::Password(password) = &setup.credential {
+            imap.insert("password".into(), password.clone().into());
+        }
+        insert_security(&mut imap, setup.imap_security);
+        root.insert("imap".into(), imap.into());
 
-    finish(imap, setup, username)
+        if let Some(host) = given(setup.smtp_host.as_ref()) {
+            let (name, addr) = host_and_addr(host, smtp_default_port(setup.smtp_security));
+            let mut smtp = toml::Table::new();
+            smtp.insert("addr".into(), addr.into());
+            smtp.insert("server_name".into(), name.into());
+            insert_security(&mut smtp, setup.smtp_security);
+            root.insert("smtp".into(), smtp.into());
+        }
+    }
+    if let Some(uses) = &setup.uses {
+        let meant: Capabilities = [
+            mail.then_some(Capability::Mail),
+            caldav_url.map(|_| Capability::Calendar),
+            (caldav_url.is_some() || carddav_url.is_some()).then_some(Capability::Contacts),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        if *uses != meant {
+            let names: Vec<toml::Value> = uses.iter().map(|use_| use_.as_str().into()).collect();
+            root.insert("capabilities".into(), names.into());
+        }
+    }
+
+    finish(root, setup, username, caldav_url, carddav_url)
 }
 
-/// Adds the optional SMTP and CalDAV sections and the account's grant to a built `[imap]`
-/// table and serializes.
+/// Refuses a choice of nothing, of colleagues, or of a use whose server is missing.
+fn check_uses(uses: &Capabilities, caldav: bool, carddav: bool) -> Result<(), ConfigError> {
+    if uses.contains(Capability::Colleagues) {
+        return Err(ConfigError::Refused(
+            "colleagues come from a Microsoft or Google directory",
+        ));
+    }
+    if uses.iter().next().is_none() {
+        return Err(ConfigError::Incomplete("what the account is used for"));
+    }
+    if uses.contains(Capability::Calendar) && !caldav {
+        return Err(ConfigError::Incomplete("calendar server"));
+    }
+    if uses.contains(Capability::Contacts) && !caldav && !carddav {
+        return Err(ConfigError::Incomplete("address book server"));
+    }
+    Ok(())
+}
+
+/// A form field's value, trimmed, when it holds one.
+fn given(field: Option<&String>) -> Option<&str> {
+    field
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+}
+
+/// Adds the DAV sections and the account's grant to the root and serializes.
 ///
 /// A grant is stored once, at the root, because every endpoint presents it: the calendar
 /// stores **no** secret of its own for an OAuth account, and a password written there would be
 /// a stored secret that nothing ever presents.
-fn finish(imap: toml::Table, setup: &AccountSetup, username: &str) -> Result<String, ConfigError> {
-    let mut root = toml::Table::new();
-    root.insert("imap".into(), imap.into());
-
-    if let Some(host) = &setup.smtp_host
-        && !host.trim().is_empty()
-    {
-        let (name, addr) = host_and_addr(host.trim(), smtp_default_port(setup.smtp_security));
-        let mut smtp = toml::Table::new();
-        smtp.insert("addr".into(), addr.into());
-        smtp.insert("server_name".into(), name.into());
-        insert_security(&mut smtp, setup.smtp_security);
-        root.insert("smtp".into(), smtp.into());
-    }
-    if let Some(url) = &setup.caldav_base_url
-        && !url.trim().is_empty()
-    {
-        let mut caldav = toml::Table::new();
-        caldav.insert("base_url".into(), normalize_caldav_base_url(url).into());
-        caldav.insert("username".into(), username.into());
+fn finish(
+    mut root: toml::Table,
+    setup: &AccountSetup,
+    username: &str,
+    caldav_url: Option<&str>,
+    carddav_url: Option<&str>,
+) -> Result<String, ConfigError> {
+    for (section, url) in [("caldav", caldav_url), ("carddav", carddav_url)] {
+        let Some(url) = url else {
+            continue;
+        };
+        let mut dav = toml::Table::new();
+        dav.insert("base_url".into(), normalize_caldav_base_url(url).into());
+        dav.insert("username".into(), username.into());
         if let SetupCredential::Password(password) = &setup.credential {
-            caldav.insert("password".into(), password.clone().into());
+            dav.insert("password".into(), password.clone().into());
         }
-        root.insert("caldav".into(), caldav.into());
+        root.insert(section.into(), dav.into());
     }
     if let Some(accepted) = &setup.accepted_certificate {
         root.insert(
@@ -220,6 +289,8 @@ mod tests {
             imap_security: ConnectionSecurity::ImplicitTls,
             smtp_security: ConnectionSecurity::ImplicitTls,
             accepted_certificate: None,
+            carddav_base_url: None,
+            uses: None,
         }
     }
 
@@ -377,3 +448,7 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+#[path = "setup_uses_tests.rs"]
+mod uses_tests;

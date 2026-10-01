@@ -223,6 +223,8 @@ fn deferred_boot_badges_an_unreachable_account_without_dropping_it() {
         imap_security: None,
         smtp_security: None,
         accepted_certificate: None,
+        carddav_base_url: None,
+        uses: None,
     })
     .expect("valid account config");
     let data_dir = temp_data_dir("outage");

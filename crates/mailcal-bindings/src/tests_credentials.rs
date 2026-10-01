@@ -187,6 +187,8 @@ fn a_rejected_replacement_keeps_the_registered_and_stored_password() {
         imap_security: None,
         smtp_security: None,
         accepted_certificate: None,
+        carddav_base_url: None,
+        uses: None,
     })
     .expect("valid account config");
     let sink = crate::token_sink::token_sink(&app.registry, &app.credential_store);
