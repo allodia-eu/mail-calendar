@@ -118,6 +118,34 @@ public class ManualServerFieldTests
         Assert.True(field.FollowsSecurity);
     }
 
+    [Fact]
+    public void TheFormsOwnWriteComingBackIsNotTyping()
+    {
+        // WinUI delivers TextChanged after the write that raised it, so the port the picker just
+        // put in the box arrives here as if typed. Taken as typing, the picker would move the port
+        // once and never again.
+        var field = Imap();
+        field.ChooseSecurity(ConnectionSecurity.StartTls);
+        field.TypePort(field.Port);
+
+        Assert.True(field.FollowsSecurity);
+        field.ChooseSecurity(ConnectionSecurity.ImplicitTls);
+        Assert.Equal("993", field.Port);
+    }
+
+    [Fact]
+    public void AResetFieldForgetsTheLastAccountsPortAndSecurity()
+    {
+        var field = Imap();
+        field.AdoptDetected("localhost:12995", ConnectionSecurity.StartTls);
+        field.Reset();
+
+        Assert.Equal("993", field.Port);
+        Assert.Equal(ConnectionSecurity.ImplicitTls, field.Security);
+        Assert.True(field.FollowsSecurity);
+        Assert.Equal("localhost:993", field.Dial("localhost"));
+    }
+
     // Mirrors the core's own split (mailcal-account's `host_and_addr`), deliberately: the core
     // decides the address actually dialled, so a client that split differently would show one
     // port and connect to another. A bare IPv6 literal is not a server either side accepts.

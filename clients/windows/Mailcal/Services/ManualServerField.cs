@@ -60,8 +60,18 @@ internal sealed class ManualServerField
     /// field submits a bare host, which the core resolves to the same standard port, so there is
     /// nothing for a cleared field to mean other than "you choose".
     /// </summary>
+    /// <para>
+    /// Text equal to the port the field already holds is the form's own write coming back, not
+    /// typing: WinUI raises TextChanged after the code that set the text has returned, so the view
+    /// cannot tell the two apart by when the event arrives, and taking the echo for typing would
+    /// stop the port following the picker after its first move.
+    /// </para>
     internal void TypePort(string port)
     {
+        if (port == Port)
+        {
+            return;
+        }
         Port = port;
         _typedByHand = !string.IsNullOrWhiteSpace(port);
         if (!_typedByHand)
@@ -81,6 +91,12 @@ internal sealed class ManualServerField
         _typedByHand = port.Length > 0;
         Port = _typedByHand ? port : StandardPort(security);
     }
+
+    /// <summary>
+    /// Back to a fresh field, for a form reopened to add another account: the last account's
+    /// detected port must not be shown, and must not be dialled either.
+    /// </summary>
+    internal void Reset() => AdoptDetected(string.Empty, ConnectionSecurity.ImplicitTls);
 
     /// <summary>The `host:port` this field submits, or the bare host when it carries no port.</summary>
     internal string Dial(string host)

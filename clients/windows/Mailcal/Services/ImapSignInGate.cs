@@ -10,7 +10,8 @@
 // The rules that are load-bearing and invisible once wrong are the same ones the JMAP gate keeps:
 // an answer belongs to the account it was asked about, so a slow reply never lights a button for
 // a server nobody asked about; and no failure ever leaves somebody with no way in, so a failed
-// sign-in gives the password field straight back.
+// sign-in gives the password field straight back. Two more are rule 8's: a deadline races the
+// question, and a password field the form has shown stays shown while a later question is asked.
 
 namespace Allodia.Mailcal.Services;
 
@@ -53,6 +54,13 @@ internal enum ImapAuthAnswer
 /// </summary>
 internal sealed class ImapSignInGate
 {
+    /// <summary>
+    /// How long the form waits for the server before it asks for a password (docs/mail-oauth.md
+    /// rule 8). The core bounds its own work well inside this, so it is reached only by a core
+    /// that has stopped answering.
+    /// </summary>
+    internal static readonly TimeSpan Deadline = TimeSpan.FromSeconds(10);
+
     // The fields as last typed (trimmed). Everything below is answered *against these*, so an
     // answer for other fields is inert rather than needing to be actively cleared.
     private string _email = string.Empty;
@@ -67,6 +75,11 @@ internal sealed class ImapSignInGate
     private string? _failedFor;
     private bool _signingIn;
 
+    // Whether the password field is on screen and stays there while the account is asked about
+    // again. Set by every answer that draws it and by the person choosing it; cleared only by an
+    // answer that a password does not work.
+    private bool _passwordHeld;
+
     /// <summary>What the server said, for the account as it now reads.</summary>
     internal ImapAuthAnswer Answer => _answeredFor == Key ? _answer : ImapAuthAnswer.Unknown;
 
@@ -76,6 +89,22 @@ internal sealed class ImapSignInGate
 
     /// <summary>Whether the button can be pressed (not while a sign-in is already out).</summary>
     internal bool ButtonEnabled => ShowButton && !_signingIn;
+
+    /// <summary>
+    /// Whether the sign-in is the form's primary action: offered, and no password field beside it.
+    /// Once the field is on screen Connect leads and the sign-in stays as an ordinary button.
+    /// </summary>
+    internal bool SignInLeads => ShowButton && !ShowPassword;
+
+    /// <summary>
+    /// Whether to offer "Use a password instead": the server takes a password as well as a
+    /// sign-in, and the field is not on screen yet (rule 2: behind means not drawn until asked
+    /// for).
+    /// </summary>
+    internal bool ShowPasswordInstead => Answer == ImapAuthAnswer.SignInOrPassword && !ShowPassword;
+
+    /// <summary>Whether the server is being asked about the account as it now reads.</summary>
+    internal bool Checking => _askingFor is not null && _askingFor == Key;
 
     /// <summary>Whether the "signing in didn't work" note is up for the current fields.</summary>
     internal bool ShowFailure => _failedFor == Key;
@@ -90,20 +119,22 @@ internal sealed class ImapSignInGate
     /// <summary>
     /// Whether the password field belongs on screen.
     /// <para>
-    /// Absent in exactly two cases, and both are the field being *wrong* rather than merely
-    /// second: while the server is still being asked, because a field that appears and is then
-    /// taken away reads as the app changing its mind; and on a server that said it refuses
-    /// passwords, where it is a dead end nobody finds until they have typed one.
+    /// Not before the first answer, because a field that appears and is then taken away reads as
+    /// the app changing its mind; not on a server that said it refuses passwords, where it is a
+    /// dead end nobody finds until they have typed one; and not beside a sign-in until the person
+    /// asks for it.
     /// </para>
     /// <para>
-    /// A failed sign-in always brings it back, whatever the server said: it is the route left.
+    /// Once shown it stays while an edited account is asked about again, for the same reason it
+    /// waits for the first answer: only an answer that a password does not work takes it away. A
+    /// failed sign-in always brings it back, whatever the server said: it is the route left.
     /// </para>
     /// </summary>
     internal bool ShowPassword => ShowFailure || Answer switch
     {
-        ImapAuthAnswer.Unknown => false,
         ImapAuthAnswer.SignInOnly => false,
-        _ => true,
+        ImapAuthAnswer.Password or ImapAuthAnswer.RegistrationNeeded => true,
+        _ => _passwordHeld,
     };
 
     /// <summary>Whether the password field accepts input (not while a sign-in is out).</summary>
@@ -149,7 +180,33 @@ internal sealed class ImapSignInGate
         _askingFor = null;
         _answeredFor = key;
         _answer = answer;
+        _passwordHeld = answer switch
+        {
+            ImapAuthAnswer.Password or ImapAuthAnswer.RegistrationNeeded => true,
+            ImapAuthAnswer.SignInOnly => false,
+            _ => _passwordHeld,
+        };
     }
+
+    /// <summary>
+    /// The deadline ran out on the question about <paramref name="key"/>. If that question is
+    /// still the one being asked it is answered with a password, rule 7's answer to every question
+    /// that went unanswered, and the core's reply, whenever it comes, is dropped: only the first
+    /// answer for an account counts, because a late one would rebuild a form somebody is typing
+    /// into. Returns whether this decided anything.
+    /// </summary>
+    internal bool DeadlinePassed(string key)
+    {
+        if (key != _askingFor)
+        {
+            return false;
+        }
+        Answered(key, ImapAuthAnswer.Password);
+        return true;
+    }
+
+    /// <summary>The person chose "Use a password instead": the field is theirs from now on.</summary>
+    internal void RevealPassword() => _passwordHeld = true;
 
     /// <summary>The browser sign-in has started: disable the button and clear any old failure.</summary>
     internal void SignInStarted()
@@ -165,6 +222,7 @@ internal sealed class ImapSignInGate
         if (outcome == ImapSignInOutcome.Failed)
         {
             _failedFor = Key;
+            _passwordHeld = true;
         }
     }
 
@@ -178,6 +236,7 @@ internal sealed class ImapSignInGate
         _answer = ImapAuthAnswer.Unknown;
         _failedFor = null;
         _signingIn = false;
+        _passwordHeld = false;
     }
 
     // Case-folded so retyping the same account in different case doesn't re-dial; NUL-joined so

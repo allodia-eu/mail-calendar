@@ -27,9 +27,6 @@ public sealed partial class AccountSetupView : UserControl
     // form the user picks, and the port follows the picker until they type one of their own.
     private readonly ManualServerField _imap = ManualServerField.For(MailServerKind.Imap);
     private readonly ManualServerField _smtp = ManualServerField.For(MailServerKind.Smtp);
-    // Set while the code is writing the fields, so echoing a value back does not read as the user
-    // typing it and take the port away from the picker.
-    private bool _fillingServerFields;
     // The issuer the detected route's provider named for itself, read by the IMAP pre-flight and
     // the sign-in, which must describe the same account the connect will dial.
     private string? _detectedOauthIssuer;
@@ -134,6 +131,7 @@ public sealed partial class AccountSetupView : UserControl
         _needsApproval = route.NeedsApproval;
         _imap.AdoptDetected(route.ImapHost, route.ImapSecurity);
         _smtp.AdoptDetected(route.SmtpHost, route.SmtpSecurity);
+        ShowServerSettings();
         _detectedOauthIssuer = route.OauthIssuer;
         // Whether the JMAP fields are a detected result or the manual form decides whether an
         // offered sign-in stands beside the secret field or replaces it. Set before the tab is
@@ -184,7 +182,9 @@ public sealed partial class AccountSetupView : UserControl
                     // it reuses the IMAP credentials at connect.
                     CaldavUrl.Text = route.CaldavUrl;
                     ImapChoice.IsChecked = true;
-                    ShowNote(L10n.SetupDetectAppPasswordHint());
+                    // The app-password hint travels with the password field, which a server
+                    // offering a sign-in keeps behind "Use a password instead".
+                    ShowNote(null);
                     break;
             }
         }
@@ -444,6 +444,8 @@ public sealed partial class AccountSetupView : UserControl
         Username.Text = string.Empty;
         Password.Password = string.Empty;
         SmtpHost.Text = string.Empty;
+        _imap.Reset();
+        _smtp.Reset();
         ShowServerFields(string.Empty, string.Empty);
         CaldavUrl.Text = string.Empty;
         JmapEmail.Text = string.Empty;
