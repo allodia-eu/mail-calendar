@@ -36,6 +36,7 @@ mod pkce;
 mod provider;
 mod reach;
 mod register;
+pub mod scopes;
 mod token;
 
 use std::collections::HashMap;

@@ -116,6 +116,16 @@ impl ConnectedAccount {
         }
     }
 
+    /// The keys every kind shares: pinned id, capabilities and links.
+    pub(crate) const fn shape(&self) -> &mailcal_account::AccountShape {
+        match self {
+            Self::Imap { config, .. } => &config.shape,
+            Self::Microsoft { config, .. } => &config.shape,
+            Self::Google { config, .. } => &config.shape,
+            Self::Jmap { config, .. } => &config.shape,
+        }
+    }
+
     /// What the account is used for: its stored choice, or what its kind has always meant.
     pub(crate) fn capabilities(&self) -> mailcal_account::Capabilities {
         match self {

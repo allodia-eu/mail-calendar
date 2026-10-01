@@ -19,6 +19,7 @@ Setting accounts up is [`onboarding.md`](onboarding.md) and
 | 7 | **An account without mail learns its connectivity from its calendar**, or from its contacts when it has no calendar, and feeds the same "unreachable" and "sign in again" states a mailbox does. An account with mail keeps learning it from its mail alone. | Otherwise it could never say anything is wrong; and a calendar failure beside a working mailbox should empty the calendar, not badge the account. |
 | 8 | **An account is named by its address wherever a person reads it**, never by its id: a calendar row carries `account_address`, and a client heads its calendar groups with it. | An id is `address@provider-host`, which is not something a person should read. |
 | 9 | **An account's id is stable across edits of the settings it was derived from.** It is derived from those settings until it is pinned (`id`), and a pinned id wins. A standards account without a mailbox is `username@dav:host`. | Preferences, signatures, links and the store are keyed by the id; an edit that changed it would turn one account into a different one. |
+| 10 | **A Microsoft or Google sign-in asks only for what the account is used for**, and a use whose scope the grant withholds is not opened, mail excepted ([`provider-oauth.md`](provider-oauth.md) rule 10). Signing an existing account in again keeps its pinned id, its links and, unless the sign-in chose again, its capabilities. | A person who wants a calendar should not be asked for their mail, and an organisation that approved only some scopes should still be able to admit the app. |
 
 ## 2. The stored shape
 
@@ -51,6 +52,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Stored capabilities, pinned id and links read and kept | ✅ | — | — | — | — | — |
 | Only the capabilities an account is used for are opened | ✅ | — | — | — | — | — |
+| Sign-in asks for the chosen capabilities' scopes only, and opens what was granted | ✅ | — | — | — | — | — |
 | A standards account without a mailbox connects its calendar and contacts | ✅ | — | — | — | — | — |
 | An account without mail is kept out of the mail surfaces | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar groups headed by the account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -78,8 +80,9 @@ its own.
 - **Links are stored but not acted on.** An invitation still files into, and answers from, the
   account whose mail it arrived in, and "save contact" still writes to the account in view.
 - **A capability has two states, on and off.** "Needs permission" (chosen but not granted),
-  "not offered" (the server has none) and "failing" have no representation yet; a JMAP session that
-  lacks a chosen capability binds nothing for it, silently.
+  "not offered" (the server has none) and "failing" have no representation yet. A use a Microsoft
+  or Google grant withholds is closed silently (Microsoft's calendar aside, which raises its
+  re-consent prompt), and a JMAP session that lacks a chosen capability binds nothing for it.
 - **A JMAP account without mail still opens its session through the mail provider**, because that
   is what reads which calendars and contacts the account has; it binds no mail from it.
 - **Analytics cannot yet tell a calendar-and-contacts account apart**: such an account counts under

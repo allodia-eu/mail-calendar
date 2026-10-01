@@ -220,7 +220,9 @@ public sealed partial class MailboxModel
                 MicrosoftOAuthConfig.Tenant, MicrosoftOAuthConfig.RedirectUri,
                 // The address the user is connecting (from autodetection), so Microsoft targets that
                 // account instead of offering a different signed-in one; null/blank ⇒ the picker.
-                string.IsNullOrWhiteSpace(loginHint) ? null : loginHint);
+                string.IsNullOrWhiteSpace(loginHint) ? null : loginHint,
+                // No capability choice yet: ask for everything.
+                null);
             // Open the default browser (Edge, where the user is usually already signed in).
             await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
             var callbackUrl = await callback.WaitAsync(cancelToken);

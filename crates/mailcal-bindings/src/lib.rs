@@ -17,6 +17,7 @@ use mailcal_app::{Account, App};
 use tokio::runtime::Runtime;
 
 mod about;
+mod account_capability;
 mod account_registry;
 mod account_repair;
 mod agent_ui;
@@ -58,6 +59,7 @@ mod composer_reply;
 mod connected_account;
 mod connection_log;
 mod connector;
+mod consent;
 mod convert;
 mod convert_folders;
 mod convert_mailbox;
@@ -112,6 +114,7 @@ mod timezone;
 mod token_sink;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
+pub use account_capability::AccountCapability;
 pub use agent_ui::{AgentDraft, AgentHostUi};
 pub use allodia::{
     AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,

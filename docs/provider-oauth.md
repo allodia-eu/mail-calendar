@@ -277,21 +277,32 @@ capturing the redirect), because that is inherently platform-specific.
    email-first flow's Microsoft found-card).
 
 10. **The requested Graph scopes must be granted in the Azure app registration, and widening
-    them re-consents.** `MICROSOFT_GRAPH_SCOPES` requests exactly the scopes below. Each must be a
-    delegated permission on the Azure app registration's **API permissions** or Microsoft returns
-    `access_denied` at consent. The table is the justification an administrator reviewing the app
-    asks for: every scope names the calls it permits and what the user gets from them. Graph paths
-    are relative to `https://graph.microsoft.com/v1.0/me`.
+    them re-consents.** A sign-in requests the scopes below for what the account is used for
+    ([`accounts.md`](accounts.md)), and `MICROSOFT_GRAPH_SCOPES` is all of them, which is what an
+    account used for everything asks for. Each must be a delegated permission on the Azure app
+    registration's **API permissions** or Microsoft returns `access_denied` at consent; list every
+    one there, so an administrator's "Grant admin consent" covers any subset a person chooses. The
+    table is the justification an administrator reviewing the app asks for: every scope names the
+    calls it permits, what the user gets from them, and which choice requests it. Graph paths are
+    relative to `https://graph.microsoft.com/v1.0/me`.
 
-    | Scope | Calls | What it provides |
-    |---|---|---|
-    | `offline_access` | the token endpoint | a refresh token, so the account keeps working past the first hour |
-    | `User.Read` | `GET /me` | the account's own address and name |
-    | `Mail.ReadWrite` | `/mailFolders`, `/messages` (delta, read, attachments), `PATCH /messages/{id}`, `POST /messages/{id}/move`, `POST /messages/{id}/permanentDelete`, `POST /messages/{id}/reportMessage`, draft create and replace | reading mail; read and flag state, moving, archiving, deleting, reporting spam, drafts |
-    | `Mail.Send` | `POST /sendMail` | sending; `Mail.ReadWrite` does not grant it |
-    | `Calendars.ReadWrite` | `/calendars`, `/events`, `POST /events/{id}/accept`, `decline`, `tentativelyAccept` | the calendar, event edits, answering invitations |
-    | `Contacts.ReadWrite` | `/contacts`, `/contactFolders`, `/contacts/delta` | the account's own contacts, adding and editing them |
-    | `User.ReadBasic.All` | `GET /users` (at the tenant, not under `/me`), `/users/{id}/photo` | colleagues from a work or school directory, and their photos |
+    | Scope | Calls | What it provides | Requested for |
+    |---|---|---|---|
+    | `offline_access` | the token endpoint | a refresh token, so the account keeps working past the first hour | every account |
+    | `User.Read` | `GET /me` | the account's own address and name | every account |
+    | `Mail.ReadWrite` | `/mailFolders`, `/messages` (delta, read, attachments), `PATCH /messages/{id}`, `POST /messages/{id}/move`, `POST /messages/{id}/permanentDelete`, `POST /messages/{id}/reportMessage`, draft create and replace | reading mail; read and flag state, moving, archiving, deleting, reporting spam, drafts | mail |
+    | `Mail.Send` | `POST /sendMail` | sending; `Mail.ReadWrite` does not grant it | mail |
+    | `Calendars.ReadWrite` | `/calendars`, `/events`, `POST /events/{id}/accept`, `decline`, `tentativelyAccept` | the calendar, event edits, answering invitations | calendar |
+    | `Contacts.ReadWrite` | `/contacts`, `/contactFolders`, `/contacts/delta` | the account's own contacts, adding and editing them | contacts |
+    | `User.ReadBasic.All` | `GET /users` (at the tenant, not under `/me`), `/users/{id}/photo` | colleagues from a work or school directory, and their photos | colleagues, beside contacts |
+
+    **A use the grant withholds is not opened.** Each use has one scope it cannot open without
+    (`Mail.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `User.ReadBasic.All`), and a
+    stored `granted_scopes` without it leaves that use closed, compared as Microsoft spells the
+    scope back (`Mail.ReadWrite`, any case, for `https://graph.microsoft.com/Mail.ReadWrite`). Mail
+    is the exception: it is opened regardless, because its failure is the account's and a refused
+    sync or send is where rule 11 raises its prompt. A sign-in whose grant allows nothing the
+    account was chosen for is refused rather than added.
 
     **No OpenID Connect scope is requested.** Nothing reads an ID token (the address comes from
     `GET /me`), and Microsoft issues a refresh token for `offline_access` alone, so `openid`,
@@ -332,7 +343,8 @@ capturing the redirect), because that is inherently platform-specific.
     An account connected before a scope was added (or whose consent was **revoked server-side**)
     keeps a narrower grant than the app now requests, and a token *refresh* re-uses that original
     grant, so only a full interactive re-authentication widens it. Two detectors feed one prompt:
-    the **calendar** scope is checked by a boot-time probe (`connect_graph_calendars`), and **mail
+    the **calendar** scope is read from the stored granted set when there is one, and checked by a
+    boot-time probe (`connect_graph_calendars`) when there is not, and **mail
     write/send** is detected **reactively** at the point of use: a `403 ErrorAccessDenied` from a
     mark-read / move / delete or a `sendMail` is classified **structurally** (walk the engine
     error's `source()` chain to the typed `ProviderError` and match the `ErrorAccessDenied` code, so
@@ -497,18 +509,30 @@ autodetection. It reuses the whole state machine above; the deltas are:
   refresh token only with `access_type=offline`, and re-prompting consent on every authorisation
   guarantees one comes back even for an already-consented account. The core still treats a
   completed sign-in with no refresh token as an error.
-- **Six scopes, all granted in one consent** (`GOOGLE_SCOPES` in `provider.rs`, which carries the
-  reasoning per scope): `https://mail.google.com/` for mail, `gmail.settings.basic` for the
-  send-as alias a sender name is written to, `calendar` for the agenda, and `contacts` +
-  `contacts.other.readonly` + `directory.readonly` for the three People sources. Because the
-  calendar and contact scopes arrive **in the same consent** as mail, there is **no
-  calendar-reauth step** for Google: the reconnect-for-calendar banner stays Microsoft-only.
-  (Microsoft grants Mail and Calendars.ReadWrite together too, but its calendar arrived later
-  behind a scope-upgrade reconnect; Google ships both at once.) Two traps sit in that set. The
-  full-mail scope is what grants **permanent delete**, which no narrower `gmail.*` scope does.
-  And `mail.google.com` reaches `users.settings.sendAs.list` but **not** its `patch`, which is
-  why the settings scope is listed separately: without it the sender name a user sets would
-  read the account's aliases and then fail to update the one it found.
+- **Up to seven scopes, by what the account is used for** (`GOOGLE_SCOPES` in `provider.rs`
+  carries the reasoning per scope, `mailcal_oauth::scopes` the grouping):
+
+  | Scope | What it provides | Requested for |
+  |---|---|---|
+  | `https://mail.google.com/` | every Gmail call, and the account's address from `users/me/profile` | mail |
+  | `gmail.settings.basic` | `sendAs.patch`, the send-as alias a sender name is written to | mail |
+  | `calendar` | events, edits, answering invitations | calendar |
+  | `contacts`, `contacts.other.readonly` | the account's own contacts, and the addresses Google collects for it | contacts |
+  | `directory.readonly` | colleagues on a Workspace domain | colleagues, beside contacts |
+  | `userinfo.email` | the account's address from `oauth2/v3/userinfo` | an account **not** used for mail |
+
+  `userinfo.email` is non-sensitive, but it has to be listed on the Cloud project's consent screen
+  before an account without mail can sign in. Google has no incremental consent for installed
+  apps, so a sign-in always requests the whole chosen set rather than relying on
+  `include_granted_scopes`; and Google lets a person untick a scope on the consent screen, so the
+  granted set is read back and a use whose scope was refused is not opened (rule 10's rule, with
+  Google's spelling compared as written). There is **no calendar-reauth step** for Google: the
+  reconnect-for-calendar banner stays Microsoft-only, and a refused calendar stays closed. Two
+  traps sit in the set. The full-mail scope is what grants **permanent delete**, which no
+  narrower `gmail.*` scope does. And `mail.google.com` reaches `users.settings.sendAs.list` but
+  **not** its `patch`, which is why the settings scope is listed separately: without it the
+  sender name a user sets would read the account's aliases and then fail to update the one it
+  found.
 - **Redirect differs by client type (rule 3).** **iOS/iPadOS and Android** register a Google
   **iOS/Android client**, whose redirect is the **reversed-client-id custom scheme**
   `com.googleusercontent.apps.<CLIENT_ID>:/oauth2redirect`, where `<CLIENT_ID>` is the **whole**
@@ -690,6 +714,14 @@ the doctrine's "provider sync" language for *account connection* specifically.)
 
 ## Known gaps
 
+- **No client offers the choice yet.** `begin_microsoft_login` and `begin_google_login` take the
+  capabilities an account is to be used for, and every client passes none, which asks for
+  everything as before. So rule 10's subsets are reachable only from the core, and the
+  `userinfo.email` route for a Google account without mail has not met a live consent screen.
+- **A use the grant withholds is closed silently.** Neither setup nor Settings says "Calendar was
+  not allowed" or offers to ask again, because there is no "needs permission" state for a client
+  to read ([`accounts.md`](accounts.md)); Microsoft's calendar is the exception, through rule 11's
+  prompt. Signing in again re-requests everything, whatever the account is used for.
 - **Graph mail: read/sync + mail actions + sending.** The engine's Graph adapter does mail folders
   + messages + message source (bodies render via `/messages/{id}/$value`) + a `receivedDateTime`
   sync-depth window, mail edits (`edit_mail`: mark-read/flag, move/archive, permanent

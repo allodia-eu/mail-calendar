@@ -30,6 +30,9 @@ const GOOGLE_ID_HOST: &str = "mail.google.com";
 /// separate `openid`/`email` scope is needed to name the account.
 const GMAIL_PROFILE_ENDPOINT: &str = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
 
+/// Where an account granted `userinfo.email` and no Gmail scope reads its own `email`.
+const GOOGLE_USERINFO_ENDPOINT: &str = "https://www.googleapis.com/oauth2/v3/userinfo";
+
 /// One Google account's connection config: the app registration, the signed-in address, and
 /// the long-lived refresh token. Deserialized from the `[google]` section a host stores in its
 /// OS secure store.
@@ -78,6 +81,16 @@ impl GoogleConfig {
     #[must_use]
     pub fn capabilities(&self) -> crate::Capabilities {
         self.shape.capabilities_or(crate::Capability::ALL)
+    }
+
+    /// The uses this account is chosen for that its grant does not allow.
+    #[must_use]
+    pub fn withheld_capabilities(&self) -> crate::Capabilities {
+        crate::withheld(
+            &mailcal_oauth::scopes::GOOGLE,
+            &self.capabilities(),
+            self.granted_scopes.as_deref(),
+        )
     }
 
     /// This account's id: the one pinned in its stored config when there is one, and otherwise
@@ -184,21 +197,32 @@ pub fn load_google_str(text: &str) -> Result<GoogleConfig, ConfigError> {
     Ok(config)
 }
 
-/// Looks up the signed-in account's own email address via the Gmail `users/me/profile`
-/// endpoint, so a freshly authorised account can be named and keyed without asking the user to
-/// type it: the Google parallel of [`fetch_primary_address`](crate::fetch_primary_address).
-/// Authenticates with the bearer `access_token` just obtained in the flow.
+/// Looks up the signed-in account's own email address, so a freshly authorised account can be
+/// named and keyed without asking the user to type it: the Google parallel of
+/// [`fetch_primary_address`](crate::fetch_primary_address). Authenticates with the bearer
+/// `access_token` just obtained in the flow.
+///
+/// An account used for mail reads it from the Gmail profile, which its mail scope covers. One
+/// that is not holds no Gmail scope and was granted `userinfo.email` instead.
 ///
 /// # Errors
 ///
 /// Returns [`AccountError::Google`] if the request fails, is non-2xx, or returns no address.
-pub async fn fetch_google_primary_address(access_token: &str) -> Result<String, AccountError> {
+pub async fn fetch_google_primary_address(
+    access_token: &str,
+    uses_mail: bool,
+) -> Result<String, AccountError> {
+    let (endpoint, field) = if uses_mail {
+        (GMAIL_PROFILE_ENDPOINT, "emailAddress")
+    } else {
+        (GOOGLE_USERINFO_ENDPOINT, "email")
+    };
     let http = tls_with(&[])?
         .reqwest_builder()
         .build()
         .map_err(|err| AccountError::Google(format!("profile lookup client: {err}")))?;
     let resp = http
-        .get(GMAIL_PROFILE_ENDPOINT)
+        .get(endpoint)
         .bearer_auth(access_token)
         .send()
         .await
@@ -214,7 +238,7 @@ pub async fn fetch_google_primary_address(access_token: &str) -> Result<String, 
         .await
         .map_err(|err| AccountError::Google(format!("profile lookup decode: {err}")))?;
     let address = body
-        .get("emailAddress")
+        .get(field)
         .and_then(serde_json::Value::as_str)
         .filter(|address| !address.is_empty())
         .ok_or_else(|| AccountError::Google("profile lookup returned no address".to_owned()))?;

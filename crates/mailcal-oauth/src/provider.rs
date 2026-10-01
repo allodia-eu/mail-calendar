@@ -10,13 +10,15 @@
 /// The Microsoft identity-platform authority host (worldwide/public cloud).
 const MS_AUTHORITY: &str = "https://login.microsoftonline.com";
 
-/// The delegated Graph scopes a Microsoft account requests. Each one has a call site, named in
-/// the per-scope table of [`docs/provider-oauth.md`](../../../docs/provider-oauth.md) (rule 10),
-/// which is what an administrator approving the app reads: `offline_access` (a refresh token at
-/// all), `User.Read` (`GET /me`, the account's own address), `Mail.ReadWrite` (mail sync and every
-/// mail write), `Mail.Send` (`POST /me/sendMail`; `Mail.ReadWrite` does **not** grant send),
-/// `Calendars.ReadWrite`, `Contacts.ReadWrite` (the account's own cards) and `User.ReadBasic.All`
-/// (the tenant directory, and the permission a colleague's photo is read through).
+/// The delegated Graph scopes a Microsoft account used for everything requests; an account used
+/// for less requests its uses' groups from [`crate::scopes::MICROSOFT`]. Each one has a call site,
+/// named in the per-scope table of [`docs/provider-oauth.md`](../../../docs/provider-oauth.md)
+/// (rule 10), which is what an administrator approving the app reads: `offline_access` (a refresh
+/// token at all), `User.Read` (`GET /me`, the account's own address), `Mail.ReadWrite` (mail sync
+/// and every mail write), `Mail.Send` (`POST /me/sendMail`; `Mail.ReadWrite` does **not** grant
+/// send), `Calendars.ReadWrite`, `Contacts.ReadWrite` (the account's own cards) and
+/// `User.ReadBasic.All` (the tenant directory, and the permission a colleague's photo is read
+/// through).
 ///
 /// **No OpenID Connect scope.** Nothing reads an ID token, and Microsoft issues a refresh token
 /// for `offline_access` alone, so `openid`, `profile` and `email` would each be a line on the
@@ -52,8 +54,9 @@ pub const MICROSOFT_GRAPH_SCOPES: &[&str] = &[
 const GOOGLE_AUTHORIZE_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 
-/// The delegated scopes a Google account requests: **full** Gmail (`mail.google.com`), Gmail's
-/// basic settings, read/write Google Calendar, and the three People sources.
+/// The delegated scopes a Google account used for everything requests: **full** Gmail
+/// (`mail.google.com`), Gmail's basic settings, read/write Google Calendar, and the three People
+/// sources. An account used for less requests its uses' groups from [`crate::scopes::GOOGLE`].
 ///
 /// The engine's Gmail provider does the full range of mail writes; `messages.modify`/`trash`
 /// **and permanent `messages.delete`** plus `messages.send`, and permanent delete is only

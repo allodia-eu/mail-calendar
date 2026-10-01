@@ -93,3 +93,57 @@ async fn a_dial_of_an_account_without_a_mailbox_opens_its_calendar() {
     let failure = dial(&ConnectedAccount::imap_account(config, None)).await;
     assert!(failure.starts_with("caldav"), "{failure}");
 }
+
+fn microsoft(capabilities: &[&str], granted: &[&str]) -> ConnectedAccount {
+    let names: Vec<String> = capabilities
+        .iter()
+        .map(|name| format!("\"{name}\""))
+        .collect();
+    let shape =
+        mailcal_account::AccountShape::read(&format!("capabilities = [{}]", names.join(", ")))
+            .unwrap();
+    let config = mailcal_account::MicrosoftConfig {
+        email: "alice@example.com".to_owned(),
+        client_id: "client-abc".to_owned(),
+        tenant: "common".to_owned(),
+        redirect_uri: "eu.allodia.mailcal://auth".to_owned(),
+        scopes: Vec::new(),
+        refresh_token: mailcal_account::Secret::new("refresh".to_owned()),
+        granted_scopes: Some(granted.iter().map(|scope| (*scope).to_owned()).collect()),
+        shape,
+    };
+    let id = config.account_id().unwrap();
+    let tokens = mailcal_account::GraphTokenSource::new(
+        &config,
+        id,
+        None,
+        mailcal_account::CredentialOrigin::FreshSignIn,
+    )
+    .unwrap();
+    ConnectedAccount::Microsoft { config, tokens }
+}
+
+#[test]
+fn a_use_the_grant_withholds_is_not_opened() {
+    let entry = microsoft(
+        &["mail", "contacts", "colleagues"],
+        &["Mail.ReadWrite", "Contacts.ReadWrite"],
+    );
+    let opened = AccountDial::from_entry(&entry).capabilities().clone();
+    assert!(opened.contains(mailcal_account::Capability::Contacts));
+    assert!(!opened.contains(mailcal_account::Capability::Colleagues));
+}
+
+/// A calendar the grant withholds is still a calendar the person chose, so it raises the prompt
+/// to sign in again rather than staying silently empty; and nothing is dialled to learn it.
+#[tokio::test]
+async fn a_withheld_calendar_asks_for_consent_without_being_dialled() {
+    let entry = microsoft(&["calendar"], &["offline_access", "User.Read"]);
+    let id = engine_api::AccountId::try_from("alice@example.com@graph.microsoft.com").unwrap();
+    let outcome = AccountDial::from_entry(&entry)
+        .run(&id, TimeZoneId::utc())
+        .await
+        .unwrap_or_else(|failure| panic!("nothing was dialled: {failure}"));
+    assert!(outcome.calendar_reauth_required);
+    assert!(outcome.account.calendar_providers.is_empty());
+}
