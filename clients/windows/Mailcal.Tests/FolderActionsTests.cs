@@ -128,6 +128,36 @@ public class FolderActionsTests
     }
 
     [Fact]
+    public void MoveToDrawsTheTreeOneStepInsideTheTopLevel()
+    {
+        var targets = FolderActions.MoveTargets(Tree(), "bills", "Top level");
+
+        Assert.Equal(
+            [(null, "Top level", 0), ("inbox", "Inbox", 1), ("work", "Work", 1), ("clients", "Clients", 2), ("acme", "Acme", 3)],
+            targets.Select(t => (t.Key, t.Name, t.Indent)).ToList());
+        Assert.All(targets, t => Assert.True(t.Enabled));
+        Assert.Equal(SidebarFolderRole.Inbox, targets[1].Role);
+    }
+
+    [Fact]
+    public void AFolderThatOnlyHoldsADestinationIsShownButNotOffered()
+    {
+        List<FolderItem> tree =
+        [
+            Folder("work", "Work", acceptsFolders: false),
+            Folder("clients", "Clients", parent: "work"),
+            Folder("bills", "Bills", acceptsFolders: false),
+        ];
+
+        var targets = FolderActions.MoveTargets(tree, "elsewhere", "Top level");
+
+        var work = Assert.Single(targets, t => t.Key == "work");
+        Assert.False(work.Enabled);
+        Assert.True(Assert.Single(targets, t => t.Key == "clients").Enabled);
+        Assert.DoesNotContain(targets, t => t.Key == "bills");
+    }
+
+    [Fact]
     public void MoveToLeavesOutAFolderThatTakesNoSubfolders()
     {
         var tree = Tree();
@@ -194,6 +224,24 @@ public class FolderActionsTests
         Assert.Equal(["work", "clients", "acme", "bills"], keys);
         Assert.DoesNotContain(targets, t => t.Key is null);
         Assert.Contains(targets, t => t.Key == "acme" && t.Label == "Work / Clients / Acme");
+    }
+
+    [Fact]
+    public void MoveToFolderKeepsTheFolderOnScreenAsTheParentOfWhatIsInsideIt()
+    {
+        var targets = FolderActions.MessageTargets(Tree(), showing: "clients");
+
+        Assert.Equal(
+            [("inbox", 0, true), ("work", 0, true), ("clients", 1, false), ("acme", 2, true), ("bills", 0, true)],
+            targets.Select(t => (t.Key, t.Indent, t.Enabled)).ToList());
+        Assert.Equal("Acme", targets[3].Name);
+    }
+
+    [Fact]
+    public void ALoopedTreeStillGivesAPicker()
+    {
+        List<FolderItem> looped = [Folder("a", "A", parent: "b"), Folder("b", "B", parent: "a")];
+        Assert.Equal(2, FolderActions.MessageTargets(looped, showing: null).Count);
     }
 
     [Fact]

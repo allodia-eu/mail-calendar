@@ -8,11 +8,13 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
@@ -43,6 +45,17 @@ private fun tree() = listOf(
     folder("old", "Old", null, parent = "trash", depth = 1u, inTrash = true, editable = true, acceptsMessages = true),
     folder("work", "Work", null, hasChildren = true, expanded = true, editable = true, acceptsFolders = true, acceptsMessages = true),
     folder("w2024", "2024", null, parent = "work", depth = 1u, editable = true, acceptsFolders = true, acceptsMessages = true),
+)
+
+// Trash holding `Old` holding `Deep`, where only `Deep` takes a folder; Junk, which takes none and
+// holds none; and `Work` holding `2024`.
+private fun deepTree() = listOf(
+    folder("trash", "Trash", FolderRole.TRASH, hasChildren = true),
+    folder("old", "Old", null, parent = "trash", depth = 1u, hasChildren = true, inTrash = true, editable = true),
+    folder("deep", "Deep", null, parent = "old", depth = 2u, inTrash = true, editable = true, acceptsFolders = true),
+    folder("junk", "Junk", FolderRole.JUNK),
+    folder("work", "Work", null, hasChildren = true, editable = true, acceptsFolders = true),
+    folder("w2024", "2024", null, parent = "work", depth = 1u, editable = true, acceptsFolders = true),
 )
 
 @RunWith(RobolectricTestRunner::class)
@@ -110,6 +123,7 @@ class FolderEditingTest {
         val rows = tree()
         val targets = moveTargets(rows[3], rows, ctx())
         assertEquals(listOf(null, "inbox"), targets.map { it.key })
+        assertEquals(L10n.folder_move_top_level(ctx()), targets[0].name)
         assertEquals(L10n.folder_move_top_level(ctx()), targets[0].label)
 
         val fromInside = moveTargets(rows[4], rows, ctx())
@@ -117,10 +131,51 @@ class FolderEditingTest {
     }
 
     @Test
-    fun `a flat list names a folder with the folders it sits in`() {
+    fun `a path names a folder with the folders it sits in`() {
         val paths = folderPaths(tree(), ctx())
         assertEquals("Work / 2024", paths["w2024"])
         assertEquals("${L10n.folder_trash(ctx())} / Old", paths["old"])
+    }
+
+    @Test
+    fun `a picker indents each folder by its depth`() {
+        val mail = messageTargets(tree(), showing = null, ctx())
+        assertEquals(listOf("inbox", "trash", "old", "work", "w2024"), mail.map { it.key })
+        assertEquals(listOf(0, 0, 1, 0, 1), mail.map { it.indent })
+
+        // Under Top level every folder sits one step deeper, as the drawer's tree sits inside its
+        // account.
+        val folders = moveTargets(tree()[0], tree(), ctx())
+        assertEquals(listOf(null, "work", "w2024"), folders.map { it.key })
+        assertEquals(listOf(0, 1, 2), folders.map { it.indent })
+    }
+
+    @Test
+    fun `a picker row shows its own name and is called by its path`() {
+        val targets = moveTargets(deepTree()[4], deepTree(), ctx())
+        val deep = targets.single { it.key == "deep" }
+        assertEquals("Deep", deep.name)
+        assertEquals("${L10n.folder_trash(ctx())} / Old / Deep", deep.label)
+        assertEquals(L10n.folder_trash(ctx()), targets.single { it.key == "trash" }.name)
+        assertEquals(FolderRole.TRASH, targets.single { it.key == "trash" }.role)
+    }
+
+    @Test
+    fun `a parent that is no destination stays as context and does not respond`() {
+        val targets = moveTargets(deepTree()[4], deepTree(), ctx())
+        // Junk takes no folder and holds none that does, so it is left out; Trash and Old hold
+        // one at any depth, so they stay, disabled, in the drawer's order.
+        assertEquals(listOf(null, "trash", "old", "deep"), targets.map { it.key })
+        assertEquals(listOf(true, false, false, true), targets.map { it.enabled })
+        assertEquals(listOf(0, 1, 2, 3), targets.map { it.indent })
+    }
+
+    @Test
+    fun `the folder being moved and everything inside it are never listed`() {
+        // Moving Old takes Deep with it, so Trash is left holding no destination and goes too.
+        val targets = moveTargets(deepTree()[1], deepTree(), ctx())
+        assertEquals(listOf(null, "work", "w2024"), targets.map { it.key })
+        assertTrue(targets.all { it.enabled })
     }
 
     @Test
@@ -135,9 +190,24 @@ class FolderEditingTest {
         val targets = messageTargets(rows, showing = "inbox", ctx())
         assertEquals(listOf("trash", "old", "work", "w2024"), targets.map { it.key })
         assertEquals("Work / 2024", targets.last().label)
-        // No Top level: mail is filed in a folder.
+        assertEquals("2024", targets.last().name)
+        // No Top level: mail is filed in a folder, so the folders sit at their own depth.
         assertTrue(targets.none { it.key == null })
+        assertEquals(listOf(0, 1, 0, 1), targets.map { it.indent })
         assertEquals(5, messageTargets(rows, showing = null, ctx()).size)
+    }
+
+    @Test
+    fun `the folder on screen stays in the message picker only as the parent of one`() {
+        // Work is on screen and 2024 inside it takes mail, so Work stays, disabled, above it.
+        val underWork = messageTargets(tree(), showing = "work", ctx())
+        assertEquals(listOf("inbox", "trash", "old", "work", "w2024"), underWork.map { it.key })
+        assertEquals(listOf(true, true, true, false, true), underWork.map { it.enabled })
+
+        // 2024 holds nothing, so on screen it is simply absent.
+        val leaf = messageTargets(tree(), showing = "w2024", ctx())
+        assertEquals(listOf("inbox", "trash", "old", "work"), leaf.map { it.key })
+        assertTrue(leaf.all { it.enabled })
     }
 
     @Test
@@ -153,8 +223,30 @@ class FolderEditingTest {
             )
         }
         compose.onNodeWithText(L10n.message_move_title(ctx())).assertIsDisplayed()
-        compose.onNodeWithText("Work / 2024").performClick()
+        compose.onNodeWithContentDescription("Work / 2024").performClick()
         assertEquals(listOf("w2024"), picked.map { it.key })
+    }
+
+    @Test
+    fun `a parent the picker keeps for context cannot be picked`() {
+        val picked = mutableListOf<MoveTarget>()
+        val trash = L10n.folder_trash(ctx())
+        compose.setContent {
+            MoveTargetDialog(
+                title = L10n.message_move_title(ctx()),
+                targets = messageTargets(tree(), showing = "trash", ctx()),
+                onPick = { picked.add(it) },
+                onClose = {},
+            )
+        }
+        compose.onNodeWithContentDescription(trash)
+            .assertIsNotEnabled()
+            .assertHasNoClickAction()
+            .performClick()
+        assertEquals(emptyList<String?>(), picked.map { it.key })
+
+        compose.onNodeWithContentDescription("$trash / Old").assertIsEnabled().performClick()
+        assertEquals(listOf("old"), picked.map { it.key })
     }
 
     @Test
@@ -218,7 +310,7 @@ class FolderEditingTest {
 
         compose.onNodeWithText("2024").performTouchInput { longClick() }
         compose.onNodeWithText(L10n.folder_action_move(ctx())).performClick()
-        compose.onNodeWithText(L10n.folder_move_top_level(ctx())).performClick()
+        compose.onNodeWithContentDescription(L10n.folder_move_top_level(ctx())).performClick()
 
         assertEquals(listOf<FolderIntent>(FolderIntent.Move("acct", "w2024", null)), sent)
     }

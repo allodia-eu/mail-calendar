@@ -46,7 +46,7 @@ public sealed partial class MainWindow
     // Escapes are ASCII, greppable, and say exactly which glyph is meant. (They were briefly lost
     // to precisely that: a refactor retyped them from output that had dropped them, and every
     // sidebar icon silently disappeared.)
-    private static readonly SidebarGlyphs Glyphs = new(
+    internal static readonly SidebarGlyphs Glyphs = new(
         Account: "\uE77B",     // Contact
         Folder: "\uE8B7",      // Folder
         AddAccount: "\uE710",  // Add
@@ -70,7 +70,7 @@ public sealed partial class MainWindow
     /// chart, which is why Inbox takes the envelope.
     /// </para>
     /// </remarks>
-    private static string RoleGlyph(SidebarFolderRole role) => role switch
+    internal static string RoleGlyph(SidebarFolderRole role) => role switch
     {
         SidebarFolderRole.Inbox => "\uE715",   // Mail (an envelope)
         SidebarFolderRole.Drafts => "\uE70F",  // Edit (a pencil)

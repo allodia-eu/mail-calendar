@@ -287,8 +287,12 @@ private fun FolderDrawerSheet(
     }
 }
 
-// One step of indent per level of folders inside folders.
-private val FOLDER_INDENT = 16.dp
+// One step of indent per level of folders inside folders. The folder pickers indent by it too.
+internal val FOLDER_INDENT = 16.dp
+
+// How faint a row is drawn that does not respond: a pending folder here, a parent a picker keeps
+// only for context.
+internal const val PENDING_ALPHA = 0.5f
 
 // Rule 27: a change the server has not confirmed is drawn at once, dimmed, and says so to a
 // screen reader.
@@ -296,7 +300,7 @@ private fun Modifier.pendingStyle(pending: Boolean, ctx: android.content.Context
     if (!pending) {
         this
     } else {
-        alpha(0.5f).semantics { stateDescription = L10n.folder_pending(ctx) }
+        alpha(PENDING_ALPHA).semantics { stateDescription = L10n.folder_pending(ctx) }
     }
 
 // The control that opens or shuts the folders inside a folder, or the blank of the same width
@@ -438,9 +442,10 @@ internal fun folderLabel(role: FolderRole?, name: String, ctx: android.content.C
 // Three of these used to be stand-ins forced by what the old material-icons-core subset happened
 // to contain, and Archive was the loud one: it drew a *calendar*. Vendoring the Symbols we
 // actually name removes that constraint, so Inbox, Archive and "some other folder" now get their
-// own glyphs instead of borrowing an unrelated one.
+// own glyphs instead of borrowing an unrelated one. Internal because the folder pickers draw the
+// same glyphs.
 @DrawableRes
-private fun folderIcon(role: FolderRole?): Int =
+internal fun folderIcon(role: FolderRole?): Int =
     when (role) {
         FolderRole.INBOX -> R.drawable.ic_inbox
         FolderRole.DRAFTS -> R.drawable.ic_edit

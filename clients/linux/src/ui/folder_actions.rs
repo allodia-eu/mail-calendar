@@ -9,7 +9,11 @@ use std::{collections::HashSet, rc::Rc, sync::Arc};
 
 use mailcal_bindings::{FolderIntent, FolderNameCheck, FolderRow, Intent, MailcalApp, SelectedRow};
 
-use super::{AppModel, folder_names::folder_label};
+use super::{
+    AppModel,
+    folder_names::folder_label,
+    folder_picker::{PickerRow, picker_folders, picker_rows},
+};
 use crate::l10n;
 
 /// One entry of a pane row's context menu.
@@ -95,33 +99,17 @@ pub(crate) fn path_label(folders: &[FolderRow], row: &FolderRow) -> String {
     parts.join(" / ")
 }
 
-/// One destination Move to… offers: a folder to move into, or the top of the tree.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct MoveCandidate {
-    /// The folder to move into, or `None` for the top level.
-    pub(crate) parent: Option<String>,
-    pub(crate) label: String,
-}
-
-/// The destinations Move to… lists for `moving`: Top level first, then every folder that takes
-/// folders, leaving out the one being moved and everything inside it (rule 24).
-pub(crate) fn move_candidates(folders: &[FolderRow], moving: &str) -> Vec<MoveCandidate> {
+/// The rows Move to… draws for `moving`: Top level first, then the account's tree, where a folder
+/// that takes folders is a destination unless it is the one being moved or inside it (rule 24).
+/// Neither of those can hold a destination either, so they are never drawn.
+pub(crate) fn move_candidates(folders: &[FolderRow], moving: &str) -> Vec<PickerRow> {
     let excluded = subtree(folders, moving);
-    let top = MoveCandidate {
-        parent: None,
-        label: l10n::folder_move_top_level().to_owned(),
-    };
-    std::iter::once(top)
-        .chain(
-            folders
-                .iter()
-                .filter(|folder| folder.accepts_folders && !excluded.contains(&folder.key))
-                .map(|folder| MoveCandidate {
-                    parent: Some(folder.key.clone()),
-                    label: path_label(folders, folder),
-                }),
-        )
-        .collect()
+    let destinations: HashSet<String> = folders
+        .iter()
+        .filter(|folder| folder.accepts_folders && !excluded.contains(&folder.key))
+        .map(|folder| folder.key.clone())
+        .collect();
+    picker_rows(&picker_folders(folders), &destinations, true)
 }
 
 /// What is being dragged across the pane: always one account's.

@@ -16,6 +16,7 @@ import Testing
         _ key: String,
         _ name: String,
         parent: String? = nil,
+        depth: UInt32 = 0,
         role: FolderRole? = nil,
         pending: Bool = false,
         inTrash: Bool = false,
@@ -24,7 +25,7 @@ import Testing
         acceptsMessages: Bool = true
     ) -> FolderRow {
         FolderRow(
-            key: key, name: name, role: role, unread: 0, parent: parent, depth: 0,
+            key: key, name: name, role: role, unread: 0, parent: parent, depth: depth,
             hasChildren: false, expanded: false, visible: true, pending: pending,
             inTrash: inTrash, editable: editable, acceptsFolders: acceptsFolders,
             acceptsMessages: acceptsMessages
@@ -37,8 +38,8 @@ import Testing
             row("inbox", "INBOX", role: .inbox, editable: false),
             row("junk", "Junk", role: .junk, editable: false, acceptsFolders: false, acceptsMessages: false),
             row("work", "Work"),
-            row("w2024", "2024", parent: "work"),
-            row("q1", "Q1", parent: "w2024"),
+            row("w2024", "2024", parent: "work", depth: 1),
+            row("q1", "Q1", parent: "w2024", depth: 2),
         ]
     }
 
@@ -61,28 +62,66 @@ import Testing
 
     // MARK: rule 24, Move to… never offers a place inside the folder itself
 
+    /// The keys of `targets`, Top level as `nil`.
+    private func keys(_ targets: [MoveTarget]) -> [String?] { targets.map(\.key) }
+
     @Test func moveToLeavesOutTheFolderItsBranchAndWhereItAlreadyIs() {
-        let destinations = moveDestinations(for: tree[3], in: tree)
+        let targets = moveTargets(for: tree[3], in: tree)
 
-        #expect(destinations.first == MoveDestination(key: nil, label: L10n.folder_move_top_level()))
-        let parents = destinations.map(\.key)
-        #expect(!parents.contains("w2024"), "not into itself")
-        #expect(!parents.contains("q1"), "not into its own subfolder")
-        #expect(!parents.contains("work"), "not where it already is")
-        #expect(!parents.contains("junk"), "only folders that take folders")
-        #expect(parents.contains("inbox"))
+        let topLevel = L10n.folder_move_top_level()
+        #expect(
+            targets.first
+                == MoveTarget(key: nil, name: topLevel, role: nil, indent: 0, enabled: true, label: topLevel)
+        )
+        let expected: [String?] = [nil, "inbox"]
+        #expect(keys(targets) == expected, "not into itself, its subfolder, where it is, or Junk")
     }
 
-    @Test func aTopLevelFolderIsNotOfferedTheTopLevel() {
-        let parents = moveDestinations(for: tree[2], in: tree).map(\.key)
-        #expect(!parents.contains(nil))
+    @Test func aTopLevelFolderSeesTopLevelAsTheRootButCannotChooseIt() {
+        let targets = moveTargets(for: tree[2], in: tree)
+        let expected: [String?] = [nil, "inbox"]
+        #expect(keys(targets) == expected, "nothing of the folder's own branch, which takes folders")
+        #expect(targets.first?.enabled == false, "it is already there")
+        #expect(targets.last?.indent == 1, "the folders still sit inside it")
     }
 
-    @Test func aDestinationIsNamedByItsPath() {
-        let q1 = moveDestinations(for: row("x", "X"), in: tree).first { $0.key == "q1" }
+    @Test func folderMoveDrawsThePanesTreeOneStepInsideTopLevel() {
+        let targets = moveTargets(for: row("x", "X", parent: "q1", depth: 3), in: tree)
+
+        let expectedKeys: [String?] = [nil, "inbox", "work", "w2024"]
+        #expect(keys(targets) == expectedKeys, "Q1 is where it already is, and holds nothing")
+        #expect(targets.map(\.indent) == [0, 1, 1, 2])
+        #expect(targets.map(\.name) == [L10n.folder_move_top_level(), L10n.folder_inbox(), "Work", "2024"])
+        let expectedRoles: [FolderRole?] = [nil, .inbox, nil, nil]
+        #expect(targets.map(\.role) == expectedRoles)
+        #expect(targets.allSatisfy(\.enabled))
+    }
+
+    @Test func aFolderThatIsNoDestinationStaysDisabledOnlyAboveOneThatIs() {
+        var folders = tree
+        folders.append(row("shared", "Shared", editable: false, acceptsFolders: false, acceptsMessages: false))
+        folders.append(row("team", "Team", parent: "shared", depth: 1))
+
+        let targets = moveTargets(for: row("x", "X", parent: "work", depth: 1), in: folders)
+        let work = targets.first { $0.key == "work" }
+        #expect(work?.enabled == false, "where it already is, kept above 2024")
+        #expect(targets.first { $0.key == "w2024" }?.enabled == true)
+        let shared = targets.first { $0.key == "shared" }
+        #expect(shared?.enabled == false, "takes no folder, kept above Team")
+        #expect(shared?.indent == 1)
+        #expect(targets.first { $0.key == "team" }?.indent == 2)
+        #expect(!keys(targets).contains("junk"), "takes nothing and holds nothing")
+    }
+
+    @Test func aRowShowsItsOwnNameAndIsReadAsItsPath() {
+        let targets = moveTargets(for: row("x", "X"), in: tree)
+        let q1 = targets.first { $0.key == "q1" }
+        #expect(q1?.name == "Q1")
         #expect(q1?.label == "Work / 2024 / Q1")
-        let inbox = moveDestinations(for: row("x", "X"), in: tree).first { $0.key == "inbox" }
-        #expect(inbox?.label == L10n.folder_inbox(), "a role folder takes the app's word")
+        let inbox = targets.first { $0.key == "inbox" }
+        #expect(inbox?.name == L10n.folder_inbox(), "a role folder takes the app's word")
+        #expect(inbox?.label == L10n.folder_inbox())
+        #expect(targets.first?.label == L10n.folder_move_top_level())
     }
 
     // MARK: rule 24, Move to folder… on a message row
@@ -93,18 +132,29 @@ import Testing
         folders.append(row("new", "Travel", pending: true, editable: false, acceptsFolders: false, acceptsMessages: false))
         let mailbox = AccountFolderRow(accountId: "acct-1", folders: folders, managesFolders: true)
 
-        let keys = messageDestinations(in: mailbox, showing: "inbox").map(\.key)
-        #expect(keys == ["work", "w2024", "q1"])
-        #expect(!keys.contains(nil), "mail always sits in a folder, so there is no Top level")
-        #expect(!keys.contains("junk"), "spam is a report")
-        #expect(!keys.contains("drafts"))
-        #expect(!keys.contains("new"), "a folder still being made takes nothing")
-        #expect(!keys.contains("inbox"), "not the folder the mail is already in")
-        #expect(messageDestinations(in: mailbox, showing: nil).map(\.key).contains("inbox"))
+        let targets = messageTargets(in: mailbox, showing: "inbox")
+        let expected: [String?] = ["work", "w2024", "q1"]
+        #expect(keys(targets) == expected, "no Top level: mail always sits in a folder")
+        #expect(targets.map(\.indent) == [0, 1, 2], "each folder at its own depth")
+        #expect(!keys(targets).contains("junk"), "spam is a report")
+        #expect(!keys(targets).contains("drafts"))
+        #expect(!keys(targets).contains("new"), "a folder still being made takes nothing")
+        #expect(!keys(targets).contains("inbox"), "not the folder the mail is already in")
+        #expect(keys(messageTargets(in: mailbox, showing: nil)).contains("inbox"))
         #expect(
-            messageDestinations(in: mailbox, showing: nil).first { $0.key == "q1" }?.label
+            messageTargets(in: mailbox, showing: nil).first { $0.key == "q1" }?.label
                 == "Work / 2024 / Q1"
         )
+    }
+
+    @Test func theFolderOnScreenStaysAsTheParentOfOneThatTakesMail() {
+        let mailbox = AccountFolderRow(accountId: "acct-1", folders: tree, managesFolders: true)
+
+        let fromWork = messageTargets(in: mailbox, showing: "work")
+        #expect(fromWork.first { $0.key == "work" }?.enabled == false)
+        #expect(fromWork.first { $0.key == "w2024" }?.enabled == true)
+        let fromQ1: [String?] = ["inbox", "work", "w2024"]
+        #expect(keys(messageTargets(in: mailbox, showing: "q1")) == fromQ1, "it holds nothing")
     }
 
     @Test func noFolderLeftToOfferMeansNoItem() {

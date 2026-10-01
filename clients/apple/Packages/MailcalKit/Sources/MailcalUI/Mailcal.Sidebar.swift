@@ -98,6 +98,12 @@ let chevronTargetWidth: CGFloat = 32
 /// of folders inside a folder adds again.
 let indentWidth: CGFloat = 16
 
+/// How tall a pane row is drawn: the height its disclosure slot holds it to.
+let paneRowHeight: CGFloat = 28
+
+/// The glyph beside an account, in the pane and on the Move to… row that stands for its top.
+let accountIcon = "person.crop.circle"
+
 extension ContentView {
     /// Whether the mailbox is the surface on screen, which is what decides whether a **mail** row
     /// carries the highlight.
@@ -161,7 +167,7 @@ extension ContentView {
                         )
                         sidebarRow(
                             title: account.email,
-                            icon: "person.crop.circle"
+                            icon: accountIcon
                         ) { selectAccount(account.id) }
                     }
                     // No highlight on the account row itself, exactly as the All Accounts group
@@ -357,13 +363,13 @@ extension ContentView {
             // A pointer hits the glyph; a finger needs the area around it, and a near miss on an
             // account is not a no-op, it lands on the row and navigates. The height stays inside
             // the row so the target grows without the row growing with it.
-            .frame(width: chevronTargetWidth, height: 28)
+            .frame(width: chevronTargetWidth, height: paneRowHeight)
             .contentShape(Rectangle())
     }
 
     /// The space a disclosure control would take, for a row that has none to draw.
     private var disclosureSlot: some View {
-        Color.clear.frame(width: chevronTargetWidth, height: 28)
+        Color.clear.frame(width: chevronTargetWidth, height: paneRowHeight)
     }
 
     /// One row's control: its name, its count, and the whole row as the target.

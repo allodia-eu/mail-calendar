@@ -68,7 +68,7 @@ noted beside it, and the two without one are this app's own drawings.
 | Trash | `trash` | `ic_delete` | `E74D` Delete | `user-trash-symbolic` |
 | Any other folder | `folder` | `ic_folder` | `E8B7` Folder | `folder-symbolic` |
 | All Mail | `tray.full` | — | — | — |
-| An account | `person.crop.circle` | — | `E77B` Contact | `avatar-default-symbolic` |
+| An account | `person.crop.circle` | `ic_account_circle` (Top level in Move to…) | `E77B` Contact | `avatar-default-symbolic` |
 | An account whose server is unreachable | `exclamationmark.triangle.fill` | `ic_warning` | `Symbol.Important` | `dialog-warning-symbolic` |
 | Outbox | `tray.and.arrow.up` | `ic_outbox` | `E898` Upload | `document-send-symbolic` |
 | Add an account | `plus.circle` | — | `E710` Add | `list-add-symbolic` |

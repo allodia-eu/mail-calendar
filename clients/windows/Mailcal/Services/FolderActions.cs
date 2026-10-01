@@ -25,8 +25,20 @@ internal enum FolderMenuAction
     RemoveAccount,
 }
 
-/// <summary>One destination Move to… offers: a folder key, or <c>null</c> for the top level.</summary>
-internal sealed record MoveTarget(string? Key, string Label);
+/// <summary>
+/// One row of a Move to picker, drawn as the pane draws the folder (rule 24): <see cref="Name"/>
+/// beside <see cref="Role"/>'s icon, <see cref="Indent"/> steps in. <see cref="Key"/> is
+/// <c>null</c> for the top level; <see cref="Label"/> is the path, the row's accessible name,
+/// because an indent is not read aloud. A row that is not <see cref="Enabled"/> is a folder that
+/// takes nothing, shown because a destination sits inside it.
+/// </summary>
+internal sealed record MoveTarget(
+    string? Key,
+    string Label,
+    string Name,
+    SidebarFolderRole Role,
+    int Indent,
+    bool Enabled);
 
 /// <summary>A folder being dragged, by its account and key together (rule 14).</summary>
 internal sealed record FolderDrag(string Account, string Key);
@@ -98,23 +110,18 @@ internal static class FolderActions
     }
 
     /// <summary>
-    /// Where Move to… may send the folder <paramref name="key"/>: the top level first, then every
-    /// folder of the account that takes folders, named with the folders it sits in, leaving out the
-    /// folder itself and everything inside it (rule 24).
+    /// Where Move to… may send the folder <paramref name="key"/>: the top level first, then the
+    /// account's tree one step inside it, offering every folder that takes folders and leaving out
+    /// the folder itself and everything inside it (rule 24).
     /// </summary>
     public static IReadOnlyList<MoveTarget> MoveTargets(
         IReadOnlyList<FolderItem> folders, string key, string topLevel)
     {
-        var targets = new List<MoveTarget> { new(null, topLevel) };
-        foreach (var folder in folders)
-        {
-            if (folder.Key is { } candidate
-                && folder.AcceptsFolders
-                && !IsInside(folders, candidate, key))
-            {
-                targets.Add(new MoveTarget(candidate, Path(folders, folder)));
-            }
-        }
+        var targets = new List<MoveTarget> { new(null, topLevel, topLevel, SidebarFolderRole.None, 0, true) };
+        targets.AddRange(Tree(
+            folders,
+            folder => folder.AcceptsFolders && !IsInside(folders, folder.Key!, key),
+            shift: 1));
         return targets;
     }
 
@@ -129,23 +136,71 @@ internal static class FolderActions
     }
 
     /// <summary>
-    /// Where Move to folder… on a message's row menu may send it: every folder of its account that
-    /// takes mail, named as Move to… names folders, leaving out <paramref name="showing"/>, the
-    /// folder the list is showing (<c>null</c> for a list that is not one folder). No Top level,
-    /// since mail is always in a folder. Empty when nothing is left, and then the item is not
-    /// offered (rule 24).
+    /// Where Move to folder… on a message's row menu may send it: the account's tree, offering every
+    /// folder that takes mail except <paramref name="showing"/>, the folder the list is showing
+    /// (<c>null</c> for a list that is not one folder). No Top level, since mail is always in a
+    /// folder. Empty when nothing is offered, and then the item is not shown (rule 24).
     /// </summary>
-    public static IReadOnlyList<MoveTarget> MessageTargets(IReadOnlyList<FolderItem> folders, string? showing)
+    public static IReadOnlyList<MoveTarget> MessageTargets(IReadOnlyList<FolderItem> folders, string? showing) =>
+        Tree(folders, folder => folder.AcceptsMessages && folder.Key != showing, shift: 0);
+
+    /// <summary>
+    /// The account's folders in the pane's order, each <paramref name="shift"/> steps further in
+    /// than its depth: every folder <paramref name="takes"/> accepts, and every folder that holds
+    /// one, which is shown but not enabled so a destination keeps the parent it has in the pane.
+    /// </summary>
+    private static List<MoveTarget> Tree(
+        IReadOnlyList<FolderItem> folders, Func<FolderItem, bool> takes, int shift)
     {
-        var targets = new List<MoveTarget>();
+        var offered = new HashSet<string>();
+        var shown = new HashSet<string>();
         foreach (var folder in folders)
         {
-            if (folder.Key is { } key && folder.AcceptsMessages && key != showing)
+            if (folder.Key is { } key && takes(folder))
             {
-                targets.Add(new MoveTarget(key, Path(folders, folder)));
+                offered.Add(key);
+                foreach (var ancestor in Chain(folders, folder))
+                {
+                    shown.Add(ancestor.Key!);
+                }
             }
         }
-        return targets;
+        var rows = new List<MoveTarget>();
+        foreach (var folder in folders)
+        {
+            if (folder.Key is { } key && shown.Contains(key))
+            {
+                var chain = Chain(folders, folder);
+                rows.Add(new MoveTarget(
+                    key,
+                    string.Join(" / ", chain.Select(f => f.Name).Reverse()),
+                    folder.Name,
+                    folder.Role,
+                    chain.Count - 1 + shift,
+                    offered.Contains(key)));
+            }
+        }
+        return rows;
+    }
+
+    /// <summary><paramref name="folder"/> and the folders it sits in, innermost first. Bounded by
+    /// the list's length, so a tree that loops cannot hang the walk.</summary>
+    private static List<FolderItem> Chain(IReadOnlyList<FolderItem> folders, FolderItem folder)
+    {
+        var chain = new List<FolderItem> { folder };
+        var parent = folder.Parent;
+        while (parent is not null && chain.Count <= folders.Count)
+        {
+            var current = parent;
+            var ancestor = folders.FirstOrDefault(f => f.Key == current);
+            if (ancestor?.Key is null)
+            {
+                break;
+            }
+            chain.Add(ancestor);
+            parent = ancestor.Parent;
+        }
+        return chain;
     }
 
     /// <summary>
@@ -196,26 +251,6 @@ internal static class FolderActions
             at = folders.FirstOrDefault(f => f.Key == current)?.Parent;
         }
         return false;
-    }
-
-    /// <summary>A folder's name with the folders it sits in, "Clients / Acme", for a flat list.</summary>
-    public static string Path(IReadOnlyList<FolderItem> folders, FolderItem folder)
-    {
-        var parts = new List<string> { folder.Name };
-        var parent = folder.Parent;
-        while (parent is not null && parts.Count <= folders.Count)
-        {
-            var current = parent;
-            var ancestor = folders.FirstOrDefault(f => f.Key == current);
-            if (ancestor is null)
-            {
-                break;
-            }
-            parts.Add(ancestor.Name);
-            parent = ancestor.Parent;
-        }
-        parts.Reverse();
-        return string.Join(" / ", parts);
     }
 
     /// <summary>Whether a name dialog may confirm, and the line under its field (rule 25).</summary>

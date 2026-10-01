@@ -46,6 +46,7 @@ mod folder_names;
 mod folder_pane;
 mod folder_pane_edit;
 mod folder_pane_rows;
+mod folder_picker;
 mod google;
 mod host_tasks;
 mod icons;
