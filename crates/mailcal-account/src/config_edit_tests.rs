@@ -163,3 +163,21 @@ fn a_server_reached_by_address_keeps_the_name_it_is_verified_by() {
     );
     assert!(edited.moved.iter().next().is_none());
 }
+
+#[test]
+fn switching_only_the_security_takes_that_security_s_standard_port() {
+    let config = load_str(STANDARDS).unwrap();
+    let mut edit = config.endpoints();
+    assert_eq!(edit.imap_host.as_deref(), Some("imap.example.org"));
+    edit.imap_security = ConnectionSecurity::StartTls;
+    edit.smtp_security = ConnectionSecurity::StartTls;
+    let edited = config.with_endpoints(&edit).unwrap();
+    assert_eq!(
+        edited.config.imap.as_ref().unwrap().addr,
+        "imap.example.org:143"
+    );
+    assert_eq!(
+        edited.config.smtp.as_ref().unwrap().addr,
+        "smtp.example.org:587"
+    );
+}

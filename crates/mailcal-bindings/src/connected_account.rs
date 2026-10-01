@@ -149,6 +149,16 @@ impl ConnectedAccount {
         }
     }
 
+    /// The id the account's own settings derive, whatever id is pinned; `None` when none derives.
+    pub(crate) fn derived_account_id(&self) -> Option<engine_api::AccountId> {
+        match self {
+            Self::Imap { config, .. } => config.derived_account_id().ok(),
+            Self::Microsoft { config, .. } => config.derived_account_id().ok(),
+            Self::Google { config, .. } => config.derived_account_id().ok(),
+            Self::Jmap { config, .. } => config.derived_account_id().ok(),
+        }
+    }
+
     /// The same keys, to change in place.
     pub(crate) const fn shape_mut(&mut self) -> &mut mailcal_account::AccountShape {
         match self {

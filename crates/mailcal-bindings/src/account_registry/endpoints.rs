@@ -37,12 +37,15 @@ impl AccountRegistry {
         let edited = config
             .with_endpoints(edit)
             .map_err(|err| refused(err.to_string()))?;
-        // Another account already keyed by the id these servers would derive is the same
-        // mailbox set up twice.
-        let duplicate = edited
-            .config
-            .derived_account_id()
-            .is_ok_and(|derived| derived.as_str() != id && entries.contains_key(derived.as_str()));
+        // Another account keyed by the id these servers would derive, or whose own servers derive
+        // it (its id pinned before an edit of its own), is the same mailbox set up twice.
+        let duplicate = edited.config.derived_account_id().is_ok_and(|derived| {
+            entries.iter().any(|(other, entry)| {
+                other != id
+                    && (other == derived.as_str()
+                        || entry.derived_account_id().as_ref() == Some(&derived))
+            })
+        });
         if duplicate {
             return Err(refused("that account is already set up".to_owned()));
         }

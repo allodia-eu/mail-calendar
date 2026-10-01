@@ -46,13 +46,19 @@ impl AccountConfig {
     #[must_use]
     pub fn endpoints(&self) -> EndpointEdit {
         EndpointEdit {
-            imap_host: self.imap.as_ref().map(|imap| imap.addr.clone()),
+            imap_host: self
+                .imap
+                .as_ref()
+                .map(|imap| as_typed(&imap.addr, imap_default_port(imap.security))),
             imap_security: self
                 .imap
                 .as_ref()
                 .map(|imap| imap.security)
                 .unwrap_or_default(),
-            smtp_host: self.smtp.as_ref().map(|smtp| smtp.addr.clone()),
+            smtp_host: self
+                .smtp
+                .as_ref()
+                .map(|smtp| as_typed(&smtp.addr, smtp_default_port(smtp.security))),
             smtp_security: self
                 .smtp
                 .as_ref()
@@ -207,6 +213,15 @@ fn kept_server_name(old: Option<(&String, &String)>, addr: &str, derived: String
     match old {
         Some((old_addr, old_name)) if same_host(old_addr, addr) => old_name.clone(),
         _ => derived,
+    }
+}
+
+/// A server's dial address as a person would type it: the bare host when the port is the standard
+/// one for its security, so a form that switches only the security gets that security's port.
+fn as_typed(addr: &str, default_port: u16) -> String {
+    match addr.rsplit_once(':') {
+        Some((host, port)) if port == default_port.to_string() => host.to_owned(),
+        _ => addr.to_owned(),
     }
 }
 

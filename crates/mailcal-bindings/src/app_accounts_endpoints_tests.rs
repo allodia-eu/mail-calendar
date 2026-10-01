@@ -34,12 +34,20 @@ password = "pw"
 const ALICE_ID: &str = "alice@example.org@localhost";
 
 fn app(name: &str, store: &Arc<RecordingCredentialStore>) -> Arc<MailcalApp> {
+    app_with(name, store, &[ALICE, BOB])
+}
+
+fn app_with(
+    name: &str,
+    store: &Arc<RecordingCredentialStore>,
+    configs: &[&str],
+) -> Arc<MailcalApp> {
     let (tx, _rx) = mpsc::channel();
     MailcalApp::new_accounts(
         Box::new(ChannelObserver { tx }),
         Box::new(NullLogger),
         LogLevel::Info,
-        vec![ALICE.to_owned(), BOB.to_owned()],
+        configs.iter().map(|config| (*config).to_owned()).collect(),
         temp_data_dir(name).to_string_lossy().into_owned(),
         "Etc/UTC".to_owned(),
         crate::analytics::test_device(),
@@ -104,4 +112,26 @@ fn an_edit_that_would_duplicate_an_account_or_strand_a_use_is_refused() {
         Err(MailcalError::Config(_))
     ));
     assert!(store.persisted.lock().unwrap().is_empty());
+}
+
+/// An account edited onto new servers keeps the id it had, so another account's edit onto the
+/// same servers is caught by what its servers derive, not by its id.
+#[test]
+fn an_edit_onto_servers_an_edited_account_already_uses_is_refused() {
+    let moved_alice = format!("id = \"alice@example.org@old.example\"\n{ALICE}");
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app_with("endpoints-moved", &store, &[&moved_alice, BOB]);
+    let bob = app
+        .accounts_snapshot()
+        .accounts
+        .into_iter()
+        .find(|entry| entry.id == "bob@example.org@localhost")
+        .expect("listed");
+    let mut onto_alice = bob.endpoints.expect("editable");
+    onto_alice.username = "alice@example.org".to_owned();
+
+    assert!(matches!(
+        app.update_account_endpoints(bob.id, onto_alice),
+        Err(MailcalError::Config(_))
+    ));
 }
