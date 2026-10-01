@@ -78,7 +78,7 @@ fn present_detail(
         group.add(&detail_row(l10n::event_location(), location));
     }
     if let Some(notes) = detail.notes.as_deref().filter(|value| !value.is_empty()) {
-        group.add(&notes_row(notes));
+        group.add(&crate::ui::linked_text::row(l10n::event_notes(), notes));
     }
     group.add(&detail_row(
         l10n::event_reminder(),
@@ -435,28 +435,6 @@ fn detail_row(label: &str, value: &str) -> adw::ActionRow {
         .subtitle(value)
         .use_markup(false)
         .build()
-}
-
-/// The notes, laid out like a [`detail_row`]: a row's subtitle has no hook to gate a link's click.
-fn notes_row(notes: &str) -> gtk::ListBoxRow {
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 3);
-    content.set_margin_top(8);
-    content.set_margin_bottom(8);
-    content.set_margin_start(12);
-    content.set_margin_end(12);
-    // The classes an `AdwActionRow` gives its own two labels, so the notes read at the size and
-    // weight of every other row's value.
-    let title = gtk::Label::new(Some(l10n::event_notes()));
-    title.set_xalign(0.0);
-    title.add_css_class("title");
-    let value = crate::ui::linked_text::label(notes);
-    value.add_css_class("subtitle");
-    content.append(&title);
-    content.append(&value);
-    let row = gtk::ListBoxRow::new();
-    row.set_activatable(false);
-    row.set_child(Some(&content));
-    row
 }
 
 fn title(value: &str) -> String {

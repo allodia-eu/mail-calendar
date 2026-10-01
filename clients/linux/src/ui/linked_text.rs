@@ -40,6 +40,28 @@ pub(crate) fn label(text: &str) -> gtk::Label {
     label
 }
 
+/// A row laid out like an `AdwActionRow`, titled `title`, whose value is `text` with its addresses
+/// as links: an action row's subtitle has no hook to gate a link's click. The labels carry the
+/// classes an action row gives its own two, so the value reads at the size of every other row's.
+pub(crate) fn row(title: &str, text: &str) -> gtk::ListBoxRow {
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 3);
+    content.set_margin_top(8);
+    content.set_margin_bottom(8);
+    content.set_margin_start(12);
+    content.set_margin_end(12);
+    let heading = gtk::Label::new(Some(title));
+    heading.set_xalign(0.0);
+    heading.add_css_class("title");
+    let value = label(text);
+    value.add_css_class("subtitle");
+    content.append(&heading);
+    content.append(&value);
+    let row = gtk::ListBoxRow::new();
+    row.set_activatable(false);
+    row.set_child(Some(&content));
+    row
+}
+
 /// Replaces what `label` shows. The label must have been through [`open_through_gate`].
 pub(crate) fn set(label: &gtk::Label, text: &str) {
     label.set_markup(&markup(text));
