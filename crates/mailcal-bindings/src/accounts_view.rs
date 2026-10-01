@@ -26,6 +26,8 @@ pub(crate) struct AccountFacts {
     pub(crate) files_invitations: bool,
     /// Its links as stored, valid or not.
     pub(crate) links: AccountLinks,
+    /// Its servers and login, when Settings can edit them.
+    pub(crate) endpoints: Option<mailcal_account::EndpointEdit>,
 }
 
 /// Every account's entry, in the order `facts` lists them. `calendar_refused` holds the accounts
@@ -81,6 +83,7 @@ pub(crate) fn entries(
                     mail: offer(LinkSlot::Mail),
                 }
             },
+            endpoints: account.endpoints.clone().map(Into::into),
         })
         .collect()
 }

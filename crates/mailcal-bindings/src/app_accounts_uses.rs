@@ -82,7 +82,7 @@ impl MailcalApp {
 impl MailcalApp {
     /// Lists `id` again without providers and stops its background sync, so nothing it no longer
     /// opens keeps syncing until its next dial.
-    fn list_without_providers(&self, id: &AccountId) {
+    pub(crate) fn list_without_providers(&self, id: &AccountId) {
         let Some(placeholder) = self.registry.placeholder(id) else {
             return;
         };
@@ -96,7 +96,7 @@ impl MailcalApp {
 /// What the store forgets when an account stops being used for `capability`. Colleagues are
 /// stored as cards beside the account's own with no line between them, so both go, and the
 /// account's own come back with its next contacts sync.
-const fn domain_of(capability: Capability) -> SearchDomain {
+pub(crate) const fn domain_of(capability: Capability) -> SearchDomain {
     match capability {
         Capability::Mail => SearchDomain::Mail,
         Capability::Calendar => SearchDomain::Calendar,

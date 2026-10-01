@@ -461,6 +461,9 @@ pub enum ConfigError {
     /// section.
     #[error("the account names no server: it needs an [imap], [caldav] or [carddav] section")]
     NoEndpoint,
+    /// An edit the account cannot take, and why.
+    #[error("{0}")]
+    Refused(&'static str),
     /// The setup fields could not be serialized to TOML.
     #[error("serializing config: {0}")]
     Serialize(#[from] toml::ser::Error),
