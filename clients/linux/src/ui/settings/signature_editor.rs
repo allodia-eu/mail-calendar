@@ -85,6 +85,7 @@ pub(super) fn open(ctx: &PageContext, editing: EditingSignature, on_saved: impl 
     content.append(&body_label);
 
     let web = SecureWebView::new(DocumentKind::Composer, ctx.sender.clone());
+    super::super::composer_host::install(web.widget());
     // WebKit does not put its document on the accessibility bus here, so the host frame carries
     // the name; the same reason the composer labels the box around its editor rather than the
     // view itself. Named once the bundle has parsed, in `seed_body`.
@@ -165,9 +166,10 @@ fn seed_body(web: &SecureWebView, body_html: &str, host: &gtk::Frame) {
         // Writing the signature is the only thing this screen is for, so the caret opens in it.
         // Asked for rather than assumed: the shared bundle focuses nothing of its own accord,
         // because in the composer the caret belongs in To (docs/contacts.md §4).
+        let announce = super::super::composer_host::announce_script();
         let script = format!(
-            "window.setComposerLabels({labels});window.setSignatureBody({body}, {placeholder});\
-             window.focusComposerBody();"
+            "window.setComposerLabels({labels});{announce}\
+             window.setSignatureBody({body}, {placeholder});window.focusComposerBody();"
         );
         view.evaluate_javascript(&script, None, None, None::<&gio::Cancellable>, |_| {});
     });

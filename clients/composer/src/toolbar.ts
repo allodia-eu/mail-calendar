@@ -30,6 +30,10 @@ const HIGHLIGHTS = ["#ffff00", "#92d050", "#00ffff", "#ff99cc", "#ffc000", "#c0c
 const PICKER_ROWS = 6;
 const PICKER_COLUMNS = 8;
 
+/// The gap a pinned popover keeps from the editor's edges, in CSS pixels: half of what the link
+/// editor's `max-width` in editor.css leaves, so the widest panel still fits between the two.
+const VIEWPORT_MARGIN = 8;
+
 interface Popover {
   button: HTMLElement;
   panel: HTMLElement;
@@ -42,7 +46,14 @@ export interface Toolbar {
   openLink(): void;
 }
 
-export function installToolbar(editor: HTMLElement, root: HTMLElement, labels: () => Labels): Toolbar {
+/// `openLinkInHost` hands the link editor to the host's own dialog, answering false when the host
+/// does not draw one; the toolbar then opens its popover.
+export function installToolbar(
+  editor: HTMLElement,
+  root: HTMLElement,
+  labels: () => Labels,
+  openLinkInHost: () => boolean = () => false,
+): Toolbar {
   const doc = documentOf(root);
   const byId = <T extends HTMLElement>(id: string): T => {
     const node = doc.getElementById(id);
@@ -92,22 +103,30 @@ export function installToolbar(editor: HTMLElement, root: HTMLElement, labels: (
   // the time, and wrong here means the menu opens outside the WebView and is clipped away: no
   // scrollbar, no overflow, just gone.
   //
-  // Measured against the editor's own viewport, and only flipped when it does not fit, so the
-  // default stays left-aligned under its button.
+  // Measured against the editor's own viewport, and only moved when it does not fit, so the default
+  // stays left-aligned under its button. A panel too wide for either edge of a button in the middle
+  // of a narrow toolbar (the link editor, on a phone or in macOS's detail column) is pinned inside
+  // the viewport instead, by an offset from the button, which is where its `.menu` box starts.
   const alignPopover = (popover: Popover) => {
     popover.panel.classList.remove("align-end");
-    const view = windowOf(editor);
-    const width = view.innerWidth;
-    // A hidden panel measures 0; reveal it for the measurement and restore, so the class is decided
-    // before anything paints.
+    popover.panel.style.left = "";
+    // The layout width, which leaves out a classic scrollbar (macOS with a mouse attached), so a
+    // pinned panel does not run under it; `innerWidth` where there is no layout to ask.
+    const width = doc.documentElement.clientWidth || windowOf(editor).innerWidth;
+    // A hidden panel measures 0; reveal it for the measurement and restore, so the position is
+    // decided before anything paints.
     const wasHidden = popover.panel.hidden;
     popover.panel.hidden = false;
     const button = popover.button.getBoundingClientRect();
     const panel = popover.panel.getBoundingClientRect();
     popover.panel.hidden = wasHidden;
-    if (width > 0 && panel.width > 0 && button.left + panel.width > width) {
+    if (width <= 0 || panel.width <= 0 || button.left + panel.width <= width) return;
+    if (button.left + button.width - panel.width >= 0) {
       popover.panel.classList.add("align-end");
+      return;
     }
+    const left = Math.max(VIEWPORT_MARGIN, width - panel.width - VIEWPORT_MARGIN);
+    popover.panel.style.left = `${left - button.left}px`;
   };
 
   const popovers: Popover[] = [];
@@ -190,9 +209,18 @@ export function installToolbar(editor: HTMLElement, root: HTMLElement, labels: (
   swatchBar("highlight-bar", HIGHLIGHTS[0]!);
 
   register("table", "table-menu", (panel) => buildTableMenu(panel, editor, doc, labels(), closeAll));
-  const link = register("link", "link-menu", (panel) =>
-    buildLinkMenu(panel, editor, doc, labels(), () => closeAll()),
-  );
+  const link: Popover = {
+    button: byId("link"),
+    panel: byId("link-menu"),
+    build: () => buildLinkMenu(byId("link-menu"), editor, doc, labels(), () => closeAll()),
+  };
+  popovers.push(link);
+  const openLink = () => {
+    if (!link.panel.hidden) return;
+    if (openLinkInHost()) closeAll();
+    else toggle(link);
+  };
+  link.button.addEventListener("click", () => (link.panel.hidden ? openLink() : toggle(link)));
 
   // Clicking away or pressing Escape closes an open popover; without this the palette would stay
   // over the message the user just went back to writing.
@@ -204,9 +232,7 @@ export function installToolbar(editor: HTMLElement, root: HTMLElement, labels: (
   });
 
   return {
-    openLink() {
-      if (link.panel.hidden) toggle(link);
-    },
+    openLink,
     applyLabels(current: Labels) {
       editor.dataset.placeholder = current.placeholder;
       editor.setAttribute("aria-label", current.placeholder);

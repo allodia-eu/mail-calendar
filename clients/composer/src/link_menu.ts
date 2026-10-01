@@ -1,4 +1,5 @@
-// The link editor: the toolbar popover that makes, changes and removes a link.
+// The link editor, which makes, changes and removes a link: the host's own dialog where the host
+// answers `link` requests (`host_requests.ts`), and otherwise a popover under the toolbar button.
 //
 // Two fields, the words and the address, the way Outlook asks. It opens filled from what the
 // selection is on: an existing link's words and target, or the selected text. The selection is
@@ -6,8 +7,67 @@
 // message, and it is put back before anything is applied.
 
 import { type SavedSelection, focusEditor, rangeWithin, restoreSelection, saveSelection } from "./dom";
+import { type HostRequests } from "./host_requests";
 import { type Labels } from "./labels";
-import { applyLink, linkAtCaret, normalizeLinkAddress, removeLink, selectionHasLink } from "./links";
+import {
+  applyLink,
+  linkAtCaret,
+  normalizeLinkAddress,
+  removeLink,
+  safeLinkHref,
+  selectionHasLink,
+} from "./links";
+
+/// What the link editor opens with, read before anything takes focus.
+interface LinkStart {
+  saved: SavedSelection | null;
+  existing: HTMLAnchorElement | null;
+  /// The selected words, or the existing link's.
+  selected: string;
+  /// The existing link's target as the user would type it: a mail link without its `mailto:`.
+  address: string;
+  removable: boolean;
+}
+
+function linkStart(editor: HTMLElement): LinkStart {
+  const saved = saveSelection(editor);
+  const existing = linkAtCaret(editor);
+  return {
+    saved,
+    existing,
+    selected: existing ? (existing.textContent ?? "") : (rangeWithin(editor)?.toString() ?? ""),
+    address: existing?.getAttribute("href")?.replace(/^mailto:/i, "") ?? "",
+    removable: Boolean(existing) || selectionHasLink(editor, saved),
+  };
+}
+
+/// The words to show, or empty to keep the selected ones as they are.
+function wordsFor(start: LinkStart, typed: string): string {
+  return typed.trim() === start.selected.trim() ? "" : typed;
+}
+
+/// Asks the host's link dialog, then makes, changes or removes the link it answers with. The host
+/// has completed and checked the address in the core already; it is checked again here, because
+/// what reaches the document is this file's promise to keep.
+export async function editLinkThroughHost(editor: HTMLElement, requests: HostRequests): Promise<void> {
+  const start = linkStart(editor);
+  const answer = await requests.request("link", {
+    text: start.selected,
+    address: start.address,
+    removable: start.removable,
+  });
+  if (answer === "remove") {
+    removeLink(editor, start.saved);
+    return;
+  }
+  const href = answer === null || answer === "cancel" ? null : safeLinkHref(answer.apply.address);
+  if (href === null || answer === null || answer === "cancel") {
+    focusEditor(editor);
+    restoreSelection(editor, start.saved);
+    return;
+  }
+  applyLink(editor, start.saved, start.existing, { href, text: wordsFor(start, answer.apply.text) });
+}
 
 export function buildLinkMenu(
   panel: HTMLElement,
@@ -17,9 +77,8 @@ export function buildLinkMenu(
   close: () => void,
 ): void {
   panel.textContent = "";
-  const saved: SavedSelection | null = saveSelection(editor);
-  const existing = linkAtCaret(editor);
-  const selected = existing ? (existing.textContent ?? "") : (rangeWithin(editor)?.toString() ?? "");
+  const start = linkStart(editor);
+  const { saved, existing, selected } = start;
 
   const field = (label: string, value: string, name: string) => {
     const wrapper = doc.createElement("label");
@@ -38,11 +97,7 @@ export function buildLinkMenu(
   };
 
   const text = field(labels.linkText, selected, "link-text");
-  const address = field(
-    labels.linkAddress,
-    existing?.getAttribute("href")?.replace(/^mailto:/i, "") ?? "",
-    "link-address",
-  );
+  const address = field(labels.linkAddress, start.address, "link-address");
   address.inputMode = "url";
 
   const actions = doc.createElement("div");
@@ -70,11 +125,10 @@ export function buildLinkMenu(
       return;
     }
     close();
-    const words = text.value.trim() === selected.trim() ? "" : text.value;
-    applyLink(editor, saved, existing, { href, text: words });
+    applyLink(editor, saved, existing, { href, text: wordsFor(start, text.value) });
   };
 
-  if (existing || selectionHasLink(editor, saved)) {
+  if (start.removable) {
     button(labels.linkRemove, () => {
       close();
       removeLink(editor, saved);

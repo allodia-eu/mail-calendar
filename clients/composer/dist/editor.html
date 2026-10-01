@@ -1549,6 +1549,74 @@
     };
   }
 
+  // src/host_requests.ts
+  var KINDS = ["link"];
+  function channelOf(win) {
+    const scope = win;
+    const handler = scope.webkit?.messageHandlers?.composerHost;
+    if (handler)
+      return (message) => handler.postMessage(message);
+    const webview = scope.chrome?.webview;
+    if (webview)
+      return (message) => webview.postMessage(message);
+    const injected = scope.composerHost;
+    if (injected)
+      return (message) => injected.postMessage(message);
+    return null;
+  }
+
+  class HostRequests {
+    win;
+    answered = new Set;
+    pending = new Map;
+    nextId = 1;
+    constructor(win) {
+      this.win = win;
+    }
+    setAnswered(kinds) {
+      this.answered.clear();
+      if (!Array.isArray(kinds))
+        return;
+      for (const kind of kinds) {
+        if (KINDS.includes(kind))
+          this.answered.add(kind);
+      }
+    }
+    answers(kind) {
+      return this.answered.has(kind) && channelOf(this.win) !== null;
+    }
+    request(kind, payload) {
+      const post = channelOf(this.win);
+      if (!post || !this.answered.has(kind))
+        return Promise.resolve(null);
+      const id = this.nextId++;
+      return new Promise((resolve) => {
+        this.pending.set(id, (answer) => resolve(answerOf(kind, answer)));
+        post(JSON.stringify({ id, request: { [kind]: payload } }));
+      });
+    }
+    answer(id, value) {
+      const key = Number(id);
+      const resolve = this.pending.get(key);
+      if (!resolve)
+        return;
+      this.pending.delete(key);
+      resolve(value);
+    }
+  }
+  function answerOf(kind, value) {
+    const answer = value?.[kind];
+    if (kind === "link") {
+      if (answer === "remove" || answer === "cancel")
+        return answer;
+      const apply = answer?.apply;
+      if (apply && typeof apply.text === "string" && typeof apply.address === "string") {
+        return { apply: { text: apply.text, address: apply.address } };
+      }
+    }
+    return null;
+  }
+
   // src/images.ts
   var MAX_CAPTURED_BYTES = 20 * 1024 * 1024;
   var SHOWABLE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -1669,6 +1737,117 @@
     } catch {
       return {};
     }
+  }
+
+  // src/link_menu.ts
+  function linkStart(editor) {
+    const saved = saveSelection(editor);
+    const existing = linkAtCaret(editor);
+    return {
+      saved,
+      existing,
+      selected: existing ? existing.textContent ?? "" : rangeWithin(editor)?.toString() ?? "",
+      address: existing?.getAttribute("href")?.replace(/^mailto:/i, "") ?? "",
+      removable: Boolean(existing) || selectionHasLink(editor, saved)
+    };
+  }
+  function wordsFor(start, typed) {
+    return typed.trim() === start.selected.trim() ? "" : typed;
+  }
+  async function editLinkThroughHost(editor, requests) {
+    const start = linkStart(editor);
+    const answer = await requests.request("link", {
+      text: start.selected,
+      address: start.address,
+      removable: start.removable
+    });
+    if (answer === "remove") {
+      removeLink(editor, start.saved);
+      return;
+    }
+    const href = answer === null || answer === "cancel" ? null : safeLinkHref(answer.apply.address);
+    if (href === null || answer === null || answer === "cancel") {
+      focusEditor(editor);
+      restoreSelection(editor, start.saved);
+      return;
+    }
+    applyLink(editor, start.saved, start.existing, { href, text: wordsFor(start, answer.apply.text) });
+  }
+  function buildLinkMenu(panel, editor, doc, labels, close) {
+    panel.textContent = "";
+    const start = linkStart(editor);
+    const { saved, existing, selected } = start;
+    const field = (label, value, name) => {
+      const wrapper = doc.createElement("label");
+      wrapper.className = "field";
+      const caption = doc.createElement("span");
+      caption.textContent = label;
+      const input = doc.createElement("input");
+      input.type = "text";
+      input.name = name;
+      input.value = value;
+      input.spellcheck = false;
+      input.autocomplete = "off";
+      wrapper.append(caption, input);
+      panel.appendChild(wrapper);
+      return input;
+    };
+    const text = field(labels.linkText, selected, "link-text");
+    const address = field(labels.linkAddress, start.address, "link-address");
+    address.inputMode = "url";
+    const actions = doc.createElement("div");
+    actions.className = "actions";
+    const button = (label, run, primary = false) => {
+      const node = doc.createElement("button");
+      node.type = "button";
+      node.textContent = label;
+      if (primary)
+        node.className = "primary";
+      node.addEventListener("click", run);
+      actions.appendChild(node);
+      return node;
+    };
+    const dismiss = () => {
+      close();
+      focusEditor(editor);
+      restoreSelection(editor, saved);
+    };
+    const apply = () => {
+      const href = normalizeLinkAddress(address.value);
+      if (!href) {
+        address.setAttribute("aria-invalid", "true");
+        address.focus();
+        return;
+      }
+      close();
+      applyLink(editor, saved, existing, { href, text: wordsFor(start, text.value) });
+    };
+    if (start.removable) {
+      button(labels.linkRemove, () => {
+        close();
+        removeLink(editor, saved);
+      });
+    }
+    const applyButton = button(labels.linkApply, apply, true);
+    panel.appendChild(actions);
+    const sync = () => {
+      address.removeAttribute("aria-invalid");
+      applyButton.disabled = address.value.trim() === "";
+    };
+    address.addEventListener("input", sync);
+    sync();
+    for (const input of [text, address]) {
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          apply();
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          dismiss();
+        }
+      });
+    }
+    doc.defaultView?.setTimeout(() => address.focus(), 0);
   }
 
   // src/lists.ts
@@ -2142,86 +2321,6 @@
     return true;
   }
 
-  // src/link_menu.ts
-  function buildLinkMenu(panel, editor, doc, labels, close) {
-    panel.textContent = "";
-    const saved = saveSelection(editor);
-    const existing = linkAtCaret(editor);
-    const selected = existing ? existing.textContent ?? "" : rangeWithin(editor)?.toString() ?? "";
-    const field = (label, value, name) => {
-      const wrapper = doc.createElement("label");
-      wrapper.className = "field";
-      const caption = doc.createElement("span");
-      caption.textContent = label;
-      const input = doc.createElement("input");
-      input.type = "text";
-      input.name = name;
-      input.value = value;
-      input.spellcheck = false;
-      input.autocomplete = "off";
-      wrapper.append(caption, input);
-      panel.appendChild(wrapper);
-      return input;
-    };
-    const text = field(labels.linkText, selected, "link-text");
-    const address = field(labels.linkAddress, existing?.getAttribute("href")?.replace(/^mailto:/i, "") ?? "", "link-address");
-    address.inputMode = "url";
-    const actions = doc.createElement("div");
-    actions.className = "actions";
-    const button = (label, run, primary = false) => {
-      const node = doc.createElement("button");
-      node.type = "button";
-      node.textContent = label;
-      if (primary)
-        node.className = "primary";
-      node.addEventListener("click", run);
-      actions.appendChild(node);
-      return node;
-    };
-    const dismiss = () => {
-      close();
-      focusEditor(editor);
-      restoreSelection(editor, saved);
-    };
-    const apply = () => {
-      const href = normalizeLinkAddress(address.value);
-      if (!href) {
-        address.setAttribute("aria-invalid", "true");
-        address.focus();
-        return;
-      }
-      close();
-      const words = text.value.trim() === selected.trim() ? "" : text.value;
-      applyLink(editor, saved, existing, { href, text: words });
-    };
-    if (existing || selectionHasLink(editor, saved)) {
-      button(labels.linkRemove, () => {
-        close();
-        removeLink(editor, saved);
-      });
-    }
-    const applyButton = button(labels.linkApply, apply, true);
-    panel.appendChild(actions);
-    const sync = () => {
-      address.removeAttribute("aria-invalid");
-      applyButton.disabled = address.value.trim() === "";
-    };
-    address.addEventListener("input", sync);
-    sync();
-    for (const input of [text, address]) {
-      input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          apply();
-        } else if (event.key === "Escape") {
-          event.preventDefault();
-          dismiss();
-        }
-      });
-    }
-    doc.defaultView?.setTimeout(() => address.focus(), 0);
-  }
-
   // src/toolbar.ts
   var TEXT_COLOURS = [
     "#000000",
@@ -2240,7 +2339,8 @@
   var HIGHLIGHTS = ["#ffff00", "#92d050", "#00ffff", "#ff99cc", "#ffc000", "#c0c0c0"];
   var PICKER_ROWS = 6;
   var PICKER_COLUMNS = 8;
-  function installToolbar(editor, root, labels) {
+  var VIEWPORT_MARGIN = 8;
+  function installToolbar(editor, root, labels, openLinkInHost = () => false) {
     const doc = documentOf(root);
     const byId = (id) => {
       const node = doc.getElementById(id);
@@ -2272,16 +2372,21 @@
     byId("outdent").addEventListener("click", () => indentSelection(editor, true));
     const alignPopover = (popover) => {
       popover.panel.classList.remove("align-end");
-      const view = windowOf(editor);
-      const width = view.innerWidth;
+      popover.panel.style.left = "";
+      const width = doc.documentElement.clientWidth || windowOf(editor).innerWidth;
       const wasHidden = popover.panel.hidden;
       popover.panel.hidden = false;
       const button = popover.button.getBoundingClientRect();
       const panel = popover.panel.getBoundingClientRect();
       popover.panel.hidden = wasHidden;
-      if (width > 0 && panel.width > 0 && button.left + panel.width > width) {
+      if (width <= 0 || panel.width <= 0 || button.left + panel.width <= width)
+        return;
+      if (button.left + button.width - panel.width >= 0) {
         popover.panel.classList.add("align-end");
+        return;
       }
+      const left = Math.max(VIEWPORT_MARGIN, width - panel.width - VIEWPORT_MARGIN);
+      popover.panel.style.left = `${left - button.left}px`;
     };
     const popovers = [];
     const closeAll = (except) => {
@@ -2347,7 +2452,21 @@
     register("highlight", "highlight-menu", paletteBuilder("highlight", HIGHLIGHTS, "highlight-bar", () => labels().highlightNone));
     swatchBar("highlight-bar", HIGHLIGHTS[0]);
     register("table", "table-menu", (panel) => buildTableMenu(panel, editor, doc, labels(), closeAll));
-    const link = register("link", "link-menu", (panel) => buildLinkMenu(panel, editor, doc, labels(), () => closeAll()));
+    const link = {
+      button: byId("link"),
+      panel: byId("link-menu"),
+      build: () => buildLinkMenu(byId("link-menu"), editor, doc, labels(), () => closeAll())
+    };
+    popovers.push(link);
+    const openLink = () => {
+      if (!link.panel.hidden)
+        return;
+      if (openLinkInHost())
+        closeAll();
+      else
+        toggle(link);
+    };
+    link.button.addEventListener("click", () => link.panel.hidden ? openLink() : toggle(link));
     doc.addEventListener("mousedown", (event) => {
       if (!event.target?.closest?.(".menu"))
         closeAll();
@@ -2357,10 +2476,7 @@
         closeAll();
     });
     return {
-      openLink() {
-        if (link.panel.hidden)
-          toggle(link);
-      },
+      openLink,
       applyLabels(current) {
         editor.dataset.placeholder = current.placeholder;
         editor.setAttribute("aria-label", current.placeholder);
@@ -2463,8 +2579,14 @@
   var editor = doc.getElementById("editor");
   var toolbarRoot = doc.querySelector(".toolbar");
   var attachments = new Attachments;
+  var hostRequests = new HostRequests(window);
   var labels = DEFAULT_LABELS;
-  var toolbar = installToolbar(editor, toolbarRoot, () => labels);
+  var toolbar = installToolbar(editor, toolbarRoot, () => labels, () => {
+    if (!hostRequests.answers("link"))
+      return false;
+    editLinkThroughHost(editor, hostRequests);
+    return true;
+  });
   var chrome = installNativeChrome(editor, toolbarRoot);
   installImageResize(editor);
   editor.addEventListener("paste", (event) => {
@@ -2538,6 +2660,8 @@
   window.setPlainText = (text) => setPlainText(editor, text);
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
+  window.setComposerHostRequests = (kinds) => hostRequests.setAnswered(kinds);
+  window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
   window.setComposerLabels = (incoming) => {
     labels = mergeLabels(labels, incoming);
     toolbar.applyLabels(labels);

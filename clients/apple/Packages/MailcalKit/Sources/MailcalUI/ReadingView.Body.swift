@@ -134,7 +134,7 @@ extension ReadingView {
     /// already holds it and the header above it, and a scroll of its own on macOS.
     @ViewBuilder
     private func plainBody(_ plain: String) -> some View {
-        let text = Text(LinkedText.attributed(linkingIn: plain))
+        let text = LinkedText.text(linkingIn: plain)
             .font(.body)
             .textSelection(.enabled)
             .gatedLinkOpening()

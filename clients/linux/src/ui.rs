@@ -25,6 +25,7 @@ mod composer;
 mod composer_attach;
 mod composer_draft;
 mod composer_header;
+mod composer_host;
 mod composer_model;
 mod composer_notice;
 mod composer_open;

@@ -141,6 +141,7 @@ internal fun WebView.configureComposerWebView(
             for (script in composerPageFinishedScripts(labelsJson, quote, topInsetDp(), signature(), body)) {
                 view?.evaluateJavascript(script, null)
             }
+            view?.announceComposerHost()
             // Snapshot the seeded document as the discard prompt's baseline. Queued AFTER the
             // seeds (the WebView runs these in order) so a reply that merely carries its quoted
             // original and a signature does not open already "dirty", and BEFORE the focus call,

@@ -60,6 +60,7 @@ mod background_sync;
 mod boot;
 mod composer;
 mod composer_files;
+mod composer_host;
 mod composer_reply;
 mod connected_account;
 mod connection_log;
@@ -157,6 +158,11 @@ pub use composer::{
 pub use composer_files::{
     ComposerFileAttachment, MAX_INLINE_IMAGE_BYTES, composer_image_data_url,
     composer_image_data_url_from_bytes,
+};
+pub use composer_host::{
+    COMPOSER_HOST_CHANNEL, ComposerHostRequest, ComposerLinkAnswer, composer_host_channel,
+    composer_host_requests_script, composer_link_address, composer_link_answer_script,
+    parse_composer_host_request,
 };
 pub(crate) use connected_account::ConnectedAccount;
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};

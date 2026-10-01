@@ -44,7 +44,7 @@ struct EventDetailView: View {
                     labeled(L10n.event_location(), location)
                 }
                 if let notes = detail.notes, !notes.isEmpty {
-                    labeled(L10n.event_notes(), Text(LinkedText.attributed(linkingIn: notes)))
+                    labeled(L10n.event_notes(), LinkedText.text(linkingIn: notes))
                         .gatedLinkOpening()
                 }
                 labeled(L10n.event_reminder(), reminderText(detail.reminderMinutes))

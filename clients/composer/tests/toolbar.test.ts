@@ -25,13 +25,21 @@ let editor: HTMLElement;
 let toolbar: Toolbar;
 let labels: Labels;
 
+let hostTakesLink = false;
+
 function mount() {
+  hostTakesLink = false;
   window = new Window();
   document = window.document as unknown as Document;
   document.body.innerHTML = BODY;
   editor = document.getElementById("editor") as HTMLElement;
   labels = DEFAULT_LABELS;
-  toolbar = installToolbar(editor, document.querySelector(".toolbar") as HTMLElement, () => labels);
+  toolbar = installToolbar(
+    editor,
+    document.querySelector(".toolbar") as HTMLElement,
+    () => labels,
+    () => hostTakesLink,
+  );
 }
 
 function click(id: string) {
@@ -181,16 +189,34 @@ describe("popovers", () => {
   });
 });
 
+describe("the link editor", () => {
+  test("is the host's dialog where the host draws one, so no popover opens", () => {
+    hostTakesLink = true;
+    click("link");
+    toolbar.openLink();
+    expect(document.getElementById("link-menu")!.hidden).toBe(true);
+  });
+
+  test("is the popover where the host does not", () => {
+    click("link");
+    expect(document.getElementById("link-menu")!.hidden).toBe(false);
+    click("link");
+    expect(document.getElementById("link-menu")!.hidden).toBe(true);
+    toolbar.openLink();
+    expect(document.getElementById("link-menu")!.hidden).toBe(false);
+  });
+});
+
 describe("a popover stays inside the editor's viewport", () => {
   // The toolbar wraps. In a narrow composer; macOS's detail column, a split Windows pane; the
   // last controls drop to a second row and start again at the LEFT, so the table button is at the
   // right edge in a wide window and the left edge in a narrow one. The table menu used to carry a
   // hardcoded `align-end`, which in the narrow case opened it off the left of the WebView: clipped
   // away entirely, no scrollbar, no overflow, just a menu that is not there.
-  function placeAt(buttonLeft: number, panelWidth: number, viewportWidth: number) {
+  function placeAt(buttonLeft: number, panelWidth: number, viewportWidth: number, id = "table") {
     (window as unknown as { innerWidth: number }).innerWidth = viewportWidth;
-    const button = document.getElementById("table")!;
-    const panel = document.getElementById("table-menu")!;
+    const button = document.getElementById(id)!;
+    const panel = document.getElementById(`${id}-menu`)!;
     button.getBoundingClientRect = (() => ({ left: buttonLeft, width: 32 })) as never;
     panel.getBoundingClientRect = (() => ({ left: buttonLeft, width: panelWidth })) as never;
     return panel;
@@ -218,5 +244,24 @@ describe("a popover stays inside the editor's viewport", () => {
     placeAt(24, 180, 600);
     click("table");
     expect(panel.classList.contains("align-end")).toBe(false);
+  });
+
+  test("is pinned inside the viewport when neither edge of its button leaves room", () => {
+    // The link editor is wider than the table menu, and its button sits mid-toolbar: on a phone,
+    // hanging from either edge of the button puts part of it outside the WebView.
+    const panel = placeAt(140, 280, 370, "link");
+    click("link");
+    expect(panel.classList.contains("align-end")).toBe(false);
+    // 370 - 280 - 8 = 82 from the viewport's left, which is 58 to the left of the button.
+    expect(panel.style.left).toBe("-58px");
+  });
+
+  test("a pinned popover goes back under its button once there is room", () => {
+    const panel = placeAt(140, 280, 370, "link");
+    click("link");
+    click("link"); // close
+    placeAt(140, 280, 800, "link");
+    click("link");
+    expect(panel.style.left).toBe("");
   });
 });

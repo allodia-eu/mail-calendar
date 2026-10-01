@@ -11,6 +11,7 @@ import { documentBlocks, referencedAttachmentIds } from "./document";
 import { focusEditor, saveSelection } from "./dom";
 import { applyMark } from "./format";
 import { installNativeChrome } from "./host";
+import { HostRequests } from "./host_requests";
 import {
   type CapturedImage,
   imageFilesFrom,
@@ -18,6 +19,7 @@ import {
   insertImageFiles,
 } from "./images";
 import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
+import { editLinkThroughHost } from "./link_menu";
 import { autolinkBeforeCaret } from "./links";
 import { indentSelection } from "./lists";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
@@ -38,8 +40,14 @@ const editor = doc.getElementById("editor") as HTMLElement;
 const toolbarRoot = doc.querySelector(".toolbar") as HTMLElement;
 const attachments = new Attachments();
 
+const hostRequests = new HostRequests(window);
+
 let labels: Labels = DEFAULT_LABELS;
-const toolbar = installToolbar(editor, toolbarRoot, () => labels);
+const toolbar = installToolbar(editor, toolbarRoot, () => labels, () => {
+  if (!hostRequests.answers("link")) return false;
+  void editLinkThroughHost(editor, hostRequests);
+  return true;
+});
 const chrome = installNativeChrome(editor, toolbarRoot);
 installImageResize(editor);
 
@@ -149,6 +157,8 @@ declare global {
     useNativeComposerChrome: () => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
+    setComposerHostRequests: (kinds: unknown) => void;
+    answerComposerRequest: (id: unknown, answer: unknown) => void;
     composerDocument: () => string;
   }
 }
@@ -179,6 +189,10 @@ window.focusComposerBody = () => focusComposerBody(editor);
 window.setPlainText = (text) => setPlainText(editor, text);
 window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
+
+/// The requests this host answers with its own UI, `host_requests.ts`; and its answers.
+window.setComposerHostRequests = (kinds) => hostRequests.setAnswered(kinds);
+window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
 
 window.setComposerLabels = (incoming) => {
   labels = mergeLabels(labels, incoming);

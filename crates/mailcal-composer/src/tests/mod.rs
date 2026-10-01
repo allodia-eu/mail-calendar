@@ -7,6 +7,7 @@ use crate::{
 
 mod colors;
 mod file_meta;
+mod host_requests;
 mod inline_images;
 mod links;
 mod lists;
