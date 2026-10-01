@@ -540,7 +540,8 @@ autodetection. It reuses the whole state machine above; the deltas are:
   without mail rather than a failed sign-in, which is how someone moving away from Google keeps its
   calendar while their mail lives elsewhere. A grant from before it was asked for is named through
   the Gmail profile instead. It is non-sensitive and belongs on the Cloud project's consent screen,
-  and Google adds `openid` to a grant that asks for it. Google has no incremental consent for installed
+  though Google accepted it for an Early Access test user before it was listed; Google adds
+  `openid` to a grant that asks for it, and nothing reads that. Google has no incremental consent for installed
   apps, so a sign-in always requests the whole chosen set rather than relying on
   `include_granted_scopes`; and Google lets a person untick a scope on the consent screen, so the
   granted set is read back and a use whose scope was refused is not opened (rule 10's rule, with
@@ -734,8 +735,8 @@ the doctrine's "provider sync" language for *account connection* specifically.)
 
 - **No client offers the choice yet.** `begin_microsoft_login` and `begin_google_login` take the
   capabilities an account is to be used for, and every client passes none, which asks for
-  everything as before. So rule 10's subsets are reachable only from the core, and the
-  `userinfo.email` route for a Google account without mail has not met a live consent screen.
+  everything as before. So rule 10's subsets are reachable only from the core, through the gated
+  `live_provider_consent` test.
 - **A use the grant withholds is closed silently.** An account whose mail was withheld leaves
   the mail surfaces without saying why. Neither setup nor Settings says "Calendar was
   not allowed" or offers to ask again, because there is no "needs permission" state for a client

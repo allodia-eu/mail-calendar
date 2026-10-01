@@ -63,6 +63,15 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 A client ✅ in the mail-surfaces row reads the rows the core already filters; it holds no rule of
 its own.
 
+**Verified live** on 2026-10-01 through `crates/mailcal-bindings/tests/live_provider_consent.rs`,
+with a person at each consent screen: a Microsoft account signed in for its calendar alone asked
+for `offline_access`, `User.Read` and `Calendars.ReadWrite`, opened its calendar and no mail, and
+signing it in again to add contacts bound its address book in place; a Google account signed in for
+its calendar alone was named from `userinfo` and opened no Gmail; and a Google account signed in for
+mail and calendar with the calendar unticked on the consent screen opened its mail and no calendar.
+A Microsoft grant names every scope the app was ever granted for that account, not only those asked
+for, so what opens is decided by the choice and never by the grant alone.
+
 ## 4. Known gaps
 
 - **Nothing creates an account without mail yet.** Setup offers no calendar-and-contacts account
