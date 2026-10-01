@@ -36,6 +36,7 @@ mod allodia_transport;
 mod analytics;
 mod app_accounts;
 mod app_accounts_consent;
+mod app_accounts_endpoints;
 mod app_accounts_google;
 mod app_accounts_microsoft;
 mod app_accounts_uses;
@@ -183,8 +184,8 @@ pub use records::{
     },
 };
 pub use records_accounts::{
-    AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot, CapabilityChange,
-    CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
+    AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot,
+    CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{

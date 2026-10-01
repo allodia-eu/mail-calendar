@@ -23,6 +23,7 @@ fn mailbox(links: AccountLinks) -> AccountFacts {
         withheld: Capabilities::default(),
         files_invitations: false,
         links,
+        endpoints: None,
     }
 }
 
@@ -35,6 +36,7 @@ fn cloud(links: AccountLinks) -> AccountFacts {
         withheld: Capabilities::default(),
         files_invitations: true,
         links,
+        endpoints: None,
     }
 }
 

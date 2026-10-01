@@ -55,6 +55,7 @@ mod credentials;
 mod dial;
 mod dial_parts;
 mod dial_run;
+mod endpoints;
 mod links;
 mod uses;
 

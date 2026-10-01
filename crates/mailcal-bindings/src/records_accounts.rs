@@ -1,7 +1,7 @@
 //! The records Settings → Accounts is drawn from: every account, mail or not, what it is used for,
 //! and which accounts it relies on.
 
-use crate::AccountCapability;
+use crate::{AccountCapability, ConnectionSecurity};
 
 /// The accounts on this device, in the order the host stored them.
 ///
@@ -30,6 +30,9 @@ pub struct AccountEntry {
     /// The accounts each link may name, for its picker: empty for a slot the account cannot
     /// hold, because it is used for that itself.
     pub link_candidates: LinkCandidates,
+    /// Its servers and login, for an account Settings can edit them on: one that signs in with a
+    /// password to servers of its own. `None` for one that signs in through its provider.
+    pub endpoints: Option<AccountEndpoints>,
 }
 
 /// Which sign-in an account is.
@@ -121,4 +124,57 @@ pub enum CapabilityChange {
     NeedsConsent,
     /// Nothing changed: the account has no server for it. Its address has to be entered first.
     NeedsEndpoint,
+}
+
+/// An account's servers and sign-in, as Settings shows and edits them. A server that is `None` is
+/// one the account does not have.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountEndpoints {
+    /// The IMAP server, `host` or `host:port`; the standard port for its security when bare.
+    pub imap_host: Option<String>,
+    /// How the IMAP connection is secured.
+    pub imap_security: ConnectionSecurity,
+    /// The SMTP server, `host` or `host:port`.
+    pub smtp_host: Option<String>,
+    /// How the SMTP connection is secured.
+    pub smtp_security: ConnectionSecurity,
+    /// The CalDAV base URL; `https://` is assumed when it names no scheme.
+    pub caldav_url: Option<String>,
+    /// The CardDAV base URL, when it is not the calendar's.
+    pub carddav_url: Option<String>,
+    /// The login every server takes.
+    pub username: String,
+    /// A new password for every server, or `None` to keep the stored one. Always `None` in the
+    /// snapshot: a password is never handed back.
+    pub password: Option<String>,
+}
+
+impl From<mailcal_account::EndpointEdit> for AccountEndpoints {
+    fn from(edit: mailcal_account::EndpointEdit) -> Self {
+        Self {
+            imap_host: edit.imap_host,
+            imap_security: edit.imap_security.into(),
+            smtp_host: edit.smtp_host,
+            smtp_security: edit.smtp_security.into(),
+            caldav_url: edit.caldav_url,
+            carddav_url: edit.carddav_url,
+            username: edit.username,
+            password: None,
+        }
+    }
+}
+
+impl From<AccountEndpoints> for mailcal_account::EndpointEdit {
+    fn from(endpoints: AccountEndpoints) -> Self {
+        Self {
+            imap_host: endpoints.imap_host,
+            imap_security: endpoints.imap_security.into(),
+            smtp_host: endpoints.smtp_host,
+            smtp_security: endpoints.smtp_security.into(),
+            caldav_url: endpoints.caldav_url,
+            carddav_url: endpoints.carddav_url,
+            username: endpoints.username,
+            password: endpoints.password,
+        }
+    }
 }

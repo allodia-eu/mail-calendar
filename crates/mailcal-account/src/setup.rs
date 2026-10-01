@@ -88,7 +88,7 @@ pub const fn smtp_default_port(security: ConnectionSecurity) -> u16 {
 /// (`host:port`), applying `default_port` when the input carries none: so a user can
 /// type just `imap.example.net` and never needs to know server ports. An explicit
 /// `host:port` is preserved.
-fn host_and_addr(input: &str, default_port: u16) -> (String, String) {
+pub(crate) fn host_and_addr(input: &str, default_port: u16) -> (String, String) {
     if let Some((host, port)) = input.rsplit_once(':')
         && !host.is_empty()
         && !port.is_empty()

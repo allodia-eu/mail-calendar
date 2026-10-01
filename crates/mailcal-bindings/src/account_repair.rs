@@ -60,6 +60,19 @@ impl MailcalApp {
         persistence: CredentialPersistence,
         family: &'static str,
     ) -> Result<(), MailcalError> {
+        self.install_replacement(account_id, prepared, persistence, family, &[])
+    }
+
+    /// [`Self::install_repaired_account`], forgetting `forget` once the replacement has connected
+    /// and been stored and before it syncs: the domains whose server it moved to another host.
+    pub(crate) fn install_replacement(
+        &self,
+        account_id: &str,
+        prepared: boot::PreparedAccount,
+        persistence: CredentialPersistence,
+        family: &'static str,
+        forget: &[engine_api::SearchDomain],
+    ) -> Result<(), MailcalError> {
         let id = prepared.account.id.clone();
         if id.as_str() != account_id {
             return Err(MailcalError::Config(
@@ -110,6 +123,16 @@ impl MailcalApp {
             }
         } else {
             self.app.clear_calendar_reauth_required(&id);
+        }
+        if !forget.is_empty() {
+            self.list_without_providers(&id);
+            for &domain in forget {
+                let app = Arc::clone(&self.app);
+                let forgotten = id.clone();
+                self.runtime.block_on(async move {
+                    app.forget_account_domain(&forgotten, domain).await;
+                });
+            }
         }
         self.refresh_analytics_accounts();
         connection_log::log_account_connection_info("reauth", family, &outcome.account);

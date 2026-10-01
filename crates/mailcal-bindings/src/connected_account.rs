@@ -194,6 +194,10 @@ impl ConnectedAccount {
             withheld,
             files_invitations,
             links: self.shape().links.clone(),
+            endpoints: match self {
+                Self::Imap { config, .. } if !config.is_oauth() => Some(config.endpoints()),
+                _ => None,
+            },
         }
     }
 
