@@ -90,7 +90,7 @@ impl MailcalApp {
                 tokens: Arc::clone(&tokens),
             },
         );
-        log::info!("google: connecting the Gmail provider and calendar");
+        log::info!("google: connecting what the account is used for");
         // One dial, the same one boot and reconnect use; obtainable only from the registry.
         let Some(dial) = self.registry.dial(account_id.as_str()) else {
             registered.rollback(&self.registry);
@@ -123,8 +123,11 @@ impl MailcalApp {
             ));
         }
         log::info!(
-            "google: connected mail with {} calendar provider(s); syncing + adding account",
+            "google: connected {} mail, {} calendar and {} contacts provider(s); syncing + adding \
+             account",
+            outcome.account.providers.len(),
             outcome.account.calendar_providers.len(),
+            outcome.account.contact_providers.len(),
         );
         self.refresh_analytics_accounts();
         let sync_id = account_id;

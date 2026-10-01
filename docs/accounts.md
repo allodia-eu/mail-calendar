@@ -53,6 +53,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | Stored capabilities, pinned id and links read and kept | ✅ | — | — | — | — | — |
 | Only the capabilities an account is used for are opened | ✅ | — | — | — | — | — |
 | Sign-in asks for the chosen capabilities' scopes only, and opens what was granted | ✅ | — | — | — | — | — |
+| Signing in again, or adding a capability, keeps the account and its mail | ✅ | — | — | — | — | — |
 | A standards account without a mailbox connects its calendar and contacts | ✅ | — | — | — | — | — |
 | An account without mail is kept out of the mail surfaces | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar groups headed by the account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -61,6 +62,17 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 
 A client ✅ in the mail-surfaces row reads the rows the core already filters; it holds no rule of
 its own.
+
+**Verified live** on 2026-10-01 through `crates/mailcal-bindings/tests/live_provider_consent.rs`,
+with a person at each consent screen: a Microsoft account signed in for its calendar alone asked
+for `offline_access`, `User.Read` and `Calendars.ReadWrite`, opened its calendar and no mail, and
+signing it in again to add contacts bound its address book in place; a Google account signed in for
+its calendar alone was named from `userinfo` and opened no Gmail; and a Google account signed in for
+mail and calendar with the calendar unticked on the consent screen opened its mail and no calendar;
+and the same with Gmail unticked instead was named from `userinfo` and opened as an account without
+mail, its calendar working.
+A Microsoft grant names every scope the app was ever granted for that account, not only those asked
+for, so what opens is decided by the choice and never by the grant alone.
 
 ## 4. Known gaps
 

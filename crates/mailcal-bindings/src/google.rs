@@ -16,7 +16,7 @@
 //! [`AccountCredentialStore`](crate::AccountCredentialStore) is a robustness backstop that in
 //! practice rarely fires; the shared token sink (`crate::token_sink`) handles every provider.
 
-use mailcal_account::{Capability, GoogleConfig, Secret};
+use mailcal_account::{Capabilities, Capability, GoogleConfig, Secret};
 use mailcal_oauth::{OAuthClient, OAuthProviderConfig};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -78,13 +78,29 @@ pub fn begin_google_login(
     login_hint: Option<String>,
     capabilities: Option<Vec<AccountCapability>>,
 ) -> Result<GoogleLoginStart, MailcalError> {
+    start(
+        redirect_uri,
+        login_hint,
+        account_capability::chosen(capabilities)?,
+    )
+}
+
+/// [`begin_google_login`] for a choice already read: `None` asks for everything.
+///
+/// # Errors
+///
+/// As [`begin_google_login`], less the empty choice.
+pub(crate) fn start(
+    redirect_uri: String,
+    login_hint: Option<String>,
+    chosen: Option<Capabilities>,
+) -> Result<GoogleLoginStart, MailcalError> {
     let Some(registration) = mailcal_oauth::credentials::google() else {
         return Err(MailcalError::Config(
             "this build carries no Google sign-in".to_owned(),
         ));
     };
     let (client_id, client_secret) = (registration.client_id, registration.client_secret);
-    let chosen = account_capability::chosen(capabilities)?;
     let scopes = mailcal_account::requested_scopes(
         &mailcal_oauth::scopes::GOOGLE,
         &chosen

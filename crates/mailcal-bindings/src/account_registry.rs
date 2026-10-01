@@ -144,6 +144,19 @@ impl AccountRegistry {
             .map(|entry| entry.shape().clone())
     }
 
+    /// What signing `id` in again at Microsoft or Google needs, or `None` if it is not registered
+    /// or signs in elsewhere.
+    pub(crate) fn oauth_account(
+        &self,
+        id: &str,
+    ) -> Option<crate::app_accounts_consent::OAuthAccount> {
+        self.entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+            .and_then(crate::app_accounts_consent::OAuthAccount::of)
+    }
+
     /// Whether `id` is still registered, asked after a slow dial, in case the user removed the
     /// account while it ran.
     pub(crate) fn contains(&self, id: &str) -> bool {

@@ -103,7 +103,7 @@ impl MailcalApp {
                 tokens: Arc::clone(&tokens),
             },
         );
-        log::info!("microsoft: connecting Graph mail folders and calendar");
+        log::info!("microsoft: connecting what the account is used for");
         // One dial, the same one boot and reconnect use; obtainable only from the registry, which
         // is what makes the ordering above unskippable rather than merely documented.
         let Some(dial) = self.registry.dial(account_id.as_str()) else {

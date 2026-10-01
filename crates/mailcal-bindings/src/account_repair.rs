@@ -102,6 +102,15 @@ impl MailcalApp {
                 .expect("calendar-errors mutex poisoned")
                 .push(error);
         }
+        // As a reconnect does: a calendar that came up retracts the prompt to re-consent for it,
+        // and one the grant still withholds raises it.
+        if outcome.account.calendar_providers.is_empty() {
+            if outcome.calendar_reauth_required {
+                self.app.note_calendar_reauth_required(&id);
+            }
+        } else {
+            self.app.clear_calendar_reauth_required(&id);
+        }
         self.refresh_analytics_accounts();
         connection_log::log_account_connection_info("reauth", family, &outcome.account);
         let app = Arc::clone(&self.app);

@@ -360,6 +360,17 @@ capturing the redirect), because that is inherently platform-specific.
     is logged for support (which scopes were requested, re-consent-for-existing vs. account-picker,
     and the outcome) **without ever logging the address** (per [`logging.md`](logging.md)).
 
+    **Signing an existing account in again swaps its grant in place.**
+    `begin_account_consent(account_id, redirect_uri, adding)` asks for what the account is used for
+    plus `adding`, with its address as `login_hint`, and `complete_account_consent` refuses a
+    sign-in as a different address, then connects, stores and installs the new grant through the
+    path a JMAP re-sign-in and a replaced password take. The account keeps its id, sync depth,
+    sender name, signatures, links and downloaded mail, catches up rather than downloading again,
+    and has its expired-sign-in, mail and calendar prompts reconciled against what the new grant
+    opened. Adding a capability is the same call with `adding` set: Microsoft does not re-prompt
+    scopes already consented, and Google, which has no incremental consent for installed apps, is
+    asked for the whole set.
+
 12. **A grant that is *gone* is a different prompt from a scope that is missing, and it is never
     an outage.** Rule 11 covers a grant that is too **narrow**; this covers one that is **dead**:
     the refresh token expired or was revoked (Google `invalid_grant — Token has been expired or
@@ -529,7 +540,8 @@ autodetection. It reuses the whole state machine above; the deltas are:
   without mail rather than a failed sign-in, which is how someone moving away from Google keeps its
   calendar while their mail lives elsewhere. A grant from before it was asked for is named through
   the Gmail profile instead. It is non-sensitive and belongs on the Cloud project's consent screen,
-  and Google adds `openid` to a grant that asks for it. Google has no incremental consent for installed
+  though Google accepted it for an Early Access test user before it was listed; Google adds
+  `openid` to a grant that asks for it, and nothing reads that. Google has no incremental consent for installed
   apps, so a sign-in always requests the whole chosen set rather than relying on
   `include_granted_scopes`; and Google lets a person untick a scope on the consent screen, so the
   granted set is read back and a use whose scope was refused is not opened (rule 10's rule, with
@@ -723,13 +735,15 @@ the doctrine's "provider sync" language for *account connection* specifically.)
 
 - **No client offers the choice yet.** `begin_microsoft_login` and `begin_google_login` take the
   capabilities an account is to be used for, and every client passes none, which asks for
-  everything as before. So rule 10's subsets are reachable only from the core, and the
-  `userinfo.email` route for a Google account without mail has not met a live consent screen.
+  everything as before. So rule 10's subsets are reachable only from the core, through the gated
+  `live_provider_consent` test.
 - **A use the grant withholds is closed silently.** An account whose mail was withheld leaves
   the mail surfaces without saying why. Neither setup nor Settings says "Calendar was
   not allowed" or offers to ask again, because there is no "needs permission" state for a client
   to read ([`accounts.md`](accounts.md)); Microsoft's calendar is the exception, through rule 11's
-  prompt. Signing in again re-requests everything, whatever the account is used for.
+  prompt. No client calls `begin_account_consent` yet, so **Reconnect** and "sign in again" still
+  run `complete_microsoft_login` / `complete_google_login`, which ask for everything and start a
+  visible first download of an account that already has its mail.
 - **Graph mail: read/sync + mail actions + sending.** The engine's Graph adapter does mail folders
   + messages + message source (bodies render via `/messages/{id}/$value`) + a `receivedDateTime`
   sync-depth window, mail edits (`edit_mail`: mark-read/flag, move/archive, permanent
