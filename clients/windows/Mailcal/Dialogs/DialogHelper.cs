@@ -13,6 +13,7 @@
 
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Allodia.Mailcal.Dialogs;
@@ -96,10 +97,17 @@ internal static class DialogHelper
     /// <summary>Shows a standard confirm dialog (destructive primary + a close button). The close
     /// button is "Cancel" unless <paramref name="closeText"/> names the specific way out, the
     /// discard-draft prompt, for one, offers "Keep editing", which says what staying actually
-    /// does.</summary>
+    /// does. <paramref name="automationId"/> names the dialog itself for UI Automation, for a
+    /// prompt a script has to tell apart from the others without reading its copy.</summary>
     public static Task<ContentDialogResult> ConfirmAsync(
-        XamlRoot root, string title, string content, string primaryText, string? closeText = null) =>
-        ShowAsync(new ContentDialog
+        XamlRoot root,
+        string title,
+        string content,
+        string primaryText,
+        string? closeText = null,
+        string? automationId = null)
+    {
+        var dialog = new ContentDialog
         {
             XamlRoot = root,
             Title = title,
@@ -107,7 +115,13 @@ internal static class DialogHelper
             PrimaryButtonText = primaryText,
             CloseButtonText = closeText ?? L10n.ActionCancel(),
             DefaultButton = ContentDialogButton.Close,
-        });
+        };
+        if (automationId is not null)
+        {
+            AutomationProperties.SetAutomationId(dialog, automationId);
+        }
+        return ShowAsync(dialog);
+    }
 
     /// <summary>Asks which occurrences a write on a repeating event meant: <c>Primary</c> is this
     /// event alone, <c>Secondary</c> is the whole series, and closing writes nothing. The core has

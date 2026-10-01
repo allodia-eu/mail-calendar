@@ -115,8 +115,12 @@ your real accounts, nor one mode's with the other's.
 so the screens somebody sees **once**, the analytics consent and then the first-account screen
 ([`onboarding.md`](onboarding.md)), can be seen again. Every other mode either injects an account
 or reads the namespace you are already using, so neither can show a first run without emptying
-something you wanted. Delete the directory to get the first run back; anything added through the
-form persists there until you do.
+something you wanted. Anything added through the form persists until you clear it, and clearing
+it is two things: the directory, and the accounts, which live in the platform keystore rather than
+in the directory. Delete the directory alone and the next launch reads the accounts back and opens
+on a mailbox. On Windows, `clients/windows/clear-dev-namespace.ps1 -Namespace dev-first-run` clears
+both. On Apple the accounts are the keychain items under the service `<app id>.dev.first-run`
+(`DevNamespace.keychainService`), which have to go as well.
 
 > ⚠️ **Relaunching a simulator build by hand silently switches it to the personal account.**
 > `xcrun simctl launch <udid> eu.allodia.mailcal` passes **none** of your shell's environment to the
