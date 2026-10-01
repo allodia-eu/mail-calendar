@@ -444,10 +444,13 @@ fn notes_row(notes: &str) -> gtk::ListBoxRow {
     content.set_margin_bottom(8);
     content.set_margin_start(12);
     content.set_margin_end(12);
+    // The classes an `AdwActionRow` gives its own two labels, so the notes read at the size and
+    // weight of every other row's value.
     let title = gtk::Label::new(Some(l10n::event_notes()));
     title.set_xalign(0.0);
+    title.add_css_class("title");
     let value = crate::ui::linked_text::label(notes);
-    value.add_css_class("dim-label");
+    value.add_css_class("subtitle");
     content.append(&title);
     content.append(&value);
     let row = gtk::ListBoxRow::new();
