@@ -94,7 +94,7 @@ import Testing
         #expect(targets.map(\.name) == [L10n.folder_move_top_level(), L10n.folder_inbox(), "Work", "2024"])
         let expectedRoles: [FolderRole?] = [nil, .inbox, nil, nil]
         #expect(targets.map(\.role) == expectedRoles)
-        #expect(targets.allSatisfy(\.enabled))
+        #expect(targets.allSatisfy { $0.enabled })
     }
 
     @Test func aFolderThatIsNoDestinationStaysDisabledOnlyAboveOneThatIs() {
