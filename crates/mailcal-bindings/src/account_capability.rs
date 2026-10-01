@@ -29,6 +29,17 @@ impl From<AccountCapability> for Capability {
     }
 }
 
+impl From<Capability> for AccountCapability {
+    fn from(capability: Capability) -> Self {
+        match capability {
+            Capability::Mail => Self::Mail,
+            Capability::Calendar => Self::Calendar,
+            Capability::Contacts => Self::Contacts,
+            Capability::Colleagues => Self::Colleagues,
+        }
+    }
+}
+
 /// The capabilities a client chose, or `None` when it named none, which keeps what every sign-in
 /// meant before the choice existed: everything.
 ///

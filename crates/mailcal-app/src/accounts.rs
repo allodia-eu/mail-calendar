@@ -233,8 +233,8 @@ impl<P: Provider> App<P> {
         self.rebuild_snapshot().await;
     }
 
-    /// The ids of every configured account.
-    pub(crate) async fn account_ids(&self) -> Vec<AccountId> {
+    /// Every account's id, mail or not, in the order the host stored them.
+    pub async fn account_ids(&self) -> Vec<AccountId> {
         self.accounts
             .read()
             .await

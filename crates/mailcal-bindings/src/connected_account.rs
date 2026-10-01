@@ -126,6 +126,63 @@ impl ConnectedAccount {
         }
     }
 
+    /// The same keys, to change in place.
+    pub(crate) const fn shape_mut(&mut self) -> &mut mailcal_account::AccountShape {
+        match self {
+            Self::Imap { config, .. } => &mut config.shape,
+            Self::Microsoft { config, .. } => &mut config.shape,
+            Self::Google { config, .. } => &mut config.shape,
+            Self::Jmap { config, .. } => &mut config.shape,
+        }
+    }
+
+    /// The config as the host's store keeps it.
+    pub(crate) fn to_toml(&self) -> Result<String, mailcal_account::ConfigError> {
+        match self {
+            Self::Imap { config, .. } => config.to_toml(),
+            Self::Microsoft { config, .. } => config.to_toml(),
+            Self::Google { config, .. } => config.to_toml(),
+            Self::Jmap { config, .. } => config.to_toml(),
+        }
+    }
+
+    /// What Settings → Accounts lists about the account `id`.
+    pub(crate) fn facts(&self, id: &str) -> crate::accounts_view::AccountFacts {
+        let chosen = self.capabilities();
+        let (address, kind, files_invitations) = match self {
+            Self::Imap { config, .. } => (
+                config.username().to_owned(),
+                if chosen.contains(mailcal_account::Capability::Mail) {
+                    crate::AccountKind::Imap
+                } else {
+                    crate::AccountKind::Dav
+                },
+                config.caldav.is_some(),
+            ),
+            Self::Microsoft { config, .. } => {
+                (config.email.clone(), crate::AccountKind::Microsoft, false)
+            }
+            Self::Google { config, .. } => {
+                (config.email.clone(), crate::AccountKind::Google, false)
+            }
+            Self::Jmap { config, .. } => (config.email.clone(), crate::AccountKind::Jmap, false),
+        };
+        let withheld = match self {
+            Self::Microsoft { config, .. } => config.withheld_capabilities(),
+            Self::Google { config, .. } => config.withheld_capabilities(),
+            Self::Imap { .. } | Self::Jmap { .. } => mailcal_account::Capabilities::default(),
+        };
+        crate::accounts_view::AccountFacts {
+            id: id.to_owned(),
+            address,
+            kind,
+            chosen,
+            withheld,
+            files_invitations,
+            links: self.shape().links.clone(),
+        }
+    }
+
     /// What the account is used for: its stored choice, or what its kind has always meant.
     pub(crate) fn capabilities(&self) -> mailcal_account::Capabilities {
         match self {
