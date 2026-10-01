@@ -184,7 +184,7 @@ pub use records::{
 };
 pub use records_accounts::{
     AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot, CapabilityState,
-    LinkedAccount,
+    LinkCandidates, LinkSlot, LinkedAccount,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{

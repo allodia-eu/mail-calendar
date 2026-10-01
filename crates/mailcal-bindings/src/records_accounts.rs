@@ -27,6 +27,9 @@ pub struct AccountEntry {
     pub links: AccountLinksView,
     /// The accounts relying on this one, which lose their link if it is removed.
     pub linked_from: Vec<LinkedAccount>,
+    /// The accounts each link may name, for its picker: empty for a slot the account cannot
+    /// hold, because it is used for that itself.
+    pub link_candidates: LinkCandidates,
 }
 
 /// Which sign-in an account is.
@@ -83,4 +86,26 @@ pub struct LinkedAccount {
     pub id: String,
     /// What a person reads it by.
     pub address: String,
+}
+
+/// The accounts each link slot may name.
+#[derive(Debug, Clone, Default, uniffi::Record)]
+pub struct LinkCandidates {
+    /// Calendars a mail account may file its invitations through.
+    pub calendar: Vec<LinkedAccount>,
+    /// Address books a mail account may save new contacts to.
+    pub contacts: Vec<LinkedAccount>,
+    /// Mail accounts a calendar account may send its invitations through.
+    pub mail: Vec<LinkedAccount>,
+}
+
+/// One link an account can hold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum LinkSlot {
+    /// The calendar a mail account files and answers its invitations through.
+    Calendar,
+    /// The address book a mail account saves new contacts to.
+    Contacts,
+    /// The mail account a calendar account sends its invitations through.
+    Mail,
 }

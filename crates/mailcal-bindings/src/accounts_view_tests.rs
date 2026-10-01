@@ -181,3 +181,47 @@ fn each_kind_lists_what_it_can_be_used_for_in_its_state() {
         Some(CapabilityState::NeedsPermission)
     );
 }
+
+#[test]
+fn each_link_offers_only_the_accounts_it_may_name() {
+    let mut graph = mailbox(AccountLinks::default());
+    graph.id = "bob@example.com@graph.microsoft.com".to_owned();
+    graph.kind = AccountKind::Microsoft;
+    graph.chosen = set(&[Capability::Mail, Capability::Calendar, Capability::Contacts]);
+    let accounts = entries(
+        &[
+            mailbox(AccountLinks::default()),
+            cloud(AccountLinks::default()),
+            graph,
+        ],
+        &BTreeSet::new(),
+    );
+    let ids = |offered: &[crate::LinkedAccount]| -> Vec<String> {
+        offered.iter().map(|linked| linked.id.clone()).collect()
+    };
+
+    let mail = &accounts[0].link_candidates;
+    assert_eq!(
+        ids(&mail.calendar),
+        ["alice@dav:cloud.example"],
+        "CalDAV only"
+    );
+    assert_eq!(
+        ids(&mail.contacts),
+        [
+            "alice@dav:cloud.example",
+            "bob@example.com@graph.microsoft.com"
+        ]
+    );
+    assert!(mail.mail.is_empty());
+
+    // The calendar may send through the mailbox without a calendar, not the one with its own.
+    let calendar = &accounts[1].link_candidates;
+    assert_eq!(ids(&calendar.mail), ["alice@imap.example.org"]);
+    assert!(calendar.calendar.is_empty() && calendar.contacts.is_empty());
+
+    let complete = &accounts[2].link_candidates;
+    assert!(
+        complete.calendar.is_empty() && complete.contacts.is_empty() && complete.mail.is_empty()
+    );
+}

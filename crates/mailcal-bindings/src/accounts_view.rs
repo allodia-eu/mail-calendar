@@ -7,7 +7,8 @@ use engine_api::AccountId;
 use mailcal_account::{AccountLinks, Capabilities, Capability};
 
 use crate::{
-    AccountEntry, AccountKind, AccountLinksView, AccountUse, CapabilityState, LinkedAccount,
+    AccountEntry, AccountKind, AccountLinksView, AccountUse, CapabilityState, LinkCandidates,
+    LinkSlot, LinkedAccount,
 };
 
 /// What the snapshot needs to know about one account, read from its stored config.
@@ -45,7 +46,8 @@ pub(crate) fn entries(
     facts
         .iter()
         .zip(&links)
-        .map(|(account, own)| AccountEntry {
+        .enumerate()
+        .map(|(index, (account, own))| AccountEntry {
             id: account.id.clone(),
             address: account.address.clone(),
             kind: account.kind,
@@ -66,8 +68,74 @@ pub(crate) fn entries(
                 })
                 .map(|(other, _)| linked(other))
                 .collect(),
+            link_candidates: {
+                let offer = |slot| {
+                    candidates(facts, &links, index, slot)
+                        .into_iter()
+                        .map(|candidate| linked(&facts[candidate]))
+                        .collect()
+                };
+                LinkCandidates {
+                    calendar: offer(LinkSlot::Calendar),
+                    contacts: offer(LinkSlot::Contacts),
+                    mail: offer(LinkSlot::Mail),
+                }
+            },
         })
         .collect()
+}
+
+/// The accounts `facts[from]` may name in `slot`, as indices into `facts`, given the links
+/// [`valid_links`] found.
+///
+/// Calendar and contacts: any other account used for the use `from` is not used for, a calendar
+/// being a CalDAV one. Mail, on a CalDAV calendar not used for mail: any mail account without a
+/// calendar of its own whose calendar link is this one or is not set, since naming it writes that
+/// link too.
+pub(crate) fn candidates(
+    facts: &[AccountFacts],
+    links: &[AccountLinks],
+    from: usize,
+    slot: LinkSlot,
+) -> Vec<usize> {
+    let account = &facts[from];
+    let others = (0..facts.len()).filter(|&other| other != from);
+    match slot {
+        LinkSlot::Calendar | LinkSlot::Contacts => {
+            let capability = if slot == LinkSlot::Calendar {
+                Capability::Calendar
+            } else {
+                Capability::Contacts
+            };
+            if account.chosen.contains(capability) {
+                return Vec::new();
+            }
+            others
+                .filter(|&other| {
+                    facts[other].chosen.contains(capability)
+                        && (slot == LinkSlot::Contacts || facts[other].files_invitations)
+                })
+                .collect()
+        }
+        LinkSlot::Mail => {
+            let calendar = account.chosen.contains(Capability::Calendar)
+                && account.files_invitations
+                && !account.chosen.contains(Capability::Mail);
+            if !calendar {
+                return Vec::new();
+            }
+            others
+                .filter(|&other| {
+                    facts[other].chosen.contains(Capability::Mail)
+                        && !facts[other].chosen.contains(Capability::Calendar)
+                        && links[other]
+                            .calendar
+                            .as_ref()
+                            .is_none_or(|linked| linked.as_str() == account.id)
+                })
+                .collect()
+        }
+    }
 }
 
 /// The links each account holds that the accounts allow, in the order `facts` lists them.
