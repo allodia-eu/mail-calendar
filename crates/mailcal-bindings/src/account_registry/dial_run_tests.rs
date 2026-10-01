@@ -134,6 +134,21 @@ fn a_use_the_grant_withholds_is_not_opened() {
     assert!(!opened.contains(mailcal_account::Capability::Colleagues));
 }
 
+/// Mail unticked on the consent screen, calendar kept: the account opens as one without mail, so
+/// its calendar works rather than the whole account failing on the mailbox it may not read.
+#[test]
+fn a_withheld_mailbox_leaves_an_account_without_mail() {
+    let entry = microsoft(&["mail", "calendar"], &["User.Read", "Calendars.ReadWrite"]);
+    let opened = AccountDial::from_entry(&entry).capabilities().clone();
+    assert!(!opened.contains(mailcal_account::Capability::Mail));
+    assert!(opened.contains(mailcal_account::Capability::Calendar));
+    assert!(
+        !entry
+            .opened_capabilities()
+            .contains(mailcal_account::Capability::Mail)
+    );
+}
+
 /// A calendar the grant withholds is still a calendar the person chose, so it raises the prompt
 /// to sign in again rather than staying silently empty; and nothing is dialled to learn it.
 #[tokio::test]

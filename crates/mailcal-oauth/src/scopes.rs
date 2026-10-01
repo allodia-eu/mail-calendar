@@ -34,9 +34,6 @@ pub struct ProviderScopes {
     pub contacts: ScopeGroup,
     /// The organisation's directory, requested only beside contacts.
     pub colleagues: ScopeGroup,
-    /// Requested only when mail is not, because mail's scope is otherwise what the account's own
-    /// address is read with.
-    pub address_without_mail: &'static [&'static str],
     /// The resource a scope may be granted under without being named, and which a token response
     /// may name it without: Microsoft answers `Mail.ReadWrite` for a request of
     /// `https://graph.microsoft.com/Mail.ReadWrite`, in whatever case it chooses.
@@ -65,15 +62,13 @@ pub const MICROSOFT: ProviderScopes = ProviderScopes {
         requested: &["https://graph.microsoft.com/User.ReadBasic.All"],
         needed: "https://graph.microsoft.com/User.ReadBasic.All",
     },
-    // `User.Read` is always requested, and `GET /me` names the account with it.
-    address_without_mail: &[],
     implied_resource: Some("https://graph.microsoft.com/"),
 };
 
-/// Google's APIs. A refresh token comes from request parameters, not a scope, so nothing is
-/// requested always.
+/// Google's APIs. A refresh token comes from request parameters, not a scope; what every account
+/// asks for is its own address, so it can be named whichever uses the person allows.
 pub const GOOGLE: ProviderScopes = ProviderScopes {
-    always: &[],
+    always: &["https://www.googleapis.com/auth/userinfo.email"],
     mail: ScopeGroup {
         requested: &[
             "https://mail.google.com/",
@@ -96,8 +91,6 @@ pub const GOOGLE: ProviderScopes = ProviderScopes {
         requested: &["https://www.googleapis.com/auth/directory.readonly"],
         needed: "https://www.googleapis.com/auth/directory.readonly",
     },
-    // Non-sensitive, but it has to be listed on the Cloud project's consent screen.
-    address_without_mail: &["https://www.googleapis.com/auth/userinfo.email"],
     implied_resource: None,
 };
 

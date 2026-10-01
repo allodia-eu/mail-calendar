@@ -30,8 +30,11 @@ const GOOGLE_ID_HOST: &str = "mail.google.com";
 /// separate `openid`/`email` scope is needed to name the account.
 const GMAIL_PROFILE_ENDPOINT: &str = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
 
-/// Where an account granted `userinfo.email` and no Gmail scope reads its own `email`.
+/// Where an account granted `userinfo.email` reads its own `email`.
 const GOOGLE_USERINFO_ENDPOINT: &str = "https://www.googleapis.com/oauth2/v3/userinfo";
+
+/// The scope that endpoint answers to.
+const USERINFO_EMAIL_SCOPE: &str = "https://www.googleapis.com/auth/userinfo.email";
 
 /// One Google account's connection config: the app registration, the signed-in address, and
 /// the long-lived refresh token. Deserialized from the `[google]` section a host stores in its
@@ -202,20 +205,22 @@ pub fn load_google_str(text: &str) -> Result<GoogleConfig, ConfigError> {
 /// [`fetch_primary_address`](crate::fetch_primary_address). Authenticates with the bearer
 /// `access_token` just obtained in the flow.
 ///
-/// An account used for mail reads it from the Gmail profile, which its mail scope covers. One
-/// that is not holds no Gmail scope and was granted `userinfo.email` instead.
+/// `granted` is what the grant carries. Every sign-in asks for `userinfo.email`, which names the
+/// account whatever else the person allowed; a grant without it (one issued before it was asked
+/// for) is read through the Gmail profile, which its mail scope covers.
 ///
 /// # Errors
 ///
 /// Returns [`AccountError::Google`] if the request fails, is non-2xx, or returns no address.
 pub async fn fetch_google_primary_address(
     access_token: &str,
-    uses_mail: bool,
+    granted: &[String],
 ) -> Result<String, AccountError> {
-    let (endpoint, field) = if uses_mail {
-        (GMAIL_PROFILE_ENDPOINT, "emailAddress")
-    } else {
+    let scopes = &mailcal_oauth::scopes::GOOGLE;
+    let (endpoint, field) = if scopes.holds(granted, USERINFO_EMAIL_SCOPE) {
         (GOOGLE_USERINFO_ENDPOINT, "email")
+    } else {
+        (GMAIL_PROFILE_ENDPOINT, "emailAddress")
     };
     let http = tls_with(&[])?
         .reqwest_builder()

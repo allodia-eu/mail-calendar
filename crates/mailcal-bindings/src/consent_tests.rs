@@ -8,13 +8,11 @@ fn set(capabilities: &[Capability]) -> Capabilities {
 }
 
 #[test]
-fn a_withheld_calendar_is_not_opened_but_withheld_mail_still_is() {
+fn a_use_the_grant_withholds_is_not_opened_mail_included() {
+    // A person who kept their contacts and unticked mail and the calendar.
     let chosen = set(&[Capability::Mail, Capability::Calendar, Capability::Contacts]);
     let withheld = set(&[Capability::Mail, Capability::Calendar]);
-    assert_eq!(
-        opened(&chosen, &withheld),
-        set(&[Capability::Mail, Capability::Contacts])
-    );
+    assert_eq!(opened(&chosen, &withheld), set(&[Capability::Contacts]));
 }
 
 #[test]
@@ -22,9 +20,8 @@ fn a_grant_allowing_nothing_chosen_is_refused() {
     let chosen = set(&[Capability::Calendar, Capability::Colleagues]);
     assert!(refuse_an_empty_grant(&chosen, &set(&[Capability::Calendar])).is_err());
     assert!(refuse_an_empty_grant(&chosen, &Capabilities::default()).is_ok());
-    // Mail is the dial's to judge.
     let mail = set(&[Capability::Mail]);
-    assert!(refuse_an_empty_grant(&mail, &mail).is_ok());
+    assert!(refuse_an_empty_grant(&mail, &mail).is_err());
 }
 
 #[test]

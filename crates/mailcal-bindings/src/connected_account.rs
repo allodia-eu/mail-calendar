@@ -136,6 +136,20 @@ impl ConnectedAccount {
         }
     }
 
+    /// What the account opens: what it is used for, less what a Microsoft or Google grant
+    /// withholds. Every other kind opens all of what it is used for.
+    pub(crate) fn opened_capabilities(&self) -> mailcal_account::Capabilities {
+        match self {
+            Self::Microsoft { config, .. } => {
+                crate::consent::opened(&config.capabilities(), &config.withheld_capabilities())
+            }
+            Self::Google { config, .. } => {
+                crate::consent::opened(&config.capabilities(), &config.withheld_capabilities())
+            }
+            Self::Imap { .. } | Self::Jmap { .. } => self.capabilities(),
+        }
+    }
+
     /// A newly registered IMAP account, with connections of its own: nothing is connected until
     /// the first dial or watch.
     pub(crate) fn imap_account(

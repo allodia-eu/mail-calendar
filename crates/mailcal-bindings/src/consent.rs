@@ -7,13 +7,14 @@ use crate::MailcalError;
 
 /// The uses an account opens: what it is chosen for, less what its grant withholds.
 ///
-/// Mail is opened even when withheld. Its failure is the account's, and a grant without the mail
-/// scope is answered by the sync or send that is refused, which is where the prompts to sign in
-/// again are raised; holding it back here would leave a mail account silently without mail.
+/// Mail is no exception. A grant without the mail scope cannot read a mailbox, so opening it would
+/// fail the whole account on a refusal, where closing it leaves an account without mail whose
+/// calendar and contacts still work: what a person who unticked mail on the consent screen asked
+/// for.
 pub(crate) fn opened(chosen: &Capabilities, withheld: &Capabilities) -> Capabilities {
     chosen
         .iter()
-        .filter(|capability| *capability == Capability::Mail || !withheld.contains(*capability))
+        .filter(|capability| !withheld.contains(*capability))
         .collect()
 }
 

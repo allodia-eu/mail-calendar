@@ -178,19 +178,7 @@ pub(crate) async fn authorize(
         .capabilities
         .as_deref()
         .map(account_capability::from_names);
-    let uses_mail = chosen
-        .as_ref()
-        .is_none_or(|chosen| chosen.contains(Capability::Mail));
-    // The address of an account used for mail is read with the mail scope, so a consent screen
-    // that had it unticked leaves nothing to name the account with.
-    let gmail = &mailcal_oauth::scopes::GOOGLE;
-    if uses_mail && !gmail.holds(granted.as_slice(), gmail.mail.needed) {
-        log::warn!("google: consent withheld the mail scope this account was chosen for");
-        return Err(MailcalError::Connect(
-            "Google did not allow access to mail, which this account is used for".to_owned(),
-        ));
-    }
-    let email = mailcal_account::fetch_google_primary_address(&access_token, uses_mail)
+    let email = mailcal_account::fetch_google_primary_address(&access_token, granted.as_slice())
         .await
         .map_err(|err| MailcalError::Connect(err.to_string()))?;
     let mut config = GoogleConfig {

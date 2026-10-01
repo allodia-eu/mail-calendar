@@ -218,22 +218,16 @@ impl AccountDial {
                 tokens: tokens.clone(),
                 capabilities: config.capabilities(),
             },
-            ConnectedAccount::Microsoft { config, tokens } => {
-                let withheld = config.withheld_capabilities();
-                Self::Microsoft {
-                    tokens: Arc::clone(tokens),
-                    identity: config.identity(),
-                    capabilities: crate::consent::opened(&config.capabilities(), &withheld),
-                    withheld,
-                }
-            }
+            ConnectedAccount::Microsoft { config, tokens } => Self::Microsoft {
+                tokens: Arc::clone(tokens),
+                identity: config.identity(),
+                capabilities: entry.opened_capabilities(),
+                withheld: config.withheld_capabilities(),
+            },
             ConnectedAccount::Google { config, tokens } => Self::Google {
                 tokens: Arc::clone(tokens),
                 identity: config.identity(),
-                capabilities: crate::consent::opened(
-                    &config.capabilities(),
-                    &config.withheld_capabilities(),
-                ),
+                capabilities: entry.opened_capabilities(),
             },
             ConnectedAccount::Jmap { config, tokens } => Self::Jmap {
                 config: config.clone(),

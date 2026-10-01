@@ -300,9 +300,12 @@ capturing the redirect), because that is inherently platform-specific.
     (`Mail.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `User.ReadBasic.All`), and a
     stored `granted_scopes` without it leaves that use closed, compared as Microsoft spells the
     scope back (`Mail.ReadWrite`, any case, for `https://graph.microsoft.com/Mail.ReadWrite`). Mail
-    is the exception: it is opened regardless, because its failure is the account's and a refused
-    sync or send is where rule 11 raises its prompt. A sign-in whose grant allows nothing the
-    account was chosen for is refused rather than added.
+    is no exception: an account whose grant withholds it opens as an account without mail
+    ([`accounts.md`](accounts.md) rules 5 to 7), so its calendar and contacts still work rather
+    than the whole account failing on a mailbox it may not read. A missing scope that serves one
+    feature within a use (`Mail.Send`) withholds nothing; the refused send is where rule 11 raises
+    its prompt. A sign-in whose grant allows nothing the account was chosen for is refused rather
+    than added.
 
     **No OpenID Connect scope is requested.** Nothing reads an ID token (the address comes from
     `GET /me`), and Microsoft issues a refresh token for `offline_access` alone, so `openid`,
@@ -509,26 +512,28 @@ autodetection. It reuses the whole state machine above; the deltas are:
   refresh token only with `access_type=offline`, and re-prompting consent on every authorisation
   guarantees one comes back even for an already-consented account. The core still treats a
   completed sign-in with no refresh token as an error.
-- **Up to seven scopes, by what the account is used for** (`GOOGLE_SCOPES` in `provider.rs`
+- **Up to eight scopes, by what the account is used for** (`GOOGLE_SCOPES` in `provider.rs`
   carries the reasoning per scope, `mailcal_oauth::scopes` the grouping):
 
   | Scope | What it provides | Requested for |
   |---|---|---|
-  | `https://mail.google.com/` | every Gmail call, and the account's address from `users/me/profile` | mail |
+  | `https://mail.google.com/` | every Gmail call | mail |
   | `gmail.settings.basic` | `sendAs.patch`, the send-as alias a sender name is written to | mail |
   | `calendar` | events, edits, answering invitations | calendar |
   | `contacts`, `contacts.other.readonly` | the account's own contacts, and the addresses Google collects for it | contacts |
   | `directory.readonly` | colleagues on a Workspace domain | colleagues, beside contacts |
-  | `userinfo.email` | the account's address from `oauth2/v3/userinfo` | an account **not** used for mail |
+  | `userinfo.email` | the account's address from `oauth2/v3/userinfo` | every account |
 
-  `userinfo.email` is non-sensitive, but it has to be listed on the Cloud project's consent screen
-  before an account without mail can sign in. Google has no incremental consent for installed
+  `userinfo.email` is asked for whatever the account is used for, because it is what names the
+  account: a person who keeps the calendar and unticks Gmail on the consent screen gets an account
+  without mail rather than a failed sign-in, which is how someone moving away from Google keeps its
+  calendar while their mail lives elsewhere. A grant from before it was asked for is named through
+  the Gmail profile instead. It is non-sensitive and belongs on the Cloud project's consent screen,
+  and Google adds `openid` to a grant that asks for it. Google has no incremental consent for installed
   apps, so a sign-in always requests the whole chosen set rather than relying on
   `include_granted_scopes`; and Google lets a person untick a scope on the consent screen, so the
   granted set is read back and a use whose scope was refused is not opened (rule 10's rule, with
-  Google's spelling compared as written). The exception is mail itself: an account used for mail is named
-  with the mail scope, so a consent screen that had it unticked ends the sign-in with "Google did
-  not allow access to mail" rather than adding an account nothing can name. There is **no calendar-reauth step** for Google: the
+  Google's spelling compared as written). There is **no calendar-reauth step** for Google: the
   reconnect-for-calendar banner stays Microsoft-only, and a refused calendar stays closed. Two
   traps sit in the set. The full-mail scope is what grants **permanent delete**, which no
   narrower `gmail.*` scope does. And `mail.google.com` reaches `users.settings.sendAs.list` but
@@ -720,7 +725,8 @@ the doctrine's "provider sync" language for *account connection* specifically.)
   capabilities an account is to be used for, and every client passes none, which asks for
   everything as before. So rule 10's subsets are reachable only from the core, and the
   `userinfo.email` route for a Google account without mail has not met a live consent screen.
-- **A use the grant withholds is closed silently.** Neither setup nor Settings says "Calendar was
+- **A use the grant withholds is closed silently.** An account whose mail was withheld leaves
+  the mail surfaces without saying why. Neither setup nor Settings says "Calendar was
   not allowed" or offers to ask again, because there is no "needs permission" state for a client
   to read ([`accounts.md`](accounts.md)); Microsoft's calendar is the exception, through rule 11's
   prompt. Signing in again re-requests everything, whatever the account is used for.

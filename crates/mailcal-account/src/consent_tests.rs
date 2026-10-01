@@ -43,7 +43,7 @@ fn a_calendar_alone_asks_for_no_mail_and_no_contacts() {
 }
 
 #[test]
-fn google_without_mail_asks_for_the_address_instead() {
+fn every_google_sign_in_asks_for_the_address_whatever_it_is_used_for() {
     let scopes = requested_scopes(&GOOGLE, &set(&[Capability::Calendar]));
     assert_eq!(
         as_set(&scopes),
@@ -52,8 +52,13 @@ fn google_without_mail_asks_for_the_address_instead() {
             "https://www.googleapis.com/auth/userinfo.email",
         ])
     );
+    // A mail account asks too, so that a consent screen with Gmail unticked still names it.
     let with_mail = requested_scopes(&GOOGLE, &set(&[Capability::Mail]));
-    assert!(!with_mail.iter().any(|scope| scope.contains("userinfo")));
+    assert!(
+        with_mail
+            .iter()
+            .any(|scope| scope.ends_with("auth/userinfo.email"))
+    );
 }
 
 #[test]

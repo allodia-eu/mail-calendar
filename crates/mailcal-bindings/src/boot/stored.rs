@@ -106,7 +106,7 @@ pub(crate) fn prepare_stored_account(
             // Listed before its dial lands: what its calendar holds is not known yet.
             dialled: false,
             uses_mail: connected
-                .capabilities()
+                .opened_capabilities()
                 .contains(mailcal_account::Capability::Mail),
         },
         connected,

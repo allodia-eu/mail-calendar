@@ -29,16 +29,10 @@ fn asked(capabilities: &Capabilities) -> impl Iterator<Item = Capability> + '_ {
 /// The scopes a sign-in for an account used for `capabilities` requests at `provider`.
 #[must_use]
 pub fn requested_scopes(provider: &ProviderScopes, capabilities: &Capabilities) -> Vec<String> {
-    let address = if capabilities.contains(Capability::Mail) {
-        &[][..]
-    } else {
-        provider.address_without_mail
-    };
     provider
         .always
         .iter()
         .chain(asked(capabilities).flat_map(|capability| group(provider, capability).requested))
-        .chain(address)
         .map(|scope| (*scope).to_owned())
         .collect()
 }
