@@ -68,7 +68,9 @@ with a person at each consent screen: a Microsoft account signed in for its cale
 for `offline_access`, `User.Read` and `Calendars.ReadWrite`, opened its calendar and no mail, and
 signing it in again to add contacts bound its address book in place; a Google account signed in for
 its calendar alone was named from `userinfo` and opened no Gmail; and a Google account signed in for
-mail and calendar with the calendar unticked on the consent screen opened its mail and no calendar.
+mail and calendar with the calendar unticked on the consent screen opened its mail and no calendar;
+and the same with Gmail unticked instead was named from `userinfo` and opened as an account without
+mail, its calendar working.
 A Microsoft grant names every scope the app was ever granted for that account, not only those asked
 for, so what opens is decided by the choice and never by the grant alone.
 
