@@ -119,15 +119,25 @@ class FolderEditingTest {
     }
 
     @Test
-    fun `a folder can move to the top or into any folder outside itself`() {
+    fun `a folder can move to the top or into any folder outside itself but not where it is`() {
         val rows = tree()
         val targets = moveTargets(rows[3], rows, ctx())
         assertEquals(listOf(null, "inbox"), targets.map { it.key })
         assertEquals(L10n.folder_move_top_level(ctx()), targets[0].name)
         assertEquals(L10n.folder_move_top_level(ctx()), targets[0].label)
+        // Work is already at the top: Top level stays as the root, but choosing it moves nothing.
+        assertEquals(listOf(false, true), targets.map { it.enabled })
 
+        // 2024 already sits in Work, so Work is not offered.
         val fromInside = moveTargets(rows[4], rows, ctx())
-        assertEquals(listOf(null, "inbox", "work"), fromInside.map { it.key })
+        assertEquals(listOf(null, "inbox"), fromInside.map { it.key })
+        assertTrue(fromInside.all { it.enabled })
+    }
+
+    @Test
+    fun `a top-level folder with nowhere to go is offered nothing`() {
+        val only = folder("work", "Work", null, editable = true, acceptsFolders = true)
+        assertEquals(emptyList<MoveTarget>(), moveTargets(only, listOf(only), ctx()))
     }
 
     @Test
@@ -166,7 +176,7 @@ class FolderEditingTest {
         // Junk takes no folder and holds none that does, so it is left out; Trash and Old hold
         // one at any depth, so they stay, disabled, in the drawer's order.
         assertEquals(listOf(null, "trash", "old", "deep"), targets.map { it.key })
-        assertEquals(listOf(true, false, false, true), targets.map { it.enabled })
+        assertEquals(listOf(false, false, false, true), targets.map { it.enabled })
         assertEquals(listOf(0, 1, 2, 3), targets.map { it.indent })
     }
 

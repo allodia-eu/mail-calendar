@@ -100,16 +100,29 @@ pub(crate) fn path_label(folders: &[FolderRow], row: &FolderRow) -> String {
 }
 
 /// The rows Move to… draws for `moving`: Top level first, then the account's tree, where a folder
-/// that takes folders is a destination unless it is the one being moved or inside it (rule 24).
-/// Neither of those can hold a destination either, so they are never drawn.
+/// that takes folders is a destination unless it is the one being moved, inside it, or the one it
+/// already sits in (rule 24). The first two cannot hold a destination either, so they are never
+/// drawn. Top level is not a destination for a folder already at the top.
 pub(crate) fn move_candidates(folders: &[FolderRow], moving: &str) -> Vec<PickerRow> {
     let excluded = subtree(folders, moving);
+    let parent = folders
+        .iter()
+        .find(|folder| folder.key == moving)
+        .and_then(|folder| folder.parent.as_deref());
     let destinations: HashSet<String> = folders
         .iter()
-        .filter(|folder| folder.accepts_folders && !excluded.contains(&folder.key))
+        .filter(|folder| {
+            folder.accepts_folders
+                && !excluded.contains(&folder.key)
+                && Some(folder.key.as_str()) != parent
+        })
         .map(|folder| folder.key.clone())
         .collect();
-    picker_rows(&picker_folders(folders), &destinations, true)
+    picker_rows(
+        &picker_folders(folders),
+        &destinations,
+        Some(parent.is_some()),
+    )
 }
 
 /// What is being dragged across the pane: always one account's.

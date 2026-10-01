@@ -112,16 +112,23 @@ internal static class FolderActions
     /// <summary>
     /// Where Move to… may send the folder <paramref name="key"/>: the top level first, then the
     /// account's tree one step inside it, offering every folder that takes folders and leaving out
-    /// the folder itself and everything inside it (rule 24).
+    /// the folder itself, everything inside it and the place it already is (rule 24). The top level
+    /// stays as the tree's root when the folder is already there, not enabled.
     /// </summary>
     public static IReadOnlyList<MoveTarget> MoveTargets(
         IReadOnlyList<FolderItem> folders, string key, string topLevel)
     {
-        var targets = new List<MoveTarget> { new(null, topLevel, topLevel, SidebarFolderRole.None, 0, true) };
-        targets.AddRange(Tree(
+        var parent = folders.FirstOrDefault(f => f.Key == key)?.Parent;
+        var tree = Tree(
             folders,
-            folder => folder.AcceptsFolders && !IsInside(folders, folder.Key!, key),
-            shift: 1));
+            folder => folder.AcceptsFolders && folder.Key != parent && !IsInside(folders, folder.Key!, key),
+            shift: 1);
+        var targets = new List<MoveTarget>();
+        if (parent is not null || tree.Count > 0)
+        {
+            targets.Add(new(null, topLevel, topLevel, SidebarFolderRole.None, 0, parent is not null));
+        }
+        targets.AddRange(tree);
         return targets;
     }
 

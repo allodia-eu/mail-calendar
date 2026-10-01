@@ -107,17 +107,35 @@ public class FolderActionsTests
     }
 
     [Fact]
-    public void MoveToListsTheTopLevelFirstAndNeverTheFolderOrWhatIsInsideIt()
+    public void MoveToListsTheTopLevelFirstAndNeverTheFolderWhatIsInsideItOrWhereItIs()
     {
         var targets = FolderActions.MoveTargets(Tree(), "clients", "Top level");
 
         Assert.Equal((string?)null, targets[0].Key);
         Assert.Equal("Top level", targets[0].Label);
+        Assert.True(targets[0].Enabled);
         var keys = targets.Skip(1).Select(t => t.Key).ToList();
         Assert.DoesNotContain("clients", keys);
         Assert.DoesNotContain("acme", keys);
-        Assert.Contains("work", keys);
+        Assert.DoesNotContain("work", keys);
         Assert.Contains("bills", keys);
+    }
+
+    [Fact]
+    public void ATopLevelFolderSeesTheTopLevelAsTheRootButCannotChooseIt()
+    {
+        var targets = FolderActions.MoveTargets(Tree(), "bills", "Top level");
+
+        Assert.Equal((string?)null, targets[0].Key);
+        Assert.False(targets[0].Enabled);
+        Assert.All(targets.Skip(1), t => Assert.True(t.Enabled));
+    }
+
+    [Fact]
+    public void ATopLevelFolderWithNowhereToGoIsOfferedNothing()
+    {
+        List<FolderItem> tree = [Folder("bills", "Bills")];
+        Assert.Empty(FolderActions.MoveTargets(tree, "bills", "Top level"));
     }
 
     [Fact]
@@ -135,7 +153,6 @@ public class FolderActionsTests
         Assert.Equal(
             [(null, "Top level", 0), ("inbox", "Inbox", 1), ("work", "Work", 1), ("clients", "Clients", 2), ("acme", "Acme", 3)],
             targets.Select(t => (t.Key, t.Name, t.Indent)).ToList());
-        Assert.All(targets, t => Assert.True(t.Enabled));
         Assert.Equal(SidebarFolderRole.Inbox, targets[1].Role);
     }
 

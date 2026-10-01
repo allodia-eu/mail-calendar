@@ -122,7 +122,7 @@ pub(crate) fn plan(context: &MoveContext, row: &SelectedRow) -> Option<MessageMo
         .filter(|key| Some(key.as_str()) != showing)
         .cloned()
         .collect();
-    let choices = picker_rows(&tree.folders, &destinations, false);
+    let choices = picker_rows(&tree.folders, &destinations, None);
     choices
         .iter()
         .any(|choice| choice.enabled)

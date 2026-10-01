@@ -66,12 +66,13 @@ pub(crate) struct PickerRow {
 ///
 /// A folder in `destinations` is an enabled row. A folder that is not one is drawn, disabled,
 /// only when a destination sits somewhere inside it, so every destination keeps the parent it
-/// has in the pane; any other folder is left out. With `top_level`, a Top level row comes first
-/// and every folder sits one step inside it, as the pane roots each tree at its account.
+/// has in the pane; any other folder is left out. With `top_level`, a Top level row comes first,
+/// enabled as it says, and every folder sits one step inside it, as the pane roots each tree at
+/// its account. A Top level that is not enabled is drawn only as the root of a folder that is.
 pub(crate) fn picker_rows(
     folders: &[PickerFolder],
     destinations: &HashSet<String>,
-    top_level: bool,
+    top_level: Option<bool>,
 ) -> Vec<PickerRow> {
     let mut kept: HashSet<&str> = HashSet::new();
     for folder in folders.iter().filter(|f| destinations.contains(&f.key)) {
@@ -89,15 +90,17 @@ pub(crate) fn picker_rows(
                 .and_then(|f| f.parent.as_deref());
         }
     }
-    let step = u32::from(top_level);
-    let top = top_level.then(|| PickerRow {
-        key: None,
-        name: l10n::folder_move_top_level().to_owned(),
-        icon: icons::ACCOUNT,
-        indent: 0,
-        enabled: true,
-        label: l10n::folder_move_top_level().to_owned(),
-    });
+    let step = u32::from(top_level.is_some());
+    let top = top_level
+        .filter(|&enabled| enabled || !kept.is_empty())
+        .map(|enabled| PickerRow {
+            key: None,
+            name: l10n::folder_move_top_level().to_owned(),
+            icon: icons::ACCOUNT,
+            indent: 0,
+            enabled,
+            label: l10n::folder_move_top_level().to_owned(),
+        });
     top.into_iter()
         .chain(
             folders

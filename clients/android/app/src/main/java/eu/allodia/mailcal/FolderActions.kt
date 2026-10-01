@@ -90,16 +90,21 @@ internal data class MoveTarget(
 )
 
 // Rule 24: Top level first, then every folder of the account that takes folders, leaving out
-// the folder itself and everything inside it. The folders sit one step inside Top level.
+// the folder itself, everything inside it and the place it already is. The folders sit one step
+// inside Top level, which stays as their root, disabled, for a folder already at the top.
 internal fun moveTargets(folder: FolderRow, rows: List<FolderRow>, ctx: Context): List<MoveTarget> {
     val inside = mutableSetOf(folder.key)
     // Rows arrive depth-first, so a folder's descendants follow it and one pass finds them.
     for (row in rows) {
         if (row.parent in inside) inside.add(row.key)
     }
+    val tree = treeTargets(rows, ctx, shift = 1) {
+        it.acceptsFolders && it.key !in inside && it.key != folder.parent
+    }
+    val atTop = folder.parent == null
+    if (atTop && tree.isEmpty()) return emptyList()
     val top = L10n.folder_move_top_level(ctx)
-    return listOf(MoveTarget(null, top, null, indent = 0, enabled = true, label = top)) +
-        treeTargets(rows, ctx, shift = 1) { it.acceptsFolders && it.key !in inside }
+    return listOf(MoveTarget(null, top, null, indent = 0, enabled = !atTop, label = top)) + tree
 }
 
 // Rule 24, for mail: the account's folders that take it, leaving out the one the list is showing.

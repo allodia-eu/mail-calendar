@@ -95,7 +95,7 @@ fn a_row_offers_what_its_flags_allow_and_a_pending_row_nothing() {
 }
 
 #[test]
-fn move_to_lists_top_level_first_and_never_the_folder_or_what_is_inside_it() {
+fn move_to_lists_top_level_first_and_never_the_folder_what_is_inside_it_or_where_it_is() {
     let folders = tree();
     let candidates = move_candidates(&folders, "work");
     let keys: Vec<Option<&str>> = candidates.iter().map(|c| c.key.as_deref()).collect();
@@ -109,11 +109,17 @@ fn move_to_lists_top_level_first_and_never_the_folder_or_what_is_inside_it() {
         "drawn as the pane draws an account"
     );
     assert_eq!(top.indent, 0);
-    assert!(top.enabled);
-    // A folder inside the moved one is left out with it, and the folder above stays a choice.
+    assert!(!top.enabled, "Work is already at the top");
+    // A folder inside the moved one is left out with it, and so is the folder it already sits in.
     let candidates = move_candidates(&folders, "2024");
     let keys: Vec<Option<&str>> = candidates.iter().map(|c| c.key.as_deref()).collect();
-    assert_eq!(keys, vec![None, Some("inbox"), Some("work"), Some("home")]);
+    assert_eq!(keys, vec![None, Some("inbox"), Some("home")]);
+    assert!(candidates.iter().all(|c| c.enabled));
+}
+
+#[test]
+fn a_top_level_folder_with_nowhere_to_go_is_offered_nothing() {
+    assert!(move_candidates(&[row("work", "Work", None)], "work").is_empty());
 }
 
 #[test]
@@ -139,7 +145,8 @@ fn move_to_draws_each_folder_by_its_own_name_one_step_inside_top_level() {
         q1.label, "Work / 2024 / Q1",
         "the path is what is read aloud"
     );
-    assert!(candidates.iter().all(|c| c.enabled));
+    assert!(!candidates[0].enabled, "Home is already at the top");
+    assert!(candidates[1..].iter().all(|c| c.enabled));
 }
 
 #[test]
