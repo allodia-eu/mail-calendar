@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Linux reading/composer + search + calendar + invitations + contacts (incl. the editor's
-# refusal) + mail actions +
+# refusal) + mail actions + printing +
 # signatures + MCP + cross-account merge acceptance path on a private Wayland + D-Bus session. Controls
 # are selected through GTK's AT-SPI tree, never by screen coordinates. The only mailbox is the local
 # Stalwart fixture, and every screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
@@ -720,6 +720,31 @@ PY
   "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Discard draft?" --absent --timeout 20
 
+  # Printing (docs/reading-actions.md, "Printing a message"). Inside the sandbox WebKitGTK prints
+  # only through the desktop portal, which the fixture accepts without a dialog, keeping the PDF it
+  # is handed; so what is read back is the page that would have reached the printer. The pane's
+  # own "More actions" is the one after its Forward: every row's menu carries the same name.
+  # Print is pressed twice, and the fixture answers the two dialogs together: the portal's dialog
+  # leaves the window usable, so a second print can start while the first is still asking, and
+  # both pages have to arrive.
+  "$PYTHON" "$ATSPI" wait --name "$PLAIN_SUBJECT" --role label --showing --timeout 30
+  local printed printed_text
+  for _ in 1 2; do
+    "$PYTHON" "$ATSPI" activate --name "More actions" --after "Forward" --timeout 20
+    "$PYTHON" "$ATSPI" activate --name "Print…" --timeout 20
+  done
+  for _ in {1..200}; do
+    (( $(grep -c '"method": "Print"' "$portal_capture" 2>/dev/null || true) >= 2 )) && break
+    sleep 0.05
+  done
+  (( $(grep -c '"method": "Print"' "$portal_capture" 2>/dev/null || true) >= 2 )) ||
+    die "two prints did not both reach the print portal"
+  printed="$(sed -n 's/.*"file": "\([^"]*\)", "method": "Print".*/\1/p' "$portal_capture" | tail -1)"
+  printed_text="$(pdftotext -layout "$printed" -)" || die "the printed page is not a PDF"
+  for expected in "$PLAIN_SUBJECT" "Alice Tester" "Bob Tester" "Baseline plaintext message"; do
+    grep -Fq "$expected" <<<"$printed_text" || die "the printed page does not carry '$expected'"
+  done
+
   # Search. What is worth driving here is the half a screenshot cannot check: that the core's
   # narrowing reaches the screen, that the two controls docs/search.md requires of a client are on
   # the accessibility bus at all, and that clearing the field puts the unsearched list back.
@@ -1168,6 +1193,7 @@ require_cmd dbus-run-session
 require_cmd gdbus
 require_cmd sway
 require_cmd grim
+require_cmd pdftotext
 [[ -x "$PYTHON" ]] || die "the distro /usr/bin/python3 is required"
 [[ -x /usr/libexec/at-spi2-registryd ]] || die "at-spi2-registryd is required"
 "$PYTHON" -c 'import pyatspi' 2>/dev/null ||

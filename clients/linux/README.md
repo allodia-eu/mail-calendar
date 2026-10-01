@@ -55,7 +55,7 @@ sudo apt update
 sudo apt install --yes \
   git curl ca-certificates build-essential pkg-config \
   libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev \
-  sway grim wtype wayland-utils imagemagick \
+  sway grim wtype wayland-utils imagemagick poppler-utils \
   at-spi2-core accerciser python3-pyatspi
 ```
 
@@ -92,6 +92,7 @@ before building.
 | `wtype` | A real keystroke on that compositor, for what AT-SPI cannot reach (Escape, Tab, a shortcut) |
 | `wayland-utils` | `wayland-info`, which answers whether a compositor offers a capture protocol at all |
 | `imagemagick` | Image inspection, and the brand icon generation the packaging scripts do |
+| `poppler-utils` | `pdftotext`, which reads back the page the UI acceptance suite prints |
 | `at-spi2-core`, `accerciser`, `python3-pyatspi` | Inspect and script GTK's accessibility tree |
 
 `dbus-run-session` comes from `dbus-daemon`, which is already installed on any desktop; the
@@ -241,6 +242,13 @@ reproduces it with the same invocation-per-action shape. Treat "virtual pointer 
 headless" as a claim about that shape rather than about the protocol. So do not install `wlrctl`
 for this: it will create the device and turn the capability on, which is exactly what makes a
 non-delivering setup look like a working one being driven wrongly.
+
+⚠️ **A headless client still talks to the desktop's session bus, so a portal dialog opens on the
+desktop, not on the headless compositor.** The SDK launch is a sandbox, so GTK and WebKitGTK reach
+the file chooser and the print dialog through `xdg-desktop-portal`, whose backend draws them on the
+developer's GNOME session: the capture shows nothing and a dialog appears on the real screen. Drive
+a print through `scripts/dev/test-linux-ui.sh` instead, whose private bus carries a fixture portal
+that answers it and keeps the PDF.
 
 Use only the demo or Stalwart harness for captures, never a personal account.
 
