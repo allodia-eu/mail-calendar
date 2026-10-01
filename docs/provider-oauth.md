@@ -688,6 +688,12 @@ in the Azure app registration. JMAP needs no such entry: RFC 7591 dynamic regist
 whatever redirect URI the client hands it, so a dev build registers itself under the dev scheme
 with no portal step. Google is unaffected (loopback, not a custom scheme).
 
+The same picker comes back between dev builds. An unpackaged build registers the dev scheme against
+its own exe, so every checkout, worktree and architecture that has run adds a handler, and only the
+running build can finish a sign-in: any other row starts a process with nothing waiting for the
+redirect. So the dev build that launches last owns the scheme and withdraws every other build's
+registration (`Program.WithdrawOtherDevBuilds`, decided in `DevSchemeOwnership`).
+
 The Apple path is code-shared; macOS is runtime-confirmed, while iPhone/iPad use the same
 `ASWebAuthenticationSession` host and remain behind the Apple background-delivery follow-up before
 they are marked shipped.

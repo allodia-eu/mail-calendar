@@ -120,6 +120,9 @@
          the packaging *test* (AppIdentity) needs WinRT, but the choice it drives must be pinned,
          since the packaged literal has to match Package.appxmanifest and the Azure registration. -->
     <Compile Include="..\Mailcal\Services\OAuthScheme.cs" Link="Services\OAuthScheme.cs" />
+    <!-- Which other dev builds' claims on the dev scheme a launch withdraws. The registry walk and
+         the Windows App SDK calls stay in Program.cs; the decision is plain BCL. -->
+    <Compile Include="..\Mailcal\Services\DevSchemeOwnership.cs" Link="Services\DevSchemeOwnership.cs" />
     <!-- Where the MCP server listens and what an assistant is told to spawn (docs/mcp.md). Every
          value in it has to match something outside the file, the pipe name the core binds, the
          alias the app manifest registers, the config key the protocol advertises, and all three
