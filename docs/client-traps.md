@@ -293,6 +293,9 @@ that same file.
   so only the keyboard finds it. A list that keeps dimmed rows for context walks `move-cursor`
   itself (`walk_destinations_only` in
   [`folder_dialogs.rs`](../clients/linux/src/ui/folder_dialogs.rs)).
+- **A `GtkWindow` closes on no key.** `AdwDialog` closes on Escape; a plain window used as a
+  dialog does not, though every reader expects it to. [`modal::new`](../clients/linux/src/ui/modal.rs)
+  binds Escape to `window.close`, so build a modal through it.
 - **A size request or a scroll offset set from a `GtkAdjustment` notification never reaches the
   screen.** GTK emits `notify::page-size` and `notify::upper` from inside the viewport's own size
   allocation, which has already measured and placed the child for this frame. A height asked for
