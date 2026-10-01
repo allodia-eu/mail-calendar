@@ -136,6 +136,8 @@ fn config() -> Option<MicrosoftConfig> {
             "Mail.Read".to_owned(),
         ],
         refresh_token: Secret::new(refresh_token),
+        granted_scopes: None,
+        shape: mailcal_account::AccountShape::default(),
     })
 }
 

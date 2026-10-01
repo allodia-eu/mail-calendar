@@ -66,6 +66,7 @@ fn the_constructors_credential_store_is_live_before_the_first_refresh_can_be() {
         password: None,
         token: None,
         oauth: Some(grant),
+        shape: mailcal_account::AccountShape::default(),
     };
     let account_id = config.account_id().expect("a valid account id");
     let config_toml = config.to_toml().expect("serializable config");
@@ -129,6 +130,7 @@ fn unreachable_oauth_jmap_config() -> (String, mailcal_account::JmapAccountConfi
             resource: None,
             issuer: None,
         }),
+        shape: mailcal_account::AccountShape::default(),
     };
     (config.to_toml().expect("serializable config"), config)
 }

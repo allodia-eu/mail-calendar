@@ -62,6 +62,7 @@ fn rotating_account(who: &str, endpoint: String) -> (String, engine_api::Account
             resource: None,
             issuer: None,
         }),
+        shape: mailcal_account::AccountShape::default(),
     };
     let id = config.account_id().expect("a valid account id");
     (config.to_toml().expect("serializable config"), id)

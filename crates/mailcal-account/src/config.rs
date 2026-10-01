@@ -85,6 +85,11 @@ pub struct AccountConfig {
     /// which is nearly all of them.
     #[serde(default, rename = "certificate_exception")]
     pub certificate_exceptions: Vec<CertificateException>,
+    /// What the account is used for, its pinned id and its links: the keys every kind shares at
+    /// the document's root ([`AccountShape`](crate::AccountShape)). Read by the loader beside the
+    /// kind's own section.
+    #[serde(skip)]
+    pub shape: crate::AccountShape,
 }
 
 /// An IMAP endpoint: the `host:port` to dial, the TLS server name, and credentials.
@@ -205,6 +210,7 @@ impl AccountConfig {
             imap.insert("password".into(), password.expose().to_owned().into());
         }
         let mut root = toml::Table::new();
+        self.shape.write_into(&mut root);
         root.insert("imap".into(), imap.into());
 
         if let Some(smtp) = &self.smtp {
@@ -295,6 +301,20 @@ impl AccountConfig {
         }
     }
 
+    /// This account's id: the one pinned in its stored config when there is one, and otherwise
+    /// the one [`derived_account_id`](Self::derived_account_id) derives. A pinned id is what lets
+    /// the settings it was derived from be edited without the account becoming another one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IdError`] only if there is no pinned id and the derived one is empty.
+    pub fn account_id(&self) -> Result<AccountId, IdError> {
+        match &self.shape.id {
+            Some(id) => Ok(id.clone()),
+            None => self.derived_account_id(),
+        }
+    }
+
     /// Derives this account's stable [`AccountId`] from its IMAP login: the **username
     /// and host together**, both **lowercased**. The host disambiguates the same username
     /// on different servers (e.g. `alice@example.com` on two providers), and lowercasing
@@ -307,7 +327,7 @@ impl AccountConfig {
     /// # Errors
     ///
     /// Returns [`IdError`] only if the derived id is empty (an empty username and host).
-    pub fn account_id(&self) -> Result<AccountId, IdError> {
+    pub fn derived_account_id(&self) -> Result<AccountId, IdError> {
         let username = self.imap.username.trim().to_lowercase();
         let host = self.imap.server_name.trim().to_lowercase();
         AccountId::try_from(format!("{username}@{host}").as_str())
@@ -342,7 +362,9 @@ pub fn load(path: impl AsRef<Path>) -> Result<AccountConfig, ConfigError> {
 ///
 /// Returns [`ConfigError`] if the text is not valid config.
 pub fn load_str(text: &str) -> Result<AccountConfig, ConfigError> {
-    Ok(toml::from_str(text)?)
+    let mut config: AccountConfig = toml::from_str(text)?;
+    config.shape = crate::AccountShape::read(text)?;
+    Ok(config)
 }
 
 /// The default config path, `$HOME/.config/mailcal/account.toml`.

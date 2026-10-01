@@ -64,6 +64,7 @@ pub fn build_jmap_config_toml(setup: &JmapSetup) -> Result<String, ConfigError> 
         password: Some(Secret::new(password.to_owned())),
         token: None,
         oauth: None,
+        shape: crate::AccountShape::default(),
     };
     config.to_toml()
 }

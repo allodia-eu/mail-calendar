@@ -349,6 +349,7 @@ impl MailcalApp {
             password: None,
             token: None,
             oauth: Some(grant),
+            shape: mailcal_account::AccountShape::default(),
         })
     }
 }
@@ -417,6 +418,7 @@ mod tests {
             password: None,
             token: None,
             oauth: Some(grant),
+            shape: mailcal_account::AccountShape::default(),
         }
         .to_toml()
         .unwrap();
@@ -473,6 +475,7 @@ mod tests {
             password: None,
             token: None,
             oauth: Some(grant),
+            shape: mailcal_account::AccountShape::default(),
         };
         assert!(!format!("{config:?}").contains("rt-value"));
     }

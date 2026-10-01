@@ -32,6 +32,7 @@ fn jmap_entry(refresh: &str) -> (String, ConnectedAccount) {
             resource: None,
             issuer: None,
         }),
+        shape: mailcal_account::AccountShape::default(),
     };
     let id = config
         .account_id()
@@ -214,6 +215,7 @@ fn replacement_credentials_are_built_for_password_and_secret_jmap_accounts_only(
         password: None,
         token: Some(Secret::new("legacy-token".to_owned())),
         oauth: None,
+        shape: mailcal_account::AccountShape::default(),
     };
     let jmap_id = jmap_config.account_id().unwrap().as_str().to_owned();
     let _jmap = registry.pre_register(
@@ -311,6 +313,8 @@ fn every_oauth_family_rotates_and_names_itself() {
         redirect_uri: "eu.allodia.mailcal://auth".to_owned(),
         scopes: vec!["offline_access".to_owned()],
         refresh_token: Secret::new("original".to_owned()),
+        granted_scopes: None,
+        shape: mailcal_account::AccountShape::default(),
     };
     let google = GoogleConfig {
         email: "alice@example.com".to_owned(),
@@ -319,6 +323,8 @@ fn every_oauth_family_rotates_and_names_itself() {
         redirect_uri: "eu.allodia.mailcal://auth".to_owned(),
         scopes: vec!["offline_access".to_owned()],
         refresh_token: Secret::new("original".to_owned()),
+        granted_scopes: None,
+        shape: mailcal_account::AccountShape::default(),
     };
     let microsoft_id = microsoft.account_id().expect("a valid id");
     let google_id = google.account_id().expect("a valid id");

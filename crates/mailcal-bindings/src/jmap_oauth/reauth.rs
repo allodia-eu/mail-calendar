@@ -98,8 +98,8 @@ impl MailcalApp {
     ) -> Result<(), MailcalError> {
         // Prove the account is still a known OAuth JMAP one before spending a code on it: the
         // user may have removed it while the browser was up.
-        self.stored_jmap_config(&account_id)?;
-        let config = self
+        let stored = self.stored_jmap_config(&account_id)?;
+        let fresh = self
             .exchange_jmap_login(pending, callback_url)
             .inspect_err(|err| {
                 // Support asks "I tapped Sign in again and nothing happened"; say what the server
@@ -110,7 +110,7 @@ impl MailcalApp {
                      is unchanged and the reconnect prompt stays up"
                 );
             })?;
-        same_account(&account_id, &config)?;
+        let config = reconnected(&stored, fresh)?;
         let config_toml = config
             .to_toml()
             .map_err(|err| MailcalError::Config(err.to_string()))?;
@@ -158,6 +158,26 @@ impl MailcalApp {
     }
 }
 
+/// The config to store for a reconnected account: the new grant, under what the stored config
+/// says about the account (its pinned id, capabilities and links), once the sign-in is shown to
+/// be for the same mailbox.
+///
+/// The check compares what the two sign-ins name, never the stored id: a pinned id says which
+/// account this is, not which mailbox a browser just signed into.
+fn reconnected(
+    stored: &JmapAccountConfig,
+    fresh: JmapAccountConfig,
+) -> Result<JmapAccountConfig, MailcalError> {
+    let expected = stored
+        .derived_account_id()
+        .map_err(|err| MailcalError::Engine(err.to_string()))?;
+    same_account(expected.as_str(), &fresh)?;
+    Ok(JmapAccountConfig {
+        shape: stored.shape.clone(),
+        ..fresh
+    })
+}
+
 /// Checks that the account just signed into is the one being reconnected, returning its
 /// [`AccountId`].
 ///
@@ -168,7 +188,7 @@ impl MailcalApp {
 /// the UI. So it is refused, and the reconnect prompt stays up.
 fn same_account(account_id: &str, config: &JmapAccountConfig) -> Result<AccountId, MailcalError> {
     let signed_in = config
-        .account_id()
+        .derived_account_id()
         .map_err(|err| MailcalError::Engine(err.to_string()))?;
     if signed_in.as_str() != account_id {
         log::warn!(
@@ -186,7 +206,7 @@ fn same_account(account_id: &str, config: &JmapAccountConfig) -> Result<AccountI
 mod tests {
     use mailcal_account::{OAuthGrant, Secret};
 
-    use super::{JmapAccountConfig, same_account};
+    use super::{JmapAccountConfig, reconnected, same_account};
     use crate::{AccountProvider, ConnectedAccount};
 
     fn grant() -> OAuthGrant {
@@ -210,6 +230,7 @@ mod tests {
             password: oauth.is_none().then(|| Secret::new("secret".to_owned())),
             token: None,
             oauth,
+            shape: mailcal_account::AccountShape::default(),
         }
     }
 
@@ -256,5 +277,42 @@ mod tests {
             err.to_string().contains("different account"),
             "the message must say what went wrong: {err}",
         );
+    }
+
+    fn pinned(config: JmapAccountConfig) -> JmapAccountConfig {
+        JmapAccountConfig {
+            shape: mailcal_account::AccountShape {
+                id: Some("alice@jmap:old.example".try_into().unwrap()),
+                capabilities: Some([mailcal_account::Capability::Mail].into_iter().collect()),
+                ..mailcal_account::AccountShape::default()
+            },
+            ..config
+        }
+    }
+
+    /// A sign-in knows nothing of what the account is used for, its pinned id or its links, so
+    /// the account keeps its own rather than being rewritten as a new one.
+    #[test]
+    fn a_reconnected_account_keeps_what_its_stored_config_says_about_it() {
+        let stored = pinned(config("alice@example.com", Some(grant())));
+        let fresh = config("alice@example.com", Some(grant()));
+
+        let reconnected = reconnected(&stored, fresh).unwrap();
+
+        assert_eq!(reconnected.shape, stored.shape);
+        assert_eq!(
+            reconnected.account_id().unwrap(),
+            stored.account_id().unwrap()
+        );
+    }
+
+    /// A pinned id must not make the address check pass for a different mailbox, nor fail it
+    /// for the same one: both sides are compared as their sign-ins name them.
+    #[test]
+    fn a_pinned_id_neither_admits_another_mailbox_nor_refuses_the_same_one() {
+        let stored = pinned(config("alice@example.com", Some(grant())));
+
+        assert!(reconnected(&stored, config("alice@example.com", Some(grant()))).is_ok());
+        assert!(reconnected(&stored, config("bob@example.com", Some(grant()))).is_err());
     }
 }

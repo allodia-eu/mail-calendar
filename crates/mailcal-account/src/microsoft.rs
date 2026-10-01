@@ -45,9 +45,36 @@ pub struct MicrosoftConfig {
     /// The OAuth refresh token: the only stored secret; access tokens are minted from
     /// it at connect time and never persisted.
     pub refresh_token: Secret,
+    /// The scopes the provider actually granted, which may be fewer than were requested: a
+    /// person can untick one on the consent screen, or withdraw one later. A copy of the last
+    /// token response that named them, written at sign-in and overwritten by any refresh that
+    /// names a different set, so it is only ever as old as the last refresh. `None` for a grant
+    /// stored before this was recorded, which is read as withholding nothing until a refresh says
+    /// otherwise.
+    #[serde(default)]
+    pub granted_scopes: Option<Vec<String>>,
+    /// What the account is used for, its pinned id and its links: the keys every kind shares at
+    /// the document's root ([`AccountShape`](crate::AccountShape)). Read by the loader beside the
+    /// kind's own section.
+    #[serde(skip)]
+    pub shape: crate::AccountShape,
 }
 
 impl MicrosoftConfig {
+    /// This account's id: the one pinned in its stored config when there is one, and otherwise
+    /// the one [`derived_account_id`](Self::derived_account_id) derives. A pinned id is what lets
+    /// the settings it was derived from be edited without the account becoming another one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IdError`] only if there is no pinned id and the derived one is empty.
+    pub fn account_id(&self) -> Result<AccountId, IdError> {
+        match &self.shape.id {
+            Some(id) => Ok(id.clone()),
+            None => self.derived_account_id(),
+        }
+    }
+
     /// Derives this account's stable [`AccountId`] from its **lowercased address** plus
     /// the Graph host sentinel; stable across launches, and distinct from an IMAP
     /// account for the same address (see `GRAPH_ID_HOST`).
@@ -55,7 +82,7 @@ impl MicrosoftConfig {
     /// # Errors
     ///
     /// Returns [`IdError`] only if the address is empty (an empty id).
-    pub fn account_id(&self) -> Result<AccountId, IdError> {
+    pub fn derived_account_id(&self) -> Result<AccountId, IdError> {
         let email = self.email.trim().to_lowercase();
         AccountId::try_from(format!("{email}@{GRAPH_ID_HOST}").as_str())
     }
@@ -100,7 +127,14 @@ impl MicrosoftConfig {
             "refresh_token".into(),
             self.refresh_token.expose().to_owned().into(),
         );
+        if let Some(granted) = &self.granted_scopes {
+            microsoft.insert(
+                "granted_scopes".into(),
+                toml::Value::Array(granted.iter().map(|s| s.clone().into()).collect()),
+            );
+        }
         let mut root = toml::Table::new();
+        self.shape.write_into(&mut root);
         root.insert("microsoft".into(), microsoft.into());
         Ok(toml::to_string(&root)?)
     }
@@ -120,7 +154,9 @@ struct MicrosoftDocument {
 /// Returns [`ConfigError::Parse`] if the text is not a valid `[microsoft]` config.
 pub fn load_microsoft_str(text: &str) -> Result<MicrosoftConfig, ConfigError> {
     let doc: MicrosoftDocument = toml::from_str(text)?;
-    Ok(doc.microsoft)
+    let mut config = doc.microsoft;
+    config.shape = crate::AccountShape::read(text)?;
+    Ok(config)
 }
 
 /// Looks up the signed-in account's own email address via Graph `GET /me`, so a freshly
@@ -181,6 +217,8 @@ mod tests {
                 "https://graph.microsoft.com/Mail.Read".to_owned(),
             ],
             refresh_token: Secret::new("secret-refresh-token".to_owned()),
+            granted_scopes: None,
+            shape: crate::AccountShape::default(),
         }
     }
 
