@@ -101,9 +101,13 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
    alone is probed, and a hit there is a **calendar-and-contacts** result rather than nothing.
    Only an HTTPS `401` (a credential challenge) or `207` (a WebDAV multi-status) counts, so a
    catch-all `301`-to-homepage is not a false positive, and because only HTTPS is followed, a
-   discovered endpoint is always tamper-resistant-sourced. A found calendar is offered
-   **pre-selected** (opt-out), reusing the account's credential; when nothing is found an
-   opt-in manual CalDAV field is offered. The probe is **soft**: every candidate is bounded by
+   discovered endpoint is always tamper-resistant-sourced. **Which uses the found card offers,
+   and how each starts, is the core's** (`detect_account_setup`'s `choices`): mail, calendar and
+   contacts on the IMAP route, calendar and contacts on the calendar-and-contacts route, all four
+   (colleagues included) before a Microsoft or Google sign-in, none before a JMAP sign-in. A use
+   whose server was found starts **on** (opt-out), reusing the account's credential, and contacts
+   count as found when a calendar was, since they are looked for at its server; a use whose
+   server was not found starts off, and switching it on asks for the URL. The probe is **soft**: every candidate is bounded by
    its own timeout, it runs outside the overall deadline, it never turns a found config into a
    miss, and the engine still does the real authenticated collection discovery at connect (a
    wrong guess degrades to "no calendar", surfaced non-blocking, never a broken account).
@@ -295,6 +299,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | DNSSEC AD bit read (reserved for a future "require DNSSEC" opt-in) | ✅ | n/a | n/a | ✅ | n/a |
 | CalDAV follow-on discovery (RFC 6764) | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | CardDAV, DAV SRV, DAV beside JMAP, the calendar-and-contacts result (rule 8) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The found card's choices, decided in the core (rule 8) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | JMAP OAuth metadata chain (RFC 9728 → 8414 → 7591), offered only when advertised | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | `<oAuth2><issuer>` read from the provider's own trusted autoconfig, carried to setup | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 
@@ -418,11 +423,11 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   stranding the user. The **manual** pane keeps its secret field throughout: it is already on
   screen, so a negative answer changes nothing there and must not rebuild over a secret being
   typed.
-- **No client offers what rule 8 adds yet.** The core finds CardDAV, SRV-named DAV hosts, DAV
-  beside a JMAP server and a domain with DAV but no mail, but `detect_account_settings` hands a
-  client only the CalDAV endpoint on the IMAP route, and a domain with DAV alone reaches it as
-  "nothing found". Each client takes the rest when its setup offers calendar and contacts
-  choices.
+- **No client offers what rule 8 adds yet.** Every client still calls `detect_account_settings`,
+  which hands it only the CalDAV endpoint on the IMAP route and a domain with DAV alone as
+  "nothing found". `detect_account_setup` carries the rest (both endpoints on every route, the
+  calendar-and-contacts route, the choices), and each client moves to it when its setup offers
+  the choices.
 - **TXT `path` records are not read** (RFC 6764 §4). The host resolver has no TXT lookup, so a
   DAV server whose context path is published only in TXT, and not under `.well-known` on the
   SRV target, is not found, and the user adds it manually.
