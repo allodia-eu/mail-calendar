@@ -273,7 +273,9 @@ check that what is announced is where it is drawn.
   canned account is injected fresh on top), which is what makes iterating on the setup flow painless.
   To reset, delete the dev namespace **wholesale**: it's throwaway, so unlike the real store you can
   drop the whole index: `eu.allodia.mailcal:dev:account-index` and each
-  `eu.allodia.mailcal:dev:account:<id>` (chunks `:1`, `:2`, … if any). Use a *second* seed account
+  `eu.allodia.mailcal:dev:account:<id>` (chunks `:1`, `:2`, … if any).
+  `clients/windows/clear-dev-namespace.ps1 -Namespace <dev…>` does exactly that, store directory
+  included, and never reaches past the namespace's own prefix. Use a *second* seed account
   (`bob@test.local` / `harness-bob-pw`) so the run's own canned account stays untouched. (If you ever
   add through the form in a **non-dev** run, that DOES hit the real `eu.allodia.mailcal:` store and
   its index co-mingles real accounts; there, remove surgically, never nuke the index.)
