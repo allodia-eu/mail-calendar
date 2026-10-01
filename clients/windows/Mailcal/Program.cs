@@ -14,12 +14,14 @@
 // OAuth delivery and the unpackaged-dev protocol registration are ours.
 
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.DataTransfer.ShareTarget;
@@ -42,8 +44,8 @@ public static class Program
         WinRT.ComWrappersSupport.InitializeComWrappers();
 
         // Unpackaged dev (build-and-run.ps1) has no MSIX manifest to declare the protocol, so
-        // register it against the current exe at runtime. Packaged/Store builds get it from
-        // Package.appxmanifest instead, skip there.
+        // register it against the current exe at runtime, and withdraw every other dev build's
+        // claim on it. Packaged/Store builds get it from Package.appxmanifest instead, skip there.
         RegisterProtocolForUnpackaged();
 
         // A secondary activation (e.g. the OAuth redirect) is handed to the primary instance, which
@@ -65,6 +67,10 @@ public static class Program
         // happened.
         Log.Init(AppPaths.Root, AppIdentity.PackageVersion);
         CrashLog.WatchProcess();
+        if (_devSchemeNote is { } note)
+        {
+            Log.Info(note);
+        }
         if (Log.FilePath is string logPath)
         {
             CrashLog.WatchForNativeFaults(logPath);
@@ -238,8 +244,59 @@ public static class Program
         // it, JMAP included. Pass the real exe path explicitly: an empty exePath leaves the
         // handler's shell\open\command unwritten (the OS then can't launch us on activation).
         var exePath = Environment.ProcessPath ?? string.Empty;
+        WithdrawOtherDevBuilds(exePath);
         ActivationRegistrationManager.RegisterForProtocolActivation(
             MicrosoftOAuthConfig.Scheme, string.Empty, "Allodia Mail & Calendar (dev)", exePath);
+    }
+
+    // Every checkout, worktree and architecture registers the dev scheme against its own exe, and
+    // a redirect with more than one handler opens a "select an app" picker in which only the
+    // running build can finish the sign-in (DevSchemeOwnership). So the build that launches last
+    // takes the scheme. The registrations are read where the Windows App SDK writes them: under
+    // WindowsAppRuntimeApplications, in a key the SDK itself spells "Capabilties", mapping the
+    // scheme to a ProgID whose shell\open\command names the exe. A failure here costs at most a
+    // picker, so it never stops the launch. What happened is held for the log, which this runs
+    // too early to write to (Main).
+    private static void WithdrawOtherDevBuilds(string exePath)
+    {
+        try
+        {
+            var scheme = MicrosoftOAuthConfig.Scheme;
+            var others = DevSchemeOwnership.OthersToWithdraw(RegisteredDevSchemeExes(scheme), exePath);
+            foreach (var other in others)
+            {
+                ActivationRegistrationManager.UnregisterForProtocolActivation(scheme, other);
+            }
+            if (others.Count > 0)
+            {
+                _devSchemeNote = $"dev scheme: withdrew {others.Count} other build(s)' handler";
+            }
+        }
+        catch (Exception error)
+        {
+            _devSchemeNote = $"dev scheme: could not withdraw other builds' handlers: {error.GetType().Name}";
+        }
+    }
+
+    private static string? _devSchemeNote;
+
+    private static IEnumerable<string?> RegisteredDevSchemeExes(string scheme)
+    {
+        using var apps = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\WindowsAppRuntimeApplications");
+        if (apps is null)
+        {
+            yield break;
+        }
+        foreach (var app in apps.GetSubKeyNames())
+        {
+            using var urls = apps.OpenSubKey($@"{app}\Capabilties\URLAssociations");
+            if (urls?.GetValue(scheme) is not string progId)
+            {
+                continue;
+            }
+            using var command = Registry.CurrentUser.OpenSubKey($@"Software\Classes\{progId}\Shell\open\command");
+            yield return DevSchemeOwnership.ExeFromCommand(command?.GetValue(null) as string);
+        }
     }
 
     // Redirect on a worker thread and pump COM messages while waiting, so the STA main thread never
