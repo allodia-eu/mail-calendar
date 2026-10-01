@@ -58,6 +58,15 @@ const BOUND_SOURCES: &[GoogleContactSource] = &[
     GoogleContactSource::Directory,
 ];
 
+/// The sources an account binds: all of [`BOUND_SOURCES`], less the Workspace directory unless
+/// the person chose colleagues from their organisation.
+fn bound_sources(directory: bool) -> impl Iterator<Item = GoogleContactSource> {
+    BOUND_SOURCES
+        .iter()
+        .copied()
+        .filter(move |source| directory || *source != GoogleContactSource::Directory)
+}
+
 /// A [`ContactsProvider`] bound to one Google People source that refreshes its access token
 /// before every network call and delegates to a [`GoogleContactProvider`] built with it.
 /// Internal; the account layer hands callers `Box<dyn ContactsProvider>` from
@@ -238,7 +247,8 @@ impl ContactsProvider for RefreshingGoogleContactProvider {
 }
 
 /// Connects the People contact adapters a Google account syncs its address books through: one
-/// per source the app reads, each sharing the account's token source.
+/// per source the app reads, each sharing the account's token source. The Workspace directory is
+/// bound only when `directory` says the person chose colleagues from their organisation.
 ///
 /// One token is minted here and seeded into every provider, so the fan-out costs a single
 /// refresh rather than one per source, and each provider can answer its synchronous questions
@@ -251,17 +261,18 @@ impl ContactsProvider for RefreshingGoogleContactProvider {
 /// cannot be constructed.
 pub async fn connect_google_contact_providers(
     tokens: Arc<GraphTokenSource>,
+    directory: bool,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
     let tls = tls_with(&[])?;
     let token = tokens.access_token().await?;
     let mut providers: Vec<Box<dyn ContactsProvider>> = Vec::with_capacity(BOUND_SOURCES.len());
-    for source in BOUND_SOURCES {
+    for source in bound_sources(directory) {
         let delegate = Arc::new(
-            build(*source, &token, &tls, &tokens.retry())
+            build(source, &token, &tls, &tokens.retry())
                 .map_err(|err| AccountError::Google(err.to_string()))?,
         );
         providers.push(Box::new(RefreshingGoogleContactProvider::new(
-            *source,
+            source,
             Arc::clone(&tokens),
             tls.clone(),
             (token.clone(), delegate),
@@ -316,6 +327,20 @@ mod tests {
                 GoogleContactSource::Directory,
             ],
         );
+    }
+
+    /// Colleagues are a choice of their own: without it the account reads its own contacts and
+    /// the ones Google collected, and never the organisation's directory.
+    #[test]
+    fn the_directory_is_bound_only_when_colleagues_were_chosen() {
+        assert_eq!(
+            bound_sources(false).collect::<Vec<_>>(),
+            [
+                GoogleContactSource::Connections,
+                GoogleContactSource::OtherContacts
+            ],
+        );
+        assert_eq!(bound_sources(true).collect::<Vec<_>>(), BOUND_SOURCES);
     }
 
     /// The wrapper must forward both scopes rather than let them fall through:

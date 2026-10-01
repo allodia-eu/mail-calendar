@@ -143,3 +143,53 @@ fn the_granted_scopes_are_kept_beside_the_requested_ones() {
         assert_eq!(rewrite(&stored), stored);
     }
 }
+
+#[test]
+fn an_account_that_stores_no_choice_is_used_for_what_its_kind_always_meant() {
+    use Capability::{Calendar, Colleagues, Contacts, Mail};
+    let listed = |capabilities: crate::Capabilities| capabilities.iter().collect::<Vec<_>>();
+
+    // A standards account without a calendar endpoint is a mailbox and nothing else.
+    assert_eq!(listed(load_str(IMAP).unwrap().capabilities()), [Mail]);
+    // With one, the calendar and the address book found beside it come along.
+    let with_caldav =
+        format!("{IMAP}\n[caldav]\nbase_url = \"https://dav.example.org\"\nusername = \"alice\"\n");
+    assert_eq!(
+        listed(load_str(&with_caldav).unwrap().capabilities()),
+        [Mail, Calendar, Contacts]
+    );
+    // JMAP offers what its session advertises; the session decides at the dial.
+    assert_eq!(
+        listed(load_jmap_str(JMAP).unwrap().capabilities()),
+        [Mail, Calendar, Contacts]
+    );
+    // Microsoft and Google asked for everything at sign-in, colleagues included.
+    for all in [
+        load_microsoft_str(MICROSOFT).unwrap().capabilities(),
+        load_google_str(GOOGLE).unwrap().capabilities(),
+    ] {
+        assert_eq!(listed(all), [Mail, Calendar, Contacts, Colleagues]);
+    }
+}
+
+#[test]
+fn a_stored_choice_is_what_the_account_is_used_for_whatever_its_kind() {
+    let chosen = "capabilities = [\"calendar\"]\n";
+    for capabilities in [
+        load_str(&format!("{chosen}{IMAP}")).unwrap().capabilities(),
+        load_microsoft_str(&format!("{chosen}{MICROSOFT}"))
+            .unwrap()
+            .capabilities(),
+        load_google_str(&format!("{chosen}{GOOGLE}"))
+            .unwrap()
+            .capabilities(),
+        load_jmap_str(&format!("{chosen}{JMAP}"))
+            .unwrap()
+            .capabilities(),
+    ] {
+        assert_eq!(
+            capabilities.iter().collect::<Vec<_>>(),
+            [Capability::Calendar]
+        );
+    }
+}

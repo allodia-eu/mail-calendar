@@ -90,6 +90,17 @@ pub struct JmapAccountConfig {
 }
 
 impl JmapAccountConfig {
+    /// What this account is used for: its stored choice, or what the kind has always meant (mail,
+    /// calendar and contacts, of which the session decides at the dial which the account has).
+    #[must_use]
+    pub fn capabilities(&self) -> crate::Capabilities {
+        self.shape.capabilities_or([
+            crate::Capability::Mail,
+            crate::Capability::Calendar,
+            crate::Capability::Contacts,
+        ])
+    }
+
     /// This account's id: the one pinned in its stored config when there is one, and otherwise
     /// the one [`derived_account_id`](Self::derived_account_id) derives. A pinned id is what lets
     /// the settings it was derived from be edited without the account becoming another one.

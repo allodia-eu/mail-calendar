@@ -125,8 +125,9 @@ impl ConnectedAccount {
         }
     }
 
-    /// The IMAP config, connections and token source, or `None` for a Microsoft/JMAP account: so
-    /// an IMAP-only path (an `IDLE` watch) can skip non-IMAP entries.
+    /// The IMAP config, connections and token source, or `None` for a Microsoft/JMAP account and
+    /// for an IMAP account not used for mail: so an IMAP-only path (an `IDLE` watch) can skip
+    /// entries with no mailbox to watch.
     ///
     /// They travel together because every IMAP dial needs all three: a watch that took the
     /// config alone would authenticate an OAuth account with nothing at all.
@@ -136,7 +137,13 @@ impl ConnectedAccount {
                 config,
                 connections,
                 tokens,
-            } => Some((config, connections, tokens.as_ref())),
+            } if config
+                .capabilities()
+                .contains(mailcal_account::Capability::Mail) =>
+            {
+                Some((config, connections, tokens.as_ref()))
+            }
+            Self::Imap { .. } => None,
             Self::Microsoft { .. } | Self::Google { .. } | Self::Jmap { .. } => None,
         }
     }

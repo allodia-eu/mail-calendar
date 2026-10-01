@@ -53,8 +53,10 @@ use crate::{AccountProvider, ConnectedAccount};
 
 mod credentials;
 mod dial;
+mod dial_parts;
+mod dial_run;
 
-pub(crate) use dial::{AccountDial, dial_all};
+pub(crate) use dial::{AccountDial, ConnectFailure, dial_all};
 
 /// Every connected account's re-connection state, keyed by account id, and the gate that makes
 /// "registered before dialed" a property of the code rather than a rule in a document.

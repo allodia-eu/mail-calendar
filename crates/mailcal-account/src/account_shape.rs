@@ -30,6 +30,9 @@ pub enum Capability {
 }
 
 impl Capability {
+    /// Every capability, in the order they are listed.
+    pub const ALL: [Self; 4] = [Self::Mail, Self::Calendar, Self::Contacts, Self::Colleagues];
+
     /// The name the stored config spells it with.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -44,7 +47,7 @@ impl Capability {
     /// The capability a stored name spells, or `None` for one this build does not know.
     #[must_use]
     pub fn parse(name: &str) -> Option<Self> {
-        [Self::Mail, Self::Calendar, Self::Contacts, Self::Colleagues]
+        Self::ALL
             .into_iter()
             .find(|capability| capability.as_str() == name)
     }
@@ -168,6 +171,15 @@ impl AccountShape {
     /// something it cannot (an id that is not one, a capability this build does not know).
     pub fn read(text: &str) -> Result<Self, ConfigError> {
         Ok(toml::from_str(text)?)
+    }
+
+    /// What the account is used for: what it stores, or `legacy` when it stores nothing, which
+    /// is what every account meant before the choice existed and is the kind's to state.
+    #[must_use]
+    pub fn capabilities_or(&self, legacy: impl IntoIterator<Item = Capability>) -> Capabilities {
+        self.capabilities
+            .clone()
+            .unwrap_or_else(|| legacy.into_iter().collect())
     }
 
     /// Adds the keys that are set to an account document's root table. Nothing is added for an

@@ -16,7 +16,7 @@ use engine_api::{AccountId, EmailAddress, Provider, TimeZoneId};
 use mailcal_account::{CredentialOrigin, GraphTokenSource, TokenSink};
 use mailcal_app::Account;
 
-use crate::{BoxedAccount, ConnectedAccount, MailcalError};
+use crate::{BoxedAccount, ConnectedAccount, MailcalError, account_registry::ConnectFailure};
 
 /// Builds one stored account **offline**; its id, identity, and re-connection state derived from
 /// the config with no network at all.
@@ -135,11 +135,9 @@ pub(crate) fn is_jmap_toml(config_toml: &str) -> bool {
     mailcal_account::load_jmap_str(config_toml).is_ok()
 }
 
-/// Binds a Microsoft account's Graph calendar provider (its default calendar); shared by the dial
-/// and the post-OAuth add path. A calendar-connect failure is **non-fatal**: mail comes up with an
-/// empty agenda rather than failing the whole account.
+/// Binds a Microsoft account's Graph calendar provider (its default calendar).
 ///
-/// Returns the (possibly empty) providers **and** whether the failure was a *scope-denied* `403`;
+/// Returns the providers or the failure, **and** whether the failure was a *scope-denied* `403`;
 /// i.e. the account's OAuth grant predates the `Calendars.ReadWrite` scope, so the user must
 /// **re-authenticate** to enable calendar (as opposed to a transient failure, which just retries on
 /// the next sync). The caller records that as a per-account re-consent prompt.
@@ -147,16 +145,16 @@ pub(crate) async fn connect_graph_calendars(
     id: &AccountId,
     tokens: Arc<GraphTokenSource>,
     display_zone: TimeZoneId,
-) -> (Vec<Box<dyn Provider>>, bool) {
+) -> (Result<Vec<Box<dyn Provider>>, ConnectFailure>, bool) {
     match mailcal_account::connect_graph_calendar_providers(id, tokens, display_zone).await {
-        Ok(providers) => (providers, false),
-        Err(mailcal_account::AccountError::CalendarAccessDenied(detail)) => {
-            log::warn!("graph: calendar access denied; re-authentication needed: {detail}");
-            (Vec::new(), true)
+        Ok(providers) => (Ok(providers), false),
+        Err(err @ mailcal_account::AccountError::CalendarAccessDenied(_)) => {
+            log::warn!("graph: calendar access denied; re-authentication needed: {err}");
+            (Err(ConnectFailure::from(err)), true)
         }
         Err(err) => {
-            log::warn!("graph: calendar connect failed, mail only: {err}");
-            (Vec::new(), false)
+            log::warn!("graph: calendar connect failed: {err}");
+            (Err(ConnectFailure::from(err)), false)
         }
     }
 }
