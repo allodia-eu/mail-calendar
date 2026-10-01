@@ -157,7 +157,7 @@ scripts/dev/control.sh linux ui-dump
 scripts/dev/control.sh linux find "Reply"
 scripts/dev/control.sh linux activate "Reply"
 scripts/dev/control.sh linux set-text "Title" "Team planning"
-scripts/dev/control.sh linux key Escape                  # a real keystroke
+scripts/dev/control.sh linux key ctrl+k                  # a real keystroke, or a chord
 kill -KILL <pid>                                         # the compositor; the READY line names it
 ```
 

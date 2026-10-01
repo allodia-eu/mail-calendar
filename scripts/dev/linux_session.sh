@@ -247,3 +247,17 @@ linux_session_type() { # <wtype args...>
   require_cmd wtype
   WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" wtype -s "${MAILCAL_WTYPE_SETTLE_MS:-300}" "$@"
 }
+
+# The `wtype` arguments for one key with its modifiers held: `ctrl+shift+Left` presses ctrl and
+# shift, taps Left and releases both. The names are wtype's (`ctrl`, `shift`, `alt`, `altgr`,
+# `logo`); the last part is an xkb keysym, so a bare `Escape` is a chord of one.
+linux_session_chord_args() { # <chord>
+  local -a parts=()
+  IFS=+ read -r -a parts <<<"$1"
+  [[ ${#parts[@]} -gt 0 && -n "${parts[-1]}" ]] || die "no key in '$1'"
+  local key="${parts[-1]}" modifier
+  local -a modifiers=("${parts[@]:0:${#parts[@]}-1}")
+  for modifier in "${modifiers[@]}"; do printf '%s\n' -M "${modifier,,}"; done
+  printf '%s\n' -k "$key"
+  for modifier in "${modifiers[@]}"; do printf '%s\n' -m "${modifier,,}"; done
+}

@@ -33,7 +33,7 @@
 #                                                     #   carry: an entry's accessible name is its
 #                                                     #   label, so a dump cannot say what is in it
 #   scripts/dev/control.sh linux ui-dump               # the live GTK accessibility tree
-#   scripts/dev/control.sh linux key Escape            # a REAL keystroke, for what AT-SPI cannot
+#   scripts/dev/control.sh linux key ctrl+k            # a REAL keystroke or chord, for what AT-SPI cannot
 #   scripts/dev/control.sh linux text "Team planning"  #   reach: a shortcut, Tab, a dismissal.
 #                                                      #   Needs build-and-run.sh --headless
 #   scripts/dev/control.sh linux click <x> <y>         # a REAL pointer, in output pixels: the same
@@ -172,10 +172,11 @@ EOF
     # which is the whole of what `key` is for.
     case "$action" in
       key)
-        [[ $# -ge 1 ]] || die "key <xkb keysym name, e.g. Escape|Return|Tab>"
+        [[ $# -ge 1 ]] || die "key <xkb keysym, or a chord such as ctrl+Return|ctrl+shift+Left>"
         linux_session_attach ||
           die "a keystroke needs the headless session: clients/linux/build-and-run.sh --headless"
-        linux_session_type -k "$1"; exit $? ;;
+        mapfile -t chord < <(linux_session_chord_args "$1")
+        linux_session_type "${chord[@]}"; exit $? ;;
       text)
         [[ $# -ge 1 ]] || die "text <string>"
         linux_session_attach ||

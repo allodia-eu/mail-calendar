@@ -149,7 +149,7 @@ scripts/dev/control.sh android tap <x> <y> | text "<s>" | key back|enter | swipe
 scripts/dev/control.sh iphone ui-dump | find "<label>" | press "<label>" | probe <x> <y> | tap <x> <y> | text "<s>"
 scripts/dev/control.sh macos  tap <x> <y> | text "<s>" | key return|escape|... | find "<label>" | ui-dump
 scripts/dev/control.sh linux  activate "<accessible name>" | find "<accessible name>" | set-text "<accessible name>" "<value>" | ui-dump
-scripts/dev/control.sh linux  key Escape | text "<s>"      # a real keystroke; needs --headless
+scripts/dev/control.sh linux  key Escape | key ctrl+k | text "<s>"   # a real keystroke or chord; needs --headless
 ```
 
 `ui-dump` prints the accessibility tree so you can locate semantic nodes (and coordinates where a
