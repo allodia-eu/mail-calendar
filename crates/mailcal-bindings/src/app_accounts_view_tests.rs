@@ -4,7 +4,7 @@
 use std::sync::{Arc, mpsc};
 
 use crate::{
-    AccountCapability, AccountKind, CapabilityState, LogLevel, MailcalApp,
+    AccountCapability, AccountKind, CapabilityState, LinkSlot, LogLevel, MailcalApp,
     tests::{
         ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle, temp_data_dir,
     },
@@ -32,12 +32,20 @@ const MAILBOX_ID: &str = "alice@example.org@localhost";
 const CLOUD_ID: &str = "alice@dav:127.0.0.1:1";
 
 fn app(name: &str, store: &Arc<RecordingCredentialStore>) -> Arc<MailcalApp> {
+    app_with(name, store, &[MAILBOX, CLOUD])
+}
+
+fn app_with(
+    name: &str,
+    store: &Arc<RecordingCredentialStore>,
+    configs: &[&str],
+) -> Arc<MailcalApp> {
     let (tx, _rx) = mpsc::channel();
     MailcalApp::new_accounts(
         Box::new(ChannelObserver { tx }),
         Box::new(NullLogger),
         LogLevel::Info,
-        vec![MAILBOX.to_owned(), CLOUD.to_owned()],
+        configs.iter().map(|config| (*config).to_owned()).collect(),
         temp_data_dir(name).to_string_lossy().into_owned(),
         "Etc/UTC".to_owned(),
         crate::analytics::test_device(),
@@ -121,4 +129,121 @@ fn a_config_superseded_while_it_was_stored_is_stored_again() {
         .collect();
     assert_eq!(writes.len(), 2);
     assert!(writes[1].contains("alice@example.org"), "{}", writes[1]);
+}
+
+#[test]
+fn naming_a_calendar_s_mail_account_links_both_ends_and_stores_them() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app("accounts-set-link", &store);
+    app.set_account_link(MAILBOX_ID.to_owned(), LinkSlot::Calendar, None)
+        .expect("cleared");
+    assert!(app.accounts_snapshot().accounts[0].links.calendar.is_none());
+
+    app.set_account_link(
+        CLOUD_ID.to_owned(),
+        LinkSlot::Mail,
+        Some(MAILBOX_ID.to_owned()),
+    )
+    .expect("linked");
+
+    let accounts = app.accounts_snapshot().accounts;
+    assert_eq!(
+        accounts[0]
+            .links
+            .calendar
+            .as_ref()
+            .map(|linked| linked.id.as_str()),
+        Some(CLOUD_ID)
+    );
+    assert_eq!(
+        accounts[1]
+            .links
+            .mail
+            .as_ref()
+            .map(|linked| linked.id.as_str()),
+        Some(MAILBOX_ID)
+    );
+    let last_stored = |account: &str| {
+        store
+            .persisted
+            .lock()
+            .unwrap()
+            .iter()
+            .rev()
+            .find(|(id, _)| id == account)
+            .map(|(_, config)| config.clone())
+            .unwrap_or_default()
+    };
+    assert!(last_stored(MAILBOX_ID).contains(&format!("calendar = \"{CLOUD_ID}\"")));
+    assert!(last_stored(CLOUD_ID).contains(&format!("mail = \"{MAILBOX_ID}\"")));
+}
+
+#[test]
+fn a_link_the_slot_may_not_name_is_refused_and_changes_nothing() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app("accounts-refuse-link", &store);
+    let refused = app.set_account_link(
+        MAILBOX_ID.to_owned(),
+        LinkSlot::Mail,
+        Some(CLOUD_ID.to_owned()),
+    );
+    assert!(matches!(refused, Err(crate::MailcalError::Config(_))));
+    assert!(app.accounts_snapshot().accounts[0].links.mail.is_none());
+    assert!(store.persisted.lock().unwrap().is_empty());
+}
+
+fn mail_link(app: &MailcalApp, id: &str) -> Option<String> {
+    app.accounts_snapshot()
+        .accounts
+        .into_iter()
+        .find(|entry| entry.id == id)
+        .and_then(|entry| entry.links.mail)
+        .map(|linked| linked.id)
+}
+
+#[test]
+fn clearing_the_mail_account_a_calendar_sends_through_unlinks_them() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app("accounts-clear-sender", &store);
+    assert_eq!(mail_link(&app, CLOUD_ID).as_deref(), Some(MAILBOX_ID));
+
+    app.set_account_link(CLOUD_ID.to_owned(), LinkSlot::Mail, None)
+        .expect("cleared");
+
+    assert_eq!(mail_link(&app, CLOUD_ID), None);
+    assert!(app.accounts_snapshot().accounts[0].links.calendar.is_none());
+}
+
+const SECOND_MAILBOX: &str = r#"
+[imap]
+addr = "127.0.0.1:1"
+server_name = "localhost"
+username = "bob@example.org"
+password = "pw"
+"#;
+
+#[test]
+fn a_second_mail_account_linking_a_calendar_keeps_the_one_it_sends_through() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app_with(
+        "accounts-second-sender",
+        &store,
+        &[MAILBOX, CLOUD, SECOND_MAILBOX],
+    );
+
+    app.set_account_link(
+        "bob@example.org@localhost".to_owned(),
+        LinkSlot::Calendar,
+        Some(CLOUD_ID.to_owned()),
+    )
+    .expect("linked");
+
+    assert_eq!(mail_link(&app, CLOUD_ID).as_deref(), Some(MAILBOX_ID));
+    let cloud = app
+        .accounts_snapshot()
+        .accounts
+        .into_iter()
+        .find(|entry| entry.id == CLOUD_ID)
+        .unwrap();
+    assert_eq!(cloud.linked_from.len(), 2);
 }

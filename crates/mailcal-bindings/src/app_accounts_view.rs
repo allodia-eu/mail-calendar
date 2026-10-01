@@ -1,7 +1,7 @@
 //! Settings → Accounts: the snapshot every client draws it from, and what removing an account does
 //! to the links other accounts hold to it.
 
-use crate::{AccountsSnapshot, MailcalApp, MailcalError, accounts_view};
+use crate::{AccountsSnapshot, LinkSlot, MailcalApp, MailcalError, accounts_view};
 
 #[uniffi::export]
 impl MailcalApp {
@@ -35,6 +35,31 @@ impl MailcalApp {
         AccountsSnapshot {
             accounts: accounts_view::entries(&facts, &calendar_refused),
         }
+    }
+
+    /// Links `account_id` in `slot` to `target`, one of the entry's `link_candidates`, or clears
+    /// that link when `target` is `None`, and stores every account it changed. Naming a mail
+    /// account from a calendar links that mail account to the calendar too.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Config`] for an unknown account or a target the slot may not name,
+    /// and [`MailcalError::Connect`] when the host's store refused a write; the link then holds
+    /// until the app is restarted.
+    pub fn set_account_link(
+        &self,
+        account_id: String,
+        slot: LinkSlot,
+        target: Option<String>,
+    ) -> Result<(), MailcalError> {
+        let changed = self
+            .registry
+            .set_link(&account_id, slot, target.as_deref())?;
+        self.app.accounts_changed();
+        for (id, config) in changed {
+            self.persist_config(&id, config.map_err(MailcalError::Config)?)?;
+        }
+        Ok(())
     }
 }
 

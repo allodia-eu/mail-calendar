@@ -233,6 +233,12 @@ impl<P: Provider> App<P> {
         self.rebuild_snapshot().await;
     }
 
+    /// Signals [`Surface::Settings`] after a change to what an account is used for or links to,
+    /// which the binding layer stores and this layer does not see.
+    pub fn accounts_changed(&self) {
+        self.observer.surface_changed(Surface::Settings);
+    }
+
     /// Every account's id, mail or not, in the order the host stored them.
     pub async fn account_ids(&self) -> Vec<AccountId> {
         self.accounts
