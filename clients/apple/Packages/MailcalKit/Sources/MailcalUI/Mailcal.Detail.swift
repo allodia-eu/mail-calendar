@@ -209,10 +209,11 @@ extension ContentView {
             .help(status.detail ?? status.label)
             .accessibilityLabel(status.detail ?? status.label)
         #else
+        // No line limit: an iPad's list is a column, not the screen, and two lines there cut the
+        // sentence off before it says how long.
         Text(status.detail ?? status.label)
             .font(.caption)
             .foregroundStyle(.secondary)
-            .lineLimit(2)
         #endif
     }
 

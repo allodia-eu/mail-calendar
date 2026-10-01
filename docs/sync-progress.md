@@ -48,9 +48,9 @@ promised early.
 
 **A hover, except where there is no hover.** The status line is shared with the message count and
 the connection status, so on a desktop the line is a short label and the sentence is the tooltip.
-A phone has neither a pointer nor room for a tooltip, and its strip is full width, so there the
-line says the sentence. Either way the sentence is what assistive technology reads: "Sync paused"
-alone never says when.
+A phone or tablet has no hover to put a tooltip behind, and its strip has a row to itself, so
+there the line says the sentence. Either way the sentence is what assistive technology reads:
+"Sync paused" alone never says when.
 
 ### Below the list, never above it
 
@@ -115,8 +115,7 @@ that the mail ran out.
 | Platform | Bar | Hint and pause | The pause's detail | Where |
 |---|:---:|:---:|---|---|
 | macOS | ✅ under the list, above the footer | ✅ in the footer, beside the message count | hover (`.help`) | `Mailcal.Detail.swift` |
-| iPadOS | ✅ under the list, above the footer | ✅ the same footer | inline: no hover, so the line says the sentence | `Mailcal.Detail.swift` |
-| iPhone | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip (there is no footer); the bar wins when both are up | inline | `Mailcal.Layout.swift` |
+| iPhone · iPadOS | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip (there is no footer); the bar wins when both are up | inline, wrapping as far as the list's column needs | `Mailcal.Layout.swift` |
 | Windows | ✅ its own `Auto` row under the list | ✅ in the footer status line, between the message count and "Connected" | hover (`ToolTipService.ToolTip`) | `Views/MailListView.xaml`, `Services/MailboxModel.SyncProgress.cs` |
 | Android | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip | inline | `SyncStatusParts.kt` |
 | Linux | ✅ a strip under the list; the bar wins over the hint | ✅ the mail list's bottom bar | hover (`set_tooltip_text`) | `ui/shell.rs`, `ui/sync_line.rs` |
