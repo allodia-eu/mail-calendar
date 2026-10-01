@@ -1,15 +1,17 @@
 //! The three dialogs a folder's row menu opens: a name (new or renamed folder), a destination
-//! (Move to…), and the delete confirmation (`docs/folder-pane.md`, rules 24 to 26).
+//! (Move to…), and the delete confirmation (`docs/folder-pane.md`, rules 24 to 26); and the
+//! destination a message's Move to folder… asks for.
 //!
 //! Each is a transient modal over the window the row sits in, and each answers with one
 //! `FolderIntent`; none keeps state after it closes.
 
 use adw::prelude::*;
-use mailcal_bindings::{FolderIntent, FolderNameCheck};
+use mailcal_bindings::{FolderIntent, FolderNameCheck, SelectedRow};
 
 use super::{
     AppInput,
     folder_actions::{FolderInput, MoveCandidate, NameCheck, NameQuery, delete_copy, name_problem},
+    message_move::MessageMove,
     modal,
 };
 use crate::l10n;
@@ -166,31 +168,65 @@ pub(crate) fn move_dialog(
     candidates: Vec<MoveCandidate>,
     sender: &relm4::Sender<AppInput>,
 ) {
+    let labels: Vec<String> = candidates.iter().map(|c| c.label.clone()).collect();
+    let (sender, account, key) = (sender.clone(), account.to_owned(), key.to_owned());
+    destination_dialog(
+        anchor,
+        &l10n::folder_move_title(name),
+        &labels,
+        move |index| {
+            sender.emit(AppInput::Folder(FolderInput::Change(FolderIntent::Move {
+                account: account.clone(),
+                key: key.clone(),
+                parent: candidates[index].parent.clone(),
+            })));
+        },
+    );
+}
+
+/// Lists the folders a message, or the selection it belongs to, may be filed in (rule 24) and
+/// moves it to the one picked. The model decides at that moment whether `row` stands for the
+/// selection, as it does for a drop.
+pub(crate) fn message_move_dialog(
+    anchor: &impl IsA<gtk::Widget>,
+    row: SelectedRow,
+    plan: MessageMove,
+    sender: &relm4::Sender<AppInput>,
+) {
+    let labels: Vec<String> = plan.choices.iter().map(|c| c.label.clone()).collect();
+    let sender = sender.clone();
+    destination_dialog(anchor, l10n::message_move_title(), &labels, move |index| {
+        sender.emit(AppInput::Folder(FolderInput::MoveMail {
+            row: row.clone(),
+            account: plan.account.clone(),
+            key: plan.choices[index].key.clone(),
+        }));
+    });
+}
+
+/// A modal list of `labels` under `title`, calling `chosen` with the index picked.
+fn destination_dialog(
+    anchor: &impl IsA<gtk::Widget>,
+    title: &str,
+    labels: &[String],
+    chosen: impl Fn(usize) + 'static,
+) {
     let Some(parent_window) = window_of(anchor) else {
         return;
     };
-    let (window, _) = modal::new(
-        &parent_window,
-        &l10n::folder_move_title(name),
-        400,
-        Some(420),
-    );
+    let (window, _) = modal::new(&parent_window, title, 400, Some(420));
     let content = content_box();
     let list = gtk::ListBox::new();
     list.add_css_class("boxed-list");
     list.set_selection_mode(gtk::SelectionMode::None);
-    for candidate in candidates {
+    let chosen = std::rc::Rc::new(chosen);
+    for (index, label) in labels.iter().enumerate() {
         let row = super::mailbox::plain_text_row();
-        row.set_title(&candidate.label);
+        row.set_title(label);
         row.set_activatable(true);
-        let (sender, window) = (sender.clone(), window.clone());
-        let (account, key) = (account.to_owned(), key.to_owned());
+        let (chosen, window) = (chosen.clone(), window.clone());
         row.connect_activated(move |_| {
-            sender.emit(AppInput::Folder(FolderInput::Change(FolderIntent::Move {
-                account: account.clone(),
-                key: key.clone(),
-                parent: candidate.parent.clone(),
-            })));
+            chosen(index);
             window.close();
         });
         list.append(&row);

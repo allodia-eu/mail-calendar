@@ -81,7 +81,7 @@ pub(crate) fn subtree(folders: &[FolderRow], key: &str) -> HashSet<String> {
 }
 
 /// Each row's name with the folders it sits inside, `Clients / Acme`, in the user's words.
-fn path_label(folders: &[FolderRow], row: &FolderRow) -> String {
+pub(crate) fn path_label(folders: &[FolderRow], row: &FolderRow) -> String {
     let mut parts = vec![folder_label(row.role.as_ref(), &row.name)];
     let mut parent = row.parent.as_deref();
     while let Some(key) = parent.filter(|_| parts.len() <= folders.len()) {
@@ -277,11 +277,12 @@ pub(crate) fn name_check(app: Option<Arc<MailcalApp>>) -> NameCheck {
     })
 }
 
-/// What the pane asks of the model: a change to send, or mail dropped on a folder.
+/// What the pane asks of the model: a change to send, or mail moved to a folder.
 #[derive(Debug)]
 pub(crate) enum FolderInput {
     Change(FolderIntent),
-    DropMail {
+    /// A row dropped on a folder, or sent there from its row menu's Move to folder….
+    MoveMail {
         row: SelectedRow,
         account: String,
         key: String,
@@ -292,10 +293,14 @@ impl AppModel {
     pub(super) fn folder_input(&mut self, input: FolderInput) {
         let intent = match input {
             FolderInput::Change(intent) => intent,
-            FolderInput::DropMail { row, account, key } => {
-                // The dragged row stands for the selection when it is one of the selected rows,
-                // and the selection leaves with it: its rows are moving out of the list.
+            FolderInput::MoveMail { row, account, key } => {
+                // The row stands for the selection when it is one of the selected rows
+                // (`docs/list-selection.md`, rule 12), and the selection leaves with it, as it
+                // does for Archive: its rows are moving out of the list.
                 let rows = if self.selection.selected_rows().contains(&row) {
+                    if self.selection_holds_open_message() {
+                        self.reading.close();
+                    }
                     let rows = self.selection.selected_rows();
                     self.selection.clear();
                     rows

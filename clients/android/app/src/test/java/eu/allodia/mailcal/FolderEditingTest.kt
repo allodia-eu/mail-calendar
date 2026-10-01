@@ -124,6 +124,40 @@ class FolderEditingTest {
     }
 
     @Test
+    fun `a message can be filed in any folder that takes mail except the one on screen`() {
+        val rows = tree() + listOf(
+            // Stamped as the core stamps them: Junk, Drafts and a folder still being made take no
+            // mail from a move.
+            folder("junk", "Junk", FolderRole.JUNK),
+            folder("drafts", "Drafts", FolderRole.DRAFTS),
+            folder("p", "P", null, pending = true),
+        )
+        val targets = messageTargets(rows, showing = "inbox", ctx())
+        assertEquals(listOf("trash", "old", "work", "w2024"), targets.map { it.key })
+        assertEquals("Work / 2024", targets.last().label)
+        // No Top level: mail is filed in a folder.
+        assertTrue(targets.none { it.key == null })
+        assertEquals(5, messageTargets(rows, showing = null, ctx()).size)
+    }
+
+    @Test
+    fun `the message picker sends the message where it was picked`() {
+        val picked = mutableListOf<MoveTarget>()
+        val targets = messageTargets(tree(), showing = "inbox", ctx())
+        compose.setContent {
+            MoveTargetDialog(
+                title = L10n.message_move_title(ctx()),
+                targets = targets,
+                onPick = { picked.add(it) },
+                onClose = {},
+            )
+        }
+        compose.onNodeWithText(L10n.message_move_title(ctx())).assertIsDisplayed()
+        compose.onNodeWithText("Work / 2024").performClick()
+        assertEquals(listOf("w2024"), picked.map { it.key })
+    }
+
+    @Test
     fun `delete says Trash outside Trash and for good inside it`() {
         val rows = tree()
         assertEquals(L10n.action_move_to_trash(ctx()), deleteCopy(rows[3], ctx()).confirm)

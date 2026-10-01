@@ -404,6 +404,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // The composer's signature: seeded from the From account's slot for
                             // this mode, re-resolved when From changes, overridable per message.
                             signatures = composerSignatures(instance, signatures?.signatures.orEmpty()),
+                            messageFiling = MessageFiling.of(instance, this@MailboxTabContent),
                             replyRecipients = { account, key, replyAll ->
                                 try {
                                     instance.replyRecipients(account, key, replyAll)

@@ -7,9 +7,10 @@ use mailcal_bindings::{MailboxListSnapshot, SnapshotRow};
 
 use super::{
     AppInput,
-    mailbox::{ThreadKey, build_row},
+    mailbox::{RowMenus, ThreadKey, build_row},
     mailbox_display::{DisplayRow, display_row},
     mailbox_reconcile::{Row, reconcile},
+    message_move::{MoveContext, SharedMoveContext},
 };
 
 /// Enough rows to fill the default-height list pane, including a small scroll margin.
@@ -20,9 +21,16 @@ const IDLE_BATCH_ROWS: usize = 16;
 pub(super) struct ProgressiveRenderer {
     rendered: Rc<RefCell<Vec<DisplayRow>>>,
     pending: Rc<RefCell<Option<gtk::glib::SourceId>>>,
+    /// Read by every row's menu when it opens, so it is replaced on every render, whether or not
+    /// a row changed.
+    moves: SharedMoveContext,
 }
 
 impl ProgressiveRenderer {
+    pub(super) fn set_moves(&self, context: MoveContext) {
+        self.moves.replace(context);
+    }
+
     pub(super) fn render(
         &mut self,
         list: &gtk::ListBox,
@@ -35,6 +43,10 @@ impl ProgressiveRenderer {
         if let Some(source) = self.pending.borrow_mut().take() {
             source.remove();
         }
+        let menus = RowMenus {
+            in_junk_folder,
+            moves: self.moves.clone(),
+        };
         let next: Vec<DisplayRow> = snapshot
             .rows
             .iter()
@@ -50,7 +62,7 @@ impl ProgressiveRenderer {
             &snapshot.rows,
             &next[..initial.min(next.len())],
             expanded,
-            in_junk_folder,
+            &menus,
             zone,
             sender,
         );
@@ -75,7 +87,7 @@ impl ProgressiveRenderer {
             {
                 let previous = rendered.borrow();
                 reconcile(&list, &previous, &next[..end], |index| {
-                    build_row(&rows[index], &expanded, in_junk_folder, &zone, &sender)
+                    build_row(&rows[index], &expanded, &menus, &zone, &sender)
                 });
             }
             rendered.replace(next[..end].to_vec());
@@ -96,14 +108,14 @@ impl ProgressiveRenderer {
         rows: &[SnapshotRow],
         next: &[DisplayRow],
         expanded: &HashSet<ThreadKey>,
-        in_junk_folder: bool,
+        menus: &RowMenus,
         zone: &str,
         sender: &relm4::Sender<AppInput>,
     ) {
         {
             let previous = self.rendered.borrow();
             reconcile(list, &previous, next, |index| {
-                build_row(&rows[index], expanded, in_junk_folder, zone, sender)
+                build_row(&rows[index], expanded, menus, zone, sender)
             });
         }
         self.rendered.replace(next.to_vec());

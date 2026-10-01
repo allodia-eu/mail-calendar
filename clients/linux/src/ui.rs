@@ -65,6 +65,7 @@ mod mailbox_empty;
 mod mailbox_progressive;
 mod mailbox_reconcile;
 mod mcp;
+mod message_move;
 mod microsoft;
 mod modal;
 mod model;

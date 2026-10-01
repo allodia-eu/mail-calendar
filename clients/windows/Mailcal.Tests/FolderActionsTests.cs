@@ -29,7 +29,8 @@ public class FolderActionsTests
         bool editable = true,
         bool acceptsFolders = true,
         bool pending = false,
-        SidebarFolderRole role = SidebarFolderRole.None) =>
+        SidebarFolderRole role = SidebarFolderRole.None,
+        bool? acceptsMessages = null) =>
         new()
         {
             Key = key,
@@ -38,7 +39,7 @@ public class FolderActionsTests
             Role = role,
             Editable = editable,
             AcceptsFolders = acceptsFolders,
-            AcceptsMessages = !pending,
+            AcceptsMessages = acceptsMessages ?? !pending,
             Pending = pending,
         };
 
@@ -175,6 +176,46 @@ public class FolderActionsTests
         Assert.False(FolderActions.TakesMessages(mixed, Account, targetAcceptsMessages: true),
             "a selection spanning accounts would move only part of itself");
         Assert.False(FolderActions.TakesMessages(new MessageDrag([]), Account, targetAcceptsMessages: true));
+    }
+
+    [Fact]
+    public void MoveToFolderListsTheFoldersThatTakeMailButNotTheOneOnScreen()
+    {
+        var tree = Tree();
+        tree.Add(Folder("junk", "Junk", editable: false, acceptsFolders: false,
+            role: SidebarFolderRole.Junk, acceptsMessages: false));
+        tree.Add(Folder("drafts", "Drafts", editable: false, acceptsFolders: false,
+            role: SidebarFolderRole.Drafts, acceptsMessages: false));
+        tree.Add(Folder("making", "Making", pending: true));
+
+        var targets = FolderActions.MessageTargets(tree, showing: "inbox");
+
+        var keys = targets.Select(t => t.Key).ToList();
+        Assert.Equal(["work", "clients", "acme", "bills"], keys);
+        Assert.DoesNotContain(targets, t => t.Key is null);
+        Assert.Contains(targets, t => t.Key == "acme" && t.Label == "Work / Clients / Acme");
+    }
+
+    [Fact]
+    public void MoveToFolderLeavesNothingToOfferWhenNoOtherFolderTakesMail()
+    {
+        List<FolderItem> tree =
+        [
+            Folder("inbox", "Inbox", editable: false, role: SidebarFolderRole.Inbox),
+            Folder("junk", "Junk", editable: false, role: SidebarFolderRole.Junk, acceptsMessages: false),
+        ];
+        Assert.Empty(FolderActions.MessageTargets(tree, showing: "inbox"));
+        Assert.Single(FolderActions.MessageTargets(tree, showing: null));
+    }
+
+    [Fact]
+    public void MoveToFolderIsForRowsOfOneAccountOnly()
+    {
+        Assert.Equal(Account, FolderActions.MessageAccount(
+            [new SelectedRow.Message(Account, "m1"), new SelectedRow.Thread(Account, "t1")]));
+        Assert.Null(FolderActions.MessageAccount(
+            [new SelectedRow.Message(Account, "m1"), new SelectedRow.Message("acct-2", "m2")]));
+        Assert.Null(FolderActions.MessageAccount([]));
     }
 
     [Fact]

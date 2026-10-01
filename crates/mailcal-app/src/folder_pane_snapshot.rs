@@ -60,21 +60,26 @@ impl<P: Provider> App<P> {
             let Ok(id) = AccountId::try_from(row.id.as_str()) else {
                 continue;
             };
-            let stored = self.engine.mailboxes(&id).await.unwrap_or_default();
-            // What the server has, with what is still queued drawn over it
-            // (`docs/folder-pane.md`, "Changing the tree").
-            let queued = self.queued_folder_changes(&id).await;
-            let (mailboxes, pending) = with_folder_changes(&stored, &queued);
-            let manages_folders = self.manages_folders(&id).await;
-            let mut folders = mailcal_viewmodel::sorted_folder_rows(&mailboxes);
-            stamp_folder_actions(&mut folders, manages_folders, &pending);
-            out.push(AccountFolderRow {
-                account_id: row.id.clone(),
-                manages_folders,
-                folders,
-            });
+            out.push(self.account_folders(&id).await);
         }
         out
+    }
+
+    /// One account's folder tree as the pane draws it: what the server has, with what is still
+    /// queued drawn over it (`docs/folder-pane.md`, "Changing the tree"), each row stamped with
+    /// what it offers.
+    pub(crate) async fn account_folders(&self, account: &AccountId) -> AccountFolderRow {
+        let stored = self.engine.mailboxes(account).await.unwrap_or_default();
+        let queued = self.queued_folder_changes(account).await;
+        let (mailboxes, pending) = with_folder_changes(&stored, &queued);
+        let manages_folders = self.manages_folders(account).await;
+        let mut folders = mailcal_viewmodel::sorted_folder_rows(&mailboxes);
+        stamp_folder_actions(&mut folders, manages_folders, &pending);
+        AccountFolderRow {
+            account_id: account.as_str().to_owned(),
+            manages_folders,
+            folders,
+        }
     }
 
     /// Whether `account`'s provider can change its folder tree.

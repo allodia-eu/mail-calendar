@@ -59,7 +59,14 @@ internal fun FolderDialogHost(dialog: FolderDialog?, editing: FolderEditing, onC
             },
             onDismiss = onClose,
         )
-        is FolderDialog.Move -> FolderMoveDialog(dialog, editing, onClose)
+        is FolderDialog.Move -> MoveTargetDialog(
+            title = LocalContext.current.let {
+                L10n.folder_move_title(it, folderLabel(dialog.folder.role, dialog.folder.name, it))
+            },
+            targets = dialog.targets,
+            onPick = { editing.dispatch(FolderIntent.Move(dialog.account, dialog.folder.key, it.key)) },
+            onClose = onClose,
+        )
         is FolderDialog.Delete -> FolderDeleteDialog(dialog, editing, onClose)
     }
 }
@@ -106,26 +113,28 @@ private fun FolderNameDialog(
     )
 }
 
-// Rule 24: the route to moving a folder on a phone, where the drawer covers any drag.
+// Rule 24: the Move to… list, for a folder from the drawer and for a message from its row. The
+// route to moving either on a phone, where the drawer covers any drag.
 @Composable
-private fun FolderMoveDialog(dialog: FolderDialog.Move, editing: FolderEditing, onClose: () -> Unit) {
+internal fun MoveTargetDialog(
+    title: String,
+    targets: List<MoveTarget>,
+    onPick: (MoveTarget) -> Unit,
+    onClose: () -> Unit,
+) {
     val ctx = LocalContext.current
     AlertDialog(
         onDismissRequest = onClose,
-        title = {
-            Text(L10n.folder_move_title(ctx, folderLabel(dialog.folder.role, dialog.folder.name, ctx)))
-        },
+        title = { Text(title) },
         text = {
             LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
-                items(dialog.targets, key = { it.key ?: "" }) { target ->
+                items(targets, key = { it.key ?: "" }) { target ->
                     Text(
                         text = target.label,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(role = Role.Button) {
-                                editing.dispatch(
-                                    FolderIntent.Move(dialog.account, dialog.folder.key, target.key),
-                                )
+                                onPick(target)
                                 onClose()
                             }
                             .padding(vertical = 12.dp),

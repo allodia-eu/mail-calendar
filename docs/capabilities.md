@@ -45,6 +45,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Folder pane: **drag its edge to widen it** for long account addresses, remembered across launches (desktop only; a drawer has no width to drag) | — | ✅ | — | ✅ | — | ✅ |
 | Folder pane: **make, rename, move and delete folders** from each row's menu (Move to… on every platform), drawn at once and sent when online; a queued change is never applied over a change made elsewhere, and a refused one is said on the pane; delete goes to Trash first ([docs](docs/folder-pane.md) rules 22 to 29) | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | Folder pane: **drag a folder** into another folder or onto its account, and **drag messages** onto a folder, within one account (desktop and iPad; a phone's drawer covers the list) ([docs](docs/folder-pane.md) rule 24) | ✅ | ✅ | ✅ (iPad) | 🚧 | — | ✅ |
+| Message list: **Move to folder…** in a message's row menu, for the row or the selection it belongs to, within one account (Android: the row's own menu, one message at a time) ([docs](docs/folder-pane.md) rule 24) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Message list: flat + threaded | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Folder and message rows expose a named native action a screen reader can invoke | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Threaded conversation view: the whole conversation (received + your Sent replies, across folders): inline on desktop, a conversation reading screen on Android + archive conversation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

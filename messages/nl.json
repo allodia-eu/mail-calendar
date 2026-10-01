@@ -111,6 +111,8 @@
 	"action_mark_read": "Als gelezen markeren",
 	"action_mark_unread": "Als ongelezen markeren",
 	"action_move_to_trash": "Naar prullenbak",
+	"action_move_to_folder": "Naar map verplaatsen…",
+	"message_move_title": "Naar map verplaatsen",
 	"action_mark_as_spam": "Markeer als spam",
 	"action_mark_as_not_spam": "Markeer als geen spam",
 	"action_delete_permanently": "Definitief verwijderen",

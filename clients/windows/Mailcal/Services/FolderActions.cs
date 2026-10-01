@@ -1,6 +1,6 @@
 // What the folder pane offers and accepts when the user changes the tree (docs/folder-pane.md,
-// "Changing the tree"): which items a row's menu carries, where Move to… may send a folder, which
-// drops a row takes, and the words each dialog and the notice say.
+// "Changing the tree"): which items a row's menu carries, where Move to… may send a folder or
+// Move to folder… a message, which drops a row takes, and the words each dialog and the notice say.
 //
 // WinUI-free AND L10n-free on purpose, the same seam SidebarTree and EmptyMailboxLine use: the
 // words arrive as parameters, so Mailcal.Tests can link this file and fail on the rules. Every
@@ -113,6 +113,36 @@ internal static class FolderActions
                 && !IsInside(folders, candidate, key))
             {
                 targets.Add(new MoveTarget(candidate, Path(folders, folder)));
+            }
+        }
+        return targets;
+    }
+
+    /// <summary>
+    /// The one account every row belongs to, or <c>null</c> when there are no rows or they span
+    /// accounts: mail never crosses accounts, so such a selection is offered no folder (rule 24).
+    /// </summary>
+    public static string? MessageAccount(IReadOnlyList<SelectedRow> rows)
+    {
+        var accounts = rows.Select(AccountOf).Distinct().ToList();
+        return accounts is [{ } one] ? one : null;
+    }
+
+    /// <summary>
+    /// Where Move to folder… on a message's row menu may send it: every folder of its account that
+    /// takes mail, named as Move to… names folders, leaving out <paramref name="showing"/>, the
+    /// folder the list is showing (<c>null</c> for a list that is not one folder). No Top level,
+    /// since mail is always in a folder. Empty when nothing is left, and then the item is not
+    /// offered (rule 24).
+    /// </summary>
+    public static IReadOnlyList<MoveTarget> MessageTargets(IReadOnlyList<FolderItem> folders, string? showing)
+    {
+        var targets = new List<MoveTarget>();
+        foreach (var folder in folders)
+        {
+            if (folder.Key is { } key && folder.AcceptsMessages && key != showing)
+            {
+                targets.Add(new MoveTarget(key, Path(folders, folder)));
             }
         }
         return targets;

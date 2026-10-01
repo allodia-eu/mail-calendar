@@ -41,48 +41,60 @@ pub(crate) fn attach(
         menu.append(&button);
     }
 
-    let open_at = {
-        let popover = popover.clone();
-        move |x: f64, y: f64| {
+    let at_pointer = popover.clone();
+    let from_keyboard = popover.clone();
+    on_menu_request(
+        row,
+        move |x, y| {
             // Truncating a pointer position to a whole pixel is what a pointing rectangle is.
             #[allow(clippy::cast_possible_truncation)]
-            popover.set_pointing_to(Some(&gtk::gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
-            popover.popup();
-        }
-    };
-    let click = gtk::GestureClick::new();
-    click.set_button(gtk::gdk::BUTTON_SECONDARY);
-    let at = open_at.clone();
-    click.connect_pressed(move |gesture, _, x, y| {
-        gesture.set_state(gtk::EventSequenceState::Claimed);
-        at(x, y);
-    });
-    row.add_controller(click);
-    let press = gtk::GestureLongPress::new();
-    press.set_touch_only(true);
-    let at = open_at.clone();
-    press.connect_pressed(move |_, x, y| at(x, y));
-    row.add_controller(press);
-    let keys = gtk::ShortcutController::new();
-    let from_keyboard = {
-        let popover = popover.clone();
-        gtk::CallbackAction::new(move |_, _| {
-            popover.set_pointing_to(None);
-            popover.popup();
-            gtk::glib::Propagation::Stop
-        })
-    };
-    for trigger in ["Menu", "<Shift>F10"] {
-        if let Some(trigger) = gtk::ShortcutTrigger::parse_string(trigger) {
-            keys.add_shortcut(gtk::Shortcut::new(
-                Some(trigger),
-                Some(from_keyboard.clone()),
-            ));
-        }
-    }
-    row.add_controller(keys);
+            at_pointer.set_pointing_to(Some(&gtk::gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
+            at_pointer.popup();
+        },
+        move || {
+            from_keyboard.set_pointing_to(None);
+            from_keyboard.popup();
+        },
+    );
     row.connect_destroy(move |_| {
         popover.popdown();
         popover.unparent();
     });
+}
+
+/// Calls `at_pointer` with the position a right click or a long press asked for a menu at on
+/// `widget`, and `from_keyboard` when its Menu key or Shift+F10 did. The press is claimed, so a
+/// row inside `widget` that has a menu of its own answers first and `widget` does not.
+pub(crate) fn on_menu_request(
+    widget: &impl IsA<gtk::Widget>,
+    at_pointer: impl Fn(f64, f64) + 'static,
+    from_keyboard: impl Fn() + 'static,
+) {
+    let at_pointer = Rc::new(at_pointer);
+    let click = gtk::GestureClick::new();
+    click.set_button(gtk::gdk::BUTTON_SECONDARY);
+    let at = at_pointer.clone();
+    click.connect_pressed(move |gesture, _, x, y| {
+        gesture.set_state(gtk::EventSequenceState::Claimed);
+        at(x, y);
+    });
+    widget.add_controller(click);
+    let press = gtk::GestureLongPress::new();
+    press.set_touch_only(true);
+    press.connect_pressed(move |gesture, x, y| {
+        gesture.set_state(gtk::EventSequenceState::Claimed);
+        at_pointer(x, y);
+    });
+    widget.add_controller(press);
+    let keys = gtk::ShortcutController::new();
+    let action = gtk::CallbackAction::new(move |_, _| {
+        from_keyboard();
+        gtk::glib::Propagation::Stop
+    });
+    for trigger in ["Menu", "<Shift>F10"] {
+        if let Some(trigger) = gtk::ShortcutTrigger::parse_string(trigger) {
+            keys.add_shortcut(gtk::Shortcut::new(Some(trigger), Some(action.clone())));
+        }
+    }
+    widget.add_controller(keys);
 }

@@ -111,6 +111,8 @@
 	"action_mark_read": "Segna come letto",
 	"action_mark_unread": "Segna come non letto",
 	"action_move_to_trash": "Sposta nel cestino",
+	"action_move_to_folder": "Sposta in una cartella…",
+	"message_move_title": "Sposta in una cartella",
 	"action_mark_as_spam": "Segna come spam",
 	"action_mark_as_not_spam": "Segna come non spam",
 	"action_delete_permanently": "Elimina definitivamente",

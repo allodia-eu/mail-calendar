@@ -140,6 +140,9 @@ struct FolderDialogs: ViewModifier {
     let model: MailboxModel
     @Binding var sheet: FolderSheet?
     @Binding var deleting: FolderTarget?
+    /// Files the offer's mail in the chosen folder. The shell's, because it also tidies the
+    /// selection and the reading pane the mail is leaving.
+    let fileMessages: (MessageMoveOffer, String) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -157,14 +160,24 @@ struct FolderDialogs: ViewModifier {
                         submit: { name in submit(request, name) }
                     )
                 case .move(let target):
-                    FolderMoveSheet(
-                        target: target,
+                    MoveSheet(
+                        title: L10n.folder_move_title(
+                            name: folderLabel(role: target.folder.role, name: target.folder.name)
+                        ),
                         destinations: moveDestinations(
                             for: target.folder,
                             in: model.accountFolderRow(for: target.account)?.folders ?? []
                         ),
                         move: { parent in
                             model.moveFolder(account: target.account, key: target.folder.key, parent: parent)
+                        }
+                    )
+                case .moveMessages(let offer):
+                    MoveSheet(
+                        title: L10n.message_move_title(),
+                        destinations: offer.destinations,
+                        move: { key in
+                            if let key { fileMessages(offer, key) }
                         }
                     )
                 }
@@ -255,9 +268,10 @@ struct FolderNameSheet: View {
     }
 }
 
-/// Move to…: Top level, then every folder that takes one, by path (rule 24).
-struct FolderMoveSheet: View {
-    let target: FolderTarget
+/// A Move to… list (rule 24): for a folder, Top level and then every folder that takes one; for
+/// mail, every folder that takes mail. Both by path.
+struct MoveSheet: View {
+    let title: String
     let destinations: [MoveDestination]
     let move: (String?) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -266,18 +280,16 @@ struct FolderMoveSheet: View {
         NavigationStack {
             List(destinations) { destination in
                 Button {
-                    move(destination.parent)
+                    move(destination.key)
                     dismiss()
                 } label: {
                     Label(
                         destination.label,
-                        systemImage: destination.parent == nil ? "tray.2" : "folder"
+                        systemImage: destination.key == nil ? "tray.2" : "folder"
                     )
                 }
             }
-            .navigationTitle(
-                L10n.folder_move_title(name: folderLabel(role: target.folder.role, name: target.folder.name))
-            )
+            .navigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.action_cancel()) { dismiss() }
@@ -307,9 +319,55 @@ extension ContentView {
         }
     }
 
-    /// What a message row carries when dragged: the whole selection when it is part of one.
+    /// The rows a message row's drag or menu stands for: the whole selection when the row is part
+    /// of one, else the row alone (`docs/list-selection.md`, rule 12).
+    func menuRows(_ row: SnapshotRow) -> [SelectionKey] {
+        selection.contains(row) ? selection.keys : [SelectionKey(row)]
+    }
+
+    /// What a message row carries when dragged.
     func dragPayload(for row: SnapshotRow) -> PaneDragPayload {
-        let keys = selection.contains(row) ? selection.keys : [SelectionKey(row)]
-        return .messages(rows: keys.map(DraggedRow.init))
+        .messages(rows: menuRows(row).map(DraggedRow.init))
+    }
+
+    /// The folder the list is showing in `account`, which Move to folder… leaves out: `nil` on a
+    /// unified list, an account's whole mailbox, a search, or the Outbox.
+    private func listFolder(in account: String) -> String? {
+        guard !model.showingOutbox, model.searchHorizon == nil, model.selectedAccount == account
+        else { return nil }
+        return model.selected
+    }
+
+    /// Move to folder… on a message row's menu (rule 24), when the rows it acts on are in one
+    /// account and some folder of it is left to offer.
+    @ViewBuilder
+    func moveToFolderItem(_ row: SnapshotRow) -> some View {
+        let rows = menuRows(row)
+        if let account = soleAccount(of: rows),
+           let tree = model.accountFolderRow(for: account),
+           offersMessageMove(in: tree, showing: listFolder(in: account)) {
+            Button {
+                // Named when chosen rather than with the menu, which every row builds on every
+                // redraw.
+                guard let current = model.accountFolderRow(for: account) else { return }
+                folderSheet = .moveMessages(MessageMoveOffer(
+                    account: account,
+                    rows: rows,
+                    destinations: messageDestinations(in: current, showing: listFolder(in: account))
+                ))
+            } label: {
+                Label(L10n.action_move_to_folder(), systemImage: "folder")
+            }
+        }
+    }
+
+    /// Files the offer's mail in `key`, then tidies up as a move from the bar does: a selection it
+    /// came from is emptied, and the reading pane lets go of a message that is leaving.
+    func fileMessages(_ offer: MessageMoveOffer, in key: String) {
+        let closesReading = holdsOpenMessage(offer.rows)
+        let fromSelection = !selection.isEmpty && offer.rows.allSatisfy { selection.keys.contains($0) }
+        model.moveMessages(offer.rows.map(\.selectedRow), account: offer.account, key: key)
+        if fromSelection { selection.clear() }
+        if closesReading { clearOpenedMessage() }
     }
 }

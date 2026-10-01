@@ -1,6 +1,6 @@
-// What the folder drawer offers on a row, and the copy each folder dialog shows
-// (docs/folder-pane.md, "Changing the tree"). Plain functions over the core's rows, so the
-// rules are tested without composing a drawer.
+// What the folder drawer offers on a row, where a message row may file mail, and the copy each
+// folder dialog shows (docs/folder-pane.md, "Changing the tree"). Plain functions over the core's
+// rows, so the rules are tested without composing a drawer.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -12,6 +12,7 @@ import uniffi.mailcal_bindings.FolderProblem
 import uniffi.mailcal_bindings.FolderRow
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
+import uniffi.mailcal_bindings.SelectedRow
 
 // The core's two doors for the drawer: the change itself, and the name check a dialog runs as the
 // user types. A class rather than the app object so a test can hand the drawer fakes.
@@ -90,6 +91,37 @@ internal fun moveTargets(folder: FolderRow, rows: List<FolderRow>, ctx: Context)
     return listOf(MoveTarget(null, L10n.folder_move_top_level(ctx))) +
         rows.filter { it.acceptsFolders && it.key !in inside }
             .map { MoveTarget(it.key, paths.getValue(it.key)) }
+}
+
+// Rule 24, for mail: the account's folders that take it, leaving out the one the list is showing.
+// No Top level, because mail is filed in a folder.
+internal fun messageTargets(rows: List<FolderRow>, showing: String?, ctx: Context): List<MoveTarget> {
+    val paths = folderPaths(rows, ctx)
+    return rows.filter { it.acceptsMessages && it.key != showing }
+        .map { MoveTarget(it.key, paths.getValue(it.key)) }
+}
+
+// A message row's route to a named folder: where a message of `account` may go, and the move,
+// which takes the path a drop onto a folder takes (`FolderIntent.MoveMessages`). A class rather
+// than the app object so a test can hand the row fakes.
+internal class MessageFiling(
+    val targets: (account: String) -> List<MoveTarget>,
+    val move: (account: String, key: String, folder: String) -> Unit,
+) {
+    companion object {
+        // Reads the activity's folders when the menu opens, so the list is the one on screen.
+        fun of(app: MailcalApp, activity: MainActivity) = MessageFiling(
+            targets = { account ->
+                val rows = activity.accountFolders.firstOrNull { it.accountId == account }?.folders
+                val showing = activity.selectedFolder.takeIf { activity.selectedAccount == account }
+                messageTargets(rows.orEmpty(), showing, activity)
+            },
+            move = { account, key, folder ->
+                val rows = listOf(SelectedRow.Message(account, key))
+                app.dispatch(Intent.Folders(FolderIntent.MoveMessages(rows, account, folder)))
+            },
+        )
+    }
 }
 
 // The line under a name field, or null where there is nothing to say. An empty field says
