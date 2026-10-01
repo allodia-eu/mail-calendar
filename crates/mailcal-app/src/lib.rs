@@ -316,10 +316,6 @@ pub struct App<P> {
     /// Accounts (by id) with a body-warming pass currently in flight, so overlapping
     /// post-sync prefetch triggers collapse into the one running drain (`prefetch`).
     prefetching: Mutex<HashSet<String>>,
-    /// The largest message the body warm pulls in full, in octets; `None` warms every size.
-    ///
-    /// Behind a `Mutex` rather than plain, because every host holds the app as an `Arc` and
-    /// so never has a `&mut` to set it through: a `&mut self` setter here is one no caller
     /// What is known about each sender's photo, keyed by canonical address.
     ///
     /// In memory only: the durable cache is the engine's, and this exists so that projecting a
