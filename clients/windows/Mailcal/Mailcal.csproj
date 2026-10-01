@@ -49,7 +49,7 @@
 
          The generated App.g.i.cs gates its entry point behind `#if !DISABLE_XAML_GENERATED_MAIN`,
          and the WinAppSDK targets STILL don't turn this MSBuild property into that compile symbol
-         (re-verified against 2.4.0), so the DefineConstants line below is load-bearing, not
+         (re-verified against 2.5.1), so the DefineConstants line below is load-bearing, not
          belt-and-braces. Drop it and the build fails with CS0101 ("namespace 'Allodia.Mailcal'
          already contains a definition for 'Program'"), because the guard RENAMES the generated
          pair rather than eliding it (`Program`/`Main` become
@@ -118,10 +118,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
     <!-- SystemEvents.TimeChanged: the live OS time-zone-change signal (WinUI doesn't pull
          in the WindowsDesktop framework, so this comes as its own package). -->
-    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.12" />
     <!-- Win2D: the immediate-mode canvas the calendar grid is DRAWN on.
          WinUI has no such thing of its own, and the grid may not be composed out of XAML elements,
          a composable per event means a layout pass per event on every frame of a pinch, which is the
