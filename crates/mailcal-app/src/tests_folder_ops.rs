@@ -294,6 +294,24 @@ async fn mail_dropped_on_a_folder_shows_there_once_the_server_has_filed_it() {
 }
 
 #[tokio::test]
+async fn a_folder_the_server_will_not_build_in_is_offered_for_mail_only() {
+    // Gmail's Inbox is a system label, and no label can be nested under one.
+    let provider = provider();
+    for mailbox in provider.folder_tree().lock().unwrap().iter_mut() {
+        if mailbox.id.as_str() == "a" {
+            mailbox.accepts_children = false;
+        }
+    }
+    let app = tree_app(provider);
+    app.dispatch(Intent::RefreshMail).await;
+
+    let rows = rows(&app);
+    let inbox = row(&rows, "a");
+    assert!(!inbox.accepts_folders && inbox.accepts_messages);
+    assert!(row(&rows, "projects").accepts_folders);
+}
+
+#[tokio::test]
 async fn an_account_that_cannot_change_folders_offers_and_does_nothing() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let plain = FakeProvider::with_trash(vec![message("m1", "a", "Hello")]);
