@@ -109,3 +109,16 @@ pub enum LinkSlot {
     /// The mail account a calendar account sends its invitations through.
     Mail,
 }
+
+/// What switching one of an account's uses on or off did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum CapabilityChange {
+    /// Done, and stored. Switched off, its local data is gone; switched on, the account is
+    /// reconnecting to open it.
+    Applied,
+    /// Nothing changed: the provider has not granted it. Sign the account in again for it
+    /// (`begin_account_consent`, adding it), which switches it on.
+    NeedsConsent,
+    /// Nothing changed: the account has no server for it. Its address has to be entered first.
+    NeedsEndpoint,
+}

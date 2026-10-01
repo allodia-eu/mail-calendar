@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use engine_api::{AccountId, EmailAddress, Provider, TimeZoneId};
+use engine_api::{AccountId, Provider, TimeZoneId};
 use mailcal_account::{CredentialOrigin, GraphTokenSource, TokenSink};
 use mailcal_app::Account;
 
@@ -46,24 +46,22 @@ pub(crate) fn prepare_stored_account(
     sink: &Arc<dyn TokenSink>,
     origin: CredentialOrigin,
 ) -> Result<PreparedAccount, MailcalError> {
-    let (id, identity, connected) = if is_microsoft_toml(config_toml) {
+    let (id, connected) = if is_microsoft_toml(config_toml) {
         let config = mailcal_account::load_microsoft_str(config_toml)
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         let id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        let identity = config.identity();
         // The shared, self-refreshing token source builds without a live socket.
         let tokens = GraphTokenSource::new(&config, id.clone(), Some(Arc::clone(sink)), origin)
             .map_err(|err| MailcalError::Connect(err.to_string()))?;
-        (id, identity, ConnectedAccount::Microsoft { config, tokens })
+        (id, ConnectedAccount::Microsoft { config, tokens })
     } else if is_google_toml(config_toml) {
         let config = mailcal_account::load_google_str(config_toml)
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         let id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        let identity = config.identity();
         // The provider-neutral token source builds without a live socket.
         let tokens = mailcal_account::google_token_source(
             &config,
@@ -72,45 +70,49 @@ pub(crate) fn prepare_stored_account(
             origin,
         )
         .map_err(|err| MailcalError::Connect(err.to_string()))?;
-        (id, identity, ConnectedAccount::Google { config, tokens })
+        (id, ConnectedAccount::Google { config, tokens })
     } else if is_jmap_toml(config_toml) {
         let config = mailcal_account::load_jmap_str(config_toml)
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         let id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        let identity = config.identity();
         // An OAuth JMAP account's token source builds without a live socket; a stored-secret
         // account has nothing to refresh and gets none.
         let tokens = jmap_tokens(&config, &id, sink, origin)?;
-        (id, identity, ConnectedAccount::Jmap { config, tokens })
+        (id, ConnectedAccount::Jmap { config, tokens })
     } else {
         let config = mailcal_account::load_str(config_toml)
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         let id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        let identity = EmailAddress::new(config.username().to_owned());
         // An OAuth IMAP account's token source builds without a live socket; a password
         // account has nothing to refresh and gets none.
         let tokens = imap_tokens(&config, &id, sink, origin)?;
-        (id, identity, ConnectedAccount::imap_account(config, tokens))
+        (id, ConnectedAccount::imap_account(config, tokens))
     };
     Ok(PreparedAccount {
-        account: Account {
-            id,
-            providers: Vec::new(),
-            calendar_providers: Vec::new(),
-            contact_providers: Vec::new(),
-            identity,
-            // Listed before its dial lands: what its calendar holds is not known yet.
-            dialled: false,
-            uses_mail: connected
-                .opened_capabilities()
-                .contains(mailcal_account::Capability::Mail),
-        },
+        account: placeholder(id, &connected),
         connected,
     })
+}
+
+/// The provider-less account the app lists for `connected` before its dial lands: named from its
+/// config, and in the mail surfaces only when it opens its mail.
+pub(crate) fn placeholder(id: AccountId, connected: &ConnectedAccount) -> BoxedAccount {
+    Account {
+        id,
+        providers: Vec::new(),
+        calendar_providers: Vec::new(),
+        contact_providers: Vec::new(),
+        identity: connected.identity(),
+        // Listed before its dial lands: what its calendar holds is not known yet.
+        dialled: false,
+        uses_mail: connected
+            .opened_capabilities()
+            .contains(mailcal_account::Capability::Mail),
+    }
 }
 
 /// One stored account prepared offline: the provider-less placeholder [`BoxedAccount`] the app
