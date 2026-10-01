@@ -33,6 +33,7 @@ use super::{
     setup::SetupWindow,
     setup_widgets::SenderNamePrompt,
     shell_sidebar::{restore_pane_width, sidebar_pane},
+    sync_line,
     time_zone::TimeZonePrompt,
     unfiled_copy::UnfiledCopyPrompt,
     welcome::WelcomeWindow,
@@ -409,19 +410,7 @@ impl AppWidgets {
         } else {
             self.sync_indeterminate.set(false);
             self.sync_bar_row.set_visible(false);
-            let status = model.sync_status.as_ref();
-            let text = status.map_or("", |status| status.text.as_str());
-            self.sync_status.set_text(text);
-            // The whole sentence behind a hover, for the paused notice whose caption is a short
-            // label standing in for one. Cleared, not left behind, when the caption changes to
-            // one that says everything already.
-            let detail = status.and_then(|status| status.detail.as_deref());
-            self.sync_status.set_tooltip_text(detail);
-            // And spoken as well as hovered: "Sync paused" on its own never says how long, and
-            // a screen reader gets no tooltip.
-            self.sync_status
-                .update_property(&[AccessibleProperty::Label(detail.unwrap_or(text))]);
-            self.sync_status.set_visible(status.is_some());
+            sync_line::render_status(&self.sync_status, model.sync_status.as_ref());
         }
         self.sync_strip
             .set_visible(model.sync_bar.is_some() || model.sync_status.is_some());

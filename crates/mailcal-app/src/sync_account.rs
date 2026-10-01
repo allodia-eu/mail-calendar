@@ -247,5 +247,5 @@ fn longest_stated_wait(report: &MailSyncReport) -> Option<Duration> {
 /// them into. A child module, so the mail pass reads it as its own.
 #[path = "sync_reach.rs"]
 mod reach;
-use reach::{reach_of, throttled};
 pub(crate) use reach::{Reach, reach_of_api, reachability, signin_expired};
+use reach::{reach_of, throttled};

@@ -6,6 +6,7 @@
 //! pass nobody started; and the **pause** for an account whose server asked to be left alone for
 //! a while. Split out of `model.rs` to keep both files under the size limit.
 
+use gtk::{accessible::Property as AccessibleProperty, prelude::*};
 use mailcal_bindings::{AccountRow, SyncProgressSnapshot};
 
 use crate::l10n;
@@ -152,6 +153,21 @@ fn sync_count(value: u64) -> String {
         grouped.push(digit);
     }
     grouped
+}
+
+/// Puts `status` on the strip's caption label, or hides the label when there is nothing to say.
+///
+/// The paused notice's caption is a short label standing in for a sentence, so the sentence goes
+/// behind a hover, and is cleared rather than left behind when the caption changes to one that
+/// says everything already. It is spoken as well as hovered: "Sync paused" on its own never says
+/// how long, and a screen reader gets no tooltip.
+pub(crate) fn render_status(label: &gtk::Label, status: Option<&SyncStatus>) {
+    let text = status.map_or("", |status| status.text.as_str());
+    let detail = status.and_then(|status| status.detail.as_deref());
+    label.set_text(text);
+    label.set_tooltip_text(detail);
+    label.update_property(&[AccessibleProperty::Label(detail.unwrap_or(text))]);
+    label.set_visible(status.is_some());
 }
 
 #[cfg(test)]

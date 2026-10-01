@@ -25,7 +25,13 @@ use engine_api::{AccountId, AccountProgress, Provider, SyncCommit, SyncObserver,
 use engine_core::ids::MailboxId;
 use mailcal_viewmodel::SyncProgressSnapshot;
 
-use crate::{App, Surface, sync_progress_staged::pretended_progress, sync_progress_state::Pause};
+use crate::{App, Surface, sync_progress_staged::pretended_progress};
+
+/// The bookkeeping behind the snapshot. A child module, so the wiring reads it as its own.
+#[path = "sync_progress_state.rs"]
+mod state;
+use state::Pause;
+pub(crate) use state::SyncProgressState;
 
 /// A [`SyncObserver`] that folds one pass's commits into an engine [`AccountProgress`], tracks
 /// its accounts' folders, and signals the host to re-read the progress surface.
