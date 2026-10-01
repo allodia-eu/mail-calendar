@@ -72,12 +72,7 @@
 
                 <!-- IMAP / password account fields. -->
                 <StackPanel x:Name="ImapSection" Spacing="12">
-                    <TextBlock
-                        Text="{x:Bind l10n:L10n.SetupCredentialsNote()}"
-                        Style="{StaticResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-
-                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount()}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                     <!-- Server, port and security on one row: the port is the field a user must be
                          able to see and change, not a colon inside the server name. -->
                     <Grid ColumnSpacing="12">
@@ -99,13 +94,25 @@
                     <TextBox x:Name="Username" Header="{x:Bind l10n:L10n.SetupFieldEmail()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail()}"
                              TextChanged="OnFieldChanged" />
 
+                    <!-- Said while the server is being asked, so a slow server reads as a wait
+                         rather than as a form with nothing on it. -->
+                    <StackPanel x:Name="ImapCheckingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                        <ProgressRing x:Name="ImapCheckingRing" Width="16" Height="16" IsActive="False" />
+                        <TextBlock x:Name="ImapCheckingText"
+                                   Text="{x:Bind l10n:L10n.SetupImapSigninChecking()}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+
                     <!-- What this mail server said it accepts, and the button where it accepts a
                          sign-in. Shown only once the core has ASKED the server (imapAuthOptions),
-                         so the button can never dead-end, and the password field below is never
-                         removed where a password works: on a provider whose sign-in is closed to
-                         us the line explains that and the field stays, and a failed sign-in hands
-                         it straight back. What is on screen comes from ImapSignInGate, which is
-                         WinUI-free and unit-tested; AccountSetupView.ImapSignIn.cs drives it. -->
+                         so the button can never dead-end. Where a password also works the field
+                         waits behind "Use a password instead" (docs/mail-oauth.md rule 2); on a
+                         provider whose sign-in is closed to us the line below explains that and
+                         the field is drawn, and a failed sign-in hands it straight back. What is
+                         on screen comes from ImapSignInGate, which is WinUI-free and unit-tested;
+                         AccountSetupView.ImapSignIn.cs drives it. -->
                     <StackPanel x:Name="ImapSignInPanel" Spacing="8" Visibility="Collapsed">
                         <TextBlock
                             Text="{x:Bind l10n:L10n.SetupImapSigninNote()}"
@@ -115,6 +122,9 @@
                         <Button x:Name="ImapSignInButton" Content="{x:Bind l10n:L10n.SetupImapSigninButton()}"
                                 Style="{StaticResource AccentButtonStyle}"
                                 HorizontalAlignment="Left" Click="OnSignInImap" />
+                        <HyperlinkButton x:Name="ImapUsePasswordButton"
+                                         Content="{x:Bind l10n:L10n.SetupImapSigninPasswordInstead()}"
+                                         Padding="0" Visibility="Collapsed" Click="OnUseImapPassword" />
                         <InfoBar x:Name="ImapSignInFailedBar" IsOpen="False" IsClosable="False"
                                  Severity="Warning"
                                  Message="{x:Bind l10n:L10n.SetupImapSigninFailed()}" />
@@ -131,7 +141,22 @@
                                Visibility="Collapsed"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-                    <PasswordBox x:Name="Password" Header="{x:Bind l10n:L10n.SetupFieldPassword()}" PasswordChanged="OnPasswordChanged" />
+                    <!-- The password route, as one thing: the field and the two lines about it
+                         go and come back together, so neither line describes a field that is not
+                         on screen. -->
+                    <StackPanel x:Name="ImapPasswordPanel" Spacing="8" Visibility="Collapsed">
+                        <PasswordBox x:Name="Password" Header="{x:Bind l10n:L10n.SetupFieldPassword()}" PasswordChanged="OnPasswordChanged" />
+                        <TextBlock
+                            Text="{x:Bind l10n:L10n.SetupDetectAppPasswordHint()}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock
+                            Text="{x:Bind l10n:L10n.SetupCredentialsNote()}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
 
                     <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAdvanced()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
                     <Grid ColumnSpacing="12">

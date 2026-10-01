@@ -5,12 +5,14 @@
 // This file is only the WinUI plumbing. What to show is decided by ImapSignInGate, which is
 // WinUI-free and unit-tested (Mailcal.Tests/ImapSignInGateTests.cs).
 //
-// Two rules shape the plumbing, the same two the JMAP half keeps:
+// Three rules shape the plumbing, the first two the same ones the JMAP half keeps:
 //   - the pre-flight BLOCKS (it dials the mail server), so it never runs on the UI thread and
 //     never per keystroke: each edit restarts a short timer, and only the pause at the end of
 //     typing spends a dial;
 //   - no failure ever leaves somebody with no way in, so a failed sign-in hands the password
-//     field straight back, whatever the server said about passwords.
+//     field straight back, whatever the server said about passwords;
+//   - a deadline races the pre-flight (docs/mail-oauth.md rule 8), so a core that stops
+//     answering still leaves a password field to type into.
 
 using System.Threading.Tasks;
 using Allodia.Mailcal.Services;
@@ -68,10 +70,28 @@ public sealed partial class AccountSetupView
         {
             return;
         }
-        var answer = await model.ImapAuthOptionsAsync(ImapRequest());
-        _imapSignIn.Answered(key, answer);
+        UpdateImapSignIn();
+        var asked = model.ImapAuthOptionsAsync(ImapRequest());
+        if (await Task.WhenAny(asked, Task.Delay(ImapSignInGate.Deadline)) != asked
+            && _imapSignIn.DeadlinePassed(key))
+        {
+            UpdateImapSignIn();
+            UpdateCanConnect();
+        }
+        // After a deadline this is dropped by the gate: only the first answer counts.
+        _imapSignIn.Answered(key, await asked);
         UpdateImapSignIn();
         UpdateCanConnect();
+    }
+
+    // "Use a password instead": the field, and Connect with it, for somebody who would rather not
+    // sign in through the browser. The sign-in stays on screen as an ordinary button.
+    private void OnUseImapPassword(object sender, RoutedEventArgs e)
+    {
+        _imapSignIn.RevealPassword();
+        UpdateImapSignIn();
+        UpdateCanConnect();
+        Password.Focus(FocusState.Programmatic);
     }
 
     // Run the browser sign-in. On success the model has already added and stored the account
@@ -96,18 +116,32 @@ public sealed partial class AccountSetupView
     {
         // The initial IsChecked on the account-type picker fires while the tree is still being
         // built, so this can run before the fields exist.
-        if (ImapSignInPanel is null || Password is null)
+        if (ImapSignInPanel is null || ImapPasswordPanel is null)
         {
             return;
         }
+        var checking = _imapSignIn.Checking;
+        ImapCheckingPanel.Visibility = checking ? Visibility.Visible : Visibility.Collapsed;
+        ImapCheckingRing.IsActive = checking;
         ImapSignInPanel.Visibility = _imapSignIn.ShowButton ? Visibility.Visible : Visibility.Collapsed;
         ImapSignInButton.IsEnabled = _imapSignIn.ButtonEnabled;
+        // Primary until a password is on screen beside it; then Connect leads (rule 2). Assigned
+        // only on a change, because a new style re-templates the button under a focused pointer.
+        var style = (Style) Application.Current.Resources[
+            _imapSignIn.SignInLeads ? "AccentButtonStyle" : "DefaultButtonStyle"];
+        if (!ReferenceEquals(ImapSignInButton.Style, style))
+        {
+            ImapSignInButton.Style = style;
+        }
+        ImapUsePasswordButton.Visibility =
+            _imapSignIn.ShowPasswordInstead ? Visibility.Visible : Visibility.Collapsed;
+        ImapUsePasswordButton.IsEnabled = _imapSignIn.PasswordEnabled;
         ImapSignInFailedBar.IsOpen = _imapSignIn.ShowFailure;
         ImapRegistrationNeededNote.Visibility =
             _imapSignIn.ShowRegistrationNeeded ? Visibility.Visible : Visibility.Collapsed;
 
         var password = _imapSignIn.ShowPassword;
-        Password.Visibility = password ? Visibility.Visible : Visibility.Collapsed;
+        ImapPasswordPanel.Visibility = password ? Visibility.Visible : Visibility.Collapsed;
         Password.IsEnabled = _imapSignIn.PasswordEnabled;
         if (ImapChoice.IsChecked != true)
         {

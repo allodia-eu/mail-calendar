@@ -105,6 +105,11 @@ is recorded here.
    answer: 3 s for the capability probe, where running out is a server that did not answer, and
    6 s for the issuer search, where it is an issuer not found.
 
+   The same reason keeps a field once it is drawn. Editing the address or the server asks again,
+   and while it does, a password field already on screen stays, with Connect; only an answer
+   that a password does not work takes it away. On a manual form the server sits above the
+   password, so correcting it after typing one is the ordinary order of events.
+
 9. **The credential is resolved per dial, and one authentication failure is worth one
    re-dial.** An access token expires within the hour while an IMAP session does not, so a
    config built once would authenticate for exactly as long as its first token. The engine
@@ -150,39 +155,32 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Server asked before a credential field is drawn | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Sign-in primary, password behind a secondary control | ✅ | ✅ | ⬜ beside it | ⬜ beside it | ⬜ beside it |
+| Sign-in primary, password behind a secondary control | ✅ | ✅ | ✅ | ⬜ beside it | ⬜ beside it |
 | "Only pre-registered apps" explained rather than shown as a bare form | ✅ | ✅ | ✅ | ✅ | ✅ |
 | No password field where the server refuses passwords | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Nothing to act on until the answer, with a deadline racing it | ✅ | ✅ | ⬜ no deadline | ✅ under the spinner | ✅ |
+| Nothing to act on until the answer, with a deadline racing it | ✅ | ✅ | ✅ | ✅ under the spinner | ✅ |
+| A drawn password field stays while an edited account is asked again | n/a | ✅ | ✅ | ✅ | ✅ |
 | Browser sign-in + redirect capture | n/a | ✅ `ASWebAuthenticationSession` | ✅ protocol activation | ✅ Custom Tab | ✅ loopback |
 | Grant stored with no password beside it | ✅ | n/a | n/a | n/a | ✅ |
 | One re-dial on an expired token | ✅ | n/a | n/a | n/a | n/a |
 
 ## Known gaps
 
-- **Windows puts no deadline in front of the pre-flight.** The core bounds its own work (rule 8),
-  so the call returns within 9 s whatever the server does, but until it does a Windows screen
-  shows no password field and no Connect. The other clients draw the password form at ten
-  seconds, and the core's bound means that is rarely reached.
-- **Linux, Android and Windows draw the password field beside the sign-in**, which rule 2 now
-  says is not "behind" it. Linux submits the field with a secondary "Use a password instead"
-  (`setup_imap_signin_password_instead`), Android and Windows draw it under the sign-in button
-  with Connect; on all three the field is on screen before anybody asks for it. Apple's panel is
-  the layout the rule describes.
-- **Windows takes the password field away when the address or server changes.** The answer
-  belongs to the account it was asked about, so an edit makes it unknown and the field and
-  Connect go until the next answer, two to twelve seconds later. That is the field appearing and
-  being taken away that rule 8 warns against, and on the manual form the server field sits above
-  the password.
+- **Linux and Android draw the password field beside the sign-in**, which rule 2 says is not
+  "behind" it. Linux submits the field with a secondary "Use a password instead"
+  (`setup_imap_signin_password_instead`), Android draws it under the sign-in button with Connect;
+  on both the field is on screen before anybody asks for it. Apple's and Windows' panels are the
+  layout the rule describes.
 - **A provider that admits only pre-registered apps and refuses passwords still gets a password
   field**, with copy telling the person to use it. `RegistrationNeeded` carries
   `password_also_works`, and every client draws the field regardless, against rule 3. The honest
   screen for that server says it cannot be added here yet; none is written.
-- **Windows' screen is verified by hand, not by its UI suite.** On 2026-09-30, against the
-  harness on Windows 11 arm64: each of the three answers, the sign-in-only screen, a failed
-  sign-in handing the password back, a cancel returning quietly, a late answer for an edited
-  server being dropped, and the full sign-in through the browser and protocol activation to a
-  connected account. `uitests/run-ui-tests.ps1` asserts none of it yet.
+- **Windows' UI suite runs against the harness only, so CI does not run it.**
+  `uitests/ImapSignIn.Tests.ps1` asserts each answer the harness can serve, nothing
+  credential-shaped before an answer, the field held through an edit, a silent server, and a
+  failed sign-in handing the password back. Two things stay by hand, last checked on 2026-09-30:
+  Cancel while a sign-in is out, and the full sign-in through the browser and protocol
+  activation, because both open a real browser. The sign-in-only screen has no harness server.
 - **Android has no "still asking" state, deliberately.** It resolves the answer under the
   "Looking…" spinner that detection already shows, before the card exists, so the card renders
   in its final shape rather than settling into one. That is a stricter reading of rule 8 than a
@@ -240,4 +238,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 - **Clients**: Linux drives the three screens through a real widget tree under Xvfb, asserting
   the half a screenshot cannot check: that no credential field is on screen while the server is
   being asked, that the offer and the password route appear together when both work, and that
-  the closed-registration line appears with no sign-in button beside it.
+  the closed-registration line appears with no sign-in button beside it. Windows states the
+  form's decisions in `Mailcal.Tests/ImapSignInGateTests.cs` (the deadline, the field held
+  through an edit, the password route behind its control) and what is drawn in
+  `uitests/ImapSignIn.Tests.ps1`, against the harness's servers.

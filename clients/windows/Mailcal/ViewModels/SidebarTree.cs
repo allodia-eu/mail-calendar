@@ -196,6 +196,9 @@ public static class SidebarTree
             Glyph = glyphs.AddAccount,
             // An action, not a destination, so it never holds the selection.
             SelectsOnInvoked = false,
+            // Its label is in whatever language the app runs in; a harness run is in the
+            // developer's, so the UI suite finds the row by this.
+            AutomationId = "NavAddAccount",
         };
         add.Content = labels.AddAccount;
         wanted.Add(add);
