@@ -36,9 +36,9 @@ $Suite = @{
     @{
       Name = 'a body warm reports how many messages are down so far, not a folder count'
       Body = {
-        $hint = Wait-UiaElement -AutomationId 'SyncHint' -TimeoutSec 30
+        $hint = Wait-UiaElement -AutomationId 'SyncStatus' -TimeoutSec 30
         if (-not $hint) {
-          throw "no SyncHint within 30s. Either the staged hint never reached the window (is this a DEBUG build? MAILCAL_FAKE_SYNC_HINT is compiled out of Release), or SyncHintVisible is not bound"
+          throw "no SyncStatus within 30s. Either the staged hint never reached the window (is this a DEBUG build? MAILCAL_FAKE_SYNC_HINT is compiled out of Release), or SyncStatusVisible is not bound"
         }
         $rect = $hint.Current.BoundingRectangle
         if ([double]::IsInfinity($rect.X) -or $rect.Width -le 0 -or $rect.Height -le 0) {

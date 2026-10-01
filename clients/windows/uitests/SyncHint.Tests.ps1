@@ -11,7 +11,7 @@
 # crates/mailcal-app/src/sync_progress_staged.rs) substitutes the snapshot the host reads and
 # nothing else, so everything below it is real: the surface signal, the FFI record, the two bound
 # properties, the footer's status line, and the layout pass that places it. A hook that set
-# SyncHintVisible on the model instead would keep passing after the core-to-client wiring was cut.
+# SyncStatusVisible on the model instead would keep passing after the core-to-client wiring was cut.
 #
 # WHAT IT PROVES. That the account was NAMED (the client resolves the id against its own account
 # list, a hint that printed a raw internal id would satisfy a visibility check and read as a bug
@@ -47,9 +47,9 @@ $ExpectedHint = $SyncHintCatalog.sync_hint_account.
 The staged hint's caption, once the window has read the surface.
 #>
 function Get-SyncHint {
-  $hint = Wait-UiaElement -AutomationId 'SyncHint' -TimeoutSec 30
+  $hint = Wait-UiaElement -AutomationId 'SyncStatus' -TimeoutSec 30
   if (-not $hint) {
-    throw "no SyncHint within 30s. Either the staged hint never reached the window (is this a DEBUG build? MAILCAL_FAKE_SYNC_HINT is compiled out of Release, app.log carries the warning it writes whenever it is in force), or Surface.SyncProgress no longer reaches the projection, or SyncHintVisible is not bound"
+    throw "no SyncStatus within 30s. Either the staged hint never reached the window (is this a DEBUG build? MAILCAL_FAKE_SYNC_HINT is compiled out of Release, app.log carries the warning it writes whenever it is in force), or Surface.SyncProgress no longer reaches the projection, or SyncStatusVisible is not bound"
   }
   $hint
 }

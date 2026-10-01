@@ -48,7 +48,7 @@ pub use settings::{
     SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow,
     SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot,
 };
-pub use sync_progress::{AccountSyncProgress, SyncProgressSnapshot};
+pub use sync_progress::{AccountSyncProgress, SyncProgressSnapshot, ThrottledAccount};
 pub use text::plain_text;
 pub use view::{
     AccountMessage, AccountRow, EmptyReason, FlatRow, MailboxListSnapshot, SearchHorizon,

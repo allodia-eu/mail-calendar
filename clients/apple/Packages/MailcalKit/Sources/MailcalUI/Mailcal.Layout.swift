@@ -161,6 +161,13 @@ extension ContentView {
     /// The phone has no footer to put the background hint in, so it shares this strip: the same
     /// edge, without the bar. Both can be true at once (an awaited download while a poll tick
     /// catches another account up); the bar is the one the user is waiting on, so it wins.
+    ///
+    /// A touch screen has no hover either, so the paused notice says its whole sentence here
+    /// rather than the short label a Mac puts a tooltip behind. The iPad draws this strip too,
+    /// under its list column.
+    ///
+    /// The rows scroll on underneath an inset, so the strip carries a material of its own; without
+    /// one a two-line notice is drawn straight over the message text behind it.
     @ViewBuilder private var syncStrip: some View {
         if let progress = model.syncProgress, progress.active {
             Divider()
@@ -171,14 +178,16 @@ extension ContentView {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-        } else if let hint = syncHintText(model.syncProgress) {
+            .background(.thinMaterial)
+        } else if let status = syncStatusText(model.syncProgress) {
             Divider()
             HStack {
-                Text(hint).font(.caption).foregroundStyle(.secondary)
+                syncStatusLabel(status)
                 Spacer()
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
+            .background(.thinMaterial)
         }
     }
 

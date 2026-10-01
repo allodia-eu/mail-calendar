@@ -66,6 +66,7 @@ mod convert_folders;
 mod convert_mailbox;
 mod convert_reading;
 mod convert_settings;
+mod convert_status;
 mod crash;
 mod credential_log;
 pub mod credential_store;
@@ -169,8 +170,8 @@ pub use protocol_surface::{Observer, Surface};
 pub use records::{
     AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, EmptyReason, FlatRow,
     MailboxListSnapshot, ReadingSnapshot, RecipientSuggestion, SearchHorizon, SendStatus,
-    SnapshotRow, SyncProgressSnapshot, ThreadMessage, ThreadRow, TimeZoneSnapshot, UnfiledCopy,
-    ViewMode,
+    SnapshotRow, SyncProgressSnapshot, ThreadMessage, ThreadRow, ThrottledAccount,
+    TimeZoneSnapshot, UnfiledCopy, ViewMode,
     settings::{
         AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
         McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow,

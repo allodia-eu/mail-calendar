@@ -36,6 +36,13 @@ pub(crate) struct SyncAccountOutcome {
     /// nothing was throttled, or nothing said when. Either way the caller keeps its own
     /// schedule.
     pub(crate) throttled_for: Option<Duration>,
+    /// Whether the account's server **refused this pass for now**: `Some(true)` raises the
+    /// paused notice, `Some(false)` clears it, `None` leaves it alone ([`throttled`]).
+    ///
+    /// Separate from [`throttled_for`](Self::throttled_for) because the two answer different
+    /// questions and neither implies the other: about two Gmail refusals in three state no
+    /// instant at all, so a pause with no figure is the common case, not an edge one.
+    pub(crate) throttled: Option<bool>,
 }
 
 /// Syncs one account's mail **concurrently**: sync the folder list **once**, then stream
@@ -68,6 +75,7 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
             signin_expired: None,
             busy_scopes: 0,
             throttled_for: None,
+            throttled: None,
         };
     }
 
@@ -121,6 +129,7 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
         busy_scopes: usize::from(list_reach == Reach::Busy)
             + folder_reaches.iter().filter(|r| **r == Reach::Busy).count(),
         throttled_for: longest_stated_wait(&report),
+        throttled: throttled(list_reach, folder_reaches.iter().copied()),
     }
 }
 
@@ -238,5 +247,5 @@ fn longest_stated_wait(report: &MailSyncReport) -> Option<Duration> {
 /// them into. A child module, so the mail pass reads it as its own.
 #[path = "sync_reach.rs"]
 mod reach;
-use reach::reach_of;
 pub(crate) use reach::{Reach, reach_of_api, reachability, signin_expired};
+use reach::{reach_of, throttled};
