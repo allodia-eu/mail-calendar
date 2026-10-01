@@ -14,6 +14,16 @@ impl AccountRegistry {
             .collect()
     }
 
+    /// `id`'s config as the registry holds it now, serialized for the host's store, or `None` if it
+    /// is not registered.
+    pub(crate) fn config_toml(&self, id: &str) -> Option<Result<String, String>> {
+        self.entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+            .map(|entry| entry.to_toml().map_err(|err| err.to_string()))
+    }
+
     /// Clears every link to `removed` from the accounts that hold one, and returns each changed
     /// account's id with its config re-serialized for the host's store.
     ///

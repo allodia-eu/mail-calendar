@@ -102,3 +102,23 @@ fn removing_an_account_clears_the_links_to_it_and_stores_the_change() {
         "no account left, so the client returns to first-run setup"
     );
 }
+
+/// A rotation that lands between serializing an entry and storing it leaves the store holding
+/// what the registry holds, not the serialization taken before it.
+#[test]
+fn a_config_superseded_while_it_was_stored_is_stored_again() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app("accounts-superseded", &store);
+    app.persist_config(MAILBOX_ID, "superseded = true".to_owned())
+        .expect("stored");
+    let writes: Vec<String> = store
+        .persisted
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(id, _)| id == MAILBOX_ID)
+        .map(|(_, config)| config.clone())
+        .collect();
+    assert_eq!(writes.len(), 2);
+    assert!(writes[1].contains("alice@example.org"), "{}", writes[1]);
+}

@@ -1,7 +1,7 @@
 //! Settings → Accounts: the snapshot every client draws it from, and what removing an account does
 //! to the links other accounts hold to it.
 
-use crate::{AccountsSnapshot, MailcalApp, accounts_view};
+use crate::{AccountsSnapshot, MailcalApp, MailcalError, accounts_view};
 
 #[uniffi::export]
 impl MailcalApp {
@@ -47,8 +47,8 @@ impl MailcalApp {
     pub(crate) fn clear_links_to(&self, removed: &str) {
         for (id, config) in self.registry.clear_links_to(removed) {
             let stored = config
-                .map_err(crate::MailcalError::Config)
-                .and_then(|config| self.persist_credential(&id, config));
+                .map_err(MailcalError::Config)
+                .and_then(|config| self.persist_config(&id, config));
             if let Err(err) = stored {
                 log::warn!(
                     "credentials: [{}] a link to a removed account could not be cleared from \
@@ -56,6 +56,21 @@ impl MailcalApp {
                     mailcal_account::account_log_handle(&id),
                 );
             }
+        }
+    }
+
+    /// Stores `config`, a serialization of `id`'s registry entry taken under its lock, and stores
+    /// the entry again if it has changed since.
+    ///
+    /// The write happens after the lock is released, so a token rotation can land in between: its
+    /// sink stores the new refresh token first, and `config` would then put the superseded one
+    /// back. Storing what the registry holds afterwards ends the store on the newer token whichever
+    /// of the two writes lands last.
+    pub(crate) fn persist_config(&self, id: &str, config: String) -> Result<(), MailcalError> {
+        self.persist_credential(id, config.clone())?;
+        match self.registry.config_toml(id) {
+            Some(Ok(current)) if current != config => self.persist_credential(id, current),
+            _ => Ok(()),
         }
     }
 }
