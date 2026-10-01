@@ -53,6 +53,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | Stored capabilities, pinned id and links read and kept | ✅ | — | — | — | — | — |
 | Only the capabilities an account is used for are opened | ✅ | — | — | — | — | — |
 | Sign-in asks for the chosen capabilities' scopes only, and opens what was granted | ✅ | — | — | — | — | — |
+| Signing in again, or adding a capability, keeps the account and its mail | ✅ | — | — | — | — | — |
 | A standards account without a mailbox connects its calendar and contacts | ✅ | — | — | — | — | — |
 | An account without mail is kept out of the mail surfaces | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar groups headed by the account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

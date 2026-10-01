@@ -10,7 +10,7 @@
 //! takes, so the credential has exactly one way in and out. All types here mirror the
 //! password-account setup in `setup.rs`.
 
-use mailcal_account::{Capability, MicrosoftConfig, Secret};
+use mailcal_account::{Capabilities, Capability, MicrosoftConfig, Secret};
 use mailcal_oauth::{OAuthClient, OAuthProviderConfig};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -78,6 +78,25 @@ pub fn begin_microsoft_login(
     login_hint: Option<String>,
     capabilities: Option<Vec<AccountCapability>>,
 ) -> Result<MicrosoftLoginStart, MailcalError> {
+    start(
+        tenant,
+        redirect_uri,
+        login_hint,
+        account_capability::chosen(capabilities)?,
+    )
+}
+
+/// [`begin_microsoft_login`] for a choice already read: `None` asks for everything.
+///
+/// # Errors
+///
+/// As [`begin_microsoft_login`], less the empty choice.
+pub(crate) fn start(
+    tenant: Option<String>,
+    redirect_uri: String,
+    login_hint: Option<String>,
+    chosen: Option<Capabilities>,
+) -> Result<MicrosoftLoginStart, MailcalError> {
     let Some(client_id) = mailcal_oauth::credentials::microsoft_client_id() else {
         return Err(MailcalError::Config(
             "this build carries no Microsoft sign-in".to_owned(),
@@ -86,7 +105,6 @@ pub fn begin_microsoft_login(
     let tenant = tenant
         .filter(|t| !t.trim().is_empty())
         .unwrap_or_else(|| DEFAULT_TENANT.to_owned());
-    let chosen = account_capability::chosen(capabilities)?;
     let scopes = mailcal_account::requested_scopes(
         &mailcal_oauth::scopes::MICROSOFT,
         &chosen

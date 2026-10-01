@@ -34,6 +34,7 @@ mod allodia_tokens;
 mod allodia_transport;
 mod analytics;
 mod app_accounts;
+mod app_accounts_consent;
 mod app_accounts_google;
 mod app_accounts_microsoft;
 mod app_allodia;
@@ -134,6 +135,7 @@ pub use allodia_sync::{
     AllodiaSyncReport, setup_from_offer,
 };
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
+pub use app_accounts_consent::AccountConsentStart;
 pub use app_display::stored_appearance;
 pub use app_month::calendar_palette;
 pub use app_sender_name::sender_label;
