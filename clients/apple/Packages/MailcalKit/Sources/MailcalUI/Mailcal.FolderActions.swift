@@ -164,7 +164,7 @@ struct FolderDialogs: ViewModifier {
                         title: L10n.folder_move_title(
                             name: folderLabel(role: target.folder.role, name: target.folder.name)
                         ),
-                        destinations: moveDestinations(
+                        targets: moveTargets(
                             for: target.folder,
                             in: model.accountFolderRow(for: target.account)?.folders ?? []
                         ),
@@ -175,7 +175,7 @@ struct FolderDialogs: ViewModifier {
                 case .moveMessages(let offer):
                     MoveSheet(
                         title: L10n.message_move_title(),
-                        destinations: offer.destinations,
+                        targets: offer.targets,
                         move: { key in
                             if let key { fileMessages(offer, key) }
                         }
@@ -268,35 +268,76 @@ struct FolderNameSheet: View {
     }
 }
 
-/// A Move to… list (rule 24): for a folder, Top level and then every folder that takes one; for
-/// mail, every folder that takes mail. Both by path.
+/// A Move to… list (rule 24): the account's tree as the pane draws it, every folder open. For a
+/// folder, Top level first and the folders one step inside it; for mail, the folders alone. A
+/// folder that is no destination but holds one is drawn dimmed and does not respond.
 struct MoveSheet: View {
     let title: String
-    let destinations: [MoveDestination]
+    let targets: [MoveTarget]
     let move: (String?) -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            List(destinations) { destination in
+            List(targets) { target in
                 Button {
-                    move(destination.key)
+                    move(target.key)
                     dismiss()
                 } label: {
-                    Label(
-                        destination.label,
-                        systemImage: destination.key == nil ? "tray.2" : "folder"
-                    )
+                    MoveTargetLabel(target: target)
                 }
+                #if os(macOS)
+                // As the pane's rows are: a push button per row is not a list.
+                .buttonStyle(.plain)
+                .help(target.label)
+                #endif
+                .disabled(!target.enabled)
+                // The indent says where a folder sits and is not read aloud; the path is.
+                .accessibilityLabel(target.label)
+                // A separator follows the text's leading edge, which steps with the indent.
+                .listRowSeparator(.hidden)
             }
+            #if os(macOS)
+            .listStyle(.inset)
+            #endif
             .navigationTitle(title)
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.action_cancel()) { dismiss() }
                 }
             }
         }
-        .frame(minWidth: 340, minHeight: 360)
+        #if os(macOS)
+        .frame(minWidth: 360, idealWidth: 400, minHeight: 320, idealHeight: 440, maxHeight: 640)
+        #else
+        .presentationDetents([.medium, .large])
+        #endif
+    }
+}
+
+/// One Move to… row: the pane's icon and name, at the pane's indent and row height.
+private struct MoveTargetLabel: View {
+    let target: MoveTarget
+
+    var body: some View {
+        Label {
+            Text(target.name)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .foregroundStyle(.primary)
+        } icon: {
+            Image(systemName: target.key == nil ? accountIcon : folderIcon(target.role))
+                .foregroundStyle(.tint)
+        }
+        .padding(.leading, indentWidth * CGFloat(target.indent))
+        .frame(maxWidth: .infinity, minHeight: paneRowHeight, alignment: .leading)
+        // The whole row is the target, as in the pane.
+        .contentShape(Rectangle())
+        // Dimmed as the pane dims a folder waiting for the server.
+        .opacity(target.enabled ? 1 : 0.5)
     }
 }
 
@@ -353,7 +394,7 @@ extension ContentView {
                 folderSheet = .moveMessages(MessageMoveOffer(
                     account: account,
                     rows: rows,
-                    destinations: messageDestinations(in: current, showing: listFolder(in: account))
+                    targets: messageTargets(in: current, showing: listFolder(in: account))
                 ))
             } label: {
                 Label(L10n.action_move_to_folder(), systemImage: "folder")

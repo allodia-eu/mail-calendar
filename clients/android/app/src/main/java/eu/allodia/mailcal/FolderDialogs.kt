@@ -4,12 +4,16 @@ package eu.allodia.mailcal
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -23,8 +27,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.FolderIntent
 import uniffi.mailcal_bindings.FolderNameCheck
@@ -114,7 +126,8 @@ private fun FolderNameDialog(
 }
 
 // Rule 24: the Move to… list, for a folder from the drawer and for a message from its row. The
-// route to moving either on a phone, where the drawer covers any drag.
+// route to moving either on a phone, where the drawer covers any drag. Drawn as the drawer's tree,
+// and scrolls inside the dialog when it is long.
 @Composable
 internal fun MoveTargetDialog(
     title: String,
@@ -129,16 +142,10 @@ internal fun MoveTargetDialog(
         text = {
             LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
                 items(targets, key = { it.key ?: "" }) { target ->
-                    Text(
-                        text = target.label,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(role = Role.Button) {
-                                onPick(target)
-                                onClose()
-                            }
-                            .padding(vertical = 12.dp),
-                    )
+                    MoveTargetRow(target) {
+                        onPick(target)
+                        onClose()
+                    }
                 }
             }
         },
@@ -148,6 +155,50 @@ internal fun MoveTargetDialog(
         },
     )
 }
+
+// One picker row, shaped as a drawer item: its height, its pill, the icon, the gap and the label
+// style. Its accessible name is the path, because the indent that places it is not read aloud. A
+// row that does not respond takes no click, no focus and no ripple, and says it is disabled.
+@Composable
+private fun MoveTargetRow(target: MoveTarget, onPick: () -> Unit) {
+    val colour = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = DRAWER_ITEM_HEIGHT)
+            .clip(CircleShape)
+            .then(if (target.enabled) Modifier.clickable(role = Role.Button, onClick = onPick) else Modifier)
+            .semantics(mergeDescendants = true) {
+                contentDescription = target.label
+                if (!target.enabled) disabled()
+            }
+            .then(if (target.enabled) Modifier else Modifier.alpha(PENDING_ALPHA))
+            .padding(start = 16.dp + FOLDER_INDENT * target.indent, end = 24.dp),
+    ) {
+        Icon(
+            painter = painterResource(
+                if (target.key == null) R.drawable.ic_account_circle else folderIcon(target.role),
+            ),
+            contentDescription = null,
+            tint = colour,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = target.name,
+            color = colour,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            // The row carries the path in its place.
+            modifier = Modifier.clearAndSetSemantics {},
+        )
+    }
+}
+
+// A Material 3 navigation drawer item's height, so a picker row is the size of the row it stands
+// for.
+private val DRAWER_ITEM_HEIGHT = 56.dp
 
 // Rule 26: confirmed both ways, and worded by whether the folder is already in Trash.
 @Composable

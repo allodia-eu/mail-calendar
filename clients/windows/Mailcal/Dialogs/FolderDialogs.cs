@@ -15,7 +15,7 @@ using uniffi.mailcal_bindings;
 namespace Allodia.Mailcal.Dialogs;
 
 /// <summary>The folder-name and Move to… dialogs.</summary>
-internal static class FolderDialogs
+internal static partial class FolderDialogs
 {
     private static FolderNameWords NameWords => new(
         L10n.FolderNameEmpty(),
@@ -85,57 +85,5 @@ internal static class FolderDialogs
 
         var result = await DialogHelper.ShowAsync(dialog);
         return result == ContentDialogResult.Primary ? box.Text : null;
-    }
-
-    /// <summary>
-    /// Asks where a folder goes and returns the chosen destination, or <c>null</c> when the user
-    /// cancelled. Choosing a row answers at once: there is nothing else to decide, and a separate
-    /// confirm button would need a verb the list already is.
-    /// </summary>
-    public static async Task<MoveTarget?> AskMoveTargetAsync(
-        XamlRoot root,
-        string title,
-        IReadOnlyList<MoveTarget> targets)
-    {
-        MoveTarget? chosen = null;
-        var list = new ListView
-        {
-            // Wrapped, and matched by reference: two destinations can read alike (a folder called
-            // "Top level" at the top of the tree), and a match on the words would move it wrong.
-            ItemsSource = targets.Select(target => new Choice(target)).ToList(),
-            SelectionMode = ListViewSelectionMode.None,
-            IsItemClickEnabled = true,
-            MaxHeight = 360,
-            MinWidth = 320,
-        };
-        AutomationProperties.SetName(list, title);
-        AutomationProperties.SetAutomationId(list, "FolderMoveTargets");
-        var dialog = new ContentDialog
-        {
-            XamlRoot = root,
-            Title = title,
-            Content = list,
-            CloseButtonText = L10n.ActionCancel(),
-            DefaultButton = ContentDialogButton.Close,
-        };
-        list.ItemClick += (_, args) =>
-        {
-            if (args.ClickedItem is Choice choice)
-            {
-                chosen = choice.Target;
-                dialog.Hide();
-            }
-        };
-        _ = await DialogHelper.ShowAsync(dialog);
-        return chosen;
-    }
-
-    /// <summary>One row of Move to…: drawn as its label, which a list without a template reads
-    /// from <c>ToString</c>, and a screen reader from the same.</summary>
-    private sealed class Choice(MoveTarget target)
-    {
-        public MoveTarget Target { get; } = target;
-
-        public override string ToString() => Target.Label;
     }
 }

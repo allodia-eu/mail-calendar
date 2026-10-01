@@ -9,6 +9,7 @@ import uniffi.mailcal_bindings.FolderIntent
 import uniffi.mailcal_bindings.FolderNameCheck
 import uniffi.mailcal_bindings.FolderNotice
 import uniffi.mailcal_bindings.FolderProblem
+import uniffi.mailcal_bindings.FolderRole
 import uniffi.mailcal_bindings.FolderRow
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
@@ -59,8 +60,8 @@ internal fun menuLabel(item: FolderMenuItem, ctx: Context): String =
     }
 
 // Each row's name with the folders it sits inside ("Clients / Acme"), walking the rows' own
-// parents the way the core's `folder_paths` does. A flat list has no indent to say where a folder
-// is, and two folders called `2024` would otherwise read alike.
+// parents the way the core's `folder_paths` does. A picker row's accessible name: an indent is not
+// read aloud, and two folders called `2024` would otherwise sound alike.
 internal fun folderPaths(rows: List<FolderRow>, ctx: Context): Map<String, String> {
     val byKey = rows.associateBy { it.key }
     return rows.associate { row ->
@@ -76,29 +77,72 @@ internal fun folderPaths(rows: List<FolderRow>, ctx: Context): Map<String, Strin
     }
 }
 
-// One place a folder can move to: `key` null is the top of the account's tree.
-internal data class MoveTarget(val key: String?, val label: String)
+// One row of a picker drawn as the drawer's tree. `key` null is the top of the account's tree,
+// drawn with the account's icon; `name` is what the row shows and `label` what it is called to
+// assistive technology. A row that is not `enabled` is a parent kept so its folders stay under it.
+internal data class MoveTarget(
+    val key: String?,
+    val name: String,
+    val role: FolderRole?,
+    val indent: Int,
+    val enabled: Boolean,
+    val label: String,
+)
 
 // Rule 24: Top level first, then every folder of the account that takes folders, leaving out
-// the folder itself and everything inside it.
+// the folder itself, everything inside it and the place it already is. The folders sit one step
+// inside Top level, which stays as their root, disabled, for a folder already at the top.
 internal fun moveTargets(folder: FolderRow, rows: List<FolderRow>, ctx: Context): List<MoveTarget> {
     val inside = mutableSetOf(folder.key)
     // Rows arrive depth-first, so a folder's descendants follow it and one pass finds them.
     for (row in rows) {
         if (row.parent in inside) inside.add(row.key)
     }
-    val paths = folderPaths(rows, ctx)
-    return listOf(MoveTarget(null, L10n.folder_move_top_level(ctx))) +
-        rows.filter { it.acceptsFolders && it.key !in inside }
-            .map { MoveTarget(it.key, paths.getValue(it.key)) }
+    val tree = treeTargets(rows, ctx, shift = 1) {
+        it.acceptsFolders && it.key !in inside && it.key != folder.parent
+    }
+    val atTop = folder.parent == null
+    if (atTop && tree.isEmpty()) return emptyList()
+    val top = L10n.folder_move_top_level(ctx)
+    return listOf(MoveTarget(null, top, null, indent = 0, enabled = !atTop, label = top)) + tree
 }
 
 // Rule 24, for mail: the account's folders that take it, leaving out the one the list is showing.
 // No Top level, because mail is filed in a folder.
-internal fun messageTargets(rows: List<FolderRow>, showing: String?, ctx: Context): List<MoveTarget> {
+internal fun messageTargets(rows: List<FolderRow>, showing: String?, ctx: Context): List<MoveTarget> =
+    treeTargets(rows, ctx, shift = 0) { it.acceptsMessages && it.key != showing }
+
+// The destinations in the drawer's order, each with every folder it sits inside: a parent that is
+// no destination itself is kept, disabled, so the tree keeps its shape. `shift` is the indent the
+// whole tree starts at.
+private fun treeTargets(
+    rows: List<FolderRow>,
+    ctx: Context,
+    shift: Int,
+    isDestination: (FolderRow) -> Boolean,
+): List<MoveTarget> {
+    val byKey = rows.associateBy { it.key }
+    val kept = mutableSetOf<String>()
+    for (row in rows.filter(isDestination)) {
+        kept.add(row.key)
+        // `add` answers false at a parent already kept, whose own parents are kept with it, which
+        // also ends a chain that loops.
+        var parent = row.parent
+        while (parent != null && kept.add(parent)) {
+            parent = byKey[parent]?.parent
+        }
+    }
     val paths = folderPaths(rows, ctx)
-    return rows.filter { it.acceptsMessages && it.key != showing }
-        .map { MoveTarget(it.key, paths.getValue(it.key)) }
+    return rows.filter { it.key in kept }.map { row ->
+        MoveTarget(
+            key = row.key,
+            name = folderLabel(row.role, row.name, ctx),
+            role = row.role,
+            indent = row.depth.toInt() + shift,
+            enabled = isDestination(row),
+            label = paths.getValue(row.key),
+        )
+    }
 }
 
 // A message row's route to a named folder: where a message of `account` may go, and the move,

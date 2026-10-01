@@ -361,7 +361,7 @@ private fun FlatMessageOverflow(
             )
             // Offered only where some folder can take the message (rule 24).
             val targets = remember { moveTargets?.invoke().orEmpty() }
-            if (targets.isNotEmpty()) {
+            if (targets.any { it.enabled }) {
                 DropdownMenuItem(
                     text = { Text(L10n.action_move_to_folder(ctx)) },
                     onClick = {

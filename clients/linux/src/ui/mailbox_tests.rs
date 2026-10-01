@@ -247,6 +247,10 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::webview::tests::the_readers_zoom_gestures_listen_ahead_of_the_web_view();
     crate::ui::webview::tests::opening_another_message_starts_again_at_its_own_fit();
     crate::ui::modal::tests::a_modal_renders_its_title_in_native_chrome_only();
+    crate::ui::folder_dialogs::widget_tests::
+        a_picker_row_reads_as_a_pane_row_and_only_a_destination_responds();
+    crate::ui::folder_dialogs::widget_tests::the_arrow_keys_pass_over_a_row_that_cannot_be_chosen();
+    crate::ui::modal::tests::escape_closes_a_modal_as_its_close_button_does();
     crate::ui::avatar::tests::avatars_and_unread_dots_are_presentational();
     crate::ui::outbox::tests::the_pane_row_appears_only_while_something_is_waiting();
     crate::ui::outbox::tests::the_pane_highlights_the_outbox_rather_than_everyones_inbox();

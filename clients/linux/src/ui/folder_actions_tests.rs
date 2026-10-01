@@ -7,7 +7,10 @@ use super::{
     Dragged, DropSpot, FolderMenuItem, accepts_drop, account_menu, ancestors, delete_copy,
     folder_menu, move_candidates, name_problem, subtree,
 };
-use crate::l10n;
+use crate::{
+    l10n,
+    ui::{folder_picker::PickerRow, icons},
+};
 
 fn row(key: &str, name: &str, parent: Option<&str>) -> FolderRow {
     FolderRow {
@@ -28,18 +31,26 @@ fn row(key: &str, name: &str, parent: Option<&str>) -> FolderRow {
     }
 }
 
-/// Inbox (a role folder), `Work` holding `2024` holding `Q1`, and `Home`.
+/// Inbox (a role folder), `Work` holding `2024` holding `Q1`, and `Home`, in the pane's order.
 fn tree() -> Vec<FolderRow> {
     let mut inbox = row("inbox", "INBOX", None);
     inbox.role = Some(FolderRole::Inbox);
     inbox.editable = false;
+    let mut year = row("2024", "2024", Some("work"));
+    year.depth = 1;
+    let mut quarter = row("q1", "Q1", Some("2024"));
+    quarter.depth = 2;
     vec![
         inbox,
         row("work", "Work", None),
-        row("2024", "2024", Some("work")),
-        row("q1", "Q1", Some("2024")),
+        year,
+        quarter,
         row("home", "Home", None),
     ]
+}
+
+fn find<'a>(rows: &'a [PickerRow], key: &str) -> Option<&'a PickerRow> {
+    rows.iter().find(|row| row.key.as_deref() == Some(key))
 }
 
 fn folder_drag(key: &str, parent: Option<&str>) -> Dragged {
@@ -84,22 +95,82 @@ fn a_row_offers_what_its_flags_allow_and_a_pending_row_nothing() {
 }
 
 #[test]
-fn move_to_lists_top_level_first_and_never_the_folder_or_what_is_inside_it() {
+fn move_to_lists_top_level_first_and_never_the_folder_what_is_inside_it_or_where_it_is() {
     let folders = tree();
     let candidates = move_candidates(&folders, "work");
-    let parents: Vec<Option<&str>> = candidates.iter().map(|c| c.parent.as_deref()).collect();
-    assert_eq!(parents, vec![None, Some("inbox"), Some("home")]);
-    assert_eq!(candidates[0].label, l10n::folder_move_top_level());
-    // A nested folder is named with the folders it sits in.
-    let labels: Vec<String> = move_candidates(&folders, "home")
-        .into_iter()
-        .map(|c| c.label)
-        .collect();
-    assert!(
-        labels.contains(&"Work / 2024 / Q1".to_owned()),
-        "{labels:?}"
+    let keys: Vec<Option<&str>> = candidates.iter().map(|c| c.key.as_deref()).collect();
+    assert_eq!(keys, vec![None, Some("inbox"), Some("home")]);
+    let top = &candidates[0];
+    assert_eq!(top.name, l10n::folder_move_top_level());
+    assert_eq!(top.label, l10n::folder_move_top_level());
+    assert_eq!(
+        top.icon,
+        icons::ACCOUNT,
+        "drawn as the pane draws an account"
     );
-    assert!(labels.contains(&l10n::folder_inbox().to_owned()));
+    assert_eq!(top.indent, 0);
+    assert!(!top.enabled, "Work is already at the top");
+    // A folder inside the moved one is left out with it, and so is the folder it already sits in.
+    let candidates = move_candidates(&folders, "2024");
+    let keys: Vec<Option<&str>> = candidates.iter().map(|c| c.key.as_deref()).collect();
+    assert_eq!(keys, vec![None, Some("inbox"), Some("home")]);
+    assert!(candidates.iter().all(|c| c.enabled));
+}
+
+#[test]
+fn a_top_level_folder_with_nowhere_to_go_is_offered_nothing() {
+    assert!(move_candidates(&[row("work", "Work", None)], "work").is_empty());
+}
+
+#[test]
+fn move_to_draws_each_folder_by_its_own_name_one_step_inside_top_level() {
+    let candidates = move_candidates(&tree(), "home");
+    let indents: Vec<u32> = candidates.iter().map(|c| c.indent).collect();
+    assert_eq!(
+        indents,
+        vec![0, 1, 1, 2, 3],
+        "depth plus the step under Top level"
+    );
+    let inbox = find(&candidates, "inbox").unwrap();
+    assert_eq!(
+        inbox.name,
+        l10n::folder_inbox(),
+        "the app's word for a role"
+    );
+    assert_eq!(inbox.icon, icons::INBOX);
+    let q1 = find(&candidates, "q1").unwrap();
+    assert_eq!(q1.name, "Q1", "its own name, never the path");
+    assert_eq!(q1.icon, icons::FOLDER);
+    assert_eq!(
+        q1.label, "Work / 2024 / Q1",
+        "the path is what is read aloud"
+    );
+    assert!(!candidates[0].enabled, "Home is already at the top");
+    assert!(candidates[1..].iter().all(|c| c.enabled));
+}
+
+#[test]
+fn a_folder_above_a_destination_stays_in_place_but_cannot_be_chosen() {
+    let mut folders = tree();
+    folders[1].accepts_folders = false;
+    folders[2].accepts_folders = false;
+    let candidates = move_candidates(&folders, "home");
+    let work = find(&candidates, "work").expect("kept above Q1");
+    assert!(!work.enabled);
+    assert_eq!(work.indent, 1);
+    assert!(!find(&candidates, "2024").unwrap().enabled);
+    assert!(find(&candidates, "q1").unwrap().enabled);
+}
+
+#[test]
+fn a_folder_with_no_destination_inside_it_is_left_out() {
+    let mut folders = tree();
+    folders[0].accepts_folders = false;
+    folders[3].accepts_folders = false;
+    let candidates = move_candidates(&folders, "home");
+    assert!(find(&candidates, "inbox").is_none());
+    assert!(find(&candidates, "q1").is_none());
+    assert!(find(&candidates, "2024").unwrap().enabled);
 }
 
 #[test]

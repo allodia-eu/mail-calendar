@@ -90,17 +90,35 @@ $Suite = @{
   Env     = @{ MAILCAL_DEV_ACCOUNT = 'stalwart-imap' }
   Cases   = @(
     @{
-      Name = 'the picker lists the folders that take mail, not the one on screen'
+      Name = 'the picker draws the tree, offering the folders that take mail and not the one on screen'
       Body = {
         Open-AccountFolder -Folder 'Projects'
         if (-not (Wait-SubjectRow)) { throw "Projects does not show '$Subject'; was the harness reseeded?" }
         $list = Open-MoveToFolder
-        $labels = @(Find-UiaElements -Root $list -Type 'ListItem' | ForEach-Object { $_.Current.Name })
+        $items = @(Find-UiaElements -Root $list -Type 'ListItem')
+        $labels = @($items | ForEach-Object { $_.Current.Name })
+        $byLabel = @{}
+        foreach ($item in $items) {
+          # The name, not the glyph beside it, which can surface as text too.
+          $text = @(Find-UiaElements -Root $item -Type 'Text') | Select-Object -Last 1
+          $byLabel[$item.Current.Name] = @{
+            Enabled = $item.Current.IsEnabled
+            Text    = $text.Current.Name
+            X       = $text.Current.BoundingRectangle.X
+          }
+        }
         $cancel = Find-UiaElement -AutomationId 'CloseButton' -Type 'Button'
         if ($cancel) { Invoke-UiaElement -Element $cancel | Out-Null }
         Wait-UiaGone -AutomationId 'FolderMoveTargets' | Out-Null
         Assert-True ($labels -contains $Catalog.folder_inbox) "the Inbox is offered, got: $($labels -join ', ')"
-        Assert-True ($labels -notcontains 'Projects') 'the folder the list is showing is not'
+        # The folder on screen is no destination, but holds one, so it stays as its parent (rule 24).
+        Assert-True ($labels -contains 'Projects') "Projects is drawn above what is inside it, got: $($labels -join ', ')"
+        Assert-True (-not $byLabel['Projects'].Enabled) 'but it is not offered'
+        Assert-True $byLabel['Projects / Clients'].Enabled 'its subfolder is'
+        # Drawn as the pane draws it: the folder's own name, indented under its parent.
+        Assert-Equal 'Clients' $byLabel['Projects / Clients'].Text 'a row shows the folder''s own name, not its path'
+        Assert-True ($byLabel['Projects / Clients'].X -gt $byLabel['Projects'].X) 'a subfolder sits one step in'
+        Assert-True ($byLabel['Projects / Clients / Acme'].X -gt $byLabel['Projects / Clients'].X) 'and its own subfolder another'
         # Both are in the pane, so leaving them out of the picker is the rule and not the seed.
         [void](Get-AccountFolderRow -Folder $Catalog.folder_junk)
         [void](Get-AccountFolderRow -Folder $Catalog.folder_drafts)

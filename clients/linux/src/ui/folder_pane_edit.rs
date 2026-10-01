@@ -73,7 +73,7 @@ pub(super) fn folder(
             &input,
         ),
         FolderMenuItem::MoveTo => {
-            move_dialog(anchor, &account_id, &key, &name, candidates.clone(), &input);
+            move_dialog(anchor, &account_id, &key, &name, &candidates, &input);
         }
         FolderMenuItem::Delete => delete_dialog(anchor, &account_id, &key, &name, in_trash, &input),
     });

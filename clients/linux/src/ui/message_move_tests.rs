@@ -4,6 +4,7 @@
 use mailcal_bindings::{AccountFolderRow, FolderRole, FolderRow, SelectedRow};
 
 use super::{MoveContext, plan};
+use crate::{l10n, ui::icons};
 
 fn folder(key: &str, role: Option<FolderRole>, parent: Option<&str>) -> FolderRow {
     FolderRow {
@@ -31,6 +32,8 @@ fn context(selected: Vec<SelectedRow>, showing: Option<&str>) -> MoveContext {
     junk.accepts_messages = false;
     let mut drafts = folder("drafts", Some(FolderRole::Drafts), None);
     drafts.accepts_messages = false;
+    let mut q1 = folder("Q1", None, Some("Work"));
+    q1.depth = 1;
     let mut made = folder("New", None, None);
     made.pending = true;
     made.accepts_messages = false;
@@ -43,7 +46,7 @@ fn context(selected: Vec<SelectedRow>, showing: Option<&str>) -> MoveContext {
                 junk,
                 drafts,
                 folder("Work", None, None),
-                folder("Q1", None, Some("Work")),
+                q1,
                 made,
             ],
             manages_folders: true,
@@ -69,8 +72,22 @@ fn message(account: &str, key: &str) -> SelectedRow {
     }
 }
 
+/// The folders the picker lets the user choose.
 fn keys(context: &MoveContext, row: &SelectedRow) -> Option<Vec<String>> {
-    plan(context, row).map(|plan| plan.choices.into_iter().map(|c| c.key).collect())
+    plan(context, row).map(|plan| {
+        plan.choices
+            .into_iter()
+            .filter(|c| c.enabled)
+            .filter_map(|c| c.key)
+            .collect()
+    })
+}
+
+/// Every row the picker draws, chosen or not.
+fn drawn(context: &MoveContext, row: &SelectedRow) -> Vec<Option<String>> {
+    plan(context, row).map_or_else(Vec::new, |plan| {
+        plan.choices.into_iter().map(|c| c.key).collect()
+    })
 }
 
 #[test]
@@ -81,14 +98,33 @@ fn lists_the_folders_that_take_mail_leaving_out_the_one_on_screen() {
         Some(vec!["Work".to_owned(), "Q1".to_owned()]),
         "not the Inbox on screen, not Junk or Drafts, not a folder still being made",
     );
+    assert_eq!(
+        drawn(&context, &message("a", "m1")),
+        vec![Some("Work".to_owned()), Some("Q1".to_owned())],
+        "a folder with nothing to choose inside it is not drawn at all",
+    );
 }
 
 #[test]
-fn names_each_folder_by_its_path() {
+fn draws_each_folder_by_its_own_name_at_its_depth_and_reads_out_its_path() {
     let context = context(Vec::new(), None);
     let plan = plan(&context, &message("a", "m1")).unwrap();
     assert_eq!(plan.account, "a");
-    let q1 = plan.choices.iter().find(|c| c.key == "Q1").unwrap();
+    assert_eq!(
+        plan.choices[0].key.as_deref(),
+        Some("inbox"),
+        "no Top level: mail is filed in a folder"
+    );
+    assert_eq!(plan.choices[0].name, l10n::folder_inbox());
+    assert_eq!(plan.choices[0].icon, icons::INBOX);
+    assert_eq!(plan.choices[0].indent, 0);
+    let q1 = plan
+        .choices
+        .iter()
+        .find(|c| c.key.as_deref() == Some("Q1"))
+        .unwrap();
+    assert_eq!(q1.name, "Q1");
+    assert_eq!(q1.indent, 1);
     assert_eq!(q1.label, "Work / Q1");
 }
 
@@ -122,6 +158,14 @@ fn a_conversation_row_is_offered_the_same_folders() {
         keys(&context, &thread),
         Some(vec!["inbox".to_owned(), "Q1".to_owned()])
     );
+    // The folder on screen is no destination, but Q1 is drawn inside it, so it stays as context.
+    let plan = plan(&context, &thread).unwrap();
+    let work = plan
+        .choices
+        .iter()
+        .find(|c| c.key.as_deref() == Some("Work"))
+        .expect("kept above Q1");
+    assert!(!work.enabled);
 }
 
 #[test]

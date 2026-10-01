@@ -165,8 +165,8 @@ pub(super) fn folder_row(
 }
 
 /// One step of the pane's indent: what an account's own rows are moved by, and what each level of
-/// folders inside folders adds again.
-const INDENT: i32 = 18;
+/// folders inside folders adds again. The destination pickers indent by it too.
+pub(super) const INDENT: i32 = 18;
 
 /// The disclosure control on a folder that holds folders: a button of its own, for the reason the
 /// account row's chevron is one.

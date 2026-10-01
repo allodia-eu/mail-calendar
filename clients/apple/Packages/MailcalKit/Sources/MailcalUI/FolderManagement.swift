@@ -37,7 +37,8 @@ func folderSubtree(_ key: String, in folders: [FolderRow]) -> Set<String> {
     return subtree
 }
 
-/// A folder's name with the folders it sits in, `Clients / Acme`, for a list that is flat.
+/// A folder's name with the folders it sits in, `Clients / Acme`: what a Move to… row is read
+/// aloud as, because its indent is not.
 func folderPath(_ row: FolderRow, in folders: [FolderRow]) -> String {
     var parts = [folderLabel(role: row.role, name: row.name)]
     var parent = row.parent
@@ -49,30 +50,77 @@ func folderPath(_ row: FolderRow, in folders: [FolderRow]) -> String {
     return parts.reversed().joined(separator: " / ")
 }
 
-/// One place a Move to… list offers (rule 24): the folder the move goes into, or the top of the
-/// tree when `key` is `nil`.
-struct MoveDestination: Identifiable, Equatable {
+/// One row of a Move to… list (rule 24), drawn as the pane draws it: Top level when `key` is
+/// `nil`, otherwise a folder by its own name beside its role's icon.
+struct MoveTarget: Identifiable, Equatable {
+    /// The folder the move goes into, or `nil` for the top of the tree.
     let key: String?
+    /// What the row shows: the folder's own name, or Top level's word.
+    let name: String
+    /// The folder's role, which picks its icon. Top level draws the account's.
+    let role: FolderRole?
+    /// How many indent steps the row sits in, the step Top level adds included.
+    let indent: Int
+    /// Whether choosing the row moves anything. A row that does not is kept only because a
+    /// destination sits inside it.
+    let enabled: Bool
+    /// What assistive technology reads: the path.
     let label: String
 
     var id: String { key ?? "" }
 }
 
-/// Where `row` may be moved to: Top level first, then every folder that takes folders, by path,
-/// leaving out the folder itself, everything inside it, and the place it already is.
-func moveDestinations(for row: FolderRow, in folders: [FolderRow]) -> [MoveDestination] {
-    let excluded = folderSubtree(row.key, in: folders)
-    var destinations: [MoveDestination] = []
-    if row.parent != nil {
-        destinations.append(MoveDestination(key: nil, label: L10n.folder_move_top_level()))
+/// The rows a Move to… list draws, in the pane's order with every folder open: each folder
+/// `isDestination` accepts, and each folder holding one of those, disabled, so a destination stays
+/// under the parent it has in the pane. `topLevel` comes first when given, and the folders then
+/// sit one step inside it.
+private func targetTree(
+    _ folders: [FolderRow],
+    topLevel: MoveTarget?,
+    isDestination: (FolderRow) -> Bool
+) -> [MoveTarget] {
+    let parents = Dictionary(
+        folders.map { ($0.key, $0.parent) }, uniquingKeysWith: { first, _ in first }
+    )
+    var shown: Set<String> = []
+    for row in folders where isDestination(row) {
+        // Stops at a folder already shown, whose own parents are then shown too; that also ends a
+        // chain that loops.
+        var key: String? = row.key
+        while let current = key, shown.insert(current).inserted {
+            key = parents[current] ?? nil
+        }
     }
-    for candidate in folders
-    where candidate.acceptsFolders && !excluded.contains(candidate.key) && candidate.key != row.parent {
-        destinations.append(
-            MoveDestination(key: candidate.key, label: folderPath(candidate, in: folders))
+    let step = topLevel == nil ? 0 : 1
+    let rows = folders.filter { shown.contains($0.key) }.map { row in
+        MoveTarget(
+            key: row.key,
+            name: folderLabel(role: row.role, name: row.name),
+            role: row.role,
+            indent: Int(row.depth) + step,
+            enabled: isDestination(row),
+            label: folderPath(row, in: folders)
         )
     }
-    return destinations
+    guard let topLevel, topLevel.enabled || !rows.isEmpty else { return rows }
+    return [topLevel] + rows
+}
+
+/// What Move to… offers for `row`: Top level, then every folder that takes folders, leaving out
+/// the folder itself, everything inside it, and the place it already is. Top level stays as the
+/// tree's root when the folder is already there, disabled.
+func moveTargets(for row: FolderRow, in folders: [FolderRow]) -> [MoveTarget] {
+    let excluded = folderSubtree(row.key, in: folders)
+    let topLevel = L10n.folder_move_top_level()
+    return targetTree(
+        folders,
+        topLevel: MoveTarget(
+            key: nil, name: topLevel, role: nil, indent: 0, enabled: row.parent != nil,
+            label: topLevel
+        )
+    ) { candidate in
+        candidate.acceptsFolders && !excluded.contains(candidate.key) && candidate.key != row.parent
+    }
 }
 
 /// The one account Move to folder… would file `rows` in, or `nil` when there are none or they span
@@ -96,19 +144,18 @@ func offersMessageMove(in tree: AccountFolderRow, showing: String?) -> Bool {
     tree.folders.contains { takesMovedMail($0, showing: showing) }
 }
 
-/// Where Move to folder… offers to file mail of `tree`'s account (rule 24): every folder that
-/// takes mail, by path, leaving out the folder the list is on. No Top level: mail sits in a folder.
-func messageDestinations(in tree: AccountFolderRow, showing: String?) -> [MoveDestination] {
-    tree.folders
-        .filter { takesMovedMail($0, showing: showing) }
-        .map { MoveDestination(key: $0.key, label: folderPath($0, in: tree.folders)) }
+/// What Move to folder… offers for mail of `tree`'s account (rule 24): every folder that takes
+/// mail, leaving out the folder the list is on. No Top level: mail sits in a folder, so the
+/// folders sit at their own depth.
+func messageTargets(in tree: AccountFolderRow, showing: String?) -> [MoveTarget] {
+    targetTree(tree.folders, topLevel: nil) { takesMovedMail($0, showing: showing) }
 }
 
 /// Mail a row menu is filing, and where it may go.
 struct MessageMoveOffer: Identifiable, Equatable {
     let account: String
     let rows: [SelectionKey]
-    let destinations: [MoveDestination]
+    let targets: [MoveTarget]
 
     var id: String { "\(account)/" + rows.map(\.id).joined(separator: ",") }
 }

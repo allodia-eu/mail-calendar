@@ -286,6 +286,16 @@ that same file.
   `AdwPreferencesGroup` supplies the list. `every_row_belongs_to_a_list`
   ([`mailbox_tests.rs`](../clients/linux/src/ui/mailbox_tests.rs)) asserts a whole window at once:
   call it from any widget test that presents one.
+- **The arrow keys stop on an insensitive `GtkListBoxRow`.** `GtkListBox` steps its cursor onto
+  every visible row and then cannot focus an insensitive one, so that press does nothing visible,
+  the next carries on, and Enter in between activates the row focus stayed on. Tab passes over the
+  row; the arrows do not. A pointer never meets it and a dump shows the row correctly insensitive,
+  so only the keyboard finds it. A list that keeps dimmed rows for context walks `move-cursor`
+  itself (`walk_destinations_only` in
+  [`folder_dialogs.rs`](../clients/linux/src/ui/folder_dialogs.rs)).
+- **A `GtkWindow` closes on no key.** `AdwDialog` closes on Escape; a plain window used as a
+  dialog does not, though every reader expects it to. [`modal::new`](../clients/linux/src/ui/modal.rs)
+  binds Escape to `window.close`, so build a modal through it.
 - **A size request or a scroll offset set from a `GtkAdjustment` notification never reaches the
   screen.** GTK emits `notify::page-size` and `notify::upper` from inside the viewport's own size
   allocation, which has already measured and placed the child for this frame. A height asked for
