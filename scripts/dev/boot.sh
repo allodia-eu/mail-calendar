@@ -112,7 +112,8 @@ case "$ACCOUNT" in
   demo)     info "booting $platform in demo mode (in-memory sample mailbox)" ;;
   first-run)
     # Nothing is injected and nothing is read: the namespace starts empty and stays empty unless
-    # an account is added inside it. Delete it to start over; the path is printed below.
+    # an account is added inside it. Clearing it is the directory AND the accounts, which live in
+    # the platform keystore, so deleting the directory alone opens on a mailbox again.
     case "$platform" in
       macos|iphone|ipad|windows) ;;
       *) die "--account first-run is not supported on $platform yet" ;;
@@ -120,9 +121,10 @@ case "$ACCOUNT" in
     offer_harness_sign_in
     info "booting $platform on an EMPTY namespace: the welcome screen, then the first-account screen"
     if [[ "$platform" == "windows" ]]; then
-      info 'its store: %LOCALAPPDATA%\Allodia\MailCalendar\dev-first-run (delete it to see the first run again)'
+      info 'its store: %LOCALAPPDATA%\Allodia\MailCalendar\dev-first-run, its accounts: Credential Manager'
+      info 'to see the first run again: pwsh clients/windows/clear-dev-namespace.ps1 -Namespace dev-first-run'
     else
-      info "its store: ~/.local/share/mailcal-dev-first-run (delete it to see the first run again)"
+      info "its store: ~/.local/share/mailcal-dev-first-run, its accounts: the keychain service $MAILCAL_APP_ID.dev.first-run (clear both to see the first run again)"
     fi ;;
 esac
 

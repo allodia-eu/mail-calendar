@@ -68,7 +68,9 @@ public sealed partial class MainWindow
                 L10n.DefaultMailAppOfferTitle(),
                 L10n.DefaultMailAppOfferMessage(),
                 L10n.DefaultMailAppOfferAccept(),
-                L10n.DefaultMailAppOfferDecline()) == ContentDialogResult.Primary;
+                L10n.DefaultMailAppOfferDecline(),
+                // The UI suite declines the offer by this, on a store that has never answered it.
+                automationId: "DefaultMailAppOffer") == ContentDialogResult.Primary;
             if (taken)
             {
                 OpenDefaultAppsSettings();
