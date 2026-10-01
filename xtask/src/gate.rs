@@ -110,8 +110,9 @@ pub(crate) fn run(root: &Path, args: &[String]) -> ExitCode {
         }
     }
 
-    // Before anything is judged, so no step reports on a build another checkout left behind.
-    shared_build::claim(root);
+    // Before anything is judged, so no step reports on a build another checkout left behind, and
+    // held until the gate exits, so no other gate builds there in between.
+    let _claim = shared_build::claim(root);
 
     let palette = Palette::detect();
     let started = Instant::now();
