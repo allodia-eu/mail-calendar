@@ -49,7 +49,7 @@
 
          The generated App.g.i.cs gates its entry point behind `#if !DISABLE_XAML_GENERATED_MAIN`,
          and the WinAppSDK targets STILL don't turn this MSBuild property into that compile symbol
-         (re-verified against 2.4.0), so the DefineConstants line below is load-bearing, not
+         (re-verified against 2.5.1), so the DefineConstants line below is load-bearing, not
          belt-and-braces. Drop it and the build fails with CS0101 ("namespace 'Allodia.Mailcal'
          already contains a definition for 'Program'"), because the guard RENAMES the generated
          pair rather than eliding it (`Program`/`Main` become
