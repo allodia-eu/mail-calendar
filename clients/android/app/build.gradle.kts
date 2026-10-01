@@ -471,7 +471,7 @@ androidComponents {
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2026.08.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
 
@@ -484,7 +484,7 @@ dependencies {
     // also dictated some glyphs: the Archive folder used to draw a *calendar* because the subset
     // had no archive icon. Adding an icon now means adding one XML, not a dependency.
     implementation("androidx.activity:activity-compose:1.13.0")
-    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.core:core-ktx:1.19.1")
 
     // AppCompat backports the per-app language override (AppCompatDelegate.setApplicationLocales)
     // below API 33; MainActivity extends AppCompatActivity so the picker can apply locales.
@@ -530,7 +530,7 @@ dependencies {
     // are plain Kotlin, and no test touches `MailcalApp` (that surface is covered by the core's own
     // Rust tests). Keeping the suite emulator-free is what lets it gate every PR in CI.
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.16.1")
+    testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     // Supplies the empty ComponentActivity that `createComposeRule()` hosts its content in.
@@ -540,5 +540,5 @@ dependencies {
     // CoroutineWorker that runs the core's one-shot `run_background_sync` while the app is
     // backgrounded/killed, then raises new-mail notifications. Battery/Play-policy friendly and
     // it self-reschedules across reboots; pulls kotlinx-coroutines transitively.
-    implementation("androidx.work:work-runtime-ktx:2.11.2")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
 }
