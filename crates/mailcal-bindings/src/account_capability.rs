@@ -34,17 +34,25 @@ impl From<AccountCapability> for Capability {
 ///
 /// # Errors
 ///
-/// Returns [`MailcalError::Config`] for an empty choice: an account is used for at least one
-/// thing, and a client offering the choice keeps one selected.
+/// Returns [`MailcalError::Config`] for a choice without mail, calendar or contacts: an account
+/// is used for at least one of them, and colleagues are only ever read beside contacts, so a
+/// choice of colleagues alone would ask the provider for nothing it could open.
 pub(crate) fn chosen(
     capabilities: Option<Vec<AccountCapability>>,
 ) -> Result<Option<Capabilities>, MailcalError> {
-    match capabilities {
-        None => Ok(None),
-        Some(list) if list.is_empty() => Err(MailcalError::Config(
+    let Some(list) = capabilities else {
+        return Ok(None);
+    };
+    let chosen: Capabilities = list.into_iter().map(Capability::from).collect();
+    let usable = [Capability::Mail, Capability::Calendar, Capability::Contacts]
+        .into_iter()
+        .any(|capability| chosen.contains(capability));
+    if usable {
+        Ok(Some(chosen))
+    } else {
+        Err(MailcalError::Config(
             "an account is used for at least one of mail, calendar and contacts".to_owned(),
-        )),
-        Some(list) => Ok(Some(list.into_iter().map(Capability::from).collect())),
+        ))
     }
 }
 
@@ -73,6 +81,10 @@ mod tests {
         assert!(chosen(None).unwrap().is_none());
         assert!(matches!(
             chosen(Some(Vec::new())),
+            Err(MailcalError::Config(_))
+        ));
+        assert!(matches!(
+            chosen(Some(vec![AccountCapability::Colleagues])),
             Err(MailcalError::Config(_))
         ));
     }

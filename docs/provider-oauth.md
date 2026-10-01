@@ -526,7 +526,9 @@ autodetection. It reuses the whole state machine above; the deltas are:
   apps, so a sign-in always requests the whole chosen set rather than relying on
   `include_granted_scopes`; and Google lets a person untick a scope on the consent screen, so the
   granted set is read back and a use whose scope was refused is not opened (rule 10's rule, with
-  Google's spelling compared as written). There is **no calendar-reauth step** for Google: the
+  Google's spelling compared as written). The exception is mail itself: an account used for mail is named
+  with the mail scope, so a consent screen that had it unticked ends the sign-in with "Google did
+  not allow access to mail" rather than adding an account nothing can name. There is **no calendar-reauth step** for Google: the
   reconnect-for-calendar banner stays Microsoft-only, and a refused calendar stays closed. Two
   traps sit in the set. The full-mail scope is what grants **permanent delete**, which no
   narrower `gmail.*` scope does. And `mail.google.com` reaches `users.settings.sendAs.list` but
