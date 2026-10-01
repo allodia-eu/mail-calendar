@@ -9,7 +9,7 @@
 # The client runs in the foreground: the script holds the terminal until the app quits, and Ctrl+C
 # stops it. `--detach` is for a caller that wants to drive the app rather than watch it. It waits
 # for the client to say its window is on screen, prints READY, and returns with the app still
-# running; stop it afterwards with `pkill -f mailcal-linux`. The wait is a real barrier, so a
+# running, and says how to stop it. The wait is a real barrier, so a
 # launch that dies on the way up is reported as that rather than as a client that is up.
 #
 # `--headless` implies `--detach` and is **what to reach for when you mean to photograph or drive
@@ -75,9 +75,12 @@ READY_TIMEOUT=120
 #
 # ⚠️ The pid is the *wrapper* on the SDK path, because the client runs inside flatpak. It is a
 # liveness hint and nothing more: killing it leaves the app running, which is why stopping the
-# client is `pkill` here and `flatpak kill` in scripts/dev/test-linux-ui.sh, never this pid.
-launch_detached() { # <command...>
-  local offset pid outcome=0
+# client is `pkill` here and `flatpak kill` in scripts/dev/test-linux-ui.sh, never this pid. The
+# pattern is this checkout's binary, never the bare name, which matches every other checkout's
+# client too, an acceptance run's included. On the headless compositor the client goes with it.
+launch_detached() { # <binary> <command...>
+  local binary="$1" offset pid outcome=0
+  shift
   mkdir -p "$(dirname "$launch_log")"
   offset="$(log_size "$log")"
   "$@" >"$launch_log" 2>&1 &
@@ -88,9 +91,9 @@ launch_detached() { # <command...>
       if [[ "$HEADLESS" == 1 ]]; then
         info "READY on the private compositor. Photograph it: scripts/dev/screenshot.sh linux
      Drive it:        scripts/dev/control.sh linux ui-dump
-     Stop both:       pkill -f mailcal-linux && kill -KILL $LINUX_SESSION_PID"
+     Stop both:       kill -KILL $LINUX_SESSION_PID"
       else
-        info "READY: the window is on screen. Stop the client with: pkill -f mailcal-linux"
+        info "READY: the window is on screen. Stop the client with: pkill -f '$binary'"
       fi
       ;;
     2) die "the client exited before its window appeared. What it printed: $launch_log" ;;
@@ -111,6 +114,7 @@ start_headless_session() {
   export LINUX_SESSION_LOG="$(dirname "$launch_log")/mailcal-compositor.log"
   mkdir -p "$(dirname "$LINUX_SESSION_LOG")"
   linux_session_start "${MAILCAL_HEADLESS_SIZE:-1440x900}" "${MAILCAL_HEADLESS_SCALE:-1}"
+  linux_session_publish
   export WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY"
   unset DISPLAY
   info "headless compositor up on $LINUX_SESSION_DISPLAY (pid $LINUX_SESSION_PID)"
@@ -149,7 +153,8 @@ if [[ "$TARGET" == sdk ]]; then
     [[ -n "${!name:-}" ]] && exec_env+=("--env=$name=${!name}")
   done
   if [[ "$DETACH" == 1 ]]; then
-    launch_detached sdk_exec "${exec_env[@]}" "$(sdk_target_dir)/debug/mailcal-linux"
+    launch_detached "$(sdk_target_dir)/debug/mailcal-linux" \
+      sdk_exec "${exec_env[@]}" "$(sdk_target_dir)/debug/mailcal-linux"
     exit 0
   fi
   # A shell function, so no `exec`: the launcher waits on flatpak instead of replacing itself.
@@ -176,7 +181,7 @@ info "Launching Allodia Mail & Calendar (distribution GTK)"
 info "Logs: $log (rotates .1-.3, ~4 MB cap): read them: scripts/dev/logs.sh linux --dump"
 start_headless_session
 if [[ "$DETACH" == 1 ]]; then
-  launch_detached "$ROOT/target/debug/mailcal-linux"
+  launch_detached "$ROOT/target/debug/mailcal-linux" "$ROOT/target/debug/mailcal-linux"
   exit 0
 fi
 exec "$ROOT/target/debug/mailcal-linux"

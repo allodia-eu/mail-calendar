@@ -158,11 +158,15 @@ scripts/dev/control.sh linux find "Reply"
 scripts/dev/control.sh linux activate "Reply"
 scripts/dev/control.sh linux set-text "Title" "Team planning"
 scripts/dev/control.sh linux key Escape                  # a real keystroke
-pkill -f mailcal-linux                                   # the compositor exits with its client
+kill -KILL <pid>                                         # the compositor; the READY line names it
 ```
 
 `screenshot.sh` and `control.sh` find that session by themselves; nothing has to be passed between
-them. [`scripts/dev/linux_session.sh`](../../scripts/dev/linux_session.sh) owns the mechanics.
+them. Each checkout has its own, so two worktrees can each keep one up and neither drives the
+other's app; the acceptance suite, the showcase and the widget tests start sessions nobody else can
+find, so none of them replaces yours. The client exits with its compositor, so killing the
+compositor stops both, and `pkill -f mailcal-linux` is never the way: it matches every checkout's
+client, a running acceptance suite's included. [`scripts/dev/linux_session.sh`](../../scripts/dev/linux_session.sh) owns the mechanics.
 
 **Why not simply photograph the desktop.** GNOME offers a Wayland client no way to read pixels and
 no way to locate a window, and both are settled facts rather than versions to wait out:
