@@ -16,12 +16,12 @@
 //! [`AccountCredentialStore`](crate::AccountCredentialStore) is a robustness backstop that in
 //! practice rarely fires; the shared token sink (`crate::token_sink`) handles every provider.
 
-use mailcal_account::{GoogleConfig, Secret};
-use mailcal_oauth::{GOOGLE_SCOPES, OAuthClient, OAuthProviderConfig};
+use mailcal_account::{Capability, GoogleConfig, Secret};
+use mailcal_oauth::{OAuthClient, OAuthProviderConfig};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-use crate::MailcalError;
+use crate::{AccountCapability, MailcalError, account_capability};
 
 /// What [`begin_google_login`] returns: the authorization URL to open in the system browser (or
 /// loopback flow), and an opaque `pending` handle the host holds until the redirect comes back.
@@ -45,13 +45,18 @@ struct PendingGoogleLogin {
     client_secret: Option<String>,
     redirect_uri: String,
     scopes: Vec<String>,
+    /// What the account is to be used for, by stored name; `None` when the client named nothing,
+    /// which asks for everything and stores no choice.
+    #[serde(default)]
+    capabilities: Option<Vec<String>>,
     state: String,
     verifier: String,
 }
 
 /// Starts the Google OAuth flow: builds the PKCE authorization URL for **this build's** Google
-/// client registration ([`mailcal_oauth::credentials`]), requesting the full Gmail + Google
-/// Calendar scopes with `access_type=offline`.
+/// client registration ([`mailcal_oauth::credentials`]), requesting the scopes of what the
+/// account is to be used for (`capabilities`, or everything when `None`) with
+/// `access_type=offline`.
 ///
 /// `redirect_uri` stays the host's because only the host knows it: the mobile client types
 /// redirect to the fixed custom scheme [`oauth_routes`](crate::oauth_routes) hands back, while
@@ -64,12 +69,14 @@ struct PendingGoogleLogin {
 ///
 /// # Errors
 ///
-/// Returns [`MailcalError::Config`] if this build carries no Google registration, if the OAuth
-/// HTTP client cannot be built, or if the `pending` handle cannot be encoded.
-#[uniffi::export(default(login_hint = None))]
+/// Returns [`MailcalError::Config`] if this build carries no Google registration, if
+/// `capabilities` is empty, if the OAuth HTTP client cannot be built, or if the `pending` handle
+/// cannot be encoded.
+#[uniffi::export(default(login_hint = None, capabilities = None))]
 pub fn begin_google_login(
     redirect_uri: String,
     login_hint: Option<String>,
+    capabilities: Option<Vec<AccountCapability>>,
 ) -> Result<GoogleLoginStart, MailcalError> {
     let Some(registration) = mailcal_oauth::credentials::google() else {
         return Err(MailcalError::Config(
@@ -77,6 +84,14 @@ pub fn begin_google_login(
         ));
     };
     let (client_id, client_secret) = (registration.client_id, registration.client_secret);
+    let chosen = account_capability::chosen(capabilities)?;
+    let scopes = mailcal_account::requested_scopes(
+        &mailcal_oauth::scopes::GOOGLE,
+        &chosen
+            .clone()
+            .unwrap_or_else(|| Capability::ALL.into_iter().collect()),
+    );
+    let requested: Vec<&str> = scopes.iter().map(String::as_str).collect();
     log::info!(
         "google: begin sign-in (client_secret {}, login_hint {})",
         if client_secret.is_some() {
@@ -94,7 +109,7 @@ pub fn begin_google_login(
         client_id.clone(),
         client_secret.clone(),
         redirect_uri.clone(),
-        GOOGLE_SCOPES,
+        &requested,
     );
     let client = OAuthClient::new(provider).map_err(|err| MailcalError::Config(err.to_string()))?;
     let request = client.begin(login_hint.as_deref());
@@ -102,7 +117,8 @@ pub fn begin_google_login(
         client_id,
         client_secret,
         redirect_uri,
-        scopes: GOOGLE_SCOPES.iter().map(|s| (*s).to_owned()).collect(),
+        scopes,
+        capabilities: chosen.as_ref().map(account_capability::names),
         state: request.state,
         verifier: request.pkce.verifier().to_owned(),
     };
@@ -158,10 +174,14 @@ pub(crate) async fn authorize(
     // What consent actually granted, which a person can make narrower than was asked for.
     let granted = mailcal_oauth::GrantedScopes::from_response(&tokens.scope, &pending.scopes);
     let access_token = tokens.access_token.expose().to_owned();
-    let email = mailcal_account::fetch_google_primary_address(&access_token)
+    let chosen = pending
+        .capabilities
+        .as_deref()
+        .map(account_capability::from_names);
+    let email = mailcal_account::fetch_google_primary_address(&access_token, granted.as_slice())
         .await
         .map_err(|err| MailcalError::Connect(err.to_string()))?;
-    let config = GoogleConfig {
+    let mut config = GoogleConfig {
         email,
         client_id: pending.client_id,
         client_secret: pending.client_secret,
@@ -171,6 +191,8 @@ pub(crate) async fn authorize(
         granted_scopes: Some(granted.as_slice().to_vec()),
         shape: mailcal_account::AccountShape::default(),
     };
+    config.shape.capabilities = chosen;
+    crate::consent::refuse_an_empty_grant(&config.capabilities(), &config.withheld_capabilities())?;
     Ok(GoogleAuthorized {
         config,
         access_token,

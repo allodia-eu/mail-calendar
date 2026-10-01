@@ -176,8 +176,10 @@ pub(crate) enum AccountDial {
         tokens: Arc<GraphTokenSource>,
         /// The account's send/display identity (its Graph config carries no `imap.username`).
         identity: EmailAddress,
-        /// What the account is used for; a capability it is not used for is never opened.
+        /// What the account opens: what it is used for, less what its grant withholds.
         capabilities: Capabilities,
+        /// What it is used for that its grant withholds.
+        withheld: Capabilities,
     },
     /// A Google account: bind its account-global Gmail provider (+ calendar) through the shared
     /// token source.
@@ -186,7 +188,7 @@ pub(crate) enum AccountDial {
         tokens: Arc<GraphTokenSource>,
         /// The account's send/display identity (its Google config carries no `imap.username`).
         identity: EmailAddress,
-        /// What the account is used for; a capability it is not used for is never opened.
+        /// What the account opens: what it is used for, less what its grant withholds.
         capabilities: Capabilities,
     },
     /// A JMAP account: dial its account-wide mail provider (+ calendar when advertised) from its
@@ -219,12 +221,13 @@ impl AccountDial {
             ConnectedAccount::Microsoft { config, tokens } => Self::Microsoft {
                 tokens: Arc::clone(tokens),
                 identity: config.identity(),
-                capabilities: config.capabilities(),
+                capabilities: entry.opened_capabilities(),
+                withheld: config.withheld_capabilities(),
             },
             ConnectedAccount::Google { config, tokens } => Self::Google {
                 tokens: Arc::clone(tokens),
                 identity: config.identity(),
-                capabilities: config.capabilities(),
+                capabilities: entry.opened_capabilities(),
             },
             ConnectedAccount::Jmap { config, tokens } => Self::Jmap {
                 config: config.clone(),

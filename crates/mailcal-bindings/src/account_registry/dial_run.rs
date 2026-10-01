@@ -91,10 +91,14 @@ impl AccountDial {
                 ))
             }
             Self::Microsoft {
-                tokens, identity, ..
+                tokens,
+                identity,
+                withheld,
+                ..
             } => {
                 // The same Graph token also syncs the calendar and contacts, concurrently. A
-                // scope-denied `403` on the calendar sets `calendar_reauth_required`.
+                // calendar the grant withholds, or a scope-denied `403` on it, sets
+                // `calendar_reauth_required`.
                 let (mail, (calendar, calendar_reauth_required), contacts) = tokio::join!(
                     part(on(Capability::Mail), async {
                         mailcal_account::connect_graph_mail_providers(id, Arc::clone(&tokens), None)
@@ -111,7 +115,7 @@ impl AccountDial {
                             .await;
                             (Part::from(calendar), reauth)
                         } else {
-                            (Part::Off, false)
+                            (Part::Off, withheld.contains(Capability::Calendar))
                         }
                     },
                     part(
@@ -136,9 +140,9 @@ impl AccountDial {
             Self::Google {
                 tokens, identity, ..
             } => {
-                // Google requests every scope at sign-in, so there is no "connected before
-                // calendar support" case and never a calendar re-consent to report. All three
-                // spend the same token, concurrently.
+                // Google has no "connected before calendar support" case, so there is never a
+                // calendar re-consent to report; a calendar the grant withholds is not opened.
+                // All three spend the same token, concurrently.
                 let (mail, calendar, contacts) = tokio::join!(
                     part(on(Capability::Mail), async {
                         mailcal_account::connect_google_mail_providers(Arc::clone(&tokens), None)

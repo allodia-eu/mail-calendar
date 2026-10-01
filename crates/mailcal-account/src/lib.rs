@@ -16,6 +16,7 @@ mod certificate;
 mod config;
 mod config_dav;
 mod connect_log;
+mod consent;
 mod contacts;
 mod contacts_edit;
 mod delegate_info;
@@ -59,6 +60,7 @@ pub use config::{
     SmtpAccount, default_path, load, load_str,
 };
 pub use config_dav::CardDavAccount;
+pub use consent::{requested_scopes, withheld};
 pub use contacts::connect_carddav_contact_providers;
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
 use engine_core::{ids::AccountId, sync::SyncUpdate};

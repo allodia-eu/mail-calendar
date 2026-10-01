@@ -135,6 +135,15 @@ impl AccountRegistry {
             .map(AccountDial::from_entry)
     }
 
+    /// What `id` stores beside its kind's own section, or `None` if it is not registered.
+    pub(crate) fn shape(&self, id: &str) -> Option<mailcal_account::AccountShape> {
+        self.entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+            .map(|entry| entry.shape().clone())
+    }
+
     /// Whether `id` is still registered, asked after a slow dial, in case the user removed the
     /// account while it ran.
     pub(crate) fn contains(&self, id: &str) -> bool {

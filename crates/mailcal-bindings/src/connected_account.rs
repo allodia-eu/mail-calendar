@@ -116,6 +116,16 @@ impl ConnectedAccount {
         }
     }
 
+    /// The keys every kind shares: pinned id, capabilities and links.
+    pub(crate) const fn shape(&self) -> &mailcal_account::AccountShape {
+        match self {
+            Self::Imap { config, .. } => &config.shape,
+            Self::Microsoft { config, .. } => &config.shape,
+            Self::Google { config, .. } => &config.shape,
+            Self::Jmap { config, .. } => &config.shape,
+        }
+    }
+
     /// What the account is used for: its stored choice, or what its kind has always meant.
     pub(crate) fn capabilities(&self) -> mailcal_account::Capabilities {
         match self {
@@ -123,6 +133,20 @@ impl ConnectedAccount {
             Self::Microsoft { config, .. } => config.capabilities(),
             Self::Google { config, .. } => config.capabilities(),
             Self::Jmap { config, .. } => config.capabilities(),
+        }
+    }
+
+    /// What the account opens: what it is used for, less what a Microsoft or Google grant
+    /// withholds. Every other kind opens all of what it is used for.
+    pub(crate) fn opened_capabilities(&self) -> mailcal_account::Capabilities {
+        match self {
+            Self::Microsoft { config, .. } => {
+                crate::consent::opened(&config.capabilities(), &config.withheld_capabilities())
+            }
+            Self::Google { config, .. } => {
+                crate::consent::opened(&config.capabilities(), &config.withheld_capabilities())
+            }
+            Self::Imap { .. } | Self::Jmap { .. } => self.capabilities(),
         }
     }
 

@@ -10,13 +10,15 @@
 /// The Microsoft identity-platform authority host (worldwide/public cloud).
 const MS_AUTHORITY: &str = "https://login.microsoftonline.com";
 
-/// The delegated Graph scopes a Microsoft account requests. Each one has a call site, named in
-/// the per-scope table of [`docs/provider-oauth.md`](../../../docs/provider-oauth.md) (rule 10),
-/// which is what an administrator approving the app reads: `offline_access` (a refresh token at
-/// all), `User.Read` (`GET /me`, the account's own address), `Mail.ReadWrite` (mail sync and every
-/// mail write), `Mail.Send` (`POST /me/sendMail`; `Mail.ReadWrite` does **not** grant send),
-/// `Calendars.ReadWrite`, `Contacts.ReadWrite` (the account's own cards) and `User.ReadBasic.All`
-/// (the tenant directory, and the permission a colleague's photo is read through).
+/// The delegated Graph scopes a Microsoft account used for everything requests; an account used
+/// for less requests its uses' groups from [`crate::scopes::MICROSOFT`]. Each one has a call site,
+/// named in the per-scope table of [`docs/provider-oauth.md`](../../../docs/provider-oauth.md)
+/// (rule 10), which is what an administrator approving the app reads: `offline_access` (a refresh
+/// token at all), `User.Read` (`GET /me`, the account's own address), `Mail.ReadWrite` (mail sync
+/// and every mail write), `Mail.Send` (`POST /me/sendMail`; `Mail.ReadWrite` does **not** grant
+/// send), `Calendars.ReadWrite`, `Contacts.ReadWrite` (the account's own cards) and
+/// `User.ReadBasic.All` (the tenant directory, and the permission a colleague's photo is read
+/// through).
 ///
 /// **No OpenID Connect scope.** Nothing reads an ID token, and Microsoft issues a refresh token
 /// for `offline_access` alone, so `openid`, `profile` and `email` would each be a line on the
@@ -52,14 +54,20 @@ pub const MICROSOFT_GRAPH_SCOPES: &[&str] = &[
 const GOOGLE_AUTHORIZE_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 
-/// The delegated scopes a Google account requests: **full** Gmail (`mail.google.com`), Gmail's
-/// basic settings, read/write Google Calendar, and the three People sources.
+/// The delegated scopes a Google account used for everything requests: **full** Gmail
+/// (`mail.google.com`), Gmail's basic settings, read/write Google Calendar, the three People
+/// sources, and the account's own address. An account used for less requests its uses' groups
+/// from [`crate::scopes::GOOGLE`], and the address always.
 ///
 /// The engine's Gmail provider does the full range of mail writes; `messages.modify`/`trash`
 /// **and permanent `messages.delete`** plus `messages.send`, and permanent delete is only
 /// granted by the broad `https://mail.google.com/` scope, so that is what we request rather
-/// than composing narrower `gmail.*` scopes. The account's own address is read from the Gmail
-/// `users/me/profile` endpoint (covered by this scope), so no `openid`/`email` scope is needed.
+/// than composing narrower `gmail.*` scopes.
+///
+/// **`userinfo.email` names the account whatever it is used for.** The Gmail profile would name
+/// it too, but only for an account that was granted mail, so a person who keeps the calendar and
+/// unticks Gmail on the consent screen would leave nothing to name the account with. It is
+/// non-sensitive, and Google adds `openid` to a grant that asks for it.
 ///
 /// **`gmail.settings.basic` is a separate scope because `mail.google.com` does not reach the
 /// settings collection's writes.** It grants `users.settings.sendAs.list` but not `patch`, so
@@ -79,10 +87,10 @@ const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 /// **parameters** `access_type=offline` + `prompt=consent` (see [`AuthStyle::Google`]), not a
 /// scope.
 ///
-/// **Every scope here but the contact three is restricted**, so all of them are covered by the
-/// one security assessment the app is already waiting on: until it clears, the app is usable
-/// only by allow-listed Early Access test users. That is why `gmail.settings.basic` is
-/// requested now rather than when a second settings feature wants it: a restricted scope added
+/// **Every scope here but the contact three and `userinfo.email` is restricted**, so all of them
+/// are covered by the one security assessment the app is already waiting on: until it clears, the
+/// app is usable only by allow-listed Early Access test users. That is why `gmail.settings.basic`
+/// is requested now rather than when a second settings feature wants it: a restricted scope added
 /// after verification is a **new assessment**, not an amendment. The three contact scopes are
 /// **sensitive**, which is a declaration, a justification and a demo video, so they do not
 /// deepen the gate either.
@@ -93,6 +101,7 @@ pub const GOOGLE_SCOPES: &[&str] = &[
     "https://www.googleapis.com/auth/contacts",
     "https://www.googleapis.com/auth/contacts.other.readonly",
     "https://www.googleapis.com/auth/directory.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
 ];
 
 /// How a provider wants its authorization request shaped, beyond the shared

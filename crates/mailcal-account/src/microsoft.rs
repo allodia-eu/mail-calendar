@@ -68,6 +68,16 @@ impl MicrosoftConfig {
         self.shape.capabilities_or(crate::Capability::ALL)
     }
 
+    /// The uses this account is chosen for that its grant does not allow.
+    #[must_use]
+    pub fn withheld_capabilities(&self) -> crate::Capabilities {
+        crate::withheld(
+            &mailcal_oauth::scopes::MICROSOFT,
+            &self.capabilities(),
+            self.granted_scopes.as_deref(),
+        )
+    }
+
     /// This account's id: the one pinned in its stored config when there is one, and otherwise
     /// the one [`derived_account_id`](Self::derived_account_id) derives. A pinned id is what lets
     /// the settings it was derived from be edited without the account becoming another one.

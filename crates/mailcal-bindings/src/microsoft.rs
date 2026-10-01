@@ -10,12 +10,12 @@
 //! takes, so the credential has exactly one way in and out. All types here mirror the
 //! password-account setup in `setup.rs`.
 
-use mailcal_account::{MicrosoftConfig, Secret};
-use mailcal_oauth::{MICROSOFT_GRAPH_SCOPES, OAuthClient, OAuthProviderConfig};
+use mailcal_account::{Capability, MicrosoftConfig, Secret};
+use mailcal_oauth::{OAuthClient, OAuthProviderConfig};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-use crate::MailcalError;
+use crate::{AccountCapability, MailcalError, account_capability};
 
 /// The default tenant (both work and personal Microsoft accounts) when a host gives none.
 const DEFAULT_TENANT: &str = "common";
@@ -39,16 +39,21 @@ struct PendingLogin {
     tenant: String,
     redirect_uri: String,
     scopes: Vec<String>,
+    /// What the account is to be used for, by stored name; `None` when the client named nothing,
+    /// which asks for everything and stores no choice.
+    #[serde(default)]
+    capabilities: Option<Vec<String>>,
     state: String,
     verifier: String,
 }
 
 /// Starts the Microsoft OAuth flow: builds the PKCE authorization URL for **this build's**
 /// Microsoft client registration ([`mailcal_oauth::credentials`]) at `redirect_uri` and `tenant`
-/// (`common` when `None`), requesting the full Graph scope set (mail read/write, send, and
-/// calendar). `login_hint` (the address the user is connecting or **re-consenting**; from
-/// autodetection, or from a reconnect-for-calendar / reconnect-to-send prompt) targets that
-/// account so Microsoft doesn't offer a different signed-in one; pass `None` to let the user pick.
+/// (`common` when `None`), requesting the Graph scopes of what the account is to be used for:
+/// `capabilities`, or everything when `None`. `login_hint` (the address the user is connecting or
+/// **re-consenting**; from autodetection, or from a reconnect-for-calendar / reconnect-to-send
+/// prompt) targets that account so Microsoft doesn't offer a different signed-in one; pass `None`
+/// to let the user pick.
 ///
 /// `redirect_uri` stays the host's: Microsoft registers it per platform against the host's own
 /// bundle/package identity, so unlike Google's it cannot be derived from the client id.
@@ -63,13 +68,15 @@ struct PendingLogin {
 ///
 /// # Errors
 ///
-/// Returns [`MailcalError::Config`] if this build carries no Microsoft registration, if the
-/// OAuth HTTP client cannot be built, or if the `pending` handle cannot be encoded.
-#[uniffi::export(default(login_hint = None))]
+/// Returns [`MailcalError::Config`] if this build carries no Microsoft registration, if
+/// `capabilities` is empty, if the OAuth HTTP client cannot be built, or if the `pending` handle
+/// cannot be encoded.
+#[uniffi::export(default(login_hint = None, capabilities = None))]
 pub fn begin_microsoft_login(
     tenant: Option<String>,
     redirect_uri: String,
     login_hint: Option<String>,
+    capabilities: Option<Vec<AccountCapability>>,
 ) -> Result<MicrosoftLoginStart, MailcalError> {
     let Some(client_id) = mailcal_oauth::credentials::microsoft_client_id() else {
         return Err(MailcalError::Config(
@@ -79,6 +86,13 @@ pub fn begin_microsoft_login(
     let tenant = tenant
         .filter(|t| !t.trim().is_empty())
         .unwrap_or_else(|| DEFAULT_TENANT.to_owned());
+    let chosen = account_capability::chosen(capabilities)?;
+    let scopes = mailcal_account::requested_scopes(
+        &mailcal_oauth::scopes::MICROSOFT,
+        &chosen
+            .clone()
+            .unwrap_or_else(|| Capability::ALL.into_iter().collect()),
+    );
     log::info!(
         "oauth: starting Microsoft sign-in ({}); requesting {} Graph scope(s): [{}]",
         if login_hint.is_some() {
@@ -86,14 +100,15 @@ pub fn begin_microsoft_login(
         } else {
             "new account, account picker shown"
         },
-        MICROSOFT_GRAPH_SCOPES.len(),
-        MICROSOFT_GRAPH_SCOPES.join(", "),
+        scopes.len(),
+        scopes.join(", "),
     );
+    let requested: Vec<&str> = scopes.iter().map(String::as_str).collect();
     let provider = OAuthProviderConfig::microsoft(
         client_id.clone(),
         &tenant,
         redirect_uri.clone(),
-        MICROSOFT_GRAPH_SCOPES,
+        &requested,
     );
     let client = OAuthClient::new(provider).map_err(|err| MailcalError::Config(err.to_string()))?;
     let request = client.begin(login_hint.as_deref());
@@ -101,10 +116,8 @@ pub fn begin_microsoft_login(
         client_id,
         tenant,
         redirect_uri,
-        scopes: MICROSOFT_GRAPH_SCOPES
-            .iter()
-            .map(|s| (*s).to_owned())
-            .collect(),
+        scopes,
+        capabilities: chosen.as_ref().map(account_capability::names),
         state: request.state,
         verifier: request.pkce.verifier().to_owned(),
     };
@@ -163,7 +176,7 @@ pub(crate) async fn authorize(
     let email = mailcal_account::fetch_primary_address(&access_token)
         .await
         .map_err(|err| MailcalError::Connect(err.to_string()))?;
-    let config = MicrosoftConfig {
+    let mut config = MicrosoftConfig {
         email,
         client_id: pending.client_id,
         tenant: pending.tenant,
@@ -173,6 +186,11 @@ pub(crate) async fn authorize(
         granted_scopes: Some(granted.as_slice().to_vec()),
         shape: mailcal_account::AccountShape::default(),
     };
+    config.shape.capabilities = pending
+        .capabilities
+        .as_deref()
+        .map(account_capability::from_names);
+    crate::consent::refuse_an_empty_grant(&config.capabilities(), &config.withheld_capabilities())?;
     Ok(MicrosoftAuthorized {
         config,
         access_token,

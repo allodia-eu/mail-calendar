@@ -20,6 +20,7 @@ pub(super) fn begin(login_hint: String) -> Result<(OAuthLoopback, GoogleLoginSta
     let start = begin_google_login(
         loopback.redirect_uri(),
         (!login_hint.trim().is_empty()).then_some(login_hint),
+        None,
     )
     .map_err(|error| error.to_string())?;
     Ok((loopback, start))
