@@ -27,9 +27,8 @@ async fn server_answering(status: &'static str) -> u16 {
                         Ok(read) => request.extend_from_slice(&buffer[..read]),
                     }
                 }
-                let response = format!(
-                    "HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                );
+                let response =
+                    format!("HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
                 let _ = stream.write_all(response.as_bytes()).await;
                 let _ = stream.shutdown().await;
             });
