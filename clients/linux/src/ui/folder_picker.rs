@@ -117,3 +117,26 @@ pub(crate) fn picker_rows(
         )
         .collect()
 }
+
+/// The row the keyboard moves to from row `from`, `steps` rows on (negative is up), counting only
+/// the rows that can be chosen. A move past the last of them stops there; `None` when there is no
+/// such row that way, which leaves focus where it is.
+pub(crate) fn keyboard_target(enabled: &[bool], from: usize, steps: i32) -> Option<usize> {
+    let count = usize::try_from(steps.unsigned_abs()).unwrap_or(usize::MAX);
+    if steps < 0 {
+        (0..from.min(enabled.len()))
+            .rev()
+            .filter(|&index| enabled[index])
+            .take(count)
+            .last()
+    } else {
+        (from.saturating_add(1)..enabled.len())
+            .filter(|&index| enabled[index])
+            .take(count)
+            .last()
+    }
+}
+
+#[cfg(test)]
+#[path = "folder_picker_tests.rs"]
+mod tests;

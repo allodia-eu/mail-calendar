@@ -13,7 +13,7 @@ use super::{
     AppInput,
     folder_actions::{FolderInput, NameCheck, NameQuery, delete_copy, name_problem},
     folder_pane_rows::INDENT,
-    folder_picker::PickerRow,
+    folder_picker::{PickerRow, keyboard_target},
     message_move::MessageMove,
     modal,
 };
@@ -239,6 +239,7 @@ fn destination_dialog(
     for row in rows {
         list.append(&picker_row(row));
     }
+    walk_destinations_only(&list, rows);
     {
         let keys: Vec<Option<String>> = rows.iter().map(|row| row.key.clone()).collect();
         let window = window.clone();
@@ -315,6 +316,48 @@ fn picker_row(target: &PickerRow) -> gtk::ListBoxRow {
 /// action rows the pane is built from.
 const ROW_HEIGHT: i32 = 50;
 
+/// Moves the arrow keys, Page Up/Down, Home and End over the rows that can be chosen only.
+///
+/// `GtkListBox` steps its cursor onto every row, and onto an insensitive one it cannot move focus,
+/// so the key does nothing visible and Enter then picks the row focus stayed on.
+fn walk_destinations_only(list: &gtk::ListBox, rows: &[PickerRow]) {
+    let enabled: Vec<bool> = rows.iter().map(|row| row.enabled).collect();
+    let every_row = i32::try_from(enabled.len()).unwrap_or(i32::MAX);
+    list.connect_move_cursor(move |list, step, count, _, _| {
+        let steps = match step {
+            gtk::MovementStep::DisplayLines => count,
+            gtk::MovementStep::Pages => count.saturating_mul(PICKER_MAX_HEIGHT / ROW_HEIGHT),
+            gtk::MovementStep::BufferEnds => count.saturating_mul(every_row),
+            _ => return,
+        };
+        let Some(from) = list
+            .focus_child()
+            .and_then(|row| usize::try_from(row.downcast::<gtk::ListBoxRow>().ok()?.index()).ok())
+        else {
+            return;
+        };
+        list.stop_signal_emission_by_name("move-cursor");
+        if let Some(row) = keyboard_target(&enabled, from, steps)
+            .and_then(|index| i32::try_from(index).ok())
+            .and_then(|index| list.row_at_index(index))
+        {
+            row.grab_focus();
+            return;
+        }
+        // Past the last row, focus leaves the list as GTK's own handler would send it.
+        let (direction, onward) = if steps < 0 {
+            (gtk::DirectionType::Up, gtk::DirectionType::TabBackward)
+        } else {
+            (gtk::DirectionType::Down, gtk::DirectionType::TabForward)
+        };
+        if !list.keynav_failed(direction)
+            && let Some(root) = list.root()
+        {
+            root.child_focus(onward);
+        }
+    });
+}
+
 /// Confirms a delete, worded by whether the folder is already in Trash (rule 26).
 pub(crate) fn delete_dialog(
     anchor: &impl IsA<gtk::Widget>,
@@ -356,7 +399,7 @@ pub(crate) fn delete_dialog(
 pub(crate) mod widget_tests {
     use adw::prelude::*;
 
-    use super::{INDENT, picker_row};
+    use super::{INDENT, picker_row, walk_destinations_only};
     use crate::ui::{folder_picker::PickerRow, icons};
 
     fn target(enabled: bool) -> PickerRow {
@@ -394,6 +437,30 @@ pub(crate) mod widget_tests {
         assert!(
             !ancestor.is_sensitive(),
             "dimmed, and out of the focus chain"
+        );
+    }
+
+    pub(crate) fn the_arrow_keys_pass_over_a_row_that_cannot_be_chosen() {
+        // Inbox, Archive kept as a parent, and 2026 inside it.
+        let rows = [target(true), target(false), target(true)];
+        let list = gtk::ListBox::new();
+        for row in &rows {
+            list.append(&picker_row(row));
+        }
+        walk_destinations_only(&list, &rows);
+        let window = gtk::Window::new();
+        window.set_child(Some(&list));
+        let row = |index| list.row_at_index(index).expect("a picker row");
+        assert!(row(0).grab_focus());
+
+        list.emit_move_cursor(gtk::MovementStep::DisplayLines, 1, false, false);
+        let focused = || RootExt::focus(&window).and_downcast::<gtk::ListBoxRow>();
+        assert_eq!(focused(), Some(row(2)), "one press of Down reaches 2026");
+        list.emit_move_cursor(gtk::MovementStep::DisplayLines, -1, false, false);
+        assert_eq!(
+            focused(),
+            Some(row(0)),
+            "and one press of Up returns to Inbox"
         );
     }
 }
