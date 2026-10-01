@@ -1,5 +1,6 @@
 # Where the event editor's caret opens (docs/calendar.md §11): a NEW event starts in its title, an
-# EDIT does not.
+# EDIT does not. And where the event detail's focus opens: on its default button, even when the
+# notes hold a link.
 #
 # WHY IT IS HERE AND NOT IN `Mailcal.Tests`. EventEditorState, which is linked there, and which
 # owns every other decision this dialog makes, knows whether it is editing, and nothing else. Who
@@ -180,6 +181,36 @@ $Suite = @{
           $box = Get-TitleBox -Dialog $dialog
           Assert-True (-not $box.Current.HasKeyboardFocus) `
             'editing an event opened with the caret in its title: the event already has one, and on a touch host the keyboard that comes with it covers the dates the user opened the editor to change (docs/calendar.md §11). Withholding the focus request is not enough, a ContentDialog focuses the first focusable control in its content by itself.'
+        }
+        finally { Close-Dialog }
+      }
+    },
+    @{
+      Name = 'the event detail opens on its default button, not on a link in the notes'
+      Body = {
+        # "Customer call" carries notes with an address in them (seed-calendar-week.sh). The notes
+        # are sender text, and a ContentDialog focuses the first focusable control in its content,
+        # which is that link: Enter would then stop pressing Edit.
+        $agenda = Show-Agenda
+        $row = $null
+        foreach ($candidate in @(Find-UiaElements -Type 'ListItem' -Root $agenda)) {
+          if (Get-UiaTree $candidate | Where-Object { $_.Current.Name -eq 'Customer call' }) { $row = $candidate; break }
+        }
+        if (-not $row) { throw "no agenda row for 'Customer call', the living week is seeded relative to today: scripts/dev/harness.sh up" }
+        Invoke-UiaElement $row -SettleMs 1500
+        try {
+          $dialog = Get-DialogRoot
+          $links = @(Find-UiaElements -Type 'Hyperlink' -Root $dialog)
+          Assert-GreaterThan 0 $links.Count `
+            "the notes drew no link, so this case cannot tell the default button from a link; re-seed the harness (scripts/dev/harness.sh up) if 'Customer call' has no notes"
+          $edit = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button -Root $dialog
+          if (-not $edit) { throw "'Customer call' offered no Edit, the harness calendar should be writable" }
+          $watch = [Diagnostics.Stopwatch]::StartNew()
+          while (-not $edit.Current.HasKeyboardFocus -and $watch.Elapsed.TotalSeconds -lt 5) { Start-Sleep -Milliseconds 200 }
+          $focused = [System.Windows.Automation.AutomationElement]::FocusedElement
+          Assert-True $edit.Current.HasKeyboardFocus `
+            ("the event detail opened with focus on $($focused.Current.ControlType.ProgrammaticName) " +
+              "'$($focused.Current.Name)' rather than Edit, so Enter no longer edits the event, and on a link it would open an address the sender chose")
         }
         finally { Close-Dialog }
       }
