@@ -649,10 +649,31 @@
     selection.removeAllRanges();
     selection.addRange(range);
   }
+  var START_TO_START = 0;
   var START_TO_END = 1;
+  var END_TO_END = 2;
   var END_TO_START = 3;
   function rangeOverlaps(range, target) {
     return range.compareBoundaryPoints(END_TO_START, target) <= 0 && range.compareBoundaryPoints(START_TO_END, target) >= 0;
+  }
+  function rangeTextInside(range, node) {
+    const doc = documentOf(node);
+    const nodeRange = doc.createRange();
+    nodeRange.selectNode(node);
+    const outside = doc.createRange();
+    if (range.compareBoundaryPoints(START_TO_START, nodeRange) < 0) {
+      outside.setStart(range.startContainer, range.startOffset);
+      outside.setEnd(nodeRange.startContainer, nodeRange.startOffset);
+      if (outside.toString() !== "")
+        return false;
+    }
+    if (range.compareBoundaryPoints(END_TO_END, nodeRange) > 0) {
+      outside.setStart(nodeRange.endContainer, nodeRange.endOffset);
+      outside.setEnd(range.endContainer, range.endOffset);
+      if (outside.toString() !== "")
+        return false;
+    }
+    return true;
   }
   function rangeTouches(range, node) {
     const nodeRange = documentOf(node).createRange();
@@ -844,7 +865,12 @@
     if (!range)
       return null;
     const start = ancestorOf(range.startContainer, editor, "a");
-    return start && start === ancestorOf(range.endContainer, editor, "a") ? start : null;
+    if (start && start === ancestorOf(range.endContainer, editor, "a"))
+      return start;
+    if (range.collapsed)
+      return null;
+    const [only, ...others] = linksTouched(editor, range);
+    return only && others.length === 0 && rangeTextInside(range, only) ? only : null;
   }
   function linksTouched(editor, range) {
     const around = ancestorOf(range.startContainer, editor, "a");

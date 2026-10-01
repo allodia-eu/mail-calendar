@@ -173,6 +173,60 @@ describe("making, changing and removing a link", () => {
     expect(h.html()).toBe(`<p><a id="a" href="https://new.example">new</a></p>`);
   });
 
+  test("a selection over a whole link, its edges just outside it, is that link", () => {
+    // Where WebKit leaves the selection after `createLink`, so a second Ctrl+K edits the link it
+    // just made rather than offering to insert one with an empty address.
+    const h = harness(`<p id=p>the <a id=a href="https://example.com">docs</a> now</p>`);
+    const paragraph = h.caret("#p");
+    const doc = paragraph.ownerDocument;
+    const range = doc.createRange();
+    range.setStart(paragraph as never, 1);
+    range.setEnd(paragraph as never, 2);
+    const selection = doc.defaultView!.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range as never);
+    expect(linkAtCaret(h.editor)?.id).toBe("a");
+  });
+
+  test("a selection whose edges sit in the text beside a link is that link", () => {
+    const h = harness(`<p id=p>the <a id=a href="https://example.com">docs</a> now</p>`);
+    const paragraph = h.caret("#p");
+    const doc = paragraph.ownerDocument;
+    const range = doc.createRange();
+    range.setStart(paragraph.firstChild as never, 4);
+    range.setEnd(paragraph.lastChild as never, 0);
+    const selection = doc.defaultView!.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range as never);
+    expect(linkAtCaret(h.editor)?.id).toBe("a");
+  });
+
+  test("a selection reaching past a link's words is not that link", () => {
+    const h = harness(`<p id=p>the <a href="https://example.com">docs</a> now</p>`);
+    const paragraph = h.caret("#p");
+    const doc = paragraph.ownerDocument;
+    const range = doc.createRange();
+    range.setStart(paragraph.firstChild as never, 1);
+    range.setEnd(paragraph as never, 2);
+    const selection = doc.defaultView!.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range as never);
+    expect(linkAtCaret(h.editor)).toBeNull();
+  });
+
+  test("a caret right before a link is not in it", () => {
+    const h = harness(`<p id=p>the <a href="https://example.com">docs</a> now</p>`);
+    const paragraph = h.caret("#p");
+    const doc = paragraph.ownerDocument;
+    const range = doc.createRange();
+    range.setStart(paragraph as never, 1);
+    range.collapse(true);
+    const selection = doc.defaultView!.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range as never);
+    expect(linkAtCaret(h.editor)).toBeNull();
+  });
+
   test("a caret beside a link, not in it, removes nothing", () => {
     const h = harness(`<p id=p>see <a href="https://example.com">site</a> now</p>`);
     const paragraph = h.caret("#p");

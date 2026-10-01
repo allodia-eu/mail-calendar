@@ -9,6 +9,7 @@ import {
   ancestorOf,
   documentOf,
   focusEditor,
+  rangeTextInside,
   rangeTouches,
   rangeWithin,
   restoreSelection,
@@ -57,11 +58,18 @@ export function normalizeLinkAddress(typed: string): string | null {
 }
 
 /// The link the selection sits in, when all of it is inside one.
+///
+/// A selection of a whole link can have its edges outside the `<a>`, in the block around it or in
+/// the text beside it: WebKit leaves one there after `createLink`. It still covers nothing but that
+/// link. A bare caret at such an edge sits beside the link, not in it.
 export function linkAtCaret(editor: HTMLElement): HTMLAnchorElement | null {
   const range = rangeWithin(editor);
   if (!range) return null;
   const start = ancestorOf(range.startContainer, editor, "a");
-  return start && start === ancestorOf(range.endContainer, editor, "a") ? start : null;
+  if (start && start === ancestorOf(range.endContainer, editor, "a")) return start;
+  if (range.collapsed) return null;
+  const [only, ...others] = linksTouched(editor, range);
+  return only && others.length === 0 && rangeTextInside(range, only) ? only : null;
 }
 
 /// The links a selection touches, for removing them. A bare caret touches only the link it is in,
