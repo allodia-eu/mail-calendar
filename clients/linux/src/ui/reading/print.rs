@@ -107,6 +107,7 @@ pub(super) fn print_item(
 fn print(window: &gtk::Window, message: &MessagePrint, sender: &relm4::Sender<AppInput>) {
     let web = SecureWebView::new(DocumentKind::Reading, sender.clone());
     let parent = window.clone();
+    let sender = sender.clone();
     let asked = std::cell::Cell::new(false);
     web.connect_finished(move |view| {
         if asked.replace(true) {
@@ -114,11 +115,15 @@ fn print(window: &gtk::Window, message: &MessagePrint, sender: &relm4::Sender<Ap
         }
         let view = view.clone();
         let parent = parent.clone();
+        let sender = sender.clone();
         // Out of the load signal before the dialog runs its own main loop.
         glib::idle_add_local_once(move || {
             let operation = webkit6::PrintOperation::new(&view);
             operation.connect_finished(|_| release());
-            operation.connect_failed(|_, _| release());
+            operation.connect_failed(move |_, _| {
+                release();
+                sender.emit(AppInput::PrintFailed);
+            });
             if operation.run_dialog(Some(&parent)) == webkit6::PrintOperationResponse::Cancel {
                 release();
             }

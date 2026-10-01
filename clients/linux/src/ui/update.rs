@@ -294,6 +294,9 @@ impl AppModel {
                     .to_owned(),
                 );
             }
+            AppInput::PrintFailed => {
+                self.notice = Some(l10n::message_print_failed().to_owned());
+            }
             AppInput::AttachmentDecoded(result) => {
                 self.launch_attachment(result, sender.input_sender().clone());
             }

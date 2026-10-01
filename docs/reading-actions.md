@@ -129,7 +129,7 @@ It is not an `Intent`, for the reason exporting is not one.
 | Destination | save panel | share sheet | save picker | share sheet | save dialog |
 | Result reported | inline error | inline error | inline error | toast | banner |
 | Print | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Print dialog | `NSPrintOperation` sheet | `UIPrintInteractionController` | `ShowPrintUI` (system) | `PrintManager` | `WebKitPrintOperation` |
+| Print dialog | `NSPrintOperation` sheet | `UIPrintInteractionController` | `ShowPrintUI` (system) | `PrintManager` | `WebKitPrintOperation`, through the print portal in the Flatpak |
 
 ## Known gaps
 
@@ -138,6 +138,11 @@ It is not an `Intent`, for the reason exporting is not one.
   be undone, is refused whichever arrives next.
 - **No print shortcut.** On the desktops Print is reached through the menu only; neither Cmd+P
   nor Ctrl+P is bound to it yet.
+- **The Linux print dialog is not attached to the window in the Flatpak.** Inside the sandbox
+  WebKitGTK prints through the desktop's print portal and names no parent window to it, so the
+  dialog opens as a window of its own rather than over the app, and the app stays usable while it
+  is up. A print started meanwhile opens a second dialog; each keeps the page it was asked for.
+  Outside the sandbox the toolkit's own dialog is modal to the window.
 - **No multi-message export.** Selecting several messages and exporting them is not offered
   anywhere; the export acts on the open message only.
 - **The header scrolls with the message on iPhone and iPad only.** Everywhere else it stands still
