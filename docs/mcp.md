@@ -347,7 +347,8 @@ load-bearing: past it the server refuses to start and says so, rather than faili
 Every platform that ships this meets all of it.
 
 1. **Off by default.** The user goes looking for it in Settings → Advanced; there is no prompt.
-2. **The account allow list is empty by default**, and empty exposes nothing. Turning the server on
+2. **The account allow list is empty by default**, and empty exposes nothing. It lists accounts
+   used for mail only, since every tool it gates reads or sends mail. Turning the server on
    and granting access to a mailbox are two separate decisions. An account that is not exposed is
    not even *named* to the client: which mailboxes exist is itself a disclosure the user did not
    agree to.

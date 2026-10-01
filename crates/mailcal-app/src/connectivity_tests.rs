@@ -195,6 +195,8 @@ async fn a_disconnected_account_still_lists_and_keeps_its_outage_badge() {
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("b@example.com"),
+        dialled: true,
+        uses_mail: true,
     };
     let app = app(vec![healthy, disconnected], &surfaces);
     let id = AccountId::try_from("b").unwrap();

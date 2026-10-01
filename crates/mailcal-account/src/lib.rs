@@ -14,6 +14,7 @@ mod calendar;
 mod calendar_drag;
 mod certificate;
 mod config;
+mod config_dav;
 mod connect_log;
 mod contacts;
 mod contacts_edit;
@@ -57,6 +58,7 @@ pub use config::{
     AccountConfig, CalDavAccount, ConfigError, ConnectionSecurity, ImapAccount, Secret,
     SmtpAccount, default_path, load, load_str,
 };
+pub use config_dav::CardDavAccount;
 pub use contacts::connect_carddav_contact_providers;
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
 use engine_core::{ids::AccountId, sync::SyncUpdate};
@@ -95,7 +97,7 @@ pub use preferences::{
     clamp_visible_hours, effective, load_preferences, preferences_path, sanitize_sender_name,
     save_preferences, snap_poll_interval,
 };
-use provider_caldav::{CalDavConfig, CalDavProvider, Credentials};
+use provider_caldav::{CalDavConfig, CalDavProvider};
 pub use recurrence_shape::{
     EventRecurrence, RecurrenceChange, RecurrenceDay, RecurrenceEnd, RecurrenceFrequency,
     RecurrenceWeekday, SimpleRecurrence, describe_recurrence, recurrence_rule_of,
@@ -117,39 +119,6 @@ pub use tls::setup_trust_policy;
 
 use crate::{setup::normalize_caldav_base_url, tls::account_tls};
 
-/// The CalDAV credential for `account`: HTTP Basic from the stored password, or the mail
-/// grant's bearer token when the account signs in with OAuth.
-///
-/// A discovered calendar rides on the mail account's own credential (`docs/mail-oauth.md`),
-/// so an OAuth account has no password to reuse here and presents the same token instead:
-/// the `calendars` scope is requested at sign-in precisely so this works. The token is minted
-/// per connect, like the mail one.
-///
-/// # Errors
-///
-/// Returns [`AccountError::SigninRejected`] if the grant no longer mints a token, or
-/// [`AccountError::NoCalDav`] if the account carries no CalDAV endpoint.
-pub(crate) async fn caldav_credentials(
-    account: &AccountConfig,
-    tokens: ImapTokens<'_>,
-) -> Result<Credentials, AccountError> {
-    let caldav = account.caldav.as_ref().ok_or(AccountError::NoCalDav)?;
-    if account.is_oauth() {
-        let tokens = tokens.ok_or(AccountError::MissingCredential(
-            imap_credentials::NO_TOKEN_SOURCE,
-        ))?;
-        return Ok(Credentials::Bearer(tokens.access_token().await?));
-    }
-    let password = caldav
-        .password
-        .as_ref()
-        .ok_or_else(|| AccountError::CalDavDiscovery("no calendar credential stored".to_owned()))?;
-    Ok(Credentials::Basic {
-        username: caldav.username.clone(),
-        password: password.expose().to_owned(),
-    })
-}
-
 /// Connects to the CalDAV endpoint of `account`, discovering the calendar home and
 /// binding to the calendar to sync events from, returning the provider boxed for the
 /// app to sync.
@@ -169,7 +138,8 @@ pub async fn connect_caldav(
     account: &AccountConfig,
     tokens: ImapTokens<'_>,
 ) -> Result<Box<dyn Provider>, AccountError> {
-    let credentials = caldav_credentials(account, tokens).await?;
+    let endpoint = account.caldav_endpoint().ok_or(AccountError::NoCalDav)?;
+    let credentials = config_dav::dav_credentials(account, endpoint, tokens).await?;
     let caldav = account.caldav.as_ref().ok_or(AccountError::NoCalDav)?;
     let tls = account_tls(account)?;
     let config = CalDavConfig::new(
@@ -184,7 +154,9 @@ pub async fn connect_caldav(
     .with_retry(throttle::ungated_retry())
     .with_connect_observer(connect_log::connect_logger("caldav"));
     let provider = match &caldav.calendar {
-        Some(calendar) => CalDavProvider::connect(config.with_calendar(calendar.clone())).await?,
+        Some(calendar) => CalDavProvider::connect(config.with_calendar(calendar.clone()))
+            .await
+            .map_err(AccountError::from_first_dav_connect)?,
         None => connect_primary_calendar(config).await?,
     };
     Ok(Box::new(provider))
@@ -193,7 +165,9 @@ pub async fn connect_caldav(
 /// Connects and rebinds to the account's first discovered calendar, for a config
 /// that did not name one (see [`connect_caldav`]).
 async fn connect_primary_calendar(config: CalDavConfig) -> Result<CalDavProvider, AccountError> {
-    let provider = CalDavProvider::connect(config).await?;
+    let provider = CalDavProvider::connect(config)
+        .await
+        .map_err(AccountError::from_first_dav_connect)?;
     // The account scopes the listing but not which collections come back, so a
     // placeholder id is fine here.
     let account =

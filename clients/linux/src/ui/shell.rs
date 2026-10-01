@@ -288,11 +288,8 @@ impl AppWidgets {
             PrimaryView::Mail => self.primary.set_visible_child_name("mail"),
             PrimaryView::Calendar => {
                 self.calendar.render(&model.calendar, model.app.as_ref());
-                self.calendar.render_manager(
-                    model.calendar_manager_generation,
-                    model.app.as_ref(),
-                    &model.snapshot.accounts,
-                );
+                self.calendar
+                    .render_manager(model.calendar_manager_generation, model.app.as_ref());
                 self.primary.set_visible_child_name("calendar");
                 if calendar_opened {
                     self.calendar.opened();

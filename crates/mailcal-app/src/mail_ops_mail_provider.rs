@@ -300,6 +300,8 @@ pub(super) fn app_and_logs(provider: ThreadProvider) -> (Arc<App<ThreadProvider>
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
+            dialled: true,
+            uses_mail: true,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),

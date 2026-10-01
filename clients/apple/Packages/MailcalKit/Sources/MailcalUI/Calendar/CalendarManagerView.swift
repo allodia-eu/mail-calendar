@@ -33,7 +33,9 @@ struct CalendarManagerView: View {
                     Text(L10n.calendar_manage_empty()).foregroundStyle(.secondary)
                 }
                 ForEach(byAccount, id: \.account) { group in
-                    Section(group.account) {
+                    // Headed by the address, the one a person recognises; grouped by the id, which
+                    // is what is unique.
+                    Section(group.rows.first?.accountAddress ?? group.account) {
                         ForEach(group.rows, id: \.rowIdentity) { calendar in
                             row(calendar)
                         }

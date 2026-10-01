@@ -298,7 +298,7 @@ struct CalendarPickerView: View {
         NavigationStack {
             List {
                 ForEach(byAccount, id: \.account) { group in
-                    Section(group.account) {
+                    Section(group.rows.first?.accountAddress ?? group.account) {
                         ForEach(group.rows, id: \.id) { calendar in
                             Button {
                                 onPick(CalendarChoice(account: calendar.account, id: calendar.id, name: calendar.name))

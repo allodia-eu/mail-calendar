@@ -166,6 +166,8 @@ pub(super) fn app(contacts: FakeContacts, surfaces: &Arc<Mutex<Vec<Surface>>>) -
             calendar_providers: Vec::new(),
             contact_providers: vec![Box::new(contacts)],
             identity: EmailAddress::new("me@work.local"),
+            dialled: true,
+            uses_mail: true,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),

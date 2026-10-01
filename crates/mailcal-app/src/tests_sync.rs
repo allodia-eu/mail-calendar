@@ -244,6 +244,8 @@ async fn providerless_placeholder_sync_is_skipped_not_busy() {
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
+        dialled: true,
+        uses_mail: true,
     };
 
     let progress = app.begin_sync_labeled(false, true, 0, "placeholder-test");

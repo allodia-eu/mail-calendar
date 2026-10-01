@@ -80,6 +80,8 @@ fn submit_app() -> (Arc<App<SubmitProvider>>, Arc<Mutex<Vec<Draft>>>) {
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
+            dialled: true,
+            uses_mail: true,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),
@@ -103,6 +105,8 @@ fn submit_app_counting() -> (Arc<App<SubmitProvider>>, Arc<SendSignals>) {
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
+            dialled: true,
+            uses_mail: true,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),
@@ -125,6 +129,8 @@ fn app_over(provider: SubmitProvider) -> Arc<App<SubmitProvider>> {
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
+            dialled: true,
+            uses_mail: true,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),

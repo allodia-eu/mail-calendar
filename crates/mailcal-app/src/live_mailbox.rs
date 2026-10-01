@@ -221,6 +221,7 @@ impl<P: Provider> App<P> {
             |accounts| {
                 accounts
                     .iter()
+                    .filter(|account| account.uses_mail)
                     .map(|account| AccountRow {
                         id: account.id.as_str().to_owned(),
                         email: account.identity.email.clone(),

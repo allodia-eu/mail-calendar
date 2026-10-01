@@ -132,8 +132,8 @@ internal fun DefaultCalendarSettingsRows(
     }
     // Grouped by account, the same shape the calendar manager uses, a calendar id is unique only
     // within its account, so the account has to be on screen somewhere. Once per group rather than
-    // once per row: an account id is `address@provider-host`, and repeating it beside every calendar
-    // wrapped each row over three lines and buried the name the user is actually choosing between.
+    // once per row, and by the account's address rather than its id: repeating a label beside every
+    // calendar wrapped each row over three lines and buried the name the user is choosing between.
     //
     // A single account states itself, the rows are its calendars and there is nothing to tell apart
     // so the header only earns its place when there is more than one.
@@ -141,7 +141,7 @@ internal fun DefaultCalendarSettingsRows(
     byAccount.forEach { (account, rows) ->
         if (byAccount.size > 1) {
             Text(
-                text = account,
+                text = rows.firstOrNull()?.accountAddress ?: account,
                 modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,

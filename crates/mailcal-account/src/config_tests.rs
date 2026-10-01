@@ -29,9 +29,19 @@ password = "hunter2"
 #[test]
 fn parses_a_full_account_and_redacts_secrets() {
     let config: AccountConfig = toml::from_str(SAMPLE).expect("valid config");
-    assert_eq!(config.imap.addr, "imap.soverin.net:993");
-    assert_eq!(config.imap.username, "you@example.com");
-    assert_eq!(config.imap.password.as_ref().unwrap().expose(), "hunter2");
+    assert_eq!(config.imap.as_ref().unwrap().addr, "imap.soverin.net:993");
+    assert_eq!(config.imap.as_ref().unwrap().username, "you@example.com");
+    assert_eq!(
+        config
+            .imap
+            .as_ref()
+            .unwrap()
+            .password
+            .as_ref()
+            .unwrap()
+            .expose(),
+        "hunter2"
+    );
 
     let smtp = config.smtp.as_ref().expect("smtp present");
     assert_eq!(smtp.addr, "smtp.soverin.net:465");
@@ -44,7 +54,10 @@ fn parses_a_full_account_and_redacts_secrets() {
     let dump = format!("{config:?}");
     assert!(!dump.contains("hunter2"));
     assert_eq!(
-        format!("{:?}", config.imap.password.as_ref().unwrap()),
+        format!(
+            "{:?}",
+            config.imap.as_ref().unwrap().password.as_ref().unwrap()
+        ),
         "Secret(<redacted>)"
     );
 
@@ -57,7 +70,10 @@ fn security_defaults_to_implicit_tls_and_parses_starttls() {
     // An account TOML with no `security` key connects exactly as before this field
     // existed: implicit TLS on both transports.
     let default_tls: AccountConfig = toml::from_str(SAMPLE).expect("valid config");
-    assert_eq!(default_tls.imap.security, ConnectionSecurity::ImplicitTls);
+    assert_eq!(
+        default_tls.imap.as_ref().unwrap().security,
+        ConnectionSecurity::ImplicitTls
+    );
     assert_eq!(
         default_tls.smtp.as_ref().unwrap().security,
         ConnectionSecurity::ImplicitTls
@@ -72,7 +88,10 @@ fn security_defaults_to_implicit_tls_and_parses_starttls() {
          security=\"starttls\"\n",
     )
     .expect("valid config");
-    assert_eq!(starttls.imap.security, ConnectionSecurity::StartTls);
+    assert_eq!(
+        starttls.imap.as_ref().unwrap().security,
+        ConnectionSecurity::StartTls
+    );
     assert_eq!(
         starttls.smtp.as_ref().unwrap().security,
         ConnectionSecurity::StartTls
@@ -121,7 +140,14 @@ fn replacing_a_password_preserves_every_endpoint_and_updates_caldav_too() {
     let parsed = load_str(&updated).expect("replacement config round-trips");
 
     assert_eq!(
-        parsed.imap.password.as_ref().unwrap().expose(),
+        parsed
+            .imap
+            .as_ref()
+            .unwrap()
+            .password
+            .as_ref()
+            .unwrap()
+            .expose(),
         "new\"secret\\value"
     );
     assert_eq!(
@@ -135,9 +161,15 @@ fn replacing_a_password_preserves_every_endpoint_and_updates_caldav_too() {
             .expose(),
         "new\"secret\\value"
     );
-    assert_eq!(parsed.imap.addr, "mail.example.com:143");
-    assert_eq!(parsed.imap.server_name, "imap.example.com");
-    assert_eq!(parsed.imap.security, ConnectionSecurity::StartTls);
+    assert_eq!(parsed.imap.as_ref().unwrap().addr, "mail.example.com:143");
+    assert_eq!(
+        parsed.imap.as_ref().unwrap().server_name,
+        "imap.example.com"
+    );
+    assert_eq!(
+        parsed.imap.as_ref().unwrap().security,
+        ConnectionSecurity::StartTls
+    );
     assert_eq!(parsed.smtp.as_ref().unwrap().addr, "submit.example.com:587");
     assert_eq!(parsed.caldav.as_ref().unwrap().username, "calendar-alias");
     assert_eq!(
@@ -209,11 +241,11 @@ issuer = "https://auth.example.net"
 fn an_oauth_account_parses_with_no_password_on_any_endpoint() {
     let config: AccountConfig = toml::from_str(OAUTH_SAMPLE).expect("valid config");
     assert!(config.is_oauth());
-    assert!(config.imap.password.is_none());
+    assert!(config.imap.as_ref().unwrap().password.is_none());
     assert!(config.caldav.as_ref().unwrap().password.is_none());
     // The username survives: an OAuth account still names the mailbox its token was issued
     // for, which is what the SASL response carries as its `authzid`.
-    assert_eq!(config.imap.username, "you@example.net");
+    assert_eq!(config.imap.as_ref().unwrap().username, "you@example.net");
     let grant = config.oauth.as_ref().expect("grant");
     assert_eq!(grant.refresh_token.expose(), "rt-value");
     assert_eq!(grant.issuer.as_deref(), Some("https://auth.example.net"));
@@ -228,7 +260,7 @@ fn an_oauth_account_round_trips_through_the_stored_form() {
     let config: AccountConfig = toml::from_str(OAUTH_SAMPLE).expect("valid config");
     let parsed = load_str(&config.to_toml().expect("serializable")).expect("round-trips");
     assert!(parsed.is_oauth());
-    assert!(parsed.imap.password.is_none());
+    assert!(parsed.imap.as_ref().unwrap().password.is_none());
     let grant = parsed.oauth.as_ref().expect("grant");
     assert_eq!(grant.client_id, "client-abc");
     assert_eq!(grant.redirect_uri, "eu.allodia.mailcal://imap-oauth");
@@ -256,7 +288,7 @@ fn replacing_the_password_of_an_oauth_account_does_nothing() {
     // they had just typed be ignored.
     let config: AccountConfig = toml::from_str(OAUTH_SAMPLE).expect("valid config");
     let updated = config.with_password("typed-by-hand");
-    assert!(updated.imap.password.is_none());
+    assert!(updated.imap.as_ref().unwrap().password.is_none());
     assert!(updated.is_oauth());
 }
 
@@ -265,7 +297,7 @@ fn granting_an_account_clears_the_password_it_used_to_have() {
     // A password account that signs in with OAuth instead: the old secret must go, on the
     // calendar endpoint as well as the mailbox, or it outlives the credential that replaced it.
     let config: AccountConfig = toml::from_str(SAMPLE).expect("valid config");
-    assert!(config.imap.password.is_some());
+    assert!(config.imap.as_ref().unwrap().password.is_some());
     let grant = toml::from_str::<AccountConfig>(OAUTH_SAMPLE)
         .expect("valid config")
         .oauth
@@ -273,7 +305,7 @@ fn granting_an_account_clears_the_password_it_used_to_have() {
 
     let updated = config.with_grant(grant);
     assert!(updated.is_oauth());
-    assert!(updated.imap.password.is_none());
+    assert!(updated.imap.as_ref().unwrap().password.is_none());
     assert!(updated.caldav.as_ref().unwrap().password.is_none());
 }
 

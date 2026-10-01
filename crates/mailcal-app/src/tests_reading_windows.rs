@@ -184,6 +184,8 @@ async fn a_window_closed_while_its_open_is_in_flight_keeps_no_body() {
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
+        dialled: true,
+        uses_mail: true,
     })
     .await;
 

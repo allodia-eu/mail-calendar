@@ -121,6 +121,7 @@ impl<P: Provider> App<P> {
                 }
                 CalendarRow {
                     account: calendar.account.clone(),
+                    account_address: calendar.account_address.clone(),
                     id: calendar.id.clone(),
                     name: calendar.name.clone(),
                     visible: decided.visible,
@@ -171,6 +172,7 @@ mod default_calendar_tests {
     fn row(account: &str, id: &str, can_write: bool) -> CalendarRow {
         CalendarRow {
             account: account.to_owned(),
+            account_address: format!("me@{account}.local"),
             id: id.to_owned(),
             name: id.to_owned(),
             color: resolve(None, None, 0),

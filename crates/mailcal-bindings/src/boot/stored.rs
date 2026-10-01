@@ -90,7 +90,7 @@ pub(crate) fn prepare_stored_account(
         let id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        let identity = EmailAddress::new(config.imap.username.clone());
+        let identity = EmailAddress::new(config.username().to_owned());
         // An OAuth IMAP account's token source builds without a live socket; a password
         // account has nothing to refresh and gets none.
         let tokens = imap_tokens(&config, &id, sink, origin)?;
@@ -103,6 +103,11 @@ pub(crate) fn prepare_stored_account(
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity,
+            // Listed before its dial lands: what its calendar holds is not known yet.
+            dialled: false,
+            uses_mail: connected
+                .capabilities()
+                .contains(mailcal_account::Capability::Mail),
         },
         connected,
     })

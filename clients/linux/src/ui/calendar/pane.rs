@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
-use mailcal_bindings::{AccountRow, CalendarWriteStatus, MailcalApp};
+use mailcal_bindings::{CalendarWriteStatus, MailcalApp};
 
 use super::{
     super::AppInput,
@@ -142,13 +142,8 @@ impl CalendarPane {
         self.grid.opened();
     }
 
-    pub(crate) fn render_manager(
-        &mut self,
-        generation: u64,
-        app: Option<&Arc<MailcalApp>>,
-        accounts: &[AccountRow],
-    ) {
-        self.manager.render(generation, &self.parent, app, accounts);
+    pub(crate) fn render_manager(&mut self, generation: u64, app: Option<&Arc<MailcalApp>>) {
+        self.manager.render(generation, &self.parent, app);
     }
 
     pub(crate) fn render(&mut self, model: &CalendarModel, app: Option<&Arc<MailcalApp>>) {

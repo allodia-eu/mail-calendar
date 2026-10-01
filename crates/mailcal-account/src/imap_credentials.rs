@@ -42,7 +42,7 @@ pub fn imap_credential_source(
     if account.is_oauth() {
         let tokens = tokens.ok_or(AccountError::MissingCredential(NO_TOKEN_SOURCE))?;
         return Ok(Arc::new(OAuthCredentialSource {
-            username: account.imap.username.clone(),
+            username: account.username().to_owned(),
             tokens: Arc::clone(tokens),
         }));
     }

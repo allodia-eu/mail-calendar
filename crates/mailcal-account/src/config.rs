@@ -15,7 +15,7 @@ use engine_core::ids::{AccountId, IdError};
 use provider_imap::{CredentialSource, Credentials, ImapConfig};
 use serde::Deserialize;
 
-use crate::{CertificateException, OAuthGrant, connect_log::connect_logger};
+use crate::{AccountError, CertificateException, OAuthGrant, connect_log::connect_logger};
 
 /// A secret string (password/token) that redacts itself in `Debug`, so a config
 /// holding it can still derive `Debug` without leaking the secret into logs.
@@ -62,18 +62,24 @@ pub enum ConnectionSecurity {
     StartTls,
 }
 
-/// One account's connection config: the IMAP mail endpoint (required), and optional
-/// SMTP submission and CalDAV calendar endpoints.
+/// One standards account's connection config: an IMAP mailbox with optional SMTP submission,
+/// a CalDAV calendar, a CardDAV address book, or any mix of them. At least one of the three is
+/// present; a config naming none is refused when it is loaded.
 #[derive(Debug, Clone, Deserialize)]
 pub struct AccountConfig {
-    /// The IMAP mail endpoint.
-    pub imap: ImapAccount,
+    /// The IMAP mail endpoint. `None` for an account used for its calendar or contacts alone.
+    #[serde(default)]
+    pub imap: Option<ImapAccount>,
     /// The SMTP submission endpoint, if mail-send is configured.
     #[serde(default)]
     pub smtp: Option<SmtpAccount>,
     /// The CalDAV calendar endpoint, if calendar sync is configured.
     #[serde(default)]
     pub caldav: Option<CalDavAccount>,
+    /// The CardDAV address-book endpoint, when it is not the calendar's; see
+    /// [`CardDavAccount`](crate::CardDavAccount).
+    #[serde(default)]
+    pub carddav: Option<crate::CardDavAccount>,
     /// The browser sign-in grant, when the account authenticates by OAuth. It belongs to the
     /// account rather than to one endpoint because every endpoint presents it: IMAP, SMTP and
     /// CalDAV (and the CardDAV found beside it) each get a bearer token minted from this one
@@ -173,9 +179,14 @@ impl AccountConfig {
             return updated;
         }
         let password = Secret::new(password.to_owned());
-        updated.imap.password = Some(password.clone());
+        if let Some(imap) = &mut updated.imap {
+            imap.password = Some(password.clone());
+        }
         if let Some(caldav) = &mut updated.caldav {
-            caldav.password = Some(password);
+            caldav.password = Some(password.clone());
+        }
+        if let Some(carddav) = &mut updated.carddav {
+            carddav.password = Some(password);
         }
         updated
     }
@@ -189,9 +200,14 @@ impl AccountConfig {
         updated.oauth = Some(grant);
         // A grant supersedes any stored password: leaving one behind would make "which
         // credential does this account use?" a question with two answers.
-        updated.imap.password = None;
+        if let Some(imap) = &mut updated.imap {
+            imap.password = None;
+        }
         if let Some(caldav) = &mut updated.caldav {
             caldav.password = None;
+        }
+        if let Some(carddav) = &mut updated.carddav {
+            carddav.password = None;
         }
         updated
     }
@@ -204,14 +220,16 @@ impl AccountConfig {
     ///
     /// Returns [`ConfigError::Serialize`] if TOML encoding fails.
     pub fn to_toml(&self) -> Result<String, ConfigError> {
-        let mut imap = server_table(&self.imap.addr, &self.imap.server_name, self.imap.security);
-        imap.insert("username".into(), self.imap.username.clone().into());
-        if let Some(password) = &self.imap.password {
-            imap.insert("password".into(), password.expose().to_owned().into());
-        }
         let mut root = toml::Table::new();
         self.shape.write_into(&mut root);
-        root.insert("imap".into(), imap.into());
+        if let Some(account) = &self.imap {
+            let mut imap = server_table(&account.addr, &account.server_name, account.security);
+            imap.insert("username".into(), account.username.clone().into());
+            if let Some(password) = &account.password {
+                imap.insert("password".into(), password.expose().to_owned().into());
+            }
+            root.insert("imap".into(), imap.into());
+        }
 
         if let Some(smtp) = &self.smtp {
             root.insert(
@@ -230,6 +248,15 @@ impl AccountConfig {
                 table.insert("calendar".into(), calendar.clone().into());
             }
             root.insert("caldav".into(), table.into());
+        }
+        if let Some(carddav) = &self.carddav {
+            let mut table = toml::Table::new();
+            table.insert("base_url".into(), carddav.base_url.clone().into());
+            table.insert("username".into(), carddav.username.clone().into());
+            if let Some(password) = &carddav.password {
+                table.insert("password".into(), password.expose().to_owned().into());
+            }
+            root.insert("carddav".into(), table.into());
         }
         if let Some(grant) = &self.oauth {
             root.insert("oauth".into(), grant.to_table().into());
@@ -260,10 +287,22 @@ impl AccountConfig {
     /// with OAuth (whose access token is minted per dial and cannot come from stored config).
     #[must_use]
     pub fn imap_password_credentials(&self) -> Option<Credentials> {
-        self.imap
-            .password
+        let imap = self.imap.as_ref()?;
+        imap.password
             .as_ref()
-            .map(|password| Credentials::password(&self.imap.username, password.expose()))
+            .map(|password| Credentials::password(&imap.username, password.expose()))
+    }
+
+    /// The login the account is known by: its mailbox's, else its calendar's, else its address
+    /// book's. The address it is shown as and sends as, where it sends at all.
+    #[must_use]
+    pub fn username(&self) -> &str {
+        self.imap
+            .as_ref()
+            .map(|imap| imap.username.as_str())
+            .or_else(|| self.caldav_endpoint().map(|endpoint| endpoint.username))
+            .or_else(|| self.carddav_endpoint().map(|endpoint| endpoint.username))
+            .unwrap_or_default()
     }
 
     /// Builds the engine [`ImapConfig`] for this account, asking `credentials` for what to
@@ -277,18 +316,25 @@ impl AccountConfig {
     ///
     /// The connect observer rides on the config, so every connection built from it is traced;
     /// the sync provider, the `IDLE` watcher, and each re-dial after a dropped session.
-    #[must_use]
-    pub fn imap_config(&self, credentials: Arc<dyn CredentialSource>) -> ImapConfig {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::NoImap`] for an account without a mailbox.
+    pub fn imap_config(
+        &self,
+        credentials: Arc<dyn CredentialSource>,
+    ) -> Result<ImapConfig, AccountError> {
+        let imap = self.imap.as_ref().ok_or(AccountError::NoImap)?;
         let mut config = ImapConfig::from_credential_source(
-            self.imap.addr.clone(),
-            self.imap.server_name.clone(),
+            imap.addr.clone(),
+            imap.server_name.clone(),
             credentials,
         )
         .with_connect_observer(connect_logger("imap"));
-        if self.imap.security == ConnectionSecurity::StartTls {
+        if imap.security == ConnectionSecurity::StartTls {
             config = config.with_starttls();
         }
-        match &self.smtp {
+        Ok(match &self.smtp {
             Some(smtp) => match smtp.security {
                 ConnectionSecurity::ImplicitTls => {
                     config.with_smtp_tls(smtp.addr.clone(), smtp.server_name.clone())
@@ -298,20 +344,20 @@ impl AccountConfig {
                 }
             },
             None => config,
-        }
+        })
     }
 
-    /// What this account is used for: its stored choice, or what the kind has always meant (mail,
-    /// plus the calendar and the address book beside it when a calendar endpoint is
-    /// configured).
+    /// What this account is used for: its stored choice, or what its endpoints have always
+    /// meant (its mailbox, plus its calendar and the address book beside it when it has them).
     #[must_use]
     pub fn capabilities(&self) -> crate::Capabilities {
-        let with_dav = self.caldav.is_some();
+        let with_calendar = self.caldav.is_some();
+        let with_contacts = with_calendar || self.carddav.is_some();
         self.shape.capabilities_or(
             [
-                Some(crate::Capability::Mail),
-                with_dav.then_some(crate::Capability::Calendar),
-                with_dav.then_some(crate::Capability::Contacts),
+                self.imap.is_some().then_some(crate::Capability::Mail),
+                with_calendar.then_some(crate::Capability::Calendar),
+                with_contacts.then_some(crate::Capability::Contacts),
             ]
             .into_iter()
             .flatten(),
@@ -345,8 +391,11 @@ impl AccountConfig {
     ///
     /// Returns [`IdError`] only if the derived id is empty (an empty username and host).
     pub fn derived_account_id(&self) -> Result<AccountId, IdError> {
-        let username = self.imap.username.trim().to_lowercase();
-        let host = self.imap.server_name.trim().to_lowercase();
+        let Some(imap) = &self.imap else {
+            return self.dav_account_id();
+        };
+        let username = imap.username.trim().to_lowercase();
+        let host = imap.server_name.trim().to_lowercase();
         AccountId::try_from(format!("{username}@{host}").as_str())
     }
 }
@@ -380,6 +429,9 @@ pub fn load(path: impl AsRef<Path>) -> Result<AccountConfig, ConfigError> {
 /// Returns [`ConfigError`] if the text is not valid config.
 pub fn load_str(text: &str) -> Result<AccountConfig, ConfigError> {
     let mut config: AccountConfig = toml::from_str(text)?;
+    if config.imap.is_none() && config.caldav.is_none() && config.carddav.is_none() {
+        return Err(ConfigError::NoEndpoint);
+    }
     config.shape = crate::AccountShape::read(text)?;
     Ok(config)
 }
@@ -405,6 +457,10 @@ pub enum ConfigError {
     /// A required account-setup field was empty.
     #[error("missing required field: {0}")]
     Incomplete(&'static str),
+    /// The config names no server: an account needs an `[imap]`, `[caldav]` or `[carddav]`
+    /// section.
+    #[error("the account names no server: it needs an [imap], [caldav] or [carddav] section")]
+    NoEndpoint,
     /// The setup fields could not be serialized to TOML.
     #[error("serializing config: {0}")]
     Serialize(#[from] toml::ser::Error),

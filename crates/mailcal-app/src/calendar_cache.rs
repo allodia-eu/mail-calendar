@@ -58,6 +58,8 @@ const HORIZON_DAYS_AHEAD: i64 = 400;
 pub(crate) struct CachedCalendar {
     /// The owning account's id.
     pub(crate) account: String,
+    /// The owning account's address, what a calendar list is grouped under.
+    pub(crate) account_address: String,
     /// The calendar's provider key, unique within its account.
     pub(crate) id: String,
     /// The display name.
@@ -192,16 +194,14 @@ impl<P: Provider> App<P> {
         let mut occurrences = Vec::new();
         let mut calendars = Vec::new();
         // Read by the window claim below: whether a calendar could ever arrive, and whether every
-        // account has been dialed yet. A boot placeholder has no providers of any kind
-        // (`boot/stored.rs`), so "no calendar provider" alone cannot tell a mail-only account from
-        // one nobody has connected to.
+        // account has been dialled yet. "No calendar provider" alone cannot tell an account without
+        // a calendar from one nobody has connected to, so the account says which it is.
         let mut expects_calendars = false;
         let mut every_account_connected = true;
         for account in self.account_handles().await {
             let account_id = account.id.as_str().to_owned();
             expects_calendars |= !account.calendar_providers.is_empty();
-            every_account_connected &=
-                !account.providers.is_empty() || !account.calendar_providers.is_empty();
+            every_account_connected &= account.dialled;
             let can_write = account.calendar_providers.first().is_some_and(|provider| {
                 provider
                     .connection_info()
@@ -212,6 +212,7 @@ impl<P: Provider> App<P> {
             for calendar in self.engine.calendars(&account.id).await.unwrap_or_default() {
                 calendars.push(CachedCalendar {
                     account: account_id.clone(),
+                    account_address: account.identity.email.clone(),
                     id: calendar.id.key().as_str().to_owned(),
                     name: calendar.name,
                     server_color: calendar.color,

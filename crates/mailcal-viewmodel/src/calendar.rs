@@ -34,6 +34,9 @@ pub use agenda::{AccountEvent, CalendarSnapshot, EventRow, build};
 pub struct CalendarRow {
     /// The owning account's id.
     pub account: String,
+    /// The owning account's address: what a calendar list is grouped under, since the id is not
+    /// something a person should read.
+    pub account_address: String,
     /// The calendar's provider key, unique within its account.
     pub id: String,
     /// The display name.

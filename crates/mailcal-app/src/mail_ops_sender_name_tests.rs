@@ -35,6 +35,8 @@ fn app_with_prefs(
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
+            dialled: true,
+            uses_mail: true,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),
@@ -215,6 +217,8 @@ fn app_with_identity(
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
+            dialled: true,
+            uses_mail: true,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),

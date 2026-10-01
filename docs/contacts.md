@@ -75,6 +75,18 @@ means the person is genuinely gone, never merely renumbered.
   character**: only the section and the sort key fold.
 - **The monogram initials.**
 
+### Where an account's contacts come from
+
+- **A standards account** reads CardDAV from its own `[carddav]` section when it has one, and
+  otherwise from its `[caldav]` origin and credentials, letting `.well-known/carddav` find the
+  address-book home. Nearly every server that speaks CalDAV for an account speaks CardDAV at the
+  same origin with the same login, so the section exists for the server that splits them and for an
+  account used for its contacts alone ([`accounts.md`](accounts.md)).
+- **Colleagues are a choice of their own.** A Microsoft or Google account binds the organisation's
+  directory (Graph `/users`, the Workspace directory) only when it is used for `colleagues`, which
+  every account stored before the choice existed is. Its own contacts are the `contacts` choice.
+- An account **not used for contacts** binds no contact source at all.
+
 ### A client
 
 - **All localised copy**, as everywhere: the core owns no locale facility. That includes the

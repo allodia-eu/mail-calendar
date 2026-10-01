@@ -10,12 +10,11 @@
 //!   (its bound book only decides where a *write* lands), so the account contributes exactly one,
 //!   driven through the engine's combined `sync_contacts`.
 //!
-//! **Where the CardDAV endpoint comes from.** There is deliberately no `[carddav]` config
-//! section: contacts reuse the account's `[caldav]` origin and credentials, and let
-//! `.well-known/carddav` find the address-book home from there. Virtually every server that
-//! speaks CalDAV for an account speaks CardDAV for it at the same origin with the same login,
-//! so a separate section would be a second thing for a user to type and get wrong. If a server
-//! ever needs them split, that is the moment to add the section: not before.
+//! **Where the CardDAV endpoint comes from.** The account's `[carddav]` section when it has one,
+//! and otherwise its `[caldav]` origin and credentials, letting `.well-known/carddav` find the
+//! address-book home from there. Virtually every server that speaks CalDAV for an account speaks
+//! CardDAV for it at the same origin with the same login, so the section exists for the server
+//! that splits them and for an account used for its contacts alone.
 
 use engine_api::AccountId;
 use engine_core::sync::SyncUpdate;
@@ -43,21 +42,22 @@ const DISCOVERY_ACCOUNT: &str = "carddav-discovery";
 ///
 /// # Errors
 ///
-/// Returns [`AccountError`] if the config has no `[caldav]` section, the shared TLS policy
+/// Returns [`AccountError`] if the config has neither a `[carddav]` nor a `[caldav]` section,
+/// the shared TLS policy
 /// cannot be built, or the *discovery* connection itself fails.
 pub async fn connect_carddav_contact_providers(
     account: &AccountConfig,
     tokens: crate::ImapTokens<'_>,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
-    // The same credential the account's calendar uses: Basic from the stored password, or the
-    // mail grant's bearer token on an OAuth account.
-    let credentials = crate::caldav_credentials(account, tokens).await?;
-    let caldav = account.caldav.as_ref().ok_or(AccountError::NoCalDav)?;
+    // The account's own `[carddav]` endpoint, or the calendar's when it has none; Basic from
+    // the stored password, or the account grant's bearer token on an OAuth account.
+    let endpoint = account.carddav_endpoint().ok_or(AccountError::NoCalDav)?;
+    let credentials = crate::config_dav::dav_credentials(account, endpoint, tokens).await?;
     let tls = account_tls(account)?;
     let config = CardDavConfig::new(
         // Tolerate a stored bare host the same way `connect_caldav` does, so an account
         // set up before scheme normalisation still connects.
-        normalize_caldav_base_url(&caldav.base_url),
+        normalize_caldav_base_url(endpoint.base_url),
         credentials,
     )
     .with_tls(tls)
@@ -67,7 +67,9 @@ pub async fn connect_carddav_contact_providers(
     // When a DAV ceiling is measured, this needs the account id threading through.
     .with_retry(ungated_retry());
 
-    let discovery = CardDavProvider::connect(config.clone()).await?;
+    let discovery = CardDavProvider::connect(config.clone())
+        .await
+        .map_err(AccountError::from_first_dav_connect)?;
     // Ask the server before assuming: an account whose CalDAV origin serves no CardDAV
     // reports no contacts capability, and syncing it would fail once per pass forever.
     if !discovery.connection_info().capabilities.contacts() {

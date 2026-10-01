@@ -5,8 +5,10 @@ use std::time::Instant;
 use engine_api::Provider;
 
 use crate::{
-    App, CalendarWriteStatus, calendar_cache::rolling_horizon,
+    App, CalendarWriteStatus,
+    calendar_cache::rolling_horizon,
     calendar_unexpandable::unexpandable_line,
+    sync_account::{Reach, reach_of_api, reachability, signin_expired},
 };
 
 impl<P: Provider> App<P> {
@@ -37,14 +39,27 @@ impl<P: Provider> App<P> {
         // draws *nowhere*, and dropping the report is what makes that unreproducible.
         let mut refused = Vec::new();
         for account in self.account_handles().await {
+            let mut reaches = Vec::new();
             for provider in &account.calendar_providers {
-                if let Ok(report) = self
+                let result = self
                     .engine
                     .sync_calendar(provider, &account.id, horizon, &zone)
-                    .await
-                {
+                    .await;
+                reaches.push(reach_of_api(&result));
+                if let Ok(report) = result {
                     refused.extend(report.events.unexpandable);
                 }
+            }
+            // An account with mail learns whether its server answers from its mail pass; one
+            // without learns it here, or it could never say it is unreachable or signed out.
+            if !account.uses_mail && !reaches.is_empty() {
+                if let Some(reachable) = reachability(Reach::Busy, reaches.iter().copied()) {
+                    self.set_account_reachable(&account.id, reachable);
+                }
+                self.apply_signin_expired(
+                    &account.id,
+                    signin_expired(Reach::Busy, reaches.into_iter()),
+                );
             }
             // A delta expands only changed events. Re-expanding keeps a quiet account materialized
             // as the rolling window advances.

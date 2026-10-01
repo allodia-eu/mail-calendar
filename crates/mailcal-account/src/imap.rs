@@ -126,7 +126,8 @@ async fn connect_account(
 ) -> Result<LiveImapAccount, AccountError> {
     let tls = account_tls(config)?;
     let credentials = imap_credential_source(config, tokens)?;
-    LiveImapAccount::connect(&config.imap_config(credentials), tls.connector())
+    let imap = config.imap_config(credentials)?;
+    LiveImapAccount::connect(&imap, tls.connector())
         .await
         .map_err(|err| AccountError::from_first_imap_login(err).over_tls(&tls))
 }

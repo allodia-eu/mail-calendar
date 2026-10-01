@@ -24,7 +24,11 @@ pub(crate) type ImapParts<'a> = (
 /// An IMAP account carries its config; a Microsoft account carries its config plus the
 /// shared, self-refreshing [`GraphTokenSource`] every one of its folder providers uses.
 /// Both hold credentials in memory only (never logged; their `Debug` redacts secrets).
+///
+/// The IMAP variant is the wider one because it carries a whole standards config. Boxing it would
+/// buy nothing: the registry holds one entry per account.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum ConnectedAccount {
     /// An IMAP/SMTP/CalDAV account and its connections.
     Imap {
@@ -109,6 +113,16 @@ impl ConnectedAccount {
             Self::Google { .. } => crate::AccountProvider::Google,
             Self::Jmap { config, .. } if config.is_oauth() => crate::AccountProvider::JmapOauth,
             Self::Jmap { .. } => crate::AccountProvider::Jmap,
+        }
+    }
+
+    /// What the account is used for: its stored choice, or what its kind has always meant.
+    pub(crate) fn capabilities(&self) -> mailcal_account::Capabilities {
+        match self {
+            Self::Imap { config, .. } => config.capabilities(),
+            Self::Microsoft { config, .. } => config.capabilities(),
+            Self::Google { config, .. } => config.capabilities(),
+            Self::Jmap { config, .. } => config.capabilities(),
         }
     }
 

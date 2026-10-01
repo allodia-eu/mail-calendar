@@ -46,6 +46,7 @@ private val NOW: LocalDateTime = LocalDateTime.of(2026, 7, 12, 9, 45)
 
 private fun calendarRow(id: String, canWrite: Boolean) = CalendarRow(
     account = "acct-1",
+    accountAddress = "me@example.org",
     id = id,
     name = id,
     color = CalendarColor(

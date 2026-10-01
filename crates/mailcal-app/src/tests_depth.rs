@@ -299,6 +299,8 @@ fn account(id: &str, provider: WindowProvider) -> Account<WindowProvider> {
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new(format!("me@{id}.local")),
+        dialled: true,
+        uses_mail: true,
     }
 }
 
