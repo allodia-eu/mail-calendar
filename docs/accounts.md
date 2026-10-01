@@ -22,6 +22,7 @@ Setting accounts up is [`onboarding.md`](onboarding.md) and
 | 10 | **A Microsoft or Google sign-in asks only for what the account is used for**, and a use whose scope the grant withholds is not opened, mail included: an account whose grant withholds mail opens as one without mail ([`provider-oauth.md`](provider-oauth.md) rule 10). Signing an existing account in again keeps its pinned id, its links and, unless the sign-in chose again, its capabilities. | A person who wants a calendar should not be asked for their mail, and an organisation that approved only some scopes should still be able to admit the app. |
 | 11 | **Settings → Accounts lists every account**, mail or not, from one core snapshot (`accounts_snapshot`): its address, its kind, each use its kind can offer in one of three states (**on**, **off**, **needs permission**: chosen, and the provider has not granted it), and its links by address. An empty snapshot means the last account is gone, and the client returns to first-run setup. | Four clients deciding which accounts exist, or what state a use is in, would decide it four ways. |
 | 12 | **A link fills a use the account is not used for itself**, and names an account that is: a mail account's `calendar` names a CalDAV calendar, its `contacts` an account used for contacts, and a calendar account's `mail` one of the mail accounts whose calendar it is, implied when there is only one. Any other stored link, dangling ones included, reads as none. A link is set only to one of the entry's `link_candidates` (`set_account_link`), and naming a calendar's mail account from the calendar links that mail account to it as well. Clearing a calendar's mail link unlinks its mail account when there is only one, and a second mail account linking a calendar leaves it sending through the first. **Removing an account clears every link to it** from the accounts that hold one, and the confirmation names them (`linked_from`). | A link is acted on without asking again, so one that no longer makes sense must stop counting at once; and a link left behind would attach itself to a different account added later under the same id. |
+| 13 | **Switching a use off stops it and deletes what the device holds of it at once** (`set_account_capability`); the provider's permission stays as it was, because an app cannot narrow a grant, and the copy says so. **Switching a use on** opens it when the account can, and otherwise changes nothing and says what is missing: the provider's permission (`NeedsConsent`, answered by signing in again for it) or a server (`NeedsEndpoint`). The last of mail, calendar and contacts cannot be switched off: the account is removed instead. The choice is stored with the account's id pinned. | Leaving a use's data behind after the person switched it off keeps what they asked to be rid of; and an account used for nothing is one nobody can find again in any surface. |
 
 ## 2. The stored shape
 
@@ -62,6 +63,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | Every account, its uses' states and its links in one snapshot | ✅ | — | — | — | — | — |
 | Removing an account clears the links to it | ✅ | — | — | — | — | — |
 | Setting a link to one of the offered accounts | ✅ | — | — | — | — | — |
+| Switching a use on or off, its data deleted when off | ✅ | — | — | — | — | — |
 | Setting up an account without mail | — | — | — | — | — | — |
 | Choosing capabilities, and linking accounts, in Settings | — | — | — | — | — | — |
 
@@ -106,5 +108,8 @@ for, so what opens is decided by the choice and never by the grant alone.
 - **Analytics cannot yet tell a calendar-and-contacts account apart**: such an account counts under
   `has_imap`. A `has_dav` key needs the analytics relay to accept it first, since its context is a
   strict whitelist and an unknown key rejects the whole batch ([`analytics.md`](analytics.md)).
+- **Switching colleagues off deletes the account's own contacts too**, until its next contacts
+  sync brings them back: the store keeps directory cards beside the account's own with no line
+  between them, so it can forget only both.
 - **One calendar per CalDAV account.** The account binds the calendar discovery finds first, or the
   one it names.

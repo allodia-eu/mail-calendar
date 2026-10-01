@@ -58,7 +58,9 @@ pub(crate) use inmemory::{build_demo, build_showcase, build_showcase_first_run};
 pub(crate) use outcome::DialFailure;
 use outcome::dial_registered;
 pub(crate) use outcome::{FailedDial, record_dial_outcome};
-pub(crate) use stored::{PreparedAccount, connect_graph_calendars, prepare_stored_account};
+pub(crate) use stored::{
+    PreparedAccount, connect_graph_calendars, placeholder, prepare_stored_account,
+};
 
 /// Builds a real account-backed app from the host's stored account `configs`: the body of
 /// [`MailcalApp::new_accounts`]; see that method for the full contract.

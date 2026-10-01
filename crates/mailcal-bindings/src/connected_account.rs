@@ -126,6 +126,29 @@ impl ConnectedAccount {
         }
     }
 
+    /// The address the account is known by: the signed-in address, or a standards account's
+    /// login.
+    pub(crate) fn identity(&self) -> engine_api::EmailAddress {
+        match self {
+            Self::Imap { config, .. } => {
+                engine_api::EmailAddress::new(config.username().to_owned())
+            }
+            Self::Microsoft { config, .. } => config.identity(),
+            Self::Google { config, .. } => config.identity(),
+            Self::Jmap { config, .. } => config.identity(),
+        }
+    }
+
+    /// The account's id, pinned or derived; `None` only for a config no id can be derived from.
+    pub(crate) fn account_id(&self) -> Option<engine_api::AccountId> {
+        match self {
+            Self::Imap { config, .. } => config.account_id().ok(),
+            Self::Microsoft { config, .. } => config.account_id().ok(),
+            Self::Google { config, .. } => config.account_id().ok(),
+            Self::Jmap { config, .. } => config.account_id().ok(),
+        }
+    }
+
     /// The same keys, to change in place.
     pub(crate) const fn shape_mut(&mut self) -> &mut mailcal_account::AccountShape {
         match self {
@@ -149,23 +172,14 @@ impl ConnectedAccount {
     /// What Settings → Accounts lists about the account `id`.
     pub(crate) fn facts(&self, id: &str) -> crate::accounts_view::AccountFacts {
         let chosen = self.capabilities();
-        let (address, kind, files_invitations) = match self {
-            Self::Imap { config, .. } => (
-                config.username().to_owned(),
-                if chosen.contains(mailcal_account::Capability::Mail) {
-                    crate::AccountKind::Imap
-                } else {
-                    crate::AccountKind::Dav
-                },
-                config.caldav.is_some(),
-            ),
-            Self::Microsoft { config, .. } => {
-                (config.email.clone(), crate::AccountKind::Microsoft, false)
+        let (kind, files_invitations) = match self {
+            Self::Imap { config, .. } if chosen.contains(mailcal_account::Capability::Mail) => {
+                (crate::AccountKind::Imap, config.caldav.is_some())
             }
-            Self::Google { config, .. } => {
-                (config.email.clone(), crate::AccountKind::Google, false)
-            }
-            Self::Jmap { config, .. } => (config.email.clone(), crate::AccountKind::Jmap, false),
+            Self::Imap { config, .. } => (crate::AccountKind::Dav, config.caldav.is_some()),
+            Self::Microsoft { .. } => (crate::AccountKind::Microsoft, false),
+            Self::Google { .. } => (crate::AccountKind::Google, false),
+            Self::Jmap { .. } => (crate::AccountKind::Jmap, false),
         };
         let withheld = match self {
             Self::Microsoft { config, .. } => config.withheld_capabilities(),
@@ -174,7 +188,7 @@ impl ConnectedAccount {
         };
         crate::accounts_view::AccountFacts {
             id: id.to_owned(),
-            address,
+            address: self.identity().email,
             kind,
             chosen,
             withheld,

@@ -38,6 +38,7 @@ mod app_accounts;
 mod app_accounts_consent;
 mod app_accounts_google;
 mod app_accounts_microsoft;
+mod app_accounts_uses;
 mod app_accounts_view;
 mod app_allodia;
 mod app_allodia_purchase;
@@ -183,8 +184,8 @@ pub use records::{
     },
 };
 pub use records_accounts::{
-    AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot, CapabilityState,
-    LinkCandidates, LinkSlot, LinkedAccount,
+    AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot, CapabilityChange,
+    CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{
