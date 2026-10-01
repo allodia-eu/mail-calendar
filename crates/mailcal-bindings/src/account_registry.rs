@@ -55,6 +55,7 @@ mod credentials;
 mod dial;
 mod dial_parts;
 mod dial_run;
+mod links;
 
 pub(crate) use dial::{AccountDial, ConnectFailure, dial_all};
 
@@ -303,13 +304,7 @@ impl AccountRegistry {
             .expect("account registry mutex poisoned");
         let mut configs = std::collections::BTreeMap::new();
         for (id, entry) in entries.iter() {
-            let serialized = match entry {
-                ConnectedAccount::Imap { config, .. } => config.to_toml(),
-                ConnectedAccount::Microsoft { config, .. } => config.to_toml(),
-                ConnectedAccount::Google { config, .. } => config.to_toml(),
-                ConnectedAccount::Jmap { config, .. } => config.to_toml(),
-            };
-            match serialized {
+            match entry.to_toml() {
                 Ok(toml) => {
                     configs.insert(id.clone(), toml);
                 }

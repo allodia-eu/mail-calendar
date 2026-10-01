@@ -308,7 +308,9 @@ impl MailcalApp {
     }
 
     /// Removes the account `id`: stops its background sync, drops it from the reconnection
-    /// registry, removes it from the runtime (switcher, selection) so its mail leaves the list,
+    /// registry, clears every link the other accounts hold to it (storing each one it changed;
+    /// [`AccountEntry::linked_from`](crate::AccountEntry::linked_from) names them beforehand),
+    /// removes it from the runtime (switcher, selection) so its mail leaves the list,
     /// and **erases its credential** from the host's OS secure store so it does not return at the
     /// next launch. The observer fires as the snapshot rebuilds. A no-op for an unknown id.
     ///
@@ -326,6 +328,7 @@ impl MailcalApp {
         #[cfg(feature = "allodia-license")]
         self.forget_allodia_record(&id);
         self.registry.remove(&id);
+        self.clear_links_to(&id);
         self.refresh_analytics_accounts();
         // Drop it from the reconnect queue too, so a pending retry doesn't try to re-dial an
         // account the user just removed (the in-flight-plan case is caught by the registry

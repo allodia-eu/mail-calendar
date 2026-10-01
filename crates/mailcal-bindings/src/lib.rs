@@ -20,6 +20,7 @@ mod about;
 mod account_capability;
 mod account_registry;
 mod account_repair;
+mod accounts_view;
 mod agent_ui;
 mod allodia;
 mod allodia_health;
@@ -37,6 +38,7 @@ mod app_accounts;
 mod app_accounts_consent;
 mod app_accounts_google;
 mod app_accounts_microsoft;
+mod app_accounts_view;
 mod app_allodia;
 mod app_allodia_purchase;
 mod app_allodia_subscription;
@@ -90,6 +92,7 @@ mod protocol;
 mod protocol_surface;
 mod reconnect;
 mod records;
+mod records_accounts;
 mod records_avatar;
 mod records_calendar;
 mod records_connectivity;
@@ -178,6 +181,10 @@ pub use records::{
         SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings,
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
+};
+pub use records_accounts::{
+    AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot, CapabilityState,
+    LinkedAccount,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{

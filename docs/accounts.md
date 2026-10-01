@@ -20,6 +20,8 @@ Setting accounts up is [`onboarding.md`](onboarding.md) and
 | 8 | **An account is named by its address wherever a person reads it**, never by its id: a calendar row carries `account_address`, and a client heads its calendar groups with it. | An id is `address@provider-host`, which is not something a person should read. |
 | 9 | **An account's id is stable across edits of the settings it was derived from.** It is derived from those settings until it is pinned (`id`), and a pinned id wins. A standards account without a mailbox is `username@dav:host`. | Preferences, signatures, links and the store are keyed by the id; an edit that changed it would turn one account into a different one. |
 | 10 | **A Microsoft or Google sign-in asks only for what the account is used for**, and a use whose scope the grant withholds is not opened, mail included: an account whose grant withholds mail opens as one without mail ([`provider-oauth.md`](provider-oauth.md) rule 10). Signing an existing account in again keeps its pinned id, its links and, unless the sign-in chose again, its capabilities. | A person who wants a calendar should not be asked for their mail, and an organisation that approved only some scopes should still be able to admit the app. |
+| 11 | **Settings → Accounts lists every account**, mail or not, from one core snapshot (`accounts_snapshot`): its address, its kind, each use its kind can offer in one of three states (**on**, **off**, **needs permission**: chosen, and the provider has not granted it), and its links by address. An empty snapshot means the last account is gone, and the client returns to first-run setup. | Four clients deciding which accounts exist, or what state a use is in, would decide it four ways. |
+| 12 | **A link fills a use the account is not used for itself**, and names an account that is: a mail account's `calendar` names a CalDAV calendar, its `contacts` an account used for contacts, and a calendar account's `mail` one of the mail accounts whose calendar it is, implied when there is only one. Any other stored link, dangling ones included, reads as none. **Removing an account clears every link to it** from the accounts that hold one, and the confirmation names them (`linked_from`). | A link is acted on without asking again, so one that no longer makes sense must stop counting at once; and a link left behind would attach itself to a different account added later under the same id. |
 
 ## 2. The stored shape
 
@@ -57,6 +59,8 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | A standards account without a mailbox connects its calendar and contacts | ✅ | — | — | — | — | — |
 | An account without mail is kept out of the mail surfaces | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar groups headed by the account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Every account, its uses' states and its links in one snapshot | ✅ | — | — | — | — | — |
+| Removing an account clears the links to it | ✅ | — | — | — | — | — |
 | Setting up an account without mail | — | — | — | — | — | — |
 | Choosing capabilities, and linking accounts, in Settings | — | — | — | — | — | — |
 
@@ -91,10 +95,11 @@ for, so what opens is decided by the choice and never by the grant alone.
   hands the address over with the id.
 - **Links are stored but not acted on.** An invitation still files into, and answers from, the
   account whose mail it arrived in, and "save contact" still writes to the account in view.
-- **A capability has two states, on and off.** "Needs permission" (chosen but not granted),
-  "not offered" (the server has none) and "failing" have no representation yet. A use a Microsoft
-  or Google grant withholds is closed silently (Microsoft's calendar aside, which raises its
-  re-consent prompt), and a JMAP session that lacks a chosen capability binds nothing for it.
+- **A use has three states, on, off and needs permission.** "Not offered" (the server has none)
+  and "failing" have no representation yet: a JMAP session that lacks a chosen capability binds
+  nothing for it and still reads as on. No client draws Settings → Accounts from the snapshot yet,
+  so a use a Microsoft or Google grant withholds is still closed without a word (Microsoft's
+  calendar aside, which raises its re-consent prompt).
 - **A JMAP account without mail still opens its session through the mail provider**, because that
   is what reads which calendars and contacts the account has; it binds no mail from it.
 - **Analytics cannot yet tell a calendar-and-contacts account apart**: such an account counts under
