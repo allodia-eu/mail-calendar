@@ -24,7 +24,7 @@ use crate::{
     fetch::{Fetch, FetchOutcome, FetchResponse},
     mx,
     strategy::StrategyOutcome,
-    types::{DetectedJmap, Domain, EmailParts, Source, SourceKind},
+    types::{DetectedDav, DetectedJmap, Domain, EmailParts, Source, SourceKind},
     urls,
 };
 
@@ -89,6 +89,7 @@ async fn probe_apex(
             kind: SourceKind::JmapWellKnown,
             url: response.final_url.to_string(),
         },
+        dav: DetectedDav::default(),
     })
 }
 
@@ -133,6 +134,7 @@ async fn probe_via_srv(
                     kind: SourceKind::JmapSrv,
                     url: response.final_url.to_string(),
                 },
+                dav: DetectedDav::default(),
             });
         }
     }

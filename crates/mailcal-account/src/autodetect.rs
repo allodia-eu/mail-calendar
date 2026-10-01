@@ -40,6 +40,12 @@ pub enum SetupRecommendation {
         is_trusted: bool,
         /// Provenance, for diagnostics.
         source: String,
+        /// A CalDAV endpoint found beside the JMAP server, for an account whose session
+        /// turns out to offer no calendars.
+        caldav_url: Option<String>,
+        /// A CardDAV endpoint found beside the JMAP server, for an account whose session
+        /// turns out to offer no contacts.
+        carddav_url: Option<String>,
     },
     /// IMAP/SMTP settings were found; route to the password form.
     Imap {
@@ -67,6 +73,9 @@ pub enum SetupRecommendation {
         /// manual CalDAV field. This is a discovery hint: the engine does the real
         /// authenticated collection discovery at connect.
         caldav_url: Option<String>,
+        /// A CardDAV endpoint discovered for the account, or `None` when none was found, in
+        /// which case contacts are looked for at the calendar's endpoint.
+        carddav_url: Option<String>,
         /// The OAuth issuer the provider's own autoconfig named, when it named one. The client
         /// passes it back on [`ImapAuthQuery`](crate::ImapAuthQuery), where it is the first
         /// authorization server tried; `None` is the ordinary case, and the well-known probe
@@ -88,6 +97,16 @@ pub enum SetupRecommendation {
     Google {
         /// The typed email address.
         email: String,
+    },
+    /// No mail server was found, but the domain names a calendar or address-book server:
+    /// route to an account used for calendar and contacts only.
+    Dav {
+        /// The typed email address, the login to prefill.
+        email: String,
+        /// The CalDAV endpoint found, or `None`.
+        caldav_url: Option<String>,
+        /// The CardDAV endpoint found, or `None`.
+        carddav_url: Option<String>,
     },
     /// Nothing usable; fall back to manual setup with a reason.
     Manual {
@@ -183,8 +202,15 @@ pub fn recommend(email: &str, detected: Detected, routes: OauthRoutes) -> SetupR
             server_url: jmap.base_url,
             is_trusted: jmap.is_trusted,
             source: jmap.source.url,
+            caldav_url: jmap.dav.caldav_url,
+            carddav_url: jmap.dav.carddav_url,
         },
         Detected::Mail(settings) => recommend_mail(email, &settings, routes),
+        Detected::Dav(dav) => SetupRecommendation::Dav {
+            email: email.to_owned(),
+            caldav_url: dav.caldav_url,
+            carddav_url: dav.carddav_url,
+        },
         Detected::Nothing { network_error } => SetupRecommendation::Manual {
             reason: if network_error {
                 MissReason::NetworkError
@@ -249,7 +275,8 @@ fn recommend_mail(
         smtp_security: outgoing.map_or(ConnectionSecurity::ImplicitTls, |s| security_of(s.socket)),
         incoming: summary(incoming, "IMAP"),
         outgoing: outgoing.map(|server| summary(server, "SMTP")),
-        caldav_url: settings.caldav_url.clone(),
+        caldav_url: settings.dav.caldav_url.clone(),
+        carddav_url: settings.dav.carddav_url.clone(),
         oauth_issuer: settings.oauth_issuer.clone(),
         is_trusted: settings.is_trusted,
         source: settings.source.url.clone(),
@@ -332,3 +359,7 @@ fn summary(server: &DetectedServer, protocol: &str) -> ServerSummary {
 #[cfg(test)]
 #[path = "autodetect_tests.rs"]
 mod autodetect_tests;
+
+#[cfg(test)]
+#[path = "autodetect_dav_tests.rs"]
+mod autodetect_dav_tests;

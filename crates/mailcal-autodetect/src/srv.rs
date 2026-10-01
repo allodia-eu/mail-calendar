@@ -20,8 +20,8 @@ use crate::{
     DetectConfig, mx,
     strategy::StrategyOutcome,
     types::{
-        AuthKind, DetectedMailSettings, DetectedServer, Domain, EmailParts, SocketKind, Source,
-        SourceKind,
+        AuthKind, DetectedDav, DetectedMailSettings, DetectedServer, Domain, EmailParts,
+        SocketKind, Source, SourceKind,
     },
 };
 
@@ -75,9 +75,9 @@ pub(crate) async fn run(
             kind: SourceKind::ImapSrv,
             url: format!("{IMAPS_SERVICE}.{}", email.domain),
         },
-        // The orchestrator's RFC 6764 follow-on fills this; SRV mail records carry no
-        // calendar endpoint, exactly as autoconfig/ISPDB don't.
-        caldav_url: None,
+        // The orchestrator's RFC 6764 probe fills this; SRV mail records carry no DAV
+        // endpoint, exactly as autoconfig/ISPDB don't.
+        dav: DetectedDav::default(),
     })
 }
 

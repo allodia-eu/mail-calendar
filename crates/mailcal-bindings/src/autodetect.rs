@@ -407,6 +407,7 @@ fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecomme
             server_url,
             is_trusted,
             source,
+            ..
         } => SetupRecommendation::Jmap {
             email,
             server_url,
@@ -425,6 +426,7 @@ fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecomme
             caldav_url,
             is_trusted,
             source,
+            ..
         } => SetupRecommendation::Imap {
             email,
             imap_host,
@@ -440,6 +442,9 @@ fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecomme
         },
         R::Microsoft { email } => SetupRecommendation::Microsoft { email },
         R::Google { email } => SetupRecommendation::Google { email },
+        R::Dav { .. } => SetupRecommendation::Manual {
+            reason: MissReason::NothingFound,
+        },
         R::Manual { reason } => SetupRecommendation::Manual {
             reason: convert_reason(reason),
         },
