@@ -957,5 +957,7 @@
 	"settings_account_link_mail": "Sendet Einladungen über",
 	"settings_account_link_none": "Keins",
 	"settings_account_linked_line": "{capability}: {address}",
-	"remove_account_unlinks": "Die Verknüpfung mit {accounts} wird ebenfalls aufgehoben."
+	"remove_account_unlinks": "Die Verknüpfung mit {accounts} wird ebenfalls aufgehoben.",
+	"settings_account_link_suggested": "Vorschlag: {address}",
+	"action_link": "Verknüpfen"
 }

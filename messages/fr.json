@@ -957,5 +957,7 @@
 	"settings_account_link_mail": "Envoie les invitations via",
 	"settings_account_link_none": "Aucun",
 	"settings_account_linked_line": "{capability}: {address}",
-	"remove_account_unlinks": "Il est aussi dissocié de {accounts}."
+	"remove_account_unlinks": "Il est aussi dissocié de {accounts}.",
+	"settings_account_link_suggested": "Suggestion : {address}",
+	"action_link": "Lier"
 }

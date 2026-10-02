@@ -155,3 +155,18 @@ fn a_linked_account_missing_from_the_candidates_is_still_shown() {
     assert_eq!(pickers[0].options, [linked("book@cloud.example")]);
     assert_eq!(pickers[0].selected, Some(0));
 }
+
+#[test]
+fn a_suggestion_is_offered_only_where_nothing_is_linked() {
+    let mut entry = mailbox_only();
+    entry.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
+    entry.link_candidates.suggested = vec!["b@cloud.example".to_owned()];
+    assert_eq!(link_pickers(&entry)[0].suggested, Some(1));
+
+    entry.links.calendar = Some(linked("a@cloud.example"));
+    assert_eq!(
+        link_pickers(&entry)[0].suggested,
+        None,
+        "a link already made is not second-guessed"
+    );
+}

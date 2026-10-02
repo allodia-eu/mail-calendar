@@ -957,5 +957,7 @@
 	"settings_account_link_mail": "Verstuurt uitnodigingen via",
 	"settings_account_link_none": "Geen",
 	"settings_account_linked_line": "{capability}: {address}",
-	"remove_account_unlinks": "Het wordt ook losgekoppeld van {accounts}."
+	"remove_account_unlinks": "Het wordt ook losgekoppeld van {accounts}.",
+	"settings_account_link_suggested": "Suggestie: {address}",
+	"action_link": "Koppelen"
 }

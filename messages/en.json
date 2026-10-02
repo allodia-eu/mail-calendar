@@ -957,5 +957,7 @@
 	"settings_account_link_mail": "Sends invitations through",
 	"settings_account_link_none": "None",
 	"settings_account_linked_line": "{capability}: {address}",
-	"remove_account_unlinks": "It is also unlinked from {accounts}."
+	"remove_account_unlinks": "It is also unlinked from {accounts}.",
+	"settings_account_link_suggested": "Suggested: {address}",
+	"action_link": "Link"
 }
