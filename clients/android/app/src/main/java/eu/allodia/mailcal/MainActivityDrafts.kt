@@ -31,13 +31,16 @@ import uniffi.mailcal_bindings.ThreadRow
 private const val TAG = "Mailcal"
 
 /**
- * The four verbs a composer keeps its draft with, bound to this activity's core instance.
+ * The verbs a composer keeps its draft with, bound to this activity's core instance.
  *
  * Built once per recomposition so every composer on screen saves, discards and closes through the
  * same calls, and carries the draft-status counter so each of them can pull its own state.
  */
 internal fun MainActivity.composerDrafts(instance: MailcalApp) = ComposerDrafts(
-    save = { composition, content -> saveDraft(instance, composition, content) },
+    save = { composition, content -> saveDraft(instance, composition, content, close = false) },
+    saveAndClose = { composition, content ->
+        saveDraft(instance, composition, content, close = true)
+    },
     discard = { composition ->
         try {
             instance.discardDraft(composition)
@@ -59,6 +62,14 @@ internal fun MainActivity.composerDrafts(instance: MailcalApp) = ComposerDrafts(
             DraftStatus.IDLE
         }
     },
+    isStored = { composition ->
+        try {
+            instance.draftIsStored(composition)
+        } catch (e: MailcalException) {
+            // Read as stored, so Discard asks rather than removing a copy it could not account for.
+            true
+        }
+    },
     version = drafts.draftStatusVersion,
     idleSeconds = draftAutosaveIdleSeconds(),
 )
@@ -72,11 +83,18 @@ internal fun MainActivity.composerDrafts(instance: MailcalApp) = ComposerDrafts(
  * a composer can pick a file at any moment.
  *
  * Fire and forget: it returns as soon as the document validates, and the outcome arrives as a
- * `Surface::DraftStatus` signal. A save with no network is queued, not lost.
+ * `Surface::DraftStatus` signal. A save with no network is queued, not lost. With `close`, the core
+ * forgets the composition once the save has settled, which is what leaving the composer means.
  */
-private fun saveDraft(instance: MailcalApp, composition: String, content: ComposerSubmission) {
+private fun saveDraft(
+    instance: MailcalApp,
+    composition: String,
+    content: ComposerSubmission,
+    close: Boolean,
+) {
     try {
-        instance.saveDraftWithFiles(
+        val save = if (close) instance::saveDraftAndClose else instance::saveDraftWithFiles
+        save(
             composition,
             content.recipients,
             content.subject,

@@ -154,8 +154,8 @@ internal fun RichComposeMessageDialog(
     // key would let a share arriving over an OPEN composer replace the files the user had
     // picked. A share reaching a busy composer waits (MailboxScreen), it does not overwrite.
     var attachments by remember { mutableStateOf(initialAttachments.map(::seededComposerFile)) }
-    // A forward's staged files are the baseline the discard guard measures against: they are still
-    // in the mailbox, so abandoning the forward loses nothing. A share's are the user's own choice.
+    // A forward's staged files are the baseline the written-work check measures against: they are
+    // still in the mailbox, so abandoning the forward loses nothing. A share's are the user's own choice.
     val baselineAttachments = if (mode == RichComposeMode.Forward) initialAttachments.size else 0
     // Pictures dropped on the composer, waiting on the one question they raise. Held rather than
     // acted on, because the answer decides whether they become body content or attachments.
@@ -171,8 +171,8 @@ internal fun RichComposeMessageDialog(
     var signatureChoice by remember { mutableStateOf<SignatureChoice?>(null) }
     var signatureMenuOpen by remember { mutableStateOf(false) }
     // The editor document as it stood once the quote and signature were seeded, the baseline the
-    // discard guard compares against, so a reply that merely carries its quoted original does not
-    // open already dirty. Null until the editor answers, which reads as "nothing to lose".
+    // written-work check compares against, so a reply that merely carries its quoted original does
+    // not open already written in. Null until the editor answers, which reads as "nothing to lose".
     var seedDocument by remember { mutableStateOf<String?>(null) }
     var confirmingDiscard by remember { mutableStateOf(false) }
     // This composer's composition, for as long as it is open: the host's handle on one composer,
@@ -194,6 +194,9 @@ internal fun RichComposeMessageDialog(
     // and finishes with it when the message settles, so forgetting it here as well would race the
     // cleanup that takes the stored draft away (docs/drafts.md).
     var draftSubmitted by remember { mutableStateOf(false) }
+    // Whether the composer was left through a call that already finished with the composition: a
+    // save-and-close or a discard. Disposal then has nothing left to forget.
+    var draftLeft by remember { mutableStateOf(false) }
     // Resolved fresh on every read rather than held in state: the account's assignment can change
     // under an open composer (Settings is reachable from the notification shade), and this is a
     // cheap in-memory core lookup.
@@ -207,11 +210,11 @@ internal fun RichComposeMessageDialog(
         onDispose {
             webView?.destroy()
             webView = null
-            // A composer that closed without sending. Without it the core holds a record per
+            // A composer that closed with nothing to keep. Without it the core holds a record per
             // composer for the life of the process, and the stored draft would be superseded by
             // whatever the next composer to take this id wrote. Never after a submit: the send
             // finishes with the composition itself (docs/drafts.md).
-            if (!draftSubmitted) {
+            if (!draftSubmitted && !draftLeft) {
                 drafts?.close(compositionId)
             }
         }
@@ -222,32 +225,6 @@ internal fun RichComposeMessageDialog(
         RichComposeMode.Reply -> L10n.action_reply(ctx)
         RichComposeMode.ReplyAll -> L10n.action_reply_all(ctx)
         RichComposeMode.Forward -> L10n.action_forward(ctx)
-    }
-
-    // Closing the composer, the ✕ AND the system back, which is the whole point: one of them is a
-    // deliberate tap and the other is an edge swipe you can make by accident, and they must not
-    // differ about whether a half-written message survives. A clean composer closes silently; there
-    // is nothing to lose, and stopping to say so would be noise.
-    //
-    // The body check is asynchronous (a hop into the WebView), so it runs only here, at the one
-    // moment the answer is needed, rather than on every keystroke.
-    val requestDismiss = dismiss@{
-        if (composerHeadersEdited(
-                to, seededTo, cc, seededCc, bcc, seededBcc, subject, initialSubject,
-                attachments.size, baselineAttachments,
-            )
-        ) {
-            confirmingDiscard = true
-            return@dismiss
-        }
-        val view = webView
-        if (view == null || seedDocument == null) {
-            onDismiss()
-            return@dismiss
-        }
-        view.evaluateJavascript("composerDocument()") { encoded ->
-            if (decodeJsString(encoded) == seedDocument) onDismiss() else confirmingDiscard = true
-        }
     }
 
     // What the composer holds, for a send or a save. `composition` is named whenever this composer
@@ -282,25 +259,29 @@ internal fun RichComposeMessageDialog(
         }
     }
 
-    // Stores the draft now, whatever the idle timer is doing. Both triggers land here and the core
-    // cannot tell them apart, which is deliberate: saving an unchanged draft reaches no server.
-    //
-    // A document the editor cannot render is dropped rather than shown. Saving is never something
-    // the user waits for, and never something a composer refuses to be dismissed over; a save the
-    // *server* refuses is reported, through the hint.
-    val saveDraft = {
-        val store = drafts
-        if (store != null) {
-            webView?.evaluateJavascript("composerDocument()") { encoded ->
-                decodeJsString(encoded)?.let { store.save(compositionId, contentOf(it)) }
-            }
-        }
-    }
+    val exits = ComposerExits(
+        drafts = drafts,
+        composition = compositionId,
+        headersEdited = {
+            composerHeadersEdited(
+                to, seededTo, cc, seededCc, bcc, seededBcc, subject, initialSubject,
+                attachments.size, baselineAttachments,
+            )
+        },
+        readDocument = { answer ->
+            webView?.evaluateJavascript("composerDocument()") { answer(decodeJsString(it)) }
+                ?: answer(null)
+        },
+        seedDocument = { seedDocument },
+        contentOf = contentOf,
+        ask = { confirmingDiscard = true },
+        left = { draftLeft = true },
+        dismiss = onDismiss,
+    )
 
     // usePlatformDefaultWidth = false is what lets the dialog fill the viewport rather than sit in
     // the platform's inset alert-dialog box. The system back button reaches onDismissRequest, so
-    // back leaves the composer exactly like the Close button, including the discard guard both
-    // now route through.
+    // back leaves the composer exactly like the Close button.
     //
     // decorFitsSystemWindows = false is required alongside it. Left at its default the dialog
     // window is *floating*, so the system adjusts it for the keyboard itself (a pan that scrolls
@@ -310,7 +291,7 @@ internal fun RichComposeMessageDialog(
     // It also means the window now spans the status/navigation bars; the Scaffold's TopAppBar and
     // content insets pad for them.
     Dialog(
-        onDismissRequest = requestDismiss,
+        onDismissRequest = exits::leave,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false,
@@ -326,7 +307,7 @@ internal fun RichComposeMessageDialog(
                 topBar = {
                     ComposerTopBar(
                         title = title,
-                        onClose = requestDismiss,
+                        onClose = exits::leave,
                         onAttach = { pickAttachments.launch(arrayOf("*/*")) },
                         signaturePicker = signatures
                             ?.takeIf { it.library.isNotEmpty() }
@@ -347,7 +328,8 @@ internal fun RichComposeMessageDialog(
                                     )
                                 }
                             },
-                        onSaveDraft = saveDraft.takeIf { drafts != null },
+                        onSaveDraft = (exits::save).takeIf { drafts != null },
+                        onDiscard = (exits::discard).takeIf { drafts != null },
                         sendEnabled = to.isNotBlank() && from != null,
                         onSend = send,
                     )
@@ -365,7 +347,7 @@ internal fun RichComposeMessageDialog(
                     changes = draftChanges,
                     onChanged = { draftChanges += 1 },
                     onStatus = { draftStatus = it },
-                    onIdle = saveDraft,
+                    onIdle = exits::save,
                 )
                 LaunchedEffect(headerHeightPx) {
                     if (headerHeightPx > 0) {
@@ -482,12 +464,9 @@ internal fun RichComposeMessageDialog(
                         DiscardDraftDialog(
                             onDiscard = {
                                 confirmingDiscard = false
-                                // The one path that takes the stored copy off the server; closing
-                                // the composer any other way leaves the draft in Drafts. Before
-                                // the dismiss, which disposes this composer and would otherwise
-                                // forget the composition first (`docs/drafts.md`).
-                                drafts?.discard(compositionId)
-                                onDismiss()
+                                // The one path that takes the stored copy off the server; leaving
+                                // the composer any other way keeps the draft in Drafts.
+                                exits.confirmDiscard()
                             },
                             onKeepEditing = { confirmingDiscard = false },
                         )

@@ -49,8 +49,8 @@ internal data class ComposerSubmission(
 )
 
 /**
- * The four core verbs a composer keeps its draft with, each naming the composition the composer
- * minted for itself.
+ * The core verbs a composer keeps its draft with, each naming the composition the composer minted
+ * for itself.
  *
  * Passed as a value rather than the activity, as [ComposerSignatures] is, so the composer stays
  * free of it; null turns draft saving off entirely, which is what a screenshot run and a test
@@ -59,12 +59,19 @@ internal data class ComposerSubmission(
 internal class ComposerDrafts(
     /** Stores what the composer holds, superseding this composition's previous save. */
     val save: (composition: String, content: ComposerSubmission) -> Unit,
+    /**
+     * Stores what the composer holds and forgets the composition: what leaving a composer that was
+     * written in means. One call, so the close cannot overtake the save and leave two copies.
+     */
+    val saveAndClose: (composition: String, content: ComposerSubmission) -> Unit,
     /** Removes the stored copy from the server and forgets the composition. */
     val discard: (composition: String) -> Unit,
     /** Forgets the composition, leaving the stored draft in Drafts: what closing a composer means. */
     val close: (composition: String) -> Unit,
     /** How this composition's most recent save ended. */
     val status: (composition: String) -> DraftStatus,
+    /** Whether a copy is in Drafts or queued for it: what Discard would remove. */
+    val isStored: (composition: String) -> Boolean,
     /**
      * The activity's count of `Surface::DraftStatus` signals. The signal names no composition, so
      * a composer watches this and then asks for its own state.

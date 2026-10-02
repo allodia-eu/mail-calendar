@@ -1,11 +1,14 @@
-// The unsent-draft guard's dirtiness rule, which Android inherited when the back
-// button made "throw the draft away" a one-swipe accident.
+// The rule for whether a composer was written in, which decides whether leaving it keeps a draft
+// and whether Discard asks first (docs/drafts.md, "Leaving a composer").
 //
 // The rule is the desktops': compare against what the composer OPENED with, not against empty.
 // That distinction is the whole test, a reply arrives with its To (and a reply-all with its Cc)
-// pre-filled by the core, so "non-empty" would prompt on every reply nobody had typed into, and a
-// prompt that fires when there is nothing to lose is the one failure that teaches users to dismiss
-// it without reading.
+// pre-filled by the core, so "non-empty" would put every reply nobody had typed into in Drafts,
+// and make Discard ask about a message there was nothing to lose in.
+//
+// The composers here keep no drafts, the one kind that still asks on the way out: with nowhere to
+// put written work, leaving would otherwise lose it. ComposerDraftTest covers a composer that
+// keeps them.
 package eu.allodia.mailcal
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -186,22 +189,21 @@ class ComposerDiscardTest {
      *
      * The composer is a `Dialog`, so it owns a window with its own `OnBackPressedDispatcher`, and
      * back reaches it as `onDismissRequest` rather than through the activity's dispatcher this
-     * suite drives. Both are wired to the SAME lambda (`requestDismiss`), so pressing ✕ here
+     * suite drives. Both are wired to the SAME call (`ComposerExits.leave`), so pressing ✕ here
      * exercises exactly the path back takes; that back does reach it is Compose `Dialog` behaviour,
      * confirmed on a device.
      */
     private fun closeComposer() {
-        compose.onNodeWithContentDescription(L10n.action_cancel(ctx())).performClick()
+        compose.onNodeWithContentDescription(L10n.action_close(ctx())).performClick()
         compose.waitForIdle()
     }
 
     /**
-     * The reason this guard reached Android at all: back is one edge swipe, and it used to throw a
-     * half-written message away without a word. Now it asks, the same prompt macOS and Windows
-     * raise.
+     * Back is one edge swipe. A composer with nowhere to keep a draft asks before that loses what
+     * was written.
      */
     @Test
-    fun leaving_the_composer_asks_before_discarding_written_work() {
+    fun a_composer_keeping_no_drafts_asks_before_losing_written_work() {
         val closed = mutableListOf<Unit>()
         composer(closed)
         compose.onNodeWithText(L10n.compose_subject(ctx())).performTextInput("Lunch on Friday")
@@ -232,10 +234,7 @@ class ComposerDiscardTest {
         assertEquals(1, closed.size)
     }
 
-    /**
-     * An untouched composer closes silently. A prompt that fires when there is nothing to lose is
-     * the one failure that teaches people to dismiss it without reading.
-     */
+    /** An untouched composer closes silently: there is nothing to keep and nothing to ask. */
     @Test
     fun leaving_an_untouched_composer_just_closes_it() {
         val closed = mutableListOf<Unit>()

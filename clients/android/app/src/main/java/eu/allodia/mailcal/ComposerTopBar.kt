@@ -1,5 +1,6 @@
-// The composer's app bar: Close on the left, and Attach, Signature, Save as draft and Send on the
-// right.
+// The composer's app bar: Close on the left, and Attach, Signature, Save as draft, Discard and Send
+// on the right. Close is leaving, which keeps the draft; Discard is the one control that throws it
+// away (docs/drafts.md, "Leaving a composer").
 //
 // The app bar IS this platform's action bar, which is where docs/signatures.md puts the signature
 // control and docs/drafts.md the Save action: each is something you do to the message, not a field
@@ -31,6 +32,8 @@ internal fun ComposerTopBar(
     // unfinished by definition, so there is no state this refuses, and pressing it on an unchanged
     // message reaches no server (`docs/drafts.md`).
     onSaveDraft: (() -> Unit)?,
+    // Throwing the draft away, or null when this composer keeps none.
+    onDiscard: (() -> Unit)?,
     sendEnabled: Boolean,
     onSend: () -> Unit,
 ) {
@@ -41,7 +44,7 @@ internal fun ComposerTopBar(
             IconButton(onClick = onClose) {
                 Icon(
                     painter = painterResource(R.drawable.ic_close),
-                    contentDescription = L10n.action_cancel(ctx),
+                    contentDescription = L10n.action_close(ctx),
                 )
             }
         },
@@ -58,6 +61,14 @@ internal fun ComposerTopBar(
                     Icon(
                         painter = painterResource(R.drawable.ic_save_draft),
                         contentDescription = L10n.action_save_draft(ctx),
+                    )
+                }
+            }
+            if (onDiscard != null) {
+                IconButton(onClick = onDiscard) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_delete),
+                        contentDescription = L10n.action_discard(ctx),
                     )
                 }
             }
