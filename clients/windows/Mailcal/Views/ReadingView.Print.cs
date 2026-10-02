@@ -4,6 +4,9 @@
 
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
 using uniffi.mailcal_bindings;
 
@@ -11,15 +14,15 @@ namespace Allodia.Mailcal.Views;
 
 public sealed partial class ReadingView
 {
-    /// <summary>One-shot init of <c>PrintHost</c>'s gates.</summary>
-    private Task? _printInit;
-
-    /// <summary>Set just before our own NavigateToString, so the navigation lock lets it through
-    /// and its completion opens the dialog.</summary>
-    private bool _printExpectingLoad;
-
-    /// <summary>The reader's remote-images choice for the page being printed.</summary>
-    private bool _printLoadRemoteImages;
+    /// <summary>How many print pages stay alive, oldest dropped first.</summary>
+    /// <remarks>
+    /// Each print gets a web view of its own, because the system dialog prints the page its web
+    /// view holds when the reader presses Print in it, not the page it opened on: a second print
+    /// through a shared web view replaced the first dialog's page and that dialog then failed.
+    /// <c>ShowPrintUI</c> reports neither the dialog closing nor the job leaving, so a page cannot
+    /// be released when it is done; it is released when this many newer prints have started.
+    /// </remarks>
+    private const int PrintPagesKept = 4;
 
     /// <summary>Whether Print has a body to print: an open that finished and fetched one.
     /// Called from <c>Render</c>, which runs on every snapshot.</summary>
@@ -51,29 +54,43 @@ public sealed partial class ReadingView
             body.Html,
             body.Plain,
             _loadRemoteImages);
+        var page = AddPrintPage();
         try
         {
-            await EnsurePrintCoreAsync();
-            _printLoadRemoteImages = _loadRemoteImages;
-            _printExpectingLoad = true;
-            PrintHost.CoreWebView2!.NavigateToString(document);
+            await page.EnsureCoreWebView2Async();
+            HardenPrintPage(page.CoreWebView2, _loadRemoteImages, opened.Key);
+            page.CoreWebView2.NavigateToString(document);
         }
         catch (Exception ex)
         {
             // No WebView2 runtime, or the page exceeded NavigateToString's limit.
-            _printExpectingLoad = false;
             Log.Warn($"reading: couldn't lay the message out to print ({ex.GetType().Name})");
             ShowPrintError(opened.Key);
         }
     }
 
-    private Task EnsurePrintCoreAsync() => _printInit ??= InitPrintCoreAsync();
-
-    // The reading host's gates (ReadingView.WebView.cs), on the print host.
-    private async Task InitPrintCoreAsync()
+    // A WebView2 starts only inside the visual tree, so the page is added to PrintPages, which is
+    // transparent and one pixel square; the dialog lays the page out at the paper's size.
+    private WebView2 AddPrintPage()
     {
-        await PrintHost.EnsureCoreWebView2Async();
-        var core = PrintHost.CoreWebView2;
+        var page = new WebView2 { Width = 1, Height = 1, IsTabStop = false };
+        AutomationProperties.SetAccessibilityView(page, AccessibilityView.Raw);
+        PrintPages.Children.Add(page);
+        while (PrintPages.Children.Count > PrintPagesKept)
+        {
+            var oldest = (WebView2)PrintPages.Children[0];
+            PrintPages.Children.RemoveAt(0);
+            oldest.Close();
+        }
+        return page;
+    }
+
+    // The reading host's gates (ReadingView.WebView.cs), on one print page, which loads the one
+    // document it was made for and then nothing. The remote-images choice is the one this page was
+    // built with, so a later opt-in on the pane cannot reach it.
+    private void HardenPrintPage(CoreWebView2 core, bool loadRemoteImages, string key)
+    {
+        var expectingLoad = true;
         var settings = core.Settings;
         settings.IsScriptEnabled = false;
         settings.AreHostObjectsAllowed = false;
@@ -81,33 +98,32 @@ public sealed partial class ReadingView
         settings.AreDefaultContextMenusEnabled = false;
         core.NavigationStarting += (_, args) =>
         {
-            if (_printExpectingLoad)
+            if (!expectingLoad)
             {
-                return;
+                args.Cancel = true;
             }
-            args.Cancel = true;
         };
         core.NavigationCompleted += (_, args) =>
         {
-            if (!_printExpectingLoad)
+            if (!expectingLoad)
             {
                 return;
             }
-            _printExpectingLoad = false;
+            expectingLoad = false;
             if (args.IsSuccess)
             {
                 core.ShowPrintUI(CoreWebView2PrintDialogKind.System);
             }
-            else if (Opened is { } opened)
+            else
             {
-                ShowPrintError(opened.Key);
+                ShowPrintError(key);
             }
         };
         core.NewWindowRequested += (_, args) => args.Handled = true;
         core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
         core.WebResourceRequested += (sender, args) =>
         {
-            if (_printLoadRemoteImages)
+            if (loadRemoteImages)
             {
                 return;
             }
@@ -120,9 +136,23 @@ public sealed partial class ReadingView
         };
     }
 
+    private void ClosePrintPages()
+    {
+        foreach (var page in PrintPages.Children.OfType<WebView2>())
+        {
+            page.Close();
+        }
+        PrintPages.Children.Clear();
+    }
+
     // The export's error line, which is where this pane reports what the overflow menu could not do.
+    // Only while the message it is about is still the one open.
     private void ShowPrintError(string key)
     {
+        if (Opened?.Key != key)
+        {
+            return;
+        }
         _exportErrorKey = key;
         ExportError.Text = L10n.MessagePrintFailed();
         ExportError.Visibility = Visibility.Visible;

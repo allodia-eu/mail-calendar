@@ -112,7 +112,9 @@ loads what reading did not**, so it cannot be the way a tracking pixel fires.
 [`rendering-security.md`](rendering-security.md) that the reading host carries, and handed to the
 platform's own print dialog, which owns the printer, the paper and saving as PDF. The reading
 pane's web view is not reused: it holds no header, and a plain-text body is not in a web view at
-all on Apple and Android.
+all on Apple and Android. **Each print has a web view of its own**, because a dialog prints the
+page its web view holds when the reader presses Print in it, not the page it opened on, so a later
+print must never load into a web view an open dialog is still reading.
 
 **Print is offered once the body has arrived.** Before that, while an open is still running, and
 after a fetch that failed, the item is in the menu and disabled: a printout of a message with no
@@ -145,6 +147,10 @@ It is not an `Intent`, for the reason exporting is not one.
   dialog opens as a window of its own rather than over the app, and the app stays usable while it
   is up. A print started meanwhile opens a second dialog; each keeps the page it was asked for.
   Outside the sandbox the toolkit's own dialog is modal to the window.
+- **Windows shows one print dialog at a time, and it is not modal to the window.** WebView2's
+  system dialog leaves the app usable, and a Print pressed while one is open is refused by WebView2
+  with a "Print failed" message of its own; the open dialog keeps its page and prints it. The app
+  cannot say this itself, because `ShowPrintUI` reports neither the refusal nor the dialog closing.
 - **No multi-message export.** Selecting several messages and exporting them is not offered
   anywhere; the export acts on the open message only.
 - **The header scrolls with the message on iPhone and iPad only.** Everywhere else it stands still

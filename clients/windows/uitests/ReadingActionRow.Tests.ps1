@@ -178,7 +178,7 @@ $Suite = @{
         $overflow.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
         try {
           $item = Wait-UiaElement -AutomationId 'ReadingExportEml' -TimeoutSec 10
-          Assert-True ($null -ne $item) 'expanding the overflow must offer the .eml export; the menu ships with that one item'
+          Assert-True ($null -ne $item) 'expanding the overflow must offer the .eml export'
         } finally {
           $overflow.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
           Start-Sleep -Milliseconds 500
