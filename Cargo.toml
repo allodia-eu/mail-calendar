@@ -331,7 +331,7 @@ rustls-pki-types = "1"
 # build changes; `rcgen` is new and brings `pem` and `yasna` with it.
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "std", "tls12"] }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring", "tls12"] }
-rcgen = "0.13"
+rcgen = "0.14"
 # SHA-256 + a system CSPRNG for PKCE (RFC 7636): the code-verifier's random bytes and the
 # S256 code-challenge. Already pulled in transitively by rustls, so this adds no new crate.
 ring = "0.17"
