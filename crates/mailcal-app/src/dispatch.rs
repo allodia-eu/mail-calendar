@@ -6,7 +6,9 @@
 
 use engine_api::{AccountId, Provider};
 
-use crate::{App, ContactsIntent, Intent, Surface, scope::Scope, sync::RefreshProgress};
+use crate::{
+    App, ContactsIntent, EventIntent, Intent, Surface, scope::Scope, sync::RefreshProgress,
+};
 
 impl<P: Provider> App<P> {
     /// The contacts half of [`Self::dispatch`] ([`ContactsIntent`]), in a method of its own so the
@@ -208,7 +210,7 @@ impl<P: Provider> App<P> {
                 )
                 .await;
             }
-            Intent::CreateEvent {
+            Intent::Events(EventIntent::Create {
                 title,
                 start,
                 end,
@@ -219,14 +221,14 @@ impl<P: Provider> App<P> {
                 notes,
                 location,
                 recurrence,
-            } => {
+            }) => {
                 self.create_event(
                     title, start, end, account, calendar, all_day, timezone, notes, location,
                     recurrence,
                 )
                 .await;
             }
-            Intent::UpdateEvent { event, edit } => {
+            Intent::Events(EventIntent::Update { event, edit }) => {
                 // Not `let _ =`. The write is not durable yet (no outbox drainer), so a
                 // failure here means the user's edit did not happen. `update_event` already
                 // drives `CalendarWriteStatus` to `Failed` for the host to surface; logging
@@ -235,12 +237,12 @@ impl<P: Provider> App<P> {
                     log::error!("update_event: the edit was not saved: {err}");
                 }
             }
-            Intent::MoveEvent { event, drag } => {
-                // As with `UpdateEvent`: not durable yet, so a failure means the drag did not
-                // happen. `update_event` underneath has already driven `CalendarWriteStatus`
-                // to `Failed` for the host to surface; except when the refusal came *before*
-                // the write (an event that is not ours to move), which no client that honours
-                // `can_move` can reach.
+            Intent::Events(EventIntent::Move { event, drag }) => {
+                // As with `EventIntent::Update`: not durable yet, so a failure means the drag did
+                // not happen. `update_event` underneath has already driven
+                // `CalendarWriteStatus` to `Failed` for the host to surface; except
+                // when the refusal came *before* the write (an event that is not
+                // ours to move), which no client that honours `can_move` can reach.
                 if let Err(err) = self.move_event(&event, &drag).await {
                     log::error!("move_event: the drag was not saved: {err}");
                 }
@@ -252,7 +254,7 @@ impl<P: Provider> App<P> {
                 notify_organizer,
                 reply_subject,
             } => {
-                // As with `UpdateEvent`: the write drives `CalendarWriteStatus` to `Failed`
+                // As with `EventIntent::Update`: the write drives `CalendarWriteStatus` to `Failed`
                 // for the host to surface, and logging the reason is the least this can do
                 // until the write becomes durable. The reason names no addresses and no
                 // meeting: the errors this returns are all about *shape*, never content.
@@ -288,7 +290,7 @@ impl<P: Provider> App<P> {
                 self.retry_unfiled_copy().await;
             }
             Intent::DismissUnfiledCopy => self.dismiss_unfiled_copy(),
-            Intent::DeleteEvent { event, occurrence } => {
+            Intent::Events(EventIntent::Delete { event, occurrence }) => {
                 self.delete_event(event, occurrence).await;
             }
             Intent::ReportNetworkReachable(reachable) => {

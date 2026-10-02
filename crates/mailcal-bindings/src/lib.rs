@@ -66,6 +66,7 @@ mod connection_log;
 mod connector;
 mod consent;
 mod convert;
+mod convert_events;
 mod convert_folders;
 mod convert_mailbox;
 mod convert_reading;
@@ -169,7 +170,8 @@ pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
 pub use oauth_routes::{OAuthRoutes, oauth_routes};
 pub use protocol::{
-    BulkAction, FolderIntent, Intent, InvitationResponse, OutboxIntent, SearchScope, SelectedRow,
+    BulkAction, EventIntent, FolderIntent, Intent, InvitationResponse, OutboxIntent, SearchScope,
+    SelectedRow,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{

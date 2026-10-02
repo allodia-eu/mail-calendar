@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex, atomic::Ordering};
 use engine_provider::PatchTarget;
 use fakes::{CalendarFake, calendar_account, calendar_app, evt};
 
-use super::{CalendarWriteStatus, Intent, Surface};
+use super::{CalendarWriteStatus, EventIntent, Intent, Surface};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -33,10 +33,10 @@ async fn an_event_action_routes_by_owning_account_on_a_key_collision() {
     );
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::DeleteEvent {
+    app.dispatch(Intent::Events(EventIntent::Delete {
         event: evt("acct-b", "shared-event"),
         occurrence: None,
-    })
+    }))
     .await;
     assert_eq!(
         b_deletions.lock().unwrap().as_slice(),
@@ -60,10 +60,10 @@ async fn a_delete_is_guarded_by_the_revision_the_event_was_read_at() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::DeleteEvent {
+    app.dispatch(Intent::Events(EventIntent::Delete {
         event: evt("acct-a", "standup"),
         occurrence: None,
-    })
+    }))
     .await;
 
     let guards = guards.lock().unwrap();
@@ -89,7 +89,7 @@ async fn a_write_reconciles_the_event_scope_without_a_full_refresh() {
     app.dispatch(Intent::RefreshCalendar).await;
 
     let before = syncs.load(Ordering::Relaxed);
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "Kickoff".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -100,7 +100,7 @@ async fn a_write_reconciles_the_event_scope_without_a_full_refresh() {
         notes: None,
         location: None,
         recurrence: None,
-    })
+    }))
     .await;
     let after = syncs.load(Ordering::Relaxed);
 
@@ -122,13 +122,13 @@ async fn editing_an_event_sends_a_patch_with_only_the_changed_properties() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::UpdateEvent {
+    app.dispatch(Intent::Events(EventIntent::Update {
         event: evt("acct-a", "standup"),
         edit: mailcal_account::EventEdit {
             title: Some("Standup (kort)".to_owned()),
             ..mailcal_account::EventEdit::default()
         },
-    })
+    }))
     .await;
 
     let sent = patches.lock().unwrap();
@@ -175,7 +175,7 @@ async fn a_create_reports_saved_and_signals_the_calendar_status() {
     app.dispatch(Intent::RefreshCalendar).await;
     surfaces.lock().unwrap().clear();
 
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "Kickoff".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -186,7 +186,7 @@ async fn a_create_reports_saved_and_signals_the_calendar_status() {
         notes: None,
         location: None,
         recurrence: None,
-    })
+    }))
     .await;
 
     assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Saved);
@@ -207,7 +207,7 @@ async fn a_write_whose_reconcile_fails_reports_failed_not_saved() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "Kickoff".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -218,7 +218,7 @@ async fn a_write_whose_reconcile_fails_reports_failed_not_saved() {
         notes: None,
         location: None,
         recurrence: None,
-    })
+    }))
     .await;
 
     assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
@@ -233,7 +233,7 @@ async fn a_background_refresh_preserves_failure_until_an_explicit_retry() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "Kickoff".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -244,7 +244,7 @@ async fn a_background_refresh_preserves_failure_until_an_explicit_retry() {
         notes: None,
         location: None,
         recurrence: None,
-    })
+    }))
     .await;
     assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
 
@@ -279,7 +279,7 @@ async fn a_create_routes_to_a_writable_account_not_the_first_calendar_account() 
     );
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "Kickoff".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -290,7 +290,7 @@ async fn a_create_routes_to_a_writable_account_not_the_first_calendar_account() 
         notes: None,
         location: None,
         recurrence: None,
-    })
+    }))
     .await;
 
     assert_eq!(
@@ -315,7 +315,7 @@ async fn a_create_is_a_no_op_when_no_account_can_write() {
     let app = calendar_app(vec![calendar_account("reader", reader)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "Kickoff".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -326,7 +326,7 @@ async fn a_create_is_a_no_op_when_no_account_can_write() {
         notes: None,
         location: None,
         recurrence: None,
-    })
+    }))
     .await;
 
     assert!(
@@ -351,7 +351,7 @@ async fn a_create_routes_to_the_chosen_calendar_not_the_first() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "1:1".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -362,7 +362,7 @@ async fn a_create_routes_to_the_chosen_calendar_not_the_first() {
         notes: None,
         location: None,
         recurrence: None,
-    })
+    }))
     .await;
 
     assert_eq!(
@@ -383,7 +383,7 @@ async fn a_create_with_an_unknown_calendar_still_lands_rather_than_dropping() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "1:1".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -394,7 +394,7 @@ async fn a_create_with_an_unknown_calendar_still_lands_rather_than_dropping() {
         notes: None,
         location: None,
         recurrence: None,
-    })
+    }))
     .await;
 
     let targets = targets.lock().unwrap();
@@ -421,7 +421,7 @@ async fn a_create_routes_to_the_chosen_account() {
     );
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "1:1".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -432,7 +432,7 @@ async fn a_create_routes_to_the_chosen_account() {
         notes: None,
         location: None,
         recurrence: None,
-    })
+    }))
     .await;
 
     assert_eq!(b_targets.lock().unwrap().as_slice(), ["b-cal"]);

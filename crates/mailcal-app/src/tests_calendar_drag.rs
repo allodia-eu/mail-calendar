@@ -18,7 +18,7 @@ use engine_provider::{Occurrence, PatchTarget};
 use fakes::{CalendarFake, calendar_account, calendar_app, evt};
 use mailcal_account::{EventDrag, EventEdge};
 
-use super::Intent;
+use super::{EventIntent, Intent};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -54,10 +54,10 @@ async fn a_drag_patches_a_wall_clock_in_the_events_own_zone() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::MoveEvent {
+    app.dispatch(Intent::Events(EventIntent::Move {
         event: evt("acct-a", "standup"),
         drag: drag(EventEdge::Whole, 0, 30),
-    })
+    }))
     .await;
 
     let sent = patches.lock().unwrap();
@@ -78,10 +78,10 @@ async fn a_resize_moves_only_the_edge_that_was_dragged() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::MoveEvent {
+    app.dispatch(Intent::Events(EventIntent::Move {
         event: evt("acct-a", "standup"),
         drag: drag(EventEdge::End, 0, 45),
-    })
+    }))
     .await;
 
     let sent = patches.lock().unwrap();
@@ -125,7 +125,7 @@ async fn dragging_one_occurrence_targets_that_occurrence_not_the_series() {
         .occurrence_start
         .parse()
         .expect("the grid's token is a wall clock");
-    app.dispatch(Intent::MoveEvent {
+    app.dispatch(Intent::Events(EventIntent::Move {
         event: evt("acct-a", "standup"),
         drag: EventDrag {
             edge: EventEdge::Whole,
@@ -133,7 +133,7 @@ async fn dragging_one_occurrence_targets_that_occurrence_not_the_series() {
             minutes: 30,
             occurrence: Some(occurrence),
         },
-    })
+    }))
     .await;
 
     let sent = patches.lock().unwrap();
@@ -165,10 +165,10 @@ async fn omitting_the_occurrence_moves_the_whole_series() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::MoveEvent {
+    app.dispatch(Intent::Events(EventIntent::Move {
         event: evt("acct-a", "standup"),
         drag: drag(EventEdge::Whole, 1, 0),
-    })
+    }))
     .await;
 
     let sent = patches.lock().unwrap();

@@ -1040,7 +1040,7 @@ frame while drawing *half* the blocks is not a performance problem, it is a clue
 Drawing a slot out on empty grid, and moving or resizing an event by dragging it, are one feature
 with one rule underneath them. **What crosses the FFI is how far the hand moved**: a signed count of
 whole days and minutes, and the core applies it to the event's **own** wall clock
-(`Intent::MoveEvent` → `mailcal_account::apply_event_drag`).
+(`EventIntent::Move` → `mailcal_account::apply_event_drag`).
 
 The obvious design is the other one: send where it was dropped. It is wrong three times over, and
 each way is invisible until it bites.
@@ -1088,7 +1088,7 @@ more different, and one function must not answer both.
 **Every surface that draws one occurrence names it.** `TimedSegment`, `AllDayBand` and `MonthChip`
 each carry **`occurrence_start`**: that occurrence's own start, as a wall clock in the event's own
 zone, and **empty when the event does not recur**. It is opaque: a client hands it back verbatim as
-`Intent::MoveEvent`'s `occurrence`, and non-empty is also the signal that a write must **ask**
+`EventIntent::Move`'s `occurrence`, and non-empty is also the signal that a write must **ask**
 first.
 
 `EventRow` is the exception, and deliberately: the agenda holds one row per *event*, not per
@@ -1164,9 +1164,9 @@ rule to read-only instead.
 An override is **not** part of the rule. A series stays editable after somebody moves or cancels a
 single occurrence of it.
 
-A write carries the same shape back. `CreateEvent` takes the rule; an edit takes one of three
+A write carries the same shape back. `EventIntent::Create` takes the rule; an edit takes one of three
 answers: say nothing and the series is untouched, `Set` replaces the rule, `Clear` makes the event
-a single one. `DeleteEvent` takes an `occurrence`, exactly as an edit and a drag do.
+a single one. `EventIntent::Delete` takes an `occurrence`, exactly as an edit and a drag do.
 
 Three writes the core refuses, whatever the client sends:
 
@@ -1356,7 +1356,7 @@ the editor's job, and the drag already opens it prefilled.
 
 ### The block may glide; the readout may not
 
-The state carries the finger's minute twice: **snapped**, which is what `Intent::MoveEvent` sends
+The state carries the finger's minute twice: **snapped**, which is what `EventIntent::Move` sends
 and what the readout says, and **raw**, which is what the block is drawn from. They differ only
 mid-gesture, never by a whole snap step, and only on the edge actually in the hand: the anchored edge
 is drawn exactly where the write will put it.
@@ -1548,7 +1548,7 @@ nothing. The day zoom steps a day, the 3-day steps three, the week a week, the m
 The FFI carries the whole
 editor/detail surface: create with a target `calendar` + `all_day` + `notes` + `location`, an
 `event_detail` read that projects a stored event (its own wall clock, calendar, location, notes,
-reminder/recurrence summaries), and `Intent::UpdateEvent` (title/time/notes/location, in the event's
+reminder/recurrence summaries), and `EventIntent::Update` (title/time/notes/location, in the event's
 own wall clock).
 Every shipped client has the detail sheet, the shared create/edit editor, and the per-account
 calendar picker, matching Samsung Calendar's flow; Linux implements the same provider-neutral
@@ -1618,7 +1618,7 @@ Not shown, deliberately: **required vs optional** (`ROLE=OPT-PARTICIPANT`), and 
 you**: see "Known gaps".
 
 ¹⁰ **Dragging.** §10 owns the semantics. The **core** half is shared and inherited with no client
-code: `can_move` and `occurrence_start` are stamped onto every `TimedSegment`, and `Intent::MoveEvent`
+code: `can_move` and `occurrence_start` are stamped onto every `TimedSegment`, and `EventIntent::Move`
 turns a signed day/minute offset into a patch of the event's own wall clock, so no client converts a
 zone, and none can move a meeting somebody else called (the core refuses it a second time).
 
@@ -1934,7 +1934,7 @@ Stated, not buried.
   Create or edit an event on a train today and it silently never reaches the server: the write's
   `CalendarWriteStatus` settles `Failed`, which is honest, but the change is lost rather than queued.
   This applies equally to create, **edit**, and delete: the editor rides the *same* inline-await path
-  they do. The earlier gate that withheld `Intent::UpdateEvent` from the FFI "until the write is
+  they do. The earlier gate that withheld `EventIntent::Update` from the FFI "until the write is
   durable" is **lifted**: an editor that surfaces its own failures is no worse than the create that
   already shipped that way, and blocking it while create/delete ship without the outbox was
   inconsistent. The durable outbox that fixes all three at once is the tracked follow-up.
