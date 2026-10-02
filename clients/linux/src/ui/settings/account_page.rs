@@ -164,6 +164,9 @@ fn links_group(
             .and_then(|index| u32::try_from(index + 1).ok())
             .unwrap_or(0);
         let (row, dropdown) = super::choice(picker.title, &labels, selected);
+        if let Some(index) = picker.suggested {
+            suggest(&row, &dropdown, &picker.options[index].address, index);
+        }
         let sender = ctx.sender.clone();
         let account = entry.id.clone();
         let slot = picker.slot;
@@ -185,6 +188,22 @@ fn links_group(
         section.add(&row);
     }
     section
+}
+
+/// Names the suggested account under the picker, with a button that picks it: the person confirms
+/// a suggestion, it is never linked for them (`docs/accounts.md` rule 12).
+fn suggest(row: &adw::ActionRow, dropdown: &gtk::DropDown, address: &str, index: usize) {
+    row.set_subtitle(&l10n::settings_account_link_suggested(address));
+    let link = gtk::Button::with_label(l10n::action_link());
+    link.set_valign(gtk::Align::Center);
+    let dropdown = dropdown.downgrade();
+    let position = u32::try_from(index + 1).unwrap_or(0);
+    link.connect_clicked(move |_| {
+        if let Some(dropdown) = dropdown.upgrade() {
+            dropdown.set_selected(position);
+        }
+    });
+    row.add_suffix(&link);
 }
 
 /// The mail settings, while the account is used for mail and the core lists its mailbox.

@@ -124,6 +124,9 @@ pub(super) struct LinkPicker {
     pub(super) options: Vec<LinkedAccount>,
     /// The index into `options` of the account linked now; `None` for "none".
     pub(super) selected: Option<usize>,
+    /// The index into `options` of the account to suggest, while nothing is linked: one whose
+    /// calendar server schedules as the mail account's address.
+    pub(super) suggested: Option<usize>,
 }
 
 /// The pickers an account's page offers: one per slot it can hold, which is a slot with
@@ -161,11 +164,17 @@ pub(super) fn link_pickers(entry: &AccountEntry) -> Vec<LinkPicker> {
         let selected = current
             .as_ref()
             .and_then(|current| options.iter().position(|option| option == current));
+        let suggested = selected.is_none().then(|| {
+            options
+                .iter()
+                .position(|option| entry.link_candidates.suggested.contains(&option.id))
+        });
         LinkPicker {
             slot,
             title,
             options,
             selected,
+            suggested: suggested.flatten(),
         }
     })
     .collect()
