@@ -80,7 +80,7 @@ internal fun CalendarScreen(
     onDeleteEvent: (account: String, key: String, occurrence: String?) -> Unit,
     onCreateEvent: (CreateArgs) -> Unit,
     onUpdateEvent: (UpdateArgs) -> Unit,
-    // A drag on the grid: move or resize an event the user owns (`Intent.MoveEvent`).
+    // A drag on the grid: move or resize an event the user owns (`EventIntent.Move`).
     onMoveEvent: (MoveArgs) -> Unit,
     // A synchronous detail pull (App.eventDetail): opens the detail sheet and prefills the editor.
     eventDetailFor: (account: String, key: String, occurrence: String) -> EventDetail?,

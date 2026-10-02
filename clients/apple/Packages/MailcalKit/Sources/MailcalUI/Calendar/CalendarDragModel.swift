@@ -78,7 +78,7 @@ struct CalendarDragPreview: Equatable {
 }
 
 /// A drag in flight: where it began, and where the pointer is now, both in the core's own currency,
-/// so the deltas below are exactly what `Intent.moveEvent` wants.
+/// so the deltas below are exactly what `EventIntent.move` wants.
 struct CalendarDragState: Equatable {
     let kind: CalendarDragKind
     /// `nil` for a `.create`, which has no event yet.
@@ -267,7 +267,7 @@ struct CalendarDragState: Equatable {
     }
 }
 
-/// The arguments a settled drag dispatches (`Intent.moveEvent`).
+/// The arguments a settled drag dispatches (`EventIntent.move`).
 struct CalendarMoveArgs: Equatable {
     let account: String
     let key: String

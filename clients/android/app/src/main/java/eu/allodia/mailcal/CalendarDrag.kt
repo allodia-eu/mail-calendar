@@ -94,7 +94,7 @@ internal data class DragSubject(
  * A drag in flight: where it began, and where the finger is now.
  *
  * Both positions are the core's own currency, a day column and a wall-clock minute, so the deltas
- * below are exactly what `Intent.MoveEvent` wants and nothing has to be converted at the boundary.
+ * below are exactly what `EventIntent.Move` wants and nothing has to be converted at the boundary.
  */
 internal data class CalendarDragState(
     val kind: DragKind,
@@ -212,7 +212,7 @@ internal data class CalendarDragState(
     }
 }
 
-/** The arguments a settled drag dispatches (`Intent.MoveEvent`). */
+/** The arguments a settled drag dispatches (`EventIntent.Move`). */
 internal data class MoveArgs(
     val account: String,
     val key: String,

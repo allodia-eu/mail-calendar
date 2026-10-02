@@ -4,8 +4,8 @@
 //! Split out of `editor.rs` to keep that file inside the 500-line cap.
 
 use mailcal_bindings::{
-    EventRecurrence, Intent, RecurrenceChange, RecurrenceDay, RecurrenceEnd, RecurrenceFrequency,
-    RecurrenceWeekday, RepeatDraft, SimpleRecurrence,
+    EventIntent, EventRecurrence, Intent, RecurrenceChange, RecurrenceDay, RecurrenceEnd,
+    RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SimpleRecurrence,
 };
 use time::{Date, Month, PrimitiveDateTime, Time};
 
@@ -50,13 +50,16 @@ fn create_uses_the_device_zone_and_exclusive_all_day_end() {
     let editor = EventEditor::create_at(vec![choice()], "Europe/Amsterdam".to_owned(), now);
     assert_eq!(editor.start, "2026-07-21T11:00:00");
     match editor.intent(&form(true), false).unwrap() {
-        Intent::CreateEvent {
-            title,
-            end,
-            account,
-            calendar,
-            timezone,
-            ..
+        Intent::Events {
+            intent:
+                EventIntent::Create {
+                    title,
+                    end,
+                    account,
+                    calendar,
+                    timezone,
+                    ..
+                },
         } => {
             assert_eq!(title, "Planning");
             assert_eq!(end, "2026-07-22");
@@ -107,11 +110,14 @@ fn toggling_a_new_timed_form_to_all_day_accepts_its_default_values() {
         .intent(&toggled, false)
         .expect("timed defaults become dates")
     {
-        Intent::CreateEvent {
-            start,
-            end,
-            all_day,
-            ..
+        Intent::Events {
+            intent:
+                EventIntent::Create {
+                    start,
+                    end,
+                    all_day,
+                    ..
+                },
         } => {
             assert_eq!(start, "2026-07-21");
             assert_eq!(end, "2026-07-22");
@@ -146,13 +152,16 @@ fn edit_keeps_wall_clocks_and_blank_optional_fields_clear_properties() {
     };
     let editor = EventEditor::edit(detail, vec![choice()]);
     match editor.intent(&form(false), false).unwrap() {
-        Intent::UpdateEvent {
-            start,
-            end,
-            notes,
-            location,
-            occurrence,
-            ..
+        Intent::Events {
+            intent:
+                EventIntent::Update {
+                    start,
+                    end,
+                    notes,
+                    location,
+                    occurrence,
+                    ..
+                },
         } => {
             assert_eq!(start.as_deref(), Some("2026-07-21T10:00:00"));
             assert_eq!(end.as_deref(), Some("2026-07-21T11:00:00"));
@@ -246,7 +255,9 @@ fn this_event_sends_the_occurrence_and_all_events_withholds_it() {
     let editor = editing("2026-09-09T09:00:00");
     let occurrence_of =
         |this_occurrence_only| match editor.intent(&form(false), this_occurrence_only).unwrap() {
-            Intent::UpdateEvent { occurrence, .. } => occurrence,
+            Intent::Events {
+                intent: EventIntent::Update { occurrence, .. },
+            } => occurrence,
             _ => panic!("expected an update intent"),
         };
     assert_eq!(occurrence_of(true).as_deref(), Some("2026-09-09T09:00:00"));
@@ -260,7 +271,9 @@ fn an_editor_on_the_series_names_no_occurrence_either_way() {
     let editor = editing("");
     for this_occurrence_only in [true, false] {
         match editor.intent(&form(false), this_occurrence_only).unwrap() {
-            Intent::UpdateEvent { occurrence, .. } => assert_eq!(occurrence, None),
+            Intent::Events {
+                intent: EventIntent::Update { occurrence, .. },
+            } => assert_eq!(occurrence, None),
             _ => panic!("expected an update intent"),
         }
     }
@@ -285,7 +298,9 @@ fn a_save_that_never_touched_the_repeat_says_nothing_about_it() {
         .intent(&form_with(Some(weekly_draft())), false)
         .unwrap()
     {
-        Intent::UpdateEvent { recurrence, .. } => assert_eq!(recurrence, None),
+        Intent::Events {
+            intent: EventIntent::Update { recurrence, .. },
+        } => assert_eq!(recurrence, None),
         _ => panic!("expected an update intent"),
     }
 }
@@ -298,9 +313,12 @@ fn a_changed_repeat_is_sent_as_a_set() {
         ..weekly_draft()
     };
     match editor.intent(&form_with(Some(changed)), false).unwrap() {
-        Intent::UpdateEvent {
-            recurrence: Some(RecurrenceChange::Set { rule }),
-            ..
+        Intent::Events {
+            intent:
+                EventIntent::Update {
+                    recurrence: Some(RecurrenceChange::Set { rule }),
+                    ..
+                },
         } => assert_eq!(rule.interval, 2),
         _ => panic!("expected a Set"),
     }
@@ -310,7 +328,9 @@ fn a_changed_repeat_is_sent_as_a_set() {
 fn choosing_does_not_repeat_clears_the_series() {
     let editor = editing_with("", Some(weekly_draft()));
     match editor.intent(&form_with(None), false).unwrap() {
-        Intent::UpdateEvent { recurrence, .. } => {
+        Intent::Events {
+            intent: EventIntent::Update { recurrence, .. },
+        } => {
             assert_eq!(recurrence, Some(RecurrenceChange::Clear));
         }
         _ => panic!("expected an update intent"),
@@ -326,10 +346,13 @@ fn a_rule_never_travels_with_a_single_occurrence() {
         ..weekly_draft()
     };
     match editor.intent(&form_with(Some(changed)), true).unwrap() {
-        Intent::UpdateEvent {
-            occurrence,
-            recurrence,
-            ..
+        Intent::Events {
+            intent:
+                EventIntent::Update {
+                    occurrence,
+                    recurrence,
+                    ..
+                },
         } => {
             assert_eq!(occurrence.as_deref(), Some("2026-09-09T09:00:00"));
             assert_eq!(recurrence, None);
@@ -362,7 +385,9 @@ fn a_rule_too_rich_to_state_offers_no_controls() {
         .intent(&form_with(Some(weekly_draft())), false)
         .unwrap()
     {
-        Intent::UpdateEvent { recurrence, .. } => assert_eq!(recurrence, None),
+        Intent::Events {
+            intent: EventIntent::Update { recurrence, .. },
+        } => assert_eq!(recurrence, None),
         _ => panic!("expected an update intent"),
     }
 }
@@ -382,9 +407,12 @@ fn a_create_carries_the_rule_as_a_plain_rule_rather_than_an_answer() {
         stored: None,
     };
     match editor.intent(&form_with(Some(fresh)), false).unwrap() {
-        Intent::CreateEvent {
-            recurrence: Some(rule),
-            ..
+        Intent::Events {
+            intent:
+                EventIntent::Create {
+                    recurrence: Some(rule),
+                    ..
+                },
         } => {
             assert_eq!(rule.frequency, RecurrenceFrequency::Weekly);
             assert_eq!(rule.interval, 2);

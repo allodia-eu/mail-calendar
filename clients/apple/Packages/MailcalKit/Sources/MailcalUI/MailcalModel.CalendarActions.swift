@@ -12,17 +12,19 @@ extension MailboxModel {
     /// the calendar target, the all-day flag, the device-zone wall clock, the notes, and the location.
     func createEvent(_ args: CreateArgs) {
         app?.dispatch(
-            intent: .createEvent(
-                title: args.title,
-                start: args.start,
-                end: args.end,
-                account: args.account,
-                calendar: args.calendar,
-                allDay: args.allDay,
-                timezone: args.timezone,
-                notes: args.notes,
-                location: args.location,
-                recurrence: args.recurrence
+            intent: .events(
+                intent: .create(
+                    title: args.title,
+                    start: args.start,
+                    end: args.end,
+                    account: args.account,
+                    calendar: args.calendar,
+                    allDay: args.allDay,
+                    timezone: args.timezone,
+                    notes: args.notes,
+                    location: args.location,
+                    recurrence: args.recurrence
+                )
             )
         )
     }
@@ -30,17 +32,19 @@ extension MailboxModel {
     /// Edit a stored calendar event from the editor's payload (a provider-neutral patch).
     func updateEvent(_ args: UpdateArgs) {
         app?.dispatch(
-            intent: .updateEvent(
-                account: args.account,
-                key: args.key,
-                title: args.title,
-                start: args.start,
-                end: args.end,
-                notes: args.notes,
-                location: args.location,
-                occurrence: args.occurrence,
-                recurrence: args.recurrence,
-                timesFromOccurrence: args.timesFromOccurrence
+            intent: .events(
+                intent: .update(
+                    account: args.account,
+                    key: args.key,
+                    title: args.title,
+                    start: args.start,
+                    end: args.end,
+                    notes: args.notes,
+                    location: args.location,
+                    occurrence: args.occurrence,
+                    recurrence: args.recurrence,
+                    timesFromOccurrence: args.timesFromOccurrence
+                )
             )
         )
     }
@@ -53,13 +57,15 @@ extension MailboxModel {
     /// see `mailcal_account::calendar_drag`.
     func moveEvent(_ args: CalendarMoveArgs) {
         app?.dispatch(
-            intent: .moveEvent(
-                account: args.account,
-                key: args.key,
-                edge: args.edge,
-                days: args.days,
-                minutes: args.minutes,
-                occurrence: args.occurrence
+            intent: .events(
+                intent: .move(
+                    account: args.account,
+                    key: args.key,
+                    edge: args.edge,
+                    days: args.days,
+                    minutes: args.minutes,
+                    occurrence: args.occurrence
+                )
             )
         )
     }
@@ -71,7 +77,7 @@ extension MailboxModel {
     /// `nil` removes the whole series, which is a different request, so the caller asks first
     /// whenever the event has an occurrence to name (docs/calendar.md §10).
     func deleteEvent(_ account: String, _ key: String, occurrence: String? = nil) {
-        app?.dispatch(intent: .deleteEvent(account: account, key: key, occurrence: occurrence))
+        app?.dispatch(intent: .events(intent: .delete(account: account, key: key, occurrence: occurrence)))
     }
 
     /// Answer the invitation a message carries.

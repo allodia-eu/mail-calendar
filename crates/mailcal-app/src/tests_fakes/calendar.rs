@@ -71,8 +71,8 @@ pub(crate) const FULL_RSVP_CONTROLS: RsvpControls = RsvpControls {
 
 /// A minimal calendar provider: one calendar collection holding a configurable set of
 /// events, snapshot-on-first-sync like [`FakeProvider`]. Records the keys it is asked to
-/// delete so a test can assert the app routed [`Intent::DeleteEvent`](crate::Intent) to
-/// the right account's provider.
+/// delete so a test can assert the app routed [`EventIntent::Delete`](crate::EventIntent::Delete)
+/// to the right account's provider.
 pub(crate) struct CalendarFake {
     caps: Capabilities,
     calendars: Vec<Calendar>,

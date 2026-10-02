@@ -18,7 +18,7 @@ use mailcal_account::{
     SimpleRecurrence, recurrence_rule_of,
 };
 
-use super::{CalendarWriteStatus, Intent};
+use super::{CalendarWriteStatus, EventIntent, Intent};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -73,7 +73,7 @@ async fn a_create_that_repeats_reaches_the_provider_with_its_rule() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "Retro".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -84,7 +84,7 @@ async fn a_create_that_repeats_reaches_the_provider_with_its_rule() {
         notes: None,
         location: None,
         recurrence: Some(every_weeks(2)),
-    })
+    }))
     .await;
 
     let rules = rules.lock().unwrap();
@@ -109,7 +109,7 @@ async fn a_create_without_a_rule_still_makes_a_single_event() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "Dentist".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -120,7 +120,7 @@ async fn a_create_without_a_rule_still_makes_a_single_event() {
         notes: None,
         location: None,
         recurrence: None,
-    })
+    }))
     .await;
 
     assert_eq!(rules.lock().unwrap().as_slice(), [None]);
@@ -180,10 +180,10 @@ async fn deleting_one_occurrence_names_it_by_the_token_the_grid_offered() {
     app.dispatch(Intent::RefreshCalendar).await;
 
     let token = occurrence_token(&app, 7, "standup");
-    app.dispatch(Intent::DeleteEvent {
+    app.dispatch(Intent::Events(EventIntent::Delete {
         event: evt("acct-a", "standup"),
         occurrence: Some(token.parse().expect("the grid's token is a wall clock")),
-    })
+    }))
     .await;
 
     let targets = targets.lock().unwrap();
@@ -208,10 +208,10 @@ async fn a_delete_that_names_no_occurrence_removes_the_whole_series() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::DeleteEvent {
+    app.dispatch(Intent::Events(EventIntent::Delete {
         event: evt("acct-a", "standup"),
         occurrence: None,
-    })
+    }))
     .await;
 
     assert_eq!(targets.lock().unwrap().as_slice(), [DeleteTarget::Series]);
@@ -236,13 +236,13 @@ async fn an_edit_of_a_rule_we_could_not_describe_fails_out_loud() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::UpdateEvent {
+    app.dispatch(Intent::Events(EventIntent::Update {
         event: evt("acct-a", "standup"),
         edit: mailcal_account::EventEdit {
             recurrence: Some(RecurrenceChange::Set(every_weeks(1))),
             ..mailcal_account::EventEdit::default()
         },
-    })
+    }))
     .await;
 
     assert!(
@@ -282,10 +282,10 @@ async fn a_delete_of_an_occurrence_the_series_does_not_have_is_refused() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::DeleteEvent {
+    app.dispatch(Intent::Events(EventIntent::Delete {
         event: evt("acct-a", "standup"),
         occurrence: Some(an_hour_off_the_grid(&app, 7, "standup")),
-    })
+    }))
     .await;
 
     assert!(
@@ -305,14 +305,14 @@ async fn an_edit_of_an_occurrence_the_series_does_not_have_is_refused() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::UpdateEvent {
+    app.dispatch(Intent::Events(EventIntent::Update {
         event: evt("acct-a", "standup"),
         edit: mailcal_account::EventEdit {
             title: Some("Retro".to_owned()),
             occurrence: Some(an_hour_off_the_grid(&app, 7, "standup")),
             ..mailcal_account::EventEdit::default()
         },
-    })
+    }))
     .await;
 
     assert!(
@@ -334,10 +334,10 @@ async fn an_occurrence_named_on_an_event_that_does_not_repeat_is_refused() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::DeleteEvent {
+    app.dispatch(Intent::Events(EventIntent::Delete {
         event: evt("acct-a", "dentist"),
         occurrence: Some(LocalDateTime::new(2026, 9, 1, 11, 45, 0).unwrap()),
-    })
+    }))
     .await;
 
     assert!(targets.lock().unwrap().is_empty());
@@ -470,7 +470,7 @@ async fn a_create_of_a_rule_we_could_not_draw_is_refused() {
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
 
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "Retro".to_owned(),
         start: "2026-09-01T09:00:00Z".to_owned(),
         end: "2026-09-01T09:30:00Z".to_owned(),
@@ -484,7 +484,7 @@ async fn a_create_of_a_rule_we_could_not_draw_is_refused() {
             frequency: RecurrenceFrequency::Weekly,
             ..monthly_fourth_monday()
         }),
-    })
+    }))
     .await;
 
     assert!(

@@ -1,8 +1,8 @@
 //! Pure calendar editor state and provider-neutral intent construction.
 
 use mailcal_bindings::{
-    EventAttendee, EventDetail, EventRecurrence, Intent, RecurrenceChange, RepeatDraft,
-    RepeatSummary, repeat_change_of,
+    EventAttendee, EventDetail, EventIntent, EventRecurrence, Intent, RecurrenceChange,
+    RepeatDraft, RepeatSummary, repeat_change_of,
 };
 use time::{Duration, PrimitiveDateTime, Time};
 
@@ -261,46 +261,51 @@ impl EventEditor {
         let notes = optional_text(&form.notes);
         let location = optional_text(&form.location);
         if let Some(detail) = &self.editing {
-            return Ok(Intent::UpdateEvent {
-                account: detail.account.clone(),
-                key: detail.key.clone(),
-                title: Some(title.to_owned()),
-                start: Some(start),
-                end: Some(end),
-                notes: Some(notes.unwrap_or_default()),
-                location: Some(location.unwrap_or_default()),
-                occurrence: (this_occurrence_only && !detail.occurrence.is_empty())
-                    .then(|| detail.occurrence.clone()),
-                // A rule belongs to the series, so it never travels with an occurrence. The save
-                // handler does not offer that combination, and this is the second place it
-                // cannot happen.
-                recurrence: (!this_occurrence_only)
-                    .then(|| self.repeat_change(form))
-                    .flatten(),
-                // The clocks above are this occurrence's, so a save meant for the series says
-                // where they came from and the core shifts the series by that much rather than
-                // moving its start onto this occurrence, which would delete every earlier one.
-                times_from_occurrence: (!this_occurrence_only && !detail.occurrence.is_empty())
-                    .then(|| detail.occurrence.clone()),
+            return Ok(Intent::Events {
+                intent: EventIntent::Update {
+                    account: detail.account.clone(),
+                    key: detail.key.clone(),
+                    title: Some(title.to_owned()),
+                    start: Some(start),
+                    end: Some(end),
+                    notes: Some(notes.unwrap_or_default()),
+                    location: Some(location.unwrap_or_default()),
+                    occurrence: (this_occurrence_only && !detail.occurrence.is_empty())
+                        .then(|| detail.occurrence.clone()),
+                    // A rule belongs to the series, so it never travels with an occurrence. The
+                    // save handler does not offer that combination, and this is
+                    // the second place it cannot happen.
+                    recurrence: (!this_occurrence_only)
+                        .then(|| self.repeat_change(form))
+                        .flatten(),
+                    // The clocks above are this occurrence's, so a save meant for the series says
+                    // where they came from and the core shifts the series by that much rather than
+                    // moving its start onto this occurrence, which would delete every earlier one.
+                    times_from_occurrence: (!this_occurrence_only && !detail.occurrence.is_empty())
+                        .then(|| detail.occurrence.clone()),
+                },
             });
         }
         let choice = usize::try_from(form.calendar_index)
             .ok()
             .and_then(|index| self.choices.get(index));
-        Ok(Intent::CreateEvent {
-            title: title.to_owned(),
-            start,
-            end,
-            account: choice.map(|value| value.account.clone()),
-            calendar: choice.map(|value| value.id.clone()),
-            all_day: form.all_day,
-            timezone: (!form.all_day && !self.zone.is_empty()).then(|| self.zone.clone()),
-            notes,
-            location,
-            // A create sends the rule itself rather than one of the three answers an edit gives.
-            recurrence: match self.repeat_change(form) {
-                Some(RecurrenceChange::Set { rule }) => Some(rule),
-                Some(RecurrenceChange::Clear) | None => None,
+        Ok(Intent::Events {
+            intent: EventIntent::Create {
+                title: title.to_owned(),
+                start,
+                end,
+                account: choice.map(|value| value.account.clone()),
+                calendar: choice.map(|value| value.id.clone()),
+                all_day: form.all_day,
+                timezone: (!form.all_day && !self.zone.is_empty()).then(|| self.zone.clone()),
+                notes,
+                location,
+                // A create sends the rule itself rather than one of the three answers an edit
+                // gives.
+                recurrence: match self.repeat_change(form) {
+                    Some(RecurrenceChange::Set { rule }) => Some(rule),
+                    Some(RecurrenceChange::Clear) | None => None,
+                },
             },
         })
     }

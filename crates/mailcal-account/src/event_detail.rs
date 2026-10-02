@@ -46,7 +46,7 @@ pub struct DetailOccurrence {
 /// A single event's full detail, for the detail view and to prefill the editor.
 ///
 /// Times are the event's **own wall clock**: the form the editor edits and
-/// `Intent::UpdateEvent` expects, so a save cannot silently convert a zoned or all-day event. A
+/// `EventIntent::Update` expects, so a save cannot silently convert a zoned or all-day event. A
 /// client localises the display; a same-zone event reads identically.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventDetail {

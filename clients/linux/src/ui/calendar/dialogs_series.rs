@@ -8,7 +8,7 @@ use std::{cell::Cell, rc::Rc, sync::Arc};
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
-use mailcal_bindings::{Intent, MailcalApp, ProposedEdit, SeriesEditWarning};
+use mailcal_bindings::{EventIntent, Intent, MailcalApp, ProposedEdit, SeriesEditWarning};
 
 use super::{
     super::AppInput,
@@ -195,16 +195,19 @@ pub(super) fn series_warning_for(
     form: &EventForm,
 ) -> Option<SeriesEditWarning> {
     let app = app?;
-    let Ok(Intent::UpdateEvent {
-        account,
-        key,
-        title,
-        start,
-        end,
-        notes,
-        location,
-        recurrence,
-        ..
+    let Ok(Intent::Events {
+        intent:
+            EventIntent::Update {
+                account,
+                key,
+                title,
+                start,
+                end,
+                notes,
+                location,
+                recurrence,
+                ..
+            },
     }) = editor.intent(form, false)
     else {
         return None;

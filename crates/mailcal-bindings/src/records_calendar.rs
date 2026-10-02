@@ -25,7 +25,7 @@ pub struct CalendarSnapshot {
 #[derive(uniffi::Record)]
 pub struct EventRow {
     /// The id of the account this event belongs to: the host passes it back in
-    /// [`Intent::DeleteEvent`](crate::Intent::DeleteEvent) so the delete routes to the
+    /// [`EventIntent::Delete`](crate::EventIntent::Delete) so the delete routes to the
     /// owning account (two accounts can mint the same event key).
     pub account: String,
     /// The event's provider key.
@@ -123,7 +123,7 @@ pub struct DisplaySettings {
     pub layout: CalendarLayout,
 }
 
-/// Which edges of an event a drag moved: the shape of `Intent::MoveEvent`.
+/// Which edges of an event a drag moved: the shape of `EventIntent::Move`.
 ///
 /// A drag is one of exactly three gestures, and naming them is what keeps the client's hit-test
 /// (was the finger on the block, or on one of its edges?) from having to be re-derived as
@@ -192,7 +192,7 @@ pub struct TimedSegment {
     /// This occurrence's **original** start, as a wall clock in the event's own zone, or empty
     /// when the event does not recur.
     ///
-    /// Opaque: pass it back verbatim as `Intent::MoveEvent`'s `occurrence` to move **this one**
+    /// Opaque: pass it back verbatim as `EventIntent::Move`'s `occurrence` to move **this one**
     /// occurrence, or send `None` to move the whole series. Non-empty is also the signal that a
     /// drag must **ask** which the user meant, because the core will not guess; dragging one
     /// Tuesday standup is not the same as rewriting every Tuesday to eternity.
@@ -433,7 +433,7 @@ pub struct EventDetail {
     /// underneath the view it was drawn in), and the times above are then the series': so a
     /// client that reads this can never offer *This event* against another occurrence's times.
     ///
-    /// Hand it straight back as `Intent::UpdateEvent`/`DeleteEvent`'s `occurrence`.
+    /// Hand it straight back as `EventIntent::Update`/`Delete`'s `occurrence`.
     pub occurrence_start: String,
     /// Everyone on the event, organiser first; empty for an appointment nobody was invited to.
     pub attendees: Vec<EventAttendee>,
