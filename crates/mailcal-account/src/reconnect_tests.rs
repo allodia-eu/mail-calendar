@@ -81,6 +81,15 @@ impl Provider for FakeDelegate {
         unreachable!("submit tests only script a failing outcome");
     }
 
+    async fn file_sent_copy(
+        &self,
+        _account: &AccountId,
+        _draft: &Draft,
+    ) -> ProviderResult<ProviderKey> {
+        self.record()?;
+        Ok(ProviderKey::new("Sent:1:9").expect("valid key"))
+    }
+
     // A batch of its own, so a test can tell forwarding from the trait's one-at-a-time default:
     // that would call `fetch_message_source`, which this fake rejects.
     fn fetch_message_sources<'a>(
@@ -107,6 +116,16 @@ impl CalendarWrites for FakeDelegate {}
 
 fn account() -> AccountId {
     AccountId::try_from("test@example.com").expect("valid account id")
+}
+
+fn draft() -> Draft {
+    Draft::new(
+        MessageIdHeader::new("m@example.com").expect("valid message id"),
+        EmailAddress::new("from@example.com"),
+        vec![EmailAddress::new("to@example.com")],
+        "Subject",
+        "Body",
+    )
 }
 
 fn mailbox() -> MailboxId {
@@ -215,14 +234,7 @@ async fn a_send_is_never_blind_retried() {
     let provider =
         ReconnectingImapProvider::adopt(initial, mailbox(), healthy_redial(Arc::clone(&redials)));
 
-    let draft = Draft::new(
-        MessageIdHeader::new("m@example.com").expect("valid message id"),
-        EmailAddress::new("from@example.com"),
-        vec![EmailAddress::new("to@example.com")],
-        "Subject",
-        "Body",
-    );
-    let result = provider.submit_email(&account(), &draft).await;
+    let result = provider.submit_email(&account(), &draft()).await;
     assert!(result.is_err(), "a retryable send surfaces the error");
     assert_eq!(
         submits.load(Ordering::SeqCst),
@@ -329,4 +341,37 @@ async fn a_batch_that_lost_its_connection_redials_the_next_call_rather_than_repe
         1,
         "the next call ran on a fresh session"
     );
+}
+
+// Every IMAP account is wrapped, so a verb the wrapper does not forward is a verb no IMAP
+// account has: the trait's default answers that the send already filed the copy.
+#[tokio::test]
+async fn filing_a_sent_copy_reaches_the_imap_session() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let initial = FakeDelegate::arc(Arc::clone(&calls), None);
+    let provider = ReconnectingImapProvider::adopt(
+        initial,
+        mailbox(),
+        healthy_redial(Arc::new(AtomicUsize::new(0))),
+    );
+
+    let key = provider.file_sent_copy(&account(), &draft()).await;
+    assert_eq!(key.expect("the filing is forwarded").as_str(), "Sent:1:9");
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+// The trait requires the filing to look for the copy before placing one, so a repeat after a
+// dropped socket finds the copy the first attempt placed rather than adding a second.
+#[tokio::test]
+async fn filing_a_sent_copy_is_retried_on_a_fresh_session() {
+    let redials = Arc::new(AtomicUsize::new(0));
+    let initial = FakeDelegate::arc(Arc::new(AtomicUsize::new(0)), Some(FailureClass::Retryable));
+    let provider =
+        ReconnectingImapProvider::adopt(initial, mailbox(), healthy_redial(Arc::clone(&redials)));
+
+    provider
+        .file_sent_copy(&account(), &draft())
+        .await
+        .expect("the retry on a fresh session files the copy");
+    assert_eq!(redials.load(Ordering::SeqCst), 1);
 }

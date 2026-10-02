@@ -23,7 +23,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use engine_api::CalendarWrites;
+use engine_api::{CalendarWrites, ProviderKey};
 use engine_core::{
     error::FailureClass,
     ids::{AccountId, MailboxId},
@@ -314,6 +314,24 @@ impl Provider for ReconnectingImapProvider {
             }
             result => result,
         }
+    }
+
+    /// Filing the sender's copy of a delivered message is retried on a dropped socket, unlike the
+    /// send itself: the trait requires the filing to look for the copy before placing one, so a
+    /// repeat finds what the first attempt placed rather than storing it twice.
+    async fn file_sent_copy(
+        &self,
+        account: &AccountId,
+        draft: &Draft,
+    ) -> ProviderResult<ProviderKey> {
+        let account = account.clone();
+        let draft = draft.clone();
+        self.with_reconnect(move |provider| {
+            let account = account.clone();
+            let draft = draft.clone();
+            async move { provider.file_sent_copy(&account, &draft).await }
+        })
+        .await
     }
 
     /// IMAP reports a message by storing the `$Junk`/`$NotJunk` keyword, forwarded through the same
