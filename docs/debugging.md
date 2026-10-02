@@ -1158,6 +1158,15 @@ diff: a step failing over a file the branch never touched, or a test passing tha
 gate, or re-run the step with `CARGO_BUILD_BUILD_DIR` pointed somewhere private, and expect a full
 rebuild when you do.
 
+⚠️ **A gate step this tree does not define is the same thing wearing a disguise.** It reads as a
+broken task runner, because the runner is what names the steps, so the search starts in `xtask/`
+and finds nothing wrong there. The step belongs to the `xtask` another checkout compiled, running
+against this tree's files, and it usually surfaces as a missing script: `could not start: No such
+file or directory`, for a path that is not in this branch. Every step's label is a literal in
+`xtask/src/`, so grepping that directory for the label you were shown settles it: no match means
+the binary that printed it was not built here. Reach for the grep rather than `gate --list`, which
+collapses the client steps into a single line and so cannot show you the step you are asking about.
+
 ## Known gaps / follow-ups
 
 - **The Linux acceptance run drives no analytics consent and no Diagnostics.** Mail actions,
