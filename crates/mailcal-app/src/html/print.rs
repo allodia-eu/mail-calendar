@@ -1,6 +1,7 @@
 //! The page a printed message is drawn on: the message's own header as labelled text above its
-//! body, wrapped by [`render_document`] so it carries the reading view's CSP, base stylesheet and
-//! remote-image choice unchanged (`docs/reading-actions.md`, "Printing a message").
+//! body, wrapped by [`render_document`](crate::render_document) so it carries the reading view's
+//! CSP, base stylesheet and remote-image choice unchanged (`docs/reading-actions.md`, "Printing a
+//! message").
 
 use super::render_document;
 

@@ -360,11 +360,10 @@ fn escape_attr_value(value: &str, out: &mut String) {
 
 mod document;
 mod links;
-mod print;
+pub mod print;
 mod reflow;
 
 pub use document::{Canvas, MESSAGE_CANVAS, render_document};
-pub use print::{PrintHeaderLine, render_print_document};
 
 #[cfg(test)]
 mod tests;

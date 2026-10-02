@@ -38,12 +38,12 @@ pub fn render_message_print_html(
 ) -> String {
     let lines: Vec<_> = lines
         .into_iter()
-        .map(|line| mailcal_app::PrintHeaderLine {
+        .map(|line| mailcal_app::print::PrintHeaderLine {
             label: line.label,
             value: line.value,
         })
         .collect();
-    mailcal_app::render_print_document(
+    mailcal_app::print::render_print_document(
         &subject,
         &lines,
         html.as_deref(),
