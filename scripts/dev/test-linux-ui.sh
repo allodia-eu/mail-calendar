@@ -593,7 +593,9 @@ PY
     --enabled --showing --timeout 30
   "$PYTHON" "$ATSPI" wait --name "Write your message" --showing --timeout 30
   capture mcp-draft
-  "$PYTHON" "$ATSPI" activate --name "Cancel" --timeout 20
+  # Nobody has written in it, so there is nothing to lose: Discard closes it without asking.
+  "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Write your message" --absent --timeout 20
   exec {MCP_INPUT_FD}>&-
   wait "$MCP_RELAY_PID"
   exec {MCP_OUTPUT_FD}<&-
@@ -706,8 +708,9 @@ PY
   "$PYTHON" "$ATSPI" wait --name "$ATTACHMENT_FILE" --absent --timeout 30
   "$PYTHON" "$ATSPI" wait --name "Discard draft?" --absent --timeout 20
 
-  # Taking one off is a decision about what goes out, so the same navigation now does stop. Both
-  # halves are needed: the first alone passes just as well with the guard switched off entirely.
+  # Taking one off is a decision about what goes out, so the same navigation now keeps the
+  # composer in Drafts, still without asking (docs/drafts.md, "Leaving a composer"). Both halves
+  # are needed: the first alone passes just as well with the save switched off entirely.
   open_mail_message "$ATTACHMENT_SUBJECT"
   "$PYTHON" "$ATSPI" activate --name "Forward" --timeout 20
   "$PYTHON" "$ATSPI" wait \
@@ -715,10 +718,37 @@ PY
   "$PYTHON" "$ATSPI" activate --name "Remove" --within "$ATTACHMENT_FILE" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "$ATTACHMENT_FILE" --absent --timeout 20
   open_mail_message "$PLAIN_SUBJECT"
+  "$PYTHON" "$ATSPI" wait --name "Write your message" --absent --timeout 30
+  "$PYTHON" "$ATSPI" wait --name "Discard draft?" --absent --timeout 5
+  # Out of the search first: a draft met in search results opens read-only (docs/drafts.md).
+  "$PYTHON" "$ATSPI" set-text --name "Search mail" --text "" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Drafts" --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "Fwd: $ATTACHMENT_SUBJECT" --role "list item" --enabled --showing --timeout 45
+  capture forward-left-in-drafts
+
+  # Reopened, it has a copy in Drafts to lose, so Discard asks; Keep editing changes nothing, and
+  # Discard takes the copy off the server. The question carries a Discard of its own beside the
+  # composer's, hence `--within`.
+  "$PYTHON" "$ATSPI" activate \
+    --name "Fwd: $ATTACHMENT_SUBJECT" --role "push button" \
+    --within "Fwd: $ATTACHMENT_SUBJECT" --within-role "list item" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Write your message" --showing --timeout 30
+  "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Discard draft?" --showing --timeout 30
   capture forward-discard-prompt
-  "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Keep editing" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Discard draft?" --absent --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Write your message" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Discard draft?" --showing --timeout 30
+  "$PYTHON" "$ATSPI" activate \
+    --name "Discard" --within "Discard draft?" --within-role frame --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Discard draft?" --absent --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Fwd: $ATTACHMENT_SUBJECT" --absent --timeout 45
+  # Back to All Inboxes, the first Inbox row: a search's scope follows the open folder, and the
+  # legs below expect the inboxes'.
+  "$PYTHON" "$ATSPI" activate --name "Inbox" --role "push button" --index 0 --timeout 20
 
   # Printing (docs/reading-actions.md, "Printing a message"). Inside the sandbox WebKitGTK prints
   # only through the desktop portal, which the fixture accepts without a dialog, keeping the PDF it
@@ -1005,7 +1035,9 @@ PY
   # An empty token closes the list rather than offering everyone the user has ever written to.
   "$PYTHON" "$ATSPI" set-text --name "To" --role text --text "" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Suggested recipients" --role list --absent --timeout 20
-  "$PYTHON" "$ATSPI" activate --name "Cancel" --timeout 20
+  # To is back to what the composer opened with, so nothing was written: no question.
+  "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Write your message" --absent --timeout 20
 
   # Mail actions. The dispatches themselves are unit-tested; what only a live run can show is that
   # the core answered; the menu offering the opposite verb the next time it opens; and that
@@ -1131,7 +1163,8 @@ PY
   grep -Fq "$mailto_uri" "$XDG_DATA_HOME/mailcal/mailcal.log" 2>/dev/null &&
     die "mail link content reached the diagnostic log"
   capture mailto-composer
-  "$PYTHON" "$ATSPI" activate --name "Cancel" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Write your message" --absent --timeout 20
 
   # The cross-account merge; the one contacts rule a single-account boot cannot show, and so the
   # last thing this run does: it swaps the dev account, and nothing follows it. `stalwart-multi`
