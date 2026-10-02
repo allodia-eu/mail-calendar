@@ -43,6 +43,15 @@ pub struct DetailOccurrence {
     pub end: LocalDateTime,
 }
 
+/// Whether the event's invitees may be changed from this account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InviteeEditability {
+    /// The account is not the meeting organiser, or its calendar cannot be written.
+    ReadOnly,
+    /// The account organises the meeting and its calendar can be written.
+    Editable,
+}
+
 /// A single event's full detail, for the detail view and to prefill the editor.
 ///
 /// Times are the event's **own wall clock**: the form the editor edits and
@@ -97,6 +106,8 @@ pub struct EventDetail {
     pub is_recurring: bool,
     /// Whether the owning account's calendar can be written; gates the edit/delete affordances.
     pub can_write: bool,
+    /// Whether this account may change the meeting's invitees.
+    pub invitee_editability: InviteeEditability,
     /// The occurrence this detail describes, as the token that named it, or empty when it
     /// describes the **series**, which is what an agenda row and a one-off event always do.
     ///
@@ -128,6 +139,7 @@ pub fn project_event_detail(
     event: &Event,
     can_write: bool,
     occurrence: Option<&DetailOccurrence>,
+    invitee_editability: InviteeEditability,
 ) -> EventDetail {
     let (timezone, start, end) = wall_clock_bounds(event, occurrence);
     let recurrence = event.recurrence.as_ref().and_then(describe_recurrence);
@@ -162,6 +174,7 @@ pub fn project_event_detail(
         recurrence,
         is_recurring: event.recurrence.is_some() || event.recurrence_id.is_some(),
         can_write,
+        invitee_editability,
         occurrence_start: occurrence.map(|at| at.token.clone()).unwrap_or_default(),
         attendees: event_attendees(event),
     }
@@ -334,7 +347,9 @@ mod tests {
         time::{CalendarDate, CalendarDateTime, Duration, LocalDateTime, TimeZoneId},
     };
 
-    use super::project_event_detail;
+    use super::{InviteeEditability, project_event_detail};
+
+    const READ_ONLY: InviteeEditability = InviteeEditability::ReadOnly;
     use crate::recurrence_shape::{EventRecurrence, RecurrenceFrequency};
 
     fn base(start: CalendarDateTime) -> Event {
@@ -359,7 +374,7 @@ mod tests {
         event.title = "Standup".to_owned();
         event.duration = Duration::from_parts(0, 0, 0, 30, 0, 0).unwrap();
 
-        let detail = project_event_detail("acct", &event, true, None);
+        let detail = project_event_detail("acct", &event, true, None, READ_ONLY);
         assert!(!detail.all_day);
         assert_eq!(detail.timezone, "Europe/Amsterdam");
         assert_eq!(detail.start, "2026-01-05T09:30:00");
@@ -376,7 +391,7 @@ mod tests {
         // resolving to the instant and back is not.
         let mut event = base(amsterdam("2026-03-29T01:30:00"));
         event.duration = Duration::from_parts(0, 0, 1, 0, 0, 0).unwrap();
-        let detail = project_event_detail("acct", &event, true, None);
+        let detail = project_event_detail("acct", &event, true, None, READ_ONLY);
         assert_eq!(detail.end, "2026-03-29T03:30:00");
     }
 
@@ -388,7 +403,7 @@ mod tests {
         event.title = "Vrij".to_owned();
         event.duration = Duration::from_parts(0, 1, 0, 0, 0, 0).unwrap();
 
-        let detail = project_event_detail("acct", &event, true, None);
+        let detail = project_event_detail("acct", &event, true, None, READ_ONLY);
         assert!(detail.all_day);
         assert_eq!(detail.timezone, "");
         assert_eq!(detail.start, "2026-04-01");
@@ -402,7 +417,7 @@ mod tests {
             CalendarDate::new(2026, 1, 30).unwrap(),
         ));
         event.duration = Duration::from_parts(0, 3, 0, 0, 0, 0).unwrap();
-        let detail = project_event_detail("acct", &event, true, None);
+        let detail = project_event_detail("acct", &event, true, None, READ_ONLY);
         assert_eq!(detail.end, "2026-02-02");
     }
 
@@ -419,7 +434,7 @@ mod tests {
             Frequency::Weekly,
         )));
 
-        let detail = project_event_detail("acct", &event, true, None);
+        let detail = project_event_detail("acct", &event, true, None, READ_ONLY);
         assert_eq!(detail.reminder_minutes, Some(15));
         assert!(matches!(
             detail.recurrence,
@@ -437,7 +452,7 @@ mod tests {
         event.alerts = vec![Alert::display(Trigger::before_start(
             Duration::from_parts(0, 1, 0, 0, 0, 0).unwrap(),
         ))];
-        let detail = project_event_detail("acct", &event, true, None);
+        let detail = project_event_detail("acct", &event, true, None, READ_ONLY);
         assert_eq!(detail.reminder_minutes, Some(1440), "one day before");
     }
 
@@ -452,7 +467,7 @@ mod tests {
         guest.participation_status = ParticipationStatus::Accepted;
         event.participants = vec![guest, owner];
 
-        let detail = project_event_detail("acct", &event, true, None);
+        let detail = project_event_detail("acct", &event, true, None, READ_ONLY);
         let addresses: Vec<_> = detail
             .attendees
             .iter()
@@ -467,7 +482,7 @@ mod tests {
             LocalDateTime::new(2026, 5, 1, 8, 0, 0).unwrap(),
         ));
         event.duration = Duration::from_parts(0, 0, 1, 30, 0, 0).unwrap();
-        let detail = project_event_detail("acct", &event, false, None);
+        let detail = project_event_detail("acct", &event, false, None, READ_ONLY);
         assert_eq!(detail.timezone, "", "a floating event has no zone");
         assert_eq!(detail.start, "2026-05-01T08:00:00");
         assert_eq!(detail.end, "2026-05-01T09:30:00");

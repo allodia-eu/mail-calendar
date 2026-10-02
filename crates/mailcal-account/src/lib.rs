@@ -50,7 +50,9 @@ mod tls;
 
 pub use account_shape::{AccountLinks, AccountShape, Capabilities, Capability};
 pub use autodetect::{MissReason, OauthRoutes, ServerSummary, SetupRecommendation, recommend};
-pub use calendar::{EventEdit, build_event_deletion, build_event_draft, build_event_patch};
+pub use calendar::{
+    EventEdit, attach_meeting, build_event_deletion, build_event_draft, build_event_patch,
+};
 pub use calendar_drag::{
     EventDrag, EventEdge, apply_event_drag, names_an_occurrence, occurrence_local,
     occurrence_wall_clock, stored_occurrence,
@@ -68,7 +70,7 @@ pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
 use engine_core::{ids::AccountId, sync::SyncUpdate};
 use engine_provider::Provider;
 pub use error::AccountError;
-pub use event_detail::{DetailOccurrence, EventDetail, project_event_detail};
+pub use event_detail::{DetailOccurrence, EventDetail, InviteeEditability, project_event_detail};
 pub use google::{
     GoogleConfig, connect_google_calendar_providers, connect_google_contact_providers,
     connect_google_folder, connect_google_mail_providers, fetch_google_primary_address,

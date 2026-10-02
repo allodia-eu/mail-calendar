@@ -2,7 +2,7 @@
 //! for the reason `FolderIntent` is: [`Intent`](super::Intent) is at its 500-line limit. It
 //! mirrors the core's own `EventIntent`.
 
-use crate::{EventEdge, RecurrenceChange, SimpleRecurrence};
+use crate::{EventEdge, MeetingInvitee, MeetingInviteePatch, RecurrenceChange, SimpleRecurrence};
 
 /// A write to a stored calendar event, or a new one.
 #[derive(uniffi::Enum)]
@@ -40,6 +40,10 @@ pub enum EventIntent {
         /// through [`EventIntent::Update`]'s `recurrence`.
         #[uniffi(default = None)]
         recurrence: Option<SimpleRecurrence>,
+        /// The people to invite. `None` creates an appointment; an empty list is refused.
+        /// The core derives the organiser from the chosen account.
+        #[uniffi(default = None)]
+        invitees: Option<Vec<MeetingInvitee>>,
     },
     /// Edit a stored calendar event, then refresh the agenda.
     ///
@@ -94,6 +98,10 @@ pub enum EventIntent {
         /// is ignored when `occurrence` is set. Setting it needs **both** `start` and `end`.
         #[uniffi(default = None)]
         times_from_occurrence: Option<String>,
+        /// Invitees to add, change or remove on a meeting this account organises. `None` leaves
+        /// the roster alone. An appointment cannot acquire invitees through an update.
+        #[uniffi(default = None)]
+        invitees: Option<MeetingInviteePatch>,
     },
     /// Move or resize a stored calendar event by **dragging** it on the grid, then refresh the
     /// agenda.

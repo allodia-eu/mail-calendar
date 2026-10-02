@@ -5,7 +5,7 @@
 //! is at its 500-line limit. Every write here names its event by an [`EventRef`], the account
 //! and the provider key together.
 
-use engine_api::LocalDateTime;
+use engine_api::{Invitee, LocalDateTime};
 use mailcal_account::{EventDrag, EventEdit};
 
 use crate::reference::EventRef;
@@ -48,12 +48,15 @@ pub enum EventIntent {
         /// How the event repeats, or `None` for a one-off. Changing the rule afterwards goes
         /// through [`EventIntent::Update`].
         recurrence: Option<mailcal_account::SimpleRecurrence>,
+        /// The people to invite. `None` creates an appointment; the organiser is derived from the
+        /// selected account. `Some` must contain at least one invitee.
+        invitees: Option<Vec<Invitee>>,
     },
-    /// Edit a stored calendar event; retitle, move, resize, change its notes or location;
+    /// Edit a stored calendar event; retitle, move, resize, change its notes, location or roster;
     /// then refresh the agenda.
     ///
     /// The write is a provider-neutral patch, so the adapter applies only the changed
-    /// properties and the recurrence rule, attendees, alarms and timezone survive.
+    /// properties and the untouched recurrence rule, invitees, alarms and timezone survive.
     /// Rebuilding the document instead, which is all [`EventIntent::Create`] can do;
     /// would delete every one of them and report success.
     ///

@@ -27,6 +27,7 @@ pub(crate) fn event_intent(intent: EventIntent) -> Result<AppEventIntent, String
             notes,
             location,
             recurrence,
+            invitees,
         } => AppEventIntent::Create {
             title,
             start,
@@ -38,6 +39,7 @@ pub(crate) fn event_intent(intent: EventIntent) -> Result<AppEventIntent, String
             notes,
             location,
             recurrence: recurrence.map(Into::into),
+            invitees: crate::records_meeting::invitees(invitees)?,
         },
         EventIntent::Update {
             account,
@@ -50,6 +52,7 @@ pub(crate) fn event_intent(intent: EventIntent) -> Result<AppEventIntent, String
             occurrence,
             recurrence,
             times_from_occurrence,
+            invitees,
         } => AppEventIntent::Update {
             event: event(account, key)?,
             edit: EventEdit {
@@ -59,6 +62,7 @@ pub(crate) fn event_intent(intent: EventIntent) -> Result<AppEventIntent, String
                 notes,
                 location,
                 recurrence: recurrence.map(Into::into),
+                invitees: crate::records_meeting::invitee_patch(invitees)?,
                 occurrence: parse_local(occurrence)?,
                 times_from_occurrence: parse_local(times_from_occurrence)?,
             },

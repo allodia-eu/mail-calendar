@@ -30,6 +30,7 @@ import Testing
             repeatDraft: nil,
             isRecurring: true,
             canWrite: true,
+            canEditInvitees: false,
             occurrenceStart: occurrence,
             attendees: []
         )
