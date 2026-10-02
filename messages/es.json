@@ -176,7 +176,7 @@
 	"compose_forward_attachments_failed": "No se han podido adjuntar los archivos del mensaje original.",
 	"compose_share_attachments_failed": "No se ha adjuntado: {files}",
 	"compose_discard_title": "¿Descartar el borrador?",
-	"compose_discard_message": "Este mensaje no se ha enviado. Si lo descartas, perderás lo que has escrito.",
+	"compose_discard_message": "Este mensaje no se ha enviado. Si lo descartas, se eliminará lo que has escrito, también de Borradores.",
 	"action_discard": "Descartar",
 	"action_keep_editing": "Seguir escribiendo",
 	"action_save_draft": "Guardar como borrador",

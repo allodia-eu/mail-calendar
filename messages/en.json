@@ -176,7 +176,7 @@
 	"compose_forward_attachments_failed": "Couldn't attach the files from the original message.",
 	"compose_share_attachments_failed": "Couldn't attach: {files}",
 	"compose_discard_title": "Discard draft?",
-	"compose_discard_message": "This message hasn't been sent. If you discard it, what you've written is lost.",
+	"compose_discard_message": "This message hasn't been sent. If you discard it, what you've written is deleted, including any copy in Drafts.",
 	"action_discard": "Discard",
 	"action_keep_editing": "Keep editing",
 	"action_save_draft": "Save as draft",

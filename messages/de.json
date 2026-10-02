@@ -176,7 +176,7 @@
 	"compose_forward_attachments_failed": "Die Anhänge der ursprünglichen Nachricht können nicht hinzugefügt werden.",
 	"compose_share_attachments_failed": "Nicht hinzugefügt: {files}",
 	"compose_discard_title": "Entwurf verwerfen?",
-	"compose_discard_message": "Diese Nachricht wurde nicht gesendet. Wenn Sie sie verwerfen, geht der geschriebene Text verloren.",
+	"compose_discard_message": "Diese Nachricht wurde nicht gesendet. Wenn Sie sie verwerfen, wird der geschriebene Text gelöscht, auch aus den Entwürfen.",
 	"action_discard": "Verwerfen",
 	"action_keep_editing": "Weiterschreiben",
 	"action_save_draft": "Als Entwurf speichern",

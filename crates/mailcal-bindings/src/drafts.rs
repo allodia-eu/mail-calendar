@@ -1,5 +1,5 @@
-//! The FFI half of keeping a composed message on the server: the three verbs a composer
-//! drives, the hint it renders, and the interval its idle timer counts.
+//! The FFI half of keeping a composed message on the server: the verbs a composer drives,
+//! the hint it renders, and the interval its idle timer counts.
 //!
 //! Its own file rather than an addition to [`crate::composer`], which is at the 500-line
 //! limit. The rules these expose are in `docs/drafts.md`.
@@ -109,6 +109,7 @@ impl MailcalApp {
             subject,
             document,
             blobs,
+            then_close: false,
         }));
         Ok(())
     }
@@ -138,23 +139,52 @@ impl MailcalApp {
         files: Vec<ComposerFileAttachment>,
         from: Option<String>,
     ) -> Result<(), MailcalError> {
-        let composition = composition_id(composition)?;
-        let prepared = prepare_with_files(&document_json, files)?;
-        let from = send_account(from)?;
-        let Recipients { to, cc, bcc } = recipients;
-        self.spawn_with_files(prepared, move |document, blobs| {
-            AppIntent::Drafts(DraftsIntent::Save {
-                composition,
-                from,
-                to,
-                cc,
-                bcc,
-                subject,
-                document,
-                blobs,
-            })
-        });
-        Ok(())
+        self.save_with_files(
+            composition,
+            recipients,
+            subject,
+            &document_json,
+            files,
+            from,
+            false,
+        )
+    }
+
+    /// Saves what a composer holds and then forgets the composition: what **leaving** a
+    /// composer means, whether by a click on another message or folder, a closed window or a
+    /// back gesture. The draft stays in Drafts and nobody is asked anything.
+    ///
+    /// One call rather than [`MailcalApp::save_draft_with_files`] then
+    /// [`MailcalApp::close_composition`], because the two would be separate tasks and the
+    /// close could land first, leaving the save nothing to supersede and the server two
+    /// copies. A composer whose words are already saved writes nothing.
+    ///
+    /// **Only for a composer something was written in.** One left untouched, or a reply
+    /// holding only its quoted original, calls `close_composition`: saving it would put an
+    /// empty or quote-only message into Drafts.
+    ///
+    /// # Errors
+    ///
+    /// As [`MailcalApp::save_draft_with_files`].
+    #[uniffi::method(default(from = None))]
+    pub fn save_draft_and_close(
+        &self,
+        composition: String,
+        recipients: Recipients,
+        subject: String,
+        document_json: String,
+        files: Vec<ComposerFileAttachment>,
+        from: Option<String>,
+    ) -> Result<(), MailcalError> {
+        self.save_with_files(
+            composition,
+            recipients,
+            subject,
+            &document_json,
+            files,
+            from,
+            true,
+        )
     }
 
     /// Removes this composition's stored draft from the server and forgets the composition.
@@ -208,6 +238,17 @@ impl MailcalApp {
         Ok(self.app.draft_status(&composition_id(composition)?).into())
     }
 
+    /// Whether `composition` has a copy in Drafts, or a save queued for one: what Discard
+    /// would remove. A composer asks before discarding only when this holds or something has
+    /// been written, because otherwise there is nothing to lose.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Engine`] if `composition` is blank.
+    pub fn draft_is_stored(&self, composition: String) -> Result<bool, MailcalError> {
+        Ok(self.app.draft_is_stored(&composition_id(composition)?))
+    }
+
     /// Opens the stored draft `key` (in `account`) into `composition`, so the composer the
     /// host is about to show saves over that copy rather than beside it.
     ///
@@ -248,6 +289,40 @@ impl MailcalApp {
             })
             .map(DraftResume::from)
             .map_err(MailcalError::Engine)
+    }
+}
+
+impl MailcalApp {
+    /// The two file-carrying saves, which differ only in whether the composer is being left.
+    #[allow(clippy::too_many_arguments)]
+    fn save_with_files(
+        &self,
+        composition: String,
+        recipients: Recipients,
+        subject: String,
+        document_json: &str,
+        files: Vec<ComposerFileAttachment>,
+        from: Option<String>,
+        then_close: bool,
+    ) -> Result<(), MailcalError> {
+        let composition = composition_id(composition)?;
+        let prepared = prepare_with_files(document_json, files)?;
+        let from = send_account(from)?;
+        let Recipients { to, cc, bcc } = recipients;
+        self.spawn_with_files(prepared, move |document, blobs| {
+            AppIntent::Drafts(DraftsIntent::Save {
+                composition,
+                from,
+                to,
+                cc,
+                bcc,
+                subject,
+                document,
+                blobs,
+                then_close,
+            })
+        });
+        Ok(())
     }
 }
 

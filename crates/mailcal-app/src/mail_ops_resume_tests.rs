@@ -59,6 +59,7 @@ fn save(id: &str, text: &str) -> Intent {
         subject: "Half a subject".to_owned(),
         document: document(text),
         blobs: Vec::new(),
+        then_close: false,
     })
 }
 
@@ -322,6 +323,7 @@ async fn a_save_keeps_the_file_the_composer_is_holding() {
         subject: "Half a subject".to_owned(),
         document,
         blobs: vec![crate::ComposerBlob::new(handle, b"TERMS".to_vec())],
+        then_close: false,
     }))
     .await;
 

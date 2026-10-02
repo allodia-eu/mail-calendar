@@ -176,7 +176,7 @@
 	"compose_forward_attachments_failed": "Não foi possível anexar os ficheiros da mensagem original.",
 	"compose_share_attachments_failed": "Não anexado: {files}",
 	"compose_discard_title": "Descartar o rascunho?",
-	"compose_discard_message": "Esta mensagem não foi enviada. Se a descartar, perde o que escreveu.",
+	"compose_discard_message": "Esta mensagem não foi enviada. Se a descartar, o que escreveu é eliminado, incluindo dos Rascunhos.",
 	"action_discard": "Descartar",
 	"action_keep_editing": "Continuar a escrever",
 	"action_save_draft": "Guardar como rascunho",

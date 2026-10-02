@@ -176,7 +176,7 @@
 	"compose_forward_attachments_failed": "Impossibile allegare i file del messaggio originale.",
 	"compose_share_attachments_failed": "Non allegato: {files}",
 	"compose_discard_title": "Eliminare la bozza?",
-	"compose_discard_message": "Questo messaggio non è stato inviato. Se lo elimini, perderai quello che hai scritto.",
+	"compose_discard_message": "Questo messaggio non è stato inviato. Se lo elimini, quello che hai scritto verrà cancellato, anche dalle Bozze.",
 	"action_discard": "Elimina",
 	"action_keep_editing": "Continua a scrivere",
 	"action_save_draft": "Salva come bozza",

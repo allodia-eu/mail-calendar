@@ -183,6 +183,33 @@ signature are re-sanitised to the inert subset on the way to the server
 ([`composer-security.md`](composer-security.md)). A draft is read back later by a mail client,
 this one included, which makes it exactly as much of a rendering surface as a received message.
 
+## Leaving a composer
+
+**Leaving a composer keeps the draft, and asks nothing.** A click on another message or folder, a
+link or a share opening a new composer, a closed composer window and Android's back gesture all
+leave it: the composer saves what it holds and closes. Autosave already put the words on the
+server, so a question at that point would offer only one way to lose them.
+
+**The save and the close are one call**, `save_draft_and_close`. Each intent is its own task, so
+a close sent after a save could land first, leaving the save no stored key to supersede and the
+server two copies. A composer whose words are already saved writes nothing on the way out.
+
+**A composer nothing was written in closes without saving.** The test is the one the composer
+already makes: a header edited, or a body that differs from what it opened with. So a reply that
+still holds only its quoted original leaves nothing in Drafts, and neither does a resumed draft
+nobody touched, which is in Drafts already.
+
+**Discard is the one way to throw a draft away**, so it asks "Discard draft?" first whenever
+there is something to lose: the composer was written in, or `draft_is_stored` says a copy is in
+Drafts or queued for it. With neither, it closes at once. Keep editing leaves the composer exactly
+as it was.
+
+**Where Discard sits follows from whether anything else leads out.** On a desktop the composer is
+a pane or a window, and a click elsewhere or the window's own close is the way out, so Discard
+takes the place of the composer's Cancel. Where the composer fills the screen (iPhone, iPad and
+Android) its close control is the only way out, so it stays and means leaving, labelled Close, and
+Discard joins Save as draft as a control of its own.
+
 ## Discarding
 
 Discarding removes the stored copy through the same outbox. A draft that is already gone settles
@@ -206,26 +233,23 @@ and the removal below runs on whatever key the composition had.
 | Discard removes the server copy | ✅ | ✅ | ✅ | ✅ |
 | Resume from the Drafts folder | ✅ | ✅ | ✅ | ✅ |
 | Sending takes the draft away | ✅ | ✅ | ✅ | ✅ |
+| Leaving the composer keeps the draft, unasked | ✅ | ✅ | ✅ | ✅ |
+| Discard asks only when something would be lost | ✅ | ✅ | ✅ | ✅ |
 
 Where each puts the two controls is the platform's own answer, and each is where that platform
 already puts an action on the message rather than a field you address it with: in the composer's
 action bar on macOS, iOS and Linux, in the app bar on Android, and in the action row above the
 editor on Windows ([`signatures.md`](signatures.md) settled the same question).
 
-Discard is reached from the "Discard draft?" question every platform already raises, which is why
-none of them grew a second control for it. On macOS, Windows and Linux that question is what a
-click on another message asks; on Android it is what the back gesture asks.
+No platform keeps a Cancel beside Discard: a second way out that kept the draft would be a
+second name for leaving.
 
 ## Known gaps
 
 - **Android and Linux take the editor's baseline on the first sample**, a third of the interval
   after the composer opens, so a body typed before it and left alone, with no header touched, is
-  not saved until the next edit. Apple reads it as the composer appears, which has not been
+  not saved by the idle timer until the next edit. Leaving the composer still saves it. Apple reads it as the composer appears, which has not been
   checked against the order the editor is seeded in.
-- **Closing a composer does not save it first.** Closing one stops the idle timer, so what was
-  typed since the last save is not on the server, and a composer closed before its first save
-  leaves nothing in Drafts. A save on close would close it, at the cost of a write for every
-  composer dismissed.
 - **A composer nobody pauses in is never saved.** The trigger is idleness, so a user typing
   without a break for ten minutes has nothing on the server until they stop. A second trigger on
   elapsed time would close it, at the cost of uploading a draft mid-sentence.
@@ -252,6 +276,10 @@ click on another message asks; on Android it is what the back gesture asks.
 - **A composer left open through an autosave shows one hint for every save.** The hint does not
   auto-clear, so "Saved to Drafts" stands until the next save changes it. That is the standing
   truth about the draft rather than a notification, and it is why it is drawn quietly.
+- **Opening the draft being left can show it as it was before the leaving save.** Leaving reads
+  the editor's document before it saves, so a click on that same draft's row in Drafts can resume
+  the stored copy ahead of the save, and the composer it opens supersedes a key the save has just
+  moved. The window is one read of the editor wide, and only that one row reaches it.
 - **A discard racing a save that is mid-round-trip can leave a copy behind.** Withdrawing is
   refused for an op already in flight, and that op then stores the draft under a key minted
   after the removal has run, so the removal cannot have named it. The window is one round trip

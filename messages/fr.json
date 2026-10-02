@@ -176,7 +176,7 @@
 	"compose_forward_attachments_failed": "Impossible de joindre les fichiers du message d'origine.",
 	"compose_share_attachments_failed": "Non joint : {files}",
 	"compose_discard_title": "Supprimer le brouillon ?",
-	"compose_discard_message": "Ce message n’a pas été envoyé. Si vous le supprimez, ce que vous avez écrit sera perdu.",
+	"compose_discard_message": "Ce message n’a pas été envoyé. Si vous le supprimez, ce que vous avez écrit sera effacé, y compris dans les Brouillons.",
 	"action_discard": "Supprimer",
 	"action_keep_editing": "Continuer à écrire",
 	"action_save_draft": "Enregistrer comme brouillon",
