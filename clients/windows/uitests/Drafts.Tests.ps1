@@ -1,6 +1,6 @@
 # Keeping the message being composed on the server (docs/drafts.md): Save as draft, the idle save,
-# a Drafts row opening back into its composer, and the two ways a stored copy leaves, Discard and
-# an accepted send.
+# leaving a composer, a Drafts row opening back into its composer, and the two ways a stored copy
+# leaves, Discard and an accepted send.
 #
 # WHY IT IS HERE AND NOT IN `Mailcal.Tests`. Every rule below is wiring in ComposerView.Drafts.cs,
 # MainWindow.Drafts.cs and the list's click handlers, all of which link WinUI. The idle save is the
@@ -13,7 +13,7 @@
 # lists it after a sync.
 #
 # Each case writes a draft under a subject of its own and takes it off the server again, through the
-# Discard question, so the suite leaves Drafts as it found it. The send case leaves one message in
+# composer's Discard, so the suite leaves Drafts as it found it. The send case leaves one message in
 # Sent, as every sending suite does.
 
 $CatalogDir = Join-Path $PSScriptRoot '../../../messages'
@@ -103,9 +103,19 @@ function New-SavedDraft {
   }
 }
 
+# Whether "Discard draft?" is up: the only dialog these cases raise, so its primary button is it.
+function Test-DiscardQuestion {
+  Wait-UiaQuiet -CapMs 800
+  $null -ne (Find-UiaElement -AutomationId 'PrimaryButton' -Type 'Button')
+}
+
+# Leaves the open composer the way a person does, by opening a message from the Inbox. Leaving keeps
+# the draft and asks nothing (docs/drafts.md, "Leaving a composer"), so a question here is a failure.
 function Close-DraftComposer {
-  $cancel = Find-UiaElement -AutomationId 'CancelButton' -Type 'Button'
-  if ($cancel) { Invoke-UiaElement $cancel }
+  if (-not (Find-UiaElement -AutomationId 'SendButton')) { return }
+  Open-DraftAccountFolder -Folder 'Inbox'
+  Invoke-UiaElement (@(Get-MailRows)[0]) | Out-Null
+  if (Test-DiscardQuestion) { throw 'leaving the composer asked "Discard draft?"; leaving keeps the draft unasked' }
   Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec 10 | Out-Null
 }
 
@@ -119,16 +129,16 @@ function Open-StoredDraft {
   }
 }
 
-# Leaves the open composer the way a person does, by opening a message from the Inbox, and answers
-# the question that raises with Discard. The composer must hold an edit: one nobody touched closes
-# without asking, and keeps its stored copy.
+# Throws the open composer's draft away with its Discard, answering "Discard draft?" when it asks.
+# Answers whether it asked. A no-op with no composer up, so cleanup can call it blind.
 function Remove-OpenDraft {
-  Open-DraftAccountFolder -Folder 'Inbox'
-  Invoke-UiaElement (@(Get-MailRows)[0]) | Out-Null
-  $discard = Wait-UiaElement -Name $DraftCatalog.action_discard -Type 'Button' -TimeoutSec 10
-  if (-not $discard) { throw 'opening another message over an edited draft asked nothing' }
+  $discard = Find-UiaElement -AutomationId 'DiscardButton' -Type 'Button'
+  if (-not $discard) { return $false }
   Invoke-UiaElement $discard
+  $asked = Test-DiscardQuestion
+  if ($asked) { Invoke-UiaElement (Find-UiaElement -AutomationId 'PrimaryButton' -Type 'Button') }
   Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec 10 | Out-Null
+  $asked
 }
 
 # Takes $Subject off the server however a case left it, so the next run starts from the same
@@ -136,28 +146,54 @@ function Remove-OpenDraft {
 function Clear-StoredDraft {
   param([Parameter(Mandatory)] [string] $Subject)
   Close-ExtraWindows
-  Close-DraftComposer
+  # Discarded rather than left: leaving would put whatever a failed case typed into Drafts.
+  Remove-OpenDraft | Out-Null
   if (-not (Wait-DraftRow -Subject $Subject -TimeoutSec 5)) { return }
   Open-StoredDraft -Subject $Subject
-  $box = Find-UiaElement -AutomationId 'SubjectBox'
-  Set-UiaText $box "$Subject."
-  Remove-OpenDraft
+  Remove-OpenDraft | Out-Null
 }
 
 $Suite = @{
   Dataset = 'harness'
   Cases   = @(
     @{
-      Name = 'Save as draft stores the message in Drafts, and Cancel leaves it there'
+      Name = 'Save as draft stores the message in Drafts, and leaving keeps it there'
       Body = {
         $subject = "Draft suite $DraftRun save"
         try {
           New-SavedDraft -Subject $subject
           Close-DraftComposer
           Assert-True (Wait-DraftRow -Subject $subject) `
-            'the draft Save as draft reported saved is not in Drafts after Cancel: either the save never reached the server, or closing the composer took it away'
+            'the draft Save as draft reported saved is not in Drafts after leaving the composer: either the save never reached the server, or leaving took it away'
         }
         finally { Clear-StoredDraft -Subject $subject }
+      }
+    },
+    @{
+      Name = 'leaving a composer that was written in saves it, and asks nothing'
+      Body = {
+        # Never saved by hand and left at once, well inside the idle interval, so only the leave
+        # can have put it on the server.
+        $subject = "Draft suite $DraftRun leave"
+        try {
+          Open-NewDraftComposer
+          Set-UiaText (Find-UiaElement -AutomationId 'ToField') $DraftRecipient
+          Set-UiaText (Find-UiaElement -AutomationId 'SubjectBox') $subject
+          Close-DraftComposer
+          Assert-True (Wait-DraftRow -Subject $subject) `
+            'a composer left by opening another message is not in Drafts: leaving must save what was written'
+        }
+        finally { Clear-StoredDraft -Subject $subject }
+      }
+    },
+    @{
+      Name = 'Discard over a composer nothing was written in asks nothing'
+      Body = {
+        Open-NewDraftComposer
+        Assert-True (-not (Remove-OpenDraft)) `
+          'Discard over an untouched composer asked "Discard draft?"; with nothing written and nothing stored there is nothing to lose'
+        Assert-True ($null -eq (Find-UiaElement -AutomationId 'SendButton')) `
+          'Discard over an untouched composer left it open'
       }
     },
     @{
@@ -198,16 +234,17 @@ $Suite = @{
       }
     },
     @{
-      Name = 'Discard over an edited draft takes the stored copy off the server'
+      Name = 'Discard over a stored draft asks first, and takes the copy off the server'
       Body = {
         $subject = "Draft suite $DraftRun discard"
         try {
           New-SavedDraft -Subject $subject
           Close-DraftComposer
+          # Untouched since it opened, so only the stored copy makes the question due.
           Open-StoredDraft -Subject $subject
-          Set-UiaText (Find-UiaElement -AutomationId 'SubjectBox') "$subject."
-          Remove-OpenDraft
-          Assert-True (Wait-DraftRow -Subject "$subject*" -Absent) `
+          Assert-True (Remove-OpenDraft) `
+            'Discard over a draft with a copy in Drafts asked nothing; the copy is something to lose'
+          Assert-True (Wait-DraftRow -Subject $subject -Absent) `
             'Discard left the draft in Drafts; it is the one path that removes the stored copy'
         }
         finally { Clear-StoredDraft -Subject $subject }
@@ -243,9 +280,8 @@ $Suite = @{
           # within 40s of the last keystroke; the rest is the round trip.
           Assert-True (Wait-DraftSaved -TimeoutSec 50) `
             "nothing was saved 50s after typing in the body (the hint reads '$(Get-DraftHint)'): the host is not sampling the editor's change count"
-          Remove-OpenDraft
         }
-        finally { Close-DraftComposer }
+        finally { Remove-OpenDraft | Out-Null }
       }
     }
   )
