@@ -84,3 +84,12 @@ fn printing_loads_remote_images_only_when_reading_did() {
     let loaded = render_print_document("s", &[], Some("<p>x</p>"), None, true);
     assert!(loaded.contains("img-src https: http: data:;"));
 }
+
+#[test]
+fn the_subject_is_the_page_title_a_print_job_is_named_after() {
+    // WebView2 and WebKitGTK name the job after the title, and without one after the URL, which
+    // for a page loaded from a string is the whole message as base64.
+    let doc = render_print_document("Q3 <figures> & plans", &[], Some("<p>x</p>"), None, false);
+    let head = &doc[..doc.find("</head>").unwrap()];
+    assert!(head.contains("<title>Q3 &lt;figures&gt; &amp; plans</title>"));
+}

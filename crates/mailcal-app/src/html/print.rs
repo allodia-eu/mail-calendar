@@ -3,7 +3,7 @@
 //! CSP, base stylesheet and remote-image choice unchanged (`docs/reading-actions.md`, "Printing a
 //! message").
 
-use super::render_document;
+use super::document::render_titled_document;
 
 /// One labelled line of a printed message's header, such as `From` and the sender.
 ///
@@ -32,8 +32,9 @@ const PRINT_CSS: &str = "@media print{body{padding:0}}\
 /// `html` is the reading snapshot's **sanitised** fragment and is used as is; `plain` is the
 /// plain-text body, escaped here and kept to its own line breaks. With neither, the page is the
 /// header alone. Every header value is escaped, so a subject or an address is always text and
-/// never markup. `load_remote_images` is the reader's choice for this message, so printing never
-/// loads what reading did not.
+/// never markup. The subject is the page's `<title>` too, which is what WebView2 and WebKitGTK
+/// name the print job after. `load_remote_images` is the reader's choice for this message, so
+/// printing never loads what reading did not.
 #[must_use]
 pub fn render_print_document(
     subject: &str,
@@ -61,7 +62,9 @@ pub fn render_print_document(
         escape_text(plain, &mut fragment);
         fragment.push_str("</div>");
     }
-    render_document(&fragment, load_remote_images)
+    let mut title = String::new();
+    escape_text(subject, &mut title);
+    render_titled_document(&title, &fragment, load_remote_images)
 }
 
 fn escape_text(value: &str, out: &mut String) {

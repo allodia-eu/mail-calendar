@@ -98,7 +98,9 @@ since a size cap dropped its source will fetch it.
 lines the reading header draws (From, To, Cc, Bcc and the date, under the label **Sent**), then the
 body. A client passes each line under the label it already shows and the date as it already
 formats it; a line with nothing in it is dropped by the core, so no client filters. Every header
-value is escaped, so a subject or an address is text on the page and never markup.
+value is escaped, so a subject or an address is text on the page and never markup. The subject is
+also the page's `<title>`, because WebView2 and WebKitGTK name the print job after it and would
+otherwise use the page's URL, which for a page loaded from a string is the message itself.
 
 **It is the reading document with a header on top**, not a second renderer: the body is the
 snapshot's sanitised fragment (or its plain text, escaped and kept to its own line breaks), wrapped

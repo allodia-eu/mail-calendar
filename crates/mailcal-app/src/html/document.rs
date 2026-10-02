@@ -107,6 +107,22 @@ fn base_css() -> &'static str {
 /// either. A message cannot override any of this: the sanitiser drops `<meta>`.
 #[must_use]
 pub fn render_document(body_fragment: &str, load_remote_images: bool) -> String {
+    render_titled_document("", body_fragment, load_remote_images)
+}
+
+/// [`render_document`] with a `<title>`, for a page a platform names after its title: a print
+/// job in WebView2 and WebKitGTK, which otherwise falls back to the document's URL.
+/// `escaped_title` is already escaped text; an empty one writes no `<title>`.
+pub(super) fn render_titled_document(
+    escaped_title: &str,
+    body_fragment: &str,
+    load_remote_images: bool,
+) -> String {
+    let title = if escaped_title.is_empty() {
+        String::new()
+    } else {
+        format!("<title>{escaped_title}</title>")
+    };
     let img_src = if load_remote_images {
         "https: http: data:"
     } else {
@@ -130,7 +146,7 @@ pub fn render_document(body_fragment: &str, load_remote_images: bool) -> String 
          <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; \
          base-uri 'none'; form-action 'none'; \
          img-src {img_src}; style-src 'unsafe-inline'; font-src data:\">\
-         <meta name=\"viewport\" content=\"width=device-width\">\
+         <meta name=\"viewport\" content=\"width=device-width\">{title}\
          <style>{base_css}{reflow_css}</style></head><body>{body_fragment}</body></html>"
     )
 }
