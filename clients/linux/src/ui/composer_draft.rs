@@ -41,6 +41,23 @@ pub(crate) struct HeaderValues {
     pub(crate) subject: String,
 }
 
+impl HeaderValues {
+    /// What the header fields show, read the same way when the composer opens and when it is
+    /// asked again.
+    ///
+    /// Never the request the composer was opened with: a seeded recipient field normalises what
+    /// it was handed, so one opened with `ada@example.test` shows `ada@example.test, `, and a
+    /// baseline taken from the request would count every reply as written in.
+    pub(crate) fn on_screen(fields: &ComposerFields) -> Self {
+        Self {
+            to: fields.to.text(),
+            cc: fields.cc.text(),
+            bcc: fields.bcc.text(),
+            subject: fields.subject.text().to_string(),
+        }
+    }
+}
+
 /// A surface change waiting for the open composer to be left: saved and closed, or closed.
 pub(crate) enum PendingNavigation {
     Message(OpenedMessage),
@@ -143,23 +160,22 @@ impl DraftGuard {
         self.edited(move |edited| sender.emit(AppInput::DiscardComposer(host, edited)));
     }
 
+    /// The half of [`edited`](Self::edited) the header fields answer on their own.
+    pub(crate) fn header_edited(&self) -> bool {
+        headers_edited(
+            &HeaderValues::on_screen(&self.fields),
+            &self.opening,
+            self.fields.files.borrow().len(),
+            self.opening_files,
+        )
+    }
+
     /// Answers "has anything been written here?", handing `answer` the one boolean.
     ///
     /// The header half settles it on its own when it is dirty, so a draft with a typed recipient
     /// never pays for the round trip.
     fn edited(&self, answer: impl FnOnce(bool) + 'static) {
-        let current = HeaderValues {
-            to: self.fields.to.text(),
-            cc: self.fields.cc.text(),
-            bcc: self.fields.bcc.text(),
-            subject: self.fields.subject.text().to_string(),
-        };
-        if headers_edited(
-            &current,
-            &self.opening,
-            self.fields.files.borrow().len(),
-            self.opening_files,
-        ) {
+        if self.header_edited() {
             answer(true);
             return;
         }

@@ -480,6 +480,17 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
 
     assert!(pane.is_active(42));
     assert!(pane.widget().first_child().is_some());
+    // Its To is seeded and nobody has typed: leaving it must save nothing, and Discard must not
+    // ask about a message nobody wrote.
+    let guard = pane
+        .draft_cell()
+        .borrow()
+        .clone()
+        .expect("the shown composer has its guard");
+    assert!(
+        !guard.header_edited(),
+        "a reply nobody typed into is not a draft"
+    );
     pane.teardown();
     assert!(pane.widget().first_child().is_none());
 

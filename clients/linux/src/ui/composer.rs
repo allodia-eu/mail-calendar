@@ -258,12 +258,7 @@ impl ComposerPane {
         let guard = Rc::new(DraftGuard::new(
             web.widget().clone(),
             fields.clone(),
-            HeaderValues {
-                to: request.initial_to.clone(),
-                cc: request.initial_cc.clone(),
-                bcc: request.initial_bcc.clone(),
-                subject: request.subject.clone(),
-            },
+            HeaderValues::on_screen(&fields),
             // A forward's staged files are not work to lose: they are still in the mailbox, so
             // they are the baseline rather than a draft. A share's are the user's own choice.
             if request.kind == ComposeKind::Forward {
