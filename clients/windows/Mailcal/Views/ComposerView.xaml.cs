@@ -443,6 +443,8 @@ public sealed partial class ComposerView : UserControl
                 // to begin.
                 ToField.FocusInput();
             }
+            // Last, so neither the seeds nor the caret count as an edit (ComposerView.Drafts.cs).
+            await BaselineEditorRevisionAsync();
         }
         catch (Exception ex)
         {

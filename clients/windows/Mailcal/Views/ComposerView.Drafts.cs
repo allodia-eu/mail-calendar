@@ -86,6 +86,32 @@ public sealed partial class ComposerView
         _draftIdle.Start();
     }
 
+    /// <summary>
+    /// Reads the count the editor holds once it is seeded, as the baseline every later sample is
+    /// compared against.
+    /// </summary>
+    /// <remarks>
+    /// Read here rather than on the sampler's first tick, which comes a third of the interval
+    /// later: anything typed before that tick would be taken into the baseline, and a short reply
+    /// written straight after opening would never be saved. A failure leaves the baseline to the
+    /// first tick.
+    /// </remarks>
+    private async Task BaselineEditorRevisionAsync()
+    {
+        try
+        {
+            var revision = await _editor.ReadNumberAsync("window.composerRevision()");
+            if (revision >= 0)
+            {
+                _seenRevision = revision;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"composer: couldn't read the editor's change count ({ex.GetType().Name})");
+        }
+    }
+
     /// <summary>Reads the editor's change count, and calls the composer changed when it moves.</summary>
     private async Task SampleEditorAsync()
     {
@@ -100,8 +126,8 @@ public sealed partial class ComposerView
             {
                 return;
             }
-            // The first reading is the baseline the editor loaded with, never an edit: without it
-            // every composer would store a draft moments after opening.
+            // With no baseline from the seed, the first reading is the baseline, never an edit:
+            // without one every composer would store a draft moments after opening.
             if (_seenRevision >= 0)
             {
                 NoteDraftChange();

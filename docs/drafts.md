@@ -81,6 +81,11 @@ server between one and one-and-a-third intervals after the last keystroke, and n
 typing. The header fields need no sampling on three of the four platforms, because they are the
 host's own state and raise their own change.
 
+**The count is read once the editor is seeded, as the baseline.** Taken on the first sample
+instead, it would hold whatever was typed before that sample, and a short reply written straight
+after opening would never be saved. Taken before the seeds, the quote and the signature would read
+as an edit and every composer would save moments after opening.
+
 **An unchanged draft costs no write.** The core compares what it is given against what it last
 put on the server and returns without calling the provider when they match. Pressing "Save as
 draft" twice, or an idle timer firing on a composer nobody touched, reaches no server. A
@@ -213,6 +218,14 @@ click on another message asks; on Android it is what the back gesture asks.
 
 ## Known gaps
 
+- **Android and Linux take the editor's baseline on the first sample**, a third of the interval
+  after the composer opens, so a body typed before it and left alone, with no header touched, is
+  not saved until the next edit. Apple reads it as the composer appears, which has not been
+  checked against the order the editor is seeded in.
+- **Closing a composer does not save it first.** Closing one stops the idle timer, so what was
+  typed since the last save is not on the server, and a composer closed before its first save
+  leaves nothing in Drafts. A save on close would close it, at the cost of a write for every
+  composer dismissed.
 - **A composer nobody pauses in is never saved.** The trigger is idleness, so a user typing
   without a break for ten minutes has nothing on the server until they stop. A second trigger on
   elapsed time would close it, at the cost of uploading a draft mid-sentence.
