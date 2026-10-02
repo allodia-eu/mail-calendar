@@ -250,6 +250,12 @@ second name for leaving.
   after the composer opens, so a body typed before it and left alone, with no header touched, is
   not saved by the idle timer until the next edit. Leaving the composer still saves it. Apple reads it as the composer appears, which has not been
   checked against the order the editor is seeded in.
+- **Closing the app does not leave its composers.** On Windows, closing the mailbox ends the
+  app, and neither the composer in its pane nor a composer window closed with it is left first,
+  so what was typed since the last save is lost, and a composer never saved leaves nothing in
+  Drafts. Leaving them there would mean holding the exit until each save is recorded, and a save
+  is dispatched as a task the host cannot wait on: once the composition is forgotten its status
+  reads `Idle`. Not checked on the other desktops.
 - **A composer nobody pauses in is never saved.** The trigger is idleness, so a user typing
   without a break for ten minutes has nothing on the server until they stop. A second trigger on
   elapsed time would close it, at the cost of uploading a draft mid-sentence.
