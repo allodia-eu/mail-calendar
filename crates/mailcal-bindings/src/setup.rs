@@ -86,7 +86,7 @@ impl From<mailcal_account::ConnectionSecurity> for ConnectionSecurity {
 pub struct AccountSetup {
     /// IMAP mail server: a host (`imap.soverin.net`) or `host:port`. The standard
     /// secure port for the chosen security (993/143) is assumed when none is given, so
-    /// users need not type ports.
+    /// users need not type ports. Ignored, with `smtp_host`, when `uses` leaves mail out.
     pub imap_host: String,
     /// Login username (the full email address).
     pub username: String,
@@ -111,6 +111,15 @@ pub struct AccountSetup {
     /// carries it and nobody is asked twice.
     #[uniffi(default = None)]
     pub accepted_certificate: Option<RejectedCertificate>,
+    /// CardDAV base URL, for an address book that is not on the calendar's server or an account
+    /// without a calendar. Contacts are otherwise looked for at the calendar's endpoint.
+    #[uniffi(default = None)]
+    pub carddav_base_url: Option<String>,
+    /// What the account is used for, as the person chose: any of mail, calendar and contacts.
+    /// `None` means what the servers given mean: mail, plus calendar and contacts beside a
+    /// CalDAV URL. Without mail, no mail server is needed and none is stored.
+    #[uniffi(default = None)]
+    pub uses: Option<Vec<crate::AccountCapability>>,
 }
 
 /// Which of an account's two mail servers a port belongs to.
@@ -139,12 +148,13 @@ pub fn standard_port(kind: MailServerKind, security: ConnectionSecurity) -> u16 
 
 /// Serializes an [`AccountSetup`] (collected in the host's setup form) into the
 /// account-config TOML the host stores in its OS secure store and passes to
-/// [`MailcalApp::new_accounts`](crate::MailcalApp::new_accounts). CalDAV reuses the IMAP
-/// credentials.
+/// [`MailcalApp::new_accounts`](crate::MailcalApp::new_accounts). Every server takes the same
+/// login.
 ///
 /// # Errors
 ///
-/// Returns [`MailcalError::Config`] if a required field is empty or serialization fails.
+/// Returns [`MailcalError::Config`] if a required field is empty (the server of a chosen use
+/// included), the choice is empty or names colleagues, or serialization fails.
 #[uniffi::export]
 pub fn account_config_toml(setup: AccountSetup) -> Result<String, MailcalError> {
     // An acceptance that cannot be read is refused here rather than dropped: dropping it
@@ -162,6 +172,7 @@ pub fn account_config_toml(setup: AccountSetup) -> Result<String, MailcalError> 
         ),
         None => None,
     };
+    let uses = crate::account_capability::chosen(setup.uses)?;
     let input = mailcal_account::AccountSetup {
         imap_host: setup.imap_host,
         username: setup.username,
@@ -171,6 +182,8 @@ pub fn account_config_toml(setup: AccountSetup) -> Result<String, MailcalError> 
         imap_security: setup.imap_security.map(Into::into).unwrap_or_default(),
         smtp_security: setup.smtp_security.map(Into::into).unwrap_or_default(),
         accepted_certificate,
+        carddav_base_url: setup.carddav_base_url,
+        uses,
     };
     mailcal_account::build_config_toml(&input).map_err(|err| MailcalError::Config(err.to_string()))
 }

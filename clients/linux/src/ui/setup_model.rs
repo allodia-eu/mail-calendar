@@ -262,6 +262,8 @@ impl AccountSubmission {
                 imap_security: Some(form.imap_security),
                 smtp_security: Some(form.smtp_security),
                 accepted_certificate: form.accepted_certificate,
+                carddav_base_url: None,
+                uses: None,
             })
             .map_err(|error| error.to_string()),
             Self::Jmap(form) => jmap_account_config_toml(JmapSetup {

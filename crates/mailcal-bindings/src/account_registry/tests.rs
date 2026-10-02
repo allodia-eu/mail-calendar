@@ -162,6 +162,8 @@ fn a_password_account_has_nothing_to_rotate() {
             imap_security: None,
             smtp_security: None,
             accepted_certificate: None,
+            carddav_base_url: None,
+            uses: None,
         })
         .expect("a valid account config"),
     )
@@ -202,6 +204,8 @@ fn replacement_credentials_are_built_for_password_and_secret_jmap_accounts_only(
             imap_security: None,
             smtp_security: None,
             accepted_certificate: None,
+            carddav_base_url: None,
+            uses: None,
         })
         .expect("a valid account config"),
     )

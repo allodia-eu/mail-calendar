@@ -66,7 +66,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | Setting a link to one of the offered accounts | ✅ | — | — | — | — | — |
 | Switching a use on or off, its data deleted when off | ✅ | — | — | — | — | — |
 | Editing a password account's servers, tested before applied | ✅ | — | — | — | — | — |
-| Setting up an account without mail | — | — | — | — | — | — |
+| Setting up an account without mail, or with an address book of its own | ✅ | — | — | — | — | — |
 | Choosing capabilities, and linking accounts, in Settings | — | — | — | — | — | — |
 
 A client ✅ in the mail-surfaces row reads the rows the core already filters; it holds no rule of
@@ -85,9 +85,10 @@ for, so what opens is decided by the choice and never by the grant alone.
 
 ## 4. Known gaps
 
-- **Nothing creates an account without mail yet.** Setup offers no calendar-and-contacts account
-  and no capability choice, so every account on a device is used for mail; the core paths above
-  run only for a stored document that says otherwise.
+- **No client creates an account without mail yet.** `account_config_toml` takes the person's
+  choice of uses and a CardDAV URL, and builds a calendar-and-contacts account without a mail
+  server, but no setup screen offers either, so every account on a device is used for mail. The
+  OAuth standards sign-in (`ImapLoginRequest`) takes neither yet.
 - **An account without mail cannot be removed, nor its password updated.** Every client draws
   "Remove account" and the account's Settings card only on surfaces rule 6 keeps it out of (the
   folder tree, Settings → Accounts), both built from rows the core filters, so the "sign in again"

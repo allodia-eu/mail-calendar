@@ -186,6 +186,8 @@ impl PendingImapLogin {
             // A sign-in is offered only by a pre-flight that verified the server's certificate,
             // so there is no exception to carry.
             accepted_certificate: None,
+            carddav_base_url: None,
+            uses: None,
         };
         (setup, grant)
     }
