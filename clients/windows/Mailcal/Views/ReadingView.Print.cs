@@ -1,28 +1,24 @@
 // Printing the open message (docs/reading-actions.md, "Printing a message"). The page is built in
 // shared Rust; what is native is the WebView2 it is laid out in, which carries the reading host's
-// gates, and the system print dialog.
+// gates, and Windows' print dialog, which MessagePrintJob opens for this view's window.
 
 using Allodia.Mailcal.Services;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
 using uniffi.mailcal_bindings;
+using Windows.Graphics.Printing;
 
 namespace Allodia.Mailcal.Views;
 
 public sealed partial class ReadingView
 {
-    /// <summary>How many print pages stay alive, oldest dropped first.</summary>
-    /// <remarks>
-    /// Each print gets a web view of its own, because the system dialog prints the page its web
-    /// view holds when the reader presses Print in it, not the page it opened on: a second print
-    /// through a shared web view replaced the first dialog's page and that dialog then failed.
-    /// <c>ShowPrintUI</c> reports neither the dialog closing nor the job leaving, so a page cannot
-    /// be released when it is done; it is released when this many newer prints have started.
-    /// </remarks>
-    private const int PrintPagesKept = 4;
+    /// <summary>Windows with a print dialog up. A window has one dialog at a time, and a press
+    /// while it is up does nothing: the dialog is in front of the window that would take it.</summary>
+    private static readonly HashSet<IntPtr> WindowsPrinting = [];
 
     /// <summary>Whether Print has a body to print: an open that finished and fetched one.
     /// Called from <c>Render</c>, which runs on every snapshot.</summary>
@@ -35,15 +31,22 @@ public sealed partial class ReadingView
 
     private async void OnPrint(object sender, RoutedEventArgs e)
     {
-        if (Opened is not { } opened || BodySnapshot is not { } body || body.Key != opened.Key)
+        if (Opened is not { } opened || BodySnapshot is not { } body || body.Key != opened.Key
+            || XamlRoot is null)
+        {
+            return;
+        }
+        var window = Win32Interop.GetWindowFromWindowId(XamlRoot.ContentIslandEnvironment.AppWindowId);
+        if (!WindowsPrinting.Add(window))
         {
             return;
         }
         ClearExportError();
+        var subject = SubjectText.Text;
         // The header as this pane draws it, under the same labels, so a printout says what the
         // screen said. Empty lines are dropped by the core.
         var document = _model!.RenderMessagePrintHtml(
-            SubjectText.Text,
+            subject,
             [
                 new PrintHeaderLine(L10n.ComposeFrom(), FromText.Text),
                 new PrintHeaderLine(L10n.ComposeTo(), body.To),
@@ -58,39 +61,48 @@ public sealed partial class ReadingView
         try
         {
             await page.EnsureCoreWebView2Async();
-            HardenPrintPage(page.CoreWebView2, _loadRemoteImages, opened.Key);
+            var loaded = HardenPrintPage(page.CoreWebView2, _loadRemoteImages);
             page.CoreWebView2.NavigateToString(document);
+            if (!await loaded)
+            {
+                throw new InvalidOperationException("the print page did not load");
+            }
+            var outcome = await new MessagePrintJob(page.CoreWebView2, subject, window).RunAsync();
+            if (outcome == PrintTaskCompletion.Failed)
+            {
+                ShowPrintError(opened.Key);
+            }
         }
         catch (Exception ex)
         {
-            // No WebView2 runtime, or the page exceeded NavigateToString's limit.
-            Log.Warn($"reading: couldn't lay the message out to print ({ex.GetType().Name})");
+            // No WebView2 runtime, a page over NavigateToString's limit, or no print dialog.
+            Log.Warn($"reading: couldn't print the message ({ex.GetType().Name})");
             ShowPrintError(opened.Key);
+        }
+        finally
+        {
+            WindowsPrinting.Remove(window);
+            PrintPages.Children.Remove(page);
+            page.Close();
         }
     }
 
     // A WebView2 starts only inside the visual tree, so the page is added to PrintPages, which is
-    // transparent and one pixel square; the dialog lays the page out at the paper's size.
+    // transparent and one pixel square; the job lays the page out at the paper's size.
     private WebView2 AddPrintPage()
     {
         var page = new WebView2 { Width = 1, Height = 1, IsTabStop = false };
         AutomationProperties.SetAccessibilityView(page, AccessibilityView.Raw);
         PrintPages.Children.Add(page);
-        while (PrintPages.Children.Count > PrintPagesKept)
-        {
-            var oldest = (WebView2)PrintPages.Children[0];
-            PrintPages.Children.RemoveAt(0);
-            oldest.Close();
-        }
         return page;
     }
 
     // The reading host's gates (ReadingView.WebView.cs), on one print page, which loads the one
     // document it was made for and then nothing. The remote-images choice is the one this page was
-    // built with, so a later opt-in on the pane cannot reach it.
-    private void HardenPrintPage(CoreWebView2 core, bool loadRemoteImages, string key)
+    // built with, so a later opt-in on the pane cannot reach it. Completes with whether it loaded.
+    private static Task<bool> HardenPrintPage(CoreWebView2 core, bool loadRemoteImages)
     {
-        var expectingLoad = true;
+        var loaded = new TaskCompletionSource<bool>();
         var settings = core.Settings;
         settings.IsScriptEnabled = false;
         settings.AreHostObjectsAllowed = false;
@@ -98,27 +110,12 @@ public sealed partial class ReadingView
         settings.AreDefaultContextMenusEnabled = false;
         core.NavigationStarting += (_, args) =>
         {
-            if (!expectingLoad)
+            if (loaded.Task.IsCompleted)
             {
                 args.Cancel = true;
             }
         };
-        core.NavigationCompleted += (_, args) =>
-        {
-            if (!expectingLoad)
-            {
-                return;
-            }
-            expectingLoad = false;
-            if (args.IsSuccess)
-            {
-                core.ShowPrintUI(CoreWebView2PrintDialogKind.System);
-            }
-            else
-            {
-                ShowPrintError(key);
-            }
-        };
+        core.NavigationCompleted += (_, args) => loaded.TrySetResult(args.IsSuccess);
         core.NewWindowRequested += (_, args) => args.Handled = true;
         core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
         core.WebResourceRequested += (sender, args) =>
@@ -134,6 +131,7 @@ public sealed partial class ReadingView
                 args.Response = sender.Environment.CreateWebResourceResponse(null, 403, "Blocked", string.Empty);
             }
         };
+        return loaded.Task;
     }
 
     private void ClosePrintPages()

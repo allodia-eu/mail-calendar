@@ -2,20 +2,19 @@
 # Print, from the reading pane's overflow menu (docs/reading-actions.md, "Printing a message").
 #
 # WHAT ONLY THIS SUITE CAN SEE. The page is built and unit-tested in `mailcal-app`; what is native
-# here is a hidden WebView2 per print and the system dialog it opens, and two of their failures are
-# invisible to an assembly without WinUI:
+# here is the hidden WebView2 that lays it out and Windows' print dialog, opened for this window
+# through PrintManager. Three properties of that dialog are invisible to an assembly without WinUI:
 #
-#   * The dialog prints the page its web view holds when the reader presses Print IN THE DIALOG,
-#     not the page it opened on, and it is not modal to the app. A web view shared between prints
-#     lets a second Print replace the page under an open dialog, which then fails with the system's
-#     "Print failed" while the app says nothing.
-#   * Without a <title>, WebView2 names the job after the page's URL, which for a page loaded from
-#     a string is the whole message in base64: in the print queue and in a saved PDF.
+#   * It belongs to the window Print was pressed in. A dialog that does not (WebView2's own system
+#     dialog is a window of the web view's process) can open BEHIND the app, and every later press
+#     then does nothing, because a window has one print dialog at a time.
+#   * It previews the pages this client hands it, rather than "This app doesn't support print
+#     preview".
+#   * The job is named by the subject, and prints the message it was opened for.
 #
-# HOW IT READS A PRINT. Through "Microsoft Print to PDF", into a file, never a real printer. Its
-# PDF carries the job's name as /Title, which is the one thing in the file that says WHICH page was
-# printed (it writes glyphs with no text layer to search). So the last case asserts the subject of
-# the message the dialog was opened for, which is the overlap and the title in one assertion.
+# HOW IT READS A PRINT. Through "Microsoft Print to PDF", into a file, never a real printer. The
+# PDF's /Title is the job's name, and it is the one thing in the file that says WHICH message was
+# printed: the pages are images, so there is no text to search.
 #
 # WHY THE HARNESS. The body has to have arrived for Print to be offered, and the seeded subjects
 # are stable strings. Nothing here writes mail.
@@ -66,11 +65,10 @@ function Invoke-PrintMenuItem {
 
 <#
 .SYNOPSIS
-Every open system print dialog.
+Every open print dialog.
 .DESCRIPTION
-Recognised by its printer picker's automation id rather than by its title, which is localised and
-names WebView2 rather than this app. The dialog is a top-level window of the shell, not a child of
-ours.
+Recognised by its printer picker's automation id rather than by its title, which is localised. The
+dialog is a top-level window of the shell, tied to ours as its modal owner, not a child of it.
 #>
 function Get-SystemPrintDialogs {
   $condition = New-Object System.Windows.Automation.PropertyCondition(
@@ -101,31 +99,9 @@ function Find-InPrintDialog {
 
 <#
 .SYNOPSIS
-WebView2's own message boxes ("Print failed"), each a RootView window of its browser process.
-#>
-function Get-WebViewMessageBoxes {
-  $ids = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
-  $condition = New-Object System.Windows.Automation.PropertyCondition(
-    [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'RootView')
-  @([System.Windows.Automation.AutomationElement]::RootElement.FindAll(
-      [System.Windows.Automation.TreeScope]::Descendants, $condition) |
-    Where-Object { $ids -contains $_.Current.ProcessId -and $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Window })
-}
-
-function Close-WebViewMessageBoxes {
-  foreach ($box in Get-WebViewMessageBoxes) {
-    $button = Get-UiaTree -Root $box | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button } | Select-Object -First 1
-    if ($button) { $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() }
-  }
-  Start-Sleep -Milliseconds 500
-}
-
-<#
-.SYNOPSIS
 Put away every dialog a print case may leave: message boxes, the PDF save dialog, print dialogs.
 #>
 function Close-PrintDialogs {
-  Close-WebViewMessageBoxes
   foreach ($save in Get-PrintSaveDialogs) {
     $cancel = Get-UiaTree -Root $save | Where-Object { $_.Current.AutomationId -eq '2' -and $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button } | Select-Object -First 1
     if ($cancel) { $cancel.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() }
@@ -161,9 +137,9 @@ function Select-PdfPrinterIn {
   throw "the dialog's Print button never enabled with '$PrintPdfPrinter' chosen"
 }
 
-# The PDF printer's own Save As, a #32770 of WebView2's browser process owned by our window.
+# The PDF printer's own Save As: a #32770 of this app's process.
 function Get-PrintSaveDialogs {
-  $ids = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+  $ids = @(Get-Process Mailcal -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
   $condition = New-Object System.Windows.Automation.PropertyCondition(
     [System.Windows.Automation.AutomationElement]::ClassNameProperty, '#32770')
   @([System.Windows.Automation.AutomationElement]::RootElement.FindAll(
@@ -222,6 +198,14 @@ function Get-PdfTitle {
   $literal
 }
 
+<#
+.SYNOPSIS
+Whether the mailbox window takes input. A modal dialog disables its owner.
+#>
+function Test-MailboxEnabled {
+  (Get-MailcalWindow).Current.IsEnabled
+}
+
 $Suite = @{
   Dataset = 'harness'
   Cases   = @(
@@ -241,15 +225,23 @@ $Suite = @{
       }
     },
     @{
-      Name = 'Print opens the system dialog, and cancelling it reports nothing'
+      Name = 'the dialog belongs to this window, previews the page and is named by the subject'
       Body = {
-        Open-PrintMessage $PrintFirstSubject
+        Open-PrintMessage $PrintSecondSubject
         try {
           Invoke-PrintMenuItem
           $dialog = Wait-SystemPrintDialog
+          Assert-True (-not (Test-MailboxEnabled)) `
+            'the print dialog must hold the window it was opened from, which is what keeps it in front of the app; the mailbox still takes input, so the dialog is not its own (docs/reading-actions.md)'
+          Assert-True ($dialog.Current.Name.StartsWith($PrintSecondSubject)) `
+            "the dialog is titled by the job's name, which must be the subject; it read '$($dialog.Current.Name)'"
+          # The dialog says so in this element when the app hands it no preview pages.
+          $noPreview = Find-InPrintDialog -Dialog $dialog -AutomationId 'NoPreviewAvailableText'
+          Assert-True ($null -eq $noPreview) "the dialog shows no preview: '$($noPreview.Current.Name)'"
           (Find-InPrintDialog -Dialog $dialog -AutomationId 'CloseButton').GetCurrentPattern(
             [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-          Start-Sleep -Seconds 2
+          for ($i = 0; $i -lt 20 -and -not (Test-MailboxEnabled); $i++) { Start-Sleep -Milliseconds 250 }
+          Assert-True (Test-MailboxEnabled) 'the window must take input again once the dialog is cancelled'
           $line = Find-UiaElement -AutomationId 'ExportError'
           $shown = $line -and -not [double]::IsInfinity($line.Current.BoundingRectangle.X) -and $line.Current.BoundingRectangle.Height -gt 0
           Assert-True (-not $shown) "a cancelled print is the reader's choice, not a failure; the pane said '$($line.Current.Name)'"
@@ -259,25 +251,18 @@ $Suite = @{
       }
     },
     @{
-      Name = 'a second Print while a dialog is open leaves that dialog its own page, named by its subject'
+      Name = 'the job prints the message it was opened for'
       Body = {
         $destination = Join-Path $env:TEMP ("mailcal-uitest-print-" + [guid]::NewGuid().ToString('N') + ".pdf")
         Open-PrintMessage $PrintFirstSubject
         try {
           Invoke-PrintMenuItem
           $dialog = Wait-SystemPrintDialog
-          # The dialog is not modal to the app, so a reader can do exactly this.
-          Open-PrintMessage $PrintSecondSubject
-          Invoke-PrintMenuItem
-          Start-Sleep -Seconds 4
-          # WebView2 opens one print dialog at a time and answers the second request with a
-          # message box of its own. That is its to say; what this case guards is the first dialog.
-          Close-WebViewMessageBoxes
           $print = Select-PdfPrinterIn -Dialog $dialog
           $print.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
           Save-PrintedPdf -Destination $destination
           Assert-Equal $PrintFirstSubject (Get-PdfTitle -Path $destination) `
-            'the dialog must print the message it was opened for, and the job is named by its subject rather than by the page URL (docs/reading-actions.md)'
+            'the printed job must be the message Print was pressed on, named by its subject (docs/reading-actions.md)'
         } finally {
           Close-PrintDialogs
           Remove-Item $destination -ErrorAction SilentlyContinue

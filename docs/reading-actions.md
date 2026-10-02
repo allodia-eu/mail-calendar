@@ -99,8 +99,9 @@ lines the reading header draws (From, To, Cc, Bcc and the date, under the label 
 body. A client passes each line under the label it already shows and the date as it already
 formats it; a line with nothing in it is dropped by the core, so no client filters. Every header
 value is escaped, so a subject or an address is text on the page and never markup. The subject is
-also the page's `<title>`, because WebView2 and WebKitGTK name the print job after it and would
-otherwise use the page's URL, which for a page loaded from a string is the message itself.
+also the page's `<title>`, which WebKitGTK names the print job after; without one the job takes the
+page's URL, which for a page loaded from a string is the message itself. The other clients name
+the job themselves, from the same subject.
 
 **It is the reading document with a header on top**, not a second renderer: the body is the
 snapshot's sanitised fragment (or its plain text, escaped and kept to its own line breaks), wrapped
@@ -115,6 +116,9 @@ pane's web view is not reused: it holds no header, and a plain-text body is not 
 all on Apple and Android. **Each print has a web view of its own**, because a dialog prints the
 page its web view holds when the reader presses Print in it, not the page it opened on, so a later
 print must never load into a web view an open dialog is still reading.
+
+**The dialog belongs to the window Print was pressed in**: it opens in front of that window and
+holds it until it closes, so it cannot open behind the app and a second press cannot reach it.
 
 **Print is offered once the body has arrived.** Before that, while an open is still running, and
 after a fetch that failed, the item is in the menu and disabled: a printout of a message with no
@@ -133,7 +137,7 @@ It is not an `Intent`, for the reason exporting is not one.
 | Destination | save panel | share sheet | save picker | share sheet | save dialog |
 | Result reported | inline error | inline error | inline error | toast | banner |
 | Print | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Print dialog | `NSPrintOperation` sheet | `UIPrintInteractionController` | `ShowPrintUI` (system) | `PrintManager` | `WebKitPrintOperation`, through the print portal in the Flatpak |
+| Print dialog | `NSPrintOperation` sheet | `UIPrintInteractionController` | `PrintManager`, with preview | `PrintManager` | `WebKitPrintOperation`, through the print portal in the Flatpak |
 
 ## Known gaps
 
@@ -147,10 +151,12 @@ It is not an `Intent`, for the reason exporting is not one.
   dialog opens as a window of its own rather than over the app, and the app stays usable while it
   is up. A print started meanwhile opens a second dialog; each keeps the page it was asked for.
   Outside the sandbox the toolkit's own dialog is modal to the window.
-- **Windows shows one print dialog at a time, and it is not modal to the window.** WebView2's
-  system dialog leaves the app usable, and a Print pressed while one is open is refused by WebView2
-  with a "Print failed" message of its own; the open dialog keeps its page and prints it. The app
-  cannot say this itself, because `ShowPrintUI` reports neither the refusal nor the dialog closing.
+- **A Windows printout is page images, not text.** Windows' print dialog previews and prints XAML
+  elements, and the page reaches it as a PDF that WebView2 lays out at the chosen paper size, which
+  Windows' PDF renderer draws to an image per page at 300 dpi. On paper the difference does not
+  show; in a PDF saved through the dialog the text cannot be selected or searched. WebView2's own
+  system dialog prints text, but it has no preview and opens as a window of the web view's process
+  rather than of the app, so Windows may put it behind the app.
 - **No multi-message export.** Selecting several messages and exporting them is not offered
   anywhere; the export acts on the open message only.
 - **The header scrolls with the message on iPhone and iPad only.** Everywhere else it stands still

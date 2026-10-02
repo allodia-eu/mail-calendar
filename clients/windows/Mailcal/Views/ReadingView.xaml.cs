@@ -9,7 +9,7 @@
 //   ReadingView.WebView.cs      the hardened WebView2 host and the rendering-security gates
 //   ReadingView.Attachments.cs  the attachment strip (save / open via the OS handler)
 //   ReadingView.Invitation.cs   the meeting-invitation card and its Accept / Maybe / Decline
-//   ReadingView.Print.cs        Print, each laid out in a hardened WebView2 of its own
+//   ReadingView.Print.cs        Print: a hardened WebView2 per print, handed to MessagePrintJob
 
 using System.ComponentModel;
 using Allodia.Mailcal.Calendar;
