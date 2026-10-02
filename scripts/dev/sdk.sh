@@ -73,9 +73,11 @@ sdk_target_dir() {
 
 # Where cargo puts SDK intermediates. Outside the checkout so worktrees share one copy, and
 # separate from the host's for the reason above: the repo's own `build.build-dir` would otherwise
-# mix both toolchains into one directory.
+# mix both toolchains into one directory. `MAILCAL_SDK_BUILD_DIR` opts one checkout out, for the
+# reason `CARGO_BUILD_BUILD_DIR` opts out a host build: a build running from a checkout whose
+# scripts predate the claim in `sdk_cargo` takes no lock, and can still interleave with this one.
 sdk_build_dir() {
-  printf '%s\n' "${XDG_CACHE_HOME:-$HOME/.cache}/mailcal-flatpak-sdk-build"
+  printf '%s\n' "${MAILCAL_SDK_BUILD_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/mailcal-flatpak-sdk-build}"
 }
 
 # Runs cargo inside the SDK.
@@ -88,7 +90,36 @@ sdk_build_dir() {
 # An empty `RUSTC_WRAPPER` is how cargo is told *no wrapper*: a `rustc-wrapper` in the host's
 # config resolves against the sandbox's PATH, which that binary is not on, and cargo fails before
 # compiling anything. `build.build-dir` is redirected above for the reason `CARGO_TARGET_DIR` is.
+#
+# ⚠️ That shared directory cannot tell checkouts apart, for the reason the gate claims its own
+# (xtask/src/shared_build.rs): cargo keys a member's artifact and fingerprint on its
+# workspace-relative path and judges freshness by mtime, so a checkout whose sources predate
+# another checkout's build is handed that checkout's binary. So each call holds a lock beside the
+# directory for as long as cargo runs, and first rebuilds this repository's own crates when the
+# marker names another checkout; a second checkout's build waits rather than interleaving.
 sdk_cargo() {
+  require_cmd flock
+  local build_dir
+  build_dir="$(sdk_build_dir)"
+  mkdir -p "$build_dir"
+  (
+    exec 9>"$build_dir/.mailcal-sdk.lock"
+    if ! flock -n 9; then
+      info "another checkout is building in $build_dir; waiting for it to finish"
+      flock 9
+    fi
+    if [[ "$(cat "$build_dir/.mailcal-checkout" 2>/dev/null)" != "$REPO_ROOT" ]]; then
+      info "the shared SDK build directory last held another checkout's build; rebuilding this repository's own crates"
+      # Written only once the clean succeeded, so a failed clean is claimed by nobody.
+      sdk_cargo_unclaimed clean --workspace --quiet &&
+        printf '%s\n' "$REPO_ROOT" >"$build_dir/.mailcal-checkout"
+    fi
+    sdk_cargo_unclaimed "$@"
+  )
+}
+
+# `sdk_cargo` without the claim: only for a caller that already holds it.
+sdk_cargo_unclaimed() {
   local version installation
   version="$(sdk_runtime_version)"
   installation="$(sdk_installation "$version")" ||

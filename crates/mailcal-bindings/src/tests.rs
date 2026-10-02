@@ -448,3 +448,20 @@ fn external_link_policy_crosses_the_ffi() {
     assert!(!should_open_external_link("myapp://home".to_owned()));
     assert!(!should_open_external_link("javascript:alert(1)".to_owned()));
 }
+
+#[test]
+fn text_a_client_draws_natively_arrives_split_into_links() {
+    // Every client builds its linked text from these runs rather than finding addresses itself,
+    // so the runs must cover the text exactly and carry a target only the launch policy accepts.
+    let text = "Join https://meet.example/abc. Notes: www.example.com";
+    let runs = linked_text(text.to_owned());
+    let rejoined: String = runs.iter().map(|run| run.text.as_str()).collect();
+    assert_eq!(rejoined, text);
+    let links: Vec<String> = runs.into_iter().filter_map(|run| run.link).collect();
+    assert_eq!(
+        links,
+        ["https://meet.example/abc", "https://www.example.com"]
+    );
+    assert!(links.into_iter().all(should_open_external_link));
+    assert!(linked_text(String::new()).is_empty());
+}

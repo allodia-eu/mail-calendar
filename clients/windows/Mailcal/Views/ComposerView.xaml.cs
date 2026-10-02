@@ -61,7 +61,7 @@ public sealed partial class ComposerView : UserControl
     public ComposerView()
     {
         this.InitializeComponent();
-        _editor = new EditorWebViewHost(Editor) { PageReady = OnEditorReadyAsync };
+        _editor = new EditorWebViewHost(Editor) { PageReady = OnEditorReadyAsync, HostRequested = OnHostRequested };
     }
 
     /// <summary>Binds the composer to a request and starts loading the editor. <paramref name="onDone"/>
@@ -393,6 +393,7 @@ public sealed partial class ComposerView : UserControl
             // the placeholder lives on the editor element's dataset, which replacing the document
             // does not touch, but sending them first matches the other clients' open-time order.
             await _editor.RunAsync(ComposerLabels.Script());
+            await _editor.RunAsync(MailcalBindingsMethods.ComposerHostRequestsScript());
             if (_request?.Quote is { } quote)
             {
                 await _editor.RunAsync($"window.setComposerQuote({EditorWebViewHost.Arg(quote)})");

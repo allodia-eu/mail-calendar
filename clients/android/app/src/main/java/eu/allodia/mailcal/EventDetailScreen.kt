@@ -131,7 +131,7 @@ internal fun EventDetailScreen(
                     DetailRow(label = L10n.event_location(ctx), value = it)
                 }
                 detail.notes?.takeIf { it.isNotBlank() }?.let {
-                    DetailRow(label = L10n.event_notes(ctx), value = it)
+                    DetailRow(label = L10n.event_notes(ctx), value = it, linked = true)
                 }
                 DetailRow(
                     label = L10n.event_reminder(ctx),
@@ -216,10 +216,14 @@ private fun ActionButton(
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
+private fun DetailRow(label: String, value: String, linked: Boolean = false) {
     Column(modifier = Modifier.padding(top = 16.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-        Text(value, style = MaterialTheme.typography.bodyLarge)
+        if (linked) {
+            LinkifiedText(value, style = MaterialTheme.typography.bodyLarge)
+        } else {
+            Text(value, style = MaterialTheme.typography.bodyLarge)
+        }
     }
 }
 

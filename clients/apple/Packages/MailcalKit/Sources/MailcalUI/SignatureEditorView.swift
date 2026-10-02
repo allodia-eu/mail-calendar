@@ -26,6 +26,9 @@ final class SignatureEditor: NSObject, WKNavigationDelegate {
     /// The body to load once the bundle has finished loading, set for an existing signature,
     /// `nil` for a new one. Applied in `didFinish` because the bundle loads asynchronously.
     var pendingBody: String?
+    /// The editor's request channel, and the link dialog it is waiting on, if any.
+    let hostChannel = ComposerHostChannel()
+    var linkRequest: LinkDialogRequest?
 
     override init() {
         let configuration = WKWebViewConfiguration()
@@ -38,6 +41,8 @@ final class SignatureEditor: NSObject, WKNavigationDelegate {
         super.init()
         webView.navigationDelegate = self
         webView.allowsBackForwardNavigationGestures = false
+        hostChannel.install(on: webView)
+        hostChannel.onLink = { [weak self] in self?.linkRequest = $0 }
         installRemoteBlockThenLoad()
     }
 
@@ -68,6 +73,7 @@ final class SignatureEditor: NSObject, WKNavigationDelegate {
         // The toolbar's strings first, then the body, `setSignatureBody` carries this surface's own
         // placeholder and must win over the composer wording `setComposerLabels` sends.
         webView.evaluateJavaScript(ComposerLabels.script())
+        hostChannel.announce()
         let body = Self.jsString(pendingBody ?? "")
         let placeholder = Self.jsString(L10n.settings_signatures_placeholder())
         webView.evaluateJavaScript("window.setSignatureBody(\(body), \(placeholder))")
@@ -287,6 +293,7 @@ struct SignatureEditorView: View {
         #else
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         #endif
+        .modifier(ComposerLinkDialogModifier(request: $editor.linkRequest, channel: editor.hostChannel))
     }
 
     private func commit() {

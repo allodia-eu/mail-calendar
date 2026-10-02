@@ -25,11 +25,22 @@ if [[ ${BASH_VERSION%%.*} -lt 5 ]]; then
   exit 1
 fi
 
-# One session at a time, addressed by a marker so separate script invocations find the same one:
-# `build-and-run.sh --headless` starts it and exits, and the `screenshot.sh` and `control.sh` calls
-# after it have no other way to know it is there. It carries the compositor's pid, so a marker left
-# behind by a run that was killed is detectably stale rather than quietly wrong.
-LINUX_SESSION_MARKER="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/mailcal-linux-session"
+# A session another invocation can find, addressed by a marker: `build-and-run.sh --headless`
+# starts it and exits, and the `screenshot.sh` and `control.sh` calls after it have no other way to
+# know it is there. It carries the compositor's pid, so a marker left behind by a run that was
+# killed is detectably stale rather than quietly wrong.
+#
+# One per checkout, because those calls come from a checkout and mean its client: two worktrees can
+# each keep a session up, and neither drives the other's app. Resolved when it is used rather than
+# when this file is sourced, so a run that gives itself a private `XDG_RUNTIME_DIR` afterwards keeps
+# its marker there. Only `linux_session_publish` writes one: a run that drives its own session
+# (the acceptance suite, the showcase, the widget tests) has its variables already and publishes
+# nothing, so it can neither replace a developer's session nor take its marker away on exit.
+linux_session_marker() {
+  local checkout
+  checkout="$(printf '%s' "${REPO_ROOT:-$PWD}" | cksum | cut -d' ' -f1)"
+  printf '%s\n' "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/mailcal-linux-session-$checkout"
+}
 
 # The Wayland sockets that exist now, each as `name:inode`. The compositor names its own socket
 # (`wl_display_add_socket_auto`), so a run identifies it by taking the one that was not there
@@ -72,8 +83,8 @@ linux_session_requirements() {
 #   linux_session_start <width>x<height> <scale>
 #   WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" <the client>
 #
-# Sets LINUX_SESSION_DISPLAY, LINUX_SESSION_SWAYSOCK and LINUX_SESSION_PID in the caller, and
-# writes the marker.
+# Sets LINUX_SESSION_DISPLAY, LINUX_SESSION_SWAYSOCK and LINUX_SESSION_PID in the caller. A
+# session later invocations should find is then published with `linux_session_publish`.
 #
 # Empty rather than `exec`ing the client from sway's config, because on the default build the
 # client runs **inside the Flatpak sandbox**, reached through a shell function rather than a
@@ -119,22 +130,28 @@ CONFIG
     die "sway opened no Wayland socket, so it did not start. What it printed: ${LINUX_SESSION_LOG:-nothing, set LINUX_SESSION_LOG to keep it}"
   }
   LINUX_SESSION_SWAYSOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sway-ipc.$(id -u).$LINUX_SESSION_PID.sock"
-  printf '%s\n%s\n%s\n' \
-    "$LINUX_SESSION_PID" "$LINUX_SESSION_DISPLAY" "$LINUX_SESSION_SWAYSOCK" >"$LINUX_SESSION_MARKER"
   rm -f "$config"
   export LINUX_SESSION_DISPLAY LINUX_SESSION_SWAYSOCK LINUX_SESSION_PID
+}
+
+# Leaves the session started above where this checkout's later `screenshot.sh` and `control.sh`
+# calls find it.
+linux_session_publish() {
+  printf '%s\n%s\n%s\n' \
+    "$LINUX_SESSION_PID" "$LINUX_SESSION_DISPLAY" "$LINUX_SESSION_SWAYSOCK" >"$(linux_session_marker)"
 }
 
 # Load a session started by an earlier invocation. Returns non-zero when there is none, so a caller
 # can fall back rather than fail.
 linux_session_attach() {
-  [[ -f "$LINUX_SESSION_MARKER" ]] || return 1
-  local pid display swaysock
-  { read -r pid; read -r display; read -r swaysock; } <"$LINUX_SESSION_MARKER" || return 1
+  local marker pid display swaysock
+  marker="$(linux_session_marker)"
+  [[ -f "$marker" ]] || return 1
+  { read -r pid; read -r display; read -r swaysock; } <"$marker" || return 1
   # A marker whose compositor is gone is stale. Take it away rather than reporting it, so the next
   # caller sees no session instead of the same dead one.
   if ! kill -0 "$pid" 2>/dev/null; then
-    rm -f "$LINUX_SESSION_MARKER"
+    rm -f "$marker"
     return 1
   fi
   LINUX_SESSION_PID="$pid"
@@ -148,8 +165,15 @@ linux_session_attach() {
 # apport crash report: 49 of them across a full showcase set. Taking its client away first reaches
 # the same call. SIGKILL has no core-dump action, and grim has already read the pixels.
 linux_session_stop() {
-  [[ -n "${LINUX_SESSION_PID:-}" ]] && kill -KILL "$LINUX_SESSION_PID" 2>/dev/null
-  rm -f "$LINUX_SESSION_MARKER"
+  local marker
+  marker="$(linux_session_marker)"
+  if [[ -n "${LINUX_SESSION_PID:-}" ]]; then
+    kill -KILL "$LINUX_SESSION_PID" 2>/dev/null || true
+    # Only a marker naming this compositor: one naming another is a session someone else started.
+    if [[ "$(head -n 1 "$marker" 2>/dev/null)" == "$LINUX_SESSION_PID" ]]; then
+      rm -f "$marker"
+    fi
+  fi
   LINUX_SESSION_PID=""
   LINUX_SESSION_DISPLAY=""
   LINUX_SESSION_SWAYSOCK=""
@@ -222,4 +246,18 @@ linux_session_type() { # <wtype args...>
   [[ -n "${LINUX_SESSION_DISPLAY:-}" ]] || die "no headless session to type into"
   require_cmd wtype
   WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" wtype -s "${MAILCAL_WTYPE_SETTLE_MS:-300}" "$@"
+}
+
+# The `wtype` arguments for one key with its modifiers held: `ctrl+shift+Left` presses ctrl and
+# shift, taps Left and releases both. The names are wtype's (`ctrl`, `shift`, `alt`, `altgr`,
+# `logo`); the last part is an xkb keysym, so a bare `Escape` is a chord of one.
+linux_session_chord_args() { # <chord>
+  local -a parts=()
+  IFS=+ read -r -a parts <<<"$1"
+  [[ ${#parts[@]} -gt 0 && -n "${parts[-1]}" ]] || die "no key in '$1'"
+  local key="${parts[-1]}" modifier
+  local -a modifiers=("${parts[@]:0:${#parts[@]}-1}")
+  for modifier in "${modifiers[@]}"; do printf '%s\n' -M "${modifier,,}"; done
+  printf '%s\n' -k "$key"
+  for modifier in "${modifiers[@]}"; do printf '%s\n' -m "${modifier,,}"; done
 }

@@ -102,7 +102,7 @@ public sealed partial class ReadingView
         RemoteImagesBanner.Visibility = Visibility.Collapsed;
         if (!string.IsNullOrEmpty(plain))
         {
-            PlainText.Text = plain;
+            LinkedTextBlock.Fill(PlainText, plain);
             ShowState(plain: true);
         }
         else

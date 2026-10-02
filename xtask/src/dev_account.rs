@@ -23,17 +23,23 @@ const IMAP_CLIENTS: &[&str] = &[
     "clients/linux/src",
 ];
 
-/// The hand-written `[imap]` config each of them carries.
+/// The hand-written config each of them carries: `[imap]`, and the `[smtp]` and `[caldav]` halves
+/// beside it.
 ///
 /// The config builder cannot produce it (it always derives `server_name` from the dialled host,
 /// and the harness dials by IP while its certificate's only SAN is `localhost`). So the fixture is
 /// duplicated by necessity, in four languages, and a value edited in one place fails to log in from
-/// exactly one platform, with a plain "authentication failed", nowhere near the edit.
+/// exactly one platform, with a plain "authentication failed", nowhere near the edit. A missing
+/// half fails more quietly still: the account connects, and that platform simply has no calendar
+/// and cannot send, which reads as a product bug in whatever was being verified.
 const IMAP_FIELDS: &[&str] = &[
     r#"addr = "127.0.0.1:12993""#,
     r#"server_name = "localhost""#,
     r#"username = "alice@test.local""#,
     r#"password = "harness-alice-pw""#,
+    r#"addr = "127.0.0.1:12587""#,
+    r#"security = "starttls""#,
+    r#"base_url = "http://127.0.0.1:28080""#,
 ];
 
 /// The two values the harness itself is built around: `lib.sh` dials the listener and seeds alice's
@@ -79,8 +85,8 @@ fn fixture_in_step(root: &Path, report: &mut Report) -> Result<(), String> {
                     "nothing in {client} carries the harness IMAP fixture field:\n    {field}"
                 ));
                 report.note(
-                    "All four clients inject the same hand-written [imap] config; a drift here \
-                     logs in from every platform but one, and says only \"authentication failed\".",
+                    "All four clients inject the same hand-written IMAP, SMTP and CalDAV config; a \
+                     drift here leaves one platform unable to log in, send or show a calendar.",
                 );
             }
         }

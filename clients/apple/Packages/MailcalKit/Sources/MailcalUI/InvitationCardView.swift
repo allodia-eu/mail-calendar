@@ -7,13 +7,16 @@
 //
 // SECURITY (Gate 8, docs/rendering-security.md), the summary, location, description and organiser
 // name are attacker-controlled sender content, and they reach the screen without passing the HTML
-// sanitiser, the CSP or a web view. So every one of them goes through `Text(verbatim:)`.
+// sanitiser, the CSP or a web view. So the summary, location and organiser go through
+// `Text(verbatim:)`, and the description through `LinkedText.text(linkingIn:)`.
 //
 // A plain `Text(someString)` would already be safe, SwiftUI only parses markdown through the
 // `LocalizedStringKey` overload, which a `String` variable cannot select. `verbatim:` is chosen anyway
 // because it says so at the call site: it takes no other overload, so a later refactor that turns one
-// of these into a string literal or an interpolation cannot silently start parsing `**bold**`. A title
-// of `**bold** <b>x</b> & co` must appear exactly as typed. (The equivalent trap on GTK is
+// of these into a string literal or an interpolation cannot silently start parsing `**bold**`. The
+// description is the core's runs, each a `Text(AttributedString)` of the run's text, which has no
+// markdown path; they are joined by interpolating `Text` values, which are not parsed either. A
+// title of `**bold** <b>x</b> & co` must appear exactly as typed. (The equivalent trap on GTK is
 // `use_markup(false)`.)
 //
 // The conflict count is stated in WORDS beside the preview grid, always, docs/calendar.md §4: a
@@ -205,11 +208,14 @@ struct InvitationCardView: View {
     @ViewBuilder
     private var description: some View {
         if !card.description.isEmpty {
-            Text(verbatim: card.description)
+            // Addresses in it are links (LinkedText.swift); the text itself is never parsed.
+            LinkedText.text(linkingIn: card.description)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(4)
+                .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
+                .gatedLinkOpening()
             if card.descriptionTruncated {
                 Text(L10n.invitation_description_shortened())
                     .font(.caption2)

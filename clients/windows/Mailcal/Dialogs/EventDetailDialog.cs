@@ -16,6 +16,8 @@ using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using uniffi.mailcal_bindings;
 
@@ -30,6 +32,9 @@ public sealed class EventDetailDialog : ContentDialog
     // Built before DialogHelper mirrors the window's theme onto this dialog, so the colours are
     // handed out as brushes that follow it rather than read once (ThemePalette.cs).
     private readonly ThemeBrushes _brushes;
+
+    // The links in the notes, which the dialog's initial focus must not land on.
+    private Hyperlink[] _noteLinks = [];
 
     /// <summary>Builds the detail over the core's <paramref name="detail"/> read.</summary>
     internal EventDetailDialog(EventDetail detail, MailboxModel model)
@@ -51,6 +56,33 @@ public sealed class EventDetailDialog : ContentDialog
         }
 
         Content = new ScrollViewer { Content = BuildBody(), MinWidth = 340, MaxHeight = 460 };
+        if (_noteLinks.Length > 0)
+        {
+            FocusManager.GettingFocus += KeepInitialFocusOffTheNotes;
+            Closed += (_, _) => FocusManager.GettingFocus -= KeepInitialFocusOffTheNotes;
+        }
+    }
+
+    // A ContentDialog gives its initial focus to the first focusable element of its content, which
+    // is a link in the notes when they carry one, so Enter would stop pressing the default button.
+    // That focus is programmatic, and nothing here focuses a link programmatically, so such a move
+    // goes to the default button instead; Tab and a click still reach a link. Redirected as it
+    // happens rather than corrected on Opened, which the dialog's own focus can follow, and through
+    // FocusManager because a Hyperlink is not a UIElement and raises no GettingFocus of its own. The
+    // parts are named in ContentDialog's own template.
+    private void KeepInitialFocusOffTheNotes(object? sender, GettingFocusEventArgs args)
+    {
+        if (args.FocusState != FocusState.Programmatic
+            || args.NewFocusedElement is not Hyperlink link
+            || !_noteLinks.Contains(link))
+        {
+            return;
+        }
+        var name = DefaultButton == ContentDialogButton.Primary ? "PrimaryButton" : "CloseButton";
+        if (GetTemplateChild(name) is Control button)
+        {
+            args.TrySetNewFocusedElement(button);
+        }
     }
 
     private StackPanel BuildBody()
@@ -102,7 +134,10 @@ public sealed class EventDetailDialog : ContentDialog
         }
         if (!string.IsNullOrWhiteSpace(_detail.Notes))
         {
-            panel.Children.Add(DetailRow(L10n.EventNotes(), _detail.Notes!));
+            var notes = DetailRow(L10n.EventNotes(), _detail.Notes!, linked: true);
+            _noteLinks = notes.Children.OfType<TextBlock>()
+                .SelectMany(text => text.Inlines.OfType<Hyperlink>()).ToArray();
+            panel.Children.Add(notes);
         }
         panel.Children.Add(DetailRow(L10n.EventReminder(), CalendarEventText.Reminder(_detail.ReminderMinutes)));
         panel.Children.Add(DetailRow(
@@ -178,10 +213,19 @@ public sealed class EventDetailDialog : ContentDialog
     }
 
     // `automationId` names the VALUE, not the row: a label is localised, so a test that finds this
-    // row by its caption passes or fails by the language the developer's machine is in.
-    private static StackPanel DetailRow(string label, string value, string? automationId = null)
+    // row by its caption passes or fails by the language the developer's machine is in. `linked`
+    // makes the value's web and mail addresses clickable, for sender text such as the notes.
+    private static StackPanel DetailRow(string label, string value, string? automationId = null, bool linked = false)
     {
-        var text = new TextBlock { Text = value, TextWrapping = TextWrapping.Wrap };
+        var text = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        if (linked)
+        {
+            LinkedTextBlock.Fill(text, value);
+        }
+        else
+        {
+            text.Text = value;
+        }
         if (automationId is not null)
         {
             AutomationProperties.SetAutomationId(text, automationId);

@@ -70,6 +70,7 @@ internal fun SignatureEditorDialog(
     var name by remember { mutableStateOf(initialName) }
     var imageError by remember { mutableStateOf<String?>(null) }
     var webView by remember { mutableStateOf<WebView?>(null) }
+    val linkHost = rememberComposerLinkHost()
 
     val pickImage = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -173,6 +174,7 @@ internal fun SignatureEditorDialog(
                             modifier = Modifier.fillMaxSize(),
                             factory = { context ->
                                 WebView(context).apply {
+                                    installComposerHost(linkHost)
                                     configureSignatureWebView(
                                         labelsJson = labelsJson,
                                         bodyHtml = initialBodyHtml.orEmpty(),
@@ -190,6 +192,7 @@ internal fun SignatureEditorDialog(
                             },
                         )
                     }
+                    ComposerLinkDialogHost(linkHost, webView)
                 }
             }
         }
@@ -212,6 +215,7 @@ private fun WebView.configureSignatureWebView(
             // one tappable line (see fillViewport in editor.html).
             view?.evaluateJavascript("window.useNativeComposerChrome()", null)
             view?.evaluateJavascript("window.setComposerLabels($labelsJson)", null)
+            view?.announceComposerHost()
             view?.evaluateJavascript(
                 "window.setSignatureBody(${JSONObject.quote(bodyHtml)}, ${JSONObject.quote(placeholder)})",
                 null,

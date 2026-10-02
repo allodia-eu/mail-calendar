@@ -1,6 +1,7 @@
 // Reading the inline marks (bold/italic/underline/size/colour) off the DOM, and normalising the
 // markup `execCommand` leaves behind so those marks are readable at all.
 
+import { safeLinkHref } from "./links";
 import { type FontSize, type HexColor, type Marks, isFontSize, SIZE_PX } from "./types";
 
 /// Normalises any colour the DOM might hand back into the `#rrggbb` Rust accepts, or `null` when
@@ -67,10 +68,14 @@ export function elementMarks(element: Element, inherited: Marks): Marks {
   return {
     bold: inherited.bold || tag === "B" || tag === "STRONG" || weight >= 600,
     italic: inherited.italic || tag === "I" || tag === "EM",
-    underline: inherited.underline || tag === "U" || decoration.includes("underline"),
+    // A link's underline is how the editor draws a link, not a mark the user chose: read from
+    // the computed style it would send every link out underlined twice.
+    underline:
+      inherited.underline || tag === "U" || (tag !== "A" && decoration.includes("underline")),
     size: isFontSize(size) ? size : inherited.size,
     color: color ?? inherited.color,
     highlight: highlight ?? inherited.highlight,
+    link: tag === "A" ? safeLinkHref(element.getAttribute("href")) : inherited.link,
   };
 }
 

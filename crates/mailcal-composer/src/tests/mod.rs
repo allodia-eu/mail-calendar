@@ -7,7 +7,9 @@ use crate::{
 
 mod colors;
 mod file_meta;
+mod host_requests;
 mod inline_images;
+mod links;
 mod lists;
 mod mailto;
 mod quotes;
@@ -46,6 +48,7 @@ fn text(value: &str) -> InlineContent {
         font_size: None,
         color: None,
         highlight: None,
+        link: None,
     })
 }
 
@@ -58,6 +61,7 @@ fn rich_text(value: &str) -> InlineContent {
         font_size: Some(FontSize::Large),
         color: None,
         highlight: None,
+        link: None,
     })
 }
 

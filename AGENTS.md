@@ -274,8 +274,9 @@ are worth knowing before they surprise you:
   suite can report `1 passed` for an assertion this tree cannot satisfy, and a freshly created
   worktree is exactly the shape that collects it. **The gate is held out of it**: its own binary is
   built here by the alias, and a run claims the directory, rebuilding this repository's own crates
-  when another checkout claimed it last. A `cargo test` typed by hand claims nothing and is not
-  covered, so when a result cannot be squared with the diff, run the gate, or re-run that step with
+  when another checkout claimed it last, and holds it until it exits, so a gate in a second
+  checkout waits for the first to finish rather than alternating steps with it. A `cargo test`
+  typed by hand claims nothing, holds nothing and is not covered, so when a result cannot be squared with the diff, run the gate, or re-run that step with
   `CARGO_BUILD_BUILD_DIR` pointed somewhere private.
 
 Anything else your machine needs goes in [`AGENTS.local.md`](AGENTS.local.md), untracked.

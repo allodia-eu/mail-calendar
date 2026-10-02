@@ -139,6 +139,7 @@ internal fun RichComposeMessageDialog(
     // couldn't be read. It carries the message rather than a flag, so each says which it is.
     var composerError by remember { mutableStateOf(initialError) }
     var webView by remember { mutableStateOf<WebView?>(null) }
+    val linkHost = rememberComposerLinkHost()
     // The single-scroll model: the WebView owns the one scroll (so its native caret-following and
     // drag-to-scroll just work), and the address-field header is a native overlay drawn on top of
     // it whose vertical offset tracks the WebView's scroll, so it scrolls away as the message
@@ -374,6 +375,7 @@ internal fun RichComposeMessageDialog(
                             .graphicsLayer { clip = true },
                         factory = { context ->
                             WebView(context).apply {
+                                installComposerHost(linkHost)
                                 configureComposerWebView(
                                     quote = quote,
                                     body = initialBody,
@@ -468,6 +470,7 @@ internal fun RichComposeMessageDialog(
                         onUnreadable = { composerError = L10n.compose_image_failed(ctx) },
                         onAnswered = { droppedPictures = emptyList() },
                     )
+                    ComposerLinkDialogHost(linkHost, webView)
                     // Inside the composer's own Dialog for the same reason, so back reaches the
                     // confirmation (keep editing) rather than the composer underneath.
                     if (confirmingDiscard) {

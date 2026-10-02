@@ -367,7 +367,7 @@ public sealed partial class ReadingView : UserControl
         {
             _handover.Rendered(opened.Key);
             RemoteImagesBanner.Visibility = Visibility.Collapsed;
-            PlainText.Text = body.Plain;
+            LinkedTextBlock.Fill(PlainText, body.Plain);
             ShowState(plain: true);
         }
         else

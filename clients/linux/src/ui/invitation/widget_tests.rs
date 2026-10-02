@@ -29,7 +29,7 @@ fn card() -> InvitationCard {
         organizer: "Allodia Mail & Calendar <bob@example.test>".to_owned(),
         summary: "Research & Development".to_owned(),
         location: "<b>Room 4</b> & the corridor".to_owned(),
-        description: "Budget & headcount".to_owned(),
+        description: "Budget & headcount: https://example.test/a?b=1&c=2".to_owned(),
         description_truncated: false,
         starts_at: "2026-08-17T08:30:00Z".to_owned(),
         ends_at: "2026-08-17T09:30:00Z".to_owned(),
@@ -94,13 +94,41 @@ pub(crate) fn an_invitations_own_text_is_never_parsed_as_markup() {
         "Research & Development",
         "Allodia Mail & Calendar <bob@example.test>",
         "<b>Room 4</b> & the corridor",
-        "Budget & headcount",
+        "Budget & headcount: https://example.test/a?b=1&c=2",
     ] {
         assert!(
             shown.iter().any(|text| text == verbatim),
             "{verbatim:?} must render as itself, never blank and never styled: {shown:?}"
         );
     }
+}
+
+/// The description is the one field drawn with markup, so its join link opens: the address is a
+/// link, and everything around it is still the organiser's text, escaped.
+pub(crate) fn an_address_in_the_description_is_a_link() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let view = InvitationCardView::new();
+    view.apply(
+        &card(),
+        ZONE,
+        true,
+        CalendarWriteStatus::Idle,
+        &ReadingSource::Pane,
+        &sender,
+    );
+    let markup: Vec<String> = labels(view.widget().clone().upcast_ref::<gtk::Widget>())
+        .iter()
+        .filter(|label| label.uses_markup() && !label.label().is_empty())
+        .map(|label| label.label().to_string())
+        .collect();
+    assert_eq!(
+        markup,
+        [
+            "Budget &amp; headcount: <a href=\"https://example.test/a?b=1&amp;c=2\">\
+             https://example.test/a?b=1&amp;c=2</a>"
+        ],
+        "only the description may show parsed markup, and only markup built from escaped runs"
+    );
 }
 
 /// An account that cannot deliver a response says so, rather than offering a control that lies.

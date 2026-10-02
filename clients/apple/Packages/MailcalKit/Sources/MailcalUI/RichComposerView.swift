@@ -260,6 +260,7 @@ struct RichComposeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .composeDraftTracking(probe: probe, editor: editor, to: to, cc: cc, bcc: bcc, subject: subject, attachments: attachments.count)
         .modifier(composerDrop)
+        .modifier(ComposerLinkDialogModifier(request: $editor.linkRequest, channel: editor.hostChannel))
         #else
         // iOS/iPadOS: a full-height sheet with the title + Cancel/Send in the navigation bar.
         NavigationStack {
@@ -279,6 +280,7 @@ struct RichComposeView: View {
         // Inside it, on the scroll view, or on the field, WebKit draws over the list.
         .recipientSuggestionLayer()
         .modifier(composerDrop)
+        .modifier(ComposerLinkDialogModifier(request: $editor.linkRequest, channel: editor.hostChannel))
         #endif
     }
 
