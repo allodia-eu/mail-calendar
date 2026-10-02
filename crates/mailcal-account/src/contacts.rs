@@ -65,13 +65,15 @@ pub async fn connect_carddav_contact_providers(
     // one and no server here has been measured (`docs/agent-guidance/http-throttling.md`).
     // A gate with nothing to narrow it bounds nothing, so wiring one would be ceremony.
     // When a DAV ceiling is measured, this needs the account id threading through.
-    .with_retry(ungated_retry());
+    .with_retry(ungated_retry())
+    .with_connect_observer(crate::connect_log::connect_logger("carddav"));
 
     let discovery = CardDavProvider::connect(config.clone())
         .await
         .map_err(AccountError::from_first_dav_connect)?;
-    // Ask the server before assuming: an account whose CalDAV origin serves no CardDAV
-    // reports no contacts capability, and syncing it would fail once per pass forever.
+    // The server says whether it has address books (the `addressbook` class, RFC 6352 §6.1): an
+    // account whose CalDAV origin serves no CardDAV reports no contacts capability, and syncing it
+    // would fail once per pass forever.
     if !discovery.connection_info().capabilities.contacts() {
         log::info!("carddav: server advertises no contacts support; skipping address books");
         return Ok(Vec::new());
