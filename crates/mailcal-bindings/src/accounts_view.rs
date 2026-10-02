@@ -28,6 +28,9 @@ pub(crate) struct AccountFacts {
     pub(crate) links: AccountLinks,
     /// Its servers and login, when Settings can edit them.
     pub(crate) endpoints: Option<mailcal_account::EndpointEdit>,
+    /// The addresses its calendar server treats as its user, once asked; empty when it has no
+    /// calendar, has not been asked yet, or named none.
+    pub(crate) calendar_addresses: Vec<String>,
 }
 
 /// Every account's entry, in the order `facts` lists them. `calendar_refused` holds the accounts
@@ -81,10 +84,34 @@ pub(crate) fn entries(
                     calendar: offer(LinkSlot::Calendar),
                     contacts: offer(LinkSlot::Contacts),
                     mail: offer(LinkSlot::Mail),
+                    suggested: suggested(facts, &links, index),
                 }
             },
             endpoints: account.endpoints.clone().map(Into::into),
         })
+        .collect()
+}
+
+/// The ids of the candidates whose calendar server schedules as the mail account's address:
+/// a calendar `facts[from]` may name that recognises its address, and a mail account it may name
+/// whose address it recognises itself. An address book has no such answer and is never suggested.
+fn suggested(facts: &[AccountFacts], links: &[AccountLinks], from: usize) -> Vec<String> {
+    let recognises = |calendar: &AccountFacts, mail: &AccountFacts| {
+        calendar
+            .calendar_addresses
+            .iter()
+            .any(|address| engine_api::addresses_match(address, &mail.address))
+    };
+    let account = &facts[from];
+    let calendars = candidates(facts, links, from, LinkSlot::Calendar)
+        .into_iter()
+        .filter(|&calendar| recognises(&facts[calendar], account));
+    let senders = candidates(facts, links, from, LinkSlot::Mail)
+        .into_iter()
+        .filter(|&mail| recognises(account, &facts[mail]));
+    calendars
+        .chain(senders)
+        .map(|candidate| facts[candidate].id.clone())
         .collect()
 }
 

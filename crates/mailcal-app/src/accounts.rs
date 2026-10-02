@@ -309,6 +309,9 @@ impl<P: Provider> App<P> {
 #[path = "account_domains.rs"]
 mod domains;
 
+#[path = "calendar_users.rs"]
+mod calendar_users;
+
 #[cfg(test)]
 #[path = "tests_mail_surfaces.rs"]
 mod mail_surfaces_tests;

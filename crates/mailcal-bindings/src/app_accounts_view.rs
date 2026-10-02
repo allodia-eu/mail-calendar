@@ -3,6 +3,38 @@
 
 use crate::{AccountsSnapshot, LinkSlot, MailcalApp, MailcalError, accounts_view};
 
+impl MailcalApp {
+    /// Asks `id`'s calendar server, once per registration and off this thread, which addresses it
+    /// schedules as, and signals Settings when it named some, so the next snapshot suggests
+    /// links from them.
+    fn ask_calendar_users(&self, id: &str) {
+        if !self.registry.begin_calendar_ask(id) {
+            return;
+        }
+        let Ok(account) = engine_api::AccountId::try_from(id) else {
+            return;
+        };
+        let (app, registry, id) = (
+            std::sync::Arc::clone(&self.app),
+            std::sync::Arc::clone(&self.registry),
+            id.to_owned(),
+        );
+        self.runtime.spawn(async move {
+            let answer = app
+                .calendar_user_addresses(&account)
+                .await
+                .map(|addresses| addresses.addresses().to_vec());
+            let named = answer
+                .as_ref()
+                .is_some_and(|addresses| !addresses.is_empty());
+            registry.calendar_answered(&id, answer);
+            if named {
+                app.accounts_changed();
+            }
+        });
+    }
+}
+
 #[uniffi::export]
 impl MailcalApp {
     /// Every account on this device, mail or not, in the order the host stored them: what each
@@ -26,6 +58,15 @@ impl MailcalApp {
                 .unwrap_or(usize::MAX)
         };
         facts.sort_by(|a, b| position(&a.id).cmp(&position(&b.id)).then(a.id.cmp(&b.id)));
+        for account in &mut facts {
+            if account
+                .chosen
+                .contains(mailcal_account::Capability::Calendar)
+            {
+                account.calendar_addresses = self.registry.calendar_addresses(&account.id);
+                self.ask_calendar_users(&account.id);
+            }
+        }
         let calendar_refused = self
             .app
             .connectivity()
