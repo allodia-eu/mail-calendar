@@ -139,13 +139,13 @@
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                    Style="{StaticResource CaptionTextBlockStyle}" />
 
-        <!-- Send / Cancel. These were ContentDialog chrome (PrimaryButton / CloseButton) and the
-             send hung off args.Cancel in the dialog's button handler; a pane has no chrome, so the
-             composer now owns its own action row. -->
+        <!-- Send / Discard. A pane has no chrome, so the composer owns its own action row. There is
+             no Cancel: leaving the composer any other way keeps the draft, so the one button that
+             leads out is the one that throws it away (docs/drafts.md). -->
         <StackPanel Grid.Row="9" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
             <!-- Named like its sibling so a test can press it without knowing the app's language:
                  a harness run is in whatever the developer prefers, not a pinned locale. -->
-            <Button x:Name="CancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}" Click="OnCancel" />
+            <Button x:Name="DiscardButton" Content="{x:Bind l10n:L10n.ActionDiscard()}" Click="OnDiscard" />
             <Button x:Name="SendButton" Content="{x:Bind l10n:L10n.ActionSend()}"
                     Style="{StaticResource AccentButtonStyle}" Click="OnSend" IsEnabled="False" />
         </StackPanel>

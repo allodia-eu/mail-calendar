@@ -65,7 +65,7 @@ public sealed partial class ComposerView : UserControl
     }
 
     /// <summary>Binds the composer to a request and starts loading the editor. <paramref name="onDone"/>
-    /// is invoked once the composer is finished, after a successful send, or on Cancel, and the
+    /// is invoked once the composer is finished, after a successful send or a Discard, and the
     /// shell restores the reading pane.</summary>
     internal void Init(MailboxModel model, ComposeContext request, Action onDone)
     {
@@ -184,8 +184,8 @@ public sealed partial class ComposerView : UserControl
     }
 
     /// <summary>
-    /// Whether the user has changed anything since the composer opened, the question the
-    /// "Discard draft?" prompt turns on. True as soon as a header field is edited; otherwise the
+    /// Whether the user has changed anything since the composer opened, the question both leaving
+    /// (save or only close) and Discard (ask or not) turn on. True as soon as a header field is edited; otherwise the
     /// editor document is compared against the seed it opened with, so a reply that merely carries
     /// its quoted original does NOT count as dirty until something is actually written above it
     /// (and flipping the quote-style toggle, which rewrites the document, does).
@@ -202,7 +202,7 @@ public sealed partial class ComposerView : UserControl
             return true;
         }
         // No seed yet means the editor bundle hasn't finished loading, so nothing can have been
-        // typed into it. Treat that as clean rather than blocking the user behind a prompt.
+        // typed into it. Treat that as clean: there is nothing to save and nothing to ask about.
         if (_seedDocument is null || _editor.Core is null)
         {
             return false;
@@ -213,7 +213,7 @@ public sealed partial class ComposerView : UserControl
         }
         catch (Exception ex)
         {
-            // Can't tell, err toward keeping the draft (prompt), never toward silently dropping it.
+            // Can't tell, so err toward keeping the draft: save on leaving, ask before discarding.
             Log.Warn($"composer: couldn't read the document to check for edits ({ex.GetType().Name})");
             return true;
         }
@@ -224,8 +224,8 @@ public sealed partial class ComposerView : UserControl
     /// this releases the WebView2 that backed it.</summary>
     internal void Teardown()
     {
-        // Before the editor goes: the composition is forgotten however the composer went, sent,
-        // discarded or dismissed, and leaves the stored draft in Drafts (docs/drafts.md).
+        // Before the editor goes: a composition nothing else finished is forgotten here, and leaves
+        // the stored draft in Drafts (docs/drafts.md).
         TeardownDrafts();
         _editor.Close();
     }
@@ -252,7 +252,7 @@ public sealed partial class ComposerView : UserControl
                 return;
             }
             PrepareError.Visibility = Visibility.Collapsed;
-            _submitted = true;
+            _finished = true;
             _onDone?.Invoke();
         }
         catch (Exception ex)
@@ -293,8 +293,6 @@ public sealed partial class ComposerView : UserControl
             _ => _model!.SubmitRich(recipients, SubjectBox.Text, documentJson, files, from, composition),
         };
     }
-
-    private void OnCancel(object sender, RoutedEventArgs e) => _onDone?.Invoke();
 
     private void OnToggleCcBcc(object sender, RoutedEventArgs e) => ApplyCcBcc();
 

@@ -3,13 +3,14 @@
 //
 // It hosts ComposerView, the same composer the shell renders in the reading pane's column, built
 // from the same ComposeContext: so a reply raised in a window is seeded, signed, submitted and
-// cancelled by the paths that already existed. What this file adds is the window around it.
+// discarded by the paths that already existed. What this file adds is the window around it.
 //
 // THE MAIN WINDOW'S COMPOSER DOES NOT MOVE. A reply raised in the reading pane still replaces that
 // pane, which is a shipped capability; this is beside it, not instead of it.
 
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Windows.Graphics;
 using uniffi.mailcal_bindings;
@@ -20,6 +21,10 @@ namespace Allodia.Mailcal.Views;
 internal sealed class ComposerWindow : Window
 {
     private readonly ComposerView _view = new();
+
+    /// <summary>Whether the composer has been left on the way to a close the user asked for, so
+    /// the close that follows goes through.</summary>
+    private bool _left;
 
     /// <summary>Roomy enough for the recipient fields and the editor without a scroll.</summary>
     private const int DefaultWidth = 780;
@@ -38,9 +43,10 @@ internal sealed class ComposerWindow : Window
             new SizeInt32(DefaultWidth, DefaultHeight));
         AppearanceApplied(model.CurrentAppearance);
 
-        // Send and Cancel both finish the draft, and both close the window: the composer has no
+        // Send and Discard both finish the draft, and both close the window: the composer has no
         // pane to give back here.
         _view.Init(model, request, Close);
+        AppWindow.Closing += OnClosing;
         Closed += OnClosed;
     }
 
@@ -53,13 +59,23 @@ internal sealed class ComposerWindow : Window
         }
     }
 
-    // CLOSING LEAVES THE DRAFT WHERE IT IS, exactly as Cancel does, and asks no more than Cancel
-    // does. The two are the same act, a person finishing with what they were writing, and a client
-    // that questioned one but not the other would be teaching two rules for one thing. What the
-    // window had been saving stays in Drafts; the composition is forgotten, not the message
-    // (docs/drafts.md). The prompt that does exist, Discard / Keep editing, belongs to something
-    // else: the app taking a draft away that the user did not ask it to, and Discard there is the
-    // one path that removes the stored copy.
+    // CLOSING THE WINDOW IS LEAVING THE COMPOSER: what was written in it is kept in Drafts and
+    // nobody is asked (docs/drafts.md, "Leaving a composer"). The close is held while the composer
+    // reads its document, which needs the editor's WebView alive, and then let go. Raised only for
+    // a close through the window's own chrome or the system, never for the Close() that Send and
+    // Discard call, which have already finished the composition.
+    private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_left)
+        {
+            return;
+        }
+        args.Cancel = true;
+        _left = true;
+        await _view.LeaveAsync();
+        Close();
+    }
+
     private void OnClosed(object sender, WindowEventArgs args)
     {
         App.Shell?.ForgetComposerWindow(this);

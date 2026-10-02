@@ -1,11 +1,14 @@
 // Keeping the composer's message on the server: the composition it saves under, the idle timer
-// that stores it, and the hint under the editor (docs/drafts.md).
+// that stores it, the hint under the editor, and the two ways out, leaving and Discard
+// (docs/drafts.md).
 //
 // A partial of ComposerView, its own file because ComposerView.xaml.cs is near the 500-line limit.
 
+using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Views;
@@ -33,14 +36,15 @@ public sealed partial class ComposerView
     /// once it has been torn down, so a second teardown forgets nothing twice.</summary>
     private bool _keepsDraft;
 
-    /// <summary>Whether this composer's message was submitted.</summary>
+    /// <summary>Whether the core has already been told how this composition ends: its message was
+    /// submitted, it was left with a save, or it was discarded. Teardown then forgets nothing.</summary>
     /// <remarks>
-    /// From then on the send owns the composition and finishes with it when the message settles,
+    /// After a submit the send owns the composition and finishes with it when the message settles,
     /// so forgetting it here as well would race the cleanup that takes the stored draft away: the
     /// two are separate tasks, and this one landing first leaves the draft in Drafts for ever
-    /// (docs/drafts.md).
+    /// (docs/drafts.md). A leave and a discard each forget it themselves.
     /// </remarks>
-    private bool _submitted;
+    private bool _finished;
 
     /// <summary>
     /// Binds the draft half: the composition this composer saves under, the Save control, the
@@ -162,7 +166,9 @@ public sealed partial class ComposerView
         try
         {
             var documentJson = await ReadDocumentAsync();
-            if (string.IsNullOrEmpty(documentJson))
+            // Left or discarded while the document was being read: a save now would arrive after
+            // the composition was forgotten and store a second copy.
+            if (string.IsNullOrEmpty(documentJson) || _finished)
             {
                 return;
             }
@@ -181,18 +187,81 @@ public sealed partial class ComposerView
     }
 
     /// <summary>
-    /// Removes this composer's stored draft from the server.
+    /// Leaves the composer: stores what was written in it and forgets the composition, or only
+    /// lets teardown forget it when nothing was. Never asks (docs/drafts.md, "Leaving a composer").
     /// </summary>
     /// <remarks>
-    /// The one path that does: closing the composer any other way leaves the draft in Drafts,
-    /// which is what a resumed draft the user only looked at needs (docs/drafts.md).
+    /// The save and the forget are one call to the core, so teardown must not close the
+    /// composition again afterwards. The timers stop first, so an autosave cannot land after the
+    /// composition is forgotten. A document that cannot be read is logged and the composer closes
+    /// on its last save, on the footing a failed autosave is on.
     /// </remarks>
-    internal void DiscardStoredDraft()
+    internal async Task LeaveAsync()
     {
-        if (_keepsDraft)
+        if (!_keepsDraft || _finished || _model is null)
         {
-            _model?.DiscardDraft(_composition);
+            return;
         }
+        _draftIdle?.Stop();
+        _draftSampler?.Stop();
+        if (ComposerExit.OnLeave(_keepsDraft, await IsDirtyAsync()) != ComposerLeave.SaveAndClose)
+        {
+            return;
+        }
+        try
+        {
+            var documentJson = await ReadDocumentAsync();
+            if (string.IsNullOrEmpty(documentJson) || _finished)
+            {
+                return;
+            }
+            _model.SaveDraftAndClose(
+                _composition,
+                new Recipients(ToField.Text, CcField.Text, BccField.Text),
+                SubjectBox.Text,
+                documentJson,
+                _attachments.Select(a => a.File).ToArray(),
+                (FromBox.SelectedItem as AccountItem)?.Id);
+            _finished = true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"composer: couldn't prepare the draft to keep on leaving ({ex.GetType().Name})");
+        }
+    }
+
+    /// <summary>
+    /// The composer's Discard button: the one way to throw a draft away, so it asks first whenever
+    /// something would be lost, and otherwise closes at once.
+    /// </summary>
+    /// <remarks>
+    /// "Keep editing" rather than the helper's default "Cancel" beside "Discard": a button labelled
+    /// Cancel reads ambiguously as "cancel the draft".
+    /// </remarks>
+    private async void OnDiscard(object sender, RoutedEventArgs e)
+    {
+        var stored = _keepsDraft && _model is not null && _model.DraftIsStored(_composition);
+        if (ComposerExit.AsksBeforeDiscard(await IsDirtyAsync(), stored))
+        {
+            var answer = await DialogHelper.ConfirmAsync(
+                XamlRoot,
+                L10n.ComposeDiscardTitle(),
+                L10n.ComposeDiscardMessage(),
+                L10n.ActionDiscard(),
+                L10n.ActionKeepEditing());
+            if (answer != ContentDialogResult.Primary)
+            {
+                return;
+            }
+        }
+        if (_keepsDraft && !_finished)
+        {
+            // Removes the stored copy and forgets the composition, so teardown has nothing left to
+            // forget. A composition that never saved reaches no server.
+            _model?.DiscardDraft(_composition);
+            _finished = true;
+        }
+        _onDone?.Invoke();
     }
 
     /// <summary>
@@ -200,8 +269,8 @@ public sealed partial class ComposerView
     /// </summary>
     /// <remarks>
     /// Called from <c>Teardown</c>, so it runs however the composer went, and stops the timers
-    /// either way. The composition is forgotten only for a composer that closed <b>without</b>
-    /// sending: after a submit the send owns it (see <see cref="_submitted"/>).
+    /// either way. The composition is forgotten here only when nothing else has finished it: a
+    /// submit, a leave and a discard each did (see <see cref="_finished"/>).
     /// </remarks>
     private void TeardownDrafts()
     {
@@ -214,7 +283,7 @@ public sealed partial class ComposerView
         if (_model is not null)
         {
             _model.DraftStatusChanged -= OnDraftStatusChanged;
-            if (!_submitted)
+            if (!_finished)
             {
                 _model.CloseComposition(_composition);
             }

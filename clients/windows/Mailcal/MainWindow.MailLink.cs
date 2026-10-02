@@ -19,8 +19,8 @@ public sealed partial class MainWindow
     // so a mail link tapped on a fresh install opens once setup finishes rather than vanishing.
     private MailtoPrefill? _pendingMailLink;
 
-    // Guards the await in TryOpenPendingMailLink. A second link arriving while the discard prompt
-    // is up must not open a second composer behind the question the user is still answering.
+    // Guards the await in TryOpenPendingMailLink. A second link arriving while the open composer is
+    // being left must not build a composer of its own over the first one's.
     private bool _openingMailLink;
 
     /// <summary>
@@ -64,14 +64,9 @@ public sealed partial class MainWindow
         try
         {
             // A link arrives unprompted, at any moment, the same footing as an assistant's draft
-            // (docs/mcp.md), and behind the same guard. Someone else's suggestion may not throw
-            // away a message the user is in the middle of writing.
-            if (!await ConfirmDiscardDraftAsync())
-            {
-                Log.Info("mail link declined, the open draft was kept");
-                _pendingMailLink = null;
-                return;
-            }
+            // (docs/mcp.md). It leaves the open composer first, so a message the user is in the
+            // middle of writing is kept in Drafts rather than replaced.
+            await LeaveComposerAsync();
             _pendingMailLink = null;
             // The composer lives in the mail surface's detail column, so a link arriving over the
             // calendar or Contacts would otherwise open it behind them and the click would look

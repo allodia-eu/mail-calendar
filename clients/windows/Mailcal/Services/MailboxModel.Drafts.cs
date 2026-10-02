@@ -75,6 +75,52 @@ public sealed partial class MailboxModel
         }
     }
 
+    /// <summary>
+    /// Stores what the composer holds over this <paramref name="composition"/>'s stored copy and
+    /// then forgets the composition: what leaving a composer means (<c>docs/drafts.md</c>).
+    /// </summary>
+    /// <remarks>
+    /// One call, never <see cref="SaveDraft"/> followed by <see cref="CloseComposition"/>: the core
+    /// runs each as its own task, and the close landing first would leave the save no stored key
+    /// to supersede, so the server would keep the old copy beside the new one. A composer whose
+    /// words are already saved writes nothing.
+    /// </remarks>
+    internal void SaveDraftAndClose(
+        string composition,
+        Recipients recipients,
+        string subject,
+        string documentJson,
+        ComposerFileAttachment[] files,
+        string? from)
+    {
+        if (_app is null)
+        {
+            return;
+        }
+        try
+        {
+            _app.SaveDraftAndClose(composition, recipients, subject, documentJson, files, from);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"draft save on leaving failed: {ex.GetType().Name}");
+        }
+    }
+
+    /// <summary>Whether <paramref name="composition"/> has a copy in Drafts, or a save queued for
+    /// one: what Discard would remove, and so part of whether it asks first.</summary>
+    internal bool DraftIsStored(string composition)
+    {
+        try
+        {
+            return _app?.DraftIsStored(composition) ?? false;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Removes this composition's stored draft from the server and forgets the
     /// composition. Safe on a composer that never saved: it reaches no server.</summary>
     internal void DiscardDraft(string composition)
@@ -91,8 +137,8 @@ public sealed partial class MailboxModel
 
     /// <summary>
     /// Forgets the composition, leaving the stored draft where it is: what closing a composer
-    /// means. Called however the composer went, sent, discarded or dismissed, because without it
-    /// the core holds a record per composer for the life of the process.
+    /// nothing was written in means. Without it the core holds a record per composer for the life
+    /// of the process.
     /// </summary>
     internal void CloseComposition(string composition)
     {
