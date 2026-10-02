@@ -64,7 +64,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | Every account, its uses' states and its links in one snapshot | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Removing an account clears the links to it, and the confirmation names them | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Setting a link to one of the offered accounts | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| A link suggested when the calendar server schedules as the mail account's address | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| A link suggested when the calendar server schedules as the mail account's address | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Switching a use on or off, its data deleted when off | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Editing a password account's servers, tested before applied | ✅ | — | — | — | — | — |
 | Setting up an account without mail, or with an address book of its own | ✅ | — | — | — | — | — |
@@ -108,8 +108,11 @@ it, while bob's calendar is offered without being suggested.
   in those rows, so there it reads `alice@dav:cloud.example`. The fix is the calendar's: the core
   hands the address over with the id.
 - **A suggestion compares the mail account's own address only.** An alias the mailbox sends as
-  is not compared, so a calendar server that lists only the alias suggests nothing. No client
-  pre-selects a suggestion yet.
+  is not compared, so a calendar server that lists only the alias suggests nothing. Linux names
+  the suggestion under the link's picker, with a button that links it; the other clients do not
+  draw the page yet. The Linux settings window is redrawn by the changes made in it and not by the
+  core's settings signal, so a suggestion that arrives after an account's page is drawn shows on
+  its next redraw.
 - **Links are stored but not acted on.** An invitation still files into, and answers from, the
   account whose mail it arrived in, and "save contact" still writes to the account in view.
 - **A use has three states, on, off and needs permission.** "Not offered" (the server has none)

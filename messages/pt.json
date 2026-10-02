@@ -944,5 +944,7 @@
 	"settings_account_link_mail": "Envia convites através de",
 	"settings_account_link_none": "Nenhuma",
 	"settings_account_linked_line": "{capability}: {address}",
-	"remove_account_unlinks": "Também deixa de estar associada a {accounts}."
+	"remove_account_unlinks": "Também deixa de estar associada a {accounts}.",
+	"settings_account_link_suggested": "Sugestão: {address}",
+	"action_link": "Associar"
 }

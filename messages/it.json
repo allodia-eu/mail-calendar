@@ -944,5 +944,7 @@
 	"settings_account_link_mail": "Invia gli inviti tramite",
 	"settings_account_link_none": "Nessuno",
 	"settings_account_linked_line": "{capability}: {address}",
-	"remove_account_unlinks": "Viene scollegato anche da {accounts}."
+	"remove_account_unlinks": "Viene scollegato anche da {accounts}.",
+	"settings_account_link_suggested": "Suggerimento: {address}",
+	"action_link": "Collega"
 }
