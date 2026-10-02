@@ -103,8 +103,8 @@ dev loop prefers the connected device instead:
 which runs against a real account added in the app.
 
 The switch is the `MAILCAL_DEV_ACCOUNT` environment variable (`stalwart` | `stalwart-multi` |
-`stalwart-imap` | `personal` | `demo` | `first-run`), which each client's build-and-run script
-honours. Every `stalwart` mode injects a canned account config at boot, **bypassing the setup UI**,
+`stalwart-imap` | `stalwart-linked` | `personal` | `demo` | `first-run`), which each client's
+build-and-run script honours. Every `stalwart` mode injects a canned account config at boot, **bypassing the setup UI**,
 so it works the same on every platform with no form to fill in. Each harness mode uses its **own
 engine store** (`mailcal-dev` / `dev` for JMAP, `mailcal-dev-multi` / `dev-multi` for the
 two-account JMAP boot, `mailcal-dev-imap` / `dev-imap` for IMAP), so its test data never mixes with
@@ -161,6 +161,14 @@ test. It was IMAP-alone until then, on every client but Windows.
 engine merges people across accounts on a shared address, and a single-account boot cannot show
 that: the seeded `shared-*.vcf` card is filed in alice's address book *and* bob's, precisely so this
 mode renders it as one row badged "In 2 accounts".
+
+`stalwart-linked` connects **three** accounts: alice's mailbox over IMAP and SMTP, used for mail
+alone, and alice's and bob's calendars and address books over CalDAV, each an account without a
+mailbox ([`accounts.md`](accounts.md)). It exists for linking accounts: alice's calendar server
+schedules as her address, so it is the one suggested for her mailbox, and bob's is offered beside it
+without being suggested. Nothing is linked up front. Linux only for now: `boot.sh` refuses it on the
+other platforms, whose clients would answer a mode they do not know with the developer's stored
+accounts.
 
 On **macOS** the isolation is wider still, and it is not conditional on the harness: **every** DEBUG
 build is separated from the installed app, `--account personal` included (that being the mode that
@@ -220,8 +228,9 @@ to the same subdir and that none resolves to the real paths: the Windows counter
 `DevNamespaceTests`. For `first-run` the collision rule is what makes the mode work at all: an
 account left behind by another mode is an account, and the screen would never come up.
 
-The Linux client boots every mode. `stalwart`, `stalwart-multi` and `stalwart-imap` isolate their
-engine stores under `$XDG_DATA_HOME/mailcal/dev`, `dev-multi` and `dev-imap`; `demo` is in-memory;
+The Linux client boots every mode. `stalwart`, `stalwart-multi`, `stalwart-imap` and
+`stalwart-linked` isolate their engine stores under `$XDG_DATA_HOME/mailcal/dev`, `dev-multi`,
+`dev-imap` and `dev-linked`; `demo` is in-memory;
 `--account personal` opens the developer's stored accounts through the Secret Service store
 ([`secrets.rs`](../clients/linux/src/secrets.rs)) the client's own setup flow writes to. An
 **unrecognised** `MAILCAL_DEV_ACCOUNT` is refused: a message naming the fixtures it does boot, and

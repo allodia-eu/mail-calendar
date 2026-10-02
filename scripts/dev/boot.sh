@@ -4,7 +4,7 @@
 # sets. This is the dev-account-aware entry point; it adds host-OS gating and (for stalwart) an
 # up-front harness check on top of the plain build-and-run scripts.
 #
-#   scripts/dev/boot.sh <platform> [--account stalwart|stalwart-multi|stalwart-imap|personal|demo] [-- <extra build-run args>]
+#   scripts/dev/boot.sh <platform> [--account stalwart|stalwart-multi|stalwart-imap|stalwart-linked|personal|demo] [-- <extra build-run args>]
 #
 #   platform : macos | iphone | ipad | android | windows | linux
 #   --account  stalwart (default); the local seeded harness over JMAP (brought up separately; run
@@ -13,6 +13,9 @@
 #                                    is what proves contact dedup ACROSS accounts; one account
 #                                    cannot show it
 #              stalwart-imap     ; the same harness over IMAP (full mail actions + IDLE push)
+#              stalwart-linked   ; alice's mailbox for mail alone, beside alice's and bob's calendar
+#                                    and contacts as accounts of their own: what linking accounts
+#                                    is verified against (Linux)
 #              personal          ; the developer's stored accounts (today's behaviour)
 #              demo              ; the in-memory demo provider (Apple)
 #              first-run         ; an EMPTY namespace of its own: no accounts, no consent answered,
@@ -28,7 +31,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-[[ $# -ge 1 ]] || die "usage: boot.sh <macos|iphone|ipad|android|windows|linux> [--account stalwart|stalwart-multi|stalwart-imap|personal|demo] [-- <extra args>]"
+[[ $# -ge 1 ]] || die "usage: boot.sh <macos|iphone|ipad|android|windows|linux> [--account stalwart|stalwart-multi|stalwart-imap|stalwart-linked|personal|demo] [-- <extra args>]"
 platform_raw="$1"; shift
 
 ACCOUNT="stalwart"
@@ -42,8 +45,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$ACCOUNT" in
-  stalwart|stalwart-multi|stalwart-imap|personal|demo|first-run) ;;
-  *) die "unknown --account '$ACCOUNT' (stalwart|stalwart-multi|stalwart-imap|personal|demo|first-run)" ;;
+  stalwart|stalwart-multi|stalwart-imap|stalwart-linked|personal|demo|first-run) ;;
+  *) die "unknown --account '$ACCOUNT' (stalwart|stalwart-multi|stalwart-imap|stalwart-linked|personal|demo|first-run)" ;;
 esac
 
 platform="$(normalize_platform "$platform_raw")"
@@ -108,6 +111,14 @@ case "$ACCOUNT" in
     [[ -f "$HARNESS_CA" ]] || extract_harness_ca || die "no harness certificates at $HARNESS_CA: run: scripts/dev/harness.sh up"
     deliver_harness_ca
     info "booting $platform against the local Stalwart harness over IMAP (full mail actions + IDLE)" ;;
+  stalwart-linked)
+    # The other clients answer a mode they do not know with the developer's stored accounts, so
+    # this one is refused there rather than opening real mail under a harness's name.
+    [[ $platform == linux ]] || die "--account stalwart-linked is implemented on Linux only"
+    require_harness
+    [[ -f "$HARNESS_CA" ]] || extract_harness_ca || die "no harness certificates at $HARNESS_CA: run: scripts/dev/harness.sh up"
+    deliver_harness_ca
+    info "booting $platform against the harness as alice's mailbox beside alice's and bob's calendar and contacts" ;;
   personal) info "booting $platform against your stored (personal) accounts" ;;
   demo)     info "booting $platform in demo mode (in-memory sample mailbox)" ;;
   first-run)

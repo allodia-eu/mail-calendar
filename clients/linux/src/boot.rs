@@ -66,6 +66,9 @@ enum BootMode {
     StalwartMulti,
     #[cfg(debug_assertions)]
     StalwartImap,
+    /// Alice's mailbox beside two calendar-and-contacts accounts ([`crate::dev_account`]).
+    #[cfg(debug_assertions)]
+    StalwartLinked,
     /// The seeded, offline screenshot dataset ([`crate::showcase`]).
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
     Showcase,
@@ -214,6 +217,30 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 syncable: false,
             })
         }
+        #[cfg(debug_assertions)]
+        BootMode::StalwartLinked => {
+            let secrets = dev_secrets("dev-linked");
+            let app = real_app(
+                observer,
+                logger,
+                log_level,
+                timezone,
+                with_stored_allodia_account(
+                    crate::dev_account::STALWART_LINKED_TOMLS
+                        .map(str::to_owned)
+                        .to_vec(),
+                    secrets.as_ref(),
+                ),
+                Some("dev-linked"),
+                dev_credential_store(secrets.as_ref()),
+            )?;
+            crate::dev_account::seed_sender_names(&app);
+            Ok(BootedApp {
+                app,
+                secrets,
+                syncable: false,
+            })
+        }
     }
 }
 
@@ -329,9 +356,10 @@ fn resolve_boot_mode(value: Option<&str>, showcase: bool) -> Result<BootMode, St
         Some("stalwart") => Ok(BootMode::StalwartJmap),
         Some("stalwart-multi") => Ok(BootMode::StalwartMulti),
         Some("stalwart-imap") => Ok(BootMode::StalwartImap),
+        Some("stalwart-linked") => Ok(BootMode::StalwartLinked),
         Some(other) => Err(format!(
             "MAILCAL_DEV_ACCOUNT={other} is not a fixture this client can boot \
-             (demo, stalwart, stalwart-multi, stalwart-imap, personal)"
+             (demo, stalwart, stalwart-multi, stalwart-imap, stalwart-linked, personal)"
         )),
     }
 }
@@ -354,6 +382,10 @@ mod tests {
         assert_eq!(
             resolve_boot_mode(Some("stalwart-imap"), false),
             Ok(BootMode::StalwartImap)
+        );
+        assert_eq!(
+            resolve_boot_mode(Some("stalwart-linked"), false),
+            Ok(BootMode::StalwartLinked)
         );
     }
 
