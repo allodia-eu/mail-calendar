@@ -77,12 +77,13 @@ own.** It is the same composer the pane hosts, with the same seeding: the core's
 style, and a forward's staged attachments (`sending.md`, `signatures.md`,
 `composer-security.md`, all of which bind it unchanged).
 
-**Closing the window discards the draft, exactly as Cancel does**, and asks no more than Cancel
-does. The two are the same act, a person deliberately abandoning what they were writing, and a
-client that questioned one but not the other would be teaching two rules for one thing. The
-prompt that does exist, Discard / Keep editing, belongs to something else: it fires when the app
-is about to take a draft away that the user did **not** ask it to
-(`capabilities.md`, "Composing keeps the mailbox live").
+**Closing the window leaves the draft where it is, exactly as Cancel does**, and asks no more than
+Cancel does. The two are the same act, a person finishing with what they were writing, and a
+client that questioned one but not the other would be teaching two rules for one thing. What the
+window last saved stays in Drafts ([`drafts.md`](drafts.md)). The prompt that does exist,
+Discard / Keep editing, belongs to something else: it fires when the app is about to take a draft
+away that the user did **not** ask it to (`capabilities.md`, "Composing keeps the mailbox live"),
+and Discard there is the one answer that removes the stored copy.
 
 **The window is named after the draft**, so two open drafts are distinguishable in the window list
 the OS draws.
@@ -217,6 +218,10 @@ none either, and `GApplication` hands a second launch to the process already run
   the correction runs. What this does not give is macOS's stronger property: a double-click *can*
   raise the unsent-draft prompt there, because the first press is an ordinary click. Anyone who
   finds a way to defer that press without adding latency to every single click should take it.
+
+  In the Drafts folder the first press resumes the draft into the composer ([`drafts.md`](drafts.md)),
+  and a composer cannot be put back the way the pane is, so a double-click there opens no window:
+  the draft is already open where a draft opens.
 - **Closing the mailbox ends the app on Windows and Linux**, so "reopening on the same core" does
   not arise on either: GTK quits with its last application window and Windows has no state where an
   app outlives its windows, and both are their desktop's own convention. The sweep still matters,
@@ -233,10 +238,11 @@ none either, and `GApplication` hands a second launch to the process already run
 - **No "New message" window.** A new message opens where it always did. Only a reply or a forward
   raised inside a reading window gets a window, because that is the case where the inline composer
   would land somewhere the user is not looking.
-- **Nothing asks before a deliberate discard, in a window or in the pane.** Cancel throws the
-  draft away without a word and so does closing the window, and there is no saved-draft folder
-  behind either. If that changes it changes for both together: a rule that applies to one of two
-  identical acts is the shortfall, not the missing prompt.
+- **Nothing asks before a composer is closed, in a window or in the pane.** Cancel closes it
+  without a word and so does closing the window; both leave Drafts holding the last save, and
+  neither saves first ([`drafts.md`](drafts.md), known gaps). If that changes it changes for both
+  together: a rule that applies to one of two identical acts is the shortfall, not the missing
+  prompt.
 
   ⚠️ On macOS this is also the *safe* answer, not only the consistent one. Intercepting a
   SwiftUI window's close means taking over its `NSWindowDelegate`, which is SwiftUI's own: doing
