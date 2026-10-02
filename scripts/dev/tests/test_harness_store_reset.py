@@ -109,14 +109,18 @@ def run_clear(root: Path, *, keep_clients: bool = False) -> str:
     return completed.stdout + completed.stderr
 
 
+# Every harness mode's store, as lib.sh lists them.
+HARNESS_MODES = ("dev", "dev-multi", "dev-imap", "dev-linked")
+
+
 def make_profile(root: Path) -> Path:
-    """A Windows profile: the real store, with the three harness stores inside its directory."""
+    """A Windows profile: the real store, with the harness stores inside its directory."""
     base = root / "Allodia" / "MailCalendar"
     (base / "logs").mkdir(parents=True)
     (base / "mailcal.sqlite").write_text("the developer's actual mail", encoding="utf-8")
     (base / "preferences.toml").write_text("real", encoding="utf-8")
     (base / "logs" / "app.log").write_text("shared log", encoding="utf-8")
-    for mode in ("dev", "dev-multi", "dev-imap"):
+    for mode in HARNESS_MODES:
         (base / mode).mkdir()
         (base / mode / "mailcal.sqlite").write_text(mode, encoding="utf-8")
     return base
@@ -137,7 +141,7 @@ class Extraction(unittest.TestCase):
         source = _extract(LIB_EXTRACT, LIB, "lib")
         modes = re.search(r"DEV_STORE_MODES=\(([^)]*)\)", source)
         assert modes
-        self.assertEqual(["dev", "dev-multi", "dev-imap"], modes.group(1).split())
+        self.assertEqual(list(HARNESS_MODES), modes.group(1).split())
 
 
 @unittest.skipIf(NO_BASH, NO_BASH)
@@ -146,7 +150,7 @@ class ClearDevStores(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             base = make_profile(Path(tmp))
             run_clear(Path(tmp))
-            for mode in ("dev", "dev-multi", "dev-imap"):
+            for mode in HARNESS_MODES:
                 self.assertFalse((base / mode).exists(), f"{mode} survived the reset")
 
     def test_the_real_store_survives(self):
@@ -170,14 +174,14 @@ class ClearDevStores(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             make_profile(Path(tmp))
             output = run_clear(Path(tmp))
-            for mode in ("dev", "dev-multi", "dev-imap"):
+            for mode in HARNESS_MODES:
                 self.assertIn(mode, output)
 
     def test_keep_clients_removes_nothing_and_warns(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = make_profile(Path(tmp))
             output = run_clear(Path(tmp), keep_clients=True)
-            for mode in ("dev", "dev-multi", "dev-imap"):
+            for mode in HARNESS_MODES:
                 self.assertTrue((base / mode).exists(), f"{mode} was removed despite --keep-clients")
             self.assertIn("warning:", output)
 

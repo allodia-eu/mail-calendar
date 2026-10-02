@@ -32,6 +32,42 @@ username = "alice@test.local"
 password = "harness-alice-pw"
 "#;
 
+/// `stalwart-linked`: alice's mailbox used for mail alone, her calendar and contacts as an account
+/// of their own, and bob's calendar and contacts as a third, on the same harness.
+///
+/// What linking accounts is verified against (`docs/accounts.md` rule 12). Alice's calendar server
+/// schedules as her address, so it is suggested for her mailbox; bob's is offered beside it and is
+/// not, which is the mismatched-address case. Nothing is linked up front, so the suggestion is what
+/// a person sees first.
+pub(crate) const STALWART_LINKED_TOMLS: [&str; 3] = [
+    r#"
+capabilities = ["mail"]
+
+[imap]
+addr = "127.0.0.1:12993"
+server_name = "localhost"
+username = "alice@test.local"
+password = "harness-alice-pw"
+
+[smtp]
+addr = "127.0.0.1:12587"
+server_name = "localhost"
+security = "starttls"
+"#,
+    r#"
+[caldav]
+base_url = "http://127.0.0.1:28080"
+username = "alice@test.local"
+password = "harness-alice-pw"
+"#,
+    r#"
+[caldav]
+base_url = "http://127.0.0.1:28080"
+username = "bob@test.local"
+password = "harness-bob-pw"
+"#,
+];
+
 /// Builds the JMAP harness config through the production config builder so its schema cannot drift.
 pub(crate) fn stalwart_jmap_toml() -> Result<String, MailcalError> {
     jmap_toml_for("alice@test.local", "harness-alice-pw")
