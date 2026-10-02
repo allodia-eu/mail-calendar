@@ -112,6 +112,7 @@ mod repeat_editor;
 mod runtime;
 pub mod save;
 mod setup;
+mod setup_choices;
 mod share;
 mod showcase;
 mod showcase_bodies;
@@ -229,6 +230,7 @@ pub use setup::{
     AccountSetup, ConnectionSecurity, JmapSetup, MailServerKind, RejectedCertificate,
     account_config_toml, jmap_account_config_toml, standard_port,
 };
+pub use setup_choices::{DetectedSetup, SetupChoice};
 pub use share::{
     RejectedShare, SharePrefill, ShareRejectionReason, ShareRequest, SharedFile, prefill_from_share,
 };

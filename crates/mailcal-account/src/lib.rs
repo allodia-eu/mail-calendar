@@ -44,6 +44,7 @@ mod repeat_draft;
 mod repeat_summary;
 mod series_warning;
 mod setup;
+mod setup_choices;
 mod signatures;
 mod throttle;
 mod tls;
@@ -115,6 +116,7 @@ pub use series_warning::{
 pub use setup::{
     AccountSetup, SetupCredential, build_config_toml, imap_default_port, smtp_default_port,
 };
+pub use setup_choices::SetupChoice;
 pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,
