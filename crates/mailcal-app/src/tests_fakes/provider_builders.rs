@@ -236,6 +236,18 @@ impl FakeProvider {
         provider
     }
 
+    /// Lists the folder `key` as a level of the tree that holds no mail, as an IMAP server lists
+    /// a `\Noselect` folder.
+    pub(crate) fn with_container(mut self, key: &str) -> Self {
+        let folder = self
+            .mailboxes
+            .iter_mut()
+            .find(|mailbox| mailbox.id.as_str() == key)
+            .expect("a listed folder");
+        folder.selectable = false;
+        self
+    }
+
     /// Files two folders inside the provider's existing Archive: `Clients`, and `Acme` inside
     /// that. Two levels because one proves only that a row was indented once, where the rule a
     /// pane has to hold is that a row is on screen while **every** folder above it is open.

@@ -12,6 +12,7 @@ use fakes::{
     FakeConnector, FakeProvider, FlakyConnector, account, account_with, app_with_connector,
     flat_subjects, message, open_folder,
 };
+use mailcal_viewmodel::EmptyReason;
 
 use super::Intent;
 
@@ -162,4 +163,29 @@ async fn a_folder_the_pass_synced_empty_says_why_at_once() {
     app.dispatch(open_folder("acct-1", "projects")).await;
 
     assert!(app.mailbox_list().empty_reason.is_some());
+}
+
+#[tokio::test]
+async fn a_folder_that_only_holds_folders_is_never_connected_and_reads_as_empty() {
+    // An IMAP `\Noselect` level, such as Gmail's `[Gmail]`: selecting it fails, so neither a pass
+    // nor opening it may try. Opening it says it holds no mail, and offers no sync depth, which
+    // would claim older mail is waiting on the server.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let connector = FlakyConnector::new("parent", Vec::new(), 0);
+    let attempts = connector.attempts();
+    let app = app_with_connector(
+        vec![account(
+            "acct-1",
+            FakeProvider::imap_inbox(Vec::new(), &["parent"]).with_container("parent"),
+        )],
+        connector,
+        &surfaces,
+    );
+
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(open_folder("acct-1", "parent")).await;
+    app.dispatch(open_folder("acct-1", "parent")).await;
+
+    assert_eq!(*attempts.lock().unwrap(), 0, "a container was connected");
+    assert_eq!(app.mailbox_list().empty_reason, Some(EmptyReason::NoMail));
 }

@@ -251,6 +251,24 @@ async fn sync_settings_defaults_to_polling_without_idle_support() {
 }
 
 #[tokio::test]
+async fn a_folder_that_only_holds_folders_is_not_offered_for_push() {
+    // A `\Noselect` level refuses to be selected, so a watch on it would fail on every connect.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        vec![account(
+            "acct",
+            FakeProvider::imap_inbox(vec![], &["parent", "projects"]).with_container("parent"),
+        )],
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+
+    let row = &app.sync_settings().await.accounts[0];
+    let keys: Vec<&str> = row.folders.iter().map(|f| f.key.as_str()).collect();
+    assert_eq!(keys, vec!["a", "projects"]);
+}
+
+#[tokio::test]
 async fn sync_settings_defaults_to_pushing_the_inbox_when_idle_supported() {
     // A server that advertises IDLE: the account defaults to push, with the Inbox
     // subscribed: the "receive emails as they come in" default the product calls for.

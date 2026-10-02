@@ -158,9 +158,17 @@ impl<P: Provider> App<P> {
             // provider's, and each name carries the folders it sits inside: the list is flat, so
             // two folders called `2024` would otherwise read as one word each.
             let tree = sorted_folder_rows(&mailboxes);
+            // A level of the tree holds no mail and refuses to be selected, so it cannot be
+            // watched. Left out after the paths are built, so a folder inside it still says so.
+            let containers: HashSet<&str> = mailboxes
+                .iter()
+                .filter(|mailbox| !mailbox.selectable)
+                .map(|mailbox| mailbox.id.key().as_str())
+                .collect();
             let folders = tree
                 .iter()
                 .zip(folder_paths(&tree))
+                .filter(|(row, _)| !containers.contains(row.key.as_str()))
                 .map(|(row, path)| SyncFolderRow {
                     subscribed: is_push && subscribed.contains(row.key.as_str()),
                     name: path,
