@@ -174,7 +174,7 @@ impl SimpleComponent for AppModel {
             pending_share: None,
             draft_check: None,
             draft_check_seq: 0,
-            discard_prompt: false,
+            discard_prompt: None,
             notice: None,
             sync_status,
             sync_bar,

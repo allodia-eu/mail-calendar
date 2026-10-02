@@ -47,9 +47,12 @@ pub(crate) struct ComposerPane {
     /// The draft's signature control. The pane owns the only strong reference; the editor, the
     /// From picker and the menu action all reach it weakly; so tearing the pane down frees it.
     signature: RefCell<Option<Rc<SignatureControl>>>,
-    /// The open draft's unsaved-work guard, and the generation it has already been asked about,
-    /// so a re-render cannot ask twice for one navigation.
-    draft: RefCell<Option<DraftGuard>>,
+    /// The open draft's guard, which leaves it and answers Discard, and the generation it has
+    /// already been asked about, so a re-render cannot leave twice for one navigation.
+    ///
+    /// Shared, because a composer window's close handler is connected before any draft is shown
+    /// and has to reach whichever draft is open when the window closes.
+    draft: Rc<RefCell<Option<Rc<DraftGuard>>>>,
     checked_generation: Cell<Option<u64>>,
     /// The open draft's autosave: the one timer that notices a change and stores the message once
     /// the composer has gone quiet (`docs/drafts.md`).
@@ -68,7 +71,7 @@ impl ComposerPane {
             send: RefCell::new(None),
             fields: RefCell::new(Vec::new()),
             signature: RefCell::new(None),
-            draft: RefCell::new(None),
+            draft: Rc::new(RefCell::new(None)),
             checked_generation: Cell::new(None),
             autosave: Autosave::default(),
             hint: RefCell::new(None),
@@ -77,6 +80,12 @@ impl ComposerPane {
 
     pub(crate) fn widget(&self) -> &gtk::Box {
         &self.root
+    }
+
+    /// The cell holding the open draft's guard, for a composer window's close handler: closing
+    /// the window is leaving the draft (`docs/drafts.md`).
+    pub(crate) fn draft_cell(&self) -> Rc<RefCell<Option<Rc<DraftGuard>>>> {
+        Rc::clone(&self.draft)
     }
 
     /// Builds the chrome and the editor for one draft.
@@ -110,11 +119,11 @@ impl ComposerPane {
             compose_title(request.kind),
             "",
         )));
-        let cancel = gtk::Button::with_label(l10n::action_cancel());
-        let input_sender = sender.clone();
-        let host = request.host;
-        cancel.connect_clicked(move |_| input_sender.emit(AppInput::CancelComposer(host)));
-        header.pack_start(&cancel);
+        // Where Cancel would be: on a desktop, leaving is a click elsewhere or the window's own
+        // close, so this is the one way to throw the draft away (`docs/drafts.md`). Wired below,
+        // once the guard that answers it exists.
+        let discard = gtk::Button::with_label(l10n::action_discard());
+        header.pack_start(&discard);
         let send_button = gtk::Button::with_label(l10n::action_send());
         send_button.add_css_class("suggested-action");
         header.pack_end(&send_button);
@@ -236,15 +245,19 @@ impl ComposerPane {
         to.connect_changed(move |field| {
             sensitive_button.set_sensitive(!recipients::is_empty(field));
         });
-        self.draft.replace(Some(DraftGuard::new(
+        let fields = ComposerFields {
+            request: request.clone(),
+            accounts: accounts.to_vec(),
+            from,
+            to,
+            cc,
+            bcc,
+            subject,
+            files,
+        };
+        let guard = Rc::new(DraftGuard::new(
             web.widget().clone(),
-            RecipientRows {
-                to: Rc::clone(&to),
-                cc: Rc::clone(&cc),
-                bcc: Rc::clone(&bcc),
-            },
-            subject.clone(),
-            Rc::clone(&files),
+            fields.clone(),
             HeaderValues {
                 to: request.initial_to.clone(),
                 cc: request.initial_cc.clone(),
@@ -259,17 +272,11 @@ impl ComposerPane {
                 0
             },
             seed,
-        )));
-        let fields = ComposerFields {
-            request: request.clone(),
-            accounts: accounts.to_vec(),
-            from,
-            to,
-            cc,
-            bcc,
-            subject,
-            files,
-        };
+        ));
+        let input = sender.clone();
+        let answer = Rc::clone(&guard);
+        discard.connect_clicked(move |_| answer.discard(&input));
+        self.draft.replace(Some(guard));
         connect_send(
             &send_button,
             web.widget(),
@@ -337,7 +344,8 @@ impl ComposerPane {
         self.active_generation.get() == Some(generation)
     }
 
-    /// Asks the open draft whether anything would be lost, once per navigation.
+    /// Leaves the open draft for a navigation, once per navigation: saved and closed when it was
+    /// written in, closed when it was not (`docs/drafts.md`).
     ///
     /// The generation guard is what makes it once: `render` runs on every update, and the model
     /// cannot clear the request itself because it renders behind a shared reference.
@@ -346,10 +354,11 @@ impl ComposerPane {
             return;
         }
         self.checked_generation.set(Some(generation));
-        match self.draft.borrow().as_ref() {
-            Some(draft) => draft.check(sender),
-            // No draft to lose; the pane is torn down or was never shown.
-            None => sender.emit(AppInput::ComposerDraftChecked(false)),
+        let guard = self.draft.borrow().clone();
+        match guard {
+            Some(draft) => draft.leave(sender),
+            // Nothing to keep; the pane is torn down or was never shown.
+            None => sender.emit(AppInput::ComposerUntouched(ComposerHost::Pane)),
         }
     }
 

@@ -1,12 +1,67 @@
-//! The "Discard draft?" question: the window, and the two answers it emits.
+//! The composer's Discard: when it asks first, the "Discard draft?" question it asks, and what
+//! each answer does (`docs/drafts.md`, "Leaving a composer").
 //!
-//! Split from [`super::composer_draft`], which is at the 500-line limit and holds the rule this
+//! Split from [`super::composer_draft`], which is at the 500-line limit and holds the rule the
 //! question turns on: whether anything the user put in the composer would be lost.
 
 use gtk::prelude::{BoxExt, ButtonExt, GtkWindowExt, IsA, WidgetExt};
 
-use super::AppInput;
+use super::{AppInput, AppModel, reader::ComposerHost};
 use crate::l10n;
+
+impl AppModel {
+    /// The composer's Discard button, with the composer's answer to whether it was written in.
+    ///
+    /// Asks first whenever there is something to lose: words in the composer, or a copy in
+    /// Drafts that Discard would remove. With neither it discards at once.
+    pub(super) fn discard_composer(&mut self, host: ComposerHost, edited: bool) {
+        let Some(composition) = self.composition_of(host) else {
+            return;
+        };
+        let stored = self
+            .app
+            .as_ref()
+            .is_some_and(|app| app.draft_is_stored(composition).unwrap_or(false));
+        if edited || stored {
+            self.discard_prompt = Some(host);
+        } else {
+            self.discard_from(host);
+        }
+    }
+
+    /// The question's Discard: the composer it was asked about goes, and its stored copy with it.
+    pub(super) fn discard_draft(&mut self) {
+        if let Some(host) = self.discard_prompt.take() {
+            self.discard_from(host);
+        }
+    }
+
+    /// Closes the composer hosted by `host` and removes its stored draft: the one path that
+    /// takes a draft off the server (`docs/drafts.md`).
+    ///
+    /// The discard forgets the composition itself, so it is not closed as well.
+    fn discard_from(&mut self, host: ComposerHost) {
+        let composition = match host {
+            ComposerHost::Pane => {
+                self.composer_error = None;
+                self.composer.take().map(|request| request.composition)
+            }
+            ComposerHost::Window(id) => {
+                let composition = self.composition_of(host);
+                self.forget_composer_window(id);
+                composition
+            }
+        };
+        if let Some(composition) = composition {
+            self.draft_status.remove(&composition);
+            self.discard_stored_draft(&composition);
+        }
+    }
+
+    pub(super) fn keep_editing(&mut self) {
+        self.discard_prompt = None;
+    }
+}
 
 /// The "Discard draft?" question, held open until it is answered.
 ///
@@ -39,6 +94,15 @@ impl DiscardDraftDialog {
         let window = discard_confirmation(parent, sender);
         window.present();
         self.window = Some(window);
+    }
+
+    /// Takes the question away with the composer window it was asked over. Closing it answers
+    /// Keep editing, so the model stops waiting for an answer.
+    pub(crate) fn dismiss(&mut self) {
+        self.open = false;
+        if let Some(window) = self.window.take() {
+            window.close();
+        }
     }
 }
 

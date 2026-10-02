@@ -186,12 +186,15 @@ pub(crate) enum AppInput {
     /// could not be read. The composer opens on this rather than on `BeginForward`: on screen
     /// holding nothing it can be sent in the window before they arrive.
     ForwardStaged(ReadingSource, Result<Vec<PickedFile>, ()>),
-    CancelComposer(ComposerHost),
-    /// The open draft's answer to "would anything be lost?": see [`super::composer_draft`].
-    ComposerDraftChecked(bool),
-    /// Throw the draft away and take the navigation that was waiting on it.
+    /// The composer's Discard button: its host, and whether anything was written in it.
+    DiscardComposer(ComposerHost, bool),
+    /// Leaving a composer nothing was written in: close it, then take any waiting navigation.
+    ComposerUntouched(ComposerHost),
+    /// Leaving a composer that was written in: save and close it, then take any navigation.
+    LeaveComposer(Box<ComposerSubmission>),
+    /// The "Discard draft?" question's Discard: throw the draft away.
     DiscardDraft,
-    /// Keep the draft, and drop the navigation that was waiting on it.
+    /// The question's Keep editing: leave the composer as it was.
     KeepEditing,
     SubmitComposer(Box<ComposerSubmission>),
     /// Store what the composer holds in the Drafts folder, superseding this composition's
@@ -413,8 +416,9 @@ impl fmt::Debug for AppInput {
             Self::BeginReply { .. } => "BeginReply",
             Self::BeginForward(_) => "BeginForward",
             Self::ForwardStaged(..) => "ForwardStaged",
-            Self::CancelComposer(_) => "CancelComposer",
-            Self::ComposerDraftChecked(_) => "ComposerDraftChecked",
+            Self::DiscardComposer(..) => "DiscardComposer",
+            Self::ComposerUntouched(_) => "ComposerUntouched",
+            Self::LeaveComposer(_) => "LeaveComposer",
             Self::DiscardDraft => "DiscardDraft",
             Self::KeepEditing => "KeepEditing",
             Self::SubmitComposer(_) => "SubmitComposer",

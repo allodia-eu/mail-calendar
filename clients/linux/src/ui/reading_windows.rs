@@ -121,11 +121,13 @@ impl AppModel {
         });
     }
 
-    /// Sent, cancelled, or closed: all three are the same act here, because closing a composer
-    /// window finishes with the draft exactly as Cancel does (`docs/reading-window.md`).
+    /// A composer window closing with nothing written in it, or one whose draft has already
+    /// gone.
     ///
     /// What it finishes with is the composer, not the message: the composition is forgotten and
-    /// whatever it had saved stays in Drafts (`docs/drafts.md`).
+    /// whatever it had saved stays in Drafts. A window that was written in is saved and closed in
+    /// one call instead, and one whose draft went that way, or by Discard or a send, has no
+    /// composition left here to close (`docs/drafts.md`).
     pub(super) fn close_composer_window(&mut self, id: u64) {
         let composition = self
             .composer_windows
@@ -138,10 +140,14 @@ impl AppModel {
         }
     }
 
-    /// Takes the window off screen without forgetting its composition: what a **sent** draft's
-    /// window does, because the send owns the composition from the submit on (`docs/drafts.md`).
+    /// Takes the window off screen without closing its composition: what a draft that was sent,
+    /// left or discarded does, because each of those finishes with the composition itself
+    /// (`docs/drafts.md`).
     pub(super) fn forget_composer_window(&mut self, id: u64) {
         self.composer_windows.retain(|draft| draft.id != id);
+        if self.discard_prompt == Some(ComposerHost::Window(id)) {
+            self.discard_prompt = None;
+        }
     }
 
     /// Reports a failure on the window that raised it, leaving the pane's own error line alone.

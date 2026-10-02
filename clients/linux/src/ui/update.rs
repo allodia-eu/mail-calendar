@@ -6,11 +6,8 @@ use mailcal_bindings::{Intent, Surface};
 use relm4::ComponentSender;
 
 use super::{
-    AppInput, AppModel, PrimaryView,
-    composer_model::ComposeKind,
-    mail_actions::DeleteTarget,
-    reader::{ComposerHost, ReadingSource},
-    setup_model,
+    AppInput, AppModel, PrimaryView, composer_model::ComposeKind, mail_actions::DeleteTarget,
+    reader::ReadingSource, setup_model,
 };
 use crate::l10n;
 
@@ -246,13 +243,9 @@ impl AppModel {
                 self.stage_forward(source, sender.input_sender().clone());
             }
             AppInput::ForwardStaged(source, staged) => self.begin_forward(&source, staged),
-            // Cancel and a closed window are the same act, and both discard without asking
-            // (`docs/reading-window.md`).
-            AppInput::CancelComposer(host) => match host {
-                ComposerHost::Pane => self.clear_pane_composer(),
-                ComposerHost::Window(id) => self.close_composer_window(id),
-            },
-            AppInput::ComposerDraftChecked(edited) => self.draft_checked(edited),
+            AppInput::DiscardComposer(host, edited) => self.discard_composer(host, edited),
+            AppInput::ComposerUntouched(host) => self.composer_untouched(host),
+            AppInput::LeaveComposer(submission) => self.leave_composer(&submission),
             AppInput::DiscardDraft => self.discard_draft(),
             AppInput::KeepEditing => self.keep_editing(),
             AppInput::SubmitComposer(submission) => self.submit_composer(&submission),

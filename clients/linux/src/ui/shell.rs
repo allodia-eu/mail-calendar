@@ -377,8 +377,8 @@ impl AppWidgets {
             // How this composition's last save ended, re-read whenever the core says some
             // composition's moved (`docs/drafts.md`).
             self.composer.show_draft_hint(model, ComposerHost::Pane);
-            // A navigation is waiting on this draft's answer. Issued from here because the model
-            // renders behind a shared reference and cannot run the editor round trip itself.
+            // A navigation is waiting for this draft to be left. Issued from here because the
+            // model renders behind a shared reference and cannot run the editor round trip itself.
             if let Some(generation) = model.draft_check {
                 self.composer.check_draft(generation, &self.sender);
             }
@@ -461,8 +461,11 @@ impl AppWidgets {
         );
         self.mail_delete
             .render(model.pending_mail_delete.as_ref(), &self.root, &self.sender);
-        self.discard_draft
-            .render(model.discard_prompt, &self.root, &self.sender);
+        self.discard_draft.render(
+            model.discard_prompt == Some(ComposerHost::Pane),
+            &self.root,
+            &self.sender,
+        );
         // Last: a detached window draws the same views as the panes above, and building one takes
         // the toolkit's focus, so the mailbox is brought to the model first.
         self.detached.render(model, &self.sender);

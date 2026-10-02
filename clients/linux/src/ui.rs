@@ -149,6 +149,7 @@ use mailbox::ThreadKey;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 use model::OpenedMessage;
 use model::ReadingState;
+use reader::ComposerHost;
 use reading_windows::DetachedDraft;
 use search::SearchState;
 use selection::Selection;
@@ -210,20 +211,20 @@ pub(crate) struct AppModel {
     /// every open composer reads its own back (`docs/drafts.md`). Entries are dropped as each
     /// composer closes, so the map holds what is on screen and nothing else.
     draft_status: DraftStatuses,
-    /// The message or external draft waiting for the open composer to answer whether it is dirty.
+    /// The message or external draft waiting for the open composer to be left.
     pending_navigation: Option<PendingNavigation>,
     /// A mail link received before an account exists. Account setup completing opens it.
     pending_mailto: Option<mailcal_bindings::MailtoPrefill>,
     /// A share received before an account exists, held on the same terms as a mail link.
     pending_share: Option<mailcal_bindings::SharePrefill>,
-    /// The navigation the guard must answer, and the counter it is drawn from. Its own sequence,
-    /// not the composer's: two navigations away from one draft: the second after a "Keep editing"
-    /// ; must each get an answer, and reusing the composer's generation would make the pane treat
-    /// the second as already asked.
+    /// The navigation the open composer must be left for, and the counter it is drawn from. Its
+    /// own sequence, not the composer's: two navigations away from one draft must each get an
+    /// answer, and reusing the composer's generation would make the pane treat the second as
+    /// already answered.
     draft_check: Option<u64>,
     draft_check_seq: u64,
-    /// Whether the "Discard draft?" question is on screen.
-    discard_prompt: bool,
+    /// The composer the "Discard draft?" question is on screen for, if it is.
+    discard_prompt: Option<ComposerHost>,
     notice: Option<String>,
     /// The mail list's bottom-bar caption: an account a server has asked to wait, or a
     /// background sync downloading mail. `None` whenever there is nothing to say, which is

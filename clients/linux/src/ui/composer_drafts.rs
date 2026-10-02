@@ -20,6 +20,7 @@ use webkit6::prelude::WebViewExt;
 
 use super::{
     AppModel,
+    composer_draft::PendingNavigation,
     composer_fields::ComposerFields,
     composer_model::{
         ComposeContext, ComposeKind, ComposerSubmission, PickedFile, new_composition,
@@ -49,20 +50,7 @@ impl AppModel {
         let Some(app) = &self.app else {
             return;
         };
-        let recipients = mailcal_bindings::Recipients {
-            to: submission.to.clone(),
-            cc: submission.cc.clone(),
-            bcc: submission.bcc.clone(),
-        };
-        let files = submission
-            .files
-            .iter()
-            .map(|file| mailcal_bindings::ComposerFileAttachment {
-                path: file.path.clone(),
-                file_name: file.file_name.clone(),
-                media_type: file.media_type.clone(),
-            })
-            .collect();
+        let (recipients, files) = save_arguments(submission);
         // Nothing is surfaced on a refusal. Saving is never something the user waits for, and
         // never something a composer refuses to be dismissed over; a save the *server* refuses is
         // reported through the hint.
@@ -76,10 +64,31 @@ impl AppModel {
         );
     }
 
+    /// Saves what a composer being left holds, and lets the core forget the composition once
+    /// the save has settled: the one call leaving makes (`docs/drafts.md`).
+    ///
+    /// Never followed by [`Self::close_composition`]: a close sent beside the save could land
+    /// first, and the save would then supersede nothing.
+    pub(super) fn save_draft_and_close(&mut self, submission: &ComposerSubmission) {
+        self.draft_status.remove(&submission.request.composition);
+        let Some(app) = &self.app else {
+            return;
+        };
+        let (recipients, files) = save_arguments(submission);
+        let _ = app.save_draft_and_close(
+            submission.request.composition.clone(),
+            recipients,
+            submission.subject.clone(),
+            submission.document_json.clone(),
+            files,
+            submission.from.clone(),
+        );
+    }
+
     /// Removes a composition's stored draft from the server and forgets the composition.
     ///
-    /// The one path that takes the stored copy off the server; closing the composer any other way
-    /// leaves the draft in Drafts, which is what a resumed draft the user only looked at needs.
+    /// The one path that takes the stored copy off the server; leaving the composer any other way
+    /// keeps the draft in Drafts.
     pub(super) fn discard_stored_draft(&self, composition: &str) {
         if let Some(app) = &self.app {
             let _ = app.discard_draft(composition.to_owned());
@@ -88,9 +97,11 @@ impl AppModel {
 
     /// Forgets a composition, leaving the stored draft where it is.
     ///
-    /// Called however the composer went, sent, discarded or dismissed. Without it the core holds
-    /// a record per composer for the life of the process, and the stored draft would be
-    /// superseded by whatever the next composer to take this id wrote.
+    /// Called for a composer that closed with nothing written in it. One that was written in is
+    /// saved and closed in one call, one discarded is forgotten by the discard, and one sent is
+    /// left to the send. Without it the core holds a record per composer for the life of the
+    /// process, and the stored draft would be superseded by whatever the next composer to take
+    /// this id wrote.
     pub(super) fn close_composition(&mut self, composition: &str) {
         self.draft_status.remove(composition);
         if let Some(app) = &self.app {
@@ -100,11 +111,11 @@ impl AppModel {
 
     /// Takes the pane's composer off screen, forgetting its composition.
     ///
-    /// Every way a composer closes **without sending** comes through here: one that went without
-    /// it leaves the core holding a record for the life of the process, and the stored draft
-    /// would be superseded by whatever the next composer to take that id wrote. The draft itself
-    /// stays in Drafts; only Discard removes it. A composer whose message was submitted is taken
-    /// off screen by the submit instead, which leaves the composition to the send.
+    /// What a navigation does to the composer it replaces. By then it has been left: one that was
+    /// written in has been saved and closed and is no longer here, so what this takes is one with
+    /// nothing written in it. The draft, if one was saved, stays in Drafts; only Discard removes
+    /// it. A composer whose message was submitted is taken off screen by the submit instead,
+    /// which leaves the composition to the send.
     pub(super) fn clear_pane_composer(&mut self) {
         if let Some(request) = self.composer.take() {
             self.close_composition(&request.composition);
@@ -191,6 +202,13 @@ impl AppModel {
         resumed: Result<mailcal_bindings::DraftResume, ()>,
     ) {
         match resumed {
+            // A composer already in the pane is left first, so what it holds is kept in Drafts.
+            Ok(draft) if self.composer.is_some() => {
+                self.queue_navigation(PendingNavigation::Composer(resumed_context(
+                    composition,
+                    draft,
+                )));
+            }
             Ok(draft) => self.commit_composer(resumed_context(composition, draft)),
             Err(()) => self.notice = Some(l10n::compose_draft_open_failed().to_owned()),
         }
@@ -199,6 +217,11 @@ impl AppModel {
     /// How the draft in the composer hosted by `host` was last saved, or `None` when that
     /// composer has saved nothing, or is not open.
     pub(super) fn draft_status_of(&self, host: ComposerHost) -> Option<DraftStatus> {
+        self.draft_status.get(&self.composition_of(host)?).copied()
+    }
+
+    /// The composition the composer hosted by `host` is writing, or `None` when it is not open.
+    pub(super) fn composition_of(&self, host: ComposerHost) -> Option<String> {
         let request = match host {
             ComposerHost::Pane => self.composer.as_ref()?,
             ComposerHost::Window(id) => {
@@ -209,8 +232,32 @@ impl AppModel {
                     .request
             }
         };
-        self.draft_status.get(&request.composition).copied()
+        Some(request.composition.clone())
     }
+}
+
+/// The recipients and files a save hands the core, the same for every save.
+fn save_arguments(
+    submission: &ComposerSubmission,
+) -> (
+    mailcal_bindings::Recipients,
+    Vec<mailcal_bindings::ComposerFileAttachment>,
+) {
+    let recipients = mailcal_bindings::Recipients {
+        to: submission.to.clone(),
+        cc: submission.cc.clone(),
+        bcc: submission.bcc.clone(),
+    };
+    let files = submission
+        .files
+        .iter()
+        .map(|file| mailcal_bindings::ComposerFileAttachment {
+            path: file.path.clone(),
+            file_name: file.file_name.clone(),
+            media_type: file.media_type.clone(),
+        })
+        .collect();
+    (recipients, files)
 }
 
 /// A directory of this composer's own under the user's cache, so two resumed drafts never share
