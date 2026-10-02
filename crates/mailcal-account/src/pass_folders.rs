@@ -2,8 +2,11 @@
 
 use engine_core::mail::{Mailbox, MailboxRole};
 
-/// Whether the account pass syncs `mailbox`: every folder the account lists except the two
-/// kinds that are only ever views of mail filed in another folder.
+/// Whether the account pass syncs `mailbox`: every folder the account lists except one that holds
+/// no mail at all, and the two kinds that are only ever views of mail filed in another folder.
+///
+/// A folder that is only a level of the tree (`Mailbox::selectable` false: an IMAP `\Noselect`
+/// row such as Gmail's `[Gmail]`) refuses to be opened, so binding it fails on every pass.
 ///
 /// `\Flagged` (RFC 6154) and `\Important` (RFC 8457) are defined as views: Gmail's Starred and
 /// Important over IMAP, Dovecot's virtual folders. Syncing one stores every message in it a
@@ -13,10 +16,11 @@ use engine_core::mail::{Mailbox, MailboxRole};
 /// mail.
 #[must_use]
 pub fn pass_syncs(mailbox: &Mailbox) -> bool {
-    !matches!(
-        mailbox.role,
-        Some(MailboxRole::Flagged | MailboxRole::Important)
-    )
+    mailbox.selectable
+        && !matches!(
+            mailbox.role,
+            Some(MailboxRole::Flagged | MailboxRole::Important)
+        )
 }
 
 #[cfg(test)]
@@ -45,5 +49,12 @@ mod tests {
         ] {
             assert!(pass_syncs(&folder(role.clone())), "{role:?}");
         }
+    }
+
+    #[test]
+    fn a_folder_that_only_holds_folders_is_left_out() {
+        let mut container = folder(None);
+        container.selectable = false;
+        assert!(!pass_syncs(&container));
     }
 }

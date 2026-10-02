@@ -108,9 +108,10 @@ fn subtree(folders: &[Mailbox], root: &MailboxId) -> BTreeSet<String> {
 ///
 /// `manages_folders` is the account's: whether its provider can change the tree at all.
 /// Dropping mail needs no such capability; every provider that syncs mail can move it.
-/// `accepts_folders` arrives holding what the server allows (`Mailbox::accepts_children`,
-/// set by [`sorted_folder_rows`](crate::sorted_folder_rows)), so a folder the server will not
-/// build in is never offered as one, whatever its role.
+/// `accepts_folders` and `accepts_messages` arrive holding what the server allows
+/// (`Mailbox::accepts_children` and `Mailbox::selectable`, set by
+/// [`sorted_folder_rows`](crate::sorted_folder_rows)), so a folder the server will not build in
+/// or file mail in is never offered as one, whatever its role.
 pub fn stamp_folder_actions(
     rows: &mut [FolderRow],
     manages_folders: bool,
@@ -142,7 +143,8 @@ pub fn stamp_folder_actions(
             );
         // Junk takes mail through a report, never a move (`docs/reporting.md`), and Drafts and
         // the virtual folders are not somewhere mail is filed.
-        row.accepts_messages = !row.pending
+        row.accepts_messages = row.accepts_messages
+            && !row.pending
             && !matches!(
                 row.role,
                 Some(FolderRole::Junk | FolderRole::Drafts | FolderRole::Other)

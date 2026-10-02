@@ -24,6 +24,7 @@ fn mailbox(links: AccountLinks) -> AccountFacts {
         files_invitations: false,
         links,
         endpoints: None,
+        calendar_addresses: Vec::new(),
     }
 }
 
@@ -37,6 +38,7 @@ fn cloud(links: AccountLinks) -> AccountFacts {
         files_invitations: true,
         links,
         endpoints: None,
+        calendar_addresses: Vec::new(),
     }
 }
 
@@ -226,4 +228,49 @@ fn each_link_offers_only_the_accounts_it_may_name() {
     assert!(
         complete.calendar.is_empty() && complete.contacts.is_empty() && complete.mail.is_empty()
     );
+}
+
+/// A calendar server that schedules as the mail account's address is suggested for it, from
+/// either end; one that does not is offered without being suggested.
+#[test]
+fn a_calendar_that_recognises_the_mail_address_is_suggested_from_both_ends() {
+    let mut recognising = cloud(AccountLinks::default());
+    recognising.calendar_addresses = vec!["Alice@Example.org".to_owned()];
+    let accounts = entries(
+        &[mailbox(AccountLinks::default()), recognising],
+        &BTreeSet::new(),
+    );
+    assert_eq!(
+        accounts[0].link_candidates.suggested,
+        ["alice@dav:cloud.example"]
+    );
+    assert_eq!(
+        accounts[1].link_candidates.suggested,
+        ["alice@imap.example.org"]
+    );
+
+    let mut stranger = cloud(AccountLinks::default());
+    stranger.calendar_addresses = vec!["bob@example.org".to_owned()];
+    let accounts = entries(
+        &[mailbox(AccountLinks::default()), stranger],
+        &BTreeSet::new(),
+    );
+    assert_eq!(accounts[0].link_candidates.calendar.len(), 1);
+    assert!(accounts[0].link_candidates.suggested.is_empty());
+    assert!(accounts[1].link_candidates.suggested.is_empty());
+}
+
+/// Nothing is suggested for an address book: a CardDAV server names no addresses.
+#[test]
+fn an_address_book_is_never_suggested() {
+    let mut contacts_only = cloud(AccountLinks::default());
+    contacts_only.chosen = set(&[Capability::Contacts]);
+    contacts_only.files_invitations = false;
+    contacts_only.calendar_addresses = vec!["alice@example.org".to_owned()];
+    let accounts = entries(
+        &[mailbox(AccountLinks::default()), contacts_only],
+        &BTreeSet::new(),
+    );
+    assert_eq!(accounts[0].link_candidates.contacts.len(), 1);
+    assert!(accounts[0].link_candidates.suggested.is_empty());
 }

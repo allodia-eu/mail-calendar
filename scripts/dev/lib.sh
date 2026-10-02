@@ -157,7 +157,7 @@ is_windows() { [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(uname 
 #   windows  clients/windows/Mailcal/Services/AppPaths.cs
 #   macos    MailcalModel.connect
 #   linux    clients/linux/src/boot.rs (a SUBDIR of the root, unlike macOS's sibling dirs)
-DEV_STORE_MODES=(dev dev-multi dev-imap)
+DEV_STORE_MODES=(dev dev-multi dev-imap dev-linked)
 
 # The store dir for one dev mode on one desktop client. The platform is explicit rather than
 # taken from the host, so `store.sh --platform macos` keeps naming the macOS path wherever it runs.

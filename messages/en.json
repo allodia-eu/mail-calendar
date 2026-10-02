@@ -929,5 +929,26 @@
 	"a11y_invitation_decline": "Decline this invitation",
 
 	"a11y_invitation_awaiting_response": "Awaiting your response",
-	"a11y_invitation_card": "Meeting invitation from {organizer}"
+	"a11y_invitation_card": "Meeting invitation from {organizer}",
+	"account_kind_dav": "CalDAV/CardDAV",
+	"account_use_colleagues": "Colleagues",
+	"settings_account_uses_heading": "Used for",
+	"settings_account_uses_description": "What this app uses the account for.",
+	"settings_account_needs_permission": "Needs permission: sign in again to allow it.",
+	"settings_account_use_last": "An account is used for at least one of these. Remove it instead.",
+	"settings_account_colleagues_needs_contacts": "Switch on Contacts first.",
+	"account_use_off_title": "Switch off {capability}?",
+	"account_use_off_message": "What this device downloaded for it is removed. A permission you gave the provider stays until you remove it there.",
+	"action_switch_off": "Switch off",
+	"settings_account_use_needs_consent": "The provider hasn’t allowed this for {email}. Signing in again asks for it.",
+	"settings_account_use_needs_endpoint": "This account has no server for that yet.",
+	"settings_account_change_failed": "Couldn’t change this account: {error}",
+	"settings_account_links_heading": "Linked accounts",
+	"settings_account_links_description": "Other accounts this one uses for what it doesn’t do itself.",
+	"settings_account_link_calendar": "Calendar for invitations",
+	"settings_account_link_contacts": "Address book for new contacts",
+	"settings_account_link_mail": "Sends invitations through",
+	"settings_account_link_none": "None",
+	"settings_account_linked_line": "{capability}: {address}",
+	"remove_account_unlinks": "It is also unlinked from {accounts}."
 }

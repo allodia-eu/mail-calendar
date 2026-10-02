@@ -929,5 +929,26 @@
 	"a11y_invitation_decline": "Diese Einladung absagen",
 
 	"a11y_invitation_awaiting_response": "Wartet auf Ihre Antwort",
-	"a11y_invitation_card": "Termineinladung von {organizer}"
+	"a11y_invitation_card": "Termineinladung von {organizer}",
+	"account_kind_dav": "CalDAV/CardDAV",
+	"account_use_colleagues": "Kollegen",
+	"settings_account_uses_heading": "Verwendet für",
+	"settings_account_uses_description": "Wofür diese App das Konto verwendet.",
+	"settings_account_needs_permission": "Berechtigung erforderlich: Melden Sie sich erneut an, um sie zu erteilen.",
+	"settings_account_use_last": "Ein Konto wird für mindestens eines davon verwendet. Entfernen Sie es stattdessen.",
+	"settings_account_colleagues_needs_contacts": "Aktivieren Sie zuerst Kontakte.",
+	"account_use_off_title": "{capability} deaktivieren?",
+	"account_use_off_message": "Was dieses Gerät dafür heruntergeladen hat, wird entfernt. Eine Berechtigung, die Sie dem Anbieter erteilt haben, bleibt bestehen, bis Sie sie dort entziehen.",
+	"action_switch_off": "Deaktivieren",
+	"settings_account_use_needs_consent": "Der Anbieter hat dies für {email} nicht erlaubt. Eine erneute Anmeldung fragt danach.",
+	"settings_account_use_needs_endpoint": "Dieses Konto hat dafür noch keinen Server.",
+	"settings_account_change_failed": "Das Konto konnte nicht geändert werden: {error}",
+	"settings_account_links_heading": "Verknüpfte Konten",
+	"settings_account_links_description": "Andere Konten, die dieses Konto für das nutzt, was es selbst nicht kann.",
+	"settings_account_link_calendar": "Kalender für Einladungen",
+	"settings_account_link_contacts": "Adressbuch für neue Kontakte",
+	"settings_account_link_mail": "Sendet Einladungen über",
+	"settings_account_link_none": "Keins",
+	"settings_account_linked_line": "{capability}: {address}",
+	"remove_account_unlinks": "Die Verknüpfung mit {accounts} wird ebenfalls aufgehoben."
 }

@@ -929,5 +929,26 @@
 	"a11y_invitation_decline": "Refuser cette invitation",
 
 	"a11y_invitation_awaiting_response": "En attente de votre réponse",
-	"a11y_invitation_card": "Invitation à une réunion de {organizer}"
+	"a11y_invitation_card": "Invitation à une réunion de {organizer}",
+	"account_kind_dav": "CalDAV/CardDAV",
+	"account_use_colleagues": "Collègues",
+	"settings_account_uses_heading": "Utilisé pour",
+	"settings_account_uses_description": "Ce pour quoi cette app utilise le compte.",
+	"settings_account_needs_permission": "Autorisation requise : reconnectez-vous pour l’accorder.",
+	"settings_account_use_last": "Un compte sert au moins à l’un de ces usages. Supprimez-le plutôt.",
+	"settings_account_colleagues_needs_contacts": "Activez d’abord Contacts.",
+	"account_use_off_title": "Désactiver {capability} ?",
+	"account_use_off_message": "Ce que cet appareil a téléchargé pour cet usage est supprimé. Une autorisation accordée au fournisseur reste en place jusqu’à ce que vous la retiriez chez lui.",
+	"action_switch_off": "Désactiver",
+	"settings_account_use_needs_consent": "Le fournisseur n’a pas autorisé cela pour {email}. Une nouvelle connexion le demande.",
+	"settings_account_use_needs_endpoint": "Ce compte n’a pas encore de serveur pour cela.",
+	"settings_account_change_failed": "Impossible de modifier ce compte : {error}",
+	"settings_account_links_heading": "Comptes liés",
+	"settings_account_links_description": "D’autres comptes que celui-ci utilise pour ce qu’il ne fait pas lui-même.",
+	"settings_account_link_calendar": "Calendrier pour les invitations",
+	"settings_account_link_contacts": "Carnet d’adresses pour les nouveaux contacts",
+	"settings_account_link_mail": "Envoie les invitations via",
+	"settings_account_link_none": "Aucun",
+	"settings_account_linked_line": "{capability}: {address}",
+	"remove_account_unlinks": "Il est aussi dissocié de {accounts}."
 }

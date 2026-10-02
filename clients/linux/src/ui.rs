@@ -13,6 +13,7 @@ use crate::{
     secrets::SecretStore,
 };
 
+mod account_settings;
 mod allodia;
 mod allodia_subscription;
 mod allodia_subscription_facts;

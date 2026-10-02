@@ -99,8 +99,7 @@ pub(crate) enum AppInput {
     /// A reading window has gone, by the id the core holds its body under. The host forgets the
     /// header and the core drops the body; a closed window may not keep either.
     CloseReadingWindow(String),
-    /// A composer window has gone: sent, cancelled, or closed, which are the same act because
-    /// closing one discards the draft exactly as Cancel does.
+    /// A composer window has gone: sent, discarded, or closed, which leaves its draft in Drafts.
     CloseComposerWindow(u64),
     SetThreadExpanded {
         thread: ThreadKey,
@@ -197,13 +196,11 @@ pub(crate) enum AppInput {
     /// The question's Keep editing: leave the composer as it was.
     KeepEditing,
     SubmitComposer(Box<ComposerSubmission>),
-    /// Store what the composer holds in the Drafts folder, superseding this composition's
-    /// previous save. Both the Save button and the idle timer emit it, and the core cannot tell
-    /// them apart (`docs/drafts.md`).
+    /// Store the composer's message in Drafts over this composition's previous save. The Save
+    /// button and the idle timer both emit it; the core cannot tell them apart (`docs/drafts.md`).
     SaveComposerDraft(Box<ComposerSubmission>),
-    /// A draft the core has opened back up, under the composition it was adopted into. `Err`
-    /// means it could not be opened, which is said rather than shown as an empty composer: one
-    /// opened without the draft's content would replace it on its next save.
+    /// A draft the core opened back up, under the composition it was adopted into. `Err` is said,
+    /// never shown as an empty composer, which would replace the draft on its next save.
     DraftResumed(String, Box<Result<DraftResume, ()>>),
     SaveAttachment {
         source: ReadingSource,
@@ -329,6 +326,8 @@ pub(crate) enum AppInput {
     /// Set up an account one of the person's other devices offered, on the route its record
     /// names rather than one re-derived from the address.
     SetUpOfferedAccount(Box<mailcal_bindings::AllodiaAccountOffer>),
+    /// Settings → Accounts' account pages, as one input.
+    Accounts(crate::ui::account_settings::AccountsInput),
     RemoveAccount(String),
     AccountRemoved(Result<(), String>),
     AnalyticsDecided(bool),
@@ -490,6 +489,7 @@ impl fmt::Debug for AppInput {
             Self::JmapReauthFinished(..) => "JmapReauthFinished",
             Self::ReplaceAccountSecret { .. } => "ReplaceAccountSecret",
             Self::AccountSecretReplaced { .. } => "AccountSecretReplaced",
+            Self::Accounts(_) => "Accounts",
             Self::RemoveAccount(_) => "RemoveAccount",
             Self::AccountRemoved(_) => "AccountRemoved",
             Self::AnalyticsDecided(_) => "AnalyticsDecided",

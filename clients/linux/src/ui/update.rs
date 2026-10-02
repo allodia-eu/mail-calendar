@@ -438,6 +438,9 @@ impl AppModel {
             AppInput::AccountSecretReplaced { account, success } => {
                 self.account_secret_replaced(account, success);
             }
+            AppInput::Accounts(input) => {
+                self.accounts_input(input, sender.input_sender().clone());
+            }
             AppInput::RemoveAccount(id) => {
                 self.remove_account(id, sender.input_sender().clone());
             }
@@ -446,6 +449,9 @@ impl AppModel {
                     if let Some(app) = &self.app {
                         self.snapshot = app.mailbox_list();
                     }
+                    // Back to the list: the page that asked is the account that is gone.
+                    self.settings.account = None;
+                    self.settings.refresh_in_place();
                 }
                 // The account is still connected when the keyring write fails, so say what
                 // happened in the app's own voice rather than surfacing a bare D-Bus string.
