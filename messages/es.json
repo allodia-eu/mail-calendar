@@ -923,5 +923,26 @@
 	"a11y_invitation_decline": "Rechazar esta invitación",
 
 	"a11y_invitation_awaiting_response": "Pendiente de tu respuesta",
-	"a11y_invitation_card": "Invitación a una reunión de {organizer}"
+	"a11y_invitation_card": "Invitación a una reunión de {organizer}",
+	"account_kind_dav": "CalDAV/CardDAV",
+	"account_use_colleagues": "Compañeros",
+	"settings_account_uses_heading": "Se usa para",
+	"settings_account_uses_description": "Para qué usa esta app la cuenta.",
+	"settings_account_needs_permission": "Necesita permiso: vuelve a iniciar sesión para concederlo.",
+	"settings_account_use_last": "Una cuenta se usa al menos para uno de estos fines. Elimínala en su lugar.",
+	"settings_account_colleagues_needs_contacts": "Activa primero Contactos.",
+	"account_use_off_title": "¿Desactivar {capability}?",
+	"account_use_off_message": "Se elimina lo que este dispositivo descargó para ello. Un permiso que diste al proveedor se mantiene hasta que lo retires allí.",
+	"action_switch_off": "Desactivar",
+	"settings_account_use_needs_consent": "El proveedor no lo ha permitido para {email}. Al volver a iniciar sesión se solicita.",
+	"settings_account_use_needs_endpoint": "Esta cuenta aún no tiene un servidor para eso.",
+	"settings_account_change_failed": "No se pudo cambiar esta cuenta: {error}",
+	"settings_account_links_heading": "Cuentas vinculadas",
+	"settings_account_links_description": "Otras cuentas que esta usa para lo que no hace ella misma.",
+	"settings_account_link_calendar": "Calendario para invitaciones",
+	"settings_account_link_contacts": "Libreta de direcciones para contactos nuevos",
+	"settings_account_link_mail": "Envía las invitaciones mediante",
+	"settings_account_link_none": "Ninguna",
+	"settings_account_linked_line": "{capability}: {address}",
+	"remove_account_unlinks": "También se desvincula de {accounts}."
 }

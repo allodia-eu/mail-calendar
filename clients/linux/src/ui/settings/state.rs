@@ -34,6 +34,11 @@ pub(in crate::ui) struct SettingsState {
     /// What the subscription section has learned, for the same reason: its read is a network
     /// round trip and its writes are three more.
     pub(in crate::ui) allodia_subscription: crate::ui::allodia_subscription::SubscriptionState,
+    /// The account whose page Accounts shows, or `None` for the list. Here because a change on
+    /// that page redraws the window, and the page must survive it.
+    pub(in crate::ui) account: Option<String>,
+    /// What the last change on that page came to, when it needs saying.
+    pub(in crate::ui) account_notice: Option<String>,
 }
 
 impl Default for SettingsState {
@@ -48,6 +53,8 @@ impl Default for SettingsState {
             allodia_failure: None,
             allodia_sync: crate::ui::allodia_sync::AllodiaSyncState::default(),
             allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
+            account: None,
+            account_notice: None,
         }
     }
 }
@@ -59,6 +66,9 @@ impl SettingsState {
         if let Some(category) = category {
             self.category = category;
         }
+        // A window opened afresh starts on the accounts list, not on a page left open earlier.
+        self.account = None;
+        self.account_notice = None;
         self.refresh_only = false;
         self.bump();
     }
@@ -118,6 +128,8 @@ impl SettingsState {
             allodia_sync: &self.allodia_sync,
             allodia_subscription: &self.allodia_subscription,
             allodia_accounts_synced: accounts_synced,
+            account: self.account.as_deref(),
+            account_notice: self.account_notice.as_deref(),
             refresh_only: self.refresh_only,
         }
     }

@@ -15,6 +15,9 @@ use super::{
 use crate::{l10n, preferences::HostPreferences};
 
 pub(super) mod about;
+pub(super) mod account_mail;
+mod account_page;
+mod account_rows;
 pub(super) mod account_sync_mode;
 pub(super) mod accounts;
 pub(super) mod allodia;
@@ -65,6 +68,9 @@ pub(super) struct RenderState<'a> {
     pub(super) allodia_subscription: &'a SubscriptionState,
     pub(super) allodia_accounts_synced:
         &'a std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
+    /// The account whose page Accounts shows, and what the last change on it came to.
+    pub(super) account: Option<&'a str>,
+    pub(super) account_notice: Option<&'a str>,
     /// This generation is a **refresh** of an already-open window, not a request to open one.
     ///
     /// The Allodia card changes by rebuilding the whole window, and its sign-in outlives whatever
@@ -123,6 +129,9 @@ struct PageContext {
     /// absent rather than dead.
     allodia_accounts_synced:
         std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
+    /// The account whose page Accounts shows, or `None` for the list.
+    account: Option<String>,
+    account_notice: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -208,6 +217,8 @@ impl SettingsWindow {
             allodia_sync: state.allodia_sync.clone(),
             allodia_subscription: state.allodia_subscription.clone(),
             allodia_accounts_synced: state.allodia_accounts_synced.clone(),
+            account: state.account.map(str::to_owned),
+            account_notice: state.account_notice.map(str::to_owned),
         };
         navigation.add_named(&window_content(state.category, &ctx), Some("settings"));
         navigation.set_visible_child_name("settings");
