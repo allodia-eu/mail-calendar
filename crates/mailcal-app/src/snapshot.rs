@@ -16,7 +16,9 @@ use std::{
 };
 
 use engine_api::{AccountId, MailListRow, MailboxRole, Provider};
-use mailcal_viewmodel::{AccountMessage, AccountRow, MailboxListSnapshot, ViewMode, view};
+use mailcal_viewmodel::{
+    AccountMessage, AccountRow, EmptyReason, MailboxListSnapshot, ViewMode, view,
+};
 
 use crate::{App, CachedRows, Scope};
 
@@ -179,7 +181,18 @@ impl<P: Provider> App<P> {
         // download is still to come has no rows yet either, and "this folder is empty" is not
         // something we know there (`docs/folder-pane.md`, rule 20).
         if snapshot.total == 0 && !self.list_download_pending(selected, folder).await {
-            snapshot.empty_reason = self.empty_reason(&accounts);
+            // A level of the tree holds no mail at any depth, so offering the depth setting
+            // there would claim older mail is waiting on the server.
+            let container = folder.is_some_and(|key| {
+                folders
+                    .iter()
+                    .any(|mailbox| mailbox.id.key().as_str() == key && !mailbox.selectable)
+            });
+            snapshot.empty_reason = if container {
+                Some(EmptyReason::NoMail)
+            } else {
+                self.empty_reason(&accounts)
+            };
         }
         snapshot
     }

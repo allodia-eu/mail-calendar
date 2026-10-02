@@ -193,6 +193,19 @@ fn a_folder_the_server_will_not_build_in_offers_no_subfolder_but_takes_mail() {
 }
 
 #[test]
+fn a_folder_that_only_holds_folders_takes_no_mail_but_takes_folders() {
+    // An IMAP `\Noselect` level: the server refuses any message filed in it.
+    let mut folders = stored();
+    folders[4].selectable = false;
+    let rows = stamped(&folders, &BTreeSet::new(), true);
+
+    let work = row(&rows, "work");
+    assert!(!work.accepts_messages, "the server would refuse it");
+    assert!(work.accepts_folders);
+    assert!(row(&rows, "w2024").accepts_messages);
+}
+
+#[test]
 fn a_name_is_checked_against_its_siblings_without_case() {
     let folders = stored();
     assert_eq!(

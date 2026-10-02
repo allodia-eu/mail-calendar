@@ -108,7 +108,7 @@ impl<P: Provider> App<P> {
     /// A folder the account pass covers is never pending, and neither is one whose open already
     /// ran its download.
     pub(crate) async fn folder_download_pending(&self, account: &AccountId, key: &str) -> bool {
-        if self.connector.is_none() || self.pass_covers(account, key).await {
+        if self.connector.is_none() || self.nothing_to_download(account, key).await {
             return false;
         }
         !self
@@ -130,6 +130,20 @@ impl<P: Provider> App<P> {
                     folder.key().as_str().to_owned(),
                 ));
         }
+    }
+
+    /// Whether opening folder `key` of `account` has nothing of its own to download: the account
+    /// pass covers it ([`pass_covers`](Self::pass_covers)), or it is only a level of the tree
+    /// (`Mailbox::selectable` false), which holds no mail and refuses to be selected.
+    async fn nothing_to_download(&self, account: &AccountId, key: &str) -> bool {
+        self.pass_covers(account, key).await
+            || self
+                .engine
+                .mailboxes(account)
+                .await
+                .unwrap_or_default()
+                .iter()
+                .any(|mailbox| mailbox.id.key().as_str() == key && !mailbox.selectable)
     }
 
     /// Whether the account pass syncs folder `key` of `account`: a folder one of its providers
@@ -181,7 +195,7 @@ impl<P: Provider> App<P> {
         let Some(connector) = self.connector.as_ref() else {
             return false;
         };
-        if self.pass_covers(account, key).await {
+        if self.nothing_to_download(account, key).await {
             return false;
         }
         // Attempt each folder at most once per session.
