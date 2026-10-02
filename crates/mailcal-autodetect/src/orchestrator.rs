@@ -49,7 +49,17 @@ pub(crate) async fn orchestrate(
     let aborts: Vec<_> = handles.iter().map(JoinHandle::abort_handle).collect();
 
     let detected = match tokio::time::timeout(deadline, collect(handles)).await {
-        Ok(detected) => detected,
+        Ok(detected) => {
+            with_dav(
+                fetcher.as_ref(),
+                &email,
+                resolver.as_ref(),
+                &config,
+                detected,
+            )
+            .await
+        }
+        // A run that hung until the deadline is not a clean miss, so no DAV probe extends it.
         Err(_elapsed) => {
             for abort in &aborts {
                 abort.abort();
@@ -60,14 +70,6 @@ pub(crate) async fn orchestrate(
             }
         }
     };
-    let detected = with_dav(
-        fetcher.as_ref(),
-        &email,
-        resolver.as_ref(),
-        &config,
-        detected,
-    )
-    .await;
     log_outcome(&detected);
     detected
 }

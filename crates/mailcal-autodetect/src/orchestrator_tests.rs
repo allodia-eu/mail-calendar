@@ -204,6 +204,31 @@ async fn a_domain_with_no_mail_but_a_calendar_is_a_dav_result() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_run_that_reached_the_deadline_is_not_probed_for_dav() {
+    let fetcher = FakeFetch::new()
+        .default_reply(Reply::Miss)
+        .on_after(
+            &jmap_url(),
+            Reply::json(r#"{"capabilities":{}}"#, true),
+            Duration::from_secs(100),
+        )
+        .on(
+            "https://company.example/.well-known/caldav",
+            Reply::unauthorized(true),
+        );
+    let config = DetectConfig {
+        overall_deadline: Duration::from_secs(10),
+        ..DetectConfig::default()
+    };
+    assert_eq!(
+        run(fetcher, None, config).await,
+        Detected::Nothing {
+            network_error: false
+        }
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn an_offline_miss_is_not_probed_for_dav() {
     let fetcher = FakeFetch::new().default_reply(Reply::Net).on(
         "https://company.example/.well-known/caldav",
