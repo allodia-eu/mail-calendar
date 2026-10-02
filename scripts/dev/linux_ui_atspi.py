@@ -115,6 +115,7 @@ def find_nodes(
     role: str | None = None,
     within: str | None = None,
     within_role: str | None = None,
+    after: str | None = None,
     contains_name: str | None = None,
     name_substring: str | None = None,
     description: str | None = None,
@@ -135,6 +136,11 @@ def find_nodes(
     unanswered invitation; "Awaiting your response" (docs/calendar.md §4). The disclosure is the
     part the contract binds; the sentence around it is the fixture's own words and a date. Matching
     the whole string would pin the fixture instead of the rule.
+
+    `after` is for a control whose name every row repeats and whose ancestors carry none: the
+    reading pane's "More actions" shares its name with each message row's, and only its position
+    tells it apart, after that pane's "Forward". Only nodes walk order reaches after the first
+    node named `after` are candidates.
     """
     scope = root
     if within is not None:
@@ -152,7 +158,11 @@ def find_nodes(
         if scope is None:
             return []
     matches: list[Any] = []
+    passed = after is None
     for candidate in walk(scope):
+        if not passed:
+            passed = _matches(node_name(candidate), after)
+            continue
         if (
             _matches(node_name(candidate), name)
             and _matches(node_role(candidate), role)
@@ -406,6 +416,7 @@ def wait_for_nodes(
     within: str | None,
     within_role: str | None,
     contains_name: str | None,
+    after: str | None = None,
     name_substring: str | None,
     description: str | None,
     enabled_only: bool,
@@ -422,6 +433,7 @@ def wait_for_nodes(
             role=role,
             within=within,
             within_role=within_role,
+            after=after,
             contains_name=contains_name,
             name_substring=name_substring,
             description=description,
@@ -446,6 +458,7 @@ def wait_for_absence(
     within: str | None,
     within_role: str | None,
     contains_name: str | None,
+    after: str | None = None,
     name_substring: str | None,
     description: str | None,
     timeout: float,
@@ -459,6 +472,7 @@ def wait_for_absence(
             role=role,
             within=within,
             within_role=within_role,
+            after=after,
             contains_name=contains_name,
             name_substring=name_substring,
             description=description,
@@ -485,6 +499,7 @@ def parser() -> argparse.ArgumentParser:
         target.add_argument("--role")
         target.add_argument("--within")
         target.add_argument("--within-role")
+        target.add_argument("--after")
         target.add_argument("--contains-name")
         target.add_argument("--name-substring")
         target.add_argument("--description")
@@ -533,6 +548,7 @@ def main(argv: list[str] | None = None) -> int:
                 role=args.role,
                 within=args.within,
                 within_role=args.within_role,
+                after=args.after,
                 contains_name=args.contains_name,
                 name_substring=args.name_substring,
                 description=args.description,
@@ -559,6 +575,7 @@ def main(argv: list[str] | None = None) -> int:
             role=args.role,
             within=args.within,
             within_role=args.within_role,
+            after=args.after,
             contains_name=args.contains_name,
             name_substring=args.name_substring,
             description=args.description,

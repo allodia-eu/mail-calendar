@@ -211,6 +211,8 @@ pub(crate) enum AppInput {
         destination: PathBuf,
     },
     MessageExported(bool),
+    /// A print the dialog accepted could not be laid out or handed to the printer.
+    PrintFailed,
     AttachmentDecoded(Result<PathBuf, ()>),
     /// The desktop refused to open a decoded attachment; the portal's answer, which arrives
     /// after the launch rather than from it.
@@ -413,6 +415,7 @@ impl fmt::Debug for AppInput {
             Self::AttachmentSaved(_) => "AttachmentSaved",
             Self::ExportMessage { .. } => "ExportMessage",
             Self::MessageExported(_) => "MessageExported",
+            Self::PrintFailed => "PrintFailed",
             Self::AttachmentDecoded(_) => "AttachmentDecoded",
             Self::AttachmentOpenFailed => "AttachmentOpenFailed",
             Self::WebViewReady => "WebViewReady",

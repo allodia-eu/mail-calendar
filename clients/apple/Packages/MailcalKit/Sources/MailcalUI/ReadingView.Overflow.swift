@@ -1,5 +1,5 @@
-// The reading pane's overflow menu, at the end of the action row, and the .eml export behind
-// it (docs/reading-actions.md). Split out of ReadingView.swift to keep it under 500 lines.
+// The reading pane's overflow menu, at the end of the action row, and the .eml export and print
+// behind it (docs/reading-actions.md). Split out of ReadingView.swift to keep it under 500 lines.
 
 #if os(macOS)
 import AppKit
@@ -62,10 +62,34 @@ extension ReadingView {
             }
             .buttonStyle(.plain)
             .disabled(exporting)
+            Button {
+                overflowOpen = false
+                printMessage()
+            } label: {
+                Label(L10n.action_print(), systemImage: "printer")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(printDocument == nil)
+            .padding(.top, 8)
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
         .fixedSize()
+    }
+
+    /// What Print hands the dialog, or `nil` until this message's body has arrived.
+    private var printDocument: String? {
+        messagePrintDocument(message, bodySnapshot, loadRemoteImages: loadRemoteImages)
+    }
+
+    private func printMessage() {
+        guard let printDocument else { return }
+        MessagePrinter.print(
+            printDocument,
+            jobName: message.subject.isEmpty ? L10n.mail_no_subject() : message.subject
+        )
     }
 
     /// The file name to offer, from the subject this view *draws*, so an untitled message

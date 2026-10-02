@@ -1,5 +1,5 @@
 // The reading screen's overflow menu, at the end of the action row, and the .eml export behind
-// it (docs/reading-actions.md). Split out of ReadingScreen.kt, which is at its length limit.
+// it (docs/reading-actions.md); printing is in ReadingScreenPrint.kt. Split out of ReadingScreen.kt, which is at its length limit.
 //
 // The file written is the message exactly as it was delivered: the core hands over the raw
 // source the engine cached, never a rebuild of what the screen renders.
@@ -46,6 +46,8 @@ internal fun ReadingOverflowMenu(
     account: String,
     key: String,
     onExportMessage: (account: String, key: String, destinationPath: String) -> Boolean,
+    // Null until there is a body to print, which leaves the item shown but disabled.
+    onPrint: (() -> Unit)?,
 ) {
     val ctx = LocalContext.current
     var open by remember { mutableStateOf(false) }
@@ -68,6 +70,14 @@ internal fun ReadingOverflowMenu(
             onClick = {
                 open = false
                 export.launch(messageExportFileName(subject))
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(L10n.action_print(ctx)) },
+            enabled = onPrint != null,
+            onClick = {
+                open = false
+                onPrint?.invoke()
             },
         )
     }

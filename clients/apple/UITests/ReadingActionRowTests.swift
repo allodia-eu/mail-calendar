@@ -46,4 +46,29 @@ final class ReadingActionRowTests: XCTestCase {
             "the overflow button is not last of all"
         )
     }
+
+    /// Print, behind the overflow, reaches the system's print sheet.
+    ///
+    /// The page is laid out in a web view nobody sees, so the one thing a reader can observe is the
+    /// sheet arriving; a web view that never finished loading leaves the tap doing nothing at all.
+    func testPrintOpensTheSystemPrintSheet() {
+        let app = ShowcaseApp.launch()
+        ShowcaseApp.openFirstMessage(app)
+
+        let more = app.buttons["More actions"]
+        XCTAssertTrue(more.waitForExistence(timeout: ShowcaseApp.timeout), "no action row")
+        more.tap()
+        let print = app.buttons["Print…"]
+        XCTAssertTrue(print.waitForExistence(timeout: ShowcaseApp.timeout), "the menu offers no Print")
+        // The body has to have arrived before there is anything to print.
+        let enabled = NSPredicate(format: "isEnabled == true")
+        wait(for: [expectation(for: enabled, evaluatedWith: print)], timeout: ShowcaseApp.timeout)
+        // The sheet's own printer row, which no screen of ours draws.
+        let printer = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH 'Printer'")).firstMatch
+        XCTAssertFalse(printer.exists, "something on screen already reads as the print sheet")
+        print.tap()
+
+        XCTAssertTrue(printer.waitForExistence(timeout: ShowcaseApp.timeout), "no print sheet appeared")
+    }
 }

@@ -287,6 +287,9 @@ internal fun ReadingScreen(
                 account = message.account,
                 key = message.key,
                 onExportMessage = onExportMessage,
+                onPrint = reading?.takeIf { it.key == message.key && isPrintable(it) }?.let { body ->
+                    { printOpenMessage(ctx, message, body, loadRemoteImages) }
+                },
             )
         }
         HorizontalDivider()

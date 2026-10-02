@@ -169,6 +169,19 @@ class TreeSelectionTests(unittest.TestCase):
             [self.second],
         )
 
+    def test_after_skips_every_match_that_precedes_the_named_node(self) -> None:
+        row_menu = FakeNode("More actions", "push button", actions=["click"])
+        forward = FakeNode("Forward", "push button", actions=["click"])
+        pane_menu = FakeNode("More actions", "push button", actions=["click"])
+        row = FakeNode("Subject", "list item", row_menu)
+        pane = FakeNode("", "panel", forward, pane_menu)
+        root = FakeNode("Allodia Mail & Calendar", "application", row, pane)
+        self.assertEqual(subject.find_nodes(root, name="More actions"), [row_menu, pane_menu])
+        self.assertEqual(
+            subject.find_nodes(root, name="More actions", after="Forward"), [pane_menu]
+        )
+        self.assertEqual(subject.find_nodes(root, name="More actions", after="Absent"), [])
+
     def test_activate_prefers_semantic_actions(self) -> None:
         self.assertTrue(subject.activate_node(self.reply))
         self.assertEqual(self.reply.action.called, [0])
