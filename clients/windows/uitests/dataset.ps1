@@ -240,9 +240,24 @@ function Reset-AppSurface {
     if ((Get-SurfaceFingerprint $tree) -eq $Clean) { return $true }
     $shown = @($tree | Where-Object { -not $_.Current.IsOffscreen })
 
-    # Every ContentDialog carries CloseButton and the composer carries CancelButton; between them
-    # they close everything the suites here open over the list.
+    # Every ContentDialog carries CloseButton, account setup carries CancelButton and the composer
+    # carries DiscardButton; between them they close everything the suites here open over the list.
+    # Discard over a composer something was typed in asks first, and the question is the dialog it
+    # raised, so its PrimaryButton (Discard) is pressed rather than its CloseButton (Keep editing).
+    # Only with no dialog already up: a press behind one does nothing, and that dialog's own
+    # PrimaryButton must not be taken for the question's.
     $acted = $false
+    $dialogUp = $shown | Where-Object { $_.Current.AutomationId -eq 'CloseButton' }
+    $discard = $shown |
+      Where-Object { $_.Current.AutomationId -eq 'DiscardButton' -and $_.Current.ControlType -eq $button } |
+      Select-Object -First 1
+    if ($discard -and -not $dialogUp) {
+      Invoke-UiaElement $discard
+      Start-Sleep -Milliseconds 500
+      $confirm = Find-UiaElement -AutomationId 'PrimaryButton' -Type 'Button'
+      if ($confirm) { Invoke-UiaElement $confirm; Start-Sleep -Milliseconds 250 }
+      $acted = $true
+    }
     foreach ($id in 'CancelButton', 'CloseButton') {
       $close = $shown |
         Where-Object { $_.Current.AutomationId -eq $id -and $_.Current.ControlType -eq $button } |

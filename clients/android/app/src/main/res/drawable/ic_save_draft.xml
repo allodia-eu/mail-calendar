@@ -1,0 +1,20 @@
+<!-- Material Symbols "drafts" (filled). The composer's "Save as draft" action (docs/drafts.md).
+     Vendored from google/material-design-icons; the Compose `Icon` supplies the real colour, so
+     the fillColor here is only a placeholder.
+
+     The Drafts glyph rather than a floppy-disk "save": what the action does is put the message in
+     the Drafts folder, which is the row this icon already stands for in the folder pane.
+
+     The group translate is the source's own coordinate system rather than a hand-transformed
+     path, for the reason ic_outbox.xml gives. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+  <group android:translateY="960">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M160-160q-33 0-56.5-23.5T80-240v-347q0-15 6-28.5t17-22.5l257-210v120L160-587v347h640v-347L600-728v-120l257 210q11 9 17 22.5t6 28.5v347q0 33-23.5 56.5T800-160H160Zm320-280L240-640v-160q0-33 23.5-56.5T320-880h320q33 0 56.5 23.5T720-800v160L480-440ZM360-640h240v-160H360v160Z"/>
+  </group>
+</vector>

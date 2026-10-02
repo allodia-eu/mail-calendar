@@ -24,8 +24,8 @@ public sealed partial class MainWindow
     private SharePrefill? _pendingShare;
 
     // Guards the await in TryOpenPendingShare, the same way _openingMailLink does: a second share
-    // arriving while the discard prompt is up must not open a second composer behind the question
-    // the user is still answering.
+    // arriving while the open composer is being left must not build a composer of its own over
+    // the first one's.
     private bool _openingShare;
 
     /// <summary>
@@ -67,53 +67,46 @@ public sealed partial class MainWindow
         _openingShare = true;
         try
         {
-            var proceed = await ConfirmDiscardDraftAsync();
+            await LeaveComposerAsync();
             ClearPendingShare(prefill);
-            if (!proceed)
-            {
-                Log.Info("share declined, the open draft was kept");
-            }
-            else
-            {
-                // The composer lives in the mail surface's detail column, so a share arriving over
-                // the calendar or Contacts would otherwise open it behind them.
-                Model.ShowMail();
-                BeginCompose(new ComposeContext(
-                    RichComposeKind.New,
-                    Account: null,
-                    Key: null,
-                    InitialFrom: Model.SendAccount(Model.SelectedAccount)?.Id,
-                    // Non-empty only when the shared text was itself a mail link: a sharing app
-                    // cannot otherwise address a message.
-                    InitialTo: prefill.To,
-                    InitialCc: prefill.Cc,
-                    Quote: null,
-                    QuoteStyle: Model.QuoteSettings.Style,
-                    QuoteStylePerMessage: Model.QuoteSettings.PerMessage,
-                    InitialBcc: prefill.Bcc,
-                    InitialSubject: prefill.Subject,
-                    InitialBody: string.IsNullOrEmpty(prefill.Body) ? null : prefill.Body,
-                    Attachments: prefill.Attachments.ToList()));
-                // The request came from another app, so this process does not hold foreground
-                // rights and a bare Activate() would be ignored.
-                BringToForeground();
-            }
+            // The composer lives in the mail surface's detail column, so a share arriving over
+            // the calendar or Contacts would otherwise open it behind them.
+            Model.ShowMail();
+            BeginCompose(new ComposeContext(
+                RichComposeKind.New,
+                Account: null,
+                Key: null,
+                InitialFrom: Model.SendAccount(Model.SelectedAccount)?.Id,
+                // Non-empty only when the shared text was itself a mail link: a sharing app
+                // cannot otherwise address a message.
+                InitialTo: prefill.To,
+                InitialCc: prefill.Cc,
+                Quote: null,
+                QuoteStyle: Model.QuoteSettings.Style,
+                QuoteStylePerMessage: Model.QuoteSettings.PerMessage,
+                InitialBcc: prefill.Bcc,
+                InitialSubject: prefill.Subject,
+                InitialBody: string.IsNullOrEmpty(prefill.Body) ? null : prefill.Body,
+                Attachments: prefill.Attachments.ToList()));
+            // The request came from another app, so this process does not hold foreground
+            // rights and a bare Activate() would be ignored.
+            BringToForeground();
         }
         finally
         {
             _openingShare = false;
         }
-        // A share that arrived while the discard prompt was up is still held: open it now rather
-        // than leaving it for the next account change, which on a settled app never comes.
+        // A share that arrived while the open composer was being left is still held: open it now
+        // rather than leaving it for the next account change, which on a settled app never comes.
         if (_pendingShare is not null)
         {
             TryOpenPendingShare();
         }
     }
 
-    // Spends the share this pass took, and only that one. A second share arriving during the
-    // discard prompt has already replaced `_pendingShare`, and clearing unconditionally would
-    // throw away a set of files the user watched leave a share sheet.
+    // Spends the share this pass took, and only that one. A second share arriving while the open
+    // composer was being left has already replaced `_pendingShare`, and clearing unconditionally
+    // would throw away a set of files the user watched leave a share sheet.
     private void ClearPendingShare(SharePrefill taken)
     {
         if (ReferenceEquals(_pendingShare, taken))

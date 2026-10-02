@@ -33,7 +33,7 @@ public struct ComposerWindowID: Codable, Hashable {
     public let id: UUID
 }
 
-/// The drafts the open composer windows are showing, and the probe each reports its edits on.
+/// The drafts the open composer windows are showing.
 ///
 /// Held beside the model rather than in it: a draft in a window is host state, the model has no
 /// use for it, and the core is not told about a message until it is sent. One object shared by

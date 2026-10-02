@@ -39,6 +39,14 @@ public sealed partial class MailboxModel
             UpdateSendStatus(_app.SendStatus());
             return;
         }
+        // A draft-save signal names no composition, so there is nothing to publish but the fact
+        // that one moved: every open composer re-pulls its own state off this (docs/drafts.md).
+        // It touches neither the projection nor any other composer.
+        if (changed == Surface.DraftStatus)
+        {
+            RaiseDraftStatusChanged();
+            return;
+        }
         // A sync-progress signal only updates the download bar; the rows it commits arrive
         // on their own MailboxList signal, so this doesn't touch the projection.
         if (changed == Surface.SyncProgress)
@@ -120,6 +128,7 @@ public sealed partial class MailboxModel
         // (docs/folder-pane.md, rule 18).
         SyncOutbox(snapshot.Outbox);
         ShowingOutbox = snapshot.ShowingOutbox;
+        ApplyShowingDrafts(snapshot.ShowingDrafts);
         UnifiedUnread = snapshot.UnifiedUnread;
         UnifiedExpanded = snapshot.UnifiedExpanded;
         Mode = snapshot.Mode == ViewMode.Threaded ? ViewModeKind.Threaded : ViewModeKind.Flat;

@@ -134,32 +134,31 @@ public sealed partial class MailListView : UserControl
         return null;
     }
 
-    // Opening a message hands the detail column to the reading pane, which, now that the composer
-    // lives there instead of in a modal, may be holding an unsent draft. Ask first (the shell knows
-    // whether anything has actually been written); "Keep editing" abandons the open. This click was
-    // simply impossible while the composer was a ContentDialog, so it is new surface, and losing a
-    // draft to it silently was rejected. See MainWindow.Compose.cs.
+    // Opening a message hands the detail column to the reading pane, which may be holding a
+    // composer. Leaving it keeps what was written there in Drafts and asks nothing
+    // (docs/drafts.md, "Leaving a composer"); see MainWindow.Compose.cs.
     //
-    // On approval the composer is CLOSED, not merely permitted: leaving it up would open the message
-    // behind it, and the click would read as having done nothing at all.
-    private async Task<bool> MayOpenMessageAsync()
+    // The composer is then CLOSED: leaving it up would open the message behind it, and the click
+    // would read as having done nothing at all.
+    private async Task LeaveComposerForMessageAsync()
     {
         if (App.Shell is not { } shell)
         {
-            return true;
+            return;
         }
-        if (!await shell.ConfirmDiscardDraftAsync())
-        {
-            return false;
-        }
+        await shell.LeaveComposerAsync();
         shell.CloseComposer();
-        return true;
     }
 
-    // Starting a *different* draft also drops the open one, so it asks the same question, but it
-    // doesn't close anything: the composer is about to be rebuilt for the new request either way.
-    private async Task<bool> MayStartDraftAsync() =>
-        App.Shell is not { } shell || await shell.ConfirmDiscardDraftAsync();
+    // Starting a *different* draft leaves the open one too, but closes nothing: the composer is
+    // about to be rebuilt for the new request either way.
+    private static async Task LeaveComposerForDraftAsync()
+    {
+        if (App.Shell is { } shell)
+        {
+            await shell.LeaveComposerAsync();
+        }
+    }
 
     // Tap a row to open it in the reading pane: a flat row opens its message, a conversation
     // row opens its latest message (the model resolves which key to open). The highlight follows
@@ -187,10 +186,11 @@ public sealed partial class MailListView : UserControl
         // records what the pane is showing, so that window can put it back. A conversation header
         // is not a message and gets no window, so its second click still toggles the thread, which
         // is what a double-click has always done there.
-        if ((!row.IsThread && !ClickOpensInPane(row.Id)) || !await MayOpenMessageAsync())
+        if (!row.IsThread && !ClickOpensInPane(row.Id))
         {
             return;
         }
+        await LeaveComposerForMessageAsync();
         // A conversation toggles its inline expansion (and opens its latest message in the
         // reading pane); a flat row opens its message. The sub-rows are Buttons, so their taps
         // don't reach here, only the header does.
@@ -200,17 +200,35 @@ public sealed partial class MailListView : UserControl
         }
         else
         {
-            Model?.OpenMessage(row);
+            await OpenOrResumeAsync(row);
         }
+    }
+
+    // In the Drafts folder a row opens the composer it was written in; everywhere else it opens
+    // the reading view (docs/drafts.md). The shell decides, because it is the shell that owns the
+    // composer the draft goes into.
+    private async Task OpenOrResumeAsync(MailRow row)
+    {
+        if (Model is not { } model)
+        {
+            return;
+        }
+        if (App.Shell is not { } shell)
+        {
+            model.OpenMessage(row);
+            return;
+        }
+        await shell.OpenOrResumeAsync(row.Account, row.Key, () => model.OpenMessage(row));
     }
 
     private async void OnOpen(object sender, RoutedEventArgs e)
     {
-        if (RowOf(sender) is not { } row || !await MayOpenMessageAsync())
+        if (RowOf(sender) is not { } row)
         {
             return;
         }
-        Model?.OpenMessage(row);
+        await LeaveComposerForMessageAsync();
+        await OpenOrResumeAsync(row);
     }
 
     // A tap on a conversation sub-row opens that specific message in the reading pane. On the same
@@ -219,12 +237,16 @@ public sealed partial class MailListView : UserControl
     private async void OnThreadMessageOpen(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not ThreadMessageItem message
-            || !ClickOpensInPane($"{message.Account}/{message.Key}")
-            || !await MayOpenMessageAsync())
+            || !ClickOpensInPane($"{message.Account}/{message.Key}"))
         {
             return;
         }
-        Model?.OpenThreadMessage(message);
+        await LeaveComposerForMessageAsync();
+        if (Model is { } model && App.Shell is { } shell)
+        {
+            await shell.OpenOrResumeAsync(
+                message.Account, message.Key, () => model.OpenThreadMessage(message));
+        }
     }
 
     // Right-click a conversation → Archive conversation (the core archives the received side and
@@ -240,27 +262,29 @@ public sealed partial class MailListView : UserControl
     // Reply / reply-all / forward from the row's context menu open the SAME composer as the reading
     // pane's toolbar and the Compose button, the shell derives the To/Cc pre-fill, the From
     // account, and the quoted original, and renders it in the reading-pane slot
-    // (MainWindow.Compose.cs). Starting a different draft replaces whatever is already open, so ask
-    // about an unsent one first.
+    // (MainWindow.Compose.cs). Starting a different draft replaces whatever is already open, so the
+    // open one is left first, which keeps it in Drafts.
     private async void OnReply(object sender, RoutedEventArgs e) => await BeginReplyAsync(sender, replyAll: false);
 
     private async void OnReplyAll(object sender, RoutedEventArgs e) => await BeginReplyAsync(sender, replyAll: true);
 
     private async Task BeginReplyAsync(object sender, bool replyAll)
     {
-        if (RowOf(sender) is not { } row || !await MayStartDraftAsync())
+        if (RowOf(sender) is not { } row)
         {
             return;
         }
+        await LeaveComposerForDraftAsync();
         App.Shell?.ComposeReply(row.Account, row.Key, replyAll, row.RawSubject);
     }
 
     private async void OnForward(object sender, RoutedEventArgs e)
     {
-        if (RowOf(sender) is not { } row || !await MayStartDraftAsync())
+        if (RowOf(sender) is not { } row)
         {
             return;
         }
+        await LeaveComposerForDraftAsync();
         App.Shell?.ComposeForward(row.Account, row.Key, row.RawSubject);
     }
 

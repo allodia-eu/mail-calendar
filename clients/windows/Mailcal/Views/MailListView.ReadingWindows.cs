@@ -86,7 +86,10 @@ public sealed partial class MailListView
             MailRow { IsThread: false } row => MailboxModel.RowHeader(row),
             _ => null,
         };
-        if (opened is null)
+        // In Drafts the first press has already resumed the draft into the composer, which is where
+        // a draft opens (docs/drafts.md) and which the pane cannot put back. A window as well would
+        // show the same draft a second time, read-only, beside the composer saving over it.
+        if (opened is null || Model?.ShowingDrafts == true)
         {
             return;
         }

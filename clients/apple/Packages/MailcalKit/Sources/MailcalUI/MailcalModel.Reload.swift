@@ -14,6 +14,13 @@ extension MailboxModel {
             sendStatus = app?.sendStatus() ?? .idle
             return
         }
+        // A draft-save signal names no composition, so there is nothing to publish but the
+        // fact that one moved: every open composer re-pulls its own state off this counter
+        // (`docs/drafts.md`). It touches neither the projection nor any other composer.
+        if case .draftStatus = surface {
+            draftStatusVersion &+= 1
+            return
+        }
         // A sync-progress signal only updates the download bar; the rows it commits arrive on
         // their own MailboxList signal, so it doesn't touch the projection.
         if case .syncProgress = surface {
@@ -131,6 +138,7 @@ extension MailboxModel {
         unifiedExpanded = snapshot?.unifiedExpanded ?? true
         outbox = snapshot?.outbox ?? []
         showingOutbox = snapshot?.showingOutbox ?? false
+        showingDrafts = snapshot?.showingDrafts ?? false
         selected = snapshot?.selected
         searchHorizon = snapshot?.searchHorizon
         emptyReason = snapshot?.emptyReason

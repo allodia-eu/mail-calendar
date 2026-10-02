@@ -322,16 +322,20 @@ internal fun MainActivity.openMessage(
 // that opens each on tap (Gmail/Outlook-mobile style). Only real multi-message conversations
 // reach here, the core projects a lone message as a flat row, opened via `openMessage`.
 internal fun MainActivity.openThread(app: MailcalApp, thread: ThreadRow) {
-    val opened = OpenedMessage(
-        account = thread.account,
-        key = thread.latestKey,
-        subject = thread.subject,
-        from = thread.latestFrom,
-        avatar = thread.avatar,
-        date = localDateTime(thread.latestDate, timeZone?.active, uses24HourClock()),
-    )
-    openMessage(app, opened, thread.messages)
+    openMessage(app, threadHead(thread), thread.messages)
 }
+
+// The message a tap on a conversation row opens: its latest, the one the row summarises. Its own
+// function because the Drafts folder opens that message into a composer instead (docs/drafts.md),
+// and two answers to "which message is this row" would drift.
+internal fun MainActivity.threadHead(thread: ThreadRow): OpenedMessage = OpenedMessage(
+    account = thread.account,
+    key = thread.latestKey,
+    subject = thread.subject,
+    from = thread.latestFrom,
+    avatar = thread.avatar,
+    date = localDateTime(thread.latestDate, timeZone?.active, uses24HourClock()),
+)
 
 // Watches the device's default network and forwards each change to the core
 // (ReportNetworkReachable): offline stops it attempting syncs (and raises the banner), online

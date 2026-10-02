@@ -98,9 +98,7 @@ pub(super) fn the_manual_form_switches_account_type(window: &adw::ApplicationWin
     picker.set_selected(AccountKind::Jmap.position());
     // A sentinel behind the expected message, so this read cannot block when the picker is
     // unwired; it fails instead.
-    sender.emit(AppInput::CancelComposer(
-        crate::ui::reader::ComposerHost::Pane,
-    ));
+    sender.emit(AppInput::KeepEditing);
     assert_eq!(
         receiver
             .recv_sync()
@@ -199,9 +197,7 @@ pub(super) fn a_dismissible_window_cancels_the_flow(window: &adw::ApplicationWin
         !dismissible.is_visible(),
         "a dismissible setup window must accept a user close"
     );
-    sender.emit(AppInput::CancelComposer(
-        crate::ui::reader::ComposerHost::Pane,
-    ));
+    sender.emit(AppInput::KeepEditing);
     assert_eq!(
         receiver
             .recv_sync()

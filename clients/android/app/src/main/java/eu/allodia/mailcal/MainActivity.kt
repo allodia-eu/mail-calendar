@@ -96,6 +96,9 @@ class MainActivity : AppCompatActivity() {
     // Outbox *and* on the unified inbox (docs/folder-pane.md, rule 18).
     internal var outbox by mutableStateOf<List<QueuedRow>>(emptyList())
     internal var showingOutbox by mutableStateOf(false)
+    // The Drafts folder's state on this screen: whether it is open, and a draft on its way back
+    // into a composer (MainActivityDrafts.kt).
+    internal val drafts = DraftUiState()
     // A folder change the server refused, until the user closes it (docs/folder-pane.md, rule 28).
     internal var folderNotice by mutableStateOf<FolderNotice?>(null)
     // A message the core withdrew from the Outbox so the user can change it. It exists nowhere

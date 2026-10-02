@@ -53,6 +53,10 @@ namespace Allodia.Mailcal.ViewModels;
 /// core's answer about one file, name and media type included, so the list is displayed as given
 /// and never re-derived. Empty for every other route: the picker fills it. Removable like any
 /// picked file, neither a share nor a forward imposes an attachment.</param>
+/// <param name="Composition">The composition to save under, for a composer the core has already
+/// joined to a stored draft (<c>docs/drafts.md</c>). Every other composer mints its own: the core
+/// has already joined this id to the copy on the server, so a fresh one would store a second
+/// draft beside the one the composer is showing.</param>
 /// <param name="AttachmentsFailed">Whether the files a forward was to carry could not be read, so
 /// the composer opens saying so. It travels beside <paramref name="Attachments"/> because an empty
 /// list means opposite things either way: nothing was attached, or everything was and none of it
@@ -75,7 +79,8 @@ internal sealed record ComposeContext(
     string? InitialBody = null,
     bool SeedsSignature = true,
     IReadOnlyList<ComposerFileAttachment>? Attachments = null,
-    bool AttachmentsFailed = false)
+    bool AttachmentsFailed = false,
+    string? Composition = null)
 {
     /// <summary>The composer's heading, the action it is performing.</summary>
     public string Title => Kind switch

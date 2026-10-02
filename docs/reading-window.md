@@ -77,12 +77,10 @@ own.** It is the same composer the pane hosts, with the same seeding: the core's
 style, and a forward's staged attachments (`sending.md`, `signatures.md`,
 `composer-security.md`, all of which bind it unchanged).
 
-**Closing the window discards the draft, exactly as Cancel does**, and asks no more than Cancel
-does. The two are the same act, a person deliberately abandoning what they were writing, and a
-client that questioned one but not the other would be teaching two rules for one thing. The
-prompt that does exist, Discard / Keep editing, belongs to something else: it fires when the app
-is about to take a draft away that the user did **not** ask it to
-(`capabilities.md`, "Composing keeps the mailbox live").
+**Closing the window keeps the draft, and asks nothing**, exactly as a click elsewhere does for
+the composer in the pane. Both are leaving the composer: what was written is saved to Drafts on the
+way out, and the composer's own Discard is the one way to throw it away
+([`drafts.md`](drafts.md), "Leaving a composer").
 
 **The window is named after the draft**, so two open drafts are distinguishable in the window list
 the OS draws.
@@ -214,9 +212,13 @@ none either, and `GApplication` hands a second launch to the process already run
   The list raises its own click on that press, before anything can know a window was wanted, so the
   pane is put back once the double-tap arrives and the trailing click is refused. The end state is
   the contract's, and the pane usually never repaints, because it goes on drawing what it had while
-  the correction runs. What this does not give is macOS's stronger property: a double-click *can*
-  raise the unsent-draft prompt there, because the first press is an ordinary click. Anyone who
-  finds a way to defer that press without adding latency to every single click should take it.
+  the correction runs. A composer in the pane is left by that first press, and its draft kept in
+  Drafts, as any click on a row leaves it. Anyone who finds a way to defer that press without
+  adding latency to every single click should take it.
+
+  In the Drafts folder the first press resumes the draft into the composer ([`drafts.md`](drafts.md)),
+  and a composer cannot be put back the way the pane is, so a double-click there opens no window:
+  the draft is already open where a draft opens.
 - **Closing the mailbox ends the app on Windows and Linux**, so "reopening on the same core" does
   not arise on either: GTK quits with its last application window and Windows has no state where an
   app outlives its windows, and both are their desktop's own convention. The sweep still matters,
@@ -233,13 +235,11 @@ none either, and `GApplication` hands a second launch to the process already run
 - **No "New message" window.** A new message opens where it always did. Only a reply or a forward
   raised inside a reading window gets a window, because that is the case where the inline composer
   would land somewhere the user is not looking.
-- **Nothing asks before a deliberate discard, in a window or in the pane.** Cancel throws the
-  draft away without a word and so does closing the window, and there is no saved-draft folder
-  behind either. If that changes it changes for both together: a rule that applies to one of two
-  identical acts is the shortfall, not the missing prompt.
+- **On macOS a composer window's close is not held open.** The draft is kept by the composer as
+  it goes, through the same way out a composer in the pane takes. Windows holds its close on
+  `AppWindow.Closing`, the toolkit's own hook, while the composer saves.
 
-  ⚠️ On macOS this is also the *safe* answer, not only the consistent one. Intercepting a
-  SwiftUI window's close means taking over its `NSWindowDelegate`, which is SwiftUI's own: doing
-  that was tried, and it broke `dismiss()` so thoroughly that a discarded draft left an empty
-  window on screen. Any client tempted to add the prompt should reach for its toolkit's supported
-  hook or leave it alone.
+  ⚠️ On macOS that is the *safe* answer, not only the simple one. Intercepting a SwiftUI
+  window's close means taking over its `NSWindowDelegate`, which is SwiftUI's own: doing that
+  broke `dismiss()` so thoroughly that a closed draft left an empty window on screen. Any client
+  tempted to hold the window open should reach for its toolkit's supported hook or leave it alone.

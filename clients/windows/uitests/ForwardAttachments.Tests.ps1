@@ -38,11 +38,16 @@ function Open-ForwardComposer {
   }
 }
 
-# Put the composer away between cases. Cancel never asks, whatever the draft holds, so this is safe
-# to call after a case that made one dirty.
+# Put the composer away between cases, by Discard, so no case leaves a draft in the harness's
+# Drafts. Discard asks first over a composer something was written in; the question's primary
+# button is Discard (ComposerView.Drafts.cs), so it is confirmed here.
 function Close-ForwardComposer {
-  $cancel = Find-UiaElement -AutomationId 'CancelButton' -Type Button
-  if ($cancel) { Invoke-UiaElement $cancel }
+  $discard = Find-UiaElement -AutomationId 'DiscardButton' -Type Button
+  if ($discard) { Invoke-UiaElement $discard }
+  if (Find-OpenDialog -SettleMs 800) {
+    $confirm = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button
+    if ($confirm) { Invoke-UiaElement $confirm }
+  }
   Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec 10 | Out-Null
 }
 
@@ -128,38 +133,38 @@ $Suite = @{
       }
     },
     @{
-      Name = 'an untouched forward is not a draft, so abandoning it asks nothing'
+      Name = 'an untouched forward is not a draft, so discarding it asks nothing'
       Body = {
         Open-ForwardComposer
-        # Opening another message is the one route that puts the "Discard draft?" question up, the
-        # composer being a pane rather than a modal (MailListView.MayOpenMessageAsync).
-        Invoke-UiaElement (Get-OtherMailRow)
+        # Discard asks only when something would be lost (docs/drafts.md, "Leaving a composer"),
+        # and the forward has saved nothing, so the question turns on the attachment baseline alone.
+        Invoke-UiaElement (Find-UiaElement -AutomationId 'DiscardButton' -Type Button)
         $dialog = Find-OpenDialog
         if ($dialog) {
           # Leave the screen clean before failing: Discard, so no composer is left for the next case.
           $discard = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button
           if ($discard) { Invoke-UiaElement $discard }
-          throw 'a forward nobody typed into was treated as an unsent draft. The staged files are still in the mailbox, so there is nothing to lose and nothing to ask about; the guard is measuring the attachment count against zero rather than against what the composer opened with'
+          throw 'a forward nobody typed into was treated as written in. The staged files are still in the mailbox, so there is nothing to lose and nothing to ask about; the composer is measuring the attachment count against zero rather than against what it opened with'
         }
         Assert-True (Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec 10) `
-          'the composer stayed up after the other message was opened, so the click read as having done nothing'
+          'the composer stayed up after Discard, so the press read as having done nothing'
       }
     },
     @{
-      Name = 'taking one off IS a decision about what goes out, and does ask'
+      Name = 'taking one off IS a decision about what goes out, and Discard asks'
       Body = {
         Open-ForwardComposer
         Invoke-UiaElement (Get-TheStagedAttachment)
         Invoke-UiaElement (Find-UiaElement -AutomationId 'RemoveAttachmentButton' -Type Button)
-        Invoke-UiaElement (Get-OtherMailRow)
+        Invoke-UiaElement (Find-UiaElement -AutomationId 'DiscardButton' -Type Button)
         $dialog = Find-OpenDialog
         try {
           Assert-True ($null -ne $dialog) `
-            'removing a forwarded file and then walking away lost that decision in silence: the count changed, which is exactly what the guard is there to notice'
+            'removing a forwarded file and then pressing Discard threw that decision away unasked: the count changed, which is exactly what the question is there to notice'
         }
         finally {
           # Discard, so the case leaves no composer behind: the primary button is Discard and the
-          # close button is "Keep editing" (MainWindow.Compose.cs).
+          # close button is "Keep editing" (ComposerView.Drafts.cs).
           $discard = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button
           if ($discard) { Invoke-UiaElement $discard }
         }

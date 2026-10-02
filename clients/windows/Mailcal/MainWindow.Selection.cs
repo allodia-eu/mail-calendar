@@ -16,16 +16,14 @@ public sealed partial class MainWindow
     /// <remarks>
     /// Mail first: the composer takes the reading pane's place, and that pane exists only on the
     /// mail surface, so writing from the calendar has to bring the mailbox back with it or the
-    /// draft would open behind the grid. The draft already open is asked about first, for the
-    /// reason every other route into the composer asks.
+    /// draft would open behind the grid. The draft already open is left first, as every other
+    /// route into the composer leaves it, so it is kept in Drafts.
     /// </remarks>
     private async void OnNewMail(object sender, RoutedEventArgs e)
     {
-        if (await ConfirmDiscardDraftAsync())
-        {
-            Model.ShowMail();
-            ComposeNew();
-        }
+        await LeaveComposerAsync();
+        Model.ShowMail();
+        ComposeNew();
     }
 
     private void OnSelectionToggleRead(object sender, RoutedEventArgs e) =>

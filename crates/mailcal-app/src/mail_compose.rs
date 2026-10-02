@@ -174,7 +174,7 @@ impl<P: Provider> App<P> {
     /// one-message conversation sitting beside the discussion it belongs to.
     ///
     /// The original's **files** reach this through `blobs` like any other attachment: the
-    /// composer opened holding them ([`App::stage_forwarded_attachments`]) and the user may
+    /// composer opened holding them ([`App::stage_message_attachments`]) and the user may
     /// have removed some, so what arrives here is what they chose to send.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn submit_rich_forward(

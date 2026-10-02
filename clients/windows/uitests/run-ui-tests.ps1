@@ -84,7 +84,7 @@
 #
 #   1. A suite may not assume it is looking at a FRESH app. Between suites the runner puts away
 #      what it knows how to put away (a ContentDialog by its CloseButton, the composer by its
-#      CancelButton, a navigation away from the list) and then compares the set of AutomationIds on
+#      DiscardButton, a navigation away from the list) and then compares the set of AutomationIds on
 #      screen against the set the launch came up with. If they do not match it RELAUNCHES. So the
 #      cost of leaving something open is one app start, never a suite reading somebody else's
 #      leftovers, but a suite that habitually leaves the app somewhere strange gives its group's

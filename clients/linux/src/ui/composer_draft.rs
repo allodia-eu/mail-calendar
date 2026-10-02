@@ -1,34 +1,36 @@
-//! The unsent-draft guard for the Linux composer.
+//! Leaving a composer, and the rule both ways out of one turn on: whether anything was written
+//! in it (`docs/drafts.md`, "Leaving a composer").
 //!
 //! The composer is an inline pane, so a click on another message stays reachable while you write.
-//! Without this the draft went silently; the loss the macOS confirmation, the Windows
-//! `ContentDialog` and Android's back-gesture dialog all exist to prevent.
+//! Leaving it that way, or by closing a composer window, keeps the draft and asks nothing: a
+//! composer something was written in is saved and closed in one call, and one nothing was
+//! written in is simply closed. Discard is the composer's own button, and asks first only when
+//! there is something to lose.
 //!
-//! The dirtiness rule is theirs, deliberately: header fields are compared against what the
-//! composer **opened** with, and the body against the seed captured once the quote and signature
-//! were in. A reply nobody typed into is not a draft. The comparison happens here and yields one
-//! boolean: the document is never logged, stored or sent (`docs/composer-security.md`).
+//! The dirtiness rule is every client's: header fields are compared against what the composer
+//! **opened** with, and the body against the seed captured once the quote and signature were in.
+//! A reply nobody typed into is not a draft. The comparison happens here and yields one boolean:
+//! the document is never logged or stored by it (`docs/composer-security.md`).
 //!
 //! The body half needs a round trip because the editor has no bridge back into the host (that is
 //! a security gate, not an oversight), so the host reads the document the same way Send does.
+//!
+//! The question Discard asks, the window with Discard and Keep editing in it, is
+//! [`super::composer_discard`].
 
 use std::{cell::RefCell, rc::Rc};
 
-use gtk::{
-    gio,
-    prelude::{BoxExt, ButtonExt, EditableExt, GtkWindowExt, IsA, WidgetExt},
-};
+use gtk::{gio, prelude::EditableExt};
 use mailcal_bindings::{ComposeRequest as CoreComposeRequest, Intent};
 use webkit6::prelude::WebViewExt;
 
 use super::{
     AppInput, AppModel, PrimaryView,
-    composer_header::RecipientRows,
-    composer_model::{ComposeContext, PickedFile},
+    composer_fields::{ComposerFields, read_document},
+    composer_model::{ComposeContext, ComposerSubmission},
     model::OpenedMessage,
     reader::ComposerHost,
 };
-use crate::l10n;
 
 /// The four header fields the guard compares, in one value so the comparison reads as one rule.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -39,16 +41,27 @@ pub(crate) struct HeaderValues {
     pub(crate) subject: String,
 }
 
-/// A surface change that must wait until the open draft says whether it would be lost.
+impl HeaderValues {
+    /// What the header fields show, read the same way when the composer opens and when it is
+    /// asked again.
+    ///
+    /// Never the request the composer was opened with: a seeded recipient field normalises what
+    /// it was handed, so one opened with `ada@example.test` shows `ada@example.test, `, and a
+    /// baseline taken from the request would count every reply as written in.
+    pub(crate) fn on_screen(fields: &ComposerFields) -> Self {
+        Self {
+            to: fields.to.text(),
+            cc: fields.cc.text(),
+            bcc: fields.bcc.text(),
+            subject: fields.subject.text().to_string(),
+        }
+    }
+}
+
+/// A surface change waiting for the open composer to be left: saved and closed, or closed.
 pub(crate) enum PendingNavigation {
     Message(OpenedMessage),
     Composer(ComposeContext),
-    /// A message the core withdrew from the Outbox, waiting on the guard's answer.
-    ///
-    /// Its own variant because it is the one navigation that **may not be refused**: the core
-    /// took the message out of the queue before offering it back, so what is held here is the
-    /// only copy of it (`docs/sending.md`).
-    WithdrawnMessage(ComposeContext),
 }
 
 /// Whether the header fields hold anything the user put there: the half of "is there a draft to
@@ -76,17 +89,15 @@ pub(crate) fn headers_edited(
 /// Whether the editor holds anything beyond what was seeded into it.
 pub(crate) fn body_edited(seed: Option<&str>, current: &str) -> bool {
     // The seed is read the moment the seeding script returns, so its absence means that read
-    // failed; not that the draft is empty. Ask: a prompt costs a click, and the alternative is
-    // the loss this guard exists to prevent.
+    // failed, not that the draft is empty. Count it as written: a save or a question costs
+    // little, and the alternative is losing what was typed.
     seed.is_none_or(|seed| seed != current)
 }
 
 /// The live draft, held by the composer pane for as long as one is open.
 pub(crate) struct DraftGuard {
     editor: webkit6::WebView,
-    rows: RecipientRows,
-    subject: gtk::Entry,
-    files: Rc<RefCell<Vec<PickedFile>>>,
+    fields: ComposerFields,
     opening: HeaderValues,
     /// How many of the files the composer opened holding are **not** the user's own work: a
     /// forward's staged originals, which are still in the mailbox. The baseline the live count is
@@ -99,146 +110,98 @@ pub(crate) struct DraftGuard {
 impl DraftGuard {
     pub(crate) fn new(
         editor: webkit6::WebView,
-        rows: RecipientRows,
-        subject: gtk::Entry,
-        files: Rc<RefCell<Vec<PickedFile>>>,
+        fields: ComposerFields,
         opening: HeaderValues,
         opening_files: usize,
         seed: Rc<RefCell<Option<String>>>,
     ) -> Self {
         Self {
             editor,
-            rows,
-            subject,
-            files,
+            fields,
             opening,
             opening_files,
             seed,
         }
     }
 
-    /// Answers "would anything the user put here be lost?", emitting the one boolean.
+    /// Leaves the composer: one something was written in reports its whole message, to be saved
+    /// and closed in one call; one nothing was written in reports that it can simply close.
+    ///
+    /// A document that cannot be read is closed rather than kept open: leaving is never something
+    /// a composer refuses, and the autosaved copy is still in Drafts.
+    pub(crate) fn leave(&self, sender: &relm4::Sender<AppInput>) {
+        let host = self.fields.request.host;
+        let editor = self.editor.clone();
+        let fields = self.fields.clone();
+        let sender = sender.clone();
+        self.edited(move |edited| {
+            if !edited {
+                sender.emit(AppInput::ComposerUntouched(host));
+                return;
+            }
+            let unread = sender.clone();
+            read_document(
+                &editor,
+                &fields,
+                &sender,
+                AppInput::LeaveComposer,
+                move || {
+                    unread.emit(AppInput::ComposerUntouched(host));
+                },
+            );
+        });
+    }
+
+    /// The composer's Discard button: reports whether anything was written, which with whether a
+    /// copy is in Drafts decides whether Discard asks first.
+    pub(crate) fn discard(&self, sender: &relm4::Sender<AppInput>) {
+        let host = self.fields.request.host;
+        let sender = sender.clone();
+        self.edited(move |edited| sender.emit(AppInput::DiscardComposer(host, edited)));
+    }
+
+    /// The half of [`edited`](Self::edited) the header fields answer on their own.
+    pub(crate) fn header_edited(&self) -> bool {
+        headers_edited(
+            &HeaderValues::on_screen(&self.fields),
+            &self.opening,
+            self.fields.files.borrow().len(),
+            self.opening_files,
+        )
+    }
+
+    /// Answers "has anything been written here?", handing `answer` the one boolean.
     ///
     /// The header half settles it on its own when it is dirty, so a draft with a typed recipient
     /// never pays for the round trip.
-    pub(crate) fn check(&self, sender: &relm4::Sender<AppInput>) {
-        let current = HeaderValues {
-            to: self.rows.to.text(),
-            cc: self.rows.cc.text(),
-            bcc: self.rows.bcc.text(),
-            subject: self.subject.text().to_string(),
-        };
-        if headers_edited(
-            &current,
-            &self.opening,
-            self.files.borrow().len(),
-            self.opening_files,
-        ) {
-            sender.emit(AppInput::ComposerDraftChecked(true));
+    fn edited(&self, answer: impl FnOnce(bool) + 'static) {
+        if self.header_edited() {
+            answer(true);
             return;
         }
         let seed = Rc::clone(&self.seed);
-        let sender = sender.clone();
         self.editor.evaluate_javascript(
             "composerDocument()",
             None,
             None,
             None::<&gio::Cancellable>,
             move |result| {
-                let edited = match result {
+                answer(match result {
                     Ok(value) => body_edited(seed.borrow().as_deref(), value.to_str().as_ref()),
-                    // A failed read cannot say the draft is empty, so it asks; as above.
+                    // A failed read cannot say the draft is empty; as above.
                     Err(_) => true,
-                };
-                sender.emit(AppInput::ComposerDraftChecked(edited));
+                });
             },
         );
     }
 }
 
-/// The "Discard draft?" question, held open until it is answered.
-///
-/// Its shape is the permanent-delete confirmation's, and its wording the other clients': "Keep
-/// editing" rather than "Cancel", because beside "Discard" a button labelled Cancel reads as
-/// "cancel the draft".
-#[derive(Default)]
-pub(crate) struct DiscardDraftDialog {
-    open: bool,
-    window: Option<gtk::Window>,
-}
-
-impl DiscardDraftDialog {
-    pub(crate) fn render(
-        &mut self,
-        open: bool,
-        parent: &impl IsA<gtk::Window>,
-        sender: &relm4::Sender<AppInput>,
-    ) {
-        if self.open == open {
-            return;
-        }
-        if let Some(window) = self.window.take() {
-            window.close();
-        }
-        self.open = open;
-        if !open {
-            return;
-        }
-        let window = discard_confirmation(parent, sender);
-        window.present();
-        self.window = Some(window);
-    }
-}
-
-fn discard_confirmation(
-    parent: &impl IsA<gtk::Window>,
-    sender: &relm4::Sender<AppInput>,
-) -> gtk::Window {
-    let (window, _) = crate::ui::modal::new(parent, l10n::compose_discard_title(), 420, Some(190));
-    window.set_resizable(false);
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 18);
-    content.set_margin_top(24);
-    content.set_margin_bottom(24);
-    content.set_margin_start(24);
-    content.set_margin_end(24);
-    let message = gtk::Label::new(Some(l10n::compose_discard_message()));
-    message.set_wrap(true);
-    message.set_xalign(0.0);
-    content.append(&message);
-    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    actions.set_halign(gtk::Align::End);
-    let keep = gtk::Button::with_label(l10n::action_keep_editing());
-    let dialog = window.clone();
-    keep.connect_clicked(move |_| dialog.close());
-    actions.append(&keep);
-    let discard = gtk::Button::with_label(l10n::action_discard());
-    discard.add_css_class("destructive-action");
-    let input = sender.clone();
-    let dialog = window.clone();
-    discard.connect_clicked(move |_| {
-        input.emit(AppInput::DiscardDraft);
-        dialog.close();
-    });
-    actions.append(&discard);
-    content.append(&actions);
-    window.set_child(Some(&content));
-    // Closing the window by any route; the keep button, Escape, the titlebar; keeps the draft.
-    // The destructive answer is only ever the button that says so.
-    let input = sender.clone();
-    window.connect_close_request(move |_| {
-        input.emit(AppInput::KeepEditing);
-        gtk::glib::Propagation::Proceed
-    });
-    window
-}
-
 impl AppModel {
-    /// Opens a message, asking first when a draft is open.
+    /// Opens a message, leaving the open composer first.
     ///
-    /// The composer is an inline pane, so this click stays reachable while the user writes; and
-    /// clearing the composer here is what used to throw the draft away without a word. The
-    /// question cannot be answered synchronously (the editor holds the body and has no bridge
-    /// back), so the requested navigation waits until the guard reports.
+    /// The composer is an inline pane, so this click stays reachable while the user writes.
+    /// Whether it was written in cannot be answered synchronously (the editor holds the body and
+    /// has no bridge back), so the requested navigation waits until the composer reports.
     pub(super) fn open_message(&mut self, message: OpenedMessage) {
         if self.composer.is_some() {
             self.queue_navigation(PendingNavigation::Message(message));
@@ -253,7 +216,7 @@ impl AppModel {
             key: message.key.clone(),
         });
         self.reading.open(message);
-        self.composer = None;
+        self.clear_pane_composer();
         self.primary = PrimaryView::Mail;
     }
 
@@ -313,45 +276,66 @@ impl AppModel {
     pub(super) fn commit_composer(&mut self, request: ComposeContext) {
         self.primary = PrimaryView::Mail;
         self.composer_generation = self.composer_generation.wrapping_add(1);
-        self.composer_error = None;
+        // The composer being replaced is gone, whatever takes its place.
+        self.clear_pane_composer();
         self.composer = Some(request);
     }
 
-    /// The guard's answer: a clean draft is nothing to lose, so the navigation just happens.
-    pub(super) fn draft_checked(&mut self, edited: bool) {
-        self.draft_check = None;
-        if edited {
-            self.discard_prompt = self.pending_navigation.is_some();
-            return;
+    /// A composer being left held nothing written: it closes, and the navigation happens.
+    ///
+    /// The pane's composer is closed by the navigation itself, which replaces it. With no
+    /// navigation waiting it is left alone: the answer belongs to a request already taken.
+    pub(super) fn composer_untouched(&mut self, host: ComposerHost) {
+        match host {
+            ComposerHost::Pane => {
+                self.draft_check = None;
+                self.take_pending_navigation();
+            }
+            ComposerHost::Window(id) => self.close_composer_window(id),
         }
-        self.take_pending_navigation();
+    }
+
+    /// A composer being left was written in: it is saved and closed in one call, then the
+    /// navigation happens.
+    ///
+    /// The composition is not closed again here, or anywhere after: the core forgets it once the
+    /// save has settled, and a close sent beside the save could land first and leave the server
+    /// two copies. An answer for a composer no longer open is dropped, so a second click while
+    /// the first was being read cannot save twice.
+    pub(super) fn leave_composer(&mut self, submission: &ComposerSubmission) {
+        let composition = &submission.request.composition;
+        match submission.request.host {
+            ComposerHost::Pane => {
+                self.draft_check = None;
+                if self
+                    .composer
+                    .as_ref()
+                    .is_some_and(|open| &open.composition == composition)
+                {
+                    self.save_draft_and_close(submission);
+                    self.composer = None;
+                    self.composer_error = None;
+                }
+                self.take_pending_navigation();
+            }
+            ComposerHost::Window(id) => {
+                if self
+                    .composer_windows
+                    .iter()
+                    .any(|draft| draft.id == id && &draft.request.composition == composition)
+                {
+                    self.save_draft_and_close(submission);
+                    self.forget_composer_window(id);
+                }
+            }
+        }
     }
 
     pub(super) fn take_pending_navigation(&mut self) {
-        self.discard_prompt = false;
         match self.pending_navigation.take() {
             Some(PendingNavigation::Message(message)) => self.commit_open(message),
-            Some(
-                PendingNavigation::Composer(request) | PendingNavigation::WithdrawnMessage(request),
-            ) => self.commit_composer(request),
+            Some(PendingNavigation::Composer(request)) => self.commit_composer(request),
             None => {}
-        }
-    }
-
-    pub(super) fn keep_editing(&mut self) {
-        self.discard_prompt = false;
-        // Everything else waiting here still exists elsewhere and can simply be dropped. A
-        // withdrawn message cannot: it has already left the Outbox, so this is the only copy,
-        // and it takes a window of its own rather than being lost (`docs/sending.md`).
-        if let Some(PendingNavigation::WithdrawnMessage(request)) = self.pending_navigation.take() {
-            let id = self.next_composer_window();
-            self.open_composer_window(
-                id,
-                ComposeContext {
-                    host: ComposerHost::Window(id),
-                    ..request
-                },
-            );
         }
     }
 
@@ -359,12 +343,13 @@ impl AppModel {
     ///
     /// Dismisses the request as soon as it is held here, which is what the core waits for: it
     /// keeps the offer standing precisely because the message exists nowhere else until a host
-    /// answers.
+    /// answers. Leaving the open composer refuses no navigation, so the withdrawn message always
+    /// reaches the pane (`docs/sending.md`).
     pub(super) fn open_withdrawn_message(&mut self, request: CoreComposeRequest) {
         let initial_from = Some(request.account.clone()).filter(|account| !account.is_empty());
         let context = ComposeContext::from_withdrawn(request, initial_from);
         if self.composer.is_some() {
-            self.queue_navigation(PendingNavigation::WithdrawnMessage(context));
+            self.queue_navigation(PendingNavigation::Composer(context));
         } else {
             self.commit_composer(context);
         }

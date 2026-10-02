@@ -6,11 +6,8 @@ use mailcal_bindings::{Intent, Surface};
 use relm4::ComponentSender;
 
 use super::{
-    AppInput, AppModel, PrimaryView,
-    composer_model::ComposeKind,
-    mail_actions::DeleteTarget,
-    reader::{ComposerHost, ReadingSource},
-    setup_model,
+    AppInput, AppModel, PrimaryView, composer_model::ComposeKind, mail_actions::DeleteTarget,
+    reader::ReadingSource, setup_model,
 };
 use crate::l10n;
 
@@ -147,7 +144,9 @@ impl AppModel {
             AppInput::SearchMail(query) => self.search_mail(query),
             AppInput::SetSearchScope(scope) => self.set_search_scope(scope),
             AppInput::OpenSyncDepthSettings => self.open_sync_depth_settings(),
-            AppInput::OpenThreadMessage(message) => self.open_message(*message),
+            AppInput::OpenThreadMessage(message) => {
+                self.open_or_resume(*message, sender.input_sender().clone());
+            }
             AppInput::SetThreadExpanded { thread, expanded } => {
                 self.set_thread_expanded(&thread, expanded);
             }
@@ -244,16 +243,16 @@ impl AppModel {
                 self.stage_forward(source, sender.input_sender().clone());
             }
             AppInput::ForwardStaged(source, staged) => self.begin_forward(&source, staged),
-            // Cancel and a closed window are the same act, and both discard without asking
-            // (`docs/reading-window.md`).
-            AppInput::CancelComposer(host) => match host {
-                ComposerHost::Pane => self.composer = None,
-                ComposerHost::Window(id) => self.close_composer_window(id),
-            },
-            AppInput::ComposerDraftChecked(edited) => self.draft_checked(edited),
-            AppInput::DiscardDraft => self.take_pending_navigation(),
+            AppInput::DiscardComposer(host, edited) => self.discard_composer(host, edited),
+            AppInput::ComposerUntouched(host) => self.composer_untouched(host),
+            AppInput::LeaveComposer(submission) => self.leave_composer(&submission),
+            AppInput::DiscardDraft => self.discard_draft(),
             AppInput::KeepEditing => self.keep_editing(),
             AppInput::SubmitComposer(submission) => self.submit_composer(&submission),
+            AppInput::SaveComposerDraft(submission) => self.save_composer_draft(&submission),
+            AppInput::DraftResumed(composition, resumed) => {
+                self.draft_resumed(composition, *resumed);
+            }
             AppInput::SaveAttachment {
                 source,
                 id,
