@@ -23,10 +23,13 @@ public sealed partial class AccountSetupView : UserControl
     // Whether the currently-shown settings were obtained untrustably and so need the user's
     // explicit approval before Connect (a non-HTTPS hop, e.g. an http autoconfig).
     private bool _needsApproval;
-    // The connection security detection found, remembered across the connect click (there is no
-    // security field in the form, the manual form is implicit-TLS only). Defaults to implicit TLS.
-    private ConnectionSecurity _imapSecurity = ConnectionSecurity.ImplicitTls;
-    private ConnectionSecurity _smtpSecurity = ConnectionSecurity.ImplicitTls;
+    // Each server's port and connection security. A detected route fills them in; on the manual
+    // form the user picks, and the port follows the picker until they type one of their own.
+    private readonly ManualServerField _imap = ManualServerField.For(MailServerKind.Imap);
+    private readonly ManualServerField _smtp = ManualServerField.For(MailServerKind.Smtp);
+    // The issuer the detected route's provider named for itself, read by the IMAP pre-flight and
+    // the sign-in, which must describe the same account the connect will dial.
+    private string? _detectedOauthIssuer;
 
     /// <summary>Initialises the control.</summary>
     public AccountSetupView()
@@ -65,6 +68,13 @@ public sealed partial class AccountSetupView : UserControl
             {
                 UpdateCanConnect();
                 UpdateGoogleSignInEnabled();
+            }
+            // A connect refused for a certificate is answered on this form, so the panel is
+            // drawn when one arrives and taken away when the next attempt clears it
+            // (docs/certificate-exceptions.md).
+            if (e.PropertyName == nameof(MailboxModel.SetupRejectedCertificate))
+            {
+                ShowRefusedCertificate();
             }
         };
         // Once now: on a first run nothing raises AddingAccount, so the panel would otherwise
@@ -119,14 +129,17 @@ public sealed partial class AccountSetupView : UserControl
     private void ApplyRoute(DetectRoute route)
     {
         _needsApproval = route.NeedsApproval;
-        _imapSecurity = route.ImapSecurity;
-        _smtpSecurity = route.SmtpSecurity;
+        _imap.AdoptDetected(route.ImapHost, route.ImapSecurity);
+        _smtp.AdoptDetected(route.SmtpHost, route.SmtpSecurity);
+        ShowServerSettings();
+        _detectedOauthIssuer = route.OauthIssuer;
         // Whether the JMAP fields are a detected result or the manual form decides whether an
         // offered sign-in stands beside the secret field or replaces it. Set before the tab is
         // selected below, since selecting one lays the section out immediately.
         _jmapSignIn.CardChanged(detected: !route.IsManual);
         ApprovalPanel.Visibility = route.NeedsApproval ? Visibility.Visible : Visibility.Collapsed;
         ApprovalCheck.IsChecked = false;
+        ShowRefusedCertificate();
         Username.Text = route.Email;
         JmapEmail.Text = route.Email;
         // The account-type picker (IMAP/JMAP/Microsoft) is a manual-setup control, not something to
@@ -162,13 +175,16 @@ public sealed partial class AccountSetupView : UserControl
                     ShowNote(L10n.SetupDetectGoogleHint());
                     break;
                 default:
-                    ImapHost.Text = route.ImapHost;
-                    SmtpHost.Text = route.SmtpHost;
+                    ShowServerFields(
+                        ManualServerField.SplitHost(route.ImapHost).Host,
+                        ManualServerField.SplitHost(route.SmtpHost).Host);
                     // A discovered CalDAV endpoint is prefilled (opt-out, clear it to skip calendar);
                     // it reuses the IMAP credentials at connect.
                     CaldavUrl.Text = route.CaldavUrl;
                     ImapChoice.IsChecked = true;
-                    ShowNote(L10n.SetupDetectAppPasswordHint());
+                    // The app-password hint travels with the password field, which a server
+                    // offering a sign-in keeps behind "Use a password instead".
+                    ShowNote(null);
                     break;
             }
         }
@@ -200,11 +216,61 @@ public sealed partial class AccountSetupView : UserControl
         UpdateCanConnect();
     }
 
-    private void OnFieldChanged(object sender, TextChangedEventArgs e) => UpdateCanConnect();
+    private void OnFieldChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateCanConnect();
+        // TextChanged can fire while the tree is still being built, before the later fields exist.
+        if (ImapSignInPanel is null)
+        {
+            return;
+        }
+        _imapSignIn.FieldsChanged(Username.Text, ImapHost.Text);
+        UpdateImapSignIn();
+        ScheduleImapProbe();
+    }
 
     private void OnPasswordChanged(object sender, RoutedEventArgs e) => UpdateCanConnect();
 
     private void OnApprovalChanged(object sender, RoutedEventArgs e) => UpdateCanConnect();
+
+    private void OnCertificateAcceptedChanged(object sender, RoutedEventArgs e) => UpdateCanConnect();
+
+    /// <summary>
+    /// Draws the certificate the last connect was refused for, or takes the panel away when
+    /// nothing was refused. Only the IMAP route offers acceptance: a JMAP account's stored config
+    /// carries no exception, so a refusal there keeps its plain error instead
+    /// (docs/certificate-exceptions.md).
+    /// </summary>
+    private void ShowRefusedCertificate()
+    {
+        if (CertificatePanel is null)
+        {
+            return;
+        }
+        var refused = RefusedCertificate();
+        CertificatePanel.Visibility = refused is null ? Visibility.Collapsed : Visibility.Visible;
+        CertificateCheck.IsChecked = false;
+        if (refused is not null)
+        {
+            CertificateWarning.Text = L10n.SetupCertificateWarning(refused.ServerName);
+            CertificateClaims.Text = CertificateClaimLines(refused);
+        }
+        UpdateCanConnect();
+    }
+
+    /// <summary>The refused certificate this tab can act on, if any.</summary>
+    private RejectedCertificate? RefusedCertificate() =>
+        AccountDetectForm.OffersCertificateException(ActiveTab()) ? Model?.SetupRejectedCertificate : null;
+
+    /// <summary>
+    /// Which route the form is on, named as the tab the shared gates are stated in terms of, so
+    /// the button and the certificate panel read the same rules the unit suite drives.
+    /// </summary>
+    private DetectTab ActiveTab() =>
+        JmapChoice?.IsChecked == true ? DetectTab.Jmap
+        : MicrosoftChoice?.IsChecked == true ? DetectTab.Microsoft
+        : GoogleChoice?.IsChecked == true ? DetectTab.Google
+        : DetectTab.Imap;
 
     // What gates Connect depends on the active tab and, for a detected result, the approval: IMAP
     // needs mail server + email + password; JMAP needs email + one secret (server is discovered);
@@ -219,13 +285,22 @@ public sealed partial class AccountSetupView : UserControl
             }
             return;
         }
-        var approvalOk = !_needsApproval || ApprovalCheck.IsChecked == true;
-        var fieldsOk = JmapChoice.IsChecked == true
-            ? JmapSetupForm.CanConnect(JmapEmail.Text, JmapPassword.Password)
-            : !string.IsNullOrWhiteSpace(ImapHost.Text)
-                && !string.IsNullOrWhiteSpace(Username.Text)
-                && !string.IsNullOrEmpty(Password.Password);
-        ConnectButton.IsEnabled = approvalOk && fieldsOk;
+        // The gate itself lives in AccountDetectForm, which the unit suite drives: deciding it
+        // twice would let a test pass over a button that does something else.
+        var tab = ActiveTab();
+        ConnectButton.IsEnabled = AccountDetectForm.CanConnect(
+            tab,
+            _needsApproval,
+            ApprovalCheck.IsChecked == true,
+            ImapHost.Text,
+            tab == DetectTab.Jmap ? JmapEmail.Text : Username.Text,
+            Password.Password,
+            JmapPassword.Password,
+            certificateRefused: RefusedCertificate() is not null,
+            certificateAccepted: CertificateCheck.IsChecked == true,
+            // On a server that refuses passwords the field is not on screen, and gating Connect
+            // on it would disable a button nobody is looking at anyway.
+            passwordShown: _imapSignIn.ShowPassword);
     }
 
     // Show the fields for the chosen account type, and re-gate Connect (requirements differ per tab).
@@ -237,6 +312,8 @@ public sealed partial class AccountSetupView : UserControl
         }
         var jmap = JmapChoice.IsChecked == true;
         var microsoft = MicrosoftChoice.IsChecked == true;
+        // Switching tabs changes whether a refused certificate can be acted on at all.
+        ShowRefusedCertificate();
         var google = GoogleChoice.IsChecked == true;
         var imap = !jmap && !microsoft && !google;
         ImapSection.Visibility = imap ? Visibility.Visible : Visibility.Collapsed;
@@ -267,7 +344,15 @@ public sealed partial class AccountSetupView : UserControl
         }
         else
         {
-            Model?.SubmitSetup(ImapHost.Text, Username.Text, Password.Password, SmtpHost.Text, CaldavUrl.Text, _imapSecurity, _smtpSecurity);
+            Model?.SubmitSetup(
+                _imap.Dial(ImapHost.Text),
+                Username.Text,
+                Password.Password,
+                _smtp.Dial(SmtpHost.Text),
+                CaldavUrl.Text,
+                _imap.Security,
+                _smtp.Security,
+                CertificateCheck.IsChecked == true ? RefusedCertificate() : null);
         }
     }
 
@@ -302,15 +387,13 @@ public sealed partial class AccountSetupView : UserControl
 
     // Cancel means "abort the browser sign-in" while one is outstanding (it can hang forever), and
     // "back out of adding an account" otherwise. During a sign-in this leaves the user on the form
-    // to retry; a second Cancel then backs out as usual.
+    // to retry; a second Cancel then backs out as usual. The address step's Cancel shares this
+    // handler, and nothing signs in from there.
     private void OnCancel(object sender, RoutedEventArgs e)
     {
         if (Model?.IsSigningIn == true)
         {
-            // Only one browser sign-in runs at a time; cancelling the others is a safe no-op.
-            Model.CancelMicrosoftSignIn();
-            Model.CancelGoogleSignIn();
-            Model.CancelJmapSignIn();
+            CancelSignIns();
         }
         else
         {
@@ -345,13 +428,7 @@ public sealed partial class AccountSetupView : UserControl
     private void ResetToDetect()
     {
         DetectEmail.Text = Model?.SetupStartEmail ?? string.Empty;
-        ClearManualFields();
-        _needsApproval = false;
-        ApprovalPanel.Visibility = Visibility.Collapsed;
-        DetectNote.Visibility = Visibility.Collapsed;
-        SetupPanel.Visibility = Visibility.Collapsed;
-        DetectPanel.Visibility = Visibility.Visible;
-        ContinueButton.IsEnabled = !string.IsNullOrWhiteSpace(DetectEmail.Text);
+        ShowDetectStep();
         // An offer opened from elsewhere, the Settings list, lands on its own route, the same as
         // one pressed on this screen.
         if (Model?.SetupStartOffer is { } offer)
@@ -367,11 +444,15 @@ public sealed partial class AccountSetupView : UserControl
         Username.Text = string.Empty;
         Password.Password = string.Empty;
         SmtpHost.Text = string.Empty;
+        _imap.Reset();
+        _smtp.Reset();
+        ShowServerFields(string.Empty, string.Empty);
         CaldavUrl.Text = string.Empty;
         JmapEmail.Text = string.Empty;
         JmapPassword.Password = string.Empty;
         JmapServer.Text = string.Empty;
         ResetJmapSignIn();
+        ResetImapSignIn();
         GoogleEarlyAccessCheck.IsChecked = false;
         ConnectButton.IsEnabled = false;
     }

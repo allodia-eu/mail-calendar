@@ -17,6 +17,11 @@
 #                                       #   signing, an .ipa you can install on your own iPhone or
 #                                       #   iPad. Flow C's .ipa cannot be: an App Store profile lists
 #                                       #   no devices, so iOS refuses to launch it.
+#   Scripts/package.sh --sandboxed      # Flow E: Flow B's app, signed by Flow B's own pass, with a
+#                                       #   development cert and profile instead of the Store's, so
+#                                       #   it launches on this Mac under the Store's sandbox. Flow
+#                                       #   B's app cannot: macOS honours a Store profile only on a
+#                                       #   copy the App Store installed.
 #
 # Each Store flow copies its finished artifact to build/release-<VERSION>/ before exiting. Every run
 # wipes build/package first, so without that a second flow destroys the first one's artifact, and
@@ -84,6 +89,7 @@ Usage: Scripts/package.sh [options]
   --app-store       Flow B: Apple-Distribution .pkg for the macOS App Store (manual dist signing).
   --ios-app-store   Flow C: App Store .ipa for iOS/iPadOS (automatic distribution signing).
   --ios-device      Flow D: installable Release .ipa for your own iPhone/iPad (development signing).
+  --sandboxed       Flow E: the Mac App Store app, development-signed so it runs on this Mac.
   --no-notarize     Flow A without notarization (fast pipeline check; not Gatekeeper-valid).
   --no-core         Skip rebuilding the release Rust XCFramework.
   --version <x.y.z> Stamp the marketing version.
@@ -97,6 +103,7 @@ while [[ $# -gt 0 ]]; do
     --app-store) FLOW=app-store; shift ;;
     --ios-app-store) FLOW=ios-app-store; shift ;;
     --ios-device) FLOW=ios-device; shift ;;
+    --sandboxed) FLOW=sandboxed; shift ;;
     --no-notarize) NOTARIZE=0; shift ;;
     --no-core) BUILD_CORE=0; shift ;;
     --version) VERSION="${2:?missing value for --version}"; shift 2 ;;
@@ -273,7 +280,10 @@ source "$CONFIG"
 : "${APPLE_DISTRIBUTION_IDENTITY:=}"
 : "${MAC_INSTALLER_IDENTITY:=}"
 : "${MAS_PROVISIONING_PROFILE:=}"
+: "${MAS_SHARE_PROVISIONING_PROFILE:=}"
+: "${MACOS_DEV_PROVISIONING_PROFILE:=}"
 : "${IOS_PROVISIONING_PROFILE:=}"
+: "${IOS_SHARE_PROVISIONING_PROFILE:=}"
 : "${ASC_API_KEY_ID:=}"
 : "${ASC_API_ISSUER_ID:=}"
 
@@ -361,6 +371,15 @@ app-store)
        (Full steps: clients/apple/README.md.)"
   fi
   ;;
+sandboxed)
+  # Which certificate signs is the profile's decision, made after the archive by the resolver
+  # Flow B uses. Checked here only because without any Apple Development cert there is no profile
+  # it could pick, and the archive before it takes minutes.
+  security find-identity -v -p codesigning 2>/dev/null | grep -q '"Apple Development: ' \
+    || fail "no 'Apple Development' certificate is in your keychain.
+       Create one (once): Xcode ▸ Settings ▸ Accounts ▸ your team ▸ Manage Certificates… ▸ + ▸
+       'Apple Development'. (Full steps: docs/debugging.md, section 8.)"
+  ;;
 ios-device | ios-app-store)
   # The ARCHIVE is development-signed with automatic provisioning, which xcodebuild resolves from a
   # signed-in Xcode account or from the App Store Connect key this script hands it; it surfaces both
@@ -374,6 +393,53 @@ ios-device | ios-app-store)
        The iOS App Store export signs against an installed profile and needs the certificate name.
        (Full steps: clients/apple/README.md.)" ;;
     esac
+    # Both profiles are resolved here, before the core and the archive: the export is the first
+    # step that would otherwise look for them, and it runs last. The Share Extension is an App ID
+    # of its own and needs a profile of its own; without one the export ends in '"AllodiaMailShare.appex"
+    # requires a provisioning profile with the App Groups feature'.
+    #
+    # Manual signing, against installed profiles, for the reason the template records: automatic
+    # signing asks App Store Connect to manage the distribution assets and is refused outright by a
+    # key without permission for that, while the profile it needs sits installed and unread.
+    #
+    # The profile decides the certificate, exactly as in Flow B: two certificates can share a common
+    # name, and only one of them is on the profile's list.
+    IOS_DIST_CANDIDATES="$(security find-identity -v -p codesigning \
+      | awk -F'"' -v name="$APPLE_DISTRIBUTION_IDENTITY" '$2 == name { split($1, a, " "); print a[2] }')"
+    [[ -n "$IOS_DIST_CANDIDATES" ]] || fail "no valid codesigning identity named '$APPLE_DISTRIBUTION_IDENTITY' is in the keychain.
+       Check the name in $CONFIG against: security find-identity -v -p codesigning"
+    # The brand's app id, not `BUNDLE_ID`: that one is read from the built macOS app's Info.plist,
+    # several steps further down and on a path this flow never takes.
+    IOS_BUNDLE_ID="$(brand_value MAILCAL_APP_ID)"
+    IOS_SHARE_BUNDLE_ID="$IOS_BUNDLE_ID.share"
+    # Both the app and the extension claim the group the share hand-off travels through
+    # (App/AllodiaMail.entitlements, App/AllodiaMailShare.entitlements), so both profiles grant it.
+    IOS_APP_GROUP="group.$IOS_BUNDLE_ID"
+    ios_profile_or_fail() {
+      local bundle_id="$1" explicit="$2" setting="$3" match
+      match="$(resolve_profile "$DEVELOPMENT_TEAM.$bundle_id" "$IOS_DIST_CANDIDATES" \
+                 "$explicit" "$IOS_APP_GROUP" iOS distribution)"
+      [[ -n "$(printf '%s' "$match" | cut -f3)" ]] || fail "no installed iOS App Store provisioning profile for
+       $DEVELOPMENT_TEAM.$bundle_id authorises a valid '$APPLE_DISTRIBUTION_IDENTITY' cert AND
+       grants the app group '$IOS_APP_GROUP'.
+       Candidate certs in the keychain:
+$(echo "$IOS_DIST_CANDIDATES" | sed 's/^/         /')
+       It has to be one you created yourself: manual signing refuses an Xcode-managed profile, and
+       Xcode mints those for itself, so having one already is not the same as having this.
+       In the developer portal: Identifiers ▸ $bundle_id ▸ App Groups ▸ assign '$IOS_APP_GROUP' ▸
+       Save, then Profiles ▸ + ▸ 'App Store Connect' ▸ App ID $bundle_id ▸ pick that cert ▸
+       Generate ▸ Download, then copy it into place:
+         cp ~/Downloads/<name>.mobileprovision ~/Library/MobileDevice/Provisioning\\ Profiles/
+       (or point $setting=<path> at the download in $CONFIG). A profile generated before the group
+       was assigned never carries it: re-issue it (Edit ▸ Save) and download it again."
+      printf '%s' "$match"
+    }
+    IOS_PROFILE_MATCH="$(ios_profile_or_fail "$IOS_BUNDLE_ID" "$IOS_PROVISIONING_PROFILE" IOS_PROVISIONING_PROFILE)"
+    IOS_SHARE_PROFILE_MATCH="$(ios_profile_or_fail "$IOS_SHARE_BUNDLE_ID" "$IOS_SHARE_PROVISIONING_PROFILE" IOS_SHARE_PROVISIONING_PROFILE)"
+    IOS_PROFILE_FILE="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f1)"
+    IOS_PROFILE_UUID="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f3)"
+    IOS_SHARE_PROFILE_FILE="$(printf '%s' "$IOS_SHARE_PROFILE_MATCH" | cut -f1)"
+    IOS_SHARE_PROFILE_UUID="$(printf '%s' "$IOS_SHARE_PROFILE_MATCH" | cut -f3)"
   fi
   ;;
 esac
@@ -451,7 +517,7 @@ developer-id)
   EXPORT_TEMPLATE="$HERE/Scripts/ExportOptions-DeveloperID.plist"
   DESTINATION='generic/platform=macOS'
   ;;
-app-store)
+app-store | sandboxed)
   # macOS App Store: the ARCHIVE is DEVELOPMENT-signed with automatic provisioning (Xcode resolves or
   # creates an Apple Development cert + a development profile for eu.allodia.mailcal via
   # -allowProvisioningUpdates). Forcing "Apple Distribution" here fails ("can't distribution-sign an
@@ -467,6 +533,8 @@ app-store)
   # app: this is the one macOS build signed against a provisioning profile, so it is the one that
   # can carry the App Group, and every other macOS build takes the home-relative grant instead
   # (App/AllodiaMailShare.macOS.entitlements carries the measurement).
+  #
+  # Flow E archives identically, so what runs on this Mac is the archive the Store gets.
   SIGN_ARGS+=("CODE_SIGN_STYLE=Automatic" "CODE_SIGN_IDENTITY=Apple Development" \
               "MACOS_ENTITLEMENTS=App/AllodiaMail.appstore.entitlements" \
               "MACOS_SHARE_ENTITLEMENTS=App/AllodiaMailShare.entitlements")
@@ -637,45 +705,33 @@ fi
 # Store) profile, and the full signature verifies deep. A rejection at delivery costs a build number
 # and a slow round-trip, so the gate must be able to fail here first.
 if [[ "$FLOW" == ios-app-store ]]; then
-  # Manual signing, against an installed profile, for the reason the template records: automatic
-  # signing asks App Store Connect to manage the distribution assets and is refused outright by a
-  # key without permission for that, while the profile it needs sits installed and unread.
-  #
-  # The profile decides the certificate, exactly as in Flow B: two certificates can share a common
-  # name, and only one of them is on the profile's list.
-  IOS_DIST_CANDIDATES="$(security find-identity -v -p codesigning \
-    | awk -F'"' -v name="$APPLE_DISTRIBUTION_IDENTITY" '$2 == name { split($1, a, " "); print a[2] }')"
-  [[ -n "$IOS_DIST_CANDIDATES" ]] || fail "no valid codesigning identity named '$APPLE_DISTRIBUTION_IDENTITY' is in the keychain.
-       Check the name in $CONFIG against: security find-identity -v -p codesigning"
-  # The brand's app id, not `BUNDLE_ID`: that one is read from the built macOS app's Info.plist,
-  # several steps further down and on a path this flow never takes.
-  IOS_BUNDLE_ID="$(brand_value MAILCAL_APP_ID)"
-  # No app group: the iOS app declares none, so there is nothing for a profile to grant.
-  IOS_PROFILE_MATCH="$(resolve_profile "$DEVELOPMENT_TEAM.$IOS_BUNDLE_ID" "$IOS_DIST_CANDIDATES" \
-                        "$IOS_PROVISIONING_PROFILE" "" iOS distribution)"
-  IOS_PROFILE_FILE="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f1)"
-  IOS_PROFILE_UUID="$(printf '%s' "$IOS_PROFILE_MATCH" | cut -f3)"
-  [[ -n "$IOS_PROFILE_FILE" && -n "$IOS_PROFILE_UUID" ]] || fail "no installed iOS App Store provisioning profile for
-       $DEVELOPMENT_TEAM.$IOS_BUNDLE_ID authorises a valid '$APPLE_DISTRIBUTION_IDENTITY' cert.
-       Candidate certs in the keychain:
-$(echo "$IOS_DIST_CANDIDATES" | sed 's/^/         /')
-       It has to be one you created yourself: manual signing refuses an Xcode-managed profile, and
-       Xcode mints those for itself, so having one already is not the same as having this.
-       In the developer portal: Profiles ▸ + ▸ 'App Store Connect' ▸ App ID $IOS_BUNDLE_ID ▸ pick that
-       cert ▸ Generate ▸ Download, then copy it into place:
-         cp ~/Downloads/<name>.mobileprovision ~/Library/MobileDevice/Provisioning\\ Profiles/
-       (or point IOS_PROVISIONING_PROFILE=<path> at the download in $CONFIG). If the cert was
-       recently renewed, re-issue the profile so it lists the current one."
-
   EXPORT_PLIST="$BUILD/ExportOptions.plist"
   sed -e "s/__TEAM_ID__/$DEVELOPMENT_TEAM/g" \
       -e "s/__BUNDLE_ID__/$IOS_BUNDLE_ID/g" \
       -e "s/__PROFILE_UUID__/$IOS_PROFILE_UUID/g" \
+      -e "s/__SHARE_BUNDLE_ID__/$IOS_SHARE_BUNDLE_ID/g" \
+      -e "s/__SHARE_PROFILE_UUID__/$IOS_SHARE_PROFILE_UUID/g" \
       -e "s/__SIGNING_CERTIFICATE__/$APPLE_DISTRIBUTION_IDENTITY/g" \
       "$HERE/Scripts/ExportOptions-AppStore-iOS.plist" >"$EXPORT_PLIST"
 
   echo "==> iOS App Store: exporting the archive (app-store-connect, manual distribution signing)"
   echo "    profile: $(basename "$IOS_PROFILE_FILE") ($IOS_PROFILE_UUID)"
+  echo "    share extension profile: $(basename "$IOS_SHARE_PROFILE_FILE") ($IOS_SHARE_PROFILE_UUID)"
+  # The export is handed each profile by UUID and looks it up among INSTALLED profiles only, so a
+  # profile named by a path anywhere else passes the preflight and then fails here. Installed under
+  # its UUID, with its attributes cleared as the Mac flow clears its copies (ITMS-91109).
+  install_ios_profile() {
+    local file="$1" uuid="$2" dir="$HOME/Library/MobileDevice/Provisioning Profiles"
+    case "$(dirname "$file")" in
+      "$dir" | "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles") return 0 ;;
+    esac
+    mkdir -p "$dir"
+    /bin/cp "$file" "$dir/$uuid.mobileprovision"
+    xattr -c "$dir/$uuid.mobileprovision"
+    echo "    installed $(basename "$file") as $dir/$uuid.mobileprovision"
+  }
+  install_ios_profile "$IOS_PROFILE_FILE" "$IOS_PROFILE_UUID"
+  install_ios_profile "$IOS_SHARE_PROFILE_FILE" "$IOS_SHARE_PROFILE_UUID"
   rm -rf "$EXPORT"; mkdir -p "$EXPORT"
   xcodebuild -exportArchive \
     -archivePath "$ARCHIVE" \
@@ -736,8 +792,23 @@ fi
 # the keychain to re-sign with. So Flow B signs the whole bundle tree itself with an explicit,
 # persistent Apple Distribution cert, then builds the installer with a persistent Mac Installer
 # Distribution cert. It is deterministic and self-verifying (the consistency gate below).
-if [[ "$FLOW" == app-store ]]; then
-  echo "==> Mac App Store: signing manually ($APPLE_DISTRIBUTION_IDENTITY)"
+#
+# Flow E runs this same pass and swaps only the two things macOS judges by where a copy came from:
+# an Apple Development cert for the Distribution one, and a development profile listing this Mac
+# for the Store's. Entitlements, signing order and every gate stay the Store's, which is the point:
+# an entitlement the sandbox needs and the Store build lacks shows up on this Mac first.
+if [[ "$FLOW" == app-store || "$FLOW" == sandboxed ]]; then
+  if [[ "$FLOW" == app-store ]]; then
+    echo "==> Mac App Store: signing manually ($APPLE_DISTRIBUTION_IDENTITY)"
+    SIGN_AUTHORITY="Apple Distribution"
+    PROFILE_KIND=distribution
+    PROFILE_EXPLICIT="$MAS_PROVISIONING_PROFILE"
+  else
+    echo "==> Sandboxed: signing the Store's app manually for this Mac (Apple Development)"
+    SIGN_AUTHORITY="Apple Development"
+    PROFILE_KIND=development
+    PROFILE_EXPLICIT="$MACOS_DEV_PROVISIONING_PROFILE"
+  fi
   APP="$EXPORT/$APP_NAME"
   rm -rf "$EXPORT"; mkdir -p "$EXPORT"
   /bin/cp -R "$ARCHIVE/Products/Applications/$APP_NAME" "$APP"
@@ -767,17 +838,29 @@ if [[ "$FLOW" == app-store ]]; then
   # interchangeable: a provisioning profile authorises ONE of them by fingerprint, and App Store
   # validation checks the app's signing cert against the profile's list. So the profile decides
   # which cert we sign with, and we sign by SHA-1, a name is not a unique key here.
-  DIST_CANDIDATES="$(security find-identity -v -p codesigning \
-    | awk -F'"' -v name="$APPLE_DISTRIBUTION_IDENTITY" '$2 == name { split($1, a, " "); print a[2] }')"
-  [[ -n "$DIST_CANDIDATES" ]] || fail "no valid codesigning identity named '$APPLE_DISTRIBUTION_IDENTITY' is in the keychain.
+  # Flow E takes every Apple Development cert, as build-and-run.sh --sandboxed does: each developer
+  # has their own, and the profile lists the ones it authorises.
+  if [[ "$FLOW" == app-store ]]; then
+    DIST_CANDIDATES="$(security find-identity -v -p codesigning \
+      | awk -F'"' -v name="$APPLE_DISTRIBUTION_IDENTITY" '$2 == name { split($1, a, " "); print a[2] }')"
+    [[ -n "$DIST_CANDIDATES" ]] || fail "no valid codesigning identity named '$APPLE_DISTRIBUTION_IDENTITY' is in the keychain.
        Check the name in $CONFIG against: security find-identity -v -p codesigning"
+  else
+    DIST_CANDIDATES="$(security find-identity -v -p codesigning \
+      | awk -F'"' '$2 ~ /^Apple Development: / { split($1, a, " "); print a[2] }')"
+  fi
   PROFILE_MATCH="$(resolve_profile "$DEVELOPMENT_TEAM.$BUNDLE_ID" "$DIST_CANDIDATES" \
-                    "$MAS_PROVISIONING_PROFILE" "$APP_GROUP" OSX distribution)"
+                    "$PROFILE_EXPLICIT" "$APP_GROUP" OSX "$PROFILE_KIND")"
   PROFILE_FILE="$(printf '%s' "$PROFILE_MATCH" | cut -f1)"
   # Sign with the FINGERPRINT, never the name: two valid certs can share a common name, and
   # `codesign --sign "<name>"` then fails "ambiguous", and if it did not, it would be a coin toss
   # between a cert this profile authorises and one it does not.
   SIGN_ID="$(printf '%s' "$PROFILE_MATCH" | cut -f2)"
+  [[ -n "$PROFILE_FILE" || "$FLOW" == app-store ]] || fail "no macOS DEVELOPMENT provisioning profile for $DEVELOPMENT_TEAM.$BUNDLE_ID
+       grants the app group '$APP_GROUP', lists this Mac, and authorises an 'Apple Development'
+       certificate in this keychain. It is the profile build-and-run.sh --sandboxed signs with:
+       docs/debugging.md, section 8, says how to make one. Point MACOS_DEV_PROVISIONING_PROFILE=<path>
+       at it in $CONFIG if it lives somewhere else. Then re-run."
   [[ -n "$PROFILE_FILE" ]] || fail "no Mac App Store provisioning profile for $DEVELOPMENT_TEAM.$BUNDLE_ID
        authorizes a valid '$APPLE_DISTRIBUTION_IDENTITY' cert AND grants the app group
        '$APP_GROUP'.
@@ -799,6 +882,30 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   echo "    profile: $(basename "$PROFILE_FILE") (grants $APP_GROUP)"
   echo "    signing cert: $SIGN_ID"
   /bin/cp "$PROFILE_FILE" "$APP/Contents/embedded.provisionprofile"
+  xattr -c "$APP/Contents/embedded.provisionprofile"
+
+  # The Share Extension is an App ID of its own, so the Store wants a profile of its own in it, and
+  # checks the extension's signing cert against that profile's list just as it does the app's. The
+  # archive embeds Xcode's development profile, which lists no distribution cert, and App Store
+  # Connect refuses the upload: ITMS-90283 "Invalid Provisioning Profile … Missing code-signing
+  # certificate". Resolved against SIGN_ID alone, because every nested item is signed with the
+  # app's cert. Flow E keeps the archive's profile (clients/apple/README.md, Flow E).
+  SHARE_APPEX="$APP/Contents/PlugIns/AllodiaMailShare.appex"
+  SHARE_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SHARE_APPEX/Contents/Info.plist")"
+  if [[ "$FLOW" == app-store ]]; then
+    SHARE_PROFILE_FILE="$(resolve_profile "$DEVELOPMENT_TEAM.$SHARE_BUNDLE_ID" "$SIGN_ID" \
+                           "$MAS_SHARE_PROVISIONING_PROFILE" "$APP_GROUP" OSX distribution | cut -f1)"
+    [[ -n "$SHARE_PROFILE_FILE" ]] || fail "no Mac App Store provisioning profile for $DEVELOPMENT_TEAM.$SHARE_BUNDLE_ID
+       authorises the cert the app signs with ($SIGN_ID) AND grants the app group '$APP_GROUP'.
+       In the developer portal: Identifiers ▸ $SHARE_BUNDLE_ID ▸ App Groups ▸ assign '$APP_GROUP' ▸
+       Save, then Profiles ▸ + ▸ 'Mac App Store Connect' ▸ App ID $SHARE_BUNDLE_ID ▸ pick that cert ▸
+       Generate ▸ Download, then copy it into place:
+         cp ~/Downloads/<name>.provisionprofile ~/Library/MobileDevice/Provisioning\\ Profiles/
+       (or point MAS_SHARE_PROVISIONING_PROFILE=<path> at the download in $CONFIG). Then re-run."
+    echo "    share extension profile: $(basename "$SHARE_PROFILE_FILE")"
+    /bin/cp "$SHARE_PROFILE_FILE" "$SHARE_APPEX/Contents/embedded.provisionprofile"
+    xattr -c "$SHARE_APPEX/Contents/embedded.provisionprofile"
+  fi
 
   # Reconstruct the distribution entitlements that xcodebuild would inject: the sandbox set from
   # App/AllodiaMail.appstore.entitlements, with $(AppIdentifierPrefix) resolved to the team id and
@@ -858,16 +965,20 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   # ⚠️ The Store archive is the ONE macOS build that can carry this group, because it is the one
   # signed against a provisioning profile; every other macOS build takes
   # App/AllodiaMailShare.macOS.entitlements and a home-relative grant instead (that file carries
-  # the measurement). So the Mac App Store profile must grant the group to the EXTENSION's App ID
-  # as well as to the app's, and the resolver below only checks the app's.
+  # the measurement). So the extension's Mac App Store profile must grant the group as well as the
+  # app's, and the resolver above checks both.
   #
-  # Deliberately no com.apple.application-identifier / team-identifier, matching the relay: the
-  # archive's own automatic signing embedded a profile in the .appex and this pass leaves it
-  # there. If App Store validation turns out to want the pair as well, that is the point to add
-  # both, together, and re-measure.
+  # On the Store it carries its own profile (above), so it takes the pair the app takes,
+  # application-identifier and team-identifier, naming its own App ID: that pair is what ties a
+  # signature to the profile embedded beside it, and codesign does not inject it. Flow E keeps the
+  # archive's profile and signs without the pair, as it always has.
   SHARE_ENTS="$BUILD/appstore.share.entitlements"
   sed -e "s/\$(MAILCAL_HOST_APP_ID)/${BUNDLE_ID}/g" \
     "$HERE/App/AllodiaMailShare.entitlements" >"$SHARE_ENTS"
+  if [[ "$FLOW" == app-store ]]; then
+    /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string ${DEVELOPMENT_TEAM}.${SHARE_BUNDLE_ID}" "$SHARE_ENTS"
+    /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string ${DEVELOPMENT_TEAM}" "$SHARE_ENTS"
+  fi
   plutil -convert xml1 "$SHARE_ENTS"
   plutil -lint "$SHARE_ENTS" >/dev/null \
     || fail "the resolved Share Extension entitlements are not a valid plist ($SHARE_ENTS)."
@@ -902,7 +1013,7 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   echo "==> Verifying every nested item is signed with the same cert as the app"
   APP_AUTH="$(first_authority "$APP")"
   echo "    app: $APP_AUTH"
-  [[ "$APP_AUTH" == *"Apple Distribution"* ]] || fail "the app is not signed with an Apple Distribution cert (got '$APP_AUTH')."
+  [[ "$APP_AUTH" == *"$SIGN_AUTHORITY"* ]] || fail "the app is not signed with an $SIGN_AUTHORITY cert (got '$APP_AUTH')."
   MISMATCH=0
   while IFS= read -r item; do
     A="$(first_authority "$item")"
@@ -927,6 +1038,31 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   assert_symbols_kept "$APP"
 
   codesign --verify --deep --strict --verbose=2 "$APP" || fail "codesign --verify failed on the signed app."
+
+  if [[ "$FLOW" == sandboxed ]]; then
+    # A zip made by `ditto`, which keeps the signature's extended attributes and symlinks intact
+    # where a plain `zip` would not.
+    mkdir -p "$KEEP"
+    KEPT="$KEEP/AllodiaMail-$MARKETING_VERSION_VALUE-Sandboxed.zip"
+    rm -f "$KEPT"
+    ditto -c -k --keepParent "$APP" "$KEPT"
+
+    echo ""
+    echo "==> Sandboxed app ready: $APP"
+    echo "    Kept as: $KEPT"
+    echo "    It runs on the Macs its profile lists, and keeps its data in the sandbox's container,"
+    echo "    apart from the .dmg build's (docs/debugging.md, section 8)."
+    exit 0
+  fi
+
+  # The Store refuses a payload carrying com.apple.quarantine anywhere (ITMS-91109), and reports it
+  # only after the upload, while processing. A profile downloaded in a browser carries it, and `cp`
+  # keeps it even with -X (measured), which is why both profile copies above are followed by
+  # `xattr -c`; this catches any other way in.
+  QUARANTINED="$(xattr -r "$APP" 2>/dev/null \
+    | awk -F': ' '$2 == "com.apple.quarantine" { print "         " $1 }')"
+  [[ -z "$QUARANTINED" ]] || fail "the app carries com.apple.quarantine, which App Store Connect refuses (ITMS-91109):
+$QUARANTINED"
 
   # Build + sign the Store installer.
   PKG="$EXPORT/AllodiaMail.pkg"

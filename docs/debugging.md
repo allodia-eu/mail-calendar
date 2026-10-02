@@ -115,8 +115,12 @@ your real accounts, nor one mode's with the other's.
 so the screens somebody sees **once**, the analytics consent and then the first-account screen
 ([`onboarding.md`](onboarding.md)), can be seen again. Every other mode either injects an account
 or reads the namespace you are already using, so neither can show a first run without emptying
-something you wanted. Delete the directory to get the first run back; anything added through the
-form persists there until you do.
+something you wanted. Anything added through the form persists until you clear it, and clearing
+it is two things: the directory, and the accounts, which live in the platform keystore rather than
+in the directory. Delete the directory alone and the next launch reads the accounts back and opens
+on a mailbox. On Windows, `clients/windows/clear-dev-namespace.ps1 -Namespace dev-first-run` clears
+both. On Apple the accounts are the keychain items under the service `<app id>.dev.first-run`
+(`DevNamespace.keychainService`), which have to go as well.
 
 > ⚠️ **Relaunching a simulator build by hand silently switches it to the personal account.**
 > `xcrun simctl launch <udid> eu.allodia.mailcal` passes **none** of your shell's environment to the
@@ -271,6 +275,15 @@ only; it also waives the probe's HTTPS requirement for the local plaintext serve
   - **macOS**: `MAILCAL_AUTODETECT_WELL_KNOWN_BASE=http://127.0.0.1:28080` in the app's
     environment before launch.
 
+### Signing in to an IMAP account against the harness
+
+Add an account for **`alice@localhost`** from any harness boot, `--account first-run` included:
+detection finds the sign-in server's autoconfig, setup offers "Sign in with your provider", and
+the browser opens the Stalwart login (`alice@test.local` / `harness-alice-pw`). `boot.sh` delivers
+the certificates this needs whenever the harness is up. What serves it, and why it has two names,
+is under "Signing in to an IMAP account" in
+[`docker/stalwart/README.md`](../docker/stalwart/README.md).
+
 ### Making the server refuse a login that is valid
 
 A server can reject a credential that works: Dovecot answers `[AUTHENTICATIONFAILED]` after its
@@ -297,7 +310,7 @@ adb shell am start -n eu.allodia.mailcal/.MainActivity \
 ```
 
 The proxy prints a line per connection (`conn[5] login REFUSED`) to correlate against the app log.
-`--refuse-every 5` lands on a **role folder** after the INBOX has authenticated, which is the mixed
+`--refuse-every 5` lands on **another folder** after the INBOX has authenticated, which is the mixed
 dial; `--refuse-all` refuses the account's first login. To make the credential work again **without**
 relaunching, restart the proxy with no flags: a plain pass-through keeps the same certificate, so
 re-pointing the reverse back at the harness instead fails the next dial with `UnknownIssuer` (the app
@@ -816,6 +829,16 @@ known state (the app is single-instanced, so a hook needs a fresh process). `hom
 the INBOX on reconnect, so on the JMAP account it's how you pick up mail added with
 `harness.sh deliver`; on `stalwart-imap` the IDLE push delivers it to the running app instead.
 
+**Seeing a macOS new-mail notification.** It is raised off the live runtime, so the ordinary loop
+shows it: boot on `--account stalwart-imap` (IDLE delivers into the running app), let the launch
+sync settle, then `harness.sh deliver`. Two things otherwise read as a broken feature. The core
+withholds everything that arrived **before** the core was built, so mail already in the Inbox at
+launch is marked seen and announced by nothing; and macOS suppresses a banner raised while the app
+that posted it is frontmost, which a debug build works around with
+`DebugForegroundNotificationPresenter`. The permission is asked for only once an account exists and
+the usage-statistics question has been answered, so a namespace where neither has happened never
+prompts and never posts ([`background-sync.md`](background-sync.md)).
+
 ## 6. Physical iOS device: background sync + notifications
 
 Background delivery **cannot be tested on a simulator**: `BGTaskScheduler` never runs there and
@@ -909,7 +932,9 @@ clients/apple/Scripts/build-and-run.sh --macos --sandboxed
 The app then carries exactly `App/AllodiaMail.appstore.entitlements`, the set the Store build
 carries, and the relay is sandboxed with the app group rather than ad-hoc signed with nothing.
 `--configuration Release` on top gets the optimisation settings too, though the sandbox is what
-decides the bugs above, not the optimiser.
+decides the bugs above, not the optimiser. For the Store's own archive and signing pass, release
+core included, `clients/apple/Scripts/package.sh --sandboxed` signs with the same profile
+([`clients/apple/README.md`](../clients/apple/README.md), Flow B).
 
 **It needs a development provisioning profile that grants the app group.** Two of the entitlements
 in that set, `keychain-access-groups` and `com.apple.security.application-groups`, are ones macOS
@@ -1159,14 +1184,6 @@ rebuild when you do.
   `tap`/`text`/`swipe`, because synthetic input doesn't drive WinUI dependably. `ui-dump` (UI
   Automation) is read-only, for discovery. Note `home`'s re-sync is a **JMAP** workaround: over
   `stalwart-imap` new mail arrives by IDLE without relaunching anything.
-- **Linux has no pointer, so a gesture cannot be driven, and the cause is upstream.** The virtual
-  pointer protocol looks like the answer and is not: the device is created and the seat does turn
-  on its pointer capability, but the events reach no client
-  ([cage#305](https://github.com/cage-kiosk/cage/issues/305), open, reproduced on sway). AT-SPI
-  actions, `control.sh linux key`/`text` and the launch hooks reach everything else; a drag, a
-  swipe and a wheel scroll stay unexercised.
-  [`clients/linux/README.md`](../clients/linux/README.md#capture-and-control-the-window) has the
-  measurements and why `wlrctl` is not worth installing for it.
 - **Send/SMTP** is not exercised against the harness (its SMTP is plaintext; the core submits over
   implicit TLS). Test compose/send against a personal account for now.
 - **Apple and Android dev runs share the real preferences.** Their persisted choices live in

@@ -73,9 +73,13 @@ extension ContentView {
     /// Whether the message in the reading pane is one of the selected rows, a conversation's
     /// members included. The pane is cleared rather than advanced: the row it would advance to may
     /// be in the same batch and about to leave too.
-    private var selectionHoldsOpenMessage: Bool {
+    private var selectionHoldsOpenMessage: Bool { holdsOpenMessage(selection.keys) }
+
+    /// Whether the message in the reading pane is one of `keys`' rows, a conversation's members
+    /// included.
+    func holdsOpenMessage(_ keys: [SelectionKey]) -> Bool {
         guard let opened = openedMessage else { return false }
-        return visibleRows.filter(selection.contains).contains { row in
+        return visibleRows.filter { keys.contains(SelectionKey($0)) }.contains { row in
             switch row {
             case .flat(let message):
                 return message.account == opened.account && message.key == opened.key

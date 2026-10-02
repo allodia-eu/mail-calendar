@@ -6,7 +6,6 @@ use std::sync::{Arc, Mutex};
 
 use engine_api::AccountId;
 use engine_core::mail::Message;
-use mailcal_account::SyncDepth;
 
 use super::FakeProvider;
 use crate::{MailboxConnector, Surface};
@@ -44,7 +43,6 @@ impl MailboxConnector<FakeProvider> for FakeConnector {
         &self,
         _account: &AccountId,
         mailbox_key: &str,
-        _depth: SyncDepth,
     ) -> Option<FakeProvider> {
         self.folders
             .lock()
@@ -100,7 +98,6 @@ impl MailboxConnector<FakeProvider> for FlakyConnector {
         &self,
         _account: &AccountId,
         mailbox_key: &str,
-        _depth: SyncDepth,
     ) -> Option<FakeProvider> {
         *self.attempts.lock().unwrap() += 1;
         if mailbox_key != self.folder_key {
@@ -114,6 +111,50 @@ impl MailboxConnector<FakeProvider> for FlakyConnector {
             }
         }
         Some(FakeProvider::folder(mailbox_key, self.messages.clone()))
+    }
+}
+
+/// A connector whose folder connects but whose **sync** then fails, for the first
+/// `fail_times` opens of it.
+///
+/// The shape a throttled or briefly unreachable server produces once a provider is already
+/// bound, which [`FlakyConnector`] cannot model: that one fails the connect itself, and a folder
+/// is just as empty after either.
+pub(crate) struct SyncFailingConnector {
+    folder_key: String,
+    messages: Vec<Message>,
+    remaining_failures: Mutex<u32>,
+}
+
+impl SyncFailingConnector {
+    pub(crate) fn new(folder_key: &str, messages: Vec<Message>, fail_times: u32) -> Self {
+        Self {
+            folder_key: folder_key.to_owned(),
+            messages,
+            remaining_failures: Mutex::new(fail_times),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl MailboxConnector<FakeProvider> for SyncFailingConnector {
+    async fn connect_folder(
+        &self,
+        _account: &AccountId,
+        mailbox_key: &str,
+    ) -> Option<FakeProvider> {
+        if mailbox_key != self.folder_key {
+            return None;
+        }
+        let provider = FakeProvider::folder(mailbox_key, self.messages.clone());
+        let mut remaining = self.remaining_failures.lock().unwrap();
+        if *remaining > 0 {
+            *remaining -= 1;
+            provider
+                .failure_switch()
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        Some(provider)
     }
 }
 
@@ -156,7 +197,6 @@ impl MailboxConnector<FakeProvider> for ObservingConnector {
         &self,
         _account: &AccountId,
         mailbox_key: &str,
-        _depth: SyncDepth,
     ) -> Option<FakeProvider> {
         let published = self
             .surfaces

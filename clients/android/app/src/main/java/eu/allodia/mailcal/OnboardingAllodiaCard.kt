@@ -121,20 +121,20 @@ internal fun OnboardingAllodiaCard(
             // sign-in rather than an empty answer (docs/onboarding.md).
             // A pass that has not answered -- one that failed on the network -- says nothing.
             // Reporting it as an empty account states a result nobody has.
-            if (offers == null) {
-                Unit
-            } else if (offers.isEmpty()) {
-                Text(
-                    L10n.setup_allodia_none_title(ctx),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    L10n.setup_allodia_none_body(ctx),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                OfferRows(offers, onSetUp)
+            when {
+                offers == null -> {}
+                offers.isEmpty() -> {
+                    Text(
+                        L10n.setup_allodia_none_title(ctx),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        L10n.setup_allodia_none_body(ctx),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                else -> OfferRows(offers, onSetUp)
             }
         }
 

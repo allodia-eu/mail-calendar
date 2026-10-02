@@ -13,13 +13,7 @@ impl GridScene {
             return false;
         }
         let geometry = self.geometry(width);
-        if geometry.hits.iter().any(|hit| {
-            hit.identity.is_some()
-                && x >= hit.rect.x
-                && x < hit.rect.x + hit.rect.width
-                && y >= hit.rect.y
-                && y < hit.rect.y + hit.rect.height
-        }) {
+        if geometry.hits.iter().any(|hit| hit.contains(x, y)) {
             return false;
         }
         let Some((day, raw_minute)) = self.drag_metrics(width).point(x, y) else {
@@ -52,7 +46,7 @@ impl GridScene {
     fn drag_metrics(&self, width: f64) -> DragMetrics {
         DragMetrics {
             gutter: GUTTER,
-            content_top: self.content_top(),
+            content_top: 0.0,
             day_width: self.geometry(width).day_width,
             hour_height: self.hour_height,
             days: self.days.len(),
@@ -94,8 +88,8 @@ mod tests {
     #[test]
     fn a_settled_grid_drag_names_the_date_and_snapped_range_it_drew() {
         let mut scene = scene();
-        assert!(scene.begin_create(80.0, 52.0 + 10.0 * 60.0 + 5.0, 168.0));
-        scene.update_create(52.0 + 11.0 * 60.0 + 28.0, 168.0);
+        assert!(scene.begin_create(80.0, 10.0 * 60.0 + 5.0, 168.0));
+        scene.update_create(11.0 * 60.0 + 28.0, 168.0);
         let slot = scene.finish_create().unwrap();
         assert_eq!(slot.date, date());
         assert_eq!(slot.start_minutes, 10 * 60);
@@ -123,7 +117,7 @@ mod tests {
             border: Rgb::new(0.1, 0.2, 0.3),
             awaiting: false,
         });
-        assert!(!scene.begin_create(80.0, 52.0 + 10.5 * 60.0, 168.0));
+        assert!(!scene.begin_create(80.0, 10.5 * 60.0, 168.0));
         assert!(scene.drag().is_none());
     }
 }

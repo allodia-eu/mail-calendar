@@ -35,6 +35,8 @@ fn app_with_prefs(
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
+            dialled: true,
+            uses_mail: true,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),
@@ -197,6 +199,7 @@ impl engine_provider::Provider for IdentityProvider {
     }
 }
 
+impl engine_api::MailboxWrites for IdentityProvider {}
 impl engine_provider::CalendarWrites for IdentityProvider {}
 
 /// A one-account app whose provider holds `name` as the server's own display name.
@@ -214,6 +217,8 @@ fn app_with_identity(
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
+            dialled: true,
+            uses_mail: true,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),

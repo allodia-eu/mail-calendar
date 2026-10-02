@@ -30,9 +30,14 @@
 //!
 //! The steps themselves are in [`crate::gate_steps`].
 
-use std::{io::IsTerminal, path::Path, process::ExitCode};
+use std::{
+    io::IsTerminal,
+    path::Path,
+    process::ExitCode,
+    time::{Duration, Instant},
+};
 
-use crate::{gate_steps, prune, shared_build};
+use crate::{gate_exec::Timings, gate_steps, prune, shared_build};
 
 /// What became of one step.
 #[derive(Debug)]
@@ -105,23 +110,19 @@ pub(crate) fn run(root: &Path, args: &[String]) -> ExitCode {
         }
     }
 
-    // Before anything is judged, so no step reports on a build another checkout left behind.
-    shared_build::claim(root);
+    // Before anything is judged, so no step reports on a build another checkout left behind, and
+    // held until the gate exits, so no other gate builds there in between.
+    let _claim = shared_build::claim(root);
 
     let palette = Palette::detect();
-    let mut results: Vec<Step> = Vec::new();
-    let mut failed = false;
+    let started = Instant::now();
+    let (results, timings) = gate_steps::all(root, clients, keep_going, &palette);
+    let failed = results
+        .iter()
+        .any(|(_, outcome)| matches!(outcome, Outcome::Fail | Outcome::Need(_)));
 
-    for step in gate_steps::all(root, clients, &palette) {
-        let stop = matches!(step.1, Outcome::Fail | Outcome::Need(_));
-        failed |= stop;
-        results.push(step);
-        if stop && !keep_going {
-            break;
-        }
-    }
-
-    summary(&results, &palette);
+    summary(&results, &timings, &palette);
+    println!("      {:>6}  in all", seconds(started.elapsed()));
     if failed {
         // The cache is left warm on purpose: a red gate means you are still iterating, and that is
         // exactly when it is worth its disk.
@@ -137,7 +138,7 @@ pub(crate) fn run(root: &Path, args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn summary(results: &[Step], palette: &Palette) {
+fn summary(results: &[Step], timings: &Timings, palette: &Palette) {
     println!("\n{}---- gate summary ----{}", palette.bold, palette.reset);
     for (label, outcome) in results {
         let (tag, colour) = match outcome {
@@ -146,11 +147,19 @@ fn summary(results: &[Step], palette: &Palette) {
             Outcome::Skip(_) => ("SKIP", palette.yellow),
             Outcome::Need(_) => ("NEED", palette.red),
         };
+        let took = timings
+            .get(label)
+            .map_or_else(String::new, |&took| seconds(took));
         match outcome {
             Outcome::Skip(why) | Outcome::Need(why) => {
-                println!("{colour}{tag}{}  {label}: {why}", palette.reset);
+                println!("{colour}{tag}{}  {took:>6}  {label}: {why}", palette.reset);
             }
-            _ => println!("{colour}{tag}{}  {label}", palette.reset),
+            _ => println!("{colour}{tag}{}  {took:>6}  {label}", palette.reset),
         }
     }
+}
+
+/// A duration as the summary prints it, in seconds to a tenth.
+fn seconds(took: Duration) -> String {
+    format!("{:.1}s", took.as_secs_f64())
 }

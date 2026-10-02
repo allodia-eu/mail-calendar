@@ -67,6 +67,11 @@ internal fun composerLabelsJson(ctx: android.content.Context): String = JSONObje
     put("deleteRow", L10n.editor_delete_row(ctx))
     put("deleteColumn", L10n.editor_delete_column(ctx))
     put("deleteTable", L10n.editor_delete_table(ctx))
+    put("link", L10n.editor_link(ctx))
+    put("linkText", L10n.editor_link_text(ctx))
+    put("linkAddress", L10n.editor_link_address(ctx))
+    put("linkApply", L10n.editor_link_apply(ctx))
+    put("linkRemove", L10n.editor_link_remove(ctx))
 }.toString()
 
 // The exact JS the host injects once the editor bundle has parsed and its `window.*` hooks exist,
@@ -141,6 +146,7 @@ internal fun WebView.configureComposerWebView(
             for (script in composerPageFinishedScripts(labelsJson, quote, topInsetDp(), signature(), body)) {
                 view?.evaluateJavascript(script, null)
             }
+            view?.announceComposerHost()
             // Snapshot the seeded document as the discard prompt's baseline. Queued AFTER the
             // seeds (the WebView runs these in order) so a reply that merely carries its quoted
             // original and a signature does not open already "dirty", and BEFORE the focus call,
@@ -166,6 +172,7 @@ internal fun WebView.configureComposerWebView(
 @Composable
 internal fun ComposerEditorView(
     html: String,
+    linkHost: ComposerLinkHost,
     quote: String?,
     body: String,
     labelsJson: String,
@@ -186,6 +193,7 @@ internal fun ComposerEditorView(
             .graphicsLayer { clip = true },
         factory = { context ->
             WebView(context).apply {
+                installComposerHost(linkHost)
                 configureComposerWebView(
                     quote = quote,
                     body = body,
@@ -214,6 +222,11 @@ private fun WebView.focusEditorAndShowKeyboard() {
     evaluateJavascript("window.focusComposerBody()", null)
     post {
         if (requestFocus()) {
+            // Implicit, because the user did not tap the field: up to Android 15 the IME then
+            // stays down while a hardware keyboard is attached and does not open full-screen in
+            // landscape. Flags of 0 would be an explicit request, which does both. Android 16
+            // ignores the flag.
+            @Suppress("DEPRECATION")
             context.getSystemService(InputMethodManager::class.java)
                 ?.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
         }

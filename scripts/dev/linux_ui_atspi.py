@@ -115,6 +115,7 @@ def find_nodes(
     role: str | None = None,
     within: str | None = None,
     within_role: str | None = None,
+    after: str | None = None,
     contains_name: str | None = None,
     name_substring: str | None = None,
     description: str | None = None,
@@ -135,6 +136,11 @@ def find_nodes(
     unanswered invitation; "Awaiting your response" (docs/calendar.md §4). The disclosure is the
     part the contract binds; the sentence around it is the fixture's own words and a date. Matching
     the whole string would pin the fixture instead of the rule.
+
+    `after` is for a control whose name every row repeats and whose ancestors carry none: the
+    reading pane's "More actions" shares its name with each message row's, and only its position
+    tells it apart, after that pane's "Forward". Only nodes walk order reaches after the first
+    node named `after` are candidates.
     """
     scope = root
     if within is not None:
@@ -152,7 +158,11 @@ def find_nodes(
         if scope is None:
             return []
     matches: list[Any] = []
+    passed = after is None
     for candidate in walk(scope):
+        if not passed:
+            passed = _matches(node_name(candidate), after)
+            continue
         if (
             _matches(node_name(candidate), name)
             and _matches(node_role(candidate), role)
@@ -256,6 +266,26 @@ def actionable_match(matches: list[Any], fallback: Any) -> Any:
     there for what a label publishes.
     """
     return next((node for node in matches if preferred_action(node) is not None), fallback)
+
+
+def node_centre(node: Any) -> tuple[int, int] | None:
+    """The centre of a node, in the window's own coordinates.
+
+    **Window coordinates, never desktop ones.** Wayland does not tell a client where it is on
+    screen, so AT-SPI cannot either: every node here reports `0,0` in `DESKTOP_COORDS`, which
+    reads as a valid point and is not one. `WINDOW_COORDS` is measured and correct, and on the
+    headless test compositor the client is tiled full-bleed at the origin, so the window's
+    coordinates *are* the output's, which is what the pointer takes.
+    """
+    try:
+        import pyatspi
+
+        extents = node.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+    except Exception:
+        return None
+    if extents.width <= 0 or extents.height <= 0:
+        return None
+    return (extents.x + extents.width // 2, extents.y + extents.height // 2)
 
 
 def activate_node(node: Any) -> bool:
@@ -386,6 +416,7 @@ def wait_for_nodes(
     within: str | None,
     within_role: str | None,
     contains_name: str | None,
+    after: str | None = None,
     name_substring: str | None,
     description: str | None,
     enabled_only: bool,
@@ -402,6 +433,7 @@ def wait_for_nodes(
             role=role,
             within=within,
             within_role=within_role,
+            after=after,
             contains_name=contains_name,
             name_substring=name_substring,
             description=description,
@@ -426,6 +458,7 @@ def wait_for_absence(
     within: str | None,
     within_role: str | None,
     contains_name: str | None,
+    after: str | None = None,
     name_substring: str | None,
     description: str | None,
     timeout: float,
@@ -439,6 +472,7 @@ def wait_for_absence(
             role=role,
             within=within,
             within_role=within_role,
+            after=after,
             contains_name=contains_name,
             name_substring=name_substring,
             description=description,
@@ -459,12 +493,13 @@ def parser() -> argparse.ArgumentParser:
     dump.add_argument("--timeout", type=float, default=20.0)
     gone = commands.add_parser("gone", help="wait until no client is on the accessibility bus")
     gone.add_argument("--timeout", type=float, default=20.0)
-    for command in ("wait", "activate", "measure", "set-text", "read-text"):
+    for command in ("wait", "activate", "locate", "measure", "set-text", "read-text"):
         target = commands.add_parser(command, help=f"{command} an exact accessible target")
         target.add_argument("--name")
         target.add_argument("--role")
         target.add_argument("--within")
         target.add_argument("--within-role")
+        target.add_argument("--after")
         target.add_argument("--contains-name")
         target.add_argument("--name-substring")
         target.add_argument("--description")
@@ -513,6 +548,7 @@ def main(argv: list[str] | None = None) -> int:
                 role=args.role,
                 within=args.within,
                 within_role=args.within_role,
+                after=args.after,
                 contains_name=args.contains_name,
                 name_substring=args.name_substring,
                 description=args.description,
@@ -529,24 +565,40 @@ def main(argv: list[str] | None = None) -> int:
         # the default, so it cannot be told apart from asking for no index at all.
         # Only with the default index: an explicit `--index` is the caller naming one node, and
         # scanning past it would quietly drive a different one.
-        scanning = args.command in ("set-text", "read-text", "activate", "measure") and args.index == 0
+        scanning = (
+            args.command in ("set-text", "read-text", "activate", "locate", "measure")
+            and args.index == 0
+        )
         matches = wait_for_nodes(
             lambda: wait_for_application(args.timeout),
             name=args.name,
             role=args.role,
             within=args.within,
             within_role=args.within_role,
+            after=args.after,
             contains_name=args.contains_name,
             name_substring=args.name_substring,
             description=args.description,
             enabled_only=args.command in ("activate", "measure") or args.enabled,
-            showing_only=args.command in ("activate", "measure") or args.showing,
+            showing_only=args.command in ("activate", "locate", "measure") or args.showing,
             timeout=args.timeout,
             result_limit=NODE_SCAN if scanning else args.index + 1,
         )
         if args.index < 0 or args.index >= len(matches):
             raise IndexError(f"target index {args.index} is outside {len(matches)} matches")
         target = matches[args.index]
+        if args.command == "locate":
+            # "<x> <y>", so it pipes straight into a pointer command, the way `find` does into
+            # `tap` on macOS. A control a screenshot shows but the tree measures as zero-sized is
+            # reported as such rather than clicked at the origin.
+            centre = next(
+                (point for point in (node_centre(node) for node in matches) if point is not None),
+                None,
+            )
+            if centre is None:
+                raise RuntimeError("target reports no size, so there is no point to click")
+            print(f"{centre[0]} {centre[1]}")
+            return 0
         if args.command == "read-text":
             candidates = [target]
             if scanning:

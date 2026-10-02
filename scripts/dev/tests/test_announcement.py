@@ -3,6 +3,7 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts" / "ci"))
@@ -29,7 +30,7 @@ EVERYWHERE = ("macos", "ios", "windows", "android", "linux")
 class Grouping(unittest.TestCase):
     def test_a_change_on_every_shipping_platform_leads_the_page(self) -> None:
         out = subject.build("1.0.0", "2027-01-01", [fragment("everywhere", EVERYWHERE)])
-        self.assertIn("## 🌟 Every app: macOS, iPhone & iPad, Windows and Android", out)
+        self.assertIn("## 🌟 Every app: macOS, iPhone & iPad, Windows, Android and Linux", out)
         self.assertNotIn("## 🖥️ macOS", out)
 
     def test_a_change_reaching_two_apps_is_listed_under_both(self) -> None:
@@ -40,8 +41,14 @@ class Grouping(unittest.TestCase):
         self.assertIn("## 🖥️ macOS", out)
         self.assertIn("## 🤖 Android", out)
 
-    def test_linux_is_reported_as_unreleased_rather_than_announced(self) -> None:
+    def test_linux_is_announced_although_it_has_no_store(self) -> None:
         out = subject.build("1.0.0", "2027-01-01", [fragment("penguin", ("linux",))])
+        self.assertIn("## 🐧 Linux\n", out)
+        self.assertNotIn("not in a store yet", out)
+
+    def test_a_platform_nobody_can_install_is_reported_as_unreleased(self) -> None:
+        with mock.patch.object(subject, "DOWNLOAD_ONLY", ()):
+            out = subject.build("1.0.0", "2027-01-01", [fragment("penguin", ("linux",))])
         self.assertIn("## 🐧 Linux (not yet in a store)", out)
         self.assertIn("is not in a store yet", out)
 
@@ -74,13 +81,17 @@ class NewBeforeFixed(unittest.TestCase):
 
 class Shipping(unittest.TestCase):
     def test_shipping_is_derived_from_the_store_map(self) -> None:
-        # The one property that keeps this honest as the product grows: the day Linux gets a store,
-        # it stops being described as unreleased without anyone remembering to edit this file.
+        # The one property that keeps this honest as the product grows: the day a platform gets a
+        # store, it stops being described as unreleased without anyone remembering to edit this file.
         self.assertEqual(
             subject.shipping_platforms(),
-            tuple(p for p in subject.PLATFORM_NAMES if PLATFORM_STORES[p]),
+            tuple(
+                p
+                for p in subject.PLATFORM_NAMES
+                if PLATFORM_STORES[p] or p in subject.DOWNLOAD_ONLY
+            ),
         )
-        self.assertNotIn("linux", subject.shipping_platforms())
+        self.assertIn("linux", subject.shipping_platforms())
 
 
 class Bullets(unittest.TestCase):

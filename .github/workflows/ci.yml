@@ -203,7 +203,7 @@ jobs:
       # `needs: changes` above is for this one output, never for an area: the job runs whatever the
       # change set says, as the header explains.
       - name: Install the pinned Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ needs.changes.outputs.toolchain }}
 
@@ -322,13 +322,13 @@ jobs:
       # reads like the pin is wrong.
       - name: Install nightly rustfmt (pinned)
         id: nightly
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ needs.changes.outputs.nightly }}
           components: rustfmt
 
       - name: Install the pinned Rust + clippy
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ needs.changes.outputs.toolchain }}
           components: clippy
@@ -356,7 +356,7 @@ jobs:
         # Submodules are contributor and AI guidance; the build does not need them.
 
       - name: Install the pinned Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ needs.changes.outputs.toolchain }}
 
@@ -397,6 +397,30 @@ jobs:
           STALWART_ACCOUNT: alice@test.local
           STALWART_PASSWORD: harness-alice-pw
         run: cargo test -p mailcal-account --test live_jmap -- --nocapture
+
+      # "Sign in with your provider" for a JMAP account, against the harness's sign-in server:
+      # discovery, registration, the code exchange and a connect on the grant. The seeded server
+      # is asserted to offer no sign-in, which is what the clients' setup-form tests rely on.
+      - name: Run the gated JMAP sign-in live test
+        env:
+          STALWART_OAUTH_HTTP_ADDR: localhost:28081
+          STALWART_HTTP_ADDR: 127.0.0.1:28080
+        run: cargo test -p mailcal-bindings --test live_jmap_oauth -- --nocapture
+
+      # The same for an IMAP account, whose authorization server is learnt over HTTPS only: the
+      # provider's own autoconfig naming an issuer, the capability probe, registration, the code
+      # exchange and a connect over OAUTHBEARER, against the sign-in server as its HTTPS front
+      # presents it. The seeded server is asserted to stay on "only pre-registered apps".
+      # MAILCAL_EXTRA_CA is the harness's own certificates, which a debug build trusts.
+      - name: Run the gated IMAP sign-in live tests
+        env:
+          MAILCAL_EXTRA_CA: ${{ github.workspace }}/docker/stalwart/tls/harness-ca.pem
+          MAILCAL_HARNESS_IMAP: localhost:12993
+          MAILCAL_HARNESS_OAUTH_IMAP: localhost:12995
+        run: |
+          scripts/dev/harness.sh certs
+          cargo test -p mailcal-account --test live_imap_auth -- --nocapture
+          cargo test -p mailcal-bindings --test live_imap_oauth -- --nocapture
 
       - name: Dump Stalwart logs on failure
         if: failure()
@@ -534,7 +558,7 @@ jobs:
           delete-used-deriveddata-cache: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Set up Rust (${{ matrix.rust-target }})
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ needs.changes.outputs.toolchain }}
           targets: ${{ matrix.rust-target }}
@@ -690,7 +714,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Set up Rust (pinned + x64 MSVC target)
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ needs.changes.outputs.toolchain }}
           targets: x86_64-pc-windows-msvc
@@ -766,13 +790,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up JDK 17
-        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Install the pinned Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ needs.changes.outputs.toolchain }}
 
@@ -931,7 +955,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install the pinned Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ needs.changes.outputs.toolchain }}
           targets: x86_64-linux-android
@@ -1030,7 +1054,7 @@ jobs:
             at-spi2-core python3-pyatspi sway grim
 
       - name: Install the pinned Rust + clippy
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ needs.changes.outputs.toolchain }}
           components: clippy
@@ -1143,7 +1167,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install the pinned Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: ${{ needs.changes.outputs.toolchain }}
 

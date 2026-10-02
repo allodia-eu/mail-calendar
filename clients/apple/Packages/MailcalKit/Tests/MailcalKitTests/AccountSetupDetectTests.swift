@@ -35,6 +35,7 @@ struct AccountSetupDetectTests {
                 )
                 : nil,
             caldavUrl: caldavURL,
+            oauthIssuer: nil,
             isTrusted: isTrusted,
             source: "https://autoconfig.example.com/mail/config-v1.1.xml"
         )
@@ -80,6 +81,58 @@ struct AccountSetupDetectTests {
         #expect(form.canConnect)
     }
 
+    @Test func untrustedImapIsApprovedBeforeASignIn() {
+        // The config decides which server the token is presented to, so approving it matters as
+        // much for a sign-in as for a typed password.
+        var form = DetectedConnectForm(recommendation: imap(false))
+        #expect(!form.canSignIn)
+        form.approved = true
+        #expect(form.canSignIn)
+        #expect(DetectedConnectForm(recommendation: imap(true)).canSignIn)
+    }
+
+    /// A refused certificate gates Connect the way an untrusted result does, and nothing is
+    /// handed back to store until somebody has accepted it (`docs/certificate-exceptions.md`).
+    @Test func aRefusedCertificateGatesConnectUntilItIsAccepted() {
+        var form = DetectedConnectForm(recommendation: imap(true))
+        form.password = "hunter2"
+        #expect(form.canConnect)
+
+        form.rejectedCertificate = refusedCertificate()
+        #expect(!form.canConnect)
+        #expect(form.acceptedCertificate == nil)
+
+        form.certificateAccepted = true
+        #expect(form.canConnect)
+        #expect(form.acceptedCertificate == form.refusedCertificate)
+    }
+
+    /// The two gates are independent: accepting the certificate does not also approve
+    /// settings that arrived over a connection that was not secure.
+    @Test func acceptingACertificateDoesNotApproveUntrustedSettings() {
+        var form = DetectedConnectForm(recommendation: imap(false))
+        form.password = "hunter2"
+        form.rejectedCertificate = refusedCertificate()
+        form.certificateAccepted = true
+        #expect(!form.canConnect)
+
+        form.approved = true
+        #expect(form.canConnect)
+    }
+
+    private func refusedCertificate() -> RejectedCertificate {
+        RejectedCertificate(
+            serverName: "imap.example.com",
+            sha256: "AB:CD",
+            subjectCommonName: "imap.example.com",
+            subjectOrganisation: "Example Ltd",
+            issuerCommonName: "imap.example.com",
+            issuerOrganisation: "Example Ltd",
+            notBefore: 0,
+            notAfter: 1
+        )
+    }
+
     @Test func oauthAndManualNeverConnectDirectly() {
         // OAuth providers (Microsoft, Google) sign in via the browser, not this connect form, so
         // the form never enables Connect for them, nor for a manual-fallback recommendation.
@@ -109,5 +162,113 @@ struct AccountSetupDetectTests {
         form.calendarEnabled = true
         form.calendarURLEntry = "caldav.example.com"
         #expect(form.effectiveCaldavURL == "caldav.example.com")
+    }
+
+    // What the setup card asks for once the server has answered. Three states rather than a flag,
+    // and the middle one is the reason: a provider whose sign-in is closed to this application is
+    // not the same as one that offers none.
+
+    @Test func nothingIsAskedForWhileTheServerIsStillBeingAsked() {
+        // A credential field that appears and is then taken away reads as the app changing its
+        // mind, and the answer decides whether it belongs there at all.
+        let state = ImapAuthState.checking
+        #expect(!state.showsPassword)
+        #expect(!state.offersSignIn)
+    }
+
+    @Test func aProviderOfferingSignInKeepsThePasswordRouteWhereItWorks() {
+        let state = ImapAuthState(
+            .signIn(issuer: "https://login.example.com", providerLabel: nil, passwordAlsoWorks: true)
+        )
+        #expect(state.offersSignIn)
+        #expect(state.showsPassword)
+    }
+
+    @Test func aServerThatRefusesPasswordsIsNotOfferedAPasswordField() {
+        // Microsoft 365's shape: OAuth only. That field would be a dead end nobody finds until
+        // they have typed one into it.
+        let state = ImapAuthState(
+            .signIn(issuer: "https://login.example.com", providerLabel: nil, passwordAlsoWorks: false)
+        )
+        #expect(state.offersSignIn)
+        #expect(!state.showsPassword)
+    }
+
+    @Test func besideASignInThePasswordFieldWaitsUntilItIsAskedFor() {
+        // A field on screen reads as "type your password here", whatever the button under it
+        // says, so beside a sign-in it stays behind "Use a password instead" (rule 2).
+        let state = ImapAuthState(
+            .signIn(issuer: "https://login.example.com", providerLabel: nil, passwordAlsoWorks: true)
+        )
+        #expect(!state.showsPasswordField(chosen: false))
+        #expect(state.offersPasswordInstead(chosen: false))
+        #expect(state.showsPasswordField(chosen: true))
+        #expect(!state.offersPasswordInstead(chosen: true))
+    }
+
+    @Test func noPasswordRouteIsOfferedWhereTheServerRefusesOne() {
+        let state = ImapAuthState(
+            .signIn(issuer: "https://login.example.com", providerLabel: nil, passwordAlsoWorks: false)
+        )
+        #expect(!state.offersPasswordInstead(chosen: false))
+        #expect(!state.showsPasswordField(chosen: true))
+    }
+
+    @Test func withoutASignInThePasswordFieldNeedsNoAsking() {
+        for state in [ImapAuthState.password, .registrationNeeded, .failed] {
+            #expect(state.showsPasswordField(chosen: false))
+            #expect(!state.offersPasswordInstead(chosen: false))
+        }
+        #expect(!ImapAuthState.checking.showsPasswordField(chosen: true))
+    }
+
+    @Test func aClosedSignInStillLeadsToThePasswordField() {
+        // The explanation is what differs from `.password`; the route offered is the same one.
+        let state = ImapAuthState(.registrationNeeded(passwordAlsoWorks: true))
+        #expect(!state.offersSignIn)
+        #expect(state.showsPassword)
+    }
+
+    @Test func aFailedSignInBringsThePasswordFieldBack() {
+        // It is the route left, so it must be there, and the line beside it says why.
+        #expect(ImapAuthState.failed.showsPassword)
+        #expect(!ImapAuthState.failed.offersSignIn)
+    }
+
+    // What the manual pane asks the server about. Its answer depends on every field the probe
+    // reads, so a change to any of them must ask again, and only those.
+
+    private func typed(
+        _ servers: ManualServerPair, smtpHost: String? = nil, caldavURL: String? = nil
+    ) -> ImapLoginRequest {
+        imapLoginRequest(
+            email: "alice@example.com", imapHost: servers.imap.dial("imap.example.com"),
+            smtpHost: smtpHost, caldavURL: caldavURL, imapSecurity: servers.imap.security,
+            smtpSecurity: servers.smtp.security, oauthIssuer: nil
+        )
+    }
+
+    @Test func aChangedPortAsksTheServerAgain() {
+        // Otherwise the answer on screen is about a listener the account will never dial.
+        var servers = ManualServerPair()
+        let before = ImapAuthQuestion(typed(servers))
+        servers.imap.typePort("12993")
+        #expect(ImapAuthQuestion(typed(servers)) != before)
+    }
+
+    @Test func aChangedSecurityAsksTheServerAgain() {
+        var servers = ManualServerPair()
+        let before = ImapAuthQuestion(typed(servers))
+        servers.imap.choose(.startTls)
+        #expect(ImapAuthQuestion(typed(servers)) != before)
+    }
+
+    @Test func theOutgoingServerAndCalendarAreNotPartOfTheQuestion() {
+        // The probe reads neither, so typing them must not send another one.
+        let servers = ManualServerPair()
+        #expect(
+            ImapAuthQuestion(typed(servers, smtpHost: "smtp.example.com", caldavURL: "https://dav.example.com"))
+                == ImapAuthQuestion(typed(servers))
+        )
     }
 }

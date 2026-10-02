@@ -257,6 +257,7 @@ struct RichComposeView: View {
         )
         .modifier(composerDrop)
         .modifier(draftSaving)
+        .modifier(ComposerLinkDialogModifier(request: $editor.linkRequest, channel: editor.hostChannel))
         #else
         // iOS/iPadOS: a full-height sheet with the title + Cancel/Send in the navigation bar.
         NavigationStack {
@@ -283,6 +284,7 @@ struct RichComposeView: View {
             attachments: attachments.count, edited: { draftChanges &+= 1 }
         )
         .modifier(draftSaving)
+        .modifier(ComposerLinkDialogModifier(request: $editor.linkRequest, channel: editor.hostChannel))
         #endif
     }
 

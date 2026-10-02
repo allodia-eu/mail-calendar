@@ -144,5 +144,15 @@ mailcal-buildenv = { workspace = true }
 unsafe_code = "allow"
 warnings = { level = "deny", priority = -1 }
 
+[lints.clippy]
+# `MailcalError` carries the certificate a server presented that did not verify
+# (`docs/certificate-exceptions.md`), which is six string-ish fields, so every `Result` in this
+# crate's FFI surface is past the lint's 128-byte threshold: 53 functions, all of them a call
+# across the language boundary where the copy is noise. The usual remedy is a `Box`, and UniFFI
+# has no such type: a record's fields are the wire format, so the indirection cannot be
+# expressed. The alternative is handing the certificate back out of band, which trades a typed
+# failure for a stateful accessor the caller must remember to read.
+result_large_err = "allow"
+
 [lints.rustdoc]
 all = { level = "deny", priority = -1 }

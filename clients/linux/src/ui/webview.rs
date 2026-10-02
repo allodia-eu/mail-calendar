@@ -385,10 +385,8 @@ fn hardened_settings(kind: DocumentKind) -> Settings {
     settings.set_allow_universal_access_from_file_urls(false);
     settings.set_allow_modal_dialogs(false);
     settings.set_javascript_can_open_windows_automatically(false);
-    settings.set_enable_dns_prefetching(false);
     settings.set_enable_html5_database(false);
     settings.set_enable_html5_local_storage(false);
-    settings.set_enable_offline_web_application_cache(false);
     settings.set_enable_media_stream(false);
     settings.set_enable_webrtc(false);
     settings.set_enable_webgl(false);

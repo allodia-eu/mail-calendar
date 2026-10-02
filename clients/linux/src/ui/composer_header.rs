@@ -10,7 +10,7 @@ use gtk::accessible::{Property as AccessibleProperty, Relation as AccessibleRela
 use mailcal_bindings::MailcalApp;
 
 use super::{composer_model::ComposeContext, recipients::RecipientField};
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 /// Whether the composer must open with Cc and Bcc revealed, given what the request pre-filled them
 /// with.
@@ -56,7 +56,7 @@ pub(super) fn recipient_rows(
     request: &ComposeContext,
     app: Option<&Arc<MailcalApp>>,
 ) -> RecipientRows {
-    let chevron = gtk::Image::from_icon_name("pan-down-symbolic");
+    let chevron = gtk::Image::from_icon_name(icons::SHOW_DETAILS);
     let toggle = gtk::ToggleButton::new();
     toggle.set_child(Some(&chevron));
     toggle.add_css_class("flat");
@@ -105,9 +105,9 @@ fn reveal(cc: &Row, bcc: &Row, chevron: &gtk::Image, revealed: bool) {
     cc.set_visible(revealed);
     bcc.set_visible(revealed);
     chevron.set_icon_name(Some(if revealed {
-        "pan-up-symbolic"
+        icons::HIDE_DETAILS
     } else {
-        "pan-down-symbolic"
+        icons::SHOW_DETAILS
     }));
 }
 

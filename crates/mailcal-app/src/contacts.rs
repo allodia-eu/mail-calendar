@@ -15,7 +15,10 @@ use std::{sync::atomic::Ordering, time::Instant};
 use engine_api::{ContactSourceClass, PeopleQuery, Provider};
 use mailcal_viewmodel::{ContactDetail, ContactsSnapshot, contacts};
 
-use crate::{App, Surface};
+use crate::{
+    App, Surface,
+    sync_account::{Reach, reach_of_api, reachability, signin_expired},
+};
 
 /// How many people one snapshot holds.
 ///
@@ -84,9 +87,12 @@ impl<P: Provider> App<P> {
                     ),
                 }
             }
+            let mut reaches = Vec::new();
             for (index, provider) in account.contact_providers.iter().enumerate() {
                 let started = Instant::now();
-                match self.engine.sync_contact_cards(provider, &account.id).await {
+                let result = self.engine.sync_contact_cards(provider, &account.id).await;
+                reaches.push(reach_of_api(&result));
+                match result {
                     // `unavailable` is a **success** carrying a refusal: the source was reached
                     // and declined (a shared book the account cannot read, a personal Microsoft
                     // account whose directory has no contacts). Folding it into `synced`, which
@@ -125,6 +131,17 @@ impl<P: Provider> App<P> {
                     }
                 }
             }
+            // An account with neither mail nor a calendar learns here whether its server
+            // answers; the calendar pass answers for one that has a calendar.
+            if !account.uses_mail && account.calendar_providers.is_empty() {
+                if let Some(reachable) = reachability(Reach::Busy, reaches.iter().copied()) {
+                    self.set_account_reachable(&account.id, reachable);
+                }
+                self.apply_signin_expired(
+                    &account.id,
+                    signin_expired(Reach::Busy, reaches.into_iter()),
+                );
+            }
         }
         if sources == 0 {
             // The single most common live-test question, answered before it is asked: an empty
@@ -137,7 +154,7 @@ impl<P: Provider> App<P> {
         } else {
             // `{contributing} of {total}` rather than a single account count, because the gap
             // between them is itself a finding: three accounts and one contributing is either
-            // expected (two are Graph/Google) or the bug being reported.
+            // expected (two are IMAP accounts with no CardDAV endpoint) or the bug being reported.
             log::info!(
                 "refresh_contacts: {sources} source(s) on {contributing} of {} account(s); \
                  {synced} synced, {unavailable} unavailable, {failed} failed in {}ms",

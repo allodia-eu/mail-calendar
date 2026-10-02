@@ -2,7 +2,7 @@
 //!
 //! One [`JmapProvider`] covers the **whole account**; its email scope is account-wide
 //! (`JmapType { account, Email }`) and each message carries its `mailboxIds` membership, so
-//! unlike IMAP/Graph there are no per-role folder providers to bind, and an on-demand folder
+//! unlike IMAP/Graph there are no per-folder providers to bind, and an on-demand folder
 //! open reconnects that same account-wide provider. Split from the module root to keep both
 //! files under the 500-line cap.
 //!
@@ -24,10 +24,7 @@ use engine_provider::{ContactSourceSync, ContactsProvider, Provider};
 use provider_jmap::{Credentials, JmapConfig, JmapProvider};
 
 use super::{JmapAccountConfig, refreshing::RefreshingJmapProvider};
-use crate::{
-    AccountError, GraphTokenSource, connect_log::connect_logger, throttle::account_retry,
-    tls::account_tls,
-};
+use crate::{AccountError, GraphTokenSource, connect_log::connect_logger, tls::tls_with};
 
 /// The credentials to connect a JMAP account with: either the secret stored in its config, or
 /// a live access token minted from its OAuth grant.
@@ -188,9 +185,12 @@ async fn connect_one(
     tokens: JmapTokens<'_>,
     contact_book: Option<AddressBookId>,
 ) -> Result<Box<dyn ContactsProvider>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     let Some(tokens) = tokens.filter(|_| config.is_oauth()) else {
-        let provider = JmapProvider::connect(config.engine_config(tls))
+        let account = config
+            .account_id()
+            .map_err(|err| AccountError::Jmap(err.to_string()))?;
+        let provider = JmapProvider::connect(config.engine_config(tls, &account))
             .await
             .map_err(|err| AccountError::from_jmap_connect(&err))?;
         return Ok(Box::new(bind_book(provider, contact_book)));
@@ -206,7 +206,7 @@ async fn connect_one(
         Credentials::bearer(access_token.clone()),
     )
     .with_tls(tls.clone())
-    .with_retry(account_retry())
+    .with_retry(tokens.retry())
     .with_connect_observer(connect_logger("jmap"));
     let provider = JmapProvider::connect(engine_config)
         .await

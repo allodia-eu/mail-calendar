@@ -179,6 +179,7 @@ impl ComposerPane {
         content.append(&hint);
 
         let web = SecureWebView::new(DocumentKind::Composer, sender.clone());
+        super::composer_host::install(web.widget());
         // One route into the composer for files, taken twice, so a drop and a paste differ in the
         // one place they should: a drop asks what a picture is for, a paste has already been told.
         let take_files = |answer| {
@@ -404,6 +405,11 @@ pub(super) fn editor_labels() -> serde_json::Value {
         "deleteRow": l10n::editor_delete_row(),
         "deleteColumn": l10n::editor_delete_column(),
         "deleteTable": l10n::editor_delete_table(),
+        "link": l10n::editor_link(),
+        "linkText": l10n::editor_link_text(),
+        "linkAddress": l10n::editor_link_address(),
+        "linkApply": l10n::editor_link_apply(),
+        "linkRemove": l10n::editor_link_remove(),
     })
 }
 
@@ -432,6 +438,7 @@ fn seed_editor(
     web.connect_finished(move |view| {
         editor_host.update_property(&[AccessibleProperty::Label(l10n::editor_placeholder())]);
         let mut script = format!("window.setComposerLabels({labels});");
+        script.push_str(&super::composer_host::announce_script());
         if let Some(quote) = &quote
             && let Ok(encoded) = serde_json::to_string(quote)
         {

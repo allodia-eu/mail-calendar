@@ -78,7 +78,7 @@ fn present_detail(
         group.add(&detail_row(l10n::event_location(), location));
     }
     if let Some(notes) = detail.notes.as_deref().filter(|value| !value.is_empty()) {
-        group.add(&detail_row(l10n::event_notes(), notes));
+        group.add(&crate::ui::linked_text::row(l10n::event_notes(), notes));
     }
     group.add(&detail_row(
         l10n::event_reminder(),

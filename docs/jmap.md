@@ -39,13 +39,14 @@ optional OAuth sign-in, and secure storage of the resulting config.
    - **It fails soft, always.** Any step failing means "this server doesn't do this": the
      password/API-token field is still there and still works. It is never a dead end, and the
      specific cause goes to the diagnostic log rather than to the user.
-   - **Every discovery hop must be HTTPS**, the metadata's `issuer` must match the issuer we
-     asked about (RFC 8414 §3.3), and the server must advertise **S256** PKCE. Any of these
-     failing declines the flow rather than running a weaker one.
+   - **Every discovery hop must be HTTPS** (loopback excepted: it has no hop to read, RFC 8252
+     §7.3), the metadata's `issuer` must match the issuer we asked about (RFC 8414 §3.3), and
+     the server must advertise **S256** PKCE. Any of these failing declines the flow rather
+     than running a weaker one.
    - **We request only the capabilities we use:** `offline_access` plus the advertised
-     scopes whose last segment is `mail`/`calendar`/`calendars`. Never the whole
-     `scopes_supported` list; a consent screen asking for contacts or admin we never exercise
-     is a user-visible harm.
+     scopes whose last segment is `mail`/`calendar`/`calendars`/`contacts`. Never the whole
+     `scopes_supported` list; a consent screen asking for admin or anything else we never
+     exercise is a user-visible harm.
    - **Discovery runs once.** The endpoints, the registered `client_id`, and the refresh
      token are persisted with the account, so a launch re-registers nothing, **and neither does
      a re-authentication** (rule 8).
@@ -54,7 +55,7 @@ optional OAuth sign-in, and secure storage of the resulting config.
    secret, or, for an OAuth account, the `[jmap.oauth]` grant (client id, endpoints, refresh
    token) and **no** long-lived password, and redacts it in logs, exactly like a password
    IMAP config. Storage is the same OS secure store as every other account (Keychain /
-   Credential Manager / EncryptedSharedPreferences): the config is provider-agnostic TOML
+   Credential Manager / Android Keystore): the config is provider-agnostic TOML
    keyed by account id. Every core takes the host's
    `AccountCredentialStore` **at construction** (there is no setter to forget) because a
    **rotated** refresh token that reaches no store leaves the account dead at the next launch,
@@ -81,8 +82,8 @@ optional OAuth sign-in, and secure storage of the resulting config.
 
 7. **One provider per account.** Unlike IMAP/Graph (a provider per folder), a single JMAP
    provider covers the whole account: its mail scope is account-wide and each message
-   carries its `mailboxIds` membership, so every folder syncs through it, and on-demand
-   folder opens reconnect that same account-wide provider. An **OAuth** account wraps that
+   carries its `mailboxIds` membership, so every folder syncs through it, and a folder
+   opened before the first pass reconnects that same account-wide provider. An **OAuth** account wraps that
    provider in a `RefreshingJmapProvider`, which re-mints the access token and rebuilds the
    delegate whenever it changes (~hourly). The engine still only ever sees a finished bearer
    token, and needs no OAuth code of its own.
@@ -195,7 +196,7 @@ and a provider JMAP account's **calendar**.
 
 macOS is the first client of the tab itself (the setup form's **JMAP** tab: email, one secret,
 optional server); **Android** ships the same tab, storing the secret via
-EncryptedSharedPreferences over an Android-Keystore master key. **Windows** now ships it too: the
+a vault sealed under an Android Keystore key. **Windows** now ships it too: the
 same **JMAP** tab in `AccountSetupView`, reusing the same core + FFI
 (`jmap_account_config_toml` → `add_account`) and storing the secret in the Windows Credential
 Manager. It adds only the setup fields and secure storage, since the core owns the whole JMAP path.

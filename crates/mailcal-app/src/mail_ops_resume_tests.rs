@@ -41,6 +41,7 @@ fn document(text: &str) -> ComposerDocument {
                 font_size: None,
                 color: None,
                 highlight: None,
+                link: None,
             })],
         })],
         attachments: Vec::new(),

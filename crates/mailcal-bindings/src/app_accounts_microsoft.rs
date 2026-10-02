@@ -59,7 +59,7 @@ impl MailcalApp {
                 return Err(err);
             }
         };
-        let config = authorized.config;
+        let mut config = authorized.config;
         log::info!(
             "microsoft: token exchange + address lookup ok in {}ms",
             started.elapsed().as_millis(),
@@ -67,6 +67,11 @@ impl MailcalApp {
         let account_id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
+        // Signing an existing account in again keeps what it stored beside its grant.
+        crate::consent::keep_stored_shape(
+            &mut config.shape,
+            self.registry.shape(account_id.as_str()),
+        );
         let row = AccountRow {
             id: account_id.as_str().to_owned(),
             email: config.email.clone(),
@@ -98,7 +103,7 @@ impl MailcalApp {
                 tokens: Arc::clone(&tokens),
             },
         );
-        log::info!("microsoft: connecting Graph mail folders and calendar");
+        log::info!("microsoft: connecting what the account is used for");
         // One dial, the same one boot and reconnect use; obtainable only from the registry, which
         // is what makes the ordering above unskippable rather than merely documented.
         let Some(dial) = self.registry.dial(account_id.as_str()) else {

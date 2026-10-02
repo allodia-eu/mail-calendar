@@ -12,6 +12,7 @@ use super::*;
 
 fn raw(issuer: &str, pkce: &[&str]) -> RawAuthServerMetadata {
     RawAuthServerMetadata {
+        authorization_response_iss_parameter_supported: false,
         issuer: issuer.to_owned(),
         authorization_endpoint: Some("https://as.example.com/authorize".to_owned()),
         token_endpoint: Some("https://as.example.com/token".to_owned()),
@@ -26,6 +27,26 @@ fn raw(issuer: &str, pkce: &[&str]) -> RawAuthServerMetadata {
 }
 
 #[test]
+fn the_issuer_parameter_flag_is_carried_off_the_document() {
+    // What a caller does with it is refuse a callback whose `iss` is missing or wrong
+    // (`parse_callback`), so reading it as `false` when the server said `true` would silently
+    // switch the mix-up defence off for every account on that server.
+    let mut advertised = raw("https://as.example.com", &["S256"]);
+    advertised.authorization_response_iss_parameter_supported = true;
+    let metadata = validate(advertised, "https://as.example.com", "url").unwrap();
+    assert!(metadata.issuer_parameter_supported);
+
+    // Absent is the pre-RFC-9207 status quo: nothing to compare, and not a reason to refuse.
+    let metadata = validate(
+        raw("https://as.example.com", &["S256"]),
+        "https://as.example.com",
+        "url",
+    )
+    .unwrap();
+    assert!(!metadata.issuer_parameter_supported);
+}
+
+#[test]
 fn only_https_urls_are_followed() {
     assert!(require_https("https://api.example.com/x").is_ok());
     // A plaintext hop would put the authorization code (and the token it mints) in the
@@ -37,6 +58,21 @@ fn only_https_urls_are_followed() {
     // Non-HTTP schemes are equally unacceptable as a discovery hop.
     assert!(require_https("file:///etc/passwd").is_err());
     assert!(require_https("not a url").is_err());
+}
+
+#[test]
+fn a_url_is_passed_on_as_the_server_wrote_it() {
+    // The resource a server publishes goes back to it as the RFC 8707 `resource`, and a server
+    // may compare that as a string: `https://mail.example.com/` is not the
+    // `https://mail.example.com` it published, and it answers `invalid_target`.
+    assert_eq!(
+        require_https("https://mail.example.com").unwrap(),
+        "https://mail.example.com"
+    );
+    assert_eq!(
+        require_https("http://localhost:28081").unwrap(),
+        "http://localhost:28081"
+    );
 }
 
 #[test]

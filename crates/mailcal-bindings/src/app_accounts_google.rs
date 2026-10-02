@@ -44,7 +44,7 @@ impl MailcalApp {
                 log::warn!("google: sign-in failed at token exchange / address lookup: {err}");
                 err
             })?;
-        let config = authorized.config;
+        let mut config = authorized.config;
         log::info!(
             "google: token exchange + address lookup ok in {}ms",
             started.elapsed().as_millis(),
@@ -52,6 +52,11 @@ impl MailcalApp {
         let account_id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
+        // Signing an existing account in again keeps what it stored beside its grant.
+        crate::consent::keep_stored_shape(
+            &mut config.shape,
+            self.registry.shape(account_id.as_str()),
+        );
         let row = AccountRow {
             id: account_id.as_str().to_owned(),
             email: config.email.clone(),
@@ -85,7 +90,7 @@ impl MailcalApp {
                 tokens: Arc::clone(&tokens),
             },
         );
-        log::info!("google: connecting the Gmail provider and calendar");
+        log::info!("google: connecting what the account is used for");
         // One dial, the same one boot and reconnect use; obtainable only from the registry.
         let Some(dial) = self.registry.dial(account_id.as_str()) else {
             registered.rollback(&self.registry);
@@ -118,8 +123,11 @@ impl MailcalApp {
             ));
         }
         log::info!(
-            "google: connected mail with {} calendar provider(s); syncing + adding account",
+            "google: connected {} mail, {} calendar and {} contacts provider(s); syncing + adding \
+             account",
+            outcome.account.providers.len(),
             outcome.account.calendar_providers.len(),
+            outcome.account.contact_providers.len(),
         );
         self.refresh_analytics_accounts();
         let sync_id = account_id;

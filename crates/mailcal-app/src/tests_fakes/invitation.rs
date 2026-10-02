@@ -366,6 +366,8 @@ impl Provider for InvitationFake {
     }
 }
 
+impl engine_api::MailboxWrites for InvitationFake {}
+
 #[async_trait::async_trait]
 impl CalendarWrites for InvitationFake {
     /// The guarded create the client-iMIP route uses to put an invitation on the calendar.
@@ -470,6 +472,8 @@ pub(crate) fn invitation_app_with_prefs(
         },
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@test.local"),
+        dialled: true,
+        uses_mail: true,
     };
     App::new(
         Engine::open_in_memory().unwrap(),

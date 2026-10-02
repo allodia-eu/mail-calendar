@@ -35,6 +35,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use engine_api::AccountId;
 use mailcal_account::TokenSink;
+use mailcal_oauth::GrantedScopes;
 
 use crate::{SharedRegistry, account_registry::Rotation, credential_store::AccountCredentialStore};
 
@@ -119,6 +120,32 @@ impl TokenSink for BindingTokenSink {
             ),
         }
     }
+
+    /// Stores what the provider now grants, when it moved. Losing this write costs less than
+    /// losing a rotation: the next refresh names the scopes again, and nothing is spent.
+    async fn scopes_granted(&self, account: &AccountId, granted: &GrantedScopes) {
+        let Some((family, encoded)) = self.registry.record_granted_scopes(account, granted) else {
+            return;
+        };
+        let handle = mailcal_account::account_log_handle(account.as_str());
+        let stored = encoded.and_then(|config_toml| {
+            self.store
+                .persist(account.as_str().to_owned(), config_toml)
+                .map_err(|err| err.to_string())
+        });
+        match stored {
+            Ok(()) => log::info!(
+                "oauth: [{handle}] the {family} server now grants this account {} permission(s); \
+                 saved to this device's secure store",
+                granted.as_slice().len(),
+            ),
+            Err(err) => log::warn!(
+                "oauth: [{handle}] the {family} server now grants this account {} permission(s), \
+                 but they could not be saved ({err}); the next renewal tries again",
+                granted.as_slice().len(),
+            ),
+        }
+    }
 }
 
 /// Builds the shared [`TokenSink`] over the registry + the host's one credential store.
@@ -133,12 +160,16 @@ pub(crate) fn token_sink(
 }
 
 #[cfg(test)]
+#[path = "token_sink_scope_tests.rs"]
+mod scope_tests;
+
+#[cfg(test)]
 mod token_sink_tests {
     use std::sync::{Arc, Mutex};
 
     use engine_api::AccountId;
     use mailcal_account::{
-        GoogleConfig, GraphTokenSource, JmapAccountConfig, JmapOAuth, MicrosoftConfig, Secret,
+        GoogleConfig, GraphTokenSource, JmapAccountConfig, MicrosoftConfig, OAuthGrant, Secret,
         TokenSink,
     };
 
@@ -175,7 +206,7 @@ mod token_sink_tests {
             base_url: "https://api.example.com".to_owned(),
             password: None,
             token: None,
-            oauth: Some(JmapOAuth {
+            oauth: Some(OAuthGrant {
                 client_id: "client-abc".to_owned(),
                 client_secret: None,
                 refresh_token: Secret::new("original-refresh".to_owned()),
@@ -184,7 +215,9 @@ mod token_sink_tests {
                 redirect_uri: "eu.allodia.mailcal://jmap-oauth".to_owned(),
                 scopes: vec!["offline_access".to_owned()],
                 resource: None,
+                issuer: None,
             }),
+            shape: mailcal_account::AccountShape::default(),
         };
         let id = config.account_id().expect("a valid account id");
         let registry = AccountRegistry::new();
@@ -269,6 +302,71 @@ mod token_sink_tests {
     /// with identical signatures and identical implementations in every client, and a host that
     /// wired two of the three looked wired. There is one port now, and this is the check that it
     /// carries every family rather than only the one that was tested.
+    /// A rotation rewrites the whole stored document, so everything the account's config says
+    /// about the account beyond its token (its pinned id, what it is used for, its links, the
+    /// scopes it was granted) must come through the rewrite untouched.
+    #[tokio::test]
+    async fn a_rotation_keeps_everything_the_config_says_about_the_account() {
+        let shape = mailcal_account::AccountShape::read(concat!(
+            "id = \"pinned@graph.microsoft.com\"\n",
+            "capabilities = [\"mail\"]\n",
+            "[links]\n",
+            "calendar = \"alice@dav:cloud.example\"\n",
+        ))
+        .expect("a valid shape");
+        let microsoft = MicrosoftConfig {
+            email: "alice@example.com".to_owned(),
+            client_id: "client-abc".to_owned(),
+            tenant: "common".to_owned(),
+            redirect_uri: "eu.allodia.mailcal://auth".to_owned(),
+            scopes: vec!["offline_access".to_owned()],
+            refresh_token: Secret::new("original-refresh".to_owned()),
+            granted_scopes: Some(vec!["offline_access".to_owned()]),
+            shape,
+        };
+        let id = microsoft.account_id().expect("a valid account id");
+        let tokens = GraphTokenSource::new(
+            &microsoft,
+            id.clone(),
+            None,
+            mailcal_account::CredentialOrigin::FreshSignIn,
+        )
+        .expect("a token source over a well-formed config");
+        let registry = AccountRegistry::new();
+        registry.pre_register(
+            id.as_str().to_owned(),
+            ConnectedAccount::Microsoft {
+                config: microsoft,
+                tokens,
+            },
+        );
+        let recorder = Arc::new(Recorder(Mutex::new(Vec::new())));
+        let sink = sink(
+            &registry,
+            Arc::clone(&recorder) as Arc<dyn AccountCredentialStore>,
+        );
+
+        sink.refresh_token_rotated(&id, "rotated-graph").await;
+
+        let written = recorder.0.lock().expect("recorder mutex poisoned");
+        let (stored_id, toml) = &written[0];
+        assert_eq!(stored_id, "pinned@graph.microsoft.com");
+        let reread = mailcal_account::load_microsoft_str(toml).expect("a valid config");
+        assert_eq!(reread.refresh_token.expose(), "rotated-graph");
+        assert_eq!(
+            reread.account_id().unwrap().as_str(),
+            "pinned@graph.microsoft.com"
+        );
+        assert_eq!(
+            reread.shape.links.calendar.as_ref().map(AccountId::as_str),
+            Some("alice@dav:cloud.example")
+        );
+        assert_eq!(
+            reread.granted_scopes,
+            Some(vec!["offline_access".to_owned()])
+        );
+    }
+
     #[tokio::test]
     async fn every_provider_family_re_persists_through_the_one_host_store() {
         let microsoft = MicrosoftConfig {
@@ -278,6 +376,8 @@ mod token_sink_tests {
             redirect_uri: "eu.allodia.mailcal://auth".to_owned(),
             scopes: vec!["offline_access".to_owned()],
             refresh_token: Secret::new("original-refresh".to_owned()),
+            granted_scopes: None,
+            shape: mailcal_account::AccountShape::default(),
         };
         let google = GoogleConfig {
             email: "alice@example.com".to_owned(),
@@ -286,6 +386,8 @@ mod token_sink_tests {
             redirect_uri: "eu.allodia.mailcal://auth".to_owned(),
             scopes: vec!["offline_access".to_owned()],
             refresh_token: Secret::new("original-refresh".to_owned()),
+            granted_scopes: None,
+            shape: mailcal_account::AccountShape::default(),
         };
         let microsoft_id = microsoft.account_id().expect("a valid account id");
         let google_id = google.account_id().expect("a valid account id");
@@ -349,6 +451,7 @@ mod token_sink_tests {
             password: Some(Secret::new("app-password".to_owned())),
             token: None,
             oauth: None,
+            shape: mailcal_account::AccountShape::default(),
         };
         let id = config.account_id().expect("a valid account id");
         let registry = AccountRegistry::new();

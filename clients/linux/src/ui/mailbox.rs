@@ -5,9 +5,10 @@ use std::{collections::HashSet, sync::Once};
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
-use mailcal_bindings::{FlatRow, MailboxListSnapshot, SnapshotRow, ThreadMessage, ThreadRow};
+use mailcal_bindings::{
+    FlatRow, MailboxListSnapshot, SelectedRow, SnapshotRow, ThreadMessage, ThreadRow,
+};
 
-pub(super) use super::mailbox_display::MailboxRendering;
 #[cfg(test)]
 pub(super) use super::mailbox_display::display_row;
 use super::{
@@ -16,6 +17,7 @@ use super::{
     model::OpenedMessage,
     row_action, timestamps,
 };
+pub(super) use super::{mail_actions_menu::RowMenus, mailbox_display::MailboxRendering};
 #[cfg(test)]
 use super::{mailbox_display::DisplayRow, mailbox_reconcile::reconcile};
 use crate::l10n;
@@ -59,29 +61,27 @@ pub(crate) fn render_messages(
         .iter()
         .map(|row| display_row(row, zone))
         .collect();
+    let menus = RowMenus {
+        in_junk_folder,
+        ..RowMenus::default()
+    };
     reconcile(list, previous, &next, |index| {
-        build_row(
-            &snapshot.rows[index],
-            expanded,
-            in_junk_folder,
-            zone,
-            sender,
-        )
+        build_row(&snapshot.rows[index], expanded, &menus, zone, sender)
     });
 }
 
 pub(super) fn build_row(
     row: &SnapshotRow,
     expanded: &HashSet<ThreadKey>,
-    in_junk_folder: bool,
+    menus: &RowMenus,
     zone: &str,
     sender: &relm4::Sender<AppInput>,
 ) -> gtk::Widget {
     match row {
-        SnapshotRow::Flat { row } => flat_row(row, in_junk_folder, zone, sender).upcast(),
+        SnapshotRow::Flat { row } => flat_row(row, menus, zone, sender).upcast(),
         SnapshotRow::Thread { row } => {
             let key = ThreadKey::of(row);
-            thread_row(row, expanded.contains(&key), zone, sender).upcast()
+            thread_row(row, expanded.contains(&key), menus, zone, sender).upcast()
         }
     }
 }
@@ -138,11 +138,6 @@ row .mailcal-badge {
 }
 ";
 
-/// The bundled glyphs, in the resource layout `IconTheme::add_resource_path` expects.
-/// Must equal the `prefix` in icons/mailcal.gresource.xml. It is a namespace inside the binary,
-/// not an identity, so it does not follow the application id.
-const ICON_RESOURCE_PATH: &str = "/mailcal/icons";
-
 /// Installs the message list's stylesheet and icons once per display.
 pub(super) fn install_styles() {
     static INSTALLED: Once = Once::new();
@@ -155,9 +150,7 @@ pub(super) fn install_styles() {
                 &provider,
                 gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
             );
-            gtk::gio::resources_register_include!("mailcal.gresource")
-                .expect("the bundled icons are compiled into the binary");
-            gtk::IconTheme::for_display(&display).add_resource_path(ICON_RESOURCE_PATH);
+            super::icons::install(&display);
         });
     }
 }
@@ -180,7 +173,7 @@ pub(super) fn plain_text_row() -> adw::ActionRow {
 /// A single message: subject over sender, with the date trailing.
 fn flat_row(
     row: &FlatRow,
-    in_junk_folder: bool,
+    menus: &RowMenus,
     zone: &str,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ActionRow {
@@ -212,17 +205,34 @@ fn flat_row(
         avatar: display.avatar,
     };
     widget.add_suffix(&mail_actions_menu::message_menu_button(
-        row,
-        &opened,
-        in_junk_folder,
-        sender,
+        &widget, row, &opened, menus, sender,
     ));
     opens_in_window(&widget, &opened, sender);
+    mail_drag(
+        &widget,
+        &row.account,
+        SelectedRow::Message {
+            account: row.account.clone(),
+            key: row.key.clone(),
+        },
+    );
     let input = sender.clone();
     row_action::action_row(&widget, move || {
         input.emit(AppInput::OpenThreadMessage(Box::new(opened.clone())));
     });
     widget
+}
+
+/// Lets a list row be dragged onto a folder (`docs/folder-pane.md`, rule 24). A selected row takes
+/// the selection with it, which the model decides at the drop.
+fn mail_drag(widget: &impl IsA<gtk::Widget>, account: &str, row: SelectedRow) {
+    super::folder_drag::source(
+        widget,
+        super::folder_drag::PaneDrag {
+            account: account.to_owned(),
+            dragged: super::folder_actions::Dragged::Mail(row),
+        },
+    );
 }
 
 /// A double-click on a message row opens it in a window of its own
@@ -265,6 +275,7 @@ fn opens_in_window(
 fn thread_row(
     row: &ThreadRow,
     expanded: bool,
+    menus: &RowMenus,
     zone: &str,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ExpanderRow {
@@ -287,10 +298,20 @@ fn thread_row(
     }
     widget.add_suffix(&meta_label(&timestamps::relative_date(&display.date, zone)));
     widget.add_suffix(&mail_actions_menu::thread_menu_button(
+        &widget,
         &row.account,
         &row.thread_id,
+        menus,
         sender,
     ));
+    mail_drag(
+        &widget,
+        &row.account,
+        SelectedRow::Thread {
+            account: row.account.clone(),
+            thread_id: row.thread_id.clone(),
+        },
+    );
     let opened = OpenedMessage::from_thread(row);
     let input = sender.clone();
     row_action::expander_row(&widget, move || {
@@ -351,7 +372,7 @@ fn thread_message_row(
         avatar: display.avatar,
     };
     widget.add_suffix(&mail_actions_menu::message_window_menu_button(
-        &opened, sender,
+        &widget, &opened, sender,
     ));
     opens_in_window(&widget, &opened, sender);
     let input = sender.clone();
@@ -362,13 +383,13 @@ fn thread_message_row(
 }
 
 fn attachment_icon() -> gtk::Image {
-    let icon = gtk::Image::from_icon_name("mail-attachment-symbolic");
+    let icon = gtk::Image::from_icon_name(super::icons::ATTACHMENT);
     icon.set_tooltip_text(Some(l10n::a11y_has_attachment()));
     icon
 }
 
 fn flag_icon() -> gtk::Image {
-    let icon = gtk::Image::from_icon_name("starred-symbolic");
+    let icon = gtk::Image::from_icon_name(super::icons::FLAG);
     icon.set_tooltip_text(Some(l10n::a11y_flagged()));
     icon.update_property(&[AccessibleProperty::Label(l10n::a11y_flagged())]);
     icon

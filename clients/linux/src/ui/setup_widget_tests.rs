@@ -11,10 +11,8 @@ use mailcal_bindings::{ConnectionSecurity, DetectedServerRow, SetupRecommendatio
 use crate::{
     l10n,
     ui::{
-        AppInput,
-        mailbox::tests::rendered_labels,
-        setup::{SetupState, SetupWindow},
-        setup_model::recommendation_form,
+        AppInput, mailbox::tests::rendered_labels, setup::SetupWindow,
+        setup_model::recommendation_form, setup_state::SetupState,
     },
 };
 
@@ -31,9 +29,16 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     super::setup_manual_tests::required_phases_swap_content_instead_of_stacking(&window);
     an_oauth_route_never_asks_for_a_password(&window);
     a_detected_imap_card_confirms_servers_rather_than_asking_for_them(&window);
+    super::setup_signin_tests::a_detected_imap_card_shows_no_credential_until_the_server_answers(
+        &window,
+    );
+    super::setup_signin_tests::a_provider_offering_sign_in_leads_with_it(&window);
+    super::setup_signin_tests::a_provider_that_only_admits_registered_apps_says_so(&window);
     an_untrusted_card_holds_connect_until_it_is_approved(&window);
+    a_refused_certificate_holds_connect_until_it_is_accepted(&window);
     super::setup_manual_tests::the_manual_form_switches_account_type(&window);
     super::setup_manual_tests::a_miss_explains_itself_on_the_manual_form(&window);
+    super::setup_manual_tests::a_refusal_is_answered_in_the_form_it_came_from(&window);
     super::setup_manual_tests::a_dismissible_window_cancels_the_flow(&window);
 }
 
@@ -165,6 +170,7 @@ fn a_detected_imap_card_confirms_servers_rather_than_asking_for_them(
     state.open(false);
     state.show_form(recommendation_form(
         SetupRecommendation::Imap {
+            oauth_issuer: None,
             email: "alice@example.test".to_owned(),
             imap_host: "imap.example.test:993".to_owned(),
             smtp_host: Some("smtp.example.test:465".to_owned()),
@@ -178,6 +184,11 @@ fn a_detected_imap_card_confirms_servers_rather_than_asking_for_them(
         },
         String::new(),
     ));
+    super::setup_signin_tests::answer_password(
+        &mut state,
+        "alice@example.test",
+        "imap.example.test:993",
+    );
     setup.render(&state, window, &sender);
     let child = setup
         .current_window()
@@ -211,6 +222,7 @@ fn a_detected_imap_card_confirms_servers_rather_than_asking_for_them(
     // calendar the account has and we failed to fill in.
     state.show_form(recommendation_form(
         SetupRecommendation::Imap {
+            oauth_issuer: None,
             email: "alice@example.test".to_owned(),
             imap_host: "imap.example.test:993".to_owned(),
             smtp_host: None,
@@ -224,6 +236,11 @@ fn a_detected_imap_card_confirms_servers_rather_than_asking_for_them(
         },
         String::new(),
     ));
+    super::setup_signin_tests::answer_password(
+        &mut state,
+        "alice@example.test",
+        "imap.example.test:993",
+    );
     setup.render(&state, window, &sender);
     let child = setup
         .current_window()
@@ -260,6 +277,7 @@ fn an_untrusted_card_holds_connect_until_it_is_approved(window: &adw::Applicatio
     state.open(false);
     state.show_form(recommendation_form(
         SetupRecommendation::Imap {
+            oauth_issuer: None,
             email: "alice@example.test".to_owned(),
             imap_host: "imap.example.test:993".to_owned(),
             smtp_host: None,
@@ -273,6 +291,11 @@ fn an_untrusted_card_holds_connect_until_it_is_approved(window: &adw::Applicatio
         },
         String::new(),
     ));
+    super::setup_signin_tests::answer_password(
+        &mut state,
+        "alice@example.test",
+        "imap.example.test:993",
+    );
     setup.render(&state, window, &sender);
     let child = setup
         .current_window()
@@ -287,8 +310,88 @@ fn an_untrusted_card_holds_connect_until_it_is_approved(window: &adw::Applicatio
     let approval = check_button(&child, l10n::setup_detect_trust_confirm())
         .expect("the approval must be on screen");
     assert!(approval.is_visible() && !approval.is_active());
+    // The password is a question of its own, so answering it alone opens nothing.
+    password_box(&child).set_text("a-password");
+    assert!(!connect.is_sensitive(), "an unapproved card cannot connect");
     approval.set_active(true);
     assert!(connect.is_sensitive(), "approving it opens Connect");
+}
+
+/// The secret box of a pane that asks for one: the entry that masks what is typed.
+fn password_box(root: &gtk::Widget) -> gtk::Entry {
+    entries(root)
+        .into_iter()
+        .find(|entry| !gtk::prelude::EntryExt::is_visible(entry))
+        .expect("a pane that asks for a secret has a masked entry")
+}
+
+/// A connect refused for a certificate says which certificate, and may not be tried again
+/// until the person has accepted that one (`docs/certificate-exceptions.md`).
+fn a_refused_certificate_holds_connect_until_it_is_accepted(window: &adw::ApplicationWindow) {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    state.show_form(recommendation_form(
+        SetupRecommendation::Imap {
+            email: "alice@example.test".to_owned(),
+            imap_host: "imap.example.test:993".to_owned(),
+            smtp_host: None,
+            imap_security: ConnectionSecurity::ImplicitTls,
+            smtp_security: ConnectionSecurity::ImplicitTls,
+            incoming: server_row("IMAP", "imap.example.test", 993),
+            outgoing: None,
+            caldav_url: None,
+            is_trusted: true,
+            oauth_issuer: None,
+            source: "fixture".to_owned(),
+        },
+        String::new(),
+    ));
+    // A server that takes a password: the card asks before it shows a password field at all.
+    assert!(state.imap_auth_answered(
+        "alice@example.test",
+        "imap.example.test:993",
+        mailcal_bindings::ImapAuthOffer::Password,
+    ));
+    state.connect_failed(super::setup_model::ConnectFailure {
+        message: Some("certificate not verified".to_owned()),
+        certificate: Some(mailcal_bindings::RejectedCertificate {
+            server_name: "imap.example.test".to_owned(),
+            sha256: "AB:CD:EF".to_owned(),
+            subject_common_name: Some("imap.example.test".to_owned()),
+            subject_organisation: Some("Example Ltd".to_owned()),
+            issuer_common_name: Some("imap.example.test".to_owned()),
+            issuer_organisation: Some("Example Ltd".to_owned()),
+            not_before: None,
+            not_after: None,
+        }),
+    });
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("refused IMAP content");
+
+    let connect = descendants::<gtk::Button>(&child)
+        .into_iter()
+        .find(|button| button.label().as_deref() == Some(l10n::action_connect()))
+        .expect("a Connect button");
+    assert!(
+        !connect.is_sensitive(),
+        "a certificate nobody has accepted cannot connect"
+    );
+    let accept = check_button(&child, l10n::setup_certificate_confirm())
+        .expect("the acceptance must be on screen");
+    assert!(accept.is_visible() && !accept.is_active());
+    // The card comes back with an empty secret box, so accepting is not the last answer owed.
+    password_box(&child).set_text("a-password");
+    assert!(
+        !connect.is_sensitive(),
+        "a certificate nobody has accepted cannot connect"
+    );
+    accept.set_active(true);
+    assert!(connect.is_sensitive(), "accepting it opens Connect");
 }
 
 pub(super) fn server_row(protocol: &str, hostname: &str, port: u16) -> DetectedServerRow {
@@ -345,6 +448,13 @@ pub(super) fn check_button(root: &gtk::Widget, label: &str) -> Option<gtk::Check
     descendants::<gtk::CheckButton>(root)
         .into_iter()
         .find(|button| button.label().as_deref() == Some(label))
+}
+
+pub(super) fn descendant_button(root: &gtk::Widget, label: &str) -> gtk::Button {
+    descendants::<gtk::Button>(root)
+        .into_iter()
+        .find(|button| button.label().as_deref() == Some(label))
+        .unwrap_or_else(|| panic!("a {label} button"))
 }
 
 pub(super) fn descendant_has_button(root: &gtk::Widget, label: &str) -> bool {

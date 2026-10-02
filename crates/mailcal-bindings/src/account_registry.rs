@@ -38,14 +38,29 @@ use std::{
 };
 
 use engine_api::AccountId;
-use mailcal_account::{AccountConfig, Secret};
+use mailcal_account::{AccountConfig, GraphTokenSource, ImapConnections, Secret};
+use mailcal_oauth::GrantedScopes;
+
+/// One IMAP account's config, connections and (for an OAuth account) token source, as a watch
+/// needs them.
+pub(crate) type ImapEntry = (
+    AccountConfig,
+    Arc<ImapConnections>,
+    Option<Arc<GraphTokenSource>>,
+);
 
 use crate::{AccountProvider, ConnectedAccount};
 
 mod credentials;
 mod dial;
+mod dial_parts;
+mod dial_run;
+mod endpoints;
+mod links;
+mod uses;
 
-pub(crate) use dial::{AccountDial, dial_all};
+pub(crate) use dial::{AccountDial, ConnectFailure, dial_all};
+pub(crate) use uses::UseChange;
 
 /// Every connected account's re-connection state, keyed by account id, and the gate that makes
 /// "registered before dialed" a property of the code rather than a rule in a document.
@@ -124,6 +139,28 @@ impl AccountRegistry {
             .map(AccountDial::from_entry)
     }
 
+    /// What `id` stores beside its kind's own section, or `None` if it is not registered.
+    pub(crate) fn shape(&self, id: &str) -> Option<mailcal_account::AccountShape> {
+        self.entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+            .map(|entry| entry.shape().clone())
+    }
+
+    /// What signing `id` in again at Microsoft or Google needs, or `None` if it is not registered
+    /// or signs in elsewhere.
+    pub(crate) fn oauth_account(
+        &self,
+        id: &str,
+    ) -> Option<crate::app_accounts_consent::OAuthAccount> {
+        self.entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+            .and_then(crate::app_accounts_consent::OAuthAccount::of)
+    }
+
     /// Whether `id` is still registered, asked after a slow dial, in case the user removed the
     /// account while it ran.
     pub(crate) fn contains(&self, id: &str) -> bool {
@@ -163,14 +200,33 @@ impl AccountRegistry {
             .collect()
     }
 
-    /// `id`'s IMAP config, or `None` for an account with no IMAP half: the filter a standing
-    /// `IDLE` watch needs, since Graph and Google poll instead.
-    pub(crate) fn imap_config(&self, id: &str) -> Option<AccountConfig> {
+    /// `id`'s IMAP config, connections and (for an OAuth account) token source, or `None` for an
+    /// account with no IMAP half: the filter a standing `IDLE` watch needs, since Graph and Google
+    /// poll instead.
+    pub(crate) fn imap(&self, id: &str) -> Option<ImapEntry> {
         self.entries
             .lock()
             .expect("account registry mutex poisoned")
             .get(id)
-            .and_then(|entry| entry.imap().cloned())
+            .and_then(ConnectedAccount::imap)
+            .map(|(config, connections, tokens)| {
+                (config.clone(), Arc::clone(connections), tokens.cloned())
+            })
+    }
+
+    /// Drops every IMAP account's resting connections, for a device that has just come back
+    /// online: the sockets from before look open and are not, and finding that out one call at a
+    /// time costs a failed call each.
+    pub(crate) fn invalidate_imap_connections(&self) {
+        for (_, connections, _) in self
+            .entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .values()
+            .filter_map(ConnectedAccount::imap)
+        {
+            connections.invalidate();
+        }
     }
 
     /// `id`'s registered JMAP config, cloned: the precondition the JMAP re-authentication path
@@ -209,7 +265,12 @@ impl AccountRegistry {
             .map_err(|_| "the account registry is unavailable".to_owned())?
             .get(id)
         {
-            Some(ConnectedAccount::Imap(config)) => config
+            // An OAuth IMAP account is repaired by signing in again, not by a typed secret:
+            // `with_password` would be a silent no-op, so refuse plainly instead.
+            Some(ConnectedAccount::Imap { config, .. }) if config.is_oauth() => {
+                Err("this account must be repaired through browser sign-in".to_owned())
+            }
+            Some(ConnectedAccount::Imap { config, .. }) => config
                 .with_password(secret)
                 .to_toml()
                 .map_err(|error| error.to_string()),
@@ -246,13 +307,7 @@ impl AccountRegistry {
             .expect("account registry mutex poisoned");
         let mut configs = std::collections::BTreeMap::new();
         for (id, entry) in entries.iter() {
-            let serialized = match entry {
-                ConnectedAccount::Imap(config) => config.to_toml(),
-                ConnectedAccount::Microsoft { config, .. } => config.to_toml(),
-                ConnectedAccount::Google { config, .. } => config.to_toml(),
-                ConnectedAccount::Jmap { config, .. } => config.to_toml(),
-            };
-            match serialized {
+            match entry.to_toml() {
                 Ok(toml) => {
                     configs.insert(id.clone(), toml);
                 }
@@ -282,7 +337,7 @@ impl AccountRegistry {
             Some(ConnectedAccount::Microsoft { config, .. }) => config.to_toml(),
             Some(ConnectedAccount::Google { config, .. }) => config.to_toml(),
             Some(ConnectedAccount::Jmap { config, .. }) => config.to_toml(),
-            Some(ConnectedAccount::Imap(_)) | None => {
+            Some(ConnectedAccount::Imap { .. }) | None => {
                 return Err(format!(
                     "no registered OAuth account to persist for id {id}"
                 ));
@@ -326,7 +381,7 @@ impl AccountRegistry {
             },
             // A password account has nothing that can rotate; reaching here at all would be a bug
             // in the caller, not a lost credential.
-            Some(ConnectedAccount::Imap(_)) => {
+            Some(ConnectedAccount::Imap { .. }) => {
                 return Rotation::Nothing {
                     encode_error: None,
                     family: "imap",
@@ -344,6 +399,39 @@ impl AccountRegistry {
                 family,
             },
         }
+    }
+
+    /// Records `granted` as `id`'s granted scopes and re-serializes its config, when it differs
+    /// from what is stored.
+    ///
+    /// `None` when there is nothing to write: the set is unchanged, or the account keeps no
+    /// granted scopes (only Microsoft and Google do). Unchanged is the answer on almost every
+    /// refresh, and a store write per refresh is a keychain prompt on some hosts.
+    pub(crate) fn record_granted_scopes(
+        &self,
+        id: &AccountId,
+        granted: &GrantedScopes,
+    ) -> Option<(&'static str, Result<String, String>)> {
+        let unchanged = |stored: Option<&[String]>| stored.is_some_and(|set| granted.same_as(set));
+        let mut entries = self.entries.lock().ok()?;
+        let (family, encoded) = match entries.get_mut(id.as_str())? {
+            ConnectedAccount::Microsoft { config, .. } => {
+                if unchanged(config.granted_scopes.as_deref()) {
+                    return None;
+                }
+                config.granted_scopes = Some(granted.as_slice().to_vec());
+                ("graph", config.to_toml())
+            }
+            ConnectedAccount::Google { config, .. } => {
+                if unchanged(config.granted_scopes.as_deref()) {
+                    return None;
+                }
+                config.granted_scopes = Some(granted.as_slice().to_vec());
+                ("google", config.to_toml())
+            }
+            ConnectedAccount::Jmap { .. } | ConnectedAccount::Imap { .. } => return None,
+        };
+        Some((family, encoded.map_err(|err| err.to_string())))
     }
 }
 

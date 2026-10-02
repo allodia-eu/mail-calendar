@@ -29,7 +29,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" />
   </ItemGroup>
@@ -93,6 +93,7 @@
     <!-- The same form's "Sign in with your provider" gate: whether the button is offered at all,
          and that a failed sign-in never takes the password/API-token field away. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\JmapSignInGate.cs" Link="Services\JmapSignInGate.cs" />
+    <Compile Include="..\Mailcal\Services\ImapSignInGate.cs" Link="Services\ImapSignInGate.cs" />
     <!-- Browser sign-in serialization: a second request supersedes an attempt abandoned in the
          browser, instead of being refused behind a guard that only clears on the 5-minute cap.
          WinUI-free on purpose, the flows it runs stay in MailboxModel. Pure BCL. -->
@@ -119,6 +120,9 @@
          the packaging *test* (AppIdentity) needs WinRT, but the choice it drives must be pinned,
          since the packaged literal has to match Package.appxmanifest and the Azure registration. -->
     <Compile Include="..\Mailcal\Services\OAuthScheme.cs" Link="Services\OAuthScheme.cs" />
+    <!-- Which other dev builds' claims on the dev scheme a launch withdraws. The registry walk and
+         the Windows App SDK calls stay in Program.cs; the decision is plain BCL. -->
+    <Compile Include="..\Mailcal\Services\DevSchemeOwnership.cs" Link="Services\DevSchemeOwnership.cs" />
     <!-- Where the MCP server listens and what an assistant is told to spawn (docs/mcp.md). Every
          value in it has to match something outside the file, the pipe name the core binds, the
          alias the app manifest registers, the config key the protocol advertises, and all three
@@ -131,6 +135,7 @@
          a quiet one, an "all mail" horizon rendered with the months sentence would read as a
          confident, wrong claim about what the device holds. -->
     <Compile Include="..\Mailcal\Services\SearchHorizonLine.cs" Link="Services\SearchHorizonLine.cs" />
+    <Compile Include="..\Mailcal\Services\EmptyMailboxLine.cs" Link="Services\EmptyMailboxLine.cs" />
     <!-- The unwrapping of UniFFI's generated "@v1=" exception-message prefix, which otherwise
          reaches user-facing setup errors verbatim. The generated bindings are built and never
          committed, so a test is the only thing that can catch it coming back. Pure BCL. -->
@@ -186,6 +191,11 @@
     <!-- The email-first detection routing + connect-gating, likewise WinUI-free (the view's WinUI
          half stays in Views/), and it maps the generated SetupRecommendation, so it needs the bindings. -->
     <Compile Include="..\Mailcal\Services\AccountDetectForm.cs" Link="Services\AccountDetectForm.cs" />
+    <!-- The manual form's port and connection security: which port the picker offers, and that a
+         port the user typed is never taken back off them. WinUI-free on purpose, because a
+         server on a non-standard port is the reason the manual form exists and nothing else
+         here can fail when that breaks. -->
+    <Compile Include="..\Mailcal\Services\ManualServerField.cs" Link="Services\ManualServerField.cs" />
     <!-- The composer recipient field's string work: which part of a To/Cc/Bcc field is being typed,
          which recipients are finished, and what the field becomes when one is accepted or removed.
          Both failure modes here are SILENT (a whole-field query matches nothing once a first
@@ -262,6 +272,13 @@
     <Compile Include="..\Mailcal\ViewModels\SidebarSources.cs" Link="ViewModels\SidebarSources.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarItem.cs" Link="ViewModels\SidebarItem.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarTree.cs" Link="ViewModels\SidebarTree.cs" />
+    <Compile Include="..\Mailcal\ViewModels\AccountList.cs" Link="ViewModels\AccountList.cs" />
+    <!-- What the folder pane offers and accepts when the tree is changed (docs/folder-pane.md,
+         "Changing the tree"): a row's menu, Move to…'s destinations, which drops land, and the
+         words of the name check, the delete question and the notice. WinUI-free and L10n-free on
+         purpose, so each rule can fail here. It reads the generated FolderNameCheck, FolderNotice
+         and SelectedRow, so it needs the bindings below. -->
+    <Compile Include="..\Mailcal\Services\FolderActions.cs" Link="Services\FolderActions.cs" />
     <!-- CalendarLayout / WeekStart / JmapSetup come from here. Never invoked, no cdylib is loaded. -->
     <Compile Include="..\Mailcal\Services\DefaultMailApp.cs" Link="Services\DefaultMailApp.cs" />
     <Compile Include="..\Mailcal\Services\ShareStaging.cs" Link="Services\ShareStaging.cs" />

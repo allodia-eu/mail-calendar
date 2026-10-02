@@ -8,6 +8,7 @@ import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import uniffi.mailcal_bindings.MailcalApp
+import uniffi.mailcal_bindings.MailcalException
 import uniffi.mailcal_bindings.MissReason
 import uniffi.mailcal_bindings.SetupRecommendation
 import uniffi.mailcal_bindings.beginGoogleLogin
@@ -70,10 +71,19 @@ internal fun MainActivity.addAccount(configToml: String) {
             }
             activity.askSenderNameIfNeeded(instance, row.id)
         } catch (e: Exception) {
-            Log.e(TAG, "add account failed: ${e.message}")
+            // The reason, never the certificate: a refusal's message carries the whole of it
+            // (docs/certificate-exceptions.md rule 9).
+            Log.e(TAG, "add account failed")
+            val failure = (e as? MailcalException)?.let { connectFailure(it, activity) }
             activity.mainHandler.post {
                 activity.isConnecting = false
-                activity.addError = e.message ?: "unknown error"
+                activity.addFailure = failure
+                // A refusal the form can offer to accept is drawn as the panel and not said
+                // twice, so only what the panel cannot carry is left as a message (rule 7).
+                activity.addError = when {
+                    failure?.certificate != null -> null
+                    else -> e.message ?: "unknown error"
+                }
             }
         }
     }

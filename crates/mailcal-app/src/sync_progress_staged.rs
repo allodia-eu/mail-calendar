@@ -1,5 +1,6 @@
-//! Debug-only staged sync progress: a download and a background hint a UI suite can actually
-//! catch, named by `MAILCAL_FAKE_SYNC_PROGRESS` and `MAILCAL_FAKE_SYNC_HINT`.
+//! Debug-only staged sync progress: a download, a background hint and a paused account a UI
+//! suite can actually catch, named by `MAILCAL_FAKE_SYNC_PROGRESS`, `MAILCAL_FAKE_SYNC_HINT`
+//! and `MAILCAL_FAKE_SYNC_PAUSED`.
 //!
 //! # Why this exists
 //!
@@ -22,9 +23,9 @@
 //! into reporting a download that is not happening.
 
 // Only the staged hint names it, and that is compiled out of a release build below.
-#[cfg(debug_assertions)]
-use mailcal_viewmodel::AccountSyncProgress;
 use mailcal_viewmodel::SyncProgressSnapshot;
+#[cfg(debug_assertions)]
+use mailcal_viewmodel::{AccountSyncProgress, ThrottledAccount};
 
 /// The staged snapshot, when either variable names one.
 ///
@@ -35,6 +36,8 @@ use mailcal_viewmodel::SyncProgressSnapshot;
 /// MAILCAL_FAKE_SYNC_PROGRESS=1200        # indeterminate: no total reported yet
 /// MAILCAL_FAKE_SYNC_HINT=acct-1:3/12     # one account, 3 of its 12 folders done
 /// MAILCAL_FAKE_SYNC_HINT=acct-1:3/12,acct-2:0/5
+/// MAILCAL_FAKE_SYNC_PAUSED=acct-1:5          # paused, syncing continues in about 5 minutes
+/// MAILCAL_FAKE_SYNC_PAUSED=acct-1            # paused, the server named no instant
 /// ```
 #[cfg(debug_assertions)]
 pub(crate) fn pretended_progress() -> Option<SyncProgressSnapshot> {
@@ -47,7 +50,8 @@ pub(crate) fn pretended_progress() -> Option<SyncProgressSnapshot> {
 fn read_pretended_progress() -> Option<SyncProgressSnapshot> {
     let bar = std::env::var("MAILCAL_FAKE_SYNC_PROGRESS").ok();
     let hint = std::env::var("MAILCAL_FAKE_SYNC_HINT").ok();
-    if bar.is_none() && hint.is_none() {
+    let paused = std::env::var("MAILCAL_FAKE_SYNC_PAUSED").ok();
+    if bar.is_none() && hint.is_none() && paused.is_none() {
         return None;
     }
     let mut staged = SyncProgressSnapshot::default();
@@ -73,11 +77,20 @@ fn read_pretended_progress() -> Option<SyncProgressSnapshot> {
             log::warn!("sync_progress: MAILCAL_FAKE_SYNC_HINT={raw} names no account; ignoring it");
         }
     }
+    if let Some(raw) = &paused {
+        staged.throttled = parse_pretended_pause(raw);
+        if staged.throttled.is_empty() {
+            log::warn!(
+                "sync_progress: MAILCAL_FAKE_SYNC_PAUSED={raw} names no account; ignoring it"
+            );
+        }
+    }
     log::warn!(
-        "sync_progress: staged; bar {} of {:?}, hint over {} account(s)",
+        "sync_progress: staged; bar {} of {:?}, hint over {} account(s), {} paused",
         staged.fetched,
         staged.total,
-        staged.accounts.len()
+        staged.accounts.len(),
+        staged.throttled.len(),
     );
     Some(staged)
 }
@@ -129,6 +142,28 @@ fn parse_pretended_hint(raw: &str) -> Vec<AccountSyncProgress> {
                 folders_done: done.trim().parse().ok()?,
                 folders_total: total.trim().parse().ok()?,
                 ..AccountSyncProgress::default()
+            })
+        })
+        .collect()
+}
+
+/// Parses a `MAILCAL_FAKE_SYNC_PAUSED` value, dropping any entry that names no account.
+///
+/// `<account>:<minutes>` stages a pause the server timed; `<account>` alone stages the commoner
+/// one it did not, which is the shape two Gmail refusals in three arrive in and the one a host
+/// is most likely to render wrong.
+#[cfg(debug_assertions)]
+fn parse_pretended_pause(raw: &str) -> Vec<ThrottledAccount> {
+    raw.split(',')
+        .filter_map(|entry| {
+            let entry = entry.trim();
+            let (account, minutes) = match entry.rsplit_once(':') {
+                Some((account, minutes)) => (account.trim(), Some(minutes.trim().parse().ok()?)),
+                None => (entry, None),
+            };
+            (!account.is_empty()).then(|| ThrottledAccount {
+                account_id: account.to_owned(),
+                resumes_in_minutes: minutes,
             })
         })
         .collect()
@@ -223,6 +258,36 @@ mod staged_tests {
         for raw in ["", "acct-1", ":3/12", "acct-1:x/12", "acct-1:x"] {
             assert!(
                 super::parse_pretended_hint(raw).is_empty(),
+                "{raw:?} names no account"
+            );
+        }
+    }
+
+    #[test]
+    fn a_staged_pause_reads_as_the_wait_it_names() {
+        use mailcal_viewmodel::ThrottledAccount;
+        assert_eq!(
+            super::parse_pretended_pause("acct-1:5, acct-2"),
+            vec![
+                ThrottledAccount {
+                    account_id: "acct-1".to_owned(),
+                    resumes_in_minutes: Some(5),
+                },
+                // No figure: the commoner refusal, and the one a host is likeliest to render
+                // wrong, so it has to be stageable on its own.
+                ThrottledAccount {
+                    account_id: "acct-2".to_owned(),
+                    resumes_in_minutes: None,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn an_unparseable_staged_pause_names_no_account() {
+        for raw in ["", ":5", "acct-1:x"] {
+            assert!(
+                super::parse_pretended_pause(raw).is_empty(),
                 "{raw:?} names no account"
             );
         }

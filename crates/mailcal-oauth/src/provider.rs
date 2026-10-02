@@ -10,47 +10,37 @@
 /// The Microsoft identity-platform authority host (worldwide/public cloud).
 const MS_AUTHORITY: &str = "https://login.microsoftonline.com";
 
-/// The delegated Graph scopes a Microsoft account requests:
-/// `offline_access` (to be issued a refresh token at all), the OIDC scopes that name the
-/// signed-in user, `Mail.ReadWrite` for the Graph mail sync **and** the write actions
-/// (mark-read/flag, move/archive, permanent delete), `Mail.Send` for submission
-/// (`POST /me/sendMail`: a distinct scope; `Mail.ReadWrite` does **not** grant send),
-/// `Calendars.ReadWrite` for the calendar read/sync + create/patch/delete, `User.Read`
-/// so the core can look up the account's own address (`GET /me`) to name it,
-/// `Contacts.ReadWrite` for the account's saved contacts, and `User.ReadBasic.All` for
-/// the tenant directory: the people a work/school account actually corresponds with,
-/// and the permission a colleague's profile photo is read through.
+/// The delegated Graph scopes a Microsoft account used for everything requests; an account used
+/// for less requests its uses' groups from [`crate::scopes::MICROSOFT`]. Each one has a call site,
+/// named in the per-scope table of [`docs/provider-oauth.md`](../../../docs/provider-oauth.md)
+/// (rule 10), which is what an administrator approving the app reads: `offline_access` (a refresh
+/// token at all), `User.Read` (`GET /me`, the account's own address), `Mail.ReadWrite` (mail sync
+/// and every mail write), `Mail.Send` (`POST /me/sendMail`; `Mail.ReadWrite` does **not** grant
+/// send), `Calendars.ReadWrite`, `Contacts.ReadWrite` (the account's own cards) and
+/// `User.ReadBasic.All` (the tenant directory, and the permission a colleague's photo is read
+/// through).
 ///
-/// Scopes are granted by **incremental consent**: an account whose stored grant predates a
-/// scope 403s (`ErrorAccessDenied`) on that capability until it re-authenticates: a reconnect
-/// re-requests this whole set, so re-consenting for any one scope grants them all. So widening
-/// what is *requested* here makes every existing account re-authenticate before the new
-/// capability works. Each scope must also be a delegated permission on the Azure app
-/// registration or consent fails.
+/// **No OpenID Connect scope.** Nothing reads an ID token, and Microsoft issues a refresh token
+/// for `offline_access` alone, so `openid`, `profile` and `email` would each be a line on the
+/// consent screen with no feature behind it.
+///
+/// A widened set reaches an existing account only when it signs in again: a refresh re-uses the
+/// original grant. Each scope must also be a delegated permission on the app registration, or
+/// consent fails.
 ///
 /// **A scope the account cannot grant fails at *connect*, not at use.** Microsoft answers
 /// `access_denied` during consent, so an unregistered (or admin-gated) scope does not cost one
-/// capability, it stops the account being added at all
-/// ([`docs/provider-oauth.md`](../../../docs/provider-oauth.md) rule 10). That is why this set
-/// stays to permissions a *user* can consent to for themselves, and why two Graph contact
-/// permissions are deliberately absent: `ProfilePhoto.Read.All`, which grants nothing
-/// `User.ReadBasic.All` does not (verified against a real tenant), and `OrgContact.Read.All`,
-/// which covers a source the product does not read. Both are tenant-wide reads; requesting
-/// either would put every user in a tenant that requires admin approval behind their
-/// administrator before they could connect an account.
+/// capability, it stops the account being added at all. That is why this set stays to
+/// permissions a *user* can consent to for themselves, and why `ProfilePhoto.Read.All` (which
+/// grants nothing `User.ReadBasic.All` does not, verified against a real tenant) and
+/// `OrgContact.Read.All` (a source the product does not read) are absent.
 ///
-/// **Contacts are requested read *and write* while the product only reads them.** The
-/// alternative is asking every Microsoft user to re-consent a second time the moment contact
-/// editing ships, and a forced re-authentication is a worse experience than one broader prompt
-/// now. What the app actually does is bounded by
-/// [`docs/privacy-policy.md`](../../../docs/privacy-policy.md), which states the read-only
-/// behaviour plainly and explains the gap: the promise is kept by the policy and the code, not
-/// by the narrowness of the scope. Revisit if contact editing is dropped.
+/// **Contacts are requested read *and write* because the app adds and edits them.** It never
+/// deletes one, which the scope would allow; that promise is kept by
+/// [`docs/privacy-policy.md`](../../../docs/privacy-policy.md) and the code, not by the
+/// narrowness of the scope.
 pub const MICROSOFT_GRAPH_SCOPES: &[&str] = &[
     "offline_access",
-    "openid",
-    "profile",
-    "email",
     "https://graph.microsoft.com/Mail.ReadWrite",
     "https://graph.microsoft.com/Mail.Send",
     "https://graph.microsoft.com/Calendars.ReadWrite",
@@ -64,14 +54,20 @@ pub const MICROSOFT_GRAPH_SCOPES: &[&str] = &[
 const GOOGLE_AUTHORIZE_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 
-/// The delegated scopes a Google account requests: **full** Gmail (`mail.google.com`), Gmail's
-/// basic settings, read/write Google Calendar, and the three People sources.
+/// The delegated scopes a Google account used for everything requests: **full** Gmail
+/// (`mail.google.com`), Gmail's basic settings, read/write Google Calendar, the three People
+/// sources, and the account's own address. An account used for less requests its uses' groups
+/// from [`crate::scopes::GOOGLE`], and the address always.
 ///
 /// The engine's Gmail provider does the full range of mail writes; `messages.modify`/`trash`
 /// **and permanent `messages.delete`** plus `messages.send`, and permanent delete is only
 /// granted by the broad `https://mail.google.com/` scope, so that is what we request rather
-/// than composing narrower `gmail.*` scopes. The account's own address is read from the Gmail
-/// `users/me/profile` endpoint (covered by this scope), so no `openid`/`email` scope is needed.
+/// than composing narrower `gmail.*` scopes.
+///
+/// **`userinfo.email` names the account whatever it is used for.** The Gmail profile would name
+/// it too, but only for an account that was granted mail, so a person who keeps the calendar and
+/// unticks Gmail on the consent screen would leave nothing to name the account with. It is
+/// non-sensitive, and Google adds `openid` to a grant that asks for it.
 ///
 /// **`gmail.settings.basic` is a separate scope because `mail.google.com` does not reach the
 /// settings collection's writes.** It grants `users.settings.sendAs.list` but not `patch`, so
@@ -91,10 +87,10 @@ const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 /// **parameters** `access_type=offline` + `prompt=consent` (see [`AuthStyle::Google`]), not a
 /// scope.
 ///
-/// **Every scope here but the contact three is restricted**, so all of them are covered by the
-/// one security assessment the app is already waiting on: until it clears, the app is usable
-/// only by allow-listed Early Access test users. That is why `gmail.settings.basic` is
-/// requested now rather than when a second settings feature wants it: a restricted scope added
+/// **Every scope here but the contact three and `userinfo.email` is restricted**, so all of them
+/// are covered by the one security assessment the app is already waiting on: until it clears, the
+/// app is usable only by allow-listed Early Access test users. That is why `gmail.settings.basic`
+/// is requested now rather than when a second settings feature wants it: a restricted scope added
 /// after verification is a **new assessment**, not an amendment. The three contact scopes are
 /// **sensitive**, which is a declaration, a justification and a demo video, so they do not
 /// deepen the gate either.
@@ -105,6 +101,7 @@ pub const GOOGLE_SCOPES: &[&str] = &[
     "https://www.googleapis.com/auth/contacts",
     "https://www.googleapis.com/auth/contacts.other.readonly",
     "https://www.googleapis.com/auth/directory.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
 ];
 
 /// How a provider wants its authorization request shaped, beyond the shared
@@ -173,6 +170,19 @@ pub struct OAuthProviderConfig {
     /// It must ride on the authorization request, the code exchange, and every refresh; omitting
     /// it from the refresh alone would break the account about an hour after setup.
     pub resource: Option<String>,
+    /// The issuer the authorization response's `iss` parameter must name (RFC 9207), when the
+    /// server advertised that it sends one
+    /// ([`issuer_parameter_supported`](crate::AuthServerMetadata::issuer_parameter_supported)).
+    ///
+    /// This is the mix-up defence, and it only bites where a user has accounts at more than one
+    /// provider: a malicious authorization server relays the request to an honest one, the
+    /// honest one's code comes back to the client, and without `iss` the client cannot tell
+    /// which server issued it and posts the code to the attacker's token endpoint.
+    ///
+    /// `None` for the integrated providers, whose issuer is fixed at build time and cannot be
+    /// substituted, and for any discovered server that does not advertise the parameter: there
+    /// is then nothing to compare, which is the pre-RFC-9207 status quo rather than a fault.
+    pub expected_issuer: Option<String>,
     /// How to shape the authorization request (provider-specific params + account targeting).
     pub style: AuthStyle,
 }
@@ -204,6 +214,8 @@ impl OAuthProviderConfig {
             scopes: scopes.iter().map(|s| (*s).to_owned()).collect(),
             // Microsoft scopes tokens by scope, not by RFC 8707 resource indicator.
             resource: None,
+            // Microsoft's issuer is fixed at build time; there is no substitution to detect.
+            expected_issuer: None,
             style: AuthStyle::Microsoft,
         }
     }
@@ -233,6 +245,8 @@ impl OAuthProviderConfig {
             scopes: scopes.iter().map(|s| (*s).to_owned()).collect(),
             // Google likewise uses scopes alone.
             resource: None,
+            // As for Microsoft: a fixed, integrated issuer.
+            expected_issuer: None,
             style: AuthStyle::Google,
         }
     }

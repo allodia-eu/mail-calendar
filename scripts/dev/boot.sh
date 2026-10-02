@@ -54,58 +54,77 @@ if [[ "$ACCOUNT" != "personal" ]]; then
   export MAILCAL_DEV_ACCOUNT="$ACCOUNT"
 fi
 
+# Hand the harness's certificates to the app, which a debug core adds as custom roots
+# (MAILCAL_EXTRA_CA): the seeded server's IMAP listener, and the sign-in server's IMAP listener and
+# HTTPS front. Apple and Windows debug cores trust them via debug_assertions; the Android dev build
+# via the `dev-harness` Cargo feature. How the file reaches the app differs per platform.
+deliver_harness_ca() {
+  case "$platform" in
+    macos|iphone|ipad|linux)
+      # The app (macOS) / sim reads the cert file directly via MAILCAL_EXTRA_CA (a host path).
+      export MAILCAL_EXTRA_CA="$HARNESS_CA" ;;
+    android)
+      # The emulator can't read a host path, so pass the cert base64 as an intent extra; the app
+      # writes it into its sandbox and points the core at it (see clients/android/build-and-run.sh).
+      # An already-exported value wins: that is how the client is pointed at something standing in
+      # front of the harness with its own certificate (`imap-fault-proxy.py`).
+      require_cmd base64
+      if [[ -n "${MAILCAL_EXTRA_CA_PEM:-}" ]]; then
+        info "using the MAILCAL_EXTRA_CA_PEM already in the environment, not the harness's own cert"
+      else
+        export MAILCAL_EXTRA_CA_PEM="$(base64 < "$HARNESS_CA" | tr -d '\n')"
+      fi ;;
+    windows)
+      # Also a host path; but a *Windows* one: the core opens it with the Win32 file APIs, which
+      # don't understand the MSYS `/d/repos/...` form this bash sees. The variable rides the
+      # bash -> pwsh -> Start-Process hop by plain inheritance (MSYS passes unrecognised env vars
+      # through verbatim; Start-Process hands the parent's environment to the child), and
+      # build-and-run.ps1 asserts the file is readable before it launches.
+      export MAILCAL_EXTRA_CA="$(to_win_path "$HARNESS_CA")" ;;
+  esac
+}
+
+# Best-effort for a boot that does not dial the harness over TLS itself: with the certificates
+# delivered, "Add account" can set up alice@localhost, whose sign-in the harness serves
+# (docker/stalwart/README.md). Without the harness, the boot is unaffected.
+offer_harness_sign_in() {
+  harness_healthy || return 0
+  [[ -f "$HARNESS_CA" ]] || extract_harness_ca || return 0
+  deliver_harness_ca
+}
+
 case "$ACCOUNT" in
   stalwart)
     require_harness
+    offer_harness_sign_in
     info "booting $platform against the local Stalwart harness over JMAP (alice@test.local)" ;;
   stalwart-multi)
     require_harness
+    offer_harness_sign_in
     info "booting $platform against the harness over JMAP as TWO accounts (alice + bob@test.local)" ;;
   stalwart-imap)
     require_harness
-    # IMAP fidelity (full mail actions + IDLE) needs the dev-harness custom-root path to trust the
-    # harness's self-signed cert. Apple and Windows debug cores get it via debug_assertions; the
-    # Android dev build gets it via the `dev-harness` Cargo feature. How the cert reaches the app
-    # differs per platform.
-    [[ -f "$HARNESS_CA" ]] || extract_harness_ca || die "no harness IMAP cert at $HARNESS_CA: run: scripts/dev/harness.sh up"
-    case "$platform" in
-      macos|iphone|ipad|linux)
-        # The app (macOS) / sim reads the cert file directly via MAILCAL_EXTRA_CA (a host path).
-        export MAILCAL_EXTRA_CA="$HARNESS_CA" ;;
-      android)
-        # The emulator can't read a host path, so pass the cert base64 as an intent extra; the app
-        # writes it into its sandbox and points the core at it (see clients/android/build-and-run.sh).
-        # An already-exported value wins: that is how the client is pointed at something standing in
-        # front of the harness with its own certificate (`imap-fault-proxy.py`).
-        require_cmd base64
-        if [[ -n "${MAILCAL_EXTRA_CA_PEM:-}" ]]; then
-          info "using the MAILCAL_EXTRA_CA_PEM already in the environment, not the harness's own cert"
-        else
-          export MAILCAL_EXTRA_CA_PEM="$(base64 < "$HARNESS_CA" | tr -d '\n')"
-        fi ;;
-      windows)
-        # Also a host path; but a *Windows* one: the core opens it with the Win32 file APIs, which
-        # don't understand the MSYS `/d/repos/...` form this bash sees. The variable rides the
-        # bash -> pwsh -> Start-Process hop by plain inheritance (MSYS passes unrecognised env vars
-        # through verbatim; Start-Process hands the parent's environment to the child), and
-        # build-and-run.ps1 asserts the file is readable before it launches.
-        export MAILCAL_EXTRA_CA="$(to_win_path "$HARNESS_CA")" ;;
-    esac
+    # IMAP fidelity (full mail actions + IDLE) needs the harness's self-signed IMAP cert trusted.
+    [[ -f "$HARNESS_CA" ]] || extract_harness_ca || die "no harness certificates at $HARNESS_CA: run: scripts/dev/harness.sh up"
+    deliver_harness_ca
     info "booting $platform against the local Stalwart harness over IMAP (full mail actions + IDLE)" ;;
   personal) info "booting $platform against your stored (personal) accounts" ;;
   demo)     info "booting $platform in demo mode (in-memory sample mailbox)" ;;
   first-run)
     # Nothing is injected and nothing is read: the namespace starts empty and stays empty unless
-    # an account is added inside it. Delete it to start over; the path is printed below.
+    # an account is added inside it. Clearing it is the directory AND the accounts, which live in
+    # the platform keystore, so deleting the directory alone opens on a mailbox again.
     case "$platform" in
       macos|iphone|ipad|windows) ;;
       *) die "--account first-run is not supported on $platform yet" ;;
     esac
+    offer_harness_sign_in
     info "booting $platform on an EMPTY namespace: the welcome screen, then the first-account screen"
     if [[ "$platform" == "windows" ]]; then
-      info 'its store: %LOCALAPPDATA%\Allodia\MailCalendar\dev-first-run (delete it to see the first run again)'
+      info 'its store: %LOCALAPPDATA%\Allodia\MailCalendar\dev-first-run, its accounts: Credential Manager'
+      info 'to see the first run again: pwsh clients/windows/clear-dev-namespace.ps1 -Namespace dev-first-run'
     else
-      info "its store: ~/.local/share/mailcal-dev-first-run (delete it to see the first run again)"
+      info "its store: ~/.local/share/mailcal-dev-first-run, its accounts: the keychain service $MAILCAL_APP_ID.dev.first-run (clear both to see the first run again)"
     fi ;;
 esac
 

@@ -471,3 +471,12 @@ fn the_showcase_clock_is_pinned_to_a_wall_time_not_the_moment_of_capture() {
         "the seed must land on the pinned wall clock in the device zone"
     );
 }
+
+#[test]
+fn a_client_is_handed_the_same_now_the_showcase_seeds_from() {
+    // A client's calendar frames itself and draws its now line from this, so a capture's grid
+    // agrees with the seeded mail and the status bar whatever the hour it was taken.
+    let zone = "Europe/Amsterdam".to_owned();
+    let seeded = crate::showcase_data::seeded_now(&crate::device_zone(zone.clone()));
+    assert_eq!(showcase_now(zone), seeded.unix_timestamp());
+}

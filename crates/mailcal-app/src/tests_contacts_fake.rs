@@ -49,6 +49,7 @@ impl Provider for MailOnly {
     }
 }
 
+impl engine_api::MailboxWrites for MailOnly {}
 impl CalendarWrites for MailOnly {}
 
 /// A contacts adapter serving one address book of canned cards.
@@ -140,6 +141,7 @@ impl Provider for FakeContacts {
     }
 }
 
+impl engine_api::MailboxWrites for FakeContacts {}
 impl CalendarWrites for FakeContacts {}
 
 #[async_trait]
@@ -291,6 +293,8 @@ pub(crate) fn account(id: &str, contacts: Vec<Box<dyn ContactsProvider>>) -> Acc
         calendar_providers: Vec::new(),
         contact_providers: contacts,
         identity: EmailAddress::new(format!("me@{id}.local")),
+        dialled: true,
+        uses_mail: true,
     }
 }
 

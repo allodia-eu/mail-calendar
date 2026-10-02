@@ -31,6 +31,7 @@ use calendar::{
 // descendants — the per-locale seeds — keep writing `super::ago` wherever it happens to live.
 use clock::ago;
 pub(crate) use clock::seeded_now;
+pub use clock::showcase_now;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 use engine_core::ids::{EventId, Uid};
 use engine_core::{

@@ -13,6 +13,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import java.io.File
 import java.util.UUID
@@ -56,7 +59,7 @@ internal fun MainActivity.composerDrafts(instance: MailcalApp) = ComposerDrafts(
             DraftStatus.IDLE
         }
     },
-    version = draftStatusVersion,
+    version = drafts.draftStatusVersion,
     idleSeconds = draftAutosaveIdleSeconds(),
 )
 
@@ -115,6 +118,24 @@ internal fun resumeDraft(
 /** A fresh composition id, minted as a composer opens. */
 internal fun newComposition(): String = UUID.randomUUID().toString()
 
+/** What the activity holds about Drafts between snapshots. */
+internal class DraftUiState {
+    // Whether the list is showing the account's Drafts folder, so a row opens into a composer that
+    // saves over it rather than into the reading view (docs/drafts.md). The core answers it from
+    // the folder's role, never from its name.
+    var showingDrafts by mutableStateOf(false)
+    // Bumped on every Surface.DRAFT_STATUS signal, so each open composer re-pulls its own
+    // composition's state. The signal says that *some* composition's save moved, not which, and
+    // there is nothing else to publish.
+    var draftStatusVersion by mutableStateOf(0)
+    // A draft the core has opened back up, waiting for its composer to be drawn. Null the rest of
+    // the time; set only by a tap on a Drafts-folder row (docs/drafts.md).
+    var resumedDraft by mutableStateOf<ResumedDraft?>(null)
+    // Whether to say that a draft could not be opened back into a composer. Raised instead of
+    // opening an empty one, whose next save would replace the draft.
+    var draftOpenFailed by mutableStateOf(false)
+}
+
 /** A draft the core has opened back up, and the composition it was adopted into. */
 internal data class ResumedDraft(val composition: String, val draft: DraftResume)
 
@@ -136,7 +157,7 @@ internal fun MainActivity.openOrResume(
     opened: OpenedMessage,
     conversation: List<ThreadMessage>? = null,
 ) {
-    if (!showingDrafts) {
+    if (!drafts.showingDrafts) {
         openMessage(instance, opened, conversation)
         return
     }
@@ -148,10 +169,10 @@ internal fun MainActivity.openOrResume(
         val resumed = resumeDraft(instance, composition, opened.account, opened.key, directory)
         Handler(Looper.getMainLooper()).post {
             if (resumed == null) {
-                draftOpenFailed = true
+                drafts.draftOpenFailed = true
                 openMessage(instance, opened, conversation)
             } else {
-                resumedDraft = ResumedDraft(composition, resumed)
+                drafts.resumedDraft = ResumedDraft(composition, resumed)
             }
         }
     }
@@ -162,7 +183,7 @@ internal fun MainActivity.openOrResume(
  * message back into its composer, exactly as a flat row does.
  */
 internal fun MainActivity.openOrResumeThread(instance: MailcalApp, thread: ThreadRow) {
-    if (!showingDrafts) {
+    if (!drafts.showingDrafts) {
         openThread(instance, thread)
         return
     }
@@ -199,7 +220,7 @@ internal fun DraftOpenFailedDialog(onDismiss: () -> Unit) {
  */
 @Composable
 internal fun MainActivity.ResumedDraftPane(instance: MailcalApp) {
-    val resumed = resumedDraft ?: return
+    val resumed = drafts.resumedDraft ?: return
     val draft = resumed.draft
     RichComposeMessageDialog(
         mode = RichComposeMode.New,
@@ -222,6 +243,6 @@ internal fun MainActivity.ResumedDraftPane(instance: MailcalApp) {
             }
         },
         onSubmitRich = { submission -> submitMail(instance, submission) },
-        onDismiss = { resumedDraft = null },
+        onDismiss = { drafts.resumedDraft = null },
     )
 }

@@ -37,7 +37,7 @@ use provider_google::{CalendarWindow, GoogleCalendarProvider, GoogleClient};
 use time::{Duration, OffsetDateTime};
 
 use super::{calendar_date, should_reconnect};
-use crate::{AccountError, GraphTokenSource, throttle::account_retry, tls::account_tls};
+use crate::{AccountError, GraphTokenSource, tls::tls_with};
 
 /// What a Google series edit costs the occurrences the user changed by hand: moving the
 /// series' time destroys them, and renaming the series renames the one they had renamed.
@@ -126,7 +126,7 @@ impl RefreshingGoogleCalendarProvider {
                 return Ok(Arc::clone(provider));
             }
         }
-        let client = GoogleClient::connect(token.clone(), &self.tls, &account_retry())
+        let client = GoogleClient::connect(token.clone(), &self.tls, &self.tokens.retry())
             .map_err(ProviderError::from)?;
         let provider = Arc::new(
             GoogleCalendarProvider::new(client, self.calendar.clone()).with_window(self.window),
@@ -216,6 +216,8 @@ impl Provider for RefreshingGoogleCalendarProvider {
     }
 }
 
+impl engine_api::MailboxWrites for RefreshingGoogleCalendarProvider {}
+
 #[async_trait]
 impl CalendarWrites for RefreshingGoogleCalendarProvider {
     async fn create_event(
@@ -267,7 +269,7 @@ pub async fn connect_google_calendar_providers(
     account_id: &AccountId,
     tokens: Arc<GraphTokenSource>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     let window = rolling_window()?;
     let calendars = list_calendars(account_id, &tokens, &tls, window).await?;
     let calendar = calendars
@@ -290,7 +292,7 @@ async fn list_calendars(
     window: CalendarWindow,
 ) -> Result<Vec<Calendar>, AccountError> {
     let token = tokens.access_token().await?;
-    let client = GoogleClient::connect(token, tls, &account_retry())
+    let client = GoogleClient::connect(token, tls, &tokens.retry())
         .map_err(|err| AccountError::Google(err.to_string()))?;
     // The `calendarList` call ignores the bound calendar, so any placeholder id serves to
     // construct the probe (the `primary` alias Google always accepts).
@@ -355,7 +357,7 @@ mod tests {
             calendar.clone(),
             google_source(),
             rolling_window().unwrap(),
-            account_tls().unwrap(),
+            tls_with(&[]).unwrap(),
         );
         let info = provider.connection_info();
         assert!(info.capabilities.calendars());

@@ -18,7 +18,7 @@
 -keepclassmembers class * extends com.sun.jna.** { public *; }
 
 # ---------------------------------------------------------------------------------------------
-# Tink, under androidx.security-crypto, the encrypted store the account credentials live in.
+# Tink, under androidx.security-crypto, which LegacySecureStore reads accounts from once.
 # ---------------------------------------------------------------------------------------------
 # These are compile-time-only annotations. They are not on the runtime classpath by design, and R8
 # refuses to shrink until it is told they are meant to be absent.

@@ -9,8 +9,9 @@
 #                                        # wipe volumes and re-bootstrap from empty (clean slate),
 #                                        # clearing this host's client dev stores with it
 #   scripts/dev/harness.sh status        # health + host port table
+#   scripts/dev/harness.sh certs         # re-extract the served certificates for MAILCAL_EXTRA_CA
 #   scripts/dev/harness.sh logs [-f]     # the server's own logs (seeding, requests)
-#   scripts/dev/harness.sh test          # run the gated JMAP live test against it
+#   scripts/dev/harness.sh test          # run the gated live tests against it (JMAP, IMAP sign-in)
 #   scripts/dev/harness.sh deliver [--from B] [--subject S]
 #                                        # drop a fresh message into alice@test.local's INBOX (via
 #                                        # IMAP APPEND) so a background-sync 'detect' pass has new
@@ -100,8 +101,12 @@ Host ports (loopback only): the 12xxx/28080 block, kept clear of the engine repo
   JMAP + CalDAV + admin  http://127.0.0.1:28080
   SMTP (plaintext)       127.0.0.1:12025
   IMAP (implicit TLS)    127.0.0.1:12993
+  JMAP sign-in (OAuth)   http://localhost:28081   (stalwart-oauth: alice only, nothing seeded)
+  IMAP sign-in           localhost:12995 IMAP, :12467 submission, https://localhost + https://127.0.0.1
+                         (stalwart-oauth and its HTTPS front: set up alice@localhost to be offered it)
 
 Seeded account: alice@test.local / harness-alice-pw   (also bob@test.local, admin)
+Certificates a debug build trusts via MAILCAL_EXTRA_CA: $HARNESS_CA
 EOF
 }
 
@@ -111,7 +116,7 @@ case "$cmd" in
     info "starting the Stalwart harness (bootstrap + seed; blocks until healthy)"
     docker compose up -d --wait
     info "harness healthy"
-    extract_harness_ca && info "extracted harness IMAP cert -> $HARNESS_CA (for --account stalwart-imap)" || true
+    extract_harness_ca && info "extracted the harness certificates -> $HARNESS_CA (MAILCAL_EXTRA_CA)" || true
     show_status
     ;;
   down)
@@ -123,12 +128,17 @@ case "$cmd" in
     docker compose down -v
     docker compose up -d --wait
     info "harness healthy (clean slate)"
-    extract_harness_ca && info "extracted harness IMAP cert -> $HARNESS_CA (for --account stalwart-imap)" || true
+    extract_harness_ca && info "extracted the harness certificates -> $HARNESS_CA (MAILCAL_EXTRA_CA)" || true
     clear_dev_stores
     show_status
     ;;
   status)
     show_status
+    ;;
+  certs)
+    require_harness
+    extract_harness_ca || die "could not extract the harness certificates"
+    info "extracted the harness certificates -> $HARNESS_CA"
     ;;
   logs)
     shift_flag="${ARGS[1]:-}"
@@ -136,12 +146,23 @@ case "$cmd" in
     ;;
   test)
     require_harness
-    info "running the gated JMAP live test against the harness"
+    info "running the gated live tests against the harness"
     cd "$REPO_ROOT"
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
       STALWART_ACCOUNT="alice@test.local" \
       STALWART_PASSWORD="harness-alice-pw" \
       cargo test -p mailcal-account --test live_jmap -- --nocapture
+    STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
+      STALWART_OAUTH_HTTP_ADDR="$STALWART_OAUTH_HTTP_ADDR" \
+      cargo test -p mailcal-bindings --test live_jmap_oauth -- --nocapture
+    extract_harness_ca || die "the IMAP sign-in tests need the harness certificates"
+    MAILCAL_EXTRA_CA="$HARNESS_CA" \
+      MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
+      MAILCAL_HARNESS_OAUTH_IMAP="$STALWART_OAUTH_IMAP_ADDR" \
+      cargo test -p mailcal-account --test live_imap_auth -- --nocapture
+    MAILCAL_EXTRA_CA="$HARNESS_CA" \
+      MAILCAL_HARNESS_OAUTH_IMAP="$STALWART_OAUTH_IMAP_ADDR" \
+      cargo test -p mailcal-bindings --test live_imap_oauth -- --nocapture
     ;;
   deliver)
     require_harness
@@ -182,9 +203,9 @@ PY
     info "delivered to the INBOX: a background-sync 'detect' pass will now find it"
     ;;
   -h|--help|help)
-    sed -n '2,22p' "$SELF"
+    sed -n '2,21p' "$SELF"
     ;;
   *)
-    die "unknown command '$cmd' (up|down|reset|status|logs|test|deliver)"
+    die "unknown command '$cmd' (up|down|reset|status|certs|logs|test|deliver)"
     ;;
 esac

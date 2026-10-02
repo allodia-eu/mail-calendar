@@ -4,10 +4,11 @@
 //! This is the *runtime* half of the synchronisation-behaviour feature; the *configuration*
 //! (which account pushes vs. polls, which folders) lives in the product core's
 //! `sync_settings` state machine. The manager reads the core's [`SyncSettingsSnapshot`] to
-//! decide what to run, then spawns one task per watched folder (push) or one timer per
-//! account (poll). It lives here, not in the core, because building an [`ImapWatcher`] (and
-//! polling) needs the account credentials (the [`SharedRegistry`] registry) and the runtime
-//! the bindings own: the core stays generic over `Provider` and credential-free.
+//! decide what to run, then spawns one task per watched folder plus a full pass every
+//! [`PUSH_FULL_PASS_MINUTES`] (push), or one timer per account (poll). It lives here, not in the
+//! core, because building an [`ImapWatcher`] (and polling) needs the account credentials (the
+//! [`SharedRegistry`] registry) and the runtime the bindings own: the core stays generic over
+//! `Provider` and credential-free.
 //!
 //! Cancellation is by aborting the per-account [`JoinHandle`]s: a settings change re-applies
 //! the account (abort + respawn), and process teardown drops the runtime (which aborts every
@@ -31,6 +32,14 @@ use crate::SharedRegistry;
 
 /// The app type every account shares (providers boxed behind the trait).
 type SharedApp = Arc<App<Box<dyn Provider>>>;
+
+/// How often an account that receives push also runs a full pass, in minutes.
+///
+/// A watch covers only the folder it names, and an account watches four at most, so without this
+/// every other folder (and the unread count beside it) would be as current as the pass at launch
+/// or at the last reconnect: for a desktop left running, days. The shortest interval an account
+/// that polls can choose, which is also Android's floor for periodic work.
+const PUSH_FULL_PASS_MINUTES: u16 = mailcal_account::POLL_INTERVALS[0];
 
 /// The first reconnect delay after a dropped/failed watch; doubled each further failure up
 /// to [`RECONNECT_BACKOFF_MAX`]. Small so a healthy connection that blips recovers quickly.
@@ -119,8 +128,8 @@ impl BackgroundManager {
     }
 
     /// (Re)applies one account's background work: aborts whatever is running for it, then
-    /// spawns watches (push) or a poll timer per the `row`. `None` (the account has no
-    /// settings row; e.g. it was removed) just stops it.
+    /// spawns watches and a full-pass timer (push) or a poll timer per the `row`. `None` (the
+    /// account has no settings row; e.g. it was removed) just stops it.
     pub(crate) fn apply(&self, account_id: &str, row: Option<&AccountSyncRow>) {
         self.stop(account_id);
         let Some(row) = row else {
@@ -138,6 +147,12 @@ impl BackgroundManager {
                         folder.key.clone(),
                     )));
                 }
+                // Every folder the watches do not name, on the same loop a polling account runs.
+                handles.push(self.handle.spawn(poll_loop(
+                    Arc::clone(&self.app),
+                    account_id.to_owned(),
+                    PUSH_FULL_PASS_MINUTES,
+                )));
             }
             SyncStrategyKind::Poll => {
                 handles.push(self.handle.spawn(poll_loop(
@@ -155,6 +170,27 @@ impl BackgroundManager {
         }
     }
 
+    /// [`apply`](Self::apply) with the account's row from the settings in effect now.
+    pub(crate) async fn apply_current(&self, account_id: &str) {
+        let snapshot = self.app.sync_settings().await;
+        let row = snapshot
+            .accounts
+            .iter()
+            .find(|row| row.account_id == account_id);
+        self.apply(account_id, row);
+    }
+
+    /// How many tasks run for one account: a watch per folder and the full-pass timer, or one
+    /// poll timer.
+    #[cfg(test)]
+    pub(crate) fn task_count(&self, account_id: &str) -> usize {
+        self.tasks
+            .lock()
+            .expect("background-tasks mutex poisoned")
+            .get(account_id)
+            .map_or(0, Vec::len)
+    }
+
     /// Aborts and forgets every running task for one account.
     fn stop(&self, account_id: &str) {
         if let Some(handles) = self
@@ -168,6 +204,20 @@ impl BackgroundManager {
             }
         }
     }
+}
+
+/// An added account's first sync, with its background work started between the mail and the
+/// warm-up. Before the mail sync a new account has no stored folders, so there is none to watch;
+/// after the warm-up the watches would wait for every body in the window to be cached, which on a
+/// large mailbox is many minutes of new mail arriving unannounced.
+pub(crate) async fn sync_added_account(
+    app: &SharedApp,
+    background: &BackgroundManager,
+    id: &AccountId,
+) {
+    app.sync_added_mail(id).await;
+    background.apply_current(id.as_str()).await;
+    app.warm_added_account(id).await;
 }
 
 /// A standing IMAP `IDLE` watch on one folder: connect, sync once, then sync on every
@@ -185,12 +235,19 @@ async fn watch_loop(
         // Don't even attempt a connect while the device is offline; park until it returns,
         // so an overnight outage doesn't retry every few seconds against a dead resolver.
         await_online(&mut online).await;
-        let Some(config) = registry.imap_config(&account_id) else {
+        let Some((config, connections, tokens)) = registry.imap(&account_id) else {
             // The account's config is gone (removed), or it's a Microsoft account (Graph
             // has no IMAP IDLE; it polls), nothing to watch here.
             return;
         };
-        match mailcal_account::connect_imap_watcher(&config, &folder_key).await {
+        match mailcal_account::connect_imap_watcher(
+            &connections,
+            &config,
+            tokens.as_ref(),
+            &folder_key,
+        )
+        .await
+        {
             Ok(mut watch) => {
                 let connected_at = Instant::now();
                 // Sync once before trusting the watch, to catch anything that changed while
@@ -254,9 +311,31 @@ async fn poll_loop(app: SharedApp, account_id: String, minutes: u16) {
         // returns, the app's own reachability handler refreshes every account, so the poll
         // needs no offline gate of its own.
         if let Ok(id) = AccountId::try_from(account_id.as_str()) {
-            app.refresh_account(&id).await;
+            // Where the provider named a window, sit out the rest of it before the next tick.
+            // The engine reports a long refusal instead of sleeping a task through it, so
+            // honouring the number is this loop's job; ignoring it would walk the next tick
+            // into the same refusal and spend a round trip learning nothing. Shorter than the
+            // poll period is already covered by the interval, so only the excess is waited.
+            if let Some(asked) = app.refresh_account(&id).await
+                && let Some(excess) = asked.checked_sub(period)
+            {
+                log::info!(
+                    "{}: rate limited; holding the poll a further {}s the server asked for",
+                    poll_log_scope(&account_id),
+                    excess.as_secs(),
+                );
+                tokio::time::sleep(excess).await;
+                // The interval kept ticking while we slept; drop the backlog so returning
+                // does not immediately fire the tick this wait exists to postpone.
+                interval.reset();
+            }
         }
     }
+}
+
+/// A poll loop's log scope: the account, hashed, never its address (`docs/logging.md`).
+fn poll_log_scope(account_id: &str) -> String {
+    format!("poll:{}", mailcal_account::account_log_handle(account_id))
 }
 
 #[cfg(test)]

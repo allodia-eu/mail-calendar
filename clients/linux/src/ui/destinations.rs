@@ -15,7 +15,7 @@ use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 
 use super::AppInput;
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 /// The shell's top-level surfaces. Exactly one is on screen at a time; an enum rather than a
 /// flag per screen, so "the calendar and contacts at once" is a state that cannot be written down.
@@ -30,20 +30,12 @@ pub(crate) enum PrimaryView {
 }
 
 /// The switcher's glyphs, in the order they sit on the bar.
-///
-/// Themed rather than bundled: Adwaita; the theme the GNOME runtime provides, and so the one the
-/// Flatpak runs against; ships all four, and a name a theme lacks draws the broken-image icon
-/// while the bar carries on as though nothing happened, so the widget tests assert each resolves.
-/// Contacts takes the address book from the same mimetype family as the calendar beside it.
 const ICONS: [&str; 4] = [
-    "mail-unread-symbolic",
-    "x-office-calendar-symbolic",
-    CONTACTS_ICON,
-    "preferences-system-symbolic",
+    icons::MAIL,
+    icons::CALENDAR,
+    icons::CONTACTS,
+    icons::SETTINGS,
 ];
-
-/// The address book, also drawn on the contacts surface's own empty states.
-pub(super) const CONTACTS_ICON: &str = "x-office-address-book-symbolic";
 
 /// One destination button and the handler that navigates from it.
 ///

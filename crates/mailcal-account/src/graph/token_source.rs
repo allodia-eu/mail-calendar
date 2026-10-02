@@ -2,18 +2,21 @@
 //!
 //! Graph access tokens live ~1 hour, far shorter than an app session, so every folder
 //! provider shares one [`GraphTokenSource`] that mints a fresh access token (refreshing
-//! from the stored refresh token when the cached one is stale) on demand. It also owns the
-//! account's shared **concurrency gate**, so the folder providers throttle together against
-//! Microsoft's per-mailbox concurrency limit, and reports a rotated refresh token to the
-//! host via [`TokenSink`] to be re-persisted in the OS keystore.
+//! from the stored refresh token when the cached one is stale) on demand, and reports a
+//! rotated refresh token to the host via [`TokenSink`] to be re-persisted in the OS keystore.
+//!
+//! It used to own the account's **concurrency gate** too, and that was wrong in a way worth
+//! remembering: the semaphore was a field here, so two cores for one account meant two
+//! ceilings of four against a mailbox that allows four in total. The bound now lives where
+//! every request passes: the engine's `RequestGate`, built per account in
+//! [`crate::throttle`]. The number is stated by the adapter rather than by this host.
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use engine_core::ids::AccountId;
-use mailcal_oauth::{OAuthClient, TokenRequestReach};
+use mailcal_oauth::{GrantedScopes, OAuthClient, TokenRequestReach};
 use time::{Duration, OffsetDateTime};
-use tokio::sync::{Semaphore, SemaphorePermit};
 
 use crate::{AccountError, MicrosoftConfig};
 
@@ -30,12 +33,6 @@ use shared::{SharedCredential, credential_for};
 /// dies mid-request.
 const REFRESH_SKEW: Duration = Duration::minutes(5);
 
-/// The maximum number of **concurrent** Graph requests against one mailbox. Microsoft
-/// throttles a mailbox at ~4 concurrent requests (`ApplicationThrottled` /
-/// `MailboxConcurrency`), so a shared semaphore caps every one of the account's folder
-/// providers to this; otherwise the eager role folders sync all at once and get 429ed.
-const MAX_GRAPH_CONCURRENCY: usize = 4;
-
 /// A host sink for a **rotated** refresh token: Microsoft may return a new refresh token
 /// on each refresh and eventually invalidate the old one, so the host must overwrite the
 /// stored config in its OS keystore. Implemented by the bindings over the platform secure
@@ -45,11 +42,15 @@ pub trait TokenSink: Send + Sync {
     /// Reports that `account`'s refresh token was rotated to `new_refresh_token`; the
     /// host re-serializes and re-persists that account's config.
     async fn refresh_token_rotated(&self, account: &AccountId, new_refresh_token: &str);
+
+    /// Reports the scope set a refresh response named for `account`, on every refresh that
+    /// named one. The host records it over the stored set when the two differ: the response is
+    /// what the provider grants now, and consent withdrawn since the last one shows up nowhere
+    /// else.
+    async fn scopes_granted(&self, account: &AccountId, granted: &GrantedScopes);
 }
 
-/// A shared, self-refreshing source of Graph access tokens for one account, and the
-/// account's shared **concurrency gate**, so every folder provider throttles together
-/// against Microsoft's per-mailbox concurrency limit.
+/// A shared, self-refreshing source of Graph access tokens for one account.
 pub struct GraphTokenSource {
     oauth: OAuthClient,
     account: AccountId,
@@ -68,10 +69,6 @@ pub struct GraphTokenSource {
     /// fixed that within one core and left it wide open between two, which a host produces
     /// routinely (see [`shared`]). Sharing the state closes both with the same mechanism.
     credential: Arc<SharedCredential>,
-    /// Caps concurrent Graph requests for this mailbox (see [`MAX_GRAPH_CONCURRENCY`]).
-    /// Deliberately **per source**: it is a politeness bound on one core's own fan-out, not a
-    /// property of the credential.
-    concurrency: Semaphore,
 }
 
 impl core::fmt::Debug for GraphTokenSource {
@@ -126,18 +123,21 @@ impl GraphTokenSource {
             provider,
             sink,
             credential,
-            concurrency: Semaphore::new(MAX_GRAPH_CONCURRENCY),
         })
     }
 
-    /// Acquires a permit from the mailbox's shared concurrency gate; held for the
-    /// duration of one Graph request so the account never exceeds
-    /// [`MAX_GRAPH_CONCURRENCY`] concurrent requests.
-    pub(super) async fn acquire(&self) -> SemaphorePermit<'_> {
-        self.concurrency
-            .acquire()
-            .await
-            .expect("concurrency semaphore is never closed")
+    /// The throttling config every provider built from this source must use: the shared
+    /// policy, gated on **this account's** ceiling.
+    ///
+    /// Here rather than at each call site because getting the account wrong is the entire
+    /// failure mode (`crate::throttle`), and this type is the one thing every one of an
+    /// account's OAuth providers already shares. Two sources for one account resolve to the
+    /// same gate, which is what the semaphore that used to live here could not do.
+    ///
+    /// `pub` so the gated live suite can assert the account's ceiling was narrowed, rather
+    /// than infer it from a server that happened not to complain.
+    pub fn retry(&self) -> engine_api::RetryConfig {
+        crate::throttle::account_retry(&self.account)
     }
 
     /// Seeds the cached access token + expiry; used right after the sign-in code
@@ -154,6 +154,29 @@ impl GraphTokenSource {
         // A freshly signed-in account must not inherit a cool-down from the credential it
         // replaced.
         state.last_failure = None;
+    }
+
+    /// A valid access token other than `refused`, which a server has just turned down.
+    ///
+    /// The cached token is dropped when it is still the refused one, so this refreshes even
+    /// before the token's stated expiry. Callers renewing the same refused token share one
+    /// refresh: the first replaces it, and the rest find the replacement cached.
+    ///
+    /// # Errors
+    ///
+    /// As [`access_token`](Self::access_token).
+    pub async fn access_token_replacing(&self, refused: &str) -> Result<String, AccountError> {
+        {
+            let mut state = self
+                .credential
+                .state
+                .lock()
+                .expect("token state mutex poisoned");
+            if state.access_token == refused {
+                state.access_token.clear();
+            }
+        }
+        self.access_token().await
     }
 
     /// The cached access token, when it is still comfortably valid at `now`. Never holds the
@@ -414,6 +437,12 @@ impl GraphTokenSource {
                  to authenticate after the next restart",
             ),
             (_, None) => {}
+        }
+        if let (Some(sink), Some(granted)) = (
+            self.sink.as_ref(),
+            GrantedScopes::from_refresh(&tokens.scope),
+        ) {
+            sink.scopes_granted(&self.account, &granted).await;
         }
         Ok(access)
     }

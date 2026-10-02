@@ -164,3 +164,9 @@ fn the_reflow_sheet_comes_after_the_base_one() {
     let reflow = styles.find("@media").expect("the reflow sheet");
     assert!(base < reflow, "{styles}");
 }
+
+#[test]
+fn the_reading_document_has_no_title() {
+    // The title is the print page's, named for the print job; the reading pane names nothing.
+    assert!(!render_document("<p>x</p>", false).contains("<title>"));
+}

@@ -53,12 +53,15 @@ public sealed partial class MailboxModel
     // MailboxModel.Analytics.cs) reads true before the core has connected, so nothing flashes while
     // the app is still starting.
 
-    /// <summary>Show the setup form on first run, or while adding another account.</summary>
+    /// <summary>
+    /// Show the setup form in the window on first run. Adding another account puts the same form
+    /// in a dialog over the shell instead (MainWindow.AddAccount.cs).
+    /// </summary>
     public Visibility SetupVisibility =>
-        AnalyticsAsked && (NeedsSetup || AddingAccount) ? Visibility.Visible : Visibility.Collapsed;
+        AnalyticsAsked && NeedsSetup ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>Show the main shell once connected (hidden behind the welcome/setup screens).</summary>
     public Visibility MainVisibility =>
-        AnalyticsAsked && !NeedsSetup && !AddingAccount ? Visibility.Visible : Visibility.Collapsed;
+        AnalyticsAsked && !NeedsSetup ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>Show the setup form's Cancel button only when adding another account (not first run).</summary>
     public Visibility AddingAccountVisibility => AddingAccount ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>

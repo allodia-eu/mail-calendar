@@ -46,6 +46,11 @@ enum ComposerLabels {
             "deleteRow": L10n.editor_delete_row(),
             "deleteColumn": L10n.editor_delete_column(),
             "deleteTable": L10n.editor_delete_table(),
+            "link": L10n.editor_link(),
+            "linkText": L10n.editor_link_text(),
+            "linkAddress": L10n.editor_link_address(),
+            "linkApply": L10n.editor_link_apply(),
+            "linkRemove": L10n.editor_link_remove(),
         ]
     }
 

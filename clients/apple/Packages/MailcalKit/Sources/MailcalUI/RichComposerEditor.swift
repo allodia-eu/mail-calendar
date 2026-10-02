@@ -41,6 +41,9 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
     /// reply/forward, whose From/To/Subject are already filled in, so writing is the only thing
     /// left to do; a new message starts in its empty To field instead.
     var focusBodyOnLoad = false
+    /// The editor's request channel, and the link dialog it is waiting on, if any.
+    let hostChannel = ComposerHostChannel()
+    var linkRequest: LinkDialogRequest?
 
     /// The document as it stood once the bundle had loaded and the quoted original (if any) had
     /// been seeded, the "nothing written yet" baseline `bodyChangedFromSeed()` compares against.
@@ -62,6 +65,8 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
         super.init()
         webView.navigationDelegate = self
         webView.allowsBackForwardNavigationGestures = false
+        hostChannel.install(on: webView)
+        hostChannel.onLink = { [weak self] in self?.linkRequest = $0 }
         #if os(iOS)
         // The document itself must never scroll: the page is a flex column whose `.editor` scrolls
         // inside itself, so anything that moves the *document* moves the toolbar instead, and
@@ -129,6 +134,7 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
         // the placeholder lives on the editor element's dataset, which replacing the document does
         // not touch, but sending them first matches the other clients' open-time order.
         webView.evaluateJavaScript(ComposerLabels.script())
+        hostChannel.announce()
         // An agent-composed draft seeds a plain body instead of a quote. `setPlainText` assigns
         // it as TEXT, never markup (docs/composer-security.md, Gate 11), which matters more here
         // than anywhere else, because this body was written by a model that may itself have been

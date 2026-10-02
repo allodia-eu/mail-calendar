@@ -5,15 +5,50 @@
 //! everything else.
 
 use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
     ffi::OsStr,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    time::{Duration, Instant},
 };
 
 use crate::{
     TASKS,
     gate::{Outcome, Palette, Step},
 };
+
+/// What `cargo run` adds to the environment of the program it starts, besides `CARGO_PKG_*`.
+///
+/// The gate is that program, so every command it starts would inherit them, and a build script
+/// that reads one is rerun whenever its value changes: cargo compares the value in the
+/// environment cargo itself was started in. `ring` reads `CARGO_MANIFEST_DIR`, so a dependency the
+/// gate built and the same one built by a `cargo test` typed by hand were two different builds,
+/// and every switch between the two recompiled it and everything above it (the TLS stack, the
+/// engine and this workspace) in every feature set the gate builds.
+const SET_BY_CARGO_RUN: &[&str] = &[
+    "CARGO",
+    "CARGO_MANIFEST_DIR",
+    "CARGO_MANIFEST_PATH",
+    "CARGO_CRATE_NAME",
+    "CARGO_BIN_NAME",
+    "CARGO_PRIMARY_PACKAGE",
+];
+
+/// `command` with what `cargo run` added to the gate's environment taken back out, so it builds
+/// exactly what the same command typed into a shell builds.
+fn as_typed(command: &mut Command) -> &mut Command {
+    for (name, _) in std::env::vars_os() {
+        let text = name.to_string_lossy();
+        if SET_BY_CARGO_RUN.contains(&text.as_ref()) || text.starts_with("CARGO_PKG_") {
+            command.env_remove(&name);
+        }
+    }
+    command
+}
+
+/// How long each step that ran took, by its label.
+pub(crate) type Timings = HashMap<String, Duration>;
 
 /// Runs the gate's steps against one checkout.
 #[derive(Debug)]
@@ -22,17 +57,75 @@ pub(crate) struct Runner<'a> {
     pub(crate) root: &'a Path,
     /// How to colour a heading and a verdict.
     palette: &'a Palette,
+    /// When the step being run was announced.
+    started: Cell<Option<Instant>>,
+    /// How long each finished step took.
+    timings: RefCell<Timings>,
+    /// Whether to run every step whatever fails, rather than stop at the first failure.
+    keep_going: bool,
+    /// Whether a step has failed.
+    failed: Cell<bool>,
 }
 
 impl<'a> Runner<'a> {
-    /// A runner for `root`.
-    pub(crate) fn new(root: &'a Path, palette: &'a Palette) -> Self {
-        Self { root, palette }
+    /// A runner for `root`, which stops at the first failure unless told to `keep_going`.
+    pub(crate) fn new(root: &'a Path, palette: &'a Palette, keep_going: bool) -> Self {
+        Self {
+            root,
+            palette,
+            started: Cell::new(None),
+            timings: RefCell::new(Timings::new()),
+            keep_going,
+            failed: Cell::new(false),
+        }
+    }
+
+    /// Whether the next step is not to run, because an earlier one failed. Each step is run as
+    /// the list is built, so this is where stopping at the first failure happens.
+    fn halted(&self) -> bool {
+        self.failed.get() && !self.keep_going
+    }
+
+    /// The verdict a step that was not run gets.
+    fn not_run(label: &str) -> Step {
+        (
+            label.to_owned(),
+            Outcome::Skip("not run: an earlier step failed".to_owned()),
+        )
+    }
+
+    /// Records a step's verdict, remembering a failure.
+    fn verdict(&self, label: &str, outcome: Outcome) -> Step {
+        if matches!(outcome, Outcome::Fail | Outcome::Need(_)) {
+            self.failed.set(true);
+        }
+        (label.to_owned(), outcome)
+    }
+
+    /// How long each step took, once the list has run.
+    pub(crate) fn into_timings(self) -> Timings {
+        self.timings.into_inner()
+    }
+
+    /// Records how long `label` has taken since it was announced. A step of several commands is
+    /// recorded after each, so the last one leaves its whole length.
+    fn timed(&self, label: &str) {
+        if let Some(started) = self.started.get() {
+            self.timings
+                .borrow_mut()
+                .insert(label.to_owned(), started.elapsed());
+        }
     }
 
     /// Announces a step.
     fn heading(&self, label: &str) {
+        self.started.set(Some(Instant::now()));
         println!("{}==> {label}{}", self.palette.bold, self.palette.reset);
+    }
+
+    /// A step that needs something this host does not have, which is a failure.
+    pub(crate) fn needs(&self, label: &str, why: &str) -> Step {
+        self.verdict(label, Outcome::Need(why.to_owned()))
     }
 
     /// Reports a step that could not run.
@@ -41,17 +134,17 @@ impl<'a> Runner<'a> {
             "{}!! {label} needs {what}{}",
             self.palette.red, self.palette.reset
         );
-        (label.to_owned(), Outcome::Need(what.to_owned()))
+        self.verdict(label, Outcome::Need(what.to_owned()))
     }
 
     /// Runs one in-process check by name.
     pub(crate) fn named(&self, name: &str) -> Step {
         let Some(task) = TASKS.iter().find(|t| t.name == name) else {
-            return (
-                name.to_owned(),
-                Outcome::Need(format!("no such task: {name}")),
-            );
+            return self.verdict(name, Outcome::Need(format!("no such task: {name}")));
         };
+        if self.halted() {
+            return Self::not_run(task.label);
+        }
         self.heading(task.label);
         let outcome = match (task.run)(self.root) {
             Ok(true) => Outcome::Pass,
@@ -64,7 +157,8 @@ impl<'a> Runner<'a> {
                 Outcome::Fail
             }
         };
-        (task.label.to_owned(), outcome)
+        self.timed(task.label);
+        self.verdict(task.label, outcome)
     }
 
     /// Runs one external command from the repository root.
@@ -80,13 +174,16 @@ impl<'a> Runner<'a> {
         program: impl AsRef<OsStr>,
         args: &[&str],
     ) -> Step {
+        if self.halted() {
+            return Self::not_run(label);
+        }
         self.heading(label);
         self.finish(label, Command::new(program).args(args).current_dir(dir))
     }
 
-    /// Runs a prepared command and records the verdict.
+    /// Runs a prepared command, as it would run typed into a shell, and records the verdict.
     fn finish(&self, label: &str, command: &mut Command) -> Step {
-        let ok = match command.status() {
+        let ok = match as_typed(command).status() {
             Ok(status) => status.success(),
             Err(e) => {
                 eprintln!(
@@ -102,10 +199,8 @@ impl<'a> Runner<'a> {
                 self.palette.red, self.palette.reset
             );
         }
-        (
-            label.to_owned(),
-            if ok { Outcome::Pass } else { Outcome::Fail },
-        )
+        self.timed(label);
+        self.verdict(label, if ok { Outcome::Pass } else { Outcome::Fail })
     }
 
     /// Runs a command whose tool may not be installed, which is a failure rather than a skip.
@@ -124,6 +219,9 @@ impl<'a> Runner<'a> {
 
     /// Runs several commands in `dir` as one step, stopping at the first failure.
     pub(crate) fn sequence(&self, label: &str, dir: &Path, steps: &[(&str, &[&str])]) -> Step {
+        if self.halted() {
+            return Self::not_run(label);
+        }
         self.heading(label);
         for (program, args) in steps {
             let step = self.finish(label, Command::new(program).args(*args).current_dir(dir));
@@ -313,3 +411,7 @@ fn runnable(tool: &str) -> bool {
         .status()
         .is_ok_and(|s| s.success())
 }
+
+#[cfg(test)]
+#[path = "gate_exec_tests.rs"]
+mod tests;

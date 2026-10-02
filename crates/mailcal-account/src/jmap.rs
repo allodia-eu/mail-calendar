@@ -14,7 +14,7 @@
 //! Unlike IMAP/Graph, one [`JmapProvider`] serves the **whole account**; its
 //! email scope is account-wide (`JmapType { account, Email }`), and each message
 //! carries its `mailboxIds` membership: so a single provider syncs every folder,
-//! and there are no per-role folder providers to bind.
+//! and there are no per-folder providers to bind.
 //!
 //! [`AccountConfig`]: crate::AccountConfig
 //! [`MicrosoftConfig`]: crate::MicrosoftConfig
@@ -25,7 +25,6 @@ use provider_jmap::{Credentials, JmapConfig};
 use serde::Deserialize;
 
 mod connect;
-mod oauth;
 mod refreshing;
 mod refreshing_contacts;
 mod refreshing_provider;
@@ -35,10 +34,11 @@ pub use connect::{
     connect_jmap_calendar_providers, connect_jmap_contact_providers, connect_jmap_folder,
     connect_jmap_mail_providers,
 };
-pub use oauth::{JmapOAuth, jmap_token_source};
 pub use setup::{JmapSetup, build_jmap_config_toml, jmap_base_url};
 
-use crate::{ConfigError, Secret, connect_log::connect_logger, throttle::account_retry};
+use crate::{
+    ConfigError, OAuthGrant, Secret, connect_log::connect_logger, throttle::account_retry,
+};
 
 /// The id-scheme tag woven into a JMAP account's [`AccountId`], so a JMAP account
 /// never collides with an IMAP or Microsoft account for the same address on the
@@ -81,10 +81,40 @@ pub struct JmapAccountConfig {
     /// practice, and takes precedence: a fresh access token is minted from it for every
     /// connection, so nothing long-lived is presented to the server.
     #[serde(default)]
-    pub oauth: Option<JmapOAuth>,
+    pub oauth: Option<OAuthGrant>,
+    /// What the account is used for, its pinned id and its links: the keys every kind shares at
+    /// the document's root ([`AccountShape`](crate::AccountShape)). Read by the loader beside the
+    /// kind's own section.
+    #[serde(skip)]
+    pub shape: crate::AccountShape,
 }
 
 impl JmapAccountConfig {
+    /// What this account is used for: its stored choice, or what the kind has always meant (mail,
+    /// calendar and contacts, of which the session decides at the dial which the account has).
+    #[must_use]
+    pub fn capabilities(&self) -> crate::Capabilities {
+        self.shape.capabilities_or([
+            crate::Capability::Mail,
+            crate::Capability::Calendar,
+            crate::Capability::Contacts,
+        ])
+    }
+
+    /// This account's id: the one pinned in its stored config when there is one, and otherwise
+    /// the one [`derived_account_id`](Self::derived_account_id) derives. A pinned id is what lets
+    /// the settings it was derived from be edited without the account becoming another one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IdError`] only if there is no pinned id and the derived one is empty.
+    pub fn account_id(&self) -> Result<AccountId, IdError> {
+        match &self.shape.id {
+            Some(id) => Ok(id.clone()),
+            None => self.derived_account_id(),
+        }
+    }
+
     /// Derives this account's stable [`AccountId`] from its **lowercased address**,
     /// the JMAP scheme tag, and the server host; stable across launches, and
     /// distinct from an IMAP or Microsoft account for the same address (see
@@ -94,7 +124,7 @@ impl JmapAccountConfig {
     /// # Errors
     ///
     /// Returns [`IdError`] only if the derived id is empty.
-    pub fn account_id(&self) -> Result<AccountId, IdError> {
+    pub fn derived_account_id(&self) -> Result<AccountId, IdError> {
         let email = self.email.trim().to_lowercase();
         let host = base_host(&self.base_url);
         AccountId::try_from(format!("{email}@{JMAP_ID_SCHEME}:{host}").as_str())
@@ -129,10 +159,14 @@ impl JmapAccountConfig {
 
     /// Builds the engine [`JmapConfig`] for this account (base URL + credentials);
     /// everything else is discovered from the session.
-    fn engine_config(&self, tls: engine_tls::TlsClientConfig) -> JmapConfig {
+    ///
+    /// `account` names whose ceiling these requests are counted against. Taken as an
+    /// argument rather than re-derived here so the caller, which already holds the id, cannot
+    /// end up with a *second* gate for the account it is connecting (`crate::throttle`).
+    fn engine_config(&self, tls: engine_tls::TlsClientConfig, account: &AccountId) -> JmapConfig {
         JmapConfig::new(self.base_url.clone(), self.credentials())
             .with_tls(tls)
-            .with_retry(account_retry())
+            .with_retry(account_retry(account))
             .with_connect_observer(connect_logger("jmap"))
     }
 
@@ -160,6 +194,7 @@ impl JmapAccountConfig {
             jmap.insert("oauth".into(), oauth.to_table().into());
         }
         let mut root = toml::Table::new();
+        self.shape.write_into(&mut root);
         root.insert("jmap".into(), jmap.into());
         Ok(toml::to_string(&root)?)
     }
@@ -194,7 +229,9 @@ struct JmapDocument {
 /// Returns [`ConfigError::Parse`] if the text is not a valid `[jmap]` config.
 pub fn load_jmap_str(text: &str) -> Result<JmapAccountConfig, ConfigError> {
     let doc: JmapDocument = toml::from_str(text)?;
-    Ok(doc.jmap)
+    let mut config = doc.jmap;
+    config.shape = crate::AccountShape::read(text)?;
+    Ok(config)
 }
 
 #[cfg(test)]
@@ -208,6 +245,7 @@ mod tests {
             password: Some(Secret::new("hunter2".to_owned())),
             token: None,
             oauth: None,
+            shape: crate::AccountShape::default(),
         }
     }
 
@@ -218,6 +256,7 @@ mod tests {
             password: None,
             token: Some(Secret::new("fmapi-secret".to_owned())),
             oauth: None,
+            shape: crate::AccountShape::default(),
         }
     }
 

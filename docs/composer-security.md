@@ -19,8 +19,8 @@ The editor runtime is bundled with the app and loaded from app assets:
 - No runtime package downloads.
 - No network access from the composer document.
 - The editor schema is the product schema: bold, italic, underline, constrained font sizes, **text
-  and highlight colour**, bullets **nested to any depth**, tables, inline images, and regular
-  attachments. Unsupported pasted constructs are dropped or normalised before they enter the shared
+  and highlight colour**, **links** (Gate 16), bullets **nested to any depth**, tables, inline
+  images, and regular attachments. Unsupported pasted constructs are dropped or normalised before they enter the shared
   document.
 - **Colour is `#rrggbb` and nothing else.** The editor normalises what the DOM hands it (engines
   disagree: `#rgb`, `rgb()`, a legacy `<font color>`) and `mailcal_composer::TextColor` re-validates
@@ -86,7 +86,14 @@ port:
 1. **JavaScript enabled only for the local composer document.** It is never reused for untrusted mail
    rendering.
 2. **No general host bridge.** Expose only explicit commands: get/set document JSON, pick file, commit
-   blob handle, render/validate via Rust, and report editor state.
+   blob handle, render/validate via Rust, and report editor state. The one channel from the editor
+   to its host, `composerHost`, carries only the requests `mailcal_composer::HostRequestKind`
+   names (today `link`, the link dialog of Gate 16). The core parses every message
+   (`parse_composer_host_request`) and refuses anything outside that vocabulary, an unknown field
+   included, before a client acts on it, and the host answers through the script the core builds.
+   A host turns the channel on only where it answers (`setComposerHostRequests`); everywhere else
+   the editor asks for nothing and draws its own UI. A new request is a variant there, a handler
+   in every host that announces it, and a row in the matrix below.
 3. **No network egress.** Block `http(s)` and protocol-relative sub-resources. The composer cannot
    fetch remote images, fonts, CSS, scripts, or uploads directly.
 4. **All top-level navigation blocked.** Link clicks and attempted redirects are cancelled.
@@ -281,6 +288,29 @@ port:
       with a reason, because one the user watched disappear from a share sheet is one they will
       assume was attached.
     - **Neither the files nor the text is logged.** Names are the user's own; counts only (Gate 8).
+16. **A link in the body points only where a link in a read message may.** A run's `link` is one
+    of `mailcal_composer::LINK_SCHEMES` (`http`, `https`, `mailto`), the list the reading view's
+    sanitiser and `should_open_external_link` use, so nothing can be sent that our own reader would
+    refuse to open. It is made in the shared bundle and nowhere else:
+    - **The link editor** (the toolbar's Link button, or Ctrl/Cmd+K) takes the words and the
+      address in a dialog the host draws over its window, asked for through Gate 2's channel. A
+      panel inside the WebView is bounded by the WebView's own frame, which a small window shrinks
+      until the panel cannot be used. An address without a scheme becomes `https://`, an email
+      address `mailto:`, and any other scheme is refused in the field: the rule is
+      `mailcal_composer::link_address`, which each dialog asks as the user types, so Apply is
+      enabled exactly when the link can be made. A host that draws no dialog leaves the bundle's
+      own popover to ask, under the same rule. The selection is saved before anything takes focus
+      and restored before anything is applied.
+    - **An address typed into the body** becomes a link when the word ends with Space or Enter:
+      only the word ending at the caret, only `http://`, `https://`, `mailto:` or a `www.` host,
+      the prefixes the reading view's linkifier recognises, with the sentence's punctuation left
+      outside.
+    - **Rust holds it on submit.** `LinkUrl` re-checks every target (scheme, no whitespace or
+      control character, 2048 bytes at most) and escapes it into the `href`. A target it refuses is
+      dropped and the words are sent as text, the same leniency a colour gets. The plain-text part
+      carries a link as `words <address>`, written once when the words are the address.
+    - **The composer never opens a link.** Gate 4 is unchanged: a click in the editor places the
+      caret, and a link is edited through the link editor or copied through the menu (Gate 14).
 
 ## Per-platform implementation matrix
 
@@ -300,13 +330,15 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | Reading body not left loaded behind the composer | the reading view is out of the view tree while composing | composer is a separate screen | `ReadingView.SuspendBody()` unloads the message document; it re-renders on return | `ReadingPane::suspend` replaces the message with an empty filtered document; it re-renders on return |
 | Local editor assets only | load packaged bundle with an app-owned base URL | load packaged `android_asset` bundle | load packaged app asset / virtual host mapping | shared `clients/composer/dist/editor.html` is compiled with `include_str!` and loaded in memory |
 | JS only for composer | separate composer `WKWebView`; never used by reading view | separate composer `WebView`; reading view keeps JS off | separate composer `WebView2`; reading view keeps JS off | separate composer `WebView` has JS on; dedicated reading `WebView` keeps it off |
-| Narrow bridge | no bridge for the initial body-formatting editor; future file/image commands must be named `WKScriptMessageHandler`s | no bridge for the initial body-formatting editor; future file/image commands must be a minimal `addJavascriptInterface` object | no bridge/host objects for the initial body-formatting editor; future file/image commands must use an explicit `WebMessageReceived` protocol | fresh `UserContentManager` with no script-message handlers or host objects |
+| Narrow bridge (Gate 2) | one named `WKScriptMessageHandler`, `composerHost` (`ComposerHostChannel`), on the composer's and the signature editor's views; every message parsed by the core | one injected object, `composerHost`, with a single `@JavascriptInterface` method (`ComposerHostChannel`) that hands each parsed request to the main thread | no host objects; `WebMessageReceived` is on only where a host sets `HostRequested` (the composer, not the signature editor), and every message is parsed by the core | fresh `UserContentManager` with one script-message handler, `composerHost` (`composer_host::install`), and no host objects; every message parsed by the core |
 | No network egress | `WKContentRuleList` blocks remote loads | `shouldInterceptRequest` blocks remote loads | `WebResourceRequested` returns 403 for remote loads | native `UserContentFilter` blocks every `http(s)` request |
 | Navigation blocked | navigation delegate cancels every non-initial navigation | `shouldOverrideUrlLoading` returns true | `NavigationStarting` cancels non-initial navigation | `decide-policy` permits only the expected initial `about:blank` load |
 | New windows blocked | no popup-opening `WKUIDelegate` path | no popup path; navigation cancelled | `NewWindowRequested.Handled = true` | `create → None`; `NewWindowAction` is ignored |
 | No arbitrary file/content access | file picking via native panel/picker only; no web file URLs; Rust reads selected paths on submit | `allowFileAccess = false`, `allowContentAccess = false`; native picker stages content to app cache; Rust reads staged paths on submit | no arbitrary file access; native picker only; Rust reads selected paths on submit | file/universal access disabled; native `GtkFileDialog` paths are passed to Rust only on submit |
 | Paste/import sanitisation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | shared editor paste rules plus Rust validation |
 | Pasted picture → inline `cid:` | shared bundle (`imageFilesFrom` + `insertCapturedImage`) | (same: shared bundle) | (same: shared bundle) | shared bundle **plus a host clipboard read**: this WebView hands the page no files at all, so `composer_paste` takes the chord and the context menu's Paste, sniffs the bytes through the core and feeds the same seam a drop does |
+| Link editor drawn by the host, over its window (Gate 16) | `LinkDialog` in a sheet: a labelled form on macOS, a medium-height sheet on iPhone/iPad | Material `AlertDialog` inside the composer's own `Dialog` | `ContentDialog` in the composer; the signature editor keeps the bundle's popover (see "Known gaps") | `AdwAlertDialog` with two entry rows |
+| Links made in the bundle, target re-checked in Rust (Gate 16) | shared bundle (`links.ts`, `link_menu.ts`) plus `mailcal_composer::LinkUrl` on submit | (same: shared bundle and core) | (same: shared bundle and core) | (same: shared bundle and core) |
 | Picture resized by dragging a corner | shared bundle (`installImageResize`), Pointer Events for mouse, trackpad, pen and finger alike | (same: shared bundle) | (same: shared bundle) | (same: shared bundle) |
 | Dropped file → native attachment | `ComposerDropModifier` for the chrome **plus** a drop target on `EditorWebView` for the editor itself, both calling one handler: SwiftUI hit-tests its own tree, so a representable's rectangle is a hole in it and the chrome alone would take drops. `NSDraggingDestination` on macOS; `UIDropInteraction` on iPhone/iPad, which also **stages** each item to a file, a drop there carrying an `NSItemProvider` and never a path | Compose `dragAndDropTarget` + `requestDragAndDropPermissions`, staged to the app cache | `AllowDrop` on the composer grid, `StorageItems` from the data package | `GtkDropTarget` on the composer content, **capture** phase (the WebView installs one of its own) |
 | Dropped picture asks show-or-attach | `confirmationDialog` | Material `AlertDialog` | `ContentDialog` (three answers) | `AdwAlertDialog`; a **pasted** picture is not asked about, because a paste is aimed at the caret and has already answered (Gate 13) |
@@ -324,6 +356,12 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | A forward's own files, staged by the core | `stageForwardedAttachments` into the app's temporary directory, seeded through `initialAttachments` | (same call) into the app cache, seeded through `initialAttachments` | (same call) into the temp directory, seeded through `ComposeRequest.Attachments` | (same call) into the app cache (owner-only), seeded through `ComposeRequest::files` |
 
 ## Known gaps / follow-ups
+
+- **Windows' signature editor uses the bundle's link popover, not a dialog.** It already sits
+  inside the Settings `ContentDialog`, and WinUI shows one `ContentDialog` at a time, so a link
+  dialog there could only be drawn inline. It leaves `HostRequested` unset, which keeps web
+  messages off; the popover is pinned inside the editor's frame, which a very short editor can
+  still clip.
 
 - **The single-scroll editor chrome is Android-only.** `useNativeComposerChrome`
   switches the bundle to page-scroll with the toolbar pinned to the bottom and the address header
@@ -358,8 +396,8 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   to prevent: navigation is blocked, so it cannot be opened either.
 
   Closing it is not a filter change. It needs the page asked what the caret is on, so a query in the
-  shared bundle and a **new named bridge command**, which widens the surface gate 2 keeps narrow and
-  is worth its own review rather than an addition here. Observed on both hosts, which agree item for
+  shared bundle and a **new request** on Gate 2's channel, which widens the vocabulary that gate
+  keeps closed and is worth its own review rather than an addition here. Observed on both hosts, which agree item for
   item, as the cause predicts: this is WebKit's behaviour for editable content, not a device's.
 - **A dropped picture is read on the main thread everywhere except Android.** Android stages and
   reads off it; Apple, Windows and Linux read inline from the dialog's answer, which is a stall of
@@ -367,6 +405,13 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 - **Pasted text stays plain text.** Formatting from Word, Outlook or a browser is dropped on paste,
   which is the strict reading of Gate 7 rather than an oversight. Mapping pasted HTML onto the closed
   document schema is its own piece of work.
+- **Undo does not take back a link the editor made by itself.** An address becoming a link on
+  Space is a DOM edit, not an engine command, so it is not on the WebView's undo stack; Remove link
+  in the link editor is the way back. The `- ` bullet has the same shape.
+- **A picture inside a link is sent without it.** The document gives a picture no link, so a
+  picture selected along with words and linked sends the words as the link and the picture alone.
+- **A pasted address becomes a link only when a space or Enter follows it.** Pasting over a
+  selection does not turn the selection into a link, as some mail clients do.
 - **Colour cannot be cleared from a partial selection.** "Automatic" / "No highlight" clears the mark
   from every element the selection touches, so selecting half a coloured run clears all of it.
   Removing a mark from part of a run means splitting it, which is what `execCommand` exists to do and

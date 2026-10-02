@@ -196,22 +196,69 @@ async fn access_token_refreshes_once_then_serves_from_cache() {
     assert_eq!(hits.load(Ordering::SeqCst), 1);
 }
 
-#[tokio::test]
-async fn a_rotated_refresh_token_is_reported_to_the_sink() {
-    struct Recorder(Mutex<Vec<String>>);
-    #[async_trait]
-    impl TokenSink for Recorder {
-        async fn refresh_token_rotated(&self, _account: &AccountId, new_refresh_token: &str) {
-            self.0.lock().unwrap().push(new_refresh_token.to_owned());
-        }
+/// What a sink was told: each rotated refresh token, and each scope set a refresh named.
+#[derive(Default)]
+struct Recorder {
+    rotated: Mutex<Vec<String>>,
+    granted: Mutex<Vec<Vec<String>>>,
+}
+
+#[async_trait]
+impl TokenSink for Recorder {
+    async fn refresh_token_rotated(&self, _account: &AccountId, new_refresh_token: &str) {
+        self.rotated
+            .lock()
+            .unwrap()
+            .push(new_refresh_token.to_owned());
     }
-    let recorder = Arc::new(Recorder(Mutex::new(Vec::new())));
-    let body = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"AT","refresh_token":"ROTATED"}"#;
+
+    async fn scopes_granted(&self, _account: &AccountId, granted: &mailcal_oauth::GrantedScopes) {
+        self.granted
+            .lock()
+            .unwrap()
+            .push(granted.as_slice().to_vec());
+    }
+}
+
+/// Refreshes once against a token endpoint answering `body`, and returns what the sink heard.
+async fn refresh_answered_by(body: &str) -> Arc<Recorder> {
+    let recorder = Arc::new(Recorder::default());
     let (endpoint, _hits) = mock_token_endpoint(vec![body.to_owned()]);
     let source = source_at(endpoint, Some(Arc::clone(&recorder) as Arc<dyn TokenSink>));
-
     source.access_token().await.unwrap();
-    assert_eq!(recorder.0.lock().unwrap().as_slice(), ["ROTATED"]);
+    recorder
+}
+
+#[tokio::test]
+async fn a_rotated_refresh_token_is_reported_to_the_sink() {
+    let recorder = refresh_answered_by(
+        r#"{"token_type":"Bearer","expires_in":3600,"access_token":"AT","refresh_token":"ROTATED"}"#,
+    )
+    .await;
+    assert_eq!(recorder.rotated.lock().unwrap().as_slice(), ["ROTATED"]);
+}
+
+/// Consent withdrawn at the provider reaches this app only as a narrower `scope` on the next
+/// refresh, so every refresh that names one hands it on, rotation or not.
+#[tokio::test]
+async fn the_scope_a_refresh_names_is_reported_to_the_sink() {
+    let recorder = refresh_answered_by(
+        r#"{"token_type":"Bearer","expires_in":3600,"access_token":"AT","scope":"Mail.Read offline_access"}"#,
+    )
+    .await;
+    assert!(recorder.rotated.lock().unwrap().is_empty());
+    assert_eq!(
+        recorder.granted.lock().unwrap().as_slice(),
+        [vec!["Mail.Read".to_owned(), "offline_access".to_owned()]]
+    );
+}
+
+#[tokio::test]
+async fn a_refresh_that_names_no_scope_reports_none() {
+    let recorder =
+        refresh_answered_by(r#"{"token_type":"Bearer","expires_in":3600,"access_token":"AT"}"#)
+            .await;
+    assert!(recorder.granted.lock().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -346,4 +393,47 @@ async fn seeding_a_fresh_sign_in_clears_a_remembered_dead_grant() {
         "the seeded token is used as-is, nothing needs refreshing yet",
     );
     assert!(source.last_failure().is_none());
+}
+
+/// A server that refuses a token before its stated expiry (revoked, or clocks that disagree)
+/// is asked again with a new one, not the cached one it just turned down.
+#[tokio::test]
+async fn a_refused_token_is_replaced_before_its_stated_expiry() {
+    let (endpoint, hits) = ratcheting_token_endpoint("initial-refresh");
+    let source = source_at(endpoint, None);
+
+    assert_eq!(source.access_token().await.unwrap(), "AT-1");
+    assert_eq!(source.access_token_replacing("AT-1").await.unwrap(), "AT-2");
+    assert_eq!(hits.load(Ordering::SeqCst), 2);
+}
+
+/// A refusal of a token that has already been replaced costs nothing: the replacement is served
+/// from the cache, so a connection renewing late never presents the refresh token again.
+#[tokio::test]
+async fn renewing_a_token_already_replaced_takes_the_replacement() {
+    let (endpoint, hits) = ratcheting_token_endpoint("initial-refresh");
+    let source = source_at(endpoint, None);
+
+    source.access_token().await.unwrap();
+    source.access_token_replacing("AT-1").await.unwrap();
+    assert_eq!(source.access_token_replacing("AT-1").await.unwrap(), "AT-2");
+    assert_eq!(hits.load(Ordering::SeqCst), 2);
+}
+
+/// Several connections refused with the same token renew it with one refresh between them.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_renewals_of_one_refused_token_refresh_once() {
+    let (endpoint, hits) = ratcheting_token_endpoint("initial-refresh");
+    let source = source_at(endpoint, None);
+    source.access_token().await.unwrap();
+
+    let mut tasks = tokio::task::JoinSet::new();
+    for _ in 0..6 {
+        let source = Arc::clone(&source);
+        tasks.spawn(async move { source.access_token_replacing("AT-1").await });
+    }
+    for result in tasks.join_all().await {
+        assert_eq!(result.unwrap(), "AT-2");
+    }
+    assert_eq!(hits.load(Ordering::SeqCst), 2);
 }

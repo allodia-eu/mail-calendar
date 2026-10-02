@@ -3,10 +3,10 @@ use std::rc::Rc;
 use adw::prelude::*;
 
 use super::{
-    GridScene, GridSurface, rebuild_hits_with,
-    scene::{DayPaint, EventPaint},
+    GridScene, GridSurface,
+    hits::{Surface, rebuild_hits_with, semantic_nodes_enabled},
+    scene::{BandPaint, DayPaint, EventPaint},
     scroll::Framing,
-    semantic_nodes_enabled,
 };
 use crate::ui::{
     AppInput,
@@ -28,7 +28,7 @@ pub(crate) fn the_create_drag_owns_the_primary_pointer_before_event_buttons() {
 pub(crate) fn recentring_releases_the_scene_before_value_notification() {
     let scene = Rc::new(std::cell::RefCell::new(GridScene::empty()));
     scene.borrow_mut().hour_height = 60.0;
-    let adjustment = gtk::Adjustment::new(0.0, 0.0, 1492.0, 1.0, 60.0, 480.0);
+    let adjustment = gtk::Adjustment::new(0.0, 0.0, 1440.0, 1.0, 60.0, 480.0);
     let notified_scene = Rc::clone(&scene);
     adjustment.connect_value_notify(move |adjustment| {
         notified_scene
@@ -41,8 +41,8 @@ pub(crate) fn recentring_releases_the_scene_before_value_notification() {
     assert!(framing.seat_at(&adjustment, &scene, 12.0 * 60.0));
 
     assert!(!framing.is_pending());
-    assert!((adjustment.value() - 532.0).abs() < f64::EPSILON);
-    assert!((scene.borrow().viewport_top - 532.0).abs() < f64::EPSILON);
+    assert!((adjustment.value() - 480.0).abs() < f64::EPSILON);
+    assert!((scene.borrow().viewport_top - 480.0).abs() < f64::EPSILON);
 }
 
 /// A scene tall enough to scroll, with one event so the overlay has a hit target to destroy.
@@ -97,7 +97,7 @@ pub(crate) fn a_click_on_an_event_does_not_park_focus_on_the_grid() {
 
     // `true` rather than the desktop's own setting: with accessibility off there are no hit
     // targets at all, and a test that quietly built none would pass while the defect still ships.
-    rebuild_hits_with(&surface.hits, &scene, 800.0, &sender, true);
+    rebuild_hits_with(&surface.hits, &scene, 800.0, &sender, Surface::Hours, true);
 
     let mut targets = 0;
     let mut child = surface.hits.first_child();
@@ -139,7 +139,7 @@ pub(crate) fn a_grid_shown_for_the_first_time_scrolls_and_frames_itself() {
     window.present();
     surface.opened();
 
-    let adjustment = surface.root.vadjustment();
+    let adjustment = surface.scroller.vadjustment();
     settle(|| !surface.framing.is_pending());
     settle(|| (drawn_top(&surface) + adjustment.value()).abs() < 1.0);
     let (page, upper, value, drawn) = (
@@ -187,7 +187,7 @@ pub(crate) fn a_resized_window_keeps_the_hour_the_reader_was_looking_at() {
     window.set_child(Some(&surface.root));
     window.present();
     surface.opened();
-    let adjustment = surface.root.vadjustment();
+    let adjustment = surface.scroller.vadjustment();
     settle(|| !surface.framing.is_pending() && adjustment.upper() > adjustment.page_size());
     let before = centre_minutes(&surface);
 
@@ -217,22 +217,135 @@ pub(crate) fn a_resized_window_keeps_the_hour_the_reader_was_looking_at() {
     );
 }
 
+/// A scroll repaints the grid for the hours it now shows.
+///
+/// The painter skips every event outside the viewport, and GTK moves a scrolled child without
+/// asking it to draw again, so a grid that is not told to repaint keeps the events of wherever it
+/// was last drawn, and the hours it scrolls to stay empty.
+pub(crate) fn a_scroll_repaints_the_hours_it_reveals() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let surface = GridSurface::new(sender);
+    let mut scene = scrollable_scene();
+    scene.timezone = "UTC".to_owned();
+    *surface.scene.borrow_mut() = scene;
+    let window = gtk::Window::new();
+    window.set_default_size(900, 400);
+    window.set_child(Some(&surface.root));
+    window.present();
+    surface.opened();
+    let adjustment = surface.scroller.vadjustment();
+    settle(|| !surface.framing.is_pending() && adjustment.upper() > adjustment.page_size());
+
+    let painted = Rc::new(std::cell::Cell::new(None::<f64>));
+    let recorder = Rc::clone(&painted);
+    let painted_scene = Rc::clone(&surface.scene);
+    surface.drawing.set_draw_func(move |_, _, _, _| {
+        recorder.set(Some(painted_scene.borrow().viewport_top));
+    });
+    settle(|| painted.get().is_some());
+    painted.set(None);
+    let target = if adjustment.value() > adjustment.page_size() {
+        adjustment.value() - adjustment.page_size()
+    } else {
+        adjustment.value() + adjustment.page_size()
+    };
+    adjustment.set_value(target);
+    settle(|| painted.get().is_some());
+    let (value, repainted) = (adjustment.value(), painted.get());
+    window.close();
+
+    let Some(repainted) = repainted else {
+        panic!("the grid scrolled to {value} and was never repainted for it");
+    };
+    assert!(
+        (repainted - value).abs() < 1.0,
+        "the grid was repainted for {repainted} while it shows {value}"
+    );
+}
+
+/// The day names and the all-day banner stay at the top of the grid at every hour.
+///
+/// A grid opens framed on the current hour, so it has always scrolled before anyone looks at it.
+/// Anything painted inside the scrolled day leaves with the hours, and seven columns of events with
+/// nothing to say which day each is are not a week.
+pub(crate) fn the_day_names_stay_on_screen_when_the_hours_scroll() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let surface = GridSurface::new(sender);
+    let mut scene = scrollable_scene();
+    scene.timezone = "UTC".to_owned();
+    scene.banner_lanes = 1;
+    scene.bands = vec![BandPaint {
+        identity: EventIdentity {
+            account: "alice@test.local".to_owned(),
+            key: "offsite".to_owned(),
+            occurrence: "2026-08-27".to_owned(),
+        },
+        title: "Offsite".to_owned(),
+        spoken: "Offsite, all day, Work".to_owned(),
+        day: 0,
+        days: 1,
+        lane: 0,
+        background: Rgb::new(0.0, 0.0, 0.0),
+        foreground: Rgb::new(1.0, 1.0, 1.0),
+        awaiting: false,
+    }];
+    let header_height = scene.header_height();
+    *surface.scene.borrow_mut() = scene;
+    surface
+        .header
+        .set_content_height(super::pixel_size(header_height));
+    let window = gtk::Window::new();
+    window.set_default_size(900, 400);
+    window.set_child(Some(&surface.root));
+    window.present();
+    let adjustment = surface.scroller.vadjustment();
+    settle(|| adjustment.upper() > adjustment.page_size() && surface.drawing.width() > 0);
+    adjustment.set_value(adjustment.upper() - adjustment.page_size());
+    settle(|| adjustment.value() > 0.0);
+    let (value, header_top, header_drawn) = (
+        adjustment.value(),
+        surface
+            .header
+            .compute_point(&surface.root, &gtk::graphene::Point::new(0.0, 0.0))
+            .map_or(f32::NAN, |point| point.y()),
+        f64::from(surface.header.height()),
+    );
+    let scrolls_the_header = surface.header.is_ancestor(&surface.scroller);
+    window.close();
+
+    assert!(
+        value > 0.0,
+        "the hours never scrolled, so this proves nothing"
+    );
+    assert!(
+        !scrolls_the_header,
+        "the header is inside the scrolled day and leaves with it"
+    );
+    assert!(
+        header_top.abs() < 0.5,
+        "scrolled {value} into the day, the header sits at {header_top}"
+    );
+    assert!(
+        (header_drawn - header_height).abs() < 1.0,
+        "the header is {header_drawn} tall for a banner that needs {header_height}"
+    );
+}
+
 /// The minute in the middle of the viewport, read back off the grid the way a reader sees it.
 ///
 /// Its own arithmetic on purpose, rather than the framing's: an oracle that calls the code under
 /// test agrees with it by construction, including when both are wrong.
 fn centre_minutes(surface: &GridSurface) -> f64 {
-    let adjustment = surface.root.vadjustment();
+    let adjustment = surface.scroller.vadjustment();
     let scene = surface.scene.borrow();
-    (adjustment.value() + adjustment.page_size() / 2.0 - scene.content_top()) * 60.0
-        / scene.hour_height
+    (adjustment.value() + adjustment.page_size() / 2.0) * 60.0 / scene.hour_height
 }
 
 /// Where the grid is really drawn, in the scrolled window's own coordinates.
 fn drawn_top(surface: &GridSurface) -> f64 {
     surface
         .drawing
-        .compute_point(&surface.root, &gtk::graphene::Point::new(0.0, 0.0))
+        .compute_point(&surface.scroller, &gtk::graphene::Point::new(0.0, 0.0))
         .map_or(0.0, |point| f64::from(point.y()))
 }
 

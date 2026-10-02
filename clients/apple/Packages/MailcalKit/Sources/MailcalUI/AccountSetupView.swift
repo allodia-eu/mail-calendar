@@ -46,8 +46,13 @@ enum AccountKind: Hashable {
 /// build/connect.
 struct AccountSetupView: View {
     let error: String?
+    /// The certificate the last connect was refused for, when that is why it failed. Drawn
+    /// with the confirmation that unlocks Connect (`docs/certificate-exceptions.md`).
+    var rejectedCertificate: RejectedCertificate? = nil
     /// Shown only when adding another account (the form as a sheet); `nil` on first run.
     var cancel: (() -> Void)? = nil
+    /// Back to the address step, when the email-first flow routed here.
+    var back: (() -> Void)? = nil
     /// Starts the Microsoft 365 sign-in (browser OAuth); the model handles the redirect.
     let signInMicrosoft: (String?) -> Void
     /// Starts the Google sign-in (browser OAuth); the model handles the redirect. Gated on the
@@ -63,7 +68,8 @@ struct AccountSetupView: View {
         (
             _ imapHost: String, _ username: String, _ password: String,
             _ smtpHost: String, _ caldavURL: String,
-            _ imapSecurity: ConnectionSecurity, _ smtpSecurity: ConnectionSecurity
+            _ imapSecurity: ConnectionSecurity, _ smtpSecurity: ConnectionSecurity,
+            _ acceptedCertificate: RejectedCertificate?
         ) -> Void
     /// Serializes the JMAP fields, stores them, and connects (server may be empty:
     /// the core derives it from the email domain). One secret, whichever kind it is: the
@@ -82,11 +88,27 @@ struct AccountSetupView: View {
     var note: String? = nil
 
     @State private var kind: AccountKind
+    /// What the typed mail server said it accepts. `.password` until it answers, because this
+    /// pane's password field is already on screen and must not be taken away to say nothing.
+    @State private var imapAuth: ImapAuthState = .password
+    /// Set while the IMAP sign-in's browser is up.
+    @State private var imapSigningIn = false
+    /// The person asked for the password route beside a sign-in.
+    @State private var passwordChosen = false
+    /// Asks the mail server what it accepts. `nil` where there is no core to ask, which is a
+    /// preview or a test: the pane then simply never offers a sign-in.
+    let imapAuthOptions: ((ImapLoginRequest) async -> ImapAuthOffer)?
+    /// Runs the IMAP browser sign-in and, on success, adds + stores the account.
+    let signInImap: ((ImapLoginRequest) async -> ImapSignInOutcome)?
+
     @State private var imapHost: String
     @State private var username: String
     @State private var password = ""
     @State private var smtpHost: String
     @State private var caldavURL = ""
+    /// Each server's port and connection security. The host fields hold the name alone; the port
+    /// sits beside it, where the user can see and change it.
+    @State private var servers = ManualServerPair()
     @State private var jmapServer: String
     /// The mandatory Early Access confirmation for Google; the "Sign in with Google" button stays
     /// disabled until it is on (Gmail is allow-listed while Google verifies the app).
@@ -94,21 +116,28 @@ struct AccountSetupView: View {
     /// Whether the typed JMAP server advertises OAuth sign-in, as answered by `jmapOAuthProbe`.
     /// False until the core says otherwise, so the button is never offered on a guess.
     @State private var jmapSignInOffered = false
+    /// Whether the person has accepted the certificate `rejectedCertificate` names. Reset
+    /// whenever a different one arrives, so an acceptance never carries over.
+    @State private var certificateAccepted = false
 
     /// The manual form, optionally prefilled from a detection result the user chose to edit
     /// (and with a `note` explaining why detection routed here).
     init(
         error: String?,
+        rejectedCertificate: RejectedCertificate? = nil,
         cancel: (() -> Void)? = nil,
+        back: (() -> Void)? = nil,
         signInMicrosoft: @escaping (String?) -> Void,
         signInGoogle: @escaping (String?) -> Void,
         signingIn: Bool = false,
         googleSigningIn: Bool = false,
         connecting: Bool = false,
-        submit: @escaping (String, String, String, String, String, ConnectionSecurity, ConnectionSecurity) -> Void,
+        submit: @escaping (String, String, String, String, String, ConnectionSecurity, ConnectionSecurity, RejectedCertificate?) -> Void,
         submitJmap: @escaping (String, String, String) -> Void,
         jmapOAuthAvailable: @escaping (String, String) async -> Bool,
         signInJmap: @escaping (String, String) async -> JmapSignInOutcome,
+        imapAuthOptions: ((ImapLoginRequest) async -> ImapAuthOffer)? = nil,
+        signInImap: ((ImapLoginRequest) async -> ImapSignInOutcome)? = nil,
         initialKind: AccountKind = .imap,
         prefillEmail: String = "",
         prefillImapHost: String = "",
@@ -117,7 +146,9 @@ struct AccountSetupView: View {
         note: String? = nil
     ) {
         self.error = error
+        self.rejectedCertificate = rejectedCertificate
         self.cancel = cancel
+        self.back = back
         self.signInMicrosoft = signInMicrosoft
         self.signInGoogle = signInGoogle
         self.signingIn = signingIn
@@ -127,6 +158,8 @@ struct AccountSetupView: View {
         self.submitJmap = submitJmap
         self.jmapOAuthAvailable = jmapOAuthAvailable
         self.signInJmap = signInJmap
+        self.imapAuthOptions = imapAuthOptions
+        self.signInImap = signInImap
         self.note = note
         _kind = State(initialValue: initialKind)
         _imapHost = State(initialValue: prefillImapHost)
@@ -142,6 +175,23 @@ struct AccountSetupView: View {
     /// JMAP needs an email and the secret; the server may be left blank.
     private var canConnectJmap: Bool {
         !username.isEmpty && !password.isEmpty
+    }
+
+    /// The refused certificate this pane can actually do something about. Only an IMAP
+    /// account's stored config carries an exception, so a JMAP refusal is reported and not
+    /// offered: taking an answer and ignoring it is worse than not asking
+    /// (`docs/certificate-exceptions.md` → Known gaps).
+    private var refusedCertificate: RejectedCertificate? {
+        kind == .imap ? rejectedCertificate : nil
+    }
+
+    /// Connect stays inert while a refused certificate is waiting to be accepted, the same
+    /// gate the detected card applies.
+    private var certificateOK: Bool { refusedCertificate == nil || certificateAccepted }
+
+    /// The certificate to store with the account: the refused one, once accepted.
+    private var acceptedCertificate: RejectedCertificate? {
+        certificateAccepted ? refusedCertificate : nil
     }
 
     var body: some View {
@@ -168,18 +218,30 @@ struct AccountSetupView: View {
             case .google: googleForm
             }
 
-            if let error {
+            // The transport's own words, suppressed while the certificate panel below is up:
+            // that panel says the same thing in the reader's language and with the certificate
+            // beside it, and the raw text above it is a second, worse copy of the question.
+            if let error, refusedCertificate == nil {
                 Text(error).font(.callout).foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if let refusedCertificate {
+                CertificateExceptionPanel(
+                    certificate: refusedCertificate,
+                    accepted: $certificateAccepted
+                )
+            }
 
-            SetupFooter {
+            SetupFooter(back: back, backDisabled: connecting || signingIn || googleSigningIn || imapSigningIn) {
                 if let cancel {
                     Button(L10n.action_cancel()) { cancel() }
                 }
                 primaryAction
             }
         }
+        // A different certificate is a different decision, so an acceptance never carries
+        // over to one nobody has been shown.
+        .onChange(of: rejectedCertificate) { certificateAccepted = false }
     }
 
     /// The footer's leading action, which is whichever verb the selected account kind needs:
@@ -190,14 +252,13 @@ struct AccountSetupView: View {
         case .imap:
             if connecting {
                 connectingLabel(L10n.status_connecting())
+            } else if imapAuth.offersSignIn, !imapAuth.showsPasswordField(chosen: passwordRouteChosen) {
+                // The sign-in leads from the card, under the line that explains it.
+                EmptyView()
             } else {
-                Button(L10n.action_connect()) {
-                    // The manual form only offers implicit-TLS setup today (STARTTLS
-                    // arrives via autodetection).
-                    submit(imapHost, username, password, smtpHost, caldavURL, .implicitTls, .implicitTls)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canConnect)
+                Button(L10n.action_connect(), action: submitImap)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canConnect || !certificateOK)
             }
         case .jmap:
             if connecting {
@@ -242,16 +303,34 @@ struct AccountSetupView: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             SetupCard(title: L10n.setup_section_account(), systemImage: "envelope") {
-                TextField(L10n.setup_imap_placeholder(), text: $imapHost)
-                    .setupField(.host)
+                serverRow(
+                    placeholder: L10n.setup_imap_placeholder(), host: $imapHost,
+                    field: $servers.imap)
                 TextField(L10n.setup_field_email(), text: $username)
                     .setupField(.email)
-                SecureField(L10n.setup_field_password(), text: $password)
-                    .setupField(.password)
+                ImapAuthExplanation(state: imapAuth)
+                if imapAuth.offersSignIn, let signInImap {
+                    ImapSignInButton(
+                        request: typedImapRequest, signIn: signInImap, signingIn: $imapSigningIn,
+                        leads: !passwordRouteChosen,
+                        passwordInstead: imapAuth.offersPasswordInstead(chosen: passwordRouteChosen)
+                            ? { passwordChosen = true } : nil,
+                        failed: { imapAuth = .failed }
+                    )
+                    .disabled(connecting)
+                }
+                if imapAuth.showsPasswordField(chosen: passwordRouteChosen) {
+                    SecureField(L10n.setup_field_password(), text: $password)
+                        .setupField(.password)
+                }
+            }
+            .task(id: ImapAuthQuestion(typedImapRequest)) {
+                await askTypedImapServer()
             }
             SetupCard(title: L10n.setup_section_advanced(), systemImage: "slider.horizontal.3") {
-                TextField(L10n.setup_smtp_placeholder(), text: $smtpHost)
-                    .setupField(.host)
+                serverRow(
+                    placeholder: L10n.setup_smtp_placeholder(), host: $smtpHost,
+                    field: $servers.smtp)
                 TextField(L10n.setup_caldav_placeholder(), text: $caldavURL)
                     .setupField(.host)
                 // Directly under the fields it explains. It used to sit after the whole `Form`,
@@ -320,5 +399,54 @@ struct AccountSetupView: View {
             GoogleEarlyAccessGate(confirmed: $googleEarlyAccessConfirmed)
         }
         .padding(.vertical, 8)
+    }
+}
+
+extension AccountSetupView {
+    /// A password already typed counts as the route chosen: an answer arriving mid-typing must
+    /// not take the field away.
+    var passwordRouteChosen: Bool { passwordChosen || !password.isEmpty }
+
+    func submitImap() {
+        // The manual form only offers implicit-TLS setup today (STARTTLS
+        // arrives via autodetection).
+        submit(
+            servers.imap.dial(imapHost), username, password,
+            servers.smtp.dial(smtpHost), caldavURL,
+            servers.imap.security, servers.smtp.security, acceptedCertificate)
+    }
+
+    /// The account the typed fields describe, as the pre-flight and the sign-in both take it.
+    var typedImapRequest: ImapLoginRequest {
+        imapLoginRequest(
+            email: username,
+            imapHost: servers.imap.dial(imapHost),
+            smtpHost: smtpHost.isEmpty ? nil : servers.smtp.dial(smtpHost),
+            caldavURL: caldavURL.isEmpty ? nil : caldavURL,
+            // The port and security the person chose for each server, as the Connect button
+            // submits them.
+            imapSecurity: servers.imap.security,
+            smtpSecurity: servers.smtp.security,
+            // Nothing was detected, so no provider named an issuer for itself: the core's
+            // well-known probe is what answers here.
+            oauthIssuer: nil
+        )
+    }
+
+    /// Asks again whenever the address or the server, its port and security included, changes;
+    /// debounced so a network round trip does not go out per keystroke.
+    func askTypedImapServer() async {
+        imapAuth = .password
+        passwordChosen = false
+        guard let imapAuthOptions, kind == .imap,
+              JmapOAuthProbe.looksLikeAddress(username), !imapHost.isEmpty
+        else { return }
+        try? await Task.sleep(for: JmapOAuthProbe.debounce)
+        guard !Task.isCancelled else { return }
+        let offer = await imapAuthOptions(typedImapRequest)
+        // The person kept typing while the (blocking, uncancellable) call ran: its answer is
+        // about a server they have already moved on from.
+        guard !Task.isCancelled else { return }
+        imapAuth = ImapAuthState(offer)
     }
 }

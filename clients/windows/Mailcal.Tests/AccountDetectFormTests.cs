@@ -23,6 +23,8 @@ public class AccountDetectFormTests
             Row("IMAP", "imap.example.com", 993),
             withSmtp ? Row("SMTP", "smtp.example.com", 465) : null,
             caldavUrl,
+            // No issuer: nothing here is testing what a provider named for itself.
+            null,
             trusted, "https://autoconfig.example.com/mail/config-v1.1.xml");
 
     [Fact]
@@ -107,6 +109,43 @@ public class AccountDetectFormTests
     }
 
     [Fact]
+    public void A_refused_certificate_cannot_connect_until_it_is_accepted()
+    {
+        // The fields are complete and the settings are trusted, but the last connect was refused
+        // for a certificate: Connect stays closed until that certificate is accepted
+        // (docs/certificate-exceptions.md).
+        Assert.False(AccountDetectForm.CanConnect(
+            DetectTab.Imap, needsApproval: false, approved: false,
+            "imap.example.com", "alice@example.com", "secret", "",
+            certificateRefused: true, certificateAccepted: false));
+        Assert.True(AccountDetectForm.CanConnect(
+            DetectTab.Imap, needsApproval: false, approved: false,
+            "imap.example.com", "alice@example.com", "secret", "",
+            certificateRefused: true, certificateAccepted: true));
+    }
+
+    [Fact]
+    public void Accepting_a_certificate_does_not_approve_untrusted_settings()
+    {
+        // The two gates are independent; answering one does not answer the other.
+        Assert.False(AccountDetectForm.CanConnect(
+            DetectTab.Imap, needsApproval: true, approved: false,
+            "imap.example.com", "alice@example.com", "secret", "",
+            certificateRefused: true, certificateAccepted: true));
+    }
+
+    [Fact]
+    public void Only_the_imap_route_offers_to_accept_a_certificate()
+    {
+        // A JMAP account's stored config carries no exception, so a refusal there is reported and
+        // not offered (docs/certificate-exceptions.md, Known gaps).
+        Assert.True(AccountDetectForm.OffersCertificateException(DetectTab.Imap));
+        Assert.False(AccountDetectForm.OffersCertificateException(DetectTab.Jmap));
+        Assert.False(AccountDetectForm.OffersCertificateException(DetectTab.Microsoft));
+        Assert.False(AccountDetectForm.OffersCertificateException(DetectTab.Google));
+    }
+
+    [Fact]
     public void Imap_connect_needs_a_host_email_and_password()
     {
         Assert.False(AccountDetectForm.CanConnect(
@@ -127,5 +166,33 @@ public class AccountDetectFormTests
         Assert.True(AccountDetectForm.CanConnect(
             DetectTab.Jmap, needsApproval: false, approved: false,
             "", "alice@example.com", "", "tok_123"));
+    }
+
+    [Fact]
+    public void An_issuer_a_provider_named_for_itself_reaches_the_setup_form()
+    {
+        // Detection is where the autoconfig document is read; the setup form's pre-flight is where
+        // the issuer is used. Dropped in between, the well-known probe runs for a provider that
+        // already told us the answer, and a provider whose authorization server lives on another
+        // domain is never offered sign-in at all.
+        var route = AccountDetectForm.Route(new SetupRecommendation.Imap(
+            "alice@example.com", "imap.example.com", null,
+            ConnectionSecurity.ImplicitTls, ConnectionSecurity.ImplicitTls,
+            Row("IMAP", "imap.example.com", 993), null, null,
+            "https://login.example.com",
+            true, "https://autoconfig.example.com/mail/config-v1.1.xml"));
+
+        Assert.Equal("https://login.example.com", route.OauthIssuer);
+    }
+
+    [Fact]
+    public void AnImapPasswordIsRequiredOnlyWhileItsFieldIsOnScreen()
+    {
+        // A server that refuses passwords draws no field, and the sign-in is the action there.
+        Assert.False(AccountDetectForm.CanConnect(
+            DetectTab.Imap, false, false, "imap.example.com", "a@example.com", "", ""));
+        Assert.True(AccountDetectForm.CanConnect(
+            DetectTab.Imap, false, false, "imap.example.com", "a@example.com", "", "",
+            passwordShown: false));
     }
 }

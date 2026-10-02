@@ -6,7 +6,7 @@ use url::Url;
 use crate::{
     fetch::{Fetch, FetchOutcome},
     parser::parse_autoconfig,
-    types::{DetectedJmap, DetectedMailSettings, EmailParts, Source, SourceKind},
+    types::{DetectedDav, DetectedJmap, DetectedMailSettings, EmailParts, Source, SourceKind},
     urls,
 };
 
@@ -48,14 +48,19 @@ pub(crate) async fn fetch_mail_config(
                 Ok(servers) => MailFetch::Found(DetectedMailSettings {
                     incoming: servers.incoming,
                     outgoing: servers.outgoing,
+                    // Only a provider describing **itself**, over HTTPS, may name an
+                    // authorization server (`docs/account-autodetect.md` rule 7).
+                    oauth_issuer: servers
+                        .oauth_issuer
+                        .filter(|_| response.trusted && describes_itself(kind)),
                     is_trusted: response.trusted,
                     source: Source {
                         kind,
                         url: response.final_url.to_string(),
                     },
-                    // Filled in later by the CalDAV follow-on probe in the orchestrator;
-                    // mail settings alone carry no calendar endpoint.
-                    caldav_url: None,
+                    // Filled in later by the DAV probe in the orchestrator; mail settings
+                    // alone carry no calendar or address-book endpoint.
+                    dav: DetectedDav::default(),
                 }),
                 Err(err) => {
                     log::debug!("autodetect could not parse {}: {err}", response.final_url);
@@ -65,6 +70,28 @@ pub(crate) async fn fetch_mail_config(
         }
         FetchOutcome::Response(_) | FetchOutcome::Miss => MailFetch::Miss,
         FetchOutcome::NetworkError => MailFetch::NetworkError,
+    }
+}
+
+/// Whether a document from this source is the provider **describing itself**, and so may
+/// name the authorization server a user will be sent to sign in at.
+///
+/// The provider's own autoconfig endpoints qualify; the ISPDB does not. The distinction is
+/// not about how carefully Mozilla curates that database: an issuer decides which page
+/// receives someone's password, and a third party naming it for a provider is a different
+/// trust decision from the provider naming it for itself. The MX-derived autoconfig
+/// qualifies because it is still the mail provider's own endpoint, reached one DNS hop away.
+///
+/// The endpoints beside the issuer are never taken from any source; only the issuer's own
+/// RFC 8414 metadata says what they are.
+const fn describes_itself(kind: SourceKind) -> bool {
+    match kind {
+        SourceKind::Autoconfig | SourceKind::AutoconfigWellKnown | SourceKind::MxAutoconfig => true,
+        SourceKind::Ispdb
+        | SourceKind::MxIspdb
+        | SourceKind::ImapSrv
+        | SourceKind::JmapWellKnown
+        | SourceKind::JmapSrv => false,
     }
 }
 

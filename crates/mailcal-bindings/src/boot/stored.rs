@@ -12,11 +12,11 @@
 
 use std::sync::Arc;
 
-use engine_api::{AccountId, EmailAddress, Provider, TimeZoneId};
+use engine_api::{AccountId, Provider, TimeZoneId};
 use mailcal_account::{CredentialOrigin, GraphTokenSource, TokenSink};
 use mailcal_app::Account;
 
-use crate::{BoxedAccount, ConnectedAccount, MailcalError};
+use crate::{BoxedAccount, ConnectedAccount, MailcalError, account_registry::ConnectFailure};
 
 /// Builds one stored account **offline**; its id, identity, and re-connection state derived from
 /// the config with no network at all.
@@ -46,24 +46,22 @@ pub(crate) fn prepare_stored_account(
     sink: &Arc<dyn TokenSink>,
     origin: CredentialOrigin,
 ) -> Result<PreparedAccount, MailcalError> {
-    let (id, identity, connected) = if is_microsoft_toml(config_toml) {
+    let (id, connected) = if is_microsoft_toml(config_toml) {
         let config = mailcal_account::load_microsoft_str(config_toml)
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         let id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        let identity = config.identity();
         // The shared, self-refreshing token source builds without a live socket.
         let tokens = GraphTokenSource::new(&config, id.clone(), Some(Arc::clone(sink)), origin)
             .map_err(|err| MailcalError::Connect(err.to_string()))?;
-        (id, identity, ConnectedAccount::Microsoft { config, tokens })
+        (id, ConnectedAccount::Microsoft { config, tokens })
     } else if is_google_toml(config_toml) {
         let config = mailcal_account::load_google_str(config_toml)
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         let id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        let identity = config.identity();
         // The provider-neutral token source builds without a live socket.
         let tokens = mailcal_account::google_token_source(
             &config,
@@ -72,37 +70,49 @@ pub(crate) fn prepare_stored_account(
             origin,
         )
         .map_err(|err| MailcalError::Connect(err.to_string()))?;
-        (id, identity, ConnectedAccount::Google { config, tokens })
+        (id, ConnectedAccount::Google { config, tokens })
     } else if is_jmap_toml(config_toml) {
         let config = mailcal_account::load_jmap_str(config_toml)
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         let id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        let identity = config.identity();
         // An OAuth JMAP account's token source builds without a live socket; a stored-secret
         // account has nothing to refresh and gets none.
         let tokens = jmap_tokens(&config, &id, sink, origin)?;
-        (id, identity, ConnectedAccount::Jmap { config, tokens })
+        (id, ConnectedAccount::Jmap { config, tokens })
     } else {
         let config = mailcal_account::load_str(config_toml)
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         let id = config
             .account_id()
             .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        let identity = EmailAddress::new(config.imap.username.clone());
-        (id, identity, ConnectedAccount::Imap(config))
+        // An OAuth IMAP account's token source builds without a live socket; a password
+        // account has nothing to refresh and gets none.
+        let tokens = imap_tokens(&config, &id, sink, origin)?;
+        (id, ConnectedAccount::imap_account(config, tokens))
     };
     Ok(PreparedAccount {
-        account: Account {
-            id,
-            providers: Vec::new(),
-            calendar_providers: Vec::new(),
-            contact_providers: Vec::new(),
-            identity,
-        },
+        account: placeholder(id, &connected),
         connected,
     })
+}
+
+/// The provider-less account the app lists for `connected` before its dial lands: named from its
+/// config, and in the mail surfaces only when it opens its mail.
+pub(crate) fn placeholder(id: AccountId, connected: &ConnectedAccount) -> BoxedAccount {
+    Account {
+        id,
+        providers: Vec::new(),
+        calendar_providers: Vec::new(),
+        contact_providers: Vec::new(),
+        identity: connected.identity(),
+        // Listed before its dial lands: what its calendar holds is not known yet.
+        dialled: false,
+        uses_mail: connected
+            .opened_capabilities()
+            .contains(mailcal_account::Capability::Mail),
+    }
 }
 
 /// One stored account prepared offline: the provider-less placeholder [`BoxedAccount`] the app
@@ -132,11 +142,9 @@ pub(crate) fn is_jmap_toml(config_toml: &str) -> bool {
     mailcal_account::load_jmap_str(config_toml).is_ok()
 }
 
-/// Binds a Microsoft account's Graph calendar provider (its default calendar); shared by the dial
-/// and the post-OAuth add path. A calendar-connect failure is **non-fatal**: mail comes up with an
-/// empty agenda rather than failing the whole account.
+/// Binds a Microsoft account's Graph calendar provider (its default calendar).
 ///
-/// Returns the (possibly empty) providers **and** whether the failure was a *scope-denied* `403`;
+/// Returns the providers or the failure, **and** whether the failure was a *scope-denied* `403`;
 /// i.e. the account's OAuth grant predates the `Calendars.ReadWrite` scope, so the user must
 /// **re-authenticate** to enable calendar (as opposed to a transient failure, which just retries on
 /// the next sync). The caller records that as a per-account re-consent prompt.
@@ -144,18 +152,42 @@ pub(crate) async fn connect_graph_calendars(
     id: &AccountId,
     tokens: Arc<GraphTokenSource>,
     display_zone: TimeZoneId,
-) -> (Vec<Box<dyn Provider>>, bool) {
+) -> (Result<Vec<Box<dyn Provider>>, ConnectFailure>, bool) {
     match mailcal_account::connect_graph_calendar_providers(id, tokens, display_zone).await {
-        Ok(providers) => (providers, false),
-        Err(mailcal_account::AccountError::CalendarAccessDenied(detail)) => {
-            log::warn!("graph: calendar access denied; re-authentication needed: {detail}");
-            (Vec::new(), true)
+        Ok(providers) => (Ok(providers), false),
+        Err(err @ mailcal_account::AccountError::CalendarAccessDenied(_)) => {
+            log::warn!("graph: calendar access denied; re-authentication needed: {err}");
+            (Err(ConnectFailure::from(err)), true)
         }
         Err(err) => {
-            log::warn!("graph: calendar connect failed, mail only: {err}");
-            (Vec::new(), false)
+            log::warn!("graph: calendar connect failed: {err}");
+            (Err(ConnectFailure::from(err)), false)
         }
     }
+}
+
+/// The shared, self-refreshing token source for an **OAuth** IMAP account, or `None` for a
+/// password one (which has nothing to refresh). Built without a live socket.
+///
+/// The IMAP twin of [`jmap_tokens`], and the same shape for the same reason: both are the
+/// standards flow against a discovered server, so both persist the same grant.
+///
+/// # Errors
+///
+/// Returns [`MailcalError::Connect`] if the OAuth HTTP client cannot be built; fatal for that
+/// account, exactly as it is for a Microsoft one.
+pub(super) fn imap_tokens(
+    config: &mailcal_account::AccountConfig,
+    id: &engine_api::AccountId,
+    sink: &Arc<dyn TokenSink>,
+    origin: CredentialOrigin,
+) -> Result<Option<Arc<GraphTokenSource>>, MailcalError> {
+    let Some(grant) = config.oauth.as_ref() else {
+        return Ok(None);
+    };
+    mailcal_account::oauth_token_source(grant, id.clone(), Some(Arc::clone(sink)), origin, "imap")
+        .map(Some)
+        .map_err(|err| MailcalError::Connect(err.to_string()))
 }
 
 /// The shared, self-refreshing token source for an **OAuth** JMAP account, or `None` for a
@@ -174,7 +206,7 @@ pub(super) fn jmap_tokens(
     let Some(grant) = config.oauth.as_ref() else {
         return Ok(None);
     };
-    mailcal_account::jmap_token_source(grant, id.clone(), Some(Arc::clone(sink)), origin)
+    mailcal_account::oauth_token_source(grant, id.clone(), Some(Arc::clone(sink)), origin, "jmap")
         .map(Some)
         .map_err(|err| MailcalError::Connect(err.to_string()))
 }

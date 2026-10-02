@@ -13,6 +13,7 @@
 
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Allodia.Mailcal.Dialogs;
@@ -29,6 +30,22 @@ internal static class DialogHelper
     /// this first instead, and comes back later.
     /// </remarks>
     public static bool IsShowing => _open;
+
+    /// <summary>
+    /// Completes once no dialog is open, for a caller that must not lose its question.
+    /// </summary>
+    /// <remarks>
+    /// <c>Hide()</c> does not close a dialog synchronously: <see cref="IsShowing"/> stays true
+    /// until the awaited show resumes, so a dialog raised in the same turn as another's close
+    /// would be dropped.
+    /// </remarks>
+    public static async Task WhenIdleAsync()
+    {
+        while (_open)
+        {
+            await Task.Delay(50);
+        }
+    }
 
     /// <summary>
     /// Shows <paramref name="dialog"/>, or returns <c>None</c> if one is already open or this one
@@ -80,10 +97,17 @@ internal static class DialogHelper
     /// <summary>Shows a standard confirm dialog (destructive primary + a close button). The close
     /// button is "Cancel" unless <paramref name="closeText"/> names the specific way out, the
     /// discard-draft prompt, for one, offers "Keep editing", which says what staying actually
-    /// does.</summary>
+    /// does. <paramref name="automationId"/> names the dialog itself for UI Automation, for a
+    /// prompt a script has to tell apart from the others without reading its copy.</summary>
     public static Task<ContentDialogResult> ConfirmAsync(
-        XamlRoot root, string title, string content, string primaryText, string? closeText = null) =>
-        ShowAsync(new ContentDialog
+        XamlRoot root,
+        string title,
+        string content,
+        string primaryText,
+        string? closeText = null,
+        string? automationId = null)
+    {
+        var dialog = new ContentDialog
         {
             XamlRoot = root,
             Title = title,
@@ -91,7 +115,13 @@ internal static class DialogHelper
             PrimaryButtonText = primaryText,
             CloseButtonText = closeText ?? L10n.ActionCancel(),
             DefaultButton = ContentDialogButton.Close,
-        });
+        };
+        if (automationId is not null)
+        {
+            AutomationProperties.SetAutomationId(dialog, automationId);
+        }
+        return ShowAsync(dialog);
+    }
 
     /// <summary>Says something the user can only acknowledge: one button, because there is
     /// nothing to decide. <paramref name="content"/> may be empty, for a title that is already

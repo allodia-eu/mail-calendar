@@ -33,9 +33,16 @@
 #                                                     #   carry: an entry's accessible name is its
 #                                                     #   label, so a dump cannot say what is in it
 #   scripts/dev/control.sh linux ui-dump               # the live GTK accessibility tree
-#   scripts/dev/control.sh linux key Escape            # a REAL keystroke, for what AT-SPI cannot
+#   scripts/dev/control.sh linux key ctrl+k            # a REAL keystroke or chord, for what AT-SPI cannot
 #   scripts/dev/control.sh linux text "Team planning"  #   reach: a shortcut, Tab, a dismissal.
 #                                                      #   Needs build-and-run.sh --headless
+#   scripts/dev/control.sh linux click <x> <y>         # a REAL pointer, in output pixels: the same
+#   scripts/dev/control.sh linux drag <x1> <y1> <x2> <y2>   #   units a screenshot is measured in.
+#   scripts/dev/control.sh linux scroll <x> <y> <dy>   #   The only way to drive a gesture or the
+#                                                      #   wheel. Needs --headless too.
+#   scripts/dev/control.sh linux locate "Lunch on Friday?"   # -> "<x> <y>"; pipe it into click, so
+#                                                      #   a flow never stores a coordinate:
+#     scripts/dev/control.sh linux click $(scripts/dev/control.sh linux locate "Lunch on Friday?")
 #   scripts/dev/control.sh windows open-first|calendar|home   # relaunch into a known state (launch hooks)
 #   scripts/dev/control.sh windows ui-dump            # the live window's UI Automation tree
 set -euo pipefail
@@ -165,15 +172,22 @@ EOF
     # which is the whole of what `key` is for.
     case "$action" in
       key)
-        [[ $# -ge 1 ]] || die "key <xkb keysym name, e.g. Escape|Return|Tab>"
+        [[ $# -ge 1 ]] || die "key <xkb keysym, or a chord such as ctrl+Return|ctrl+shift+Left>"
         linux_session_attach ||
           die "a keystroke needs the headless session: clients/linux/build-and-run.sh --headless"
-        linux_session_type -k "$1"; exit $? ;;
+        mapfile -t chord < <(linux_session_chord_args "$1")
+        linux_session_type "${chord[@]}"; exit $? ;;
       text)
         [[ $# -ge 1 ]] || die "text <string>"
         linux_session_attach ||
           die "typing needs the headless session: clients/linux/build-and-run.sh --headless"
         linux_session_type "$1"; exit $? ;;
+      click|move|drag|scroll)
+        # Coordinates are output pixels, which is what a `screenshot.sh linux` capture is measured
+        # in, so a coordinate read off a picture goes straight in.
+        linux_session_attach ||
+          die "pointer input needs the headless session: clients/linux/build-and-run.sh --headless"
+        linux_session_pointer "$action" "$@"; exit $? ;;
     esac
     python=/usr/bin/python3
     [[ -x "$python" ]] || die "Linux UI control requires the distro /usr/bin/python3"
@@ -194,7 +208,10 @@ EOF
       read-text)
         [[ $# -ge 1 ]] || die "read-text <accessible name>"
         exec "$python" "$script" read-text --name "$1" ;;
-      *) die "unknown linux action '$action' (activate|find|key|read-text|set-text|text|ui-dump)" ;;
+      locate)
+        [[ $# -ge 1 ]] || die "locate <accessible name>"
+        exec "$python" "$script" locate --name "$1" ;;
+      *) die "unknown linux action '$action' (activate|click|drag|find|key|locate|move|read-text|scroll|set-text|text|ui-dump)" ;;
     esac
     ;;
   windows)

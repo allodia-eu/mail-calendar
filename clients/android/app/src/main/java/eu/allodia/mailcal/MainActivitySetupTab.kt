@@ -13,6 +13,17 @@ import uniffi.mailcal_bindings.accountConfigToml
 import uniffi.mailcal_bindings.jmapAccountConfigToml
 import uniffi.mailcal_bindings.oauthRoutes
 
+// What the form should say about a connect that did not succeed. A refused certificate comes
+// back whole, because the form offers to accept it; everything else is a message
+// (docs/certificate-exceptions.md). The generated message of a refusal dumps the certificate
+// into one line, so it is deliberately not used for that case.
+internal fun connectFailure(error: MailcalException, ctx: Context): ConnectFailure =
+    when (error) {
+        is MailcalException.CertificateRejected ->
+            ConnectFailure(error.reason, error.certificate)
+        else -> ConnectFailure(error.message ?: L10n.error_invalid_config(ctx))
+    }
+
 // First run (no account yet) or adding another: collect + validate the
 // config in the form, then connect it as a new account via the shared
 // addAccount path. A build error returns inline; a failed connect comes
@@ -21,6 +32,7 @@ import uniffi.mailcal_bindings.oauthRoutes
 internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Context) {
     AccountSetupFlow(
                             externalError = addError?.let { L10n.status_connect_failed(ctx, it) },
+                            externalFailure = addFailure,
                             // The first account can't be cancelled (nothing to return to);
                             // adding another can back out to the running app.
                             onCancel = if (needsSetup) {
@@ -29,9 +41,16 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
                                 {
                                     addingAccount = false
                                     addError = null
+                                    addFailure = null
+                                    setupAcceptedCertificate = null
                                     setupStartEmail = ""
                                     setupStartOffer = null
                                 }
+                            },
+                            // The running app answers from the core, so the manual form's port
+                            // box and the address the core dials are the same number.
+                            standardPort = { kind, security ->
+                                uniffi.mailcal_bindings.standardPort(kind, security).toInt()
                             },
                             startEmail = setupStartEmail,
                             startOffer = setupStartOffer,
@@ -71,13 +90,28 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
                                 withContext(Dispatchers.IO) { jmapSignInAvailable(email, server) }
                             },
                             onSignInJmap = { email, server -> signInWithJmap(email, server) },
+                            // The same pair for a mail account: what the server accepts, hopped
+                            // off the main thread by the caller's coroutine, and the browser
+                            // sign-in it gates.
+                            onCheckImapAuth = { request ->
+                                withContext(Dispatchers.IO) { imapAuthOptions(request) }
+                            },
+                            onSignInImap = { request -> signInWithImap(request) },
+                            signingInImap = signingInImap,
                             onConnect = { setup ->
                                 try {
-                                    val configToml = accountConfigToml(setup)
+                                    // Accepted once, carried for the rest of this setup: a retry
+                                    // that then fails on the password must not ask again.
+                                    setup.acceptedCertificate?.let { setupAcceptedCertificate = it }
+                                    val carried = setup.copy(
+                                        acceptedCertificate = setup.acceptedCertificate
+                                            ?: setupAcceptedCertificate,
+                                    )
+                                    val configToml = accountConfigToml(carried)
                                     addAccount(configToml)
                                     null
                                 } catch (e: MailcalException) {
-                                    e.message ?: L10n.error_invalid_config(ctx)
+                                    connectFailure(e, ctx)
                                 }
                             },
                             // JMAP mirrors the IMAP path, a different config builder, the same
@@ -89,7 +123,9 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
                                     addAccount(configToml)
                                     null
                                 } catch (e: MailcalException) {
-                                    e.message ?: L10n.error_invalid_config(ctx)
+                                    // A JMAP account's stored config carries no exception, so a
+                                    // refusal here is reported and not offered (rule 8).
+                                    connectFailure(e, ctx).copy(certificate = null)
                                 }
                             },
                             // Documentation screenshots only; null on every real launch.

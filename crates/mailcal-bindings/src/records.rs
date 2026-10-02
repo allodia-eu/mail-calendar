@@ -113,7 +113,10 @@ pub struct RecipientSuggestion {
 /// on*: adding an account, opening an unsynced folder, an explicit refetch. The **hint**
 /// ([`accounts`](Self::accounts)) is for a pass nobody asked for: a poll tick, a push, a boot
 /// catch-up, which never opens a bar and instead names the accounts currently pulling mail down.
-/// Pulled via [`crate::MailcalApp::sync_progress`].
+/// The **pause** ([`throttled`](Self::throttled)) is for an account whose server asked to be
+/// left alone for a while: nothing is arriving for it and nothing is wrong, which is the one
+/// combination neither of the other two can express. It takes the status line in the hint's
+/// place. Pulled via [`crate::MailcalApp::sync_progress`].
 #[derive(uniffi::Record)]
 pub struct SyncProgressSnapshot {
     /// Whether a **user-awaited** download is running: a host shows the bar while true and
@@ -129,6 +132,25 @@ pub struct SyncProgressSnapshot {
     /// only once its pass has actually committed mail, so a poll that finds nothing stays
     /// silent. Never overlaps the bar.
     pub accounts: Vec<AccountSyncProgress>,
+    /// The accounts whose server has asked us to **slow down**, in a stable order. Empty
+    /// whenever nothing is being made to wait, which is almost always. Takes the status line
+    /// ahead of [`accounts`](Self::accounts), and never overlaps it.
+    pub throttled: Vec<ThrottledAccount>,
+}
+
+/// One account a server has asked to wait, and when syncing continues.
+///
+/// Not an outage and not a failure: the server was reached, answered quickly, and asked for
+/// less traffic. The account keeps its mail, its credential and its badge.
+#[derive(uniffi::Record)]
+pub struct ThrottledAccount {
+    /// The account, to be named from the host's own account list, exactly as the hint is.
+    pub account_id: String,
+    /// Whole minutes until syncing continues, rounded up and never zero, where the server named
+    /// an instant. `None` means it refused without saying when; say so rather than invent a
+    /// figure. Minutes, not seconds, because a host reads this off a snapshot it does not
+    /// re-pull on a clock.
+    pub resumes_in_minutes: Option<u32>,
 }
 
 /// One account catching up in the background, as far as a status line needs it.
@@ -329,6 +351,31 @@ pub struct MailboxListSnapshot {
     /// Render it beside the results, with a route to the sync-depth setting: an empty search
     /// that does not say how far it looked reads as "no such message" (`docs/search.md`).
     pub search_horizon: Option<SearchHorizon>,
+    /// Why the list has no rows, or `None` whenever it has some (and on a search, which says
+    /// how far it looked through `search_horizon` instead).
+    ///
+    /// Render it in place of the rows, and offer the sync-depth setting on
+    /// `OutsideSyncDepth`: the badge beside the folder is the server's count over all time,
+    /// so an empty list that does not say why contradicts it (`docs/folder-pane.md`).
+    pub empty_reason: Option<EmptyReason>,
+    /// A folder change the server refused, until dismissed. Render it beside the pane in every
+    /// view mode (`docs/folder-pane.md`, "Changing the tree").
+    pub folder_notice: Option<crate::FolderNotice>,
+}
+
+/// Why a mailbox list holds no rows.
+///
+/// The folder's badge counts what the **server** holds, the list shows what sync depth kept, and
+/// these are the two ways those can differ (`docs/folder-pane.md`).
+#[derive(uniffi::Enum)]
+pub enum EmptyReason {
+    /// Sync depth is all-time, so this device has the whole folder: it really is empty.
+    NoMail,
+    /// Only the last `months` months were ever downloaded; the server may hold older mail.
+    OutsideSyncDepth {
+        /// The depth in months, as the sync-depth setting names it.
+        months: u32,
+    },
 }
 
 /// How far back a search looked: the sync depth of the accounts it covered, narrowest first.

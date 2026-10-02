@@ -94,6 +94,11 @@ final class MailboxModel {
     /// How far back the active search looked, or `nil` when the list is not a search, the sync
     /// depth of the accounts its scope covered (`docs/search.md`).
     var searchHorizon: SearchHorizon?
+    /// Why the mail list has no rows, or `nil` whenever it has some. A search says how far it
+    /// looked through `searchHorizon` instead, so the two are never both up.
+    var emptyReason: EmptyReason?
+    /// A folder change the server refused, until dismissed (`docs/folder-pane.md`, rule 28).
+    var folderNotice: FolderNotice?
     var events: [EventRow] = []
     /// The contacts list, one row per unified **person**, not per provider card: the engine has
     /// already merged the cards that share an address, across accounts. Pulled on a
@@ -213,6 +218,15 @@ final class MailboxModel {
     var accountsSyncMode: [String: AllodiaAccountSyncMode] = [:]
     /// A setup/connect error to surface on the form (invalid fields or a failed login).
     var setupError: String?
+    /// The certificate a server presented that could not be verified, when that is why the
+    /// last setup connect failed. The form shows it and offers to accept it; accepting
+    /// re-submits with it and the core stores it with the account
+    /// (`docs/certificate-exceptions.md`).
+    var setupRejectedCertificate: RejectedCertificate?
+    /// A certificate already accepted during this setup. Kept apart from
+    /// `setupRejectedCertificate`, which is a question: this is the answer, and it outlives a
+    /// retry that then fails on the password so nobody is asked the same thing twice.
+    var setupAcceptedCertificate: RejectedCertificate?
     /// `true` while a Microsoft sign-in is in flight (browser + token exchange + first
     /// sync), so the form shows progress instead of looking dead.
     var microsoftSigningIn = false
@@ -282,6 +296,11 @@ final class MailboxModel {
     @ObservationIgnored var searchDebounce: Task<Void, Never>?
     // Not `private`: MailcalModel.Connect.swift's `connect()` reads it.
     @ObservationIgnored var observer: SurfaceObserver?
+    #if os(macOS)
+    /// Where the new-mail scan behind the desktop's notifications stands. An extension cannot add
+    /// a stored property, so it lives here and MailcalModel.Notifications.swift drives it.
+    @ObservationIgnored var newMailScan = NewMailScan.idle
+    #endif
     /// Watches device network reachability; retained for the app's lifetime. Not `private`, see
     /// `observer`: MailcalModel.Connect.swift's `observeNetworkReachability()` sets it.
     @ObservationIgnored var pathMonitor: NWPathMonitor?

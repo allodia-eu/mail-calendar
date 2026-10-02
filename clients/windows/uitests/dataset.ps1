@@ -13,6 +13,9 @@
 #                          the moment rows appeared read the CACHED calendar and reported a missing
 #                          organiser as a projection bug. It reads the core's own log through
 #                          applog.ps1, which is what keeps it honest across a rotation.
+#   Close-DefaultMailAppOffer  the one-time offer is modal and arrives after readiness, so a store
+#                          that had never answered it failed every gesture suite, naming the
+#                          gesture rather than the dialog in front of it.
 #   Reset-AppSurface       what makes one launch safely serve several suites, and, when it cannot,
 #                          says so and lets the caller relaunch instead of guessing.
 #
@@ -128,6 +131,76 @@ function Wait-DatasetReady {
     Start-Sleep -Milliseconds 200
   }
   throw "dataset '$Dataset' was not ready within ${TimeoutSec}s, got as far as: $stage. If the store was just cleared (scripts/dev/harness.sh reset does that), the app may be sitting on a screen this runner does not know how to get past, run it by hand once and look."
+}
+
+<#
+.SYNOPSIS
+The preferences file of the store a harness launch runs on: AppPaths.DevStoreSubdir, for the
+MAILCAL_DEV_ACCOUNT control.ps1 launches with.
+#>
+function Get-HarnessPrefsFile {
+  $account = if ($env:MAILCAL_DEV_ACCOUNT) { $env:MAILCAL_DEV_ACCOUNT } else { 'stalwart' }
+  $subdir = switch ($account.Trim().ToLowerInvariant()) {
+    'stalwart' { 'dev' }
+    'stalwart-multi' { 'dev-multi' }
+    'stalwart-imap' { 'dev-imap' }
+    default { throw "no harness store is known for MAILCAL_DEV_ACCOUNT=$account" }
+  }
+  Join-Path $env:LOCALAPPDATA "Allodia\MailCalendar\$subdir\preferences.toml"
+}
+
+function Test-DefaultMailAppOfferAnswered {
+  param([Parameter(Mandatory)] [string] $PrefsFile)
+  (Test-Path -LiteralPath $PrefsFile) -and
+  [bool](Select-String -LiteralPath $PrefsFile -Pattern '^\s*default_mail_app_offer\s*=' -Quiet)
+}
+
+<#
+.SYNOPSIS
+Declines the one-time "Open mail links here?" offer, on a store that has never answered it.
+.DESCRIPTION
+The offer is a modal ContentDialog, and while it is up injected pointer input does not reach the
+window: a drag never lands and a right-click opens an empty menu, while UIA Invoke still gets
+through. So the suites that only press buttons pass and the gesture suites fail, naming the
+gesture rather than the dialog. Left unanswered it comes back on every launch of that store,
+because the runner stops the app before anyone answers it.
+
+Declined by its close button ("Not now"), never by "Make default": declining is recorded in the
+store and touches nothing else, while accepting opens Windows' own default-apps settings.
+
+It arrives late: the app offers when its account list changes, which can be after the message list
+has rows, so readiness has already been reported by then. Windows never knows whether this app is
+the default (DefaultMailApp.IsDefault is null), so on a store that has not answered the offer
+always comes, and this waits for it. A store that has answered is never waited on.
+#>
+function Close-DefaultMailAppOffer {
+  param([int] $TimeoutSec = 30)
+  $prefs = Get-HarnessPrefsFile
+  if (Test-DefaultMailAppOfferAnswered $prefs) { return }
+  $button = [System.Windows.Automation.ControlType]::Button
+  $timer = [Diagnostics.Stopwatch]::StartNew()
+  while ($timer.Elapsed.TotalSeconds -lt $TimeoutSec) {
+    $tree = @()
+    try { $tree = @(Get-UiaTree) } catch { }
+    $offer = $tree | Where-Object { $_.Current.AutomationId -eq 'DefaultMailAppOffer' } | Select-Object -First 1
+    if ($offer) {
+      $decline = Get-UiaTree -Root $offer |
+        Where-Object { $_.Current.AutomationId -eq 'CloseButton' -and $_.Current.ControlType -eq $button } |
+        Select-Object -First 1
+      if ($decline) {
+        Write-Host '    first launch on this store: declining the default-mail-app offer' -ForegroundColor DarkGray
+        Invoke-UiaElement $decline
+        $recorded = [Diagnostics.Stopwatch]::StartNew()
+        while ($recorded.Elapsed.TotalSeconds -lt 10) {
+          if (Test-DefaultMailAppOfferAnswered $prefs) { return }
+          Start-Sleep -Milliseconds 200
+        }
+        throw "the default-mail-app offer was declined, but $prefs never recorded it, so it will be put again on the next launch."
+      }
+    }
+    Start-Sleep -Milliseconds 250
+  }
+  throw "this store has never answered the default-mail-app offer, and it did not appear within ${TimeoutSec}s. Run the app on it by hand once and look at what is in front."
 }
 
 <#
@@ -255,13 +328,13 @@ function Start-Dataset {
       # The one screen a person sees ONCE. Its namespace is wiped first, because a first run is
       # defined by there being nothing in it: an account or a settled welcome question left by the
       # last run makes the screen unreachable, and the suite would then assert against whatever it
-      # landed on instead. control.ps1 launches it, the same as the harness, MAILCAL_DEV_ACCOUNT
-      # comes from the suite's Env and it honours an inherited one.
-      $store = Join-Path $env:LOCALAPPDATA 'Allodia\MailCalendar\dev-first-run'
-      Remove-Item -Recurse -Force -LiteralPath $store -ErrorAction SilentlyContinue
-      if (Test-Path -LiteralPath $store) {
-        throw "the first-run store at $store could not be cleared, so the app would not open on a first run, close any running Mailcal.exe and retry."
-      }
+      # landed on instead. The store directory alone is not the namespace: its accounts live in
+      # Credential Manager and survive the directory, so the script clears both. control.ps1
+      # launches it, the same as the harness, MAILCAL_DEV_ACCOUNT comes from the suite's Env and
+      # it honours an inherited one. A running app holds the store open, so it goes first.
+      Get-Process Mailcal -ErrorAction SilentlyContinue | Stop-Process -Force
+      Get-Process Mailcal -ErrorAction SilentlyContinue | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+      & (Join-Path $ClientDir 'clear-dev-namespace.ps1') -Namespace 'dev-first-run'
       & (Join-Path $ClientDir 'control.ps1') home | Out-Null
     }
     default { throw "unknown dataset '$Dataset' (showcase | harness | first-run)" }
@@ -272,5 +345,10 @@ function Start-Dataset {
   # calendar: the seeded meeting's organiser is missing while its other two attendees are already
   # there, which reads as a projection bug rather than a race. Only the harness fetches over the
   # wire; the showcase engine is in memory and has nothing to wait for.
-  if ($Dataset -eq 'harness') { Wait-CalendarSynced $launchedAt }
+  if ($Dataset -eq 'harness') {
+    # Before the clean surface is fingerprinted: a dialog in that set would make every suite after
+    # the first relaunch, and its modality is what breaks the gesture suites.
+    Close-DefaultMailAppOffer
+    Wait-CalendarSynced $launchedAt
+  }
 }

@@ -14,7 +14,9 @@ package eu.allodia.mailcal
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.DnsResolver
+import android.os.Build
 import android.os.CancellationSignal
+import android.os.ext.SdkExtensions
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
@@ -69,6 +71,17 @@ internal class AndroidMxResolver(context: Context) : MxResolver {
         )
     }
 
+    // The constructor reaches API 31 through the tethering module (S extension 22); a device whose
+    // module predates it has only the deprecated singleton. Both watch for replies on the main
+    // looper.
+    private fun resolver(): DnsResolver =
+        if (SdkExtensions.getExtensionVersion(Build.VERSION_CODES.S) >= 22) {
+            DnsResolver(appContext, null)
+        } else {
+            @Suppress("DEPRECATION")
+            DnsResolver.getInstance()
+        }
+
     private fun rawQuery(query: ByteArray): ByteArray {
         val connectivity = appContext.getSystemService(ConnectivityManager::class.java)
         val network = connectivity?.activeNetwork ?: throw DnsException.Lookup("no active network")
@@ -79,7 +92,7 @@ internal class AndroidMxResolver(context: Context) : MxResolver {
         val signal = CancellationSignal()
         val direct = Executor { it.run() }
 
-        DnsResolver.getInstance().rawQuery(
+        resolver().rawQuery(
             network,
             query,
             DnsResolver.FLAG_EMPTY,

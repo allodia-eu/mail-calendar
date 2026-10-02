@@ -17,8 +17,10 @@ use mailcal_app::{Account, App};
 use tokio::runtime::Runtime;
 
 mod about;
+mod account_capability;
 mod account_registry;
 mod account_repair;
+mod accounts_view;
 mod agent_ui;
 mod allodia;
 mod allodia_health;
@@ -33,8 +35,12 @@ mod allodia_tokens;
 mod allodia_transport;
 mod analytics;
 mod app_accounts;
+mod app_accounts_consent;
+mod app_accounts_endpoints;
 mod app_accounts_google;
 mod app_accounts_microsoft;
+mod app_accounts_uses;
+mod app_accounts_view;
 mod app_allodia;
 mod app_allodia_purchase;
 mod app_allodia_subscription;
@@ -42,6 +48,7 @@ mod app_allodia_sync;
 mod app_calendar;
 mod app_contacts;
 mod app_display;
+mod app_folders;
 mod app_month;
 mod app_sender_name;
 mod app_settings;
@@ -53,14 +60,18 @@ mod background_sync;
 mod boot;
 mod composer;
 mod composer_files;
+mod composer_host;
 mod composer_reply;
 mod connected_account;
 mod connection_log;
 mod connector;
+mod consent;
 mod convert;
+mod convert_folders;
 mod convert_mailbox;
 mod convert_reading;
 mod convert_settings;
+mod convert_status;
 mod crash;
 mod credential_log;
 pub mod credential_store;
@@ -68,6 +79,7 @@ mod demo;
 mod drafts;
 mod error;
 mod google;
+mod imap_oauth;
 mod jmap_oauth;
 mod logging;
 mod mailto;
@@ -83,6 +95,7 @@ mod protocol;
 mod protocol_surface;
 mod reconnect;
 mod records;
+mod records_accounts;
 mod records_avatar;
 mod records_calendar;
 mod records_connectivity;
@@ -99,15 +112,18 @@ mod repeat_editor;
 mod runtime;
 pub mod save;
 mod setup;
+mod setup_choices;
 mod share;
 mod showcase;
 mod showcase_bodies;
 mod showcase_contacts;
 mod showcase_data;
+mod store_files;
 mod timezone;
 mod token_sink;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
+pub use account_capability::AccountCapability;
 pub use agent_ui::{AgentDraft, AgentHostUi};
 pub use allodia::{
     AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,
@@ -127,6 +143,7 @@ pub use allodia_sync::{
     AllodiaSyncReport, setup_from_offer,
 };
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
+pub use app_accounts_consent::AccountConsentStart;
 pub use app_display::stored_appearance;
 pub use app_month::calendar_palette;
 pub use app_sender_name::sender_label;
@@ -143,6 +160,11 @@ pub use composer_files::{
     ComposerFileAttachment, MAX_INLINE_IMAGE_BYTES, composer_image_data_url,
     composer_image_data_url_from_bytes,
 };
+pub use composer_host::{
+    COMPOSER_HOST_CHANNEL, ComposerHostRequest, ComposerLinkAnswer, composer_host_channel,
+    composer_host_requests_script, composer_link_address, composer_link_answer_script,
+    parse_composer_host_request,
+};
 pub(crate) use connected_account::ConnectedAccount;
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};
 // Re-exported, not merely `#[uniffi::export]`ed: the generated languages see one flat
@@ -151,26 +173,31 @@ pub use credential_store::{AccountCredentialStore, CredentialStoreError};
 pub use drafts::{DraftResume, DraftStatus, draft_autosave_idle_seconds};
 pub use error::MailcalError;
 pub use google::{GoogleLoginStart, begin_google_login};
+pub use imap_oauth::{ImapAuthOffer, ImapLoginRequest, ImapLoginStart};
 pub use logging::{LogLevel, Logger};
 pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
 pub use oauth_routes::{OAuthRoutes, oauth_routes};
 pub use protocol::{
-    BulkAction, Intent, InvitationResponse, OutboxIntent, SearchScope, SelectedRow,
+    BulkAction, FolderIntent, Intent, InvitationResponse, OutboxIntent, SearchScope, SelectedRow,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
-    AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, FlatRow,
+    AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, EmptyReason, FlatRow,
     MailboxListSnapshot, ReadingSnapshot, RecipientSuggestion, SearchHorizon, SendStatus,
-    SnapshotRow, SyncProgressSnapshot, ThreadMessage, ThreadRow, TimeZoneSnapshot, UnfiledCopy,
-    ViewMode,
+    SnapshotRow, SyncProgressSnapshot, ThreadMessage, ThreadRow, ThrottledAccount,
+    TimeZoneSnapshot, UnfiledCopy, ViewMode,
     settings::{
         AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
         McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow,
         SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings,
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
+};
+pub use records_accounts::{
+    AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot,
+    CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{
@@ -185,7 +212,10 @@ pub use records_contacts::{
     ContactCardRef, ContactDetail, ContactEdit, ContactRow, ContactTarget, ContactValue,
     ContactWriteStatus, ContactsSnapshot, RecipientMatch,
 };
-pub use records_folders::{AccountFolderRow, FolderRole, FolderRow};
+pub use records_folders::{
+    AccountFolderRow, FolderAction, FolderNameCheck, FolderNotice, FolderProblem, FolderRole,
+    FolderRow,
+};
 pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
 };
@@ -196,19 +226,23 @@ pub use records_recurrence::{
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
 pub use rendering::{
-    MessageCanvas, message_canvas, render_message_html, should_open_external_link,
+    LinkedText, MessageCanvas, PrintHeaderLine, linked_text, message_canvas, render_message_html,
+    render_message_print_html, should_open_external_link,
 };
 pub use repeat_editor::repeat_change_of;
 pub use setup::{
-    AccountSetup, ConnectionSecurity, JmapSetup, account_config_toml, jmap_account_config_toml,
+    AccountSetup, ConnectionSecurity, JmapSetup, MailServerKind, RejectedCertificate,
+    account_config_toml, jmap_account_config_toml, standard_port,
 };
+pub use setup_choices::{DetectedSetup, SetupChoice};
 pub use share::{
     RejectedShare, SharePrefill, ShareRejectionReason, ShareRequest, SharedFile, prefill_from_share,
 };
 pub use showcase_data::{
     ShowcaseInvitation, ShowcaseLocale, ShowcaseReply, showcase_invitation,
-    showcase_locale_for_language, showcase_reply,
+    showcase_locale_for_language, showcase_now, showcase_reply,
 };
+pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;
 pub use timezone::{available_time_zones, device_time_zone};
@@ -326,7 +360,7 @@ impl MailcalApp {
     /// Re-runs the full connect for every account sitting **disconnected** (a boot outage kept
     /// as a placeholder, or a prior retry that failed) and joins each that succeeds back into the
     /// app with live providers: so a recovered provider heals without an app restart, regaining
-    /// its role folders, capabilities, and calendar (not a degraded INBOX-only state). The
+    /// every folder, its capabilities, and its calendar (not a degraded INBOX-only state). The
     /// disconnected set is drained optimistically so a concurrent trigger (a Refresh racing a
     /// return-to-online) never dials an account twice; a still-failing account is re-queued for
     /// the next attempt. Fire-and-forget on the runtime, so a slow re-dial never blocks the
@@ -372,12 +406,8 @@ impl MailcalApp {
     /// Recomputes and restarts one account's background sync from the current settings;
     /// called after an account is added or its sync behaviour changes.
     fn refresh_background(&self, account_id: &str) {
-        let snapshot = self.runtime.block_on(self.app.sync_settings());
-        let row = snapshot
-            .accounts
-            .iter()
-            .find(|row| row.account_id == account_id);
-        self.background.apply(account_id, row);
+        self.runtime
+            .block_on(self.background.apply_current(account_id));
     }
 }
 
@@ -414,3 +444,9 @@ mod tests_credential_ordering;
 
 #[cfg(test)]
 mod tests_calendar;
+
+#[cfg(test)]
+mod tests_setup;
+
+#[cfg(test)]
+mod tests_background;

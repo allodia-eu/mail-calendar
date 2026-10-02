@@ -11,46 +11,71 @@ use crate::{
     },
 };
 
-pub(super) fn draw(scene: &GridScene, context: &cairo::Context, width: f64) {
-    let background = theme_color(scene.dark, false);
+/// The scrolled hours, midnight at the surface's top.
+pub(super) fn draw_hours(scene: &GridScene, context: &cairo::Context, width: f64) {
     let foreground = theme_color(scene.dark, true);
-    let line = if scene.dark {
-        Rgb::new(0.28, 0.28, 0.28)
-    } else {
-        Rgb::new(0.86, 0.86, 0.86)
-    };
-    set_source(context, background);
+    set_source(context, theme_color(scene.dark, false));
     let _ = context.paint();
     if !scene.is_materialized {
         set_source(context, foreground);
         select_font(context, 15.0, cairo::FontWeight::Normal);
-        context.move_to(GUTTER + 24.0, HEADING_HEIGHT + 48.0);
+        context.move_to(GUTTER + 24.0, 48.0);
         let _ = context.show_text(l10n::calendar_loading_range());
         return;
     }
     let geometry = scene.geometry(width);
-    draw_lines(scene, context, width, geometry.day_width, line);
-    draw_labels(scene, context, geometry.day_width, foreground);
-    draw_bands(scene, context, geometry.day_width, foreground);
+    set_source(context, line_color(scene.dark));
+    context.set_line_width(1.0);
+    day_lines(scene, context, geometry.day_width, scene.height());
+    for hour in 0..=24 {
+        let y = f64::from(hour) * scene.hour_height;
+        context.move_to(GUTTER, y);
+        context.line_to(width, y);
+    }
+    let _ = context.stroke();
+    draw_hour_labels(scene, context, foreground);
     draw_events(scene, context, geometry.day_width);
     draw_now(scene, context, width, geometry.day_width);
     draw_create(scene, context, width, geometry.day_width);
 }
 
-fn draw_lines(scene: &GridScene, context: &cairo::Context, width: f64, day_width: f64, line: Rgb) {
-    set_source(context, line);
+/// The pinned header: week number, day names and the all-day banner.
+///
+/// `width` is the hours surface's, not the header's own: a scrollbar that takes room beside the
+/// hours takes none beside the header, and the columns have to line up regardless.
+pub(super) fn draw_header(scene: &GridScene, context: &cairo::Context, width: f64) {
+    let foreground = theme_color(scene.dark, true);
+    set_source(context, theme_color(scene.dark, false));
+    let _ = context.paint();
+    if !scene.is_materialized {
+        return;
+    }
+    let geometry = scene.geometry(width);
+    let height = scene.header_height();
+    set_source(context, line_color(scene.dark));
     context.set_line_width(1.0);
+    day_lines(scene, context, geometry.day_width, height);
+    context.move_to(0.0, height - 0.5);
+    context.line_to(width, height - 0.5);
+    let _ = context.stroke();
+    draw_labels(scene, context, geometry.day_width, foreground);
+    draw_bands(scene, context, geometry.day_width, foreground);
+}
+
+fn day_lines(scene: &GridScene, context: &cairo::Context, day_width: f64, height: f64) {
     for index in 0..=scene.days.len() {
         let x = GUTTER + pixels(index) * day_width;
         context.move_to(x, 0.0);
-        context.line_to(x, scene.height());
+        context.line_to(x, height);
     }
-    for hour in 0..=24 {
-        let y = scene.content_top() + f64::from(hour) * scene.hour_height;
-        context.move_to(GUTTER, y);
-        context.line_to(width, y);
+}
+
+fn line_color(dark: bool) -> Rgb {
+    if dark {
+        Rgb::new(0.28, 0.28, 0.28)
+    } else {
+        Rgb::new(0.86, 0.86, 0.86)
     }
-    let _ = context.stroke();
 }
 
 fn draw_labels(scene: &GridScene, context: &cairo::Context, day_width: f64, foreground: Rgb) {
@@ -75,13 +100,13 @@ fn draw_labels(scene: &GridScene, context: &cairo::Context, day_width: f64, fore
         context.move_to(GUTTER + pixels(index) * day_width + 8.0, 28.0);
         let _ = context.show_text(&day.label);
     }
+}
+
+fn draw_hour_labels(scene: &GridScene, context: &cairo::Context, foreground: Rgb) {
     set_source(context, foreground);
     select_font(context, 10.0, cairo::FontWeight::Normal);
     for hour in 1..24 {
-        context.move_to(
-            8.0,
-            scene.content_top() + f64::from(hour) * scene.hour_height + 4.0,
-        );
+        context.move_to(8.0, f64::from(hour) * scene.hour_height + 4.0);
         let _ = context.show_text(&clock(hour * 60, scene.use_24_hour));
     }
 }
@@ -116,7 +141,7 @@ fn draw_events(scene: &GridScene, context: &cairo::Context, day_width: f64) {
         let lane_width = day_width / f64::from(event.columns);
         let rect = Rect {
             x: GUTTER + pixels(event.day) * day_width + f64::from(event.column) * lane_width + 1.0,
-            y: scene.content_top() + f64::from(event.start_minutes) * scene.hour_height / 60.0,
+            y: f64::from(event.start_minutes) * scene.hour_height / 60.0,
             width: lane_width - 2.0,
             height: f64::from(event.end_minutes - event.start_minutes) * scene.hour_height / 60.0,
         };
@@ -151,7 +176,7 @@ fn draw_now(scene: &GridScene, context: &cairo::Context, width: f64, day_width: 
         return;
     };
     let minutes = f64::from(minutes);
-    let y = scene.content_top() + minutes * scene.hour_height / 60.0;
+    let y = minutes * scene.hour_height / 60.0;
     set_source(context, Rgb::from_hex("#c01c28"));
     context.set_line_width(2.0);
     context.move_to(GUTTER + pixels(index) * day_width, y);
@@ -170,7 +195,7 @@ fn draw_create(scene: &GridScene, context: &cairo::Context, width: f64, day_widt
     let settled = drag.preview();
     let body = Rect {
         x: GUTTER + pixels(live.day) * day_width + 1.0,
-        y: scene.content_top() + f64::from(live.start_minutes) * scene.hour_height / 60.0 + 1.0,
+        y: f64::from(live.start_minutes) * scene.hour_height / 60.0 + 1.0,
         width: (day_width - 2.0).max(1.0),
         height: (f64::from(live.minutes()) * scene.hour_height / 60.0 - 2.0).max(1.0),
     };

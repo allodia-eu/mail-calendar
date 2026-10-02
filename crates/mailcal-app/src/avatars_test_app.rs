@@ -55,6 +55,7 @@ impl Provider for MailOnly {
     }
 }
 
+impl engine_api::MailboxWrites for MailOnly {}
 impl CalendarWrites for MailOnly {}
 
 /// A contacts adapter serving one card, which may carry a photo.
@@ -69,6 +70,7 @@ impl Provider for FakeContacts {
     }
 }
 
+impl engine_api::MailboxWrites for FakeContacts {}
 impl CalendarWrites for FakeContacts {}
 
 #[async_trait]
@@ -164,6 +166,8 @@ pub(super) fn app(contacts: FakeContacts, surfaces: &Arc<Mutex<Vec<Surface>>>) -
             calendar_providers: Vec::new(),
             contact_providers: vec![Box::new(contacts)],
             identity: EmailAddress::new("me@work.local"),
+            dialled: true,
+            uses_mail: true,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),

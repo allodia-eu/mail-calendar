@@ -16,6 +16,7 @@ import Testing
         let swatch = Swatch(background: "#16598d", text: "#ffffff", border: "#16598d")
         return CalendarRow(
             account: "acct",
+            accountAddress: "me@example.org",
             id: id,
             name: id,
             color: CalendarColor(hex: "#16598d", light: swatch, dark: swatch),

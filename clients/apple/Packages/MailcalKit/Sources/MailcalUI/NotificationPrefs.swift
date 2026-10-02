@@ -1,6 +1,7 @@
 // The user's "new-mail notifications" on/off choice, stored in UserDefaults. A client-side
-// preference (the background sync still runs and advances the core's marks when off, only
-// *posting* a notification is gated, so toggling off then on never floods with a backlog).
+// preference (the pass behind them, iOS's background sync or macOS's cached scan, still runs and
+// advances the core's marks when off, only *posting* a notification is gated, so toggling off then
+// on never floods with a backlog).
 import Foundation
 
 enum NotificationPrefs {

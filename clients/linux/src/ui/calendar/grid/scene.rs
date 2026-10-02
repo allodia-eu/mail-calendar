@@ -1,10 +1,13 @@
 //! Immutable paint scene: everything a Cairo frame needs, derived once from the core page.
 
-use super::super::{
-    date::{clock, date_heading, parse_date, today_in},
-    drag::CreateDrag,
-    model::{CalendarModel, EventIdentity},
-    paint::{self, Rect, Rgb},
+use super::{
+    super::{
+        date::{clock, date_heading, parse_date, today_in},
+        drag::CreateDrag,
+        model::{CalendarModel, EventIdentity},
+        paint::{self, Rgb},
+    },
+    geometry::Geometry,
 };
 use crate::l10n;
 
@@ -164,12 +167,14 @@ impl GridScene {
         }
     }
 
-    pub(super) fn content_top(&self) -> f64 {
+    /// The pinned header: day names above the all-day banner. It never scrolls.
+    pub(super) fn header_height(&self) -> f64 {
         HEADING_HEIGHT + f64::from(self.banner_lanes) * LANE_HEIGHT
     }
 
+    /// The scrolled day, midnight to midnight, from the top of the hours' own surface.
     pub(super) fn height(&self) -> f64 {
-        self.content_top() + 24.0 * self.hour_height
+        24.0 * self.hour_height
     }
 
     pub(super) fn fit_viewport(&mut self, viewport_height: f64) {
@@ -282,75 +287,6 @@ fn all_day_events(
     (bands, hidden_per_day)
 }
 
-#[derive(Clone, Debug)]
-pub(super) struct Hit {
-    pub(super) identity: Option<EventIdentity>,
-    pub(super) spoken: String,
-    pub(super) rect: Rect,
-}
-
-pub(super) struct Geometry {
-    pub(super) day_width: f64,
-    pub(super) hits: Vec<Hit>,
-}
-
-impl Geometry {
-    fn new(scene: &GridScene, width: f64) -> Self {
-        let day_width = ((width - GUTTER) / pixels(scene.days.len().max(1))).max(1.0);
-        let mut hits = scene
-            .events
-            .iter()
-            .map(|event| timed_hit(scene, event, day_width))
-            .collect::<Vec<_>>();
-        hits.extend(scene.bands.iter().map(|band| band_hit(band, day_width)));
-        for (day, hidden) in scene.hidden_per_day.iter().copied().enumerate() {
-            if hidden > 0 {
-                hits.push(Hit {
-                    identity: None,
-                    spoken: l10n::calendar_all_day_expand(i64::from(hidden)),
-                    rect: Rect {
-                        x: GUTTER + pixels(day) * day_width + 1.0,
-                        y: HEADING_HEIGHT
-                            + f64::from(scene.banner_lanes.saturating_sub(1)) * LANE_HEIGHT
-                            + 1.0,
-                        width: (day_width - 2.0).max(1.0),
-                        height: LANE_HEIGHT - 2.0,
-                    },
-                });
-            }
-        }
-        Self { day_width, hits }
-    }
-}
-
-fn timed_hit(scene: &GridScene, event: &EventPaint, day_width: f64) -> Hit {
-    let lane_width = day_width / f64::from(event.columns);
-    Hit {
-        identity: Some(event.identity.clone()),
-        spoken: event.spoken.clone(),
-        rect: Rect {
-            x: GUTTER + pixels(event.day) * day_width + f64::from(event.column) * lane_width + 1.0,
-            y: scene.content_top() + f64::from(event.start_minutes) * scene.hour_height / 60.0,
-            width: (lane_width - 2.0).max(1.0),
-            height: (f64::from(event.end_minutes - event.start_minutes) * scene.hour_height / 60.0)
-                .max(3.0),
-        },
-    }
-}
-
-fn band_hit(band: &BandPaint, day_width: f64) -> Hit {
-    Hit {
-        identity: Some(band.identity.clone()),
-        spoken: band.spoken.clone(),
-        rect: Rect {
-            x: GUTTER + pixels(band.day) * day_width + 1.0,
-            y: HEADING_HEIGHT + f64::from(band.lane) * LANE_HEIGHT + 1.0,
-            width: (pixels(band.days) * day_width - 2.0).max(1.0),
-            height: LANE_HEIGHT - 2.0,
-        },
-    }
-}
-
 pub(super) fn pixels(value: usize) -> f64 {
     f64::from(u32::try_from(value).unwrap_or(u32::MAX))
 }
@@ -404,9 +340,9 @@ fn calendar_swatch(calendar: &mailcal_bindings::CalendarRow, dark: bool) -> Crea
 #[cfg(test)]
 mod tests {
     use super::{
-        CreatePaint, DayPaint, EventPaint, Geometry, GridScene, Rect, Rgb, VISIBLE_COLLAPSED_LANES,
+        CreatePaint, DayPaint, EventPaint, Geometry, GridScene, Rgb, VISIBLE_COLLAPSED_LANES,
     };
-    use crate::ui::calendar::EventIdentity;
+    use crate::ui::calendar::{EventIdentity, paint::Rect};
 
     #[test]
     fn geometry_multiplies_only_day_minute_and_column_fractions() {
@@ -465,7 +401,7 @@ mod tests {
             geometry.hits[0].rect,
             Rect {
                 x: 369.0,
-                y: 652.0,
+                y: 600.0,
                 width: 98.0,
                 height: 60.0
             }

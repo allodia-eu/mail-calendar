@@ -129,20 +129,25 @@ internal static class AppIdentity
         try
         {
             var result = await Windows.ApplicationModel.Package.Current.CheckUpdateAvailabilityAsync();
-            return result.Availability switch
+            switch (result.Availability)
             {
-                Windows.ApplicationModel.PackageUpdateAvailability.NoUpdates => UpdateOutcome.UpToDate,
-                Windows.ApplicationModel.PackageUpdateAvailability.Available
-                    or Windows.ApplicationModel.PackageUpdateAvailability.Required
-                    => UpdateOutcome.Available,
-                _ => UpdateOutcome.Failed,
-            };
+                case Windows.ApplicationModel.PackageUpdateAvailability.NoUpdates:
+                    return UpdateOutcome.UpToDate;
+                case Windows.ApplicationModel.PackageUpdateAvailability.Available
+                    or Windows.ApplicationModel.PackageUpdateAvailability.Required:
+                    return UpdateOutcome.Available;
+                default:
+                    // The only failure that throws nothing, so the only place its cause is visible.
+                    Log.Warn($"update check failed: App Installer answered {result.Availability}"
+                        + $" 0x{result.ExtendedError?.HResult ?? 0:X8}");
+                    return UpdateOutcome.Failed;
+            }
         }
         catch (Exception problem)
         {
             // A check is a network call, and every reason it fails is one the user can act on only
             // by trying again. It may never take Settings down with it.
-            Log.Warn($"update check failed: {problem.GetType().Name}");
+            Log.Warn($"update check failed: {problem.GetType().Name} 0x{problem.HResult:X8}");
             return UpdateOutcome.Failed;
         }
     }

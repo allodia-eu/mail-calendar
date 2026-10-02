@@ -28,7 +28,8 @@ fn new_account_sync_depth_months() -> u16 {
 pub struct Account<P> {
     /// The account's id (scopes everything in the shared engine store).
     pub id: AccountId,
-    /// The mail providers, one per synced folder (INBOX + role folders).
+    /// The mail providers: one per folder the account listed when it connected where mail syncs
+    /// per folder (IMAP, Graph), one for the whole account otherwise (JMAP, Gmail).
     pub providers: Vec<P>,
     /// The calendar providers (one per synced calendar), if calendar is configured.
     pub calendar_providers: Vec<P>,
@@ -43,6 +44,14 @@ pub struct Account<P> {
     pub contact_providers: Vec<Box<dyn ContactsProvider>>,
     /// The from-address this account sends as.
     pub identity: EmailAddress,
+    /// Whether the account is used for mail. An account used for its calendar or contacts alone
+    /// stays out of every mail surface: the folder pane, the account switcher, the sync
+    /// settings and the From picker.
+    pub uses_mail: bool,
+    /// Whether the account has been dialled. `false` for the placeholder a launch lists before
+    /// its dial lands, whose calendar is unknown rather than empty; an account with no provider
+    /// of some kind after its dial simply has none.
+    pub dialled: bool,
 }
 
 impl<P> core::fmt::Debug for Account<P> {
@@ -172,10 +181,14 @@ impl<P: Provider> App<P> {
         self.pending_removals
             .lock()
             .expect("pending-removals mutex poisoned")
-            .retain(|(a, _)| a != acct);
+            .retain(|(a, _), _| a != acct);
         self.attempted_folders
             .lock()
             .expect("attempted-folders mutex poisoned")
+            .retain(|(a, _)| a != acct);
+        self.synced_folders
+            .lock()
+            .expect("synced-folders mutex poisoned")
             .retain(|(a, _)| a != acct);
         self.inbox_keys
             .lock()
@@ -220,8 +233,14 @@ impl<P: Provider> App<P> {
         self.rebuild_snapshot().await;
     }
 
-    /// The ids of every configured account.
-    pub(crate) async fn account_ids(&self) -> Vec<AccountId> {
+    /// Signals [`Surface::Settings`] after a change to what an account is used for or links to,
+    /// which the binding layer stores and this layer does not see.
+    pub fn accounts_changed(&self) {
+        self.observer.surface_changed(Surface::Settings);
+    }
+
+    /// Every account's id, mail or not, in the order the host stored them.
+    pub async fn account_ids(&self) -> Vec<AccountId> {
         self.accounts
             .read()
             .await
@@ -268,13 +287,15 @@ impl<P: Provider> App<P> {
         self.accounts.read().await.iter().map(Arc::clone).collect()
     }
 
-    /// The sidebar switcher rows (id + email) for every configured account, in the order the host
-    /// stored them; see `install_account` for what holds that order across a reconnect.
+    /// The sidebar switcher rows (id + email) for every account used for mail, in the order the
+    /// host stored them; see `install_account` for what holds that order across a reconnect. An
+    /// account used for its calendar or contacts alone has no mailbox to switch to.
     pub(crate) async fn account_rows(&self) -> Vec<AccountRow> {
         self.accounts
             .read()
             .await
             .iter()
+            .filter(|account| account.uses_mail)
             .map(|account| AccountRow {
                 id: account.id.as_str().to_owned(),
                 email: account.identity.email.clone(),
@@ -284,3 +305,10 @@ impl<P: Provider> App<P> {
             .collect()
     }
 }
+
+#[path = "account_domains.rs"]
+mod domains;
+
+#[cfg(test)]
+#[path = "tests_mail_surfaces.rs"]
+mod mail_surfaces_tests;

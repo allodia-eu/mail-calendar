@@ -114,7 +114,6 @@ extension ContentView {
         }
     }
 
-    #if os(iOS)
     /// Asks for notification permission, but only once **both** questions ahead of it are settled:
     /// the user has an account (asking on the empty setup screen is premature), and the
     /// usage-statistics question has been answered. Two prompts must never stack, and the system
@@ -130,7 +129,6 @@ extension ContentView {
         }
         MailNotifier.requestAuthorization()
     }
-    #endif
 
     func applePlatformSummary() -> String {
         #if os(iOS)
@@ -210,24 +208,36 @@ extension ContentView {
     }
 
     private func restoreOpenedMessageIfVisible() {
+        _ = openMessageInList(account: sceneOpenedAccount, key: sceneOpenedKey)
+    }
+
+    /// Opens the message the list currently holds for `account`/`key`, expanding its conversation
+    /// first where it is one, and reports whether it was found.
+    ///
+    /// Shared by scene restoration and the notification deep link: both name a message by the pair
+    /// the core keys it on and neither can assume it is on screen, so a caller that needs it later
+    /// waits for another snapshot rather than opening the wrong thing now.
+    @discardableResult
+    func openMessageInList(account: String, key: String) -> Bool {
+        guard !account.isEmpty, !key.isEmpty else { return false }
         for row in model.rows {
             switch row {
-            case .flat(let message)
-                where message.account == sceneOpenedAccount && message.key == sceneOpenedKey:
+            case .flat(let message) where message.account == account && message.key == key:
                 open(message)
-                return
+                return true
             case .thread(let thread):
                 if let message = thread.messages.first(where: {
-                    $0.account == sceneOpenedAccount && $0.key == sceneOpenedKey
+                    $0.account == account && $0.key == key
                 }) {
                     expandedThreads.insert(threadKey(thread))
                     openThreadMessage(thread, message)
-                    return
+                    return true
                 }
             default:
                 continue
             }
         }
+        return false
     }
 
     private func captureVisibleSceneState() {

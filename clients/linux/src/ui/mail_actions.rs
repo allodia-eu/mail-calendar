@@ -280,7 +280,7 @@ impl AppModel {
     /// Whether the message in the reading pane is one of the selected rows, a conversation's
     /// members included. The pane is cleared rather than advanced: the row it would advance to
     /// may be in the same batch and about to leave too.
-    fn selection_holds_open_message(&self) -> bool {
+    pub(super) fn selection_holds_open_message(&self) -> bool {
         let Some(opened) = self.reading.opened.as_ref() else {
             return false;
         };

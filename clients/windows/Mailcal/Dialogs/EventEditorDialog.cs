@@ -326,10 +326,9 @@ public sealed class EventEditorDialog : ContentDialog
         var list = new StackPanel { Spacing = 6, MinWidth = 260 };
         foreach (var group in _writable.GroupBy(c => c.Account))
         {
-            var account = _model.Accounts.FirstOrDefault(a => a.Id == group.Key);
             list.Children.Add(new TextBlock
             {
-                Text = account?.Email ?? group.Key,
+                Text = group.First().AccountAddress,
                 FontWeight = FontWeights.SemiBold,
                 Style = Caption(),
             });

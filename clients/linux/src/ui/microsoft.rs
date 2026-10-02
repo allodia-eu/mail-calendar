@@ -32,6 +32,7 @@ pub(super) fn begin(login_hint: String) -> Result<(OAuthLoopback, MicrosoftLogin
         // With the address known, Microsoft targets that account instead of a different one
         // already signed in in the browser (`docs/provider-oauth.md` rule 8).
         (!login_hint.trim().is_empty()).then_some(login_hint),
+        None,
     )
     .map_err(|error| error.to_string())?;
     Ok((loopback, start))

@@ -36,6 +36,11 @@ impl MailcalApp {
             Intent::RefreshMail => !self.app.connectivity().offline,
             _ => false,
         };
+        // Every IMAP socket from before the network came back looks open and is not, so the
+        // resting ones are dropped before anything asks for one.
+        if matches!(intent, Intent::ReportNetworkReachable { reachable: true }) {
+            self.registry.invalidate_imap_connections();
+        }
         if retry_disconnected {
             self.retry_connections();
         }

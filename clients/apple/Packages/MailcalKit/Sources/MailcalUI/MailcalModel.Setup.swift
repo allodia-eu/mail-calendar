@@ -6,6 +6,14 @@
 import Foundation
 import MailcalBindings
 
+/// What a failed connect says on the form. A refused certificate's own description spells out
+/// every field of the certificate, so only the transport's reason is kept
+/// (`docs/certificate-exceptions.md` rule 9); the certificate itself is drawn by the panel.
+func setupFailureMessage(_ error: Error) -> String {
+    if case let MailcalError.CertificateRejected(reason, _) = error { return reason }
+    return "\(error)"
+}
+
 extension MailboxModel {
     /// Builds the config from the setup-form fields, connects it as a new account, and (on
     /// success) stores it in the Keychain. Used both for the first account (full-screen
@@ -18,8 +26,12 @@ extension MailboxModel {
         smtpHost: String,
         caldavBaseUrl: String,
         imapSecurity: ConnectionSecurity = .implicitTls,
-        smtpSecurity: ConnectionSecurity = .implicitTls
+        smtpSecurity: ConnectionSecurity = .implicitTls,
+        acceptedCertificate: RejectedCertificate? = nil
     ) {
+        // Accepted once, carried for the rest of this setup: a retry that then fails on the
+        // password must not ask the same question over again.
+        if acceptedCertificate != nil { setupAcceptedCertificate = acceptedCertificate }
         let setup = AccountSetup(
             imapHost: imapHost,
             username: username,
@@ -29,7 +41,10 @@ extension MailboxModel {
             // The manual form uses the implicit-TLS defaults; the detected path passes the
             // security detection found, so the engine dials implicit TLS or STARTTLS to match.
             imapSecurity: imapSecurity,
-            smtpSecurity: smtpSecurity
+            smtpSecurity: smtpSecurity,
+            // Set only on a re-submit somebody asked for after being shown the certificate;
+            // it is stored with the account, so no later connect asks again.
+            acceptedCertificate: acceptedCertificate ?? setupAcceptedCertificate
         )
         // The app is built (account-less) before the form is shown, so this normally holds.
         // It fails only if the engine itself couldn't open at launch, surface that rather
@@ -50,6 +65,7 @@ extension MailboxModel {
         // around it so the Connect button shows progress and can't be fired twice. Persist only
         // after it connects, so a bad config is never stored.
         setupError = nil
+        setupRejectedCertificate = nil
         isConnecting = true
         Task { @MainActor in
             defer { self.isConnecting = false }
@@ -62,9 +78,19 @@ extension MailboxModel {
                 }
                 self.accountWasAdded(added)
             } catch {
-                self.setupError = "\(error)"
+                self.showSetupFailure(error)
             }
         }
+    }
+
+    /// Surfaces a failed connect on the form. A refused certificate is kept as well as
+    /// shown: it is the one failure the form can offer a way past, and the record it hands
+    /// back is the one the core just produced.
+    func showSetupFailure(_ error: Error) {
+        if case let MailcalError.CertificateRejected(_, certificate) = error {
+            setupRejectedCertificate = certificate
+        }
+        setupError = setupFailureMessage(error)
     }
 
     /// Builds a JMAP config from the setup-form fields, connects it as a new account, and (on
@@ -100,13 +126,16 @@ extension MailboxModel {
         // (MailcalModel.Jmap.swift), which produces the same config TOML, one add + store path
         // for both. `isConnecting` around it keeps the Connect button honest.
         setupError = nil
+        // A JMAP account's stored config carries no exception, so this route never raises the
+        // panel; clearing it keeps an earlier IMAP refusal from reappearing over this attempt.
+        setupRejectedCertificate = nil
         isConnecting = true
         Task { @MainActor in
             defer { self.isConnecting = false }
             do {
                 try await self.addAndStoreJmapAccount(app, configToml: configToml)
             } catch {
-                self.setupError = "\(error)"
+                self.setupError = setupFailureMessage(error)
             }
         }
     }

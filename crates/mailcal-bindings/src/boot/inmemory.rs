@@ -42,6 +42,8 @@ pub(crate) fn build_demo(
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("demo@allodia.local"),
+        dialled: true,
+        uses_mail: true,
     };
 
     let app = App::new(
@@ -142,6 +144,8 @@ pub(crate) fn build_showcase(
             crate::showcase_contacts::primary_contacts(),
         )) as Box<dyn engine_api::ContactsProvider>],
         identity: EmailAddress::new(primary.identity.clone()),
+        dialled: true,
+        uses_mail: true,
     };
 
     let secondary = showcase_data::secondary(locale, now);
@@ -165,6 +169,8 @@ pub(crate) fn build_showcase(
             crate::showcase_contacts::secondary_contacts(),
         )) as Box<dyn engine_api::ContactsProvider>],
         identity: EmailAddress::new(secondary.identity.clone()),
+        dialled: true,
+        uses_mail: true,
     };
     let secondary_identity = secondary_account.id.as_str().to_owned();
 

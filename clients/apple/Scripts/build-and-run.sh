@@ -473,37 +473,43 @@ if [[ "$PLATFORM" == "macos" ]]; then
   echo "==> Built: $APP"
 
   if [[ "$RUN_APP" -eq 1 ]]; then
-    # Any MAILCAL_* dev var (the account switch, the deterministic launch hooks) must reach the
-    # app, but `open` launches via LaunchServices, which strips the process environment. When one
-    # is set, exec the bundle binary directly (in the background) so it inherits the environment.
-    has_mailcal_env=0
-    while IFS='=' read -r name _; do
-      [[ "$name" == MAILCAL_* ]] && { has_mailcal_env=1; break; }
-    done < <(env)
     # Replace any prior instance of THIS exact binary, so two processes never write one SQLite
     # store. A different-path instance, an installed Allodia Mail, is deliberately left alone.
     pkill -f "$APP/Contents/MacOS/AllodiaMail" 2>/dev/null || true
-    if [[ "$has_mailcal_env" -eq 1 ]]; then
+    # Every MAILCAL_* dev var (the account switch, the deterministic launch hooks) has to reach the
+    # app, and LaunchServices does not hand the caller's environment on. `open --env` is what
+    # carries each one over that gap, one flag per variable.
+    #
+    # ⚠️ Never exec the bundle binary directly to get the environment across, which is what this
+    # did before. A directly-exec'd process is not a registered application, and two things follow
+    # that both read as a broken client rather than a broken launch: macOS opens **no window** for
+    # it, so nothing ever connects, and `UNUserNotificationCenter` refuses authorisation outright
+    # (`UNErrorDomain` 1, "Notifications are not allowed for this application"), which makes the
+    # macOS new-mail notification impossible to exercise from this loop
+    # ([`docs/background-sync.md`](../../../docs/background-sync.md)).
+    open_env=()
+    while IFS= read -r assignment; do
+      [[ "$assignment" == MAILCAL_* ]] && open_env+=(--env "$assignment")
+    done < <(env)
+    if [[ "${#open_env[@]}" -gt 0 ]]; then
       echo "==> Launching AllodiaMail (forwarding MAILCAL_* dev env)"
-      # The app's own streams go to a file, never to whatever ran this script. A GUI child
-      # inherits the caller's stdout and holds it open for as long as the app is up, so a runner
-      # that waits for the stream to close (CI, an agent) sits there for the whole session: the
-      # app being on screen IS the state that reads as a hang. A human never sees it, an
-      # interactive shell returns its prompt either way.
-      launch_log="${TMPDIR:-/tmp}/allodia-mail-launch.log"
-      "$APP/Contents/MacOS/AllodiaMail" >"$launch_log" 2>&1 </dev/null &
-      echo "==> Launch output: $launch_log (the app's own log is below)"
     else
       echo "==> Launching AllodiaMail"
-      # `-n` is load-bearing. This bundle and an installed Allodia Mail share the identifier
-      # `eu.allodia.mailcal`, and a plain `open <path>` asks LaunchServices for that identifier:
-      # which can hand back the *installed* app. Observed exactly that: a run of this script left
-      # /Applications/AllodiaMail.app running and the freshly built binary not running at all, so
-      # the "dev build" under test was silently the shipped one. `-n` launches a new instance of
-      # this bundle. (Direct exec would also be unambiguous, but it bypasses LaunchServices'
-      # activation, the window can come up unfocused, or on another Space.)
-      open -n "$APP"
     fi
+    # `-n` is load-bearing. This bundle and an installed Allodia Mail share the identifier
+    # `eu.allodia.mailcal`, and a plain `open <path>` asks LaunchServices for that identifier:
+    # which can hand back the *installed* app. Observed exactly that: a run of this script left
+    # /Applications/AllodiaMail.app running and the freshly built binary not running at all, so
+    # the "dev build" under test was silently the shipped one. `-n` launches a new instance of
+    # this bundle.
+    #
+    # The app's own streams go to a file rather than to whatever ran this script: a GUI child that
+    # inherits the caller's stdout holds it open for as long as the app is up, so a runner waiting
+    # for the stream to close (CI, an agent) sits there for the whole session, the app being on
+    # screen reading as a hang.
+    launch_log="${TMPDIR:-/tmp}/allodia-mail-launch.log"
+    open -n "${open_env[@]}" --stdout "$launch_log" --stderr "$launch_log" "$APP"
+    echo "==> Launch output: $launch_log (the app's own log is below)"
     echo "==> Logs: $HOME/.local/share/mailcal/mailcal.log (rotates .1-.3, ~4 MB cap)"
   fi
 elif [[ "$DESTINATION" == "device" ]]; then

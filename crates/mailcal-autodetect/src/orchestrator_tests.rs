@@ -148,7 +148,98 @@ async fn a_found_mail_config_carries_a_discovered_caldav_endpoint() {
     let Detected::Mail(mail) = run(fetcher, None, DetectConfig::default()).await else {
         panic!("expected mail settings");
     };
-    assert_eq!(mail.caldav_url.as_deref(), Some(PROVIDER_CALDAV));
+    assert_eq!(mail.dav.caldav_url.as_deref(), Some(PROVIDER_CALDAV));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_found_jmap_server_carries_the_dav_servers_of_its_provider() {
+    // The Fastmail shape: the custom domain's SRV names api.fastmail.com, and fastmail.com
+    // (its registrable domain) advertises both DAV services.
+    let fetcher = FakeFetch::new()
+        .default_reply(Reply::Miss)
+        .on(
+            "https://api.fastmail.com/.well-known/jmap",
+            Reply::unauthorized(true),
+        )
+        .on(
+            "https://fastmail.com/.well-known/caldav",
+            Reply::unauthorized(true),
+        )
+        .on(
+            "https://fastmail.com/.well-known/carddav",
+            Reply::unauthorized(true),
+        );
+    let resolver = FakeResolver::failing().srv(
+        "_jmap._tcp.company.example",
+        vec![(0, 1, 443, "api.fastmail.com.")],
+        false,
+    );
+    let Detected::Jmap(jmap) = run(fetcher, Some(resolver), DetectConfig::default()).await else {
+        panic!("expected a JMAP server");
+    };
+    assert_eq!(
+        jmap.dav.caldav_url.as_deref(),
+        Some("https://fastmail.com/.well-known/caldav")
+    );
+    assert_eq!(
+        jmap.dav.carddav_url.as_deref(),
+        Some("https://fastmail.com/.well-known/carddav")
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_domain_with_no_mail_but_a_calendar_is_a_dav_result() {
+    let fetcher = FakeFetch::new().default_reply(Reply::Miss).on(
+        "https://company.example/.well-known/caldav",
+        Reply::unauthorized(true),
+    );
+    let Detected::Dav(dav) = run(fetcher, None, DetectConfig::default()).await else {
+        panic!("expected a calendar without mail");
+    };
+    assert_eq!(
+        dav.caldav_url.as_deref(),
+        Some("https://company.example/.well-known/caldav")
+    );
+    assert_eq!(dav.carddav_url, None);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_run_that_reached_the_deadline_is_not_probed_for_dav() {
+    let fetcher = FakeFetch::new()
+        .default_reply(Reply::Miss)
+        .on_after(
+            &jmap_url(),
+            Reply::json(r#"{"capabilities":{}}"#, true),
+            Duration::from_secs(100),
+        )
+        .on(
+            "https://company.example/.well-known/caldav",
+            Reply::unauthorized(true),
+        );
+    let config = DetectConfig {
+        overall_deadline: Duration::from_secs(10),
+        ..DetectConfig::default()
+    };
+    assert_eq!(
+        run(fetcher, None, config).await,
+        Detected::Nothing {
+            network_error: false
+        }
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_offline_miss_is_not_probed_for_dav() {
+    let fetcher = FakeFetch::new().default_reply(Reply::Net).on(
+        "https://company.example/.well-known/caldav",
+        Reply::unauthorized(true),
+    );
+    assert_eq!(
+        run(fetcher, None, DetectConfig::default()).await,
+        Detected::Nothing {
+            network_error: true
+        }
+    );
 }
 
 #[tokio::test(start_paused = true)]

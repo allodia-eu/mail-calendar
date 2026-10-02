@@ -38,7 +38,7 @@ pub use calendar::connect_google_calendar_providers;
 pub use config::{GoogleConfig, fetch_google_primary_address, load_google_str};
 pub use contacts::connect_google_contact_providers;
 
-use crate::{AccountError, GraphTokenSource, TokenSink, throttle::account_retry, tls::account_tls};
+use crate::{AccountError, GraphTokenSource, TokenSink, tls::tls_with};
 
 /// Builds the shared, self-refreshing token source for a Google `config`: the Google parallel
 /// of [`GraphTokenSource::new`](crate::GraphTokenSource) (which takes a `MicrosoftConfig`). It
@@ -106,6 +106,8 @@ impl RefreshingGmailProvider {
             capabilities: Capabilities::none()
                 .with_mail()
                 .with_mail_writes()
+                // Forwarded by this wrapper's `MailboxWrites`.
+                .with_mailbox_writes()
                 // Forwarded by this wrapper's `Provider`, and **without** phishing:
                 // Gmail's label set has no phishing member, so asking for that verdict is a
                 // hard error rather than a near-enough filing under spam.
@@ -144,7 +146,7 @@ impl RefreshingGmailProvider {
                 return Ok(Arc::clone(provider));
             }
         }
-        let client = GoogleClient::connect(token.clone(), &self.tls, &account_retry())
+        let client = GoogleClient::connect(token.clone(), &self.tls, &self.tokens.retry())
             .map_err(ProviderError::from)?;
         let mut gmail = GmailProvider::new(client);
         if let Some(date) = self.since.and_then(calendar_date) {
@@ -188,7 +190,7 @@ pub async fn connect_google_mail_providers(
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     // Cheap credential probe: refresh once so a dead refresh token fails here.
     let _ = tokens.access_token().await?;
     Ok(vec![Box::new(RefreshingGmailProvider::new(
@@ -208,7 +210,7 @@ pub fn connect_google_folder(
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
 ) -> Result<Box<dyn Provider>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     Ok(Box::new(RefreshingGmailProvider::new(tokens, since, tls)))
 }
 

@@ -10,7 +10,7 @@ use super::{
     AppInput, AppModel,
     jmap::{self, JmapOutcome, JmapPrepared, JmapReauthOutcome, JmapReauthPrepared},
     oauth_loopback::CallbackOutcome,
-    setup_model::{DetectedForm, ManualForm, SetupForm, recommendation_form},
+    setup_model::{DetectedForm, ImapForm, ManualForm, SetupForm, recommendation_form},
 };
 
 /// How long the detected card waits for the pre-flight before offering the secret field
@@ -39,6 +39,16 @@ fn deny_after_deadline(email: &str, server_url: &str, sender: &relm4::Sender<App
     });
 }
 
+/// Which pre-flight a freshly detected card needs, decided before the form is handed to the
+/// state (which borrows it) and run after.
+enum Probe {
+    Jmap(String, String),
+    /// Boxed: an `ImapForm` carries the detected server rows, which makes it several times the
+    /// size of the JMAP arm and the whole enum with it.
+    Imap(Box<ImapForm>),
+    None,
+}
+
 impl AppModel {
     pub(super) fn account_detected(
         &mut self,
@@ -47,15 +57,21 @@ impl AppModel {
         sender: relm4::Sender<AppInput>,
     ) {
         let form = recommendation_form(recommendation, fallback_email);
+        // Both routes ask their server what it accepts before drawing a credential field, and
+        // both ask as soon as the card exists: the answer decides what the card *is*, so a
+        // later one would rebuild it under the user.
         let probe = match &form {
             SetupForm::Detected(DetectedForm::Jmap(form)) => {
-                Some((form.email.clone(), form.server_url.clone()))
+                Probe::Jmap(form.email.clone(), form.server_url.clone())
             }
-            _ => None,
+            SetupForm::Detected(DetectedForm::Imap(form)) => Probe::Imap(form.clone()),
+            _ => Probe::None,
         };
         self.setup.show_form(form);
-        if let Some((email, server_url)) = probe {
-            self.probe_jmap_sign_in(email, server_url, sender);
+        match probe {
+            Probe::Jmap(email, server_url) => self.probe_jmap_sign_in(email, server_url, sender),
+            Probe::Imap(form) => self.probe_imap_sign_in(&form, sender),
+            Probe::None => {}
         }
     }
 
@@ -90,7 +106,10 @@ impl AppModel {
     }
 
     fn probe_manual(&mut self, probe: Option<ManualForm>, sender: relm4::Sender<AppInput>) {
-        if let Some(form) = probe {
+        let Some(form) = probe else { return };
+        if form.probes_imap_sign_in() {
+            self.probe_imap_sign_in(&form.into(), sender);
+        } else {
             self.probe_jmap_sign_in(form.email, form.jmap_server, sender);
         }
     }
@@ -132,7 +151,7 @@ impl AppModel {
         let (Some(app), Some(_)) = (self.app.clone(), self.secrets.clone()) else {
             return;
         };
-        let Ok(loopback) = self.host_tasks.jmap_loopback() else {
+        let Ok(loopback) = self.host_tasks.oauth_loopback() else {
             log::warn!("jmap sign-in loopback bind failed");
             self.setup.jmap_sign_in_failed();
             return;
@@ -265,7 +284,7 @@ impl AppModel {
             expected_state,
             redirect_uri,
         } = *prepared;
-        let Ok(loopback) = self.host_tasks.jmap_loopback_for_redirect(&redirect_uri) else {
+        let Ok(loopback) = self.host_tasks.oauth_loopback_for_redirect(&redirect_uri) else {
             log::warn!("jmap re-authentication loopback bind failed");
             self.jmap_reauth_failed(attempt);
             return;

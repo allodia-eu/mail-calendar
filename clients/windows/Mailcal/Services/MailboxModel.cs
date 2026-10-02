@@ -122,8 +122,8 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
 
     private bool _addingAccount;
     /// <summary>
-    /// <c>true</c> while the user is adding another account: the setup form shows over the
-    /// running app (the same form as first run, with a Cancel) and the shell hides behind it.
+    /// <c>true</c> while the user is adding another account: the setup form shows in a dialog
+    /// over the running app (the same form as first run, with a Cancel).
     /// </summary>
     public bool AddingAccount
     {
@@ -132,8 +132,6 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
         {
             if (Set(ref _addingAccount, value))
             {
-                Raise(nameof(SetupVisibility));
-                Raise(nameof(MainVisibility));
                 Raise(nameof(AddingAccountVisibility));
                 Raise(nameof(CancelVisibility));
             }
@@ -219,6 +217,25 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
         get => _setupError;
         private set { if (Set(ref _setupError, value)) { Raise(nameof(HasSetupError)); } }
     }
+
+    private RejectedCertificate? _setupRejectedCertificate;
+    /// <summary>
+    /// The certificate a server presented that could not be verified, when that is why the last
+    /// setup connect failed. The form shows it and offers to accept it; accepting re-submits with
+    /// it and the core stores it with the account (docs/certificate-exceptions.md).
+    /// </summary>
+    internal RejectedCertificate? SetupRejectedCertificate
+    {
+        get => _setupRejectedCertificate;
+        private set => Set(ref _setupRejectedCertificate, value);
+    }
+
+    /// <summary>
+    /// A certificate already accepted during this setup. Kept apart from
+    /// <see cref="SetupRejectedCertificate"/>, which is a question: this is the answer, and it
+    /// outlives a retry that then fails on the password so nobody is asked the same thing twice.
+    /// </summary>
+    internal RejectedCertificate? SetupAcceptedCertificate { get; set; }
 
     private AppDestination _destination = AppDestination.Mail;
     /// <summary>

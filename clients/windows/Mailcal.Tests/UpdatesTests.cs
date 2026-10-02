@@ -50,4 +50,34 @@ public class UpdatesTests
             UpdateChannel.Hosted,
             Updates.ChannelFor(packaged: true, updateSource: new Uri("https://d/x.appinstaller")));
     }
+
+    [Fact]
+    public void TheLogNamesWhoWasAsked()
+    {
+        Assert.Equal(
+            "update check: asking the Microsoft Store",
+            Updates.CheckStartedLine(UpdateChannel.Store));
+        Assert.Equal("update check: asking App Installer", Updates.CheckStartedLine(UpdateChannel.Hosted));
+    }
+
+    [Theory]
+    [InlineData(nameof(UpdateOutcome.UpToDate), "this is the latest version")]
+    [InlineData(nameof(UpdateOutcome.Available), "a newer version is available")]
+    [InlineData(nameof(UpdateOutcome.Failed), "failed")]
+    public void TheLogSaysWhatTheCheckFound(string outcomeName, string found)
+    {
+        var outcome = Enum.Parse<UpdateOutcome>(outcomeName);
+        Assert.Equal(
+            $"update check (App Installer): {found} after 1234 ms",
+            Updates.CheckFinishedLine(UpdateChannel.Hosted, outcome, TimeSpan.FromMilliseconds(1234.6)));
+    }
+
+    [Fact]
+    public void AFailedCheckIsNeverLoggedAsCurrent()
+    {
+        // The About page's one wrong answer (docs/updates.md) is equally wrong in a support log.
+        var line = Updates.CheckFinishedLine(UpdateChannel.Store, UpdateOutcome.Failed, TimeSpan.Zero);
+        Assert.DoesNotContain("latest", line);
+        Assert.EndsWith("failed after 0 ms", line);
+    }
 }

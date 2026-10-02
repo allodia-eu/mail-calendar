@@ -39,6 +39,17 @@ pub(crate) fn seeded_now(zone: &TimeZoneId) -> OffsetDateTime {
     pin_to_wall_clock(real, zone).unwrap_or(real)
 }
 
+/// The instant a showcase run treats as now, in whole seconds since the Unix epoch: the one
+/// `seeded_now` dates the sample content from, in `device_timezone`.
+///
+/// A client's calendar frames itself and draws its now line from this rather than from its own
+/// clock, so the grid agrees with the seeded mail and the pinned status bar at any hour of capture.
+#[uniffi::export]
+#[must_use]
+pub fn showcase_now(device_timezone: String) -> i64 {
+    seeded_now(&crate::device_zone(device_timezone)).unix_timestamp()
+}
+
 /// The conversion behind `seeded_now`: today's local date in `zone` → the pinned wall clock →
 /// back to a UTC instant. `None` if any step is unrepresentable, which the caller reads as
 /// "leave the real clock alone".

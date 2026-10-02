@@ -8,6 +8,13 @@
 
 use std::sync::Arc;
 
+#[path = "autodetect_showcase.rs"]
+mod showcase;
+
+#[cfg(test)]
+use showcase::showcase_recommendation;
+use showcase::showcase_route;
+
 use crate::{MailcalApp, setup::ConnectionSecurity};
 
 /// One MX record from the host's resolver, as resolved by the platform DNS API.
@@ -171,6 +178,11 @@ pub enum SetupRecommendation {
         /// connect, reusing the IMAP credentials, when `None`, it offers an opt-in manual
         /// CalDAV field. The engine does the real authenticated discovery at connect.
         caldav_url: Option<String>,
+        /// The OAuth issuer the provider's **own** autoconfig named, or `None`. The host
+        /// passes it straight back on [`crate::ImapLoginRequest`], where it is the first
+        /// authorization server tried; `None` is the ordinary case and the well-known probe
+        /// answers instead.
+        oauth_issuer: Option<String>,
         /// Whether every step that produced this config was tamper-resistant: every hop
         /// was HTTPS (CA-validated TLS). DNS-derived results (MX/SRV) are trusted on that
         /// TLS alone; DNSSEC is not required.
@@ -210,8 +222,20 @@ impl MailcalApp {
         email: String,
         mx_resolver: Option<Box<dyn MxResolver>>,
     ) -> SetupRecommendation {
+        convert(self.detect_route(&email, mx_resolver))
+    }
+}
+
+impl MailcalApp {
+    /// The account layer's route for `email`: the scripted one in a showcase build, otherwise
+    /// a detection run's.
+    pub(crate) fn detect_route(
+        &self,
+        email: &str,
+        mx_resolver: Option<Box<dyn MxResolver>>,
+    ) -> mailcal_account::SetupRecommendation {
         if self.showcase {
-            return showcase_recommendation(&email);
+            return showcase_route(email);
         }
         let resolver = mx_resolver.map(|resolver| {
             Arc::new(CallbackMxResolver(resolver)) as Arc<dyn mailcal_autodetect::MxResolver>
@@ -219,82 +243,8 @@ impl MailcalApp {
         let config = detect_config();
         let result = self
             .runtime
-            .block_on(mailcal_autodetect::detect(&email, resolver, &config));
-        to_recommendation(&email, result)
-    }
-}
-
-/// The domain whose canned detection is the **happy path**: everything published over HTTPS,
-/// with a calendar found beside the mailbox. The showcase's work account lives here, so the
-/// documentation's setup walkthrough and its mailbox screenshots tell one story.
-const SHOWCASE_TRUSTED_DOMAIN: &str = "northwind.example";
-
-/// The domain whose canned detection comes back **untrusted**; settings that were only
-/// reachable over a plain-HTTP hop. This is the screen that matters most in the setup
-/// documentation: the one place a user is asked to approve something before a password is sent
-/// (docs/account-autodetect.md), and the one a real provider gives us no reliable way to stage.
-const SHOWCASE_UNTRUSTED_DOMAIN: &str = "oldschool.example";
-
-/// Detection's answer in a showcase (screenshot) build: scripted, instant, and offline.
-///
-/// Three outcomes, because the account-setup documentation has three screens to show; the
-/// settings were found and are trustworthy, they were found over an insecure hop and need
-/// approval, and nothing was found so the manual form takes over. Every other address falls to
-/// the last one, which is what makes the personal-domain example in the guide land on the manual
-/// route without a special case.
-///
-/// Both domains are `.example` (RFC 2606), so even if this were ever reached outside a showcase
-/// build it could not name a host that resolves. Adding the Microsoft or Google route here is a
-/// new arm and nothing else, once a guide needs to picture one.
-fn showcase_recommendation(email: &str) -> SetupRecommendation {
-    let Some((_, domain)) = email.rsplit_once('@') else {
-        return SetupRecommendation::Manual {
-            reason: MissReason::InvalidEmail,
-        };
-    };
-    let domain = domain.trim().to_ascii_lowercase();
-    if domain.is_empty() {
-        return SetupRecommendation::Manual {
-            reason: MissReason::InvalidEmail,
-        };
-    }
-    let trusted = domain == SHOWCASE_TRUSTED_DOMAIN;
-    if !trusted && domain != SHOWCASE_UNTRUSTED_DOMAIN {
-        return SetupRecommendation::Manual {
-            reason: MissReason::NothingFound,
-        };
-    }
-    let imap_host = format!("imap.{domain}");
-    let smtp_host = format!("smtp.{domain}");
-    SetupRecommendation::Imap {
-        email: email.to_owned(),
-        imap_host: imap_host.clone(),
-        smtp_host: Some(smtp_host.clone()),
-        imap_security: ConnectionSecurity::ImplicitTls,
-        smtp_security: ConnectionSecurity::ImplicitTls,
-        incoming: DetectedServerRow {
-            protocol: "IMAP".to_owned(),
-            hostname: imap_host,
-            port: 993,
-            security: "SSL/TLS".to_owned(),
-            username: email.to_owned(),
-        },
-        outgoing: Some(DetectedServerRow {
-            protocol: "SMTP".to_owned(),
-            hostname: smtp_host,
-            port: 465,
-            security: "SSL/TLS".to_owned(),
-            username: email.to_owned(),
-        }),
-        // Only the trusted domain publishes a calendar, so the guide can show the pre-checked
-        // opt-out toggle on one screen and its absence on the other.
-        caldav_url: trusted.then(|| format!("https://dav.{domain}/")),
-        is_trusted: trusted,
-        source: if trusted {
-            format!("autoconfig (https://autoconfig.{domain}/mail/config-v1.1.xml)")
-        } else {
-            format!("autoconfig (http://autoconfig.{domain}/mail/config-v1.1.xml)")
-        },
+            .block_on(mailcal_autodetect::detect(email, resolver, &config));
+        account_route(email, result)
     }
 }
 
@@ -348,12 +298,16 @@ impl mailcal_autodetect::MxResolver for CallbackMxResolver {
     }
 }
 
-/// The production detection tuning, plus the debug/dev-harness well-known-base override
-/// (`MAILCAL_AUTODETECT_WELL_KNOWN_BASE`) so `alice@test.local` reaches the local
-/// Stalwart. The override is compiled out of a release build without `dev-harness`.
+/// The production detection tuning over the account layer's trust policy, plus the
+/// debug/dev-harness well-known-base override (`MAILCAL_AUTODETECT_WELL_KNOWN_BASE`) so
+/// `alice@test.local` reaches the local Stalwart. The override, and the policy's harness
+/// roots, are compiled out of a release build without `dev-harness`.
 fn detect_config() -> mailcal_autodetect::DetectConfig {
     #[allow(unused_mut)]
-    let mut config = mailcal_autodetect::DetectConfig::default();
+    let mut config = mailcal_autodetect::DetectConfig {
+        tls_policy: mailcal_account::setup_trust_policy(),
+        ..mailcal_autodetect::DetectConfig::default()
+    };
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
     if let Ok(base) = std::env::var("MAILCAL_AUTODETECT_WELL_KNOWN_BASE") {
         match url::Url::parse(&base) {
@@ -367,16 +321,26 @@ fn detect_config() -> mailcal_autodetect::DetectConfig {
 /// Maps a detection result for `email` onto the FFI recommendation. A pre-flight error
 /// (invalid email, TLS build failure) folds into a manual route so the form always has
 /// somewhere to go.
+#[cfg(test)]
 fn to_recommendation(
     email: &str,
     result: Result<mailcal_autodetect::Detected, mailcal_autodetect::DetectError>,
 ) -> SetupRecommendation {
+    convert(account_route(email, result))
+}
+
+/// [`to_recommendation`] in the account layer's terms.
+fn account_route(
+    email: &str,
+    result: Result<mailcal_autodetect::Detected, mailcal_autodetect::DetectError>,
+) -> mailcal_account::SetupRecommendation {
+    use mailcal_account::{MissReason, SetupRecommendation};
     match result {
-        Ok(detected) => convert(mailcal_account::recommend(
+        Ok(detected) => mailcal_account::recommend(
             email,
             detected,
             mailcal_account::OauthRoutes::of_this_build(),
-        )),
+        ),
         Err(mailcal_autodetect::DetectError::InvalidEmail) => SetupRecommendation::Manual {
             reason: MissReason::InvalidEmail,
         },
@@ -387,7 +351,7 @@ fn to_recommendation(
 }
 
 /// Converts the account layer's recommendation into its FFI mirror.
-fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecommendation {
+pub(crate) fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecommendation {
     use mailcal_account::SetupRecommendation as R;
     match recommendation {
         R::Jmap {
@@ -395,6 +359,7 @@ fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecomme
             server_url,
             is_trusted,
             source,
+            ..
         } => SetupRecommendation::Jmap {
             email,
             server_url,
@@ -405,6 +370,7 @@ fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecomme
             email,
             imap_host,
             smtp_host,
+            oauth_issuer,
             imap_security,
             smtp_security,
             incoming,
@@ -412,6 +378,7 @@ fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecomme
             caldav_url,
             is_trusted,
             source,
+            ..
         } => SetupRecommendation::Imap {
             email,
             imap_host,
@@ -421,11 +388,15 @@ fn convert(recommendation: mailcal_account::SetupRecommendation) -> SetupRecomme
             incoming: convert_row(incoming),
             outgoing: outgoing.map(convert_row),
             caldav_url,
+            oauth_issuer,
             is_trusted,
             source,
         },
         R::Microsoft { email } => SetupRecommendation::Microsoft { email },
         R::Google { email } => SetupRecommendation::Google { email },
+        R::Dav { .. } => SetupRecommendation::Manual {
+            reason: MissReason::NothingFound,
+        },
         R::Manual { reason } => SetupRecommendation::Manual {
             reason: convert_reason(reason),
         },

@@ -316,7 +316,7 @@ store's own formatted string is on the other route.
 
 ## What the stores require of the app itself
 
-Two obligations that are review-blocking rather than optional, and one that turns out not to apply.
+Three obligations that are review-blocking rather than optional, and one that turns out not to apply.
 
 - **A way to manage or cancel the subscription** has to be reachable from inside the app. Apple's
   is `AppStore.showManageSubscriptions`, Play's is a deep link to its own subscriptions page.
@@ -325,6 +325,10 @@ Two obligations that are review-blocking rather than optional, and one that turn
 - **The price, the period and what renewal means** are shown next to the purchase button, in the
   store's own words for the price. This is the anti-hype coupling too: the copy may not out-run
   [`../docs/capabilities.md`](../docs/capabilities.md).
+- **Apple only: the Terms of Use and the privacy policy are linked beside the purchase**
+  (guideline 3.1.2), and the App Store product page links the terms too; 0.10.0's first iOS
+  submission was refused for the product page's missing link. The terms are Apple's standard
+  EULA, which governs only what Apple bills, so the other clients draw no such line.
 - **Restoring purchases needs no button of its own.** The usual reason for one is a device that
   holds a purchase the app cannot see, and that cannot arise here: an entitlement is resolved from
   the Allodia account, so signing in *is* the restore, on any platform and any device, including

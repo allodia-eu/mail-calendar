@@ -59,15 +59,7 @@ public sealed partial class MailboxModel
         {
             if (Accounts[i].Id == id && Accounts[i].Expanded != expanded)
             {
-                var current = Accounts[i];
-                Accounts[i] = new AccountItem
-                {
-                    Id = current.Id,
-                    Email = current.Email,
-                    SendLabel = current.SendLabel,
-                    Expanded = expanded,
-                    Folders = current.Folders,
-                };
+                Accounts[i] = Accounts[i].With(expanded, Accounts[i].Folders);
                 break;
             }
         }
@@ -100,25 +92,9 @@ public sealed partial class MailboxModel
             // reconcile the pane before the core's snapshot arrives, so a reconcile off the old
             // value springs the tree back open within a frame.
             var current = Accounts[i];
-            Accounts[i] = new AccountItem
-            {
-                Id = current.Id,
-                Email = current.Email,
-                SendLabel = current.SendLabel,
-                Expanded = current.Expanded,
-                Folders = [.. current.Folders.Select(folder => folder.Key == key
-                    ? new FolderItem
-                    {
-                        Key = folder.Key,
-                        Name = folder.Name,
-                        Role = folder.Role,
-                        Unread = folder.Unread,
-                        Parent = folder.Parent,
-                        HasChildren = folder.HasChildren,
-                        Expanded = expanded,
-                    }
-                    : folder)],
-            };
+            Accounts[i] = current.With(
+                current.Expanded,
+                [.. current.Folders.Select(folder => folder.Key == key ? folder.WithExpanded(expanded) : folder)]);
             break;
         }
         _app?.Dispatch(new Intent.SetFolderExpanded(account, key, expanded));
@@ -184,13 +160,24 @@ public sealed partial class MailboxModel
         AddingAccount = true;
     }
 
+    /// <summary>
+    /// Forgets what the last attempt on the setup form left behind, when the person steps back to
+    /// the address: the error, and a certificate it was refused or accepted.
+    /// </summary>
+    public void ClearSetupAttempt()
+    {
+        SetupError = null;
+        SetupRejectedCertificate = null;
+        SetupAcceptedCertificate = null;
+    }
+
     /// <summary>Back out of adding an account (the user dismissed the form).</summary>
     public void CancelAddAccount()
     {
         AddingAccount = false;
         SetupStartEmail = string.Empty;
         SetupStartOffer = null;
-        SetupError = null;
+        ClearSetupAttempt();
     }
 
     /// <summary>

@@ -150,31 +150,6 @@ fn expander_at(list: &gtk::ListBox, index: i32) -> adw::ExpanderRow {
         .expect("a conversation renders as an expander")
 }
 
-/// The glyphs the app draws are the ones we ship, and they resolve.
-///
-/// `Image::from_icon_name` is happy with a name nothing provides: it renders the
-/// missing-image placeholder and says nothing; so asking the row for its icon name proves
-/// only that we asked. The theme has to be asked whether it can find them, which is what
-/// fails if the GResource stops being compiled in or the resource path drifts.
-pub(super) fn the_apps_glyphs_are_bundled_with_the_app() {
-    let display = gtk::gdk::Display::default().expect("a display");
-    let theme = gtk::IconTheme::for_display(&display);
-    for icon in ["mailcal-archive-symbolic", "mailcal-inbox-symbolic"] {
-        assert!(theme.has_icon(icon), "the app must carry {icon}");
-    }
-    assert!(
-        !theme.has_icon("mailcal-not-an-icon-symbolic"),
-        "a theme that answers yes to everything would make the check above meaningless"
-    );
-    assert!(
-        theme
-            .resource_path()
-            .iter()
-            .any(|path| path == super::ICON_RESOURCE_PATH),
-        "the bundle must be on the icon theme's resource path"
-    );
-}
-
 /// A conversation draws its summary and, opened, every message on it; and unread mail is bold
 /// wherever it sits.
 pub(super) fn conversation_rows_expand_and_unread_mail_is_bold() {

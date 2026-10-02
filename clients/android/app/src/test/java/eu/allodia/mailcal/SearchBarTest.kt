@@ -38,6 +38,11 @@ private fun row(key: String, name: String, role: FolderRole) = FolderRow(
     hasChildren = false,
     expanded = false,
     visible = true,
+    pending = false,
+    inTrash = false,
+    editable = false,
+    acceptsFolders = false,
+    acceptsMessages = false,
 )
 
 private fun folders() = listOf(
@@ -47,6 +52,7 @@ private fun folders() = listOf(
             row("inbox-key", "Inbox", FolderRole.INBOX),
             row("arch-key", "Archief", FolderRole.ARCHIVE),
         ),
+        managesFolders = false,
     ),
 )
 

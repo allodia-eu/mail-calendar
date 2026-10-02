@@ -157,8 +157,8 @@ public sealed partial class SettingsDialog
     }
 
     /// <summary>
-    /// Opens the setup form on the offered address. Settings closes first: the form takes over the
-    /// window, and leaving a dialog in front of it would hide the thing that just opened.
+    /// Opens the setup form on the offered address. Settings closes first: the form opens in a
+    /// dialog of its own, and WinUI holds one dialog open at a time.
     /// </summary>
     private void StartAddAccount(AllodiaAccountOffer offer)
     {

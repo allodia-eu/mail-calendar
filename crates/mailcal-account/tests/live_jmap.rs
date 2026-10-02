@@ -44,6 +44,7 @@ fn basic_config(addr: &str, account: &str, password: &str) -> JmapAccountConfig 
         password: Some(Secret::new(password.to_owned())),
         token: None,
         oauth: None,
+        shape: mailcal_account::AccountShape::default(),
     }
 }
 

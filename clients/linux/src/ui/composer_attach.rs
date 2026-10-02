@@ -20,7 +20,7 @@ use serde_json::json;
 use webkit6::prelude::WebViewExt;
 
 use super::composer_model::PickedFile;
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 /// The responses of the drop question. Ids rather than labels, so the answer does not move when a
 /// translation does.
@@ -290,7 +290,7 @@ pub(super) fn render_files(list: &gtk::ListBox, files: &Rc<RefCell<Vec<PickedFil
             .subtitle(&file.media_type)
             .use_markup(false)
             .build();
-        let remove = gtk::Button::from_icon_name("user-trash-symbolic");
+        let remove = gtk::Button::from_icon_name(icons::REMOVE);
         remove.set_tooltip_text(Some(l10n::action_remove()));
         remove.update_property(&[AccessibleProperty::Label(l10n::action_remove())]);
         let list_for_remove = list.clone();

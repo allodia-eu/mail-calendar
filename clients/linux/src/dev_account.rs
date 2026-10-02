@@ -9,10 +9,25 @@ use mailcal_bindings::{JmapSetup, MailcalApp, MailcalError, jmap_account_config_
 /// The canned IMAP account. It dials by IP while validating the certificate for `localhost`;
 /// the shared setup builder deliberately has no server-name override, so this fixture is
 /// hand-written like its Apple, Android, and Windows counterparts.
+///
+/// The `[smtp]` and `[caldav]` halves make it the shape of an IMAP+CalDAV provider: mail in a
+/// mailbox beside a calendar on another server, which is what meeting invitations break on
+/// (`docs/invitations.md`). Without them nothing can be sent, there is no calendar, and the
+/// invitation card correctly says the account cannot answer.
 pub(crate) const STALWART_IMAP_TOML: &str = r#"
 [imap]
 addr = "127.0.0.1:12993"
 server_name = "localhost"
+username = "alice@test.local"
+password = "harness-alice-pw"
+
+[smtp]
+addr = "127.0.0.1:12587"
+server_name = "localhost"
+security = "starttls"
+
+[caldav]
+base_url = "http://127.0.0.1:28080"
 username = "alice@test.local"
 password = "harness-alice-pw"
 "#;

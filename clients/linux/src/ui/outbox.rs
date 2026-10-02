@@ -15,7 +15,7 @@ use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::{Intent, MailboxListSnapshot, OutboxIntent, QueuedRow, QueuedState};
 
 use super::{AppInput, AppModel, PrimaryView, mailbox, row_action};
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 /// One of the three things a queued send can be asked to do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -167,9 +167,9 @@ fn queued_row(row: &QueuedRow, account: &str, sender: &relm4::Sender<AppInput>) 
 /// need to go and check on another device.
 fn state_icon(state: QueuedState) -> &'static str {
     match state {
-        QueuedState::Sending => "mail-send-symbolic",
-        QueuedState::Unconfirmed => "dialog-warning-symbolic",
-        QueuedState::Waiting => "document-open-recent-symbolic",
+        QueuedState::Sending => icons::SENDING,
+        QueuedState::Unconfirmed => icons::WARNING,
+        QueuedState::Waiting => icons::WAITING,
     }
 }
 
@@ -236,7 +236,7 @@ fn menu_button(target: &QueuedTarget, sender: &relm4::Sender<AppInput>) -> gtk::
     }
     let popover = gtk::Popover::new();
     popover.set_child(Some(&menu));
-    let button = gtk::Button::from_icon_name("view-more-symbolic");
+    let button = gtk::Button::from_icon_name(icons::MORE);
     button.set_tooltip_text(Some(l10n::a11y_more_actions()));
     button.update_property(&[AccessibleProperty::Label(l10n::a11y_more_actions())]);
     button.add_css_class("flat");
@@ -253,15 +253,6 @@ fn menu_button(target: &QueuedTarget, sender: &relm4::Sender<AppInput>) -> gtk::
     container
 }
 
-/// The Outbox row's glyph: a document going out.
-///
-/// Adwaita, the theme the GNOME runtime provides and so the one the Flatpak actually runs
-/// against, has no `outbox-symbolic` at all, and a name the theme does not have draws the
-/// broken-image icon while the pane carries on as though nothing happened. Not
-/// `mail-send-symbolic` either: the pane already gives that to the Sent folder, and an Outbox
-/// that looks exactly like Sent is the one confusion this row exists to prevent.
-const OUTBOX_ICON: &str = "document-send-symbolic";
-
 /// The pane's Outbox row: one row above the account trees, **only while something is in it**.
 ///
 /// Not inside a tree, because it is not a folder on anybody's server, and not per account,
@@ -274,7 +265,7 @@ pub(super) fn pane_row(queued: usize, sender: &relm4::Sender<AppInput>) -> adw::
     row.set_title(l10n::folder_outbox());
     row.set_title_lines(1);
     row.set_activatable(true);
-    row.add_prefix(&gtk::Image::from_icon_name(OUTBOX_ICON));
+    row.add_prefix(&gtk::Image::from_icon_name(icons::OUTBOX));
     let input = sender.clone();
     row_action::action_row(&row, move || input.emit(AppInput::ShowOutbox));
     let count = i64::try_from(queued).unwrap_or(i64::MAX);

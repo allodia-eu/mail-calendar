@@ -4,14 +4,15 @@
 //! bindings are unaffected.
 
 use mailcal_viewmodel::{
-    AccountFolderRow as AppAccountFolderRow, AccountRow as AppAccountRow, FlatRow as AppFlatRow,
-    FolderRole as AppFolderRole, FolderRow as AppFolderRow, MailboxListSnapshot as AppSnapshot,
+    AccountFolderRow as AppAccountFolderRow, AccountRow as AppAccountRow,
+    EmptyReason as AppEmptyReason, FlatRow as AppFlatRow, FolderRole as AppFolderRole,
+    FolderRow as AppFolderRow, MailboxListSnapshot as AppSnapshot,
     SearchHorizon as AppSearchHorizon, SnapshotRow as AppSnapshotRow,
     ThreadMessage as AppThreadMessage, ThreadRow as AppThreadRow,
 };
 
 use crate::{
-    AccountFolderRow, AccountRow, FlatRow, FolderRole, FolderRow, MailboxListSnapshot,
+    AccountFolderRow, AccountRow, EmptyReason, FlatRow, FolderRole, FolderRow, MailboxListSnapshot,
     SearchHorizon, SnapshotRow, ThreadMessage, ThreadRow, records_outbox::QueuedRow,
 };
 
@@ -41,6 +42,11 @@ impl From<AppFolderRow> for FolderRow {
             has_children: row.has_children,
             expanded: row.expanded,
             visible: row.visible,
+            pending: row.pending,
+            in_trash: row.in_trash,
+            editable: row.editable,
+            accepts_folders: row.accepts_folders,
+            accepts_messages: row.accepts_messages,
         }
     }
 }
@@ -122,6 +128,7 @@ impl From<AppAccountFolderRow> for AccountFolderRow {
         Self {
             account_id: row.account_id,
             folders: row.folders.into_iter().map(FolderRow::from).collect(),
+            manages_folders: row.manages_folders,
         }
     }
 }
@@ -151,6 +158,19 @@ impl From<AppSnapshot> for MailboxListSnapshot {
             rows: snapshot.rows.into_iter().map(SnapshotRow::from).collect(),
             total: snapshot.total as u64,
             search_horizon: snapshot.search_horizon.map(SearchHorizon::from),
+            empty_reason: snapshot.empty_reason.map(EmptyReason::from),
+            folder_notice: snapshot.folder_notice.map(crate::FolderNotice::from),
+        }
+    }
+}
+
+impl From<AppEmptyReason> for EmptyReason {
+    fn from(reason: AppEmptyReason) -> Self {
+        match reason {
+            AppEmptyReason::NoMail => Self::NoMail,
+            AppEmptyReason::OutsideSyncDepth(months) => Self::OutsideSyncDepth {
+                months: u32::from(months),
+            },
         }
     }
 }

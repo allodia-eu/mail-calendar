@@ -11,7 +11,7 @@
 use adw::prelude::*;
 use mailcal_bindings::{FlatRow, SnapshotRow, ThreadMessage, ThreadRow};
 
-use super::{flat_row, thread_message_row, thread_row};
+use super::{RowMenus, flat_row, thread_message_row, thread_row};
 use crate::{
     l10n,
     ui::{
@@ -72,7 +72,8 @@ fn double_click(row: &gtk::Widget) -> Option<gtk::GestureClick> {
     let controllers = row.observe_controllers();
     (0..controllers.n_items())
         .filter_map(|index| controllers.item(index))
-        .find_map(|controller| controller.downcast::<gtk::GestureClick>().ok())
+        .filter_map(|controller| controller.downcast::<gtk::GestureClick>().ok())
+        .find(|gesture| gesture.button() == gtk::gdk::BUTTON_PRIMARY)
 }
 
 /// Presses `row`'s gesture `presses` times over, and reports everything that came back.
@@ -104,7 +105,7 @@ fn pressed(
 /// the click `GtkListBox` reads is what still opens the message in the pane.
 pub(crate) fn a_second_click_asks_for_a_window_and_a_first_click_asks_for_nothing() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let row = flat_row(&message_row(), false, "UTC", &sender);
+    let row = flat_row(&message_row(), &RowMenus::default(), "UTC", &sender);
     let widget = row.upcast_ref::<gtk::Widget>().clone();
 
     assert!(
@@ -128,7 +129,7 @@ pub(crate) fn a_conversations_messages_open_in_windows_and_its_header_does_not()
         ["window message-b"]
     );
 
-    let header = thread_row(&thread, false, "UTC", &sender);
+    let header = thread_row(&thread, false, &RowMenus::default(), "UTC", &sender);
     assert!(
         double_click(header.upcast_ref::<gtk::Widget>()).is_none(),
         "a conversation header keeps whatever a double-click already did there"
@@ -143,9 +144,11 @@ pub(crate) fn every_message_row_offers_the_window_by_name() {
     let row = message_row();
     let opened = OpenedMessage::from_row(&SnapshotRow::Flat { row: row.clone() });
 
+    let anchor = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    let menus = RowMenus::default();
     for menu in [
-        crate::ui::mail_actions_menu::message_menu_button(&row, &opened, false, &sender),
-        crate::ui::mail_actions_menu::message_window_menu_button(&opened, &sender),
+        crate::ui::mail_actions_menu::message_menu_button(&anchor, &row, &opened, &menus, &sender),
+        crate::ui::mail_actions_menu::message_window_menu_button(&anchor, &opened, &sender),
     ] {
         let content = popover_content(menu.upcast_ref::<gtk::Widget>()).expect("the row's menu");
         button(&content, l10n::action_open_in_window())

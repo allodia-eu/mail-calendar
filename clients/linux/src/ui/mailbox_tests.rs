@@ -189,7 +189,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     super::thread_tests::conversation_rows_expand_and_unread_mail_is_bold();
     super::thread_tests::every_mail_row_formats_its_timestamp();
     super::thread_tests::a_conversation_reports_what_the_reader_asked_for();
-    super::thread_tests::the_apps_glyphs_are_bundled_with_the_app();
+    crate::ui::icons::tests::every_icon_resolves_to_a_real_glyph();
     super::thread_tests::a_rerender_rebuilds_only_the_row_that_changed();
     super::thread_tests::a_removed_row_leaves_its_neighbours_widgets_alone();
     super::thread_tests::mail_arriving_at_the_top_does_not_rebuild_the_list_below_it();
@@ -219,6 +219,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::calendar::widget_tests::a_click_on_an_event_does_not_park_focus_on_the_grid();
     crate::ui::calendar::widget_tests::a_grid_shown_for_the_first_time_scrolls_and_frames_itself();
     crate::ui::calendar::widget_tests::a_resized_window_keeps_the_hour_the_reader_was_looking_at();
+    crate::ui::calendar::widget_tests::a_scroll_repaints_the_hours_it_reveals();
+    crate::ui::calendar::widget_tests::the_day_names_stay_on_screen_when_the_hours_scroll();
     crate::ui::calendar::dialog_tests::neither_series_question_states_its_title_twice();
     crate::ui::calendar::dialog_tests::the_editor_never_pre_empts_the_scope_question();
     crate::ui::reading::attachment_tests::the_reading_header_formats_its_timestamp();
@@ -244,6 +246,10 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::webview::tests::the_readers_zoom_gestures_listen_ahead_of_the_web_view();
     crate::ui::webview::tests::opening_another_message_starts_again_at_its_own_fit();
     crate::ui::modal::tests::a_modal_renders_its_title_in_native_chrome_only();
+    crate::ui::folder_dialogs::widget_tests::
+        a_picker_row_reads_as_a_pane_row_and_only_a_destination_responds();
+    crate::ui::folder_dialogs::widget_tests::the_arrow_keys_pass_over_a_row_that_cannot_be_chosen();
+    crate::ui::modal::tests::escape_closes_a_modal_as_its_close_button_does();
     crate::ui::avatar::tests::avatars_and_unread_dots_are_presentational();
     crate::ui::outbox::tests::the_pane_row_appears_only_while_something_is_waiting();
     crate::ui::outbox::tests::the_pane_highlights_the_outbox_rather_than_everyones_inbox();
@@ -317,7 +323,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     let (widget, records) = glib_records(|| {
         flat_row(
             &fixture_from("Research & Development", "Allodia Mail & Calendar"),
-            false,
+            &super::RowMenus::default(),
             "UTC",
             &row_sender,
         )
@@ -344,7 +350,12 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         "the row's date must render beside it: {shown:?}"
     );
 
-    let hostile = flat_row(&fixture("<b>Wire transfer</b>"), false, "UTC", &row_sender);
+    let hostile = flat_row(
+        &fixture("<b>Wire transfer</b>"),
+        &super::RowMenus::default(),
+        "UTC",
+        &row_sender,
+    );
     let hostile_shown = rendered_labels(hostile.upcast_ref::<gtk::Widget>());
     assert!(
         hostile_shown
@@ -354,7 +365,12 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     );
 
     let (action_sender, action_receiver) = relm4::channel::<AppInput>();
-    let actionable = flat_row(&fixture("Quarterly planning"), false, "UTC", &action_sender);
+    let actionable = flat_row(
+        &fixture("Quarterly planning"),
+        &super::RowMenus::default(),
+        "UTC",
+        &action_sender,
+    );
     actionable
         .activatable_widget()
         .and_downcast::<gtk::Button>()
@@ -367,7 +383,6 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
 
     folder_pane::the_pane_draws_every_account_its_folders_and_its_counts();
     folder_pane::a_server_named_row_is_never_parsed_as_markup();
-    folder_pane::every_role_icon_resolves_to_a_real_glyph();
     folder_pane::only_an_unreachable_account_gets_the_warning();
     folder_pane::the_unified_scope_is_an_expandable_group_with_an_inbox_child();
     folder_pane::the_pane_marks_where_the_core_says_we_are();
@@ -377,7 +392,6 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     folder_pane::a_nested_folder_is_indented_and_a_shut_one_is_not_drawn();
     folder_pane::a_folder_chevron_toggles_without_navigating();
 
-    crate::ui::selection_bar::tests::every_action_icon_resolves_to_a_real_glyph();
     crate::ui::selection_bar::tests::
         an_empty_selection_disables_only_the_actions_that_need_a_selection();
     crate::ui::selection_bar::tests::sync_is_after_the_selection_actions_and_always_live();
@@ -387,7 +401,6 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
 
     crate::ui::mail_toolbar::tests::new_mail_and_search_belong_to_the_window_toolbar();
 
-    destinations::every_destination_icon_resolves_to_a_real_glyph();
     destinations::the_switcher_navigates_on_a_press_and_stays_quiet_when_the_model_moves();
     destinations::the_switcher_is_pinned_below_the_accounts_and_never_scrolls_with_them();
 
@@ -422,6 +435,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     signatures::a_signatures_own_text_is_never_parsed_as_markup();
 
     invitation::an_invitations_own_text_is_never_parsed_as_markup();
+    invitation::an_address_in_the_description_is_a_link();
     invitation::an_account_that_cannot_answer_says_so_instead_of_greying_the_buttons();
     invitation::the_note_and_the_tick_appear_only_where_the_transport_carries_them();
     invitation::a_cancelled_or_superseded_card_states_itself_and_offers_no_answer();

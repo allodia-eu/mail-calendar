@@ -218,6 +218,12 @@ android {
     // "green on my machine" means nothing.
     kotlin {
         jvmToolchain(17)
+        // Every Kotlin warning is an error, in the app and its tests alike, as Swift's are
+        // (clients/apple/project.yml). A deprecation that has to stay, such as a fallback for a
+        // device too old for its replacement, is suppressed where it is used, with the reason.
+        compilerOptions {
+            allWarningsAsErrors = true
+        }
     }
 
     buildFeatures {
@@ -328,10 +334,26 @@ val generateUniffiBindings = tasks.register<Exec>("generateUniffiBindings") {
         cargoExecutable, "run", "--quiet", "-p", "mailcal-bindgen-uniffi", "--",
         "generate", "--library", hostCdylib.absolutePath,
         "--language", "kotlin", "--out-dir", "clients/android/app/src/main/java",
+        // ktlint is not a prerequisite of this build, and without it the generator prints a
+        // warning on every run. The file is generated, so nobody reads its formatting.
+        "--no-format",
     )
     inputs.file(hostCdylib)
     // Only the generated package is an output, the rest of src/main/java is hand-written.
     outputs.dir(layout.projectDirectory.dir("src/main/java/uniffi"))
+
+    // The binding touches two objects as bare statements to force their initialisation, which
+    // Kotlin reports as unused expressions, and every warning here is an error. The sources are
+    // UniFFI's, not ours to fix, so that one diagnostic is suppressed in that one file. Kotlin
+    // allows a single `@file:Suppress`, so it joins the one the generator already writes, and a
+    // generator that stops writing it fails here rather than as a compile error elsewhere.
+    val binding = layout.projectDirectory.file("src/main/java/uniffi/mailcal_bindings/mailcal_bindings.kt").asFile
+    doLast {
+        val generated = "@file:Suppress(\"NAME_SHADOWING\")"
+        val source = binding.readText()
+        check(generated in source) { "${binding.name} no longer carries `$generated`; update this task" }
+        binding.writeText(source.replace(generated, "@file:Suppress(\"NAME_SHADOWING\", \"UNUSED_EXPRESSION\")"))
+    }
 }
 
 val generateL10n = tasks.register<Exec>("generateL10n") {
@@ -449,7 +471,7 @@ androidComponents {
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2026.08.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
 
@@ -462,14 +484,14 @@ dependencies {
     // also dictated some glyphs: the Archive folder used to draw a *calendar* because the subset
     // had no archive icon. Adding an icon now means adding one XML, not a dependency.
     implementation("androidx.activity:activity-compose:1.13.0")
-    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.core:core-ktx:1.19.1")
 
     // AppCompat backports the per-app language override (AppCompatDelegate.setApplicationLocales)
     // below API 33; MainActivity extends AppCompatActivity so the picker can apply locales.
     implementation("androidx.appcompat:appcompat:1.8.0")
 
-    // The account config (endpoints + credentials) is held in the OS secure store
-    // (EncryptedSharedPreferences over an AES256-GCM master key), not a plaintext file.
+    // Read once, by LegacySecureStore, to move accounts stored by an earlier release into the
+    // Keystore-sealed AccountVault. The library is deprecated as a whole; nothing else uses it.
     implementation("androidx.security:security-crypto:1.1.0")
 
     // UniFFI's generated Kotlin bindings call into the cdylib through JNA. The @aar
@@ -508,7 +530,7 @@ dependencies {
     // are plain Kotlin, and no test touches `MailcalApp` (that surface is covered by the core's own
     // Rust tests). Keeping the suite emulator-free is what lets it gate every PR in CI.
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.16.1")
+    testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     // Supplies the empty ComponentActivity that `createComposeRule()` hosts its content in.
@@ -518,5 +540,5 @@ dependencies {
     // CoroutineWorker that runs the core's one-shot `run_background_sync` while the app is
     // backgrounded/killed, then raises new-mail notifications. Battery/Play-policy friendly and
     // it self-reschedules across reboots; pulls kotlinx-coroutines transitively.
-    implementation("androidx.work:work-runtime-ktx:2.11.2")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
 }

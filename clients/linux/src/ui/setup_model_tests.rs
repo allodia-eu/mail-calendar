@@ -57,12 +57,49 @@ fn detected_security_and_calendar_ride_back_into_the_config() {
         imap_security: form.imap_security,
         smtp_security: form.smtp_security,
         password: "secret".to_owned(),
+        accepted_certificate: None,
     })
     .config_toml()
     .expect("valid config");
 
     assert!(config.contains("starttls"));
     assert!(config.contains("calendar.example.test"));
+    // An account that met no certificate problem stores no exception, so its config is
+    // byte-for-byte what it was before exceptions existed.
+    assert!(!config.contains("certificate_exception"));
+}
+
+/// A certificate the person accepted rides into the stored config, so every later connect of
+/// this account carries it and nobody is asked twice (`docs/certificate-exceptions.md`).
+#[test]
+fn an_accepted_certificate_reaches_the_stored_config() {
+    let SetupForm::Detected(DetectedForm::Imap(form)) = imap_form() else {
+        panic!("expected IMAP form");
+    };
+
+    let config = AccountSubmission::Imap(ImapSubmission {
+        email: form.email,
+        imap_host: form.imap_host.clone(),
+        smtp_host: form.smtp_host,
+        caldav_url: form.caldav_url,
+        imap_security: form.imap_security,
+        smtp_security: form.smtp_security,
+        password: "secret".to_owned(),
+        accepted_certificate: Some(mailcal_bindings::RejectedCertificate {
+            server_name: form.imap_host,
+            sha256: "AB:CD".repeat(16),
+            subject_common_name: None,
+            subject_organisation: None,
+            issuer_common_name: None,
+            issuer_organisation: None,
+            not_before: None,
+            not_after: None,
+        }),
+    })
+    .config_toml()
+    .expect("valid config");
+
+    assert!(config.contains("certificate_exception"));
 }
 
 #[test]
@@ -75,8 +112,25 @@ fn setting_up_a_detected_account_by_hand_opens_its_own_type_prefilled() {
     };
 
     assert_eq!(manual.kind, AccountKind::Imap);
-    assert_eq!(manual.imap_host, "imap.example.test:143");
-    assert_eq!(manual.smtp_host, "smtp.example.test:587");
+    // The host field holds the name alone: the manual form shows the port beside it, so what
+    // detection found stays visible and editable rather than hiding inside the server name.
+    assert_eq!(manual.imap_host, "imap.example.test");
+    assert_eq!(manual.smtp_host, "smtp.example.test");
+    assert_eq!(manual.servers.imap.port(), "143");
+    assert_eq!(manual.servers.smtp.port(), "587");
+    assert_eq!(
+        manual.servers.imap.security(),
+        mailcal_bindings::ConnectionSecurity::StartTls,
+        "a detected STARTTLS server stays STARTTLS when it is edited by hand"
+    );
+    assert_eq!(
+        manual.servers.smtp.security(),
+        mailcal_bindings::ConnectionSecurity::StartTls
+    );
+    assert!(
+        !manual.servers.imap.follows_security(),
+        "the detected port is the user's to keep, so the picker must not move it"
+    );
     assert_eq!(manual.caldav_url, "https://calendar.example.test");
 
     let SetupForm::Detected(detected) = jmap_form() else {
@@ -153,6 +207,7 @@ fn jmap_form() -> SetupForm {
 fn imap_form() -> SetupForm {
     recommendation_form(
         SetupRecommendation::Imap {
+            oauth_issuer: None,
             email: "alice@example.test".to_owned(),
             imap_host: "imap.example.test:143".to_owned(),
             smtp_host: Some("smtp.example.test:587".to_owned()),

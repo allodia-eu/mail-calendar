@@ -141,6 +141,8 @@ extension MailboxModel {
         showingDrafts = snapshot?.showingDrafts ?? false
         selected = snapshot?.selected
         searchHorizon = snapshot?.searchHorizon
+        emptyReason = snapshot?.emptyReason
+        folderNotice = snapshot?.folderNotice
         // The reading body (a potentially large HTML string) only changes on a Reading
         // signal, pull it just then, not on every mailbox refresh. The signal names no reader,
         // so every open detached window re-reads its own slot alongside the pane
@@ -149,6 +151,15 @@ extension MailboxModel {
             reading = app?.readingView()
             reloadReadingWindows()
         }
+        #if os(macOS)
+        // A mailbox signal is the live runtime saying it committed mail, so it is also the only
+        // honest moment to ask whether any of it is worth a notification: the desktop raises them
+        // off its own IDLE/poll cadence rather than a schedule of its own
+        // (docs/background-sync.md). Off the main actor, and collapsed when they burst
+        // (MailcalModel.Notifications.swift). Named exactly, not "whatever reached the hot path":
+        // a reading signal gets here too, and an open message is not mail arriving.
+        if case .mailboxList = surface { collectNewMail() }
+        #endif
         // Counts only in the log; content renders on screen, not in stdout.
         print("[Mailcal] rendered \(rows.count) rows (\(mode))")
     }

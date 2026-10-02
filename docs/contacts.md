@@ -75,6 +75,18 @@ means the person is genuinely gone, never merely renumbered.
   character**: only the section and the sort key fold.
 - **The monogram initials.**
 
+### Where an account's contacts come from
+
+- **A standards account** reads CardDAV from its own `[carddav]` section when it has one, and
+  otherwise from its `[caldav]` origin and credentials, letting `.well-known/carddav` find the
+  address-book home. Nearly every server that speaks CalDAV for an account speaks CardDAV at the
+  same origin with the same login, so the section exists for the server that splits them and for an
+  account used for its contacts alone ([`accounts.md`](accounts.md)).
+- **Colleagues are a choice of their own.** A Microsoft or Google account binds the organisation's
+  directory (Graph `/users`, the Workspace directory) only when it is used for `colleagues`, which
+  every account stored before the choice existed is. Its own contacts are the `contacts` choice.
+- An account **not used for contacts** binds no contact source at all.
+
 ### A client
 
 - **All localised copy**, as everywhere: the core owns no locale facility. That includes the
@@ -284,10 +296,10 @@ change updates in every catalog locale.
 | Composer recipients as **pills**, with per-recipient removal | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions **float**: the form below them does not move | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The caret opens in **To**, or in the body when already addressed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| CardDAV contact sources (one adapter per address book) | ✅ | — | — | — | — | — |
+| CardDAV contact sources (one adapter per address book) | ✅ | — | — | — | — | ✅ |
 | JMAP contact sources (account-global adapter) | ✅ | — | — | — | — | — |
 | Google People contact sources (one adapter per source: connections, Other Contacts, directory) | ✅ | — | — | — | — | — |
-| Microsoft Graph contact sources | — | — | — | — | — | — |
+| Microsoft Graph contact sources (one adapter per source: each personal contacts folder, directory) | ✅ | — | — | — | — | ✅ |
 
 ---
 
@@ -395,13 +407,17 @@ change updates in every catalog locale.
   individual carrying an organisation, which is what its `FN` reads as. Offering the kind is a
   picker nobody has asked for yet; the engine models every kind and preserves the one a card
   already has.
-- **Microsoft Graph contacts do not sync yet: the scope half is done, the binding is not.**
-  Sign-in requests `Contacts.ReadWrite` + `User.ReadBasic.All` (`provider.rs`), but the core
-  binds no contacts adapter for a Graph account (`contact_providers: Vec::new()` on its connect
-  path), so nothing is read yet. The engine side is *done*: `provider-graph` implements
-  `ContactsProvider`, so what remains is purely the binding, and the Google one
-  (`connect_google_contact_providers`) is the shape to copy. A connected account says so in the
-  log rather than looking broken: `connection_info: … account_type=graph contacts_sources=0`.
+- **A Microsoft account's contact folders are listed once, at connect.** One adapter is bound per
+  folder, and the folder list is what decides which exist, so a folder created in Outlook after
+  the account connected appears in the address-book list on the next sync but has its cards read
+  only from the next connect on.
+- **A personal Microsoft account's directory costs one refused call per sync pass**, for the
+  reason the Google entry below gives: a consumer account has no directory, Graph refuses the
+  read, and nothing in the address says in advance which kind of account it is.
+- **Organisational contacts are the one Graph source the app does not bind.** `provider-graph`
+  can read them, but only through `OrgContact.Read.All`, which sign-in does not request
+  ([`provider-oauth.md`](provider-oauth.md) rule 10), so binding them would spend a refused call
+  per pass on every account.
 - **A Google account's two Workspace-only sources cost one refused call per sync pass.** Other
   Contacts and the directory do not exist for an account with no Workspace domain behind it, and
   People answers `403` for both; the engine turns that into an unavailable source rather than an

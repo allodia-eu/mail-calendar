@@ -57,16 +57,6 @@ impl Refresher {
         self.end_session_endpoint.as_deref()
     }
 
-    /// What a sign-in against this service asks for.
-    ///
-    /// A refresh names no scope (RFC 6749 §6: an omitted one means the original grant), so a
-    /// response that names none granted what was *originally* asked for. That set is this one for
-    /// any grant made by this build, and the caller compares the two.
-    #[must_use]
-    pub fn requested_scopes(&self) -> &[String] {
-        self.client.requested_scopes()
-    }
-
     /// Exchange a refresh token for a fresh access token.
     ///
     /// The answer may carry a **rotated** refresh token, and a caller that does not store it has a

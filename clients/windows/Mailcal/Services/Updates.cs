@@ -46,4 +46,31 @@ internal static class Updates
         !packaged ? UpdateChannel.None
         : updateSource is null ? UpdateChannel.Store
         : UpdateChannel.Hosted;
+
+    /// <summary>The log line written as a check starts.</summary>
+    internal static string CheckStartedLine(UpdateChannel channel) =>
+        $"update check: asking {Asked(channel)}";
+
+    /// <summary>The log line written once a check has answered, with how long it took.</summary>
+    /// <remarks>
+    /// A pure function so the rule "a failed check is never logged as up to date" is a test
+    /// (<c>UpdatesTests</c>): the Settings page that writes it reaches no other gate.
+    /// </remarks>
+    internal static string CheckFinishedLine(UpdateChannel channel, UpdateOutcome outcome, TimeSpan took)
+    {
+        var found = outcome switch
+        {
+            UpdateOutcome.UpToDate => "this is the latest version",
+            UpdateOutcome.Available => "a newer version is available",
+            _ => "failed",
+        };
+        return $"update check ({Asked(channel)}): {found} after {(long)took.TotalMilliseconds} ms";
+    }
+
+    private static string Asked(UpdateChannel channel) => channel switch
+    {
+        UpdateChannel.Store => "the Microsoft Store",
+        UpdateChannel.Hosted => "App Installer",
+        _ => "nothing",
+    };
 }

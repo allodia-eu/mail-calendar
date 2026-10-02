@@ -4,7 +4,7 @@ use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 
 use super::AppInput;
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 pub(crate) struct MailToolbar {
     root: adw::HeaderBar,
@@ -20,7 +20,7 @@ impl MailToolbar {
         root.set_title_widget(Some(search));
 
         let content = adw::ButtonContent::new();
-        content.set_icon_name("mail-message-new-symbolic");
+        content.set_icon_name(icons::NEW_MESSAGE);
         content.set_label(l10n::action_compose());
         let compose = gtk::Button::new();
         compose.set_child(Some(&content));

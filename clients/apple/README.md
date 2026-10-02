@@ -36,8 +36,10 @@ which is the first thing to check when a build of yours is not the one being off
 share a bundle id.
 
 Debugging against the local Stalwart harness (accounts, seed data, logs) is covered by the repo
-skills, see [`docs/debugging.md`](../../docs/debugging.md); background sync and notifications need
-real hardware and a loop of their own ([`scripts/dev/device.sh`](../../scripts/dev/device.sh)).
+skills, see [`docs/debugging.md`](../../docs/debugging.md); macOS notifications are raised off the
+live runtime and so are reachable from that loop, while **iOS** background sync and its
+notifications need real hardware and a loop of their own
+([`scripts/dev/device.sh`](../../scripts/dev/device.sh)).
 
 ## Packaging (production)
 
@@ -51,6 +53,7 @@ Scripts/package.sh --no-notarize    # Flow A, skip the notary round-trip (fast p
 Scripts/package.sh --app-store      # Flow B: Apple-Distribution .pkg for the macOS App Store
 Scripts/package.sh --ios-app-store  # Flow C: App Store .ipa for iOS/iPadOS
 Scripts/package.sh --ios-device     # Flow D: installable Release .ipa for your own iPhone/iPad
+Scripts/package.sh --sandboxed      # Flow E: Flow B's app, development-signed to run on this Mac
 Scripts/package.sh --version 1.0.1  # stamp the marketing version
 ```
 
@@ -109,8 +112,11 @@ arm64 only** (Apple-silicon Mac, arm64 iPhone + iPad); a universal Mac binary wo
      travels through (`docs/os-integration.md`): the profile must grant it to **both** ids, or the
      build signs cleanly, installs, appears in the share sheet and then quietly attaches nothing.
      In the portal: Identifiers ▸ **+** ▸ App ID `eu.allodia.mailcal.share` ▸ enable *App Groups* ▸
-     assign `group.eu.allodia.mailcal`, then a **Mac App Store** profile for that id as well.
-     `package.sh` checks the app's half only, so the extension's is on you.
+     assign `group.eu.allodia.mailcal`, then a **Mac App Store** profile for that id as well,
+     authorising the same Apple Distribution cert. `package.sh` embeds it in the `.appex` and fails
+     before signing when there is none; `MAS_SHARE_PROVISIONING_PROFILE=<path>` points at one kept
+     elsewhere. Without it the upload is refused with ITMS-90283 (*Missing code-signing
+     certificate*), because the extension would carry the archive's development profile.
 
      (The **development** profile the archive itself uses stays auto-managed via
      `-allowProvisioningUpdates`, and *that* one embeds a device list, so the team still needs **at
@@ -207,12 +213,25 @@ and `taskgated-helper: "Only Development Provisioning Profiles can be installed 
 Settings"` (CPProfileManager -215). This is the macOS counterpart of Flow C's device-list rule
 below, and like that one it is not a flag.
 
-**To run a sandboxed build locally, do not use this flow at all.**
-`Scripts/build-and-run.sh --macos --sandboxed` builds the same entitlement set on the dev loop, in
-seconds rather than an archive's minutes, signed against a development profile macOS honours. That
-is the supported route and [`docs/debugging.md`](../../docs/debugging.md) section 8 owns it,
-including the profile it needs and how to make one. Add `--configuration Release` to match this
-flow's optimisation settings as well.
+**To run the Store's app on this Mac, use Flow E: `Scripts/package.sh --sandboxed`.** It archives
+exactly as this flow does and signs through this flow's own pass, swapping only the certificate and
+the profile: an Apple Development certificate, and a **macOS App Development** profile that grants
+the App Group and lists this Mac, in place of the Store's pair. Entitlements, signing order and every
+gate are the Store's, so an entitlement the sandbox needs and the Store build lacks fails here
+first, on a Release build with the release core. The profile is the one the dev loop's
+`--sandboxed` signs with, and [`docs/debugging.md`](../../docs/debugging.md) section 8 says how to
+make one; `MACOS_DEV_PROVISIONING_PROFILE` in `signing.local.sh` points at one kept elsewhere. The
+result is `build/release-<VERSION>/AllodiaMail-<VERSION>-Sandboxed.zip`, which runs only on the
+Macs the profile lists and keeps its data in the sandbox's container.
+
+⚠️ **The Share Extension keeps the profile the archive embedded**, Xcode's wildcard *Mac Team
+Provisioning Profile*, which grants no group, while it is signed claiming
+`group.eu.allodia.mailcal`. This flow's pass leaves it there, and here Flow E and the Store build
+differ: Flow B embeds the extension's own Mac App Store profile. Whether a share still reaches the
+app under Flow E's has not been measured.
+
+For the dev loop, `Scripts/build-and-run.sh --macos --sandboxed` gives the app the same
+entitlements in seconds rather than an archive's minutes, with a debug core.
 
 The archive's app (`build/package/AllodiaMail.xcarchive/Products/Applications/AllodiaMail.app`) is
 sandboxed too, because `--app-store` archives with
@@ -223,7 +242,7 @@ generic *Mac Team Provisioning Profile*, which grants **no**
 `group.eu.allodia.mailcal`. The app still *claims* the group, so the group container exists and is
 refused: `deny(1) file-write-create …/mcp.sock`, surfacing as `mcp: could not bind the socket
 (permission denied)`. Everything else in the sandbox is faithful, so read an MCP failure in **that**
-copy as the profile rather than as the code, and reach for `--sandboxed` instead of hand-signing it.
+copy as the profile rather than as the code, and reach for Flow E instead of hand-signing it.
 
 Steering the archive itself onto an App-Groups profile is not a flag we have, deliberately. An
 `xcodebuild` setting override is global, and `PROVISIONING_PROFILE_SPECIFIER` is one no override can
@@ -300,6 +319,13 @@ app for `generic/platform=iOS` (development-signed, automatic provisioning), the
 `build/package/export/*.ipa`. Upload it with **Transporter** (Apple's app) or `xcrun altool
 --upload-app -f <ipa> -t ios --apiKey <KEY_ID> --apiIssuer <ISSUER_UUID>` (set the two ids **once**
 in `signing.local.sh` and the script prints that line filled in, see "Uploading a build" below).
+
+The export signs manually, against **two** installed App Store profiles you create in the portal:
+one for `eu.allodia.mailcal` and one for the Share Extension's own App ID,
+`eu.allodia.mailcal.share`. Both App IDs claim `group.eu.allodia.mailcal`, so the group has to be
+assigned to each **before** its profile is generated. `package.sh` resolves both before it builds
+anything and names the one that is missing; `IOS_PROVISIONING_PROFILE` and
+`IOS_SHARE_PROVISIONING_PROFILE` in `signing.local.sh` point at a download kept elsewhere.
 
 ### Flow D, iOS/iPadOS on your own device (`.ipa` you can install)
 

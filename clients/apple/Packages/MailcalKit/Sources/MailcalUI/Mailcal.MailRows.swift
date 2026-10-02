@@ -218,6 +218,8 @@ extension ContentView {
             swipeButton(model.swipeSettings.left, message)
         }
         .contextMenu { flatRowMenu(message) }
+        // Onto a folder in the pane (`docs/folder-pane.md`, rule 24).
+        .modifier(MessageDragSource(enabled: hasReadingPane) { dragPayload(for: .flat(row: message)) })
     }
 
     /// The single button one swipe edge reveals: the configured action, dispatched through the
@@ -280,6 +282,7 @@ extension ContentView {
         } label: {
             Label(L10n.action_archive(), systemImage: "archivebox")
         }
+        moveToFolderItem(.flat(row: message))
         Button {
             rowMenuAction(message, .delete) { model.delete(message.account, message.key) }
         } label: {
@@ -369,15 +372,17 @@ extension ContentView {
         .contentShape(Rectangle())
         .onTapGesture { if click() { open(thread) } }
         .contextMenu { threadMenu(thread) }
+        .modifier(MessageDragSource(enabled: hasReadingPane) { dragPayload(for: .thread(row: thread)) })
     }
 
-    /// Right-click actions on a conversation. "Archive conversation" archives the received side
-    /// only, the core leaves any Sent copies in Sent (they stay visible in the thread).
+    /// Right-click actions on a conversation. "Archive conversation" and Move to folder… move the
+    /// received side only; the core leaves any Sent copies in Sent (they stay visible in the thread).
     @ViewBuilder
     private func threadMenu(_ thread: ThreadRow) -> some View {
         Button { archiveThread(thread) } label: {
             Label(L10n.thread_archive(), systemImage: "archivebox")
         }
+        moveToFolderItem(.thread(row: thread))
     }
 
     /// Archives a conversation (received messages only) and tidies the UI: collapse it and, if

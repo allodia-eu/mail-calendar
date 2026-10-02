@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use engine_core::{
     error::FailureClass,
     ids::{AccountId, MailboxId},
-    mail::{Mailbox, MailboxRole},
+    mail::Mailbox,
     sync::SyncUpdate,
     time::CalendarDate,
 };
@@ -29,26 +29,17 @@ use provider_graph::{GraphClient, GraphProvider, MailboxPrincipal};
 use time::Date;
 
 mod calendar;
+mod contacts;
 mod mail_provider;
 mod token_source;
 
 pub use calendar::connect_graph_calendar_providers;
+pub use contacts::connect_graph_contact_providers;
+#[cfg(test)]
+pub(crate) use token_source::test_support;
 pub use token_source::{CredentialOrigin, GraphTokenSource, TokenSink};
 
-use crate::{AccountError, throttle::account_retry, tls::account_tls};
-
-/// The folder roles a Microsoft account eagerly binds a provider to at startup; the
-/// same set as IMAP plus the Inbox (Graph resolves the Inbox as a role, whereas IMAP
-/// connects the literal `INBOX` separately). Any other folder (a custom folder, role
-/// `None`) syncs **on demand** via [`connect_graph_folder`].
-const GRAPH_SYNCED_ROLES: &[MailboxRole] = &[
-    MailboxRole::Inbox,
-    MailboxRole::Sent,
-    MailboxRole::Drafts,
-    MailboxRole::Trash,
-    MailboxRole::Archive,
-    MailboxRole::Junk,
-];
+use crate::{AccountError, log_handle::account_log_handle, pass_syncs, tls::tls_with};
 
 /// A [`Provider`] bound to one Graph mail folder that refreshes its access token before
 /// every network call and delegates to a freshly built [`GraphProvider`]. Internal; the
@@ -87,6 +78,8 @@ impl RefreshingGraphProvider {
             capabilities: Capabilities::none()
                 .with_mail()
                 .with_mail_writes()
+                // Forwarded by this wrapper's `MailboxWrites`.
+                .with_mailbox_writes()
                 // Forwarded by this wrapper's `Provider`. A flag omitted here is a
                 // flag the account does not have however loudly the delegate advertises it,
                 // so advertising and forwarding have to move together.
@@ -130,7 +123,7 @@ impl RefreshingGraphProvider {
             token.clone(),
             MailboxPrincipal::Me,
             &self.tls,
-            &account_retry(),
+            &self.tokens.retry(),
         )
         .map_err(ProviderError::from)?;
         let mut graph = GraphProvider::new(client, self.folder.clone());
@@ -175,11 +168,12 @@ fn calendar_date(date: Date) -> Option<CalendarDate> {
     CalendarDate::new(date.year(), u8::from(date.month()), date.day()).ok()
 }
 
-/// Connects the Graph mail providers a Microsoft account syncs: one per eagerly bound
-/// role folder (`GRAPH_SYNCED_ROLES`). Enumerates the account's folders once (a fresh
-/// token), then binds a shared-token `RefreshingGraphProvider` to each role folder's
-/// real id: the Graph parallel of [`connect_mail_providers`](crate::connect_mail_providers).
-/// The `tokens` source carries the account's credentials and id.
+/// Connects the Graph mail providers a Microsoft account syncs: one per folder the account
+/// lists that [`pass_syncs`]. Enumerates the account's folders once (a fresh token), then binds a
+/// shared-token `RefreshingGraphProvider` to each folder's id: the Graph parallel of
+/// [`connect_mail_providers`](crate::connect_mail_providers), and bound in full for the same
+/// reason, since an account pass syncs what is bound and nothing else. The `tokens` source
+/// carries the account's credentials and id.
 ///
 /// # Errors
 ///
@@ -189,16 +183,11 @@ pub async fn connect_graph_mail_providers(
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     let folders = list_folders(&tokens, account_id, &tls).await?;
     let providers = folders
         .into_iter()
-        .filter(|mailbox| {
-            mailbox
-                .role
-                .as_ref()
-                .is_some_and(|role| GRAPH_SYNCED_ROLES.contains(role))
-        })
+        .filter(pass_syncs)
         .map(|mailbox| {
             Box::new(RefreshingGraphProvider::new(
                 mailbox.id,
@@ -211,9 +200,9 @@ pub async fn connect_graph_mail_providers(
     Ok(providers)
 }
 
-/// Builds an on-demand Graph provider bound to one folder of a Microsoft account (a
-/// custom folder the eager bind skipped), sharing the account's `tokens`. Sync; the
-/// token is fetched lazily on the first call. The Graph parallel of
+/// Builds a Graph provider bound to one folder of a Microsoft account (one listed after the
+/// account connected, or opened before any pass synced it), sharing the account's `tokens`. Sync;
+/// the token is fetched lazily on the first call. The Graph parallel of
 /// [`connect_imap_mailbox`](crate::connect_imap_mailbox).
 ///
 /// # Errors
@@ -226,7 +215,7 @@ pub fn connect_graph_folder(
 ) -> Result<Box<dyn Provider>, AccountError> {
     let folder =
         MailboxId::try_from(mailbox_key).map_err(|err| AccountError::Mailbox(err.to_string()))?;
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     Ok(Box::new(RefreshingGraphProvider::new(
         folder, tokens, since, tls,
     )))
@@ -241,11 +230,16 @@ async fn list_folders(
     tls: &TlsClientConfig,
 ) -> Result<Vec<Mailbox>, AccountError> {
     let token = tokens.access_token().await?;
-    let client = GraphClient::for_mailbox(token, MailboxPrincipal::Me, tls, &account_retry())
+    let client = GraphClient::for_mailbox(token, MailboxPrincipal::Me, tls, &tokens.retry())
         .map_err(|err| AccountError::Graph(err.to_string()))?;
     let inbox =
         MailboxId::try_from("inbox").map_err(|err| AccountError::Mailbox(err.to_string()))?;
-    log::debug!("graph: fetching mail folder list");
+    // Both lines carry the account's handle. One device holds several Microsoft accounts, this
+    // runs once per account, and two counts minutes apart read as one mailbox's list shrinking
+    // unless each says whose it was (`docs/logging.md`). The handle, never the id: an account
+    // id is an address and a host.
+    let handle = account_log_handle(account_id.as_str());
+    log::debug!("graph[{handle}]: fetching mail folder list");
     let listing = GraphProvider::new(client, inbox)
         .sync_mailboxes(account_id, None)
         .await
@@ -254,7 +248,10 @@ async fn list_folders(
         SyncUpdate::Snapshot { objects, .. } => objects,
         SyncUpdate::Delta { changed, .. } => changed,
     };
-    log::debug!("graph: folder list returned {} folder(s)", folders.len());
+    log::debug!(
+        "graph[{handle}]: folder list returned {} folder(s)",
+        folders.len()
+    );
     Ok(folders)
 }
 

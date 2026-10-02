@@ -92,8 +92,15 @@ impl<P: Provider> App<P> {
                 let progress = &progress;
                 async move {
                     let started = Instant::now();
-                    let outcome =
-                        sync_account_providers(&self.engine, account, tuning, progress, i).await;
+                    let outcome = sync_account_providers(
+                        &self.engine,
+                        account,
+                        self.connector.as_deref(),
+                        tuning,
+                        progress,
+                        i,
+                    )
+                    .await;
                     (
                         outcome,
                         u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
@@ -111,6 +118,7 @@ impl<P: Provider> App<P> {
                 self.track_sync(&account.id, reachable, elapsed_ms);
             }
             self.apply_signin_expired(&account.id, outcome.signin_expired);
+            self.apply_throttle(&account.id, outcome.throttled, outcome.throttled_for);
             self.invalidate_list_cache();
         }
         // Anything queued whose backoff has elapsed goes out on the same pass. The
@@ -125,11 +133,6 @@ impl<P: Provider> App<P> {
             "refresh_mail: sync {sync_ms}ms + rebuild {}ms",
             rebuild_start.elapsed().as_millis(),
         );
-        // The passes above covered the folders bound at startup. A folder the user opened is
-        // in none of them and is not watched, so without this the refresh they just asked for
-        // would republish the same rows it was already showing. Before the warm below, so the
-        // mail it brings back is warmed in the same pass.
-        self.refresh_open_folder(None, "refresh-mail").await;
         // Warm every account's body cache after the list is on screen (this method runs off
         // the UI thread and the rebuild above already published the snapshot), so each synced
         // window becomes instantly openable and readable offline. Concurrent across accounts;
@@ -154,12 +157,21 @@ impl<P: Provider> App<P> {
         let progress = self.begin_sync_labeled(true, true, account.providers.len(), "account-add");
         let tuning = self.sync_tuning_for(id);
         let acct = self.account_ordinal(id).await;
-        let outcome = sync_account_providers(&self.engine, &account, tuning, &progress, acct).await;
+        let outcome = sync_account_providers(
+            &self.engine,
+            &account,
+            self.connector.as_deref(),
+            tuning,
+            &progress,
+            acct,
+        )
+        .await;
         self.end_sync(&progress);
         if let Some(reachable) = outcome.reachable {
             self.set_account_reachable(id, reachable);
         }
         self.apply_signin_expired(id, outcome.signin_expired);
+        self.apply_throttle(id, outcome.throttled, outcome.throttled_for);
         self.invalidate_list_cache();
     }
 
@@ -170,34 +182,63 @@ impl<P: Provider> App<P> {
     /// this in the background. The deferred counterpart is
     /// [`refresh_account`](Self::refresh_account): it starts hidden, then shows progress only if
     /// it actually downloads mail. A no-op for an unknown account id.
+    ///
+    /// The two halves are [`sync_added_mail`](Self::sync_added_mail) and
+    /// [`warm_added_account`](Self::warm_added_account), for a host that has to act between them.
     pub async fn sync_added_account(&self, id: &AccountId) {
+        self.sync_added_mail(id).await;
+        self.warm_added_account(id).await;
+    }
+
+    /// The first half of [`sync_added_account`](Self::sync_added_account): the account's mail is
+    /// synced and on screen. A new account's folders are known from here on, and not before, so
+    /// this is the earliest point [`sync_settings`](Self::sync_settings) can name one to watch.
+    pub async fn sync_added_mail(&self, id: &AccountId) {
         self.sync_account(id).await;
         self.rebuild_snapshot().await;
-        // Fetch the account's calendar too, for the same reason the bodies below are fetched: the
-        // user asked for this account, not for its mail. Without it a brand-new account has no
-        // diary until the calendar tab is opened, so the first session: the one where an
+    }
+
+    /// The second half of [`sync_added_account`](Self::sync_added_account): the calendar and the
+    /// body cache. On a large mailbox the body pass runs for many minutes.
+    pub async fn warm_added_account(&self, id: &AccountId) {
+        // Fetch the account's calendar too, for the same reason the bodies beside it are fetched:
+        // the user asked for this account, not for its mail. Without it a brand-new account has
+        // no diary until the calendar tab is opened, so the first session: the one where an
         // invitation is most likely to be read; could only answer "we have not looked".
-        self.refresh_calendar_in_background().await;
+        //
         // Warm the body cache for the just-synced window in the background (the bindings already
         // run this method off the UI thread): opening the account's recent mail is then instant
         // and works offline, instead of each first open blocking on (or failing without) a
         // provider fetch. Runs after the list is on screen, so it never delays the first paint.
-        self.prefetch_account_bodies(id).await;
+        //
+        // Side by side, not one after the other: they talk to different servers and neither
+        // needs the other, and a calendar refresh can take longer than the first mail sync did.
+        futures::join!(
+            self.refresh_calendar_in_background(),
+            self.prefetch_account_bodies(id),
+        );
     }
 
-    /// A background refresh of one account's eager folders, then a snapshot rebuild; the
+    /// A background refresh of every folder of one account, then a snapshot rebuild; the
     /// per-account polling timer's per-tick work. Unlike `sync_account` (which shows the bar for
     /// an explicit add), this starts hidden; a periodic poll over already-rendered mail does not
     /// flash a bar unless it actually downloads messages. A no-op for an unknown account id.
-    pub async fn refresh_account(&self, id: &AccountId) {
-        let _ = self.refresh_account_once(id, "account-refresh", true).await;
-        // A folder this account binds no provider to is in no pass and is watched by nothing,
-        // so the tick is what keeps it current while the user is standing in it.
-        self.refresh_open_folder(Some(id), "account-refresh").await;
+    /// Returns how long the account's provider asked to be left alone, where one asked.
+    ///
+    /// A poll caller adds it to its own interval. The engine hands a long refusal back rather
+    /// than sleeping a task through it (`http-throttling.md`), so this is the other half of
+    /// that bargain: without it the next tick walks into the same wall and spends a round trip
+    /// being told so. `None` is the ordinary case and means "keep your own schedule".
+    pub async fn refresh_account(&self, id: &AccountId) -> Option<Duration> {
+        let throttled_for = self
+            .refresh_account_once(id, "account-refresh", true)
+            .await
+            .and_then(|outcome| outcome.throttled_for);
         // Every poll tick tops the body cache up (new mail, and any backlog an earlier
         // interrupted pass left), so the synced window converges on fully-warm. A cheap no-op
         // once it is (one key scan), and single-flight if a pass is already draining.
         self.prefetch_account_bodies(id).await;
+        throttled_for
     }
 
     /// The follow-up to the user's **own** mail action, on the one account the edit reached.
@@ -297,12 +338,21 @@ impl<P: Provider> App<P> {
         let progress = self.begin_sync_labeled(false, announce, account.providers.len(), label);
         let tuning = self.sync_tuning_for(id);
         let acct = self.account_ordinal(id).await;
-        let outcome = sync_account_providers(&self.engine, &account, tuning, &progress, acct).await;
+        let outcome = sync_account_providers(
+            &self.engine,
+            &account,
+            self.connector.as_deref(),
+            tuning,
+            &progress,
+            acct,
+        )
+        .await;
         self.end_sync(&progress);
         if let Some(reachable) = outcome.reachable {
             self.set_account_reachable(id, reachable);
         }
         self.apply_signin_expired(id, outcome.signin_expired);
+        self.apply_throttle(id, outcome.throttled, outcome.throttled_for);
         self.invalidate_list_cache();
         self.rebuild_snapshot().await;
         Some(outcome)

@@ -16,9 +16,10 @@ extension ContentView {
     var addAccountSheet: some View {
         AccountSetupDetectView(
             error: model.setupError,
+            rejectedCertificate: model.setupRejectedCertificate,
             cancel: {
                 model.addingAccount = false
-                model.setupError = nil
+                clearSetupAttempt()
                 model.setupStartEmail = ""
                 model.setupStartOffer = nil
             },
@@ -27,7 +28,7 @@ extension ContentView {
             signingIn: model.microsoftSigningIn,
             googleSigningIn: model.googleSigningIn,
             connecting: model.isConnecting,
-            submit: { imapHost, username, password, smtpHost, caldavURL, imapSecurity, smtpSecurity in
+            submit: { imapHost, username, password, smtpHost, caldavURL, imapSecurity, smtpSecurity, acceptedCertificate in
                 model.submitSetup(
                     imapHost: imapHost,
                     username: username,
@@ -35,7 +36,8 @@ extension ContentView {
                     smtpHost: smtpHost,
                     caldavBaseUrl: caldavURL,
                     imapSecurity: imapSecurity,
-                    smtpSecurity: smtpSecurity
+                    smtpSecurity: smtpSecurity,
+                    acceptedCertificate: acceptedCertificate
                 )
             },
             submitJmap: { email, serverURL, password in
@@ -51,13 +53,24 @@ extension ContentView {
             signInJmap: { email, serverURL in
                 await model.signInWithJmap(email: email, serverURL: serverURL)
             },
+            imapAuthOptions: { request in await model.imapAuthOptions(request) },
+            signInImap: { request in await model.signInWithImap(request) },
             detect: { email in await model.detectSetup(email: email) },
             startEmail: model.setupStartEmail,
             startOffer: model.setupStartOffer,
             // Not the first account, so no card, but the accounts still to set up are not a
             // pitch, and are offered here too (`docs/onboarding.md`).
             onboarding: model,
-            firstRun: false
+            firstRun: false,
+            clearAttempt: clearSetupAttempt
         )
+    }
+
+    /// What the last attempt on the setup form left behind: the error, and a certificate it was
+    /// refused or accepted. Cleared when the person steps back to the address or leaves.
+    func clearSetupAttempt() {
+        model.setupError = nil
+        model.setupRejectedCertificate = nil
+        model.setupAcceptedCertificate = nil
     }
 }

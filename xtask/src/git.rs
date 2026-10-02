@@ -207,11 +207,7 @@ pub(crate) fn read(root: &Path, relative: &str) -> Result<String, String> {
 pub(crate) fn array_words(haystack: &str, name: &str) -> Vec<String> {
     let prefix = format!("{name}=(");
     for line in haystack.lines() {
-        let line = line.trim_end();
-        let Some(rest) = line.strip_prefix(&prefix) else {
-            continue;
-        };
-        if let Some(inner) = rest.strip_suffix(')') {
+        if let Some(inner) = line.trim_end().strip_circumfix(&prefix, ')') {
             return sorted_words(inner);
         }
     }

@@ -128,34 +128,14 @@ public func handleBackgroundRefresh() async {
 }
 
 #if DEBUG
-import UserNotifications
-
-/// DEBUG-only: presents new-mail notifications even while the app is foreground, so a live test on
-/// the simulator (where the app is the frontmost process, and `BGTaskScheduler` can't background it)
-/// can actually see the banner. A release build keeps the default, foreground notifications are
-/// suppressed, since you don't notify a user for mail they're already looking at.
-///
-/// `@unchecked Sendable`, like `DiagnosticSink`: `UNUserNotificationCenterDelegate` is not
-/// main-actor bound, and this holds no stored property for a delivery to race against.
-final class DebugForegroundNotificationPresenter:
-    NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable
-{
-    static let shared = DebugForegroundNotificationPresenter()
-    func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .list]
-    }
-}
-
 /// DEBUG-only: registers a Darwin-notification trigger so a live test can run the background
 /// refresh on demand, `BGTaskScheduler` doesn't run on the simulator, so there's otherwise no
 /// way to exercise the handler end-to-end there. Post it with:
 ///   xcrun simctl spawn booted notifyutil -p eu.allodia.mailcal.debugRunSync
 /// Never compiled into a release build.
 public func installDebugBackgroundTrigger() {
-    UNUserNotificationCenter.current().delegate = DebugForegroundNotificationPresenter.shared
+    // The delegate is installed at launch on both platforms (Mailcal.swift), so this only arms
+    // the trigger.
     CFNotificationCenterAddObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
         nil,

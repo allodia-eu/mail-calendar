@@ -8,6 +8,7 @@
 use engine_api::{AccountId, Provider};
 use mailcal_viewmodel::{
     AccountFolderRow, AccountRow, MailboxListSnapshot, QueuedRow, queued_rows,
+    stamp_folder_actions, with_folder_changes,
 };
 
 use crate::App;
@@ -35,6 +36,7 @@ impl<P: Provider> App<P> {
         // The All Accounts group is one more tree in the same pane, and the projection never
         // sets it, so this is also where it is filled in at all.
         snapshot.unified_expanded = pane.unified();
+        snapshot.folder_notice = pane.notice();
         // And the folder trees inside each account, which are the same thing one level down.
         for account in &mut snapshot.account_folders {
             pane.stamp_folders(&account.account_id, &mut account.folders);
@@ -58,13 +60,35 @@ impl<P: Provider> App<P> {
             let Ok(id) = AccountId::try_from(row.id.as_str()) else {
                 continue;
             };
-            let mailboxes = self.engine.mailboxes(&id).await.unwrap_or_default();
-            out.push(AccountFolderRow {
-                account_id: row.id.clone(),
-                folders: mailcal_viewmodel::sorted_folder_rows(&mailboxes),
-            });
+            out.push(self.account_folders(&id).await);
         }
         out
+    }
+
+    /// One account's folder tree as the pane draws it: what the server has, with what is still
+    /// queued drawn over it (`docs/folder-pane.md`, "Changing the tree"), each row stamped with
+    /// what it offers.
+    pub(crate) async fn account_folders(&self, account: &AccountId) -> AccountFolderRow {
+        let stored = self.engine.mailboxes(account).await.unwrap_or_default();
+        let queued = self.queued_folder_changes(account).await;
+        let (mailboxes, pending) = with_folder_changes(&stored, &queued);
+        let manages_folders = self.manages_folders(account).await;
+        let mut folders = mailcal_viewmodel::sorted_folder_rows(&mailboxes);
+        stamp_folder_actions(&mut folders, manages_folders, &pending);
+        AccountFolderRow {
+            account_id: account.as_str().to_owned(),
+            manages_folders,
+            folders,
+        }
+    }
+
+    /// Whether `account`'s provider can change its folder tree.
+    async fn manages_folders(&self, account: &AccountId) -> bool {
+        self.account_handle(account).await.is_some_and(|acct| {
+            acct.providers
+                .first()
+                .is_some_and(|provider| provider.connection_info().capabilities.mailbox_writes())
+        })
     }
 
     /// Every account's queued sends, oldest first within each account.

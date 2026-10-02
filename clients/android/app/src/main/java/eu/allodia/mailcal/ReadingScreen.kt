@@ -274,6 +274,9 @@ internal fun ReadingScreen(
                 account = message.account,
                 key = message.key,
                 onExportMessage = onExportMessage,
+                onPrint = reading?.takeIf { it.key == message.key && isPrintable(it) }?.let { body ->
+                    { printOpenMessage(ctx, message, body, loadRemoteImages) }
+                },
             )
         }
         HorizontalDivider()
@@ -390,7 +393,7 @@ internal fun ReadingScreen(
                     }
                     !body.html.isNullOrEmpty() ->
                         HtmlBody(fragment = body.html!!, loadRemoteImages = loadRemoteImages)
-                    !body.plain.isNullOrEmpty() -> Text(
+                    !body.plain.isNullOrEmpty() -> LinkifiedText(
                         text = body.plain!!,
                         modifier = Modifier
                             .fillMaxSize()

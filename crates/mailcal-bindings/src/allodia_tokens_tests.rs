@@ -216,3 +216,63 @@ fn a_token_inside_the_skew_is_already_spent() {
         "a token handed out with seconds left dies mid-request"
     );
 }
+
+/// A signed-in account whose stored grant carries `granted`, as a grant issued before this build
+/// asked for more would.
+fn signed_in_granted(granted: &[&str]) -> StoredAccount {
+    StoredAccount {
+        granted_scopes: Some(granted.iter().map(|&scope| scope.to_owned()).collect()),
+        ..signed_in_with(None)
+    }
+}
+
+fn refreshed_naming(scope: &str) -> mailcal_oauth::TokenSet {
+    mailcal_oauth::TokenSet {
+        scope: scope.to_owned(),
+        ..held(45)
+    }
+}
+
+fn stored_scopes(app: &MailcalApp) -> Option<Vec<String>> {
+    app.allodia
+        .lock()
+        .unwrap()
+        .as_ref()
+        .unwrap()
+        .granted_scopes
+        .clone()
+}
+
+/// A refresh asks for no scope, so an answer naming none is the original grant, unchanged. Read
+/// as the set this build requests, it would record scopes a grant issued before that set grew
+/// never had, and the features behind them would stop asking for the consent they still need.
+#[test]
+fn a_refresh_that_names_no_scope_leaves_the_stored_grant_alone() {
+    let app = app();
+    *app.allodia.lock().unwrap() = Some(signed_in_granted(&["openid", "offline_access"]));
+
+    app.record_allodia_grant_scopes(&refreshed_naming(""));
+
+    assert_eq!(
+        stored_scopes(&app),
+        Some(vec!["openid".to_owned(), "offline_access".to_owned()])
+    );
+}
+
+/// A refresh that does name a set is the service's current word, narrower included.
+#[test]
+fn a_refresh_that_names_a_scope_replaces_the_stored_grant() {
+    let app = app();
+    *app.allodia.lock().unwrap() = Some(signed_in_granted(&[
+        "openid",
+        "offline_access",
+        "mailcal:accounts:read",
+    ]));
+
+    app.record_allodia_grant_scopes(&refreshed_naming("openid offline_access"));
+
+    assert_eq!(
+        stored_scopes(&app),
+        Some(vec!["openid".to_owned(), "offline_access".to_owned()])
+    );
+}

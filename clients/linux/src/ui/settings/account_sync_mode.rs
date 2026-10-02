@@ -19,9 +19,8 @@ use crate::{
 /// the switch off changed nothing the person could see. Its Apple, Android and Windows twins use
 /// each platform's own equivalent of this control.
 ///
-/// A **linked box** of toggle buttons rather than `AdwToggleGroup`, which needs libadwaita 1.7 and
-/// the shipped runtime is 1.5. `linked` is the GNOME idiom the newer widget replaces, and it draws
-/// the same thing.
+/// A **linked box** of toggle buttons, the GNOME idiom for one choice among a few; it draws what
+/// `AdwToggleGroup` draws.
 ///
 /// The description carries the selected position's meaning only: three at once is a paragraph
 /// nobody reads, and the one that matters is the one in force.

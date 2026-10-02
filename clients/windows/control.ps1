@@ -72,16 +72,20 @@ function Invoke-Relaunch([string] $Hook, [string] $HookValue = '1') {
   }
   if ($Hook) { Set-Item "env:$Hook" $HookValue }
   if (-not $env:MAILCAL_DEV_ACCOUNT) { $env:MAILCAL_DEV_ACCOUNT = 'stalwart' }
-  # The IMAP harness account is over implicit TLS with a self-signed cert, which the debug core
-  # trusts only via MAILCAL_EXTRA_CA. A relaunch inherits that variable from the caller, but this is
-  # often run from a shell that never went through boot.sh, so fall back to the PEM harness.sh
-  # extracts into the repo, and refuse rather than relaunch into an opaque TLS failure without it.
-  if ($env:MAILCAL_DEV_ACCOUNT -eq 'stalwart-imap' -and -not $env:MAILCAL_EXTRA_CA) {
+  # The harness serves self-signed certificates, which the debug core trusts only via
+  # MAILCAL_EXTRA_CA: the IMAP harness account's listener, and the sign-in server an "Add account"
+  # for alice@localhost reaches from any mode. A relaunch inherits that variable from the caller,
+  # but this is often run from a shell that never went through boot.sh, so fall back to the bundle
+  # harness.sh extracts into the repo. Only the IMAP account cannot run without it, so only that
+  # mode refuses rather than relaunch into an opaque TLS failure.
+  if (-not $env:MAILCAL_EXTRA_CA) {
     $ca = Join-Path $here '../../docker/stalwart/tls/harness-ca.pem'
-    if (-not (Test-Path -LiteralPath $ca -PathType Leaf)) {
-      throw "MAILCAL_DEV_ACCOUNT=stalwart-imap needs the harness IMAP cert, and there is none at $ca, run scripts/dev/harness.sh up."
+    if (Test-Path -LiteralPath $ca -PathType Leaf) {
+      $env:MAILCAL_EXTRA_CA = (Resolve-Path -LiteralPath $ca).Path
     }
-    $env:MAILCAL_EXTRA_CA = (Resolve-Path -LiteralPath $ca).Path
+    elseif ($env:MAILCAL_DEV_ACCOUNT -eq 'stalwart-imap') {
+      throw "MAILCAL_DEV_ACCOUNT=stalwart-imap needs the harness certificates, and there are none at $ca, run scripts/dev/harness.sh up."
+    }
   }
   Start-Process $exe
   $state = if ($Hook) { "$Hook=$HookValue" } else { '(default view)' }

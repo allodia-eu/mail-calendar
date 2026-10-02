@@ -216,13 +216,14 @@ async fn a_newly_added_accounts_first_sync_brings_its_calendar_with_it() {
 /// the invitation card beside it would print a conflict count of zero it had no basis for.
 ///
 /// It is also why the claim cannot simply be "no calendar provider means no calendar": a
-/// placeholder and a mail-only account look identical by that test. What separates them is that a
-/// placeholder has no providers **of any kind**.
+/// placeholder and an account without a calendar look identical by that test. What separates them
+/// is that the placeholder has not been dialled, which it says.
 #[tokio::test]
 async fn a_refresh_before_the_accounts_are_dialed_claims_nothing() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut placeholder = calendar_account("acct", CalendarFake::with_events(Vec::new()));
     placeholder.calendar_providers.clear();
+    placeholder.dialled = false;
     assert!(placeholder.providers.is_empty(), "the shape boot returns");
     let app = calendar_app(vec![placeholder], &surfaces);
 
@@ -233,6 +234,28 @@ async fn a_refresh_before_the_accounts_are_dialed_claims_nothing() {
     assert!(
         !page.is_materialized,
         "an account nobody has connected to yet has an unknown calendar, not an empty one"
+    );
+}
+
+/// An account used for its contacts alone has been dialled and has no calendar; its week is empty,
+/// not unknown. Inferring "dialled" from the providers an account holds read it as a calendar
+/// nobody had looked at, for as long as the app ran.
+#[tokio::test]
+async fn an_account_with_contacts_alone_does_not_hold_the_calendar_unread() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let mut contacts_only = calendar_account("acct", CalendarFake::with_events(Vec::new()));
+    contacts_only.calendar_providers.clear();
+    contacts_only.providers.clear();
+    contacts_only.uses_mail = false;
+    let app = calendar_app(vec![contacts_only], &surfaces);
+
+    app.prime_calendar().await;
+    app.refresh_calendar().await;
+
+    let page = app.calendar_range(app.week_start_date(today()), 7);
+    assert!(
+        page.is_materialized,
+        "an account without a calendar has an empty week"
     );
 }
 

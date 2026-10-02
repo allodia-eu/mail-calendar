@@ -66,7 +66,9 @@ public sealed partial class MailboxModel
                 loopback.RedirectUri,
                 // The address the user is connecting (from autodetection), so Google targets that
                 // account instead of another already signed in in the browser; null/blank ⇒ the picker.
-                string.IsNullOrWhiteSpace(loginHint) ? null : loginHint);
+                string.IsNullOrWhiteSpace(loginHint) ? null : loginHint,
+                // No capability choice yet: ask for everything.
+                null);
             // Open the default browser (where the user is usually already signed in to Google).
             await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
             var callbackUrl = await WaitForGoogleCallbackAsync(loopback, cancelToken);

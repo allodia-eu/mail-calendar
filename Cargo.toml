@@ -50,9 +50,9 @@ default-members = [
 # (`cargo xtask check-version-sync`) fails if it ever drifts from `/VERSION`. Bump both together
 # with `scripts/dev/bump-version.sh X.Y.Z`.
 [workspace.package]
-version = "0.9.0"
+version = "0.10.1"
 edition = "2024"
-rust-version = "1.96"
+rust-version = "1.98"
 publish = false
 # The application is GPL-3.0-only (docs/pledge.md, LICENSE). Stated here so `cargo metadata`
 # carries it, and in REUSE.toml for every non-Rust file; `reuse lint` gates the pair.
@@ -232,6 +232,12 @@ missing_panics_doc = "allow"
 # analytics relay). A `[build-dependencies]` of `mailcal-oauth` and `mailcal-bindings` only — it
 # ships in no binary. See BUILDING.md.
 mailcal-buildenv = { path = "crates/mailcal-buildenv" }
+
+# Wayland client plumbing for `mailcal-vpointer`, the pointer-input tool the Linux UI tests drive
+# their headless compositor with. A Linux-only dependency of that crate alone, which is outside
+# `default-members`, so nothing that ships links either of them.
+wayland-client = "0.31"
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 mailcal-app = { path = "crates/mailcal-app" }
 # Rich-message compose document validation and HTML/plain-text rendering, shared by clients.
 mailcal-composer = { path = "crates/mailcal-composer" }
@@ -263,28 +269,28 @@ mailcal-telemetry = { path = "crates/mailcal-telemetry" }
 # `.cargo/config.toml` in the directory ABOVE this checkout — see `.cargo/config.toml`, which is
 # tracked (it pins the Windows static-CRT rustflags) and so is no longer the place for it.
 # Re-pin: bump `rev` on every line below to the new engine commit (keep them identical).
-engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "b5f814597e5f646be8bb59fab034cda999b98115" }
-engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "b5f814597e5f646be8bb59fab034cda999b98115" }
-engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "b5f814597e5f646be8bb59fab034cda999b98115" }
+engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb964c2cd5db4ab1b452470090c1e51ef1fc45b4" }
+engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb964c2cd5db4ab1b452470090c1e51ef1fc45b4" }
+engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb964c2cd5db4ab1b452470090c1e51ef1fc45b4" }
 # The one host-selected TLS policy shared across IMAP/CalDAV/JMAP/Graph.
-engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "b5f814597e5f646be8bb59fab034cda999b98115", features = ["tls-native-certs"] }
+engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb964c2cd5db4ab1b452470090c1e51ef1fc45b4", features = ["tls-native-certs"] }
 # Concrete provider adapters the account layer connects. IMAP first; CalDAV for calendar.
-provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "b5f814597e5f646be8bb59fab034cda999b98115" }
-provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "b5f814597e5f646be8bb59fab034cda999b98115" }
+provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb964c2cd5db4ab1b452470090c1e51ef1fc45b4" }
+provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb964c2cd5db4ab1b452470090c1e51ef1fc45b4" }
 # The Microsoft Graph mail read/sync + writes adapter (bearer-token): metadata/body sync
 # plus mail edits (mark-read/flag, move, permanent delete). The account layer builds a
 # token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
-provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "b5f814597e5f646be8bb59fab034cda999b98115" }
+provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb964c2cd5db4ab1b452470090c1e51ef1fc45b4" }
 # The Google (Gmail + Google Calendar) native-API read/sync + write adapter (bearer-token),
 # the cloud-API counterpart of provider-graph. Gmail mail sync is account-global (one provider,
 # no per-folder fan-out); Google Calendar is IANA-native. The account layer builds a
 # token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
-provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "b5f814597e5f646be8bb59fab034cda999b98115" }
+provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb964c2cd5db4ab1b452470090c1e51ef1fc45b4" }
 # The JMAP mail read/sync + submission + calendar-read adapter (RFC 8620/8621). Takes a
 # base URL + credentials (HTTP Basic username/password, or an OAuth bearer token) and
 # discovers everything else from the session. The account layer injects the shared TLS policy
 # before connecting it directly.
-provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "b5f814597e5f646be8bb59fab034cda999b98115" }
+provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "fb964c2cd5db4ab1b452470090c1e51ef1fc45b4" }
 # JSON Schema derivation for the MCP tool surface (crates/mailcal-mcp). MCP requires a
 # draft-2020-12 `inputSchema` per tool; deriving it from the same struct the handler deserializes
 # is what stops a client sending exactly what a tool documented and getting a parse error.
@@ -318,6 +324,14 @@ thiserror = "2"
 # that speak HTTPS build clients from `engine-tls`'s preconfigured rustls config.
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "form", "rustls-no-provider", "charset", "http2"] }
 rustls-pki-types = "1"
+# The server halves of the TLS stack `engine-tls` builds the client from, plus a
+# certificate generator: dev-dependencies of `mailcal-account` only, for the in-process
+# server its certificate-exception test dials. The two rustls crates are already in the
+# lock, declared with the same features the engine resolves, so nothing about a shipped
+# build changes; `rcgen` is new and brings `pem` and `yasna` with it.
+rustls = { version = "0.23.41", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring", "tls12"] }
+rcgen = "0.14"
 # SHA-256 + a system CSPRNG for PKCE (RFC 7636): the code-verifier's random bytes and the
 # S256 code-challenge. Already pulled in transitively by rustls, so this adds no new crate.
 ring = "0.17"

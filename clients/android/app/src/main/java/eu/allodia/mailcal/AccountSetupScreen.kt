@@ -15,13 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -36,10 +34,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountSetup
+import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.JmapSetup
+import uniffi.mailcal_bindings.MailServerKind
 import uniffi.mailcal_bindings.OAuthRoutes
 
 // The account kinds the setup form can offer (the two OAuth providers, Microsoft and Google, sit
@@ -96,21 +95,35 @@ internal const val JMAP_SIGNIN_PROBE_DEBOUNCE_MS = 600L
 @androidx.compose.runtime.Composable
 internal fun AccountSetupScreen(
     externalError: String? = null,
+    // A connect that ran somewhere else and came back refused. `addAccount` connects on its own
+    // thread, so its answer cannot be the return of `onConnect`; it arrives here instead, and is
+    // answered on this form exactly as one of its own would be.
+    externalFailure: ConnectFailure? = null,
     onCancel: (() -> Unit)? = null,
     signingIn: Boolean = false,
     signingInGoogle: Boolean = false,
     connecting: Boolean = false,
     onSignInMicrosoft: (String?) -> Unit = {},
     onSignInGoogle: (String?) -> Unit = {},
-    onConnect: (AccountSetup) -> String?,
-    onConnectJmap: (JmapSetup) -> String?,
+    onConnect: (AccountSetup) -> ConnectFailure?,
+    onConnectJmap: (JmapSetup) -> ConnectFailure?,
     // Asks the core whether this JMAP server offers discoverable OAuth sign-in. Blocking, so the
     // caller runs it off-main; null (the default) means "never offer it", which keeps every
     // existing preview and test rendering the plain form.
     onCheckJmapSignIn: (suspend (String, String) -> Boolean)? = null,
+    // The port a server of each kind conventionally uses, answered by the core. Null (the
+    // default) suggests no port, which keeps every preview and JVM test rendering the plain form
+    // without reaching the cdylib; a blank port submits a bare host, and the core resolves it to
+    // the same number this would have offered.
+    standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,
     // Starts the JMAP browser sign-in for the typed email + server.
     onSignInJmap: (String, String) -> Unit = { _, _ -> },
     signingInJmap: Boolean = false,
+    // Asks the typed mail server what it accepts. Null where there is no core to ask, which is a
+    // preview or a test: the pane then simply never offers a sign-in.
+    onCheckImapAuth: (suspend (uniffi.mailcal_bindings.ImapLoginRequest) -> uniffi.mailcal_bindings.ImapAuthOffer)? = null,
+    onSignInImap: ((uniffi.mailcal_bindings.ImapLoginRequest) -> Unit)? = null,
+    signingInImap: Boolean = false,
     initialKind: AccountKind = AccountKind.PASSWORD,
     // Which account types the picker shows, [AccountKind.offered] for what this build carries.
     // Passed in rather than read here so the form stays renderable without the core: every kind
@@ -127,6 +140,11 @@ internal fun AccountSetupScreen(
     var username by remember { mutableStateOf(prefillEmail) }
     var password by remember { mutableStateOf("") }
     var smtpHost by remember { mutableStateOf(prefillSmtpHost) }
+    // Each server's port and connection security. The host fields hold the name alone; the port
+    // sits beside it, where the user can see and change it.
+    var servers by remember(standardPort) {
+        mutableStateOf(standardPort?.let(ManualServerPair::fromCore) ?: ManualServerPair())
+    }
     var caldavBaseUrl by remember { mutableStateOf("") }
     // JMAP reuses the shared username/password state (only one kind is active at a time), the
     // secret is one field, whether the server issued a password or an API token.
@@ -138,7 +156,19 @@ internal fun AccountSetupScreen(
     // Gates the Google sign-in button: the user must confirm they've signed up for Early Access
     // before we open the browser (Google hard-blocks anyone not on the allow-list).
     var googleEarlyAccessConfirmed by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var ownFailure by remember { mutableStateOf<ConnectFailure?>(null) }
+    // Whichever connect answered last. The two cannot both be live: a submit clears its own
+    // before it starts, and the activity clears the outside one when the form closes.
+    val failure = ownFailure ?: externalFailure
+    // A different certificate is a different decision, so an acceptance never carries over to
+    // one nobody has been shown.
+    var certificateAccepted by remember(failure?.certificate) { mutableStateOf(false) }
+    // The transport's own words, but not while the certificate panel is up: that panel says the
+    // same thing in the reader's language and with the certificate beside it. A refusal on a
+    // route that cannot carry an exception keeps its message, because nothing else would say it.
+    val error = failure?.takeIf { it.certificate == null || kind != AccountKind.PASSWORD }?.message
+    // What the typed mail server said it accepts.
+    var imapAuth by remember { mutableStateOf<ImapAuthState>(ImapAuthState.Password) }
     val ctx = LocalContext.current
 
     val canConnect = imapHost.isNotBlank() && username.isNotBlank() && password.isNotBlank()
@@ -157,6 +187,25 @@ internal fun AccountSetupScreen(
             }
             kotlinx.coroutines.delay(JMAP_SIGNIN_PROBE_DEBOUNCE_MS)
             jmapSignInOffered = onCheckJmapSignIn(username, jmapServer)
+        }
+    }
+
+    // The same question of the typed mail server, debounced the same way. This pane's password
+    // field stays on screen throughout (it is already there, and taking it away would erase a
+    // password somebody is in the middle of typing), so an answer can only ever *add* the button
+    // or a line of explanation.
+    if (onCheckImapAuth != null) {
+        androidx.compose.runtime.LaunchedEffect(kind, username, imapHost, servers) {
+            imapAuth = ImapAuthState.Password
+            if (kind != AccountKind.PASSWORD || !username.contains('@') || imapHost.isBlank()) {
+                return@LaunchedEffect
+            }
+            kotlinx.coroutines.delay(JMAP_SIGNIN_PROBE_DEBOUNCE_MS)
+            imapAuth = ImapAuthState.of(
+                onCheckImapAuth(
+                    typedImapLoginRequest(username, imapHost, smtpHost, caldavBaseUrl, servers)
+                )
+            )
         }
     }
 
@@ -238,10 +287,43 @@ internal fun AccountSetupScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                SetupField(imapHost, { imapHost = it }, L10n.setup_field_mail_server(ctx), L10n.setup_hint_imap(ctx))
+                ServerRow(
+                    host = imapHost,
+                    onHostChange = { imapHost = it },
+                    label = L10n.setup_field_mail_server(ctx),
+                    placeholder = L10n.setup_hint_imap(ctx),
+                    field = servers.imap,
+                    onFieldChange = { servers = servers.copy(imap = it) },
+                    ctx = ctx,
+                )
                 SetupField(username, { username = it }, L10n.setup_field_email(ctx), keyboardType = KeyboardType.Email)
+                if (imapAuth.offersSignIn || imapAuth.explainsRegistration) {
+                    ImapAuthExplanation(imapAuth)
+                }
+                // Offered above the password field, but never instead of it: the manual pane is
+                // where somebody lands when nothing was detected, and a server that declines
+                // sign-in must still be connectable from here.
+                if (imapAuth.offersSignIn && onSignInImap != null) {
+                    SignInButton(
+                        enabled = !signingInImap,
+                        signingIn = signingInImap,
+                        label = L10n.setup_imap_signin_button(ctx),
+                    ) {
+                        onSignInImap(
+                            typedImapLoginRequest(username, imapHost, smtpHost, caldavBaseUrl, servers)
+                        )
+                    }
+                }
                 PasswordField(password, { password = it }, L10n.setup_field_password(ctx))
-                SetupField(smtpHost, { smtpHost = it }, L10n.setup_field_smtp_optional(ctx), L10n.setup_hint_smtp(ctx))
+                ServerRow(
+                    host = smtpHost,
+                    onHostChange = { smtpHost = it },
+                    label = L10n.setup_field_smtp_optional(ctx),
+                    placeholder = L10n.setup_hint_smtp(ctx),
+                    field = servers.smtp,
+                    onFieldChange = { servers = servers.copy(smtp = it) },
+                    ctx = ctx,
+                )
                 SetupField(caldavBaseUrl, { caldavBaseUrl = it }, L10n.setup_field_caldav_optional(ctx))
             }
         }
@@ -254,6 +336,14 @@ internal fun AccountSetupScreen(
                 color = MaterialTheme.colorScheme.error,
             )
         }
+        // Only an IMAP account's stored config carries an exception, so a refusal on any other
+        // route is reported and not offered: taking an answer and ignoring it is worse than not
+        // asking (docs/certificate-exceptions.md -> Known gaps).
+        val refused = failure?.certificate?.takeIf { kind == AccountKind.PASSWORD }
+        refused?.let {
+            CertificateExceptionPanel(it, certificateAccepted) { on -> certificateAccepted = on }
+        }
+        val certificateOk = refused == null || certificateAccepted
 
         when (kind) {
             AccountKind.MICROSOFT -> Button(
@@ -279,7 +369,7 @@ internal fun AccountSetupScreen(
                 connecting = connecting,
                 label = L10n.action_connect(ctx),
                 onClick = {
-                    error = onConnectJmap(
+                    ownFailure = onConnectJmap(
                         JmapSetup(
                             email = username,
                             serverUrl = jmapServer.ifBlank { null },
@@ -289,17 +379,24 @@ internal fun AccountSetupScreen(
                 },
             )
             AccountKind.PASSWORD -> ConnectButton(
-                enabled = canConnect && !connecting,
+                enabled = canConnect && !connecting && certificateOk,
                 connecting = connecting,
                 label = L10n.action_connect(ctx),
                 onClick = {
-                    error = onConnect(
+                    ownFailure = onConnect(
                         AccountSetup(
-                            imapHost = imapHost,
+                            imapHost = servers.imap.dial(imapHost),
                             username = username,
                             password = password,
-                            smtpHost = smtpHost.ifBlank { null },
+                            smtpHost = smtpHost.ifBlank { null }
+                                ?.let { servers.smtp.dial(it) },
                             caldavBaseUrl = caldavBaseUrl.ifBlank { null },
+                            imapSecurity = servers.imap.security,
+                            smtpSecurity = servers.smtp.security,
+                            // Set only on a re-submit somebody asked for after being shown the
+                            // certificate; it is stored with the account, so no later connect
+                            // asks again.
+                            acceptedCertificate = if (certificateAccepted) refused else null,
                         ),
                     )
                 },
@@ -312,141 +409,4 @@ internal fun AccountSetupScreen(
             }
         }
     }
-}
-
-// The Early Access notice + mandatory confirmation that gates Google sign-in. Google is in Early
-// Access while it reviews the app and hard-blocks anyone not on the app's OAuth test-user
-// allow-list, so the user must sign up first (the link) and confirm they've done so (the
-// checkbox) before we open the browser, or they'd hit Google's block screen instead of ours. The
-// caller keeps [confirmed] and disables its "Sign in with Google" button until it is true. Shared
-// by the manual picker (AccountSetupScreen) and the detected-account card (AccountSetupDetect).
-@androidx.compose.runtime.Composable
-internal fun GoogleEarlyAccessInfo(
-    confirmed: Boolean,
-    onConfirmedChange: (Boolean) -> Unit,
-) {
-    val ctx = LocalContext.current
-    val uriHandler = LocalUriHandler.current
-    Text(
-        text = L10n.setup_google_early_access_title(ctx),
-        style = MaterialTheme.typography.titleSmall,
-    )
-    Text(
-        text = L10n.setup_google_early_access_body(ctx),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    TextButton(onClick = { uriHandler.openUri(L10n.setup_google_early_access_url(ctx)) }) {
-        Text(L10n.setup_google_early_access_link(ctx))
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = confirmed, onCheckedChange = onConfirmedChange)
-        Text(
-            text = L10n.setup_google_early_access_confirm(ctx),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-}
-
-// The "Sign in with Google" button, shared by the manual picker and the detected-account card.
-// [enabled] must already fold in the Early Access confirmation (the caller gates it), so this
-// button can never start a sign-in Google would hard-block. Shows a spinner + "Signing in…" while
-// the browser sign-in is in flight.
-@androidx.compose.runtime.Composable
-internal fun GoogleSignInButton(
-    enabled: Boolean,
-    signingIn: Boolean,
-    onClick: () -> Unit,
-) {
-    val ctx = LocalContext.current
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-        if (signingIn) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                Text(L10n.setup_google_signing_in(ctx))
-            }
-        } else {
-            Text(L10n.setup_google_signin(ctx))
-        }
-    }
-}
-
-// The "Sign in with your provider" offer for a JMAP account: a note plus the button, shown only
-// when the core confirmed this server advertises discoverable OAuth. Hidden entirely otherwise:
-// an always-visible button that fails for most servers is worse than no button.
-@androidx.compose.runtime.Composable
-private fun JmapSignInOffer(offered: Boolean, signingIn: Boolean, onClick: () -> Unit) {
-    if (!offered) return
-    val ctx = LocalContext.current
-    Text(
-        text = L10n.setup_jmap_signin_note(ctx),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    ConnectButton(
-        enabled = !signingIn,
-        connecting = signingIn,
-        label = L10n.setup_jmap_signin_button(ctx),
-        onClick = onClick,
-    )
-}
-
-// The Connect button shared by the IMAP and JMAP branches: a spinner while the (blocking)
-// connect + first sync runs so an impatient user can't fire it twice and sees it's working.
-@androidx.compose.runtime.Composable
-internal fun ConnectButton(
-    enabled: Boolean,
-    connecting: Boolean,
-    label: String,
-    onClick: () -> Unit,
-) {
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-        if (connecting) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp))
-        } else {
-            Text(label)
-        }
-    }
-}
-
-// A single-line text field for the setup form; [placeholder] is shown when empty and
-// [keyboardType] tailors the soft keyboard (email/password vs. plain text).
-@androidx.compose.runtime.Composable
-internal fun SetupField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    placeholder: String? = null,
-    keyboardType: KeyboardType = KeyboardType.Text,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        label = { Text(label) },
-        placeholder = placeholder?.let { text -> { Text(text) } },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-    )
-}
-
-// A single-line, masked field for a password or API token in the setup form.
-@androidx.compose.runtime.Composable
-internal fun PasswordField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        label = { Text(label) },
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-    )
 }

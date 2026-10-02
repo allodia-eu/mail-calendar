@@ -35,7 +35,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid.ContextFlyout>
-                    <MenuFlyout>
+                    <MenuFlyout Opening="OnRowMenuOpening">
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpen()}" Tag="{x:Bind}" Click="OnOpen" />
                         <!-- The same thing a double-click does (docs/reading-window.md). It is here
                              because the gesture is not an affordance for everyone: it cannot be
@@ -54,6 +54,11 @@
                         <!-- Archive was missing entirely (it existed only on the *thread* menu), so a
                              mouse-only user could not reach a swipe action bound to it. -->
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionArchive()}" Tag="{x:Bind}" Click="OnArchive" />
+                        <!-- Shown as the menu opens only when there is somewhere to move to
+                             (MailListView.MoveToFolder.cs, docs/folder-pane.md rule 24). -->
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToFolder()}" Tag="{x:Bind}"
+                                        AutomationProperties.AutomationId="MoveToFolderItem"
+                                        Click="OnMoveToFolder" />
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToTrash()}" Tag="{x:Bind}" Click="OnDelete" />
                         <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionDeletePermanently()}" Tag="{x:Bind}" Click="OnPermanentlyDelete" />
                     </MenuFlyout>
@@ -99,14 +104,18 @@
         </DataTemplate>
 
         <!-- A conversation: a header (chevron, subject, count, latest sender) that expands inline
-             into the whole thread as indented sub-rows; right-click → Archive conversation. A tap
-             on the header (list ItemClick) toggles it and opens the latest in the reading pane. -->
+             into the whole thread as indented sub-rows; its right-click menu holds Move to
+             folder… and Archive conversation. A tap on the header (list ItemClick) toggles it and
+             opens the latest in the reading pane. -->
         <DataTemplate x:Key="ThreadRowTemplate" x:DataType="vm:MailRow">
             <StackPanel>
                 <Grid Padding="4,6" ColumnSpacing="10">
                     <Grid.ContextFlyout>
-                        <MenuFlyout>
+                        <MenuFlyout Opening="OnRowMenuOpening">
                             <MenuFlyoutItem Text="{x:Bind l10n:L10n.ThreadArchive()}" Tag="{x:Bind}" Click="OnArchiveThread" />
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToFolder()}" Tag="{x:Bind}"
+                                            AutomationProperties.AutomationId="MoveToFolderItem"
+                                            Click="OnMoveToFolder" />
                         </MenuFlyout>
                     </Grid.ContextFlyout>
                     <Grid.ColumnDefinitions>
@@ -388,6 +397,9 @@
                   ItemTemplateSelector="{StaticResource RowSelector}" SelectionMode="Extended"
                   IsItemClickEnabled="True" ItemClick="OnRowClick"
                   SelectionChanged="OnSelectionChanged"
+                  CanDragItems="True"
+                  DragItemsStarting="OnRowsDragItemsStarting"
+                  DragItemsCompleted="OnRowsDragItemsCompleted"
                   Loaded="OnRowsListLoaded"
                   KeyboardAcceleratorPlacementMode="Hidden"
                   Visibility="{x:Bind Model.MailRowsVisible, Mode=OneWay}"
@@ -418,6 +430,31 @@
                 </Style>
             </ListView.ItemContainerStyle>
         </ListView>
+
+        <!-- Why the list has no rows, in the list's own row and over it, so nothing around it
+             moves as a folder fills. The badge beside the folder counts what the server holds
+             over all time while the list shows what sync depth kept, so an empty list that does
+             not say which of the two it is contradicts the badge (docs/folder-pane.md, rule 5).
+             The button appears only where widening the depth would actually find something. -->
+        <StackPanel Grid.Row="2" Spacing="8" Padding="32,0"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    AutomationProperties.AutomationId="EmptyMailbox"
+                    Visibility="{x:Bind Model.HasEmptyReason, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                       Style="{StaticResource BodyStrongTextBlockStyle}"
+                       AutomationProperties.AutomationId="EmptyMailboxText"
+                       Text="{x:Bind Model.EmptyMailboxText, Mode=OneWay}" />
+            <TextBlock HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="{x:Bind Model.EmptyMailboxBody, Mode=OneWay}"
+                       Visibility="{x:Bind Model.EmptyMailboxOffersSyncDepth, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+            <HyperlinkButton HorizontalAlignment="Center" Padding="0"
+                             AutomationProperties.AutomationId="EmptyMailboxChange"
+                             Content="{x:Bind l10n:L10n.MailboxEmptyChange()}"
+                             Click="OnChangeSyncDepth"
+                             Visibility="{x:Bind Model.EmptyMailboxOffersSyncDepth, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+        </StackPanel>
 
         <!-- The Outbox: every account's unsent messages, in the list's own row, in place of the
              mail rather than over it (docs/sending.md). Selection is Single and click does
@@ -511,25 +548,35 @@
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="{x:Bind Model.SyncHintColumnWidth, Mode=OneWay}" />
+                    <ColumnDefinition Width="{x:Bind Model.SyncStatusColumnWidth, Mode=OneWay}" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0"
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            Text="{x:Bind Model.MailCountText, Mode=OneWay}" />
-                <!-- The background-sync hint: which accounts are pulling mail down right now,
+                <!-- What the core has to say about mail arriving, or not: an account whose
+                     server asked us to wait, or which accounts are pulling mail down right now
                      and how far through their folders. A caption inside this status line, never
                      a bar, a pass the user did not start may not take a row of layout and move
-                     the list. Collapsed whenever nothing is arriving unasked, which is almost
-                     always. -->
+                     the list. Collapsed whenever there is nothing to say, which is almost
+                     always.
+
+                     The paused notice is a short label with the whole sentence behind the
+                     hover, so it cannot crowd the message count out of a narrow window. The
+                     spoken name falls back to the sentence where there is one: without that a
+                     screen reader would hear "Sync paused" and never the wait. The tooltip is
+                     null for the hint, which says everything in the line itself, and a null
+                     tooltip is no tooltip. -->
                 <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0"
-                           AutomationProperties.AutomationId="SyncHint"
+                           AutomationProperties.AutomationId="SyncStatus"
+                           AutomationProperties.Name="{x:Bind Model.SyncStatusSpoken, Mode=OneWay}"
+                           ToolTipService.ToolTip="{x:Bind Model.SyncStatusDetail, Mode=OneWay}"
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                           Visibility="{x:Bind Model.SyncHintVisible, Mode=OneWay}"
-                           Text="{x:Bind Model.SyncHintText, Mode=OneWay}" />
+                           Visibility="{x:Bind Model.SyncStatusVisible, Mode=OneWay}"
+                           Text="{x:Bind Model.SyncStatusText, Mode=OneWay}" />
                 <!-- Connection status for the current scope (the selected account, or all in the
                      unified inbox): a subtle "Verbonden" when reachable, a caution "Niet verbonden"
                      with a warning glyph otherwise. Click it for the details + a retry. -->

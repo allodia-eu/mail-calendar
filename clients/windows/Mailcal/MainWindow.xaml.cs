@@ -56,6 +56,7 @@ public sealed partial class MainWindow : Window
 
         Welcome.Init(Model);
         SetupView.Init(Model);
+        WireAddAccountDialog();
         MailView.Init(Model);
         // The list's search-horizon line asks for the depth setting; the dialog needs this
         // window's XamlRoot, so the control raises and the window opens.

@@ -49,7 +49,7 @@ fn register_jmap(app: &MailcalApp, config_toml: &str) -> Registered {
 #[test]
 fn the_constructors_credential_store_is_live_before_the_first_refresh_can_be() {
     let (tx, _rx) = mpsc::channel();
-    let grant = mailcal_account::JmapOAuth {
+    let grant = mailcal_account::OAuthGrant {
         client_id: "client-abc".to_owned(),
         client_secret: None,
         refresh_token: mailcal_account::Secret::new("original-refresh".to_owned()),
@@ -58,6 +58,7 @@ fn the_constructors_credential_store_is_live_before_the_first_refresh_can_be() {
         redirect_uri: "eu.allodia.mailcal://jmap-oauth".to_owned(),
         scopes: vec!["offline_access".to_owned()],
         resource: None,
+        issuer: None,
     };
     let config = mailcal_account::JmapAccountConfig {
         email: "rotating@example.com".to_owned(),
@@ -65,6 +66,7 @@ fn the_constructors_credential_store_is_live_before_the_first_refresh_can_be() {
         password: None,
         token: None,
         oauth: Some(grant),
+        shape: mailcal_account::AccountShape::default(),
     };
     let account_id = config.account_id().expect("a valid account id");
     let config_toml = config.to_toml().expect("serializable config");
@@ -117,7 +119,7 @@ fn unreachable_oauth_jmap_config() -> (String, mailcal_account::JmapAccountConfi
         base_url: "http://127.0.0.1:1".to_owned(),
         password: None,
         token: None,
-        oauth: Some(mailcal_account::JmapOAuth {
+        oauth: Some(mailcal_account::OAuthGrant {
             client_id: "client-abc".to_owned(),
             client_secret: None,
             refresh_token: mailcal_account::Secret::new("original-refresh".to_owned()),
@@ -126,7 +128,9 @@ fn unreachable_oauth_jmap_config() -> (String, mailcal_account::JmapAccountConfi
             redirect_uri: "eu.allodia.mailcal://jmap-oauth".to_owned(),
             scopes: vec!["offline_access".to_owned()],
             resource: None,
+            issuer: None,
         }),
+        shape: mailcal_account::AccountShape::default(),
     };
     (config.to_toml().expect("serializable config"), config)
 }
@@ -182,6 +186,9 @@ fn a_rejected_replacement_keeps_the_registered_and_stored_password() {
         caldav_base_url: None,
         imap_security: None,
         smtp_security: None,
+        accepted_certificate: None,
+        carddav_base_url: None,
+        uses: None,
     })
     .expect("valid account config");
     let sink = crate::token_sink::token_sink(&app.registry, &app.credential_store);
@@ -204,10 +211,13 @@ fn a_rejected_replacement_keeps_the_registered_and_stored_password() {
     );
     assert_eq!(
         app.registry
-            .imap_config(&account_id)
+            .imap(&account_id)
             .expect("the displaced entry was restored")
+            .0
             .imap
-            .password
+            .as_ref()
+            .and_then(|imap| imap.password.as_ref())
+            .expect("a password account keeps its stored secret")
             .expose(),
         "old-password",
     );

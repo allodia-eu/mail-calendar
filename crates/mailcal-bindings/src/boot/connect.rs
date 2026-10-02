@@ -5,52 +5,48 @@
 //! implementations of "open an account of family X", the one `add_account` and the JMAP
 //! re-authentication used. Both now go through
 //! [`AccountDial`](crate::account_registry::AccountDial) like everything else, so what is left here
-//! is the part that genuinely is per-family and genuinely is optional: a calendar whose failure
-//! must never take the mailbox down with it.
+//! is the part that genuinely is per-family and genuinely is optional: a calendar, whose failure
+//! the dial weighs against what else the account is used for
+//! (`account_registry::dial_parts`).
 
 use std::sync::Arc;
 
 use engine_provider::Provider;
 use mailcal_account::{GraphTokenSource, JmapAccountConfig};
 
-/// Binds the JMAP account's calendar provider when its session advertises calendars. A
-/// calendar-connect failure is non-fatal: mail comes up with an empty agenda rather than failing
-/// the whole account. A server with no calendar support yields no provider rather than one that
-/// fails every pass.
+use crate::account_registry::ConnectFailure;
+
+/// Binds the JMAP account's calendar provider when its session advertises calendars. A server
+/// with no calendar support yields no provider rather than one that fails every pass.
 pub(crate) async fn connect_jmap_calendars(
     config: &JmapAccountConfig,
     tokens: Option<&Arc<GraphTokenSource>>,
     providers: &[Box<dyn Provider>],
-) -> Vec<Box<dyn Provider>> {
-    if providers
+) -> Result<Vec<Box<dyn Provider>>, ConnectFailure> {
+    if !providers
         .first()
         .is_some_and(|provider| provider.connection_info().capabilities.calendars())
     {
-        match mailcal_account::connect_jmap_calendar_providers(config, tokens).await {
-            Ok(providers) => providers,
-            Err(err) => {
-                log::warn!("jmap: calendar connect failed, mail only: {err}");
-                Vec::new()
-            }
-        }
-    } else {
-        Vec::new()
+        return Ok(Vec::new());
     }
+    mailcal_account::connect_jmap_calendar_providers(config, tokens)
+        .await
+        .map_err(|err| {
+            log::warn!("jmap: calendar connect failed: {err}");
+            ConnectFailure::from(err)
+        })
 }
 
-/// Binds a Google account's calendar provider (its primary calendar). A calendar-connect failure is
-/// non-fatal: mail comes up with an empty agenda. Unlike the Graph parallel there is no re-consent
-/// case to report (Google requests the calendar scope at sign-in) so this returns just the
-/// (possibly empty) providers.
+/// Binds a Google account's calendar provider (its primary calendar). Unlike the Graph parallel
+/// there is no re-consent case to report (Google requests the calendar scope at sign-in).
 pub(crate) async fn connect_google_calendars(
     id: &engine_api::AccountId,
     tokens: Arc<GraphTokenSource>,
-) -> Vec<Box<dyn Provider>> {
-    match mailcal_account::connect_google_calendar_providers(id, tokens).await {
-        Ok(providers) => providers,
-        Err(err) => {
-            log::warn!("google: calendar connect failed, mail only: {err}");
-            Vec::new()
-        }
-    }
+) -> Result<Vec<Box<dyn Provider>>, ConnectFailure> {
+    mailcal_account::connect_google_calendar_providers(id, tokens)
+        .await
+        .map_err(|err| {
+            log::warn!("google: calendar connect failed: {err}");
+            ConnectFailure::from(err)
+        })
 }

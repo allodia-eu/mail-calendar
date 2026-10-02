@@ -43,6 +43,7 @@ import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.BulkAction
 import uniffi.mailcal_bindings.ComposerFileAttachment
+import uniffi.mailcal_bindings.EmptyReason
 import uniffi.mailcal_bindings.MailtoPrefill
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.RecipientSuggestion
@@ -109,6 +110,8 @@ internal fun MailboxScreen(
     // The signature library + lookups for the reply/forward composer, or null to leave signatures
     // out (a screenshot run, a test).
     signatures: ComposerSignatures? = null,
+    // Where a row's Move to folder… may file its message, or null to leave the item out.
+    messageFiling: MessageFiling? = null,
     onSubmitRich: (submission: ComposerSubmission) -> Boolean,
     // The persisted per-direction swipe actions, and the app-level default send account (the
     // composer's From opens on it in the unified inbox). Both live in the Rust core.
@@ -119,6 +122,8 @@ internal fun MailboxScreen(
     onAcceptTimeZoneChange: () -> Unit,
     onDismissTimeZoneChange: () -> Unit,
     syncProgress: SyncProgressSnapshot?,
+    // Why the list has no rows, or null whenever it has some (`docs/folder-pane.md`, rule 20).
+    emptyReason: EmptyReason? = null,
     offline: Boolean,
     unreachableAccounts: List<String>,
     connectionIssues: List<ConnectionIssue>,
@@ -342,6 +347,7 @@ internal fun MailboxScreen(
                                 stageForwardFiles = stageForwardFiles,
                                 suggestionsFor = suggestionsFor,
                                 signatures = signatures,
+                                messageFiling = messageFiling,
                             )
                             is SnapshotRow.Thread -> ThreadConversationRow(
                                 thread = row.row,
@@ -356,6 +362,9 @@ internal fun MailboxScreen(
                         }
                     }
                 }
+                // Over the rows rather than in place of the list, so the pull-to-sync gesture
+                // survives: an empty folder is one a pull is a reasonable answer to.
+                MailboxEmpty(reason = emptyReason, onOpenSettings = onOpenSettings)
                 // A floating "new mail" pill at the top of the list: appears when mail arrives
                 // while the user is scrolled down, and pulls the list to the top on tap
                 // (Gmail-style). It dismisses itself once the top is reached, so it never
@@ -384,7 +393,7 @@ internal fun MailboxScreen(
             // The background-sync hint shares that strip: a pass nobody started says so in a
             // caption rather than a bar. The two are mutually exclusive in the core, an awaited
             // download is already explained by the bar, so they never stack.
-            SyncHint(syncProgress, accounts, ctx)
+            SyncStatus(syncProgress, accounts, ctx)
         }
         // The familiar bottom-right floating action button for composing a new message.
         FloatingActionButton(

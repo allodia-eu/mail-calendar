@@ -14,11 +14,14 @@ use super::{
     contacts::ContactsPane,
     destinations::DestinationBar,
     detached::DetachedWindows,
+    folder_actions,
     folder_pane::{self, FolderPaneRendering, FolderPaneSelection},
+    folder_pane_edit,
     invitation::ReplyPromptDialog,
     mail_actions::{self, PermanentDeleteDialog},
     mail_toolbar::MailToolbar,
     mailbox::MailboxRendering,
+    mailbox_empty,
     mailbox_progressive::ProgressiveRenderer,
     outbox,
     reader::{ComposerHost, ReadingSource},
@@ -30,6 +33,7 @@ use super::{
     setup::SetupWindow,
     setup_widgets::SenderNamePrompt,
     shell_sidebar::{restore_pane_width, sidebar_pane},
+    sync_line,
     time_zone::TimeZonePrompt,
     unfiled_copy::UnfiledCopyPrompt,
     welcome::WelcomeWindow,
@@ -56,12 +60,13 @@ pub(crate) struct AppWidgets {
     detached: DetachedWindows,
     connectivity: ConnectivityBanners,
     notice: adw::Banner,
+    folder_notice: adw::Banner,
     sync_strip: gtk::Box,
     sync_bar_row: gtk::Box,
     sync_progress: gtk::ProgressBar,
     sync_caption: gtk::Label,
     sync_indeterminate: Rc<Cell<bool>>,
-    sync_hint: gtk::Label,
+    sync_status: gtk::Label,
     settings: SettingsWindow,
     setup: SetupWindow,
     welcome: WelcomeWindow,
@@ -106,7 +111,8 @@ impl AppWidgets {
         sidebar_scroll.set_min_content_width(folder_pane::width::MIN);
         sidebar_scroll.set_child(Some(&sidebar));
         let destinations = DestinationBar::new(&sender);
-        let sidebar_toolbar = sidebar_pane(&sender, &sidebar_scroll, &destinations);
+        let folder_notice = folder_pane_edit::notice_banner(&sender);
+        let sidebar_toolbar = sidebar_pane(&sender, &sidebar_scroll, &destinations, &folder_notice);
 
         let messages = gtk::ListBox::new();
         // Multiple, so a selection is the platform's own selected state rather than a colour we
@@ -154,17 +160,17 @@ impl AppWidgets {
 
         // Plain text because the caption carries an account address; an ampersand in one must
         // render, not fail a markup parse.
-        let sync_hint = gtk::Label::new(None);
-        sync_hint.set_xalign(0.0);
-        sync_hint.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        sync_hint.set_margin_top(6);
-        sync_hint.set_margin_bottom(6);
-        sync_hint.set_margin_start(12);
-        sync_hint.set_margin_end(12);
-        sync_hint.add_css_class("dim-label");
-        sync_hint.add_css_class("caption");
-        sync_hint.set_visible(false);
-        sync_strip.append(&sync_hint);
+        let sync_status = gtk::Label::new(None);
+        sync_status.set_xalign(0.0);
+        sync_status.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        sync_status.set_margin_top(6);
+        sync_status.set_margin_bottom(6);
+        sync_status.set_margin_start(12);
+        sync_status.set_margin_end(12);
+        sync_status.add_css_class("dim-label");
+        sync_status.add_css_class("caption");
+        sync_status.set_visible(false);
+        sync_strip.append(&sync_status);
         sync_strip.set_visible(false);
         list_toolbar.add_bottom_bar(&sync_strip);
         let sync_indeterminate = Rc::new(Cell::new(false));
@@ -251,12 +257,13 @@ impl AppWidgets {
             detached,
             connectivity,
             notice,
+            folder_notice,
             sync_strip,
             sync_bar_row,
             sync_progress,
             sync_caption,
             sync_indeterminate,
-            sync_hint,
+            sync_status,
             settings: SettingsWindow::default(),
             setup: SetupWindow::default(),
             welcome: WelcomeWindow::default(),
@@ -282,11 +289,8 @@ impl AppWidgets {
             PrimaryView::Mail => self.primary.set_visible_child_name("mail"),
             PrimaryView::Calendar => {
                 self.calendar.render(&model.calendar, model.app.as_ref());
-                self.calendar.render_manager(
-                    model.calendar_manager_generation,
-                    model.app.as_ref(),
-                    &model.snapshot.accounts,
-                );
+                self.calendar
+                    .render_manager(model.calendar_manager_generation, model.app.as_ref());
                 self.primary.set_visible_child_name("calendar");
                 if calendar_opened {
                     self.calendar.opened();
@@ -310,6 +314,7 @@ impl AppWidgets {
                 &self.sidebar,
                 &model.snapshot,
                 &model.connectivity.unreachable_accounts,
+                &folder_actions::name_check(model.app.clone()),
                 &self.sender,
             );
             self.rendered_pane = Some(pane);
@@ -327,6 +332,13 @@ impl AppWidgets {
                 self.mailbox_renderer = ProgressiveRenderer::default();
                 outbox::render(&self.messages, &model.snapshot, &self.sender);
             } else {
+                // Before the rows, so the placeholder is in place by the time GTK decides
+                // whether the box is empty; the renderer below never has to ask.
+                mailbox_empty::render(
+                    &self.messages,
+                    model.snapshot.empty_reason.as_ref(),
+                    &self.sender,
+                );
                 self.mailbox_renderer.render(
                     &self.messages,
                     &model.snapshot,
@@ -341,6 +353,7 @@ impl AppWidgets {
         // After the rows, always: a plain click has already moved the widget's own selection, and
         // this is what brings it back to what the model says (`selection_gesture`).
         sync_selection(&self.messages, model);
+        self.mailbox_renderer.set_moves(model.move_context());
         let selection = model.selection.summary(&model.snapshot.rows);
         self.selection_bar.render(selection);
         self.selection_pane.render(selection, &model.snapshot.mode);
@@ -389,22 +402,21 @@ impl AppWidgets {
         self.notice
             .set_title(model.notice.as_deref().unwrap_or_default());
         self.notice.set_revealed(model.notice.is_some());
+        folder_pane_edit::render_notice(&self.folder_notice, model.snapshot.folder_notice.as_ref());
         self.connectivity.render(&model.connectivity, model.primary);
         if let Some(bar) = &model.sync_bar {
             self.sync_caption.set_text(&bar.caption);
             self.sync_indeterminate.set(bar.fraction.is_none());
             self.sync_progress.set_fraction(bar.fraction.unwrap_or(0.0));
             self.sync_bar_row.set_visible(true);
-            self.sync_hint.set_visible(false);
+            self.sync_status.set_visible(false);
         } else {
             self.sync_indeterminate.set(false);
             self.sync_bar_row.set_visible(false);
-            self.sync_hint
-                .set_text(model.sync_hint.as_deref().unwrap_or_default());
-            self.sync_hint.set_visible(model.sync_hint.is_some());
+            sync_line::render_status(&self.sync_status, model.sync_status.as_ref());
         }
         self.sync_strip
-            .set_visible(model.sync_bar.is_some() || model.sync_hint.is_some());
+            .set_visible(model.sync_bar.is_some() || model.sync_status.is_some());
         if model.draft_check.is_some() {
             self.settings.close();
         }

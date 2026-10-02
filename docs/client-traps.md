@@ -53,6 +53,17 @@ that same file.
   glyph's own box
   ([`ReadingView.swift`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/ReadingView.swift)'s
   `iconBox`), never in a frame that is a no-op on the platform that does not want it.
+- **A SwiftUI `listRowBackground` on anything but the row is dropped in silence.** The modifier is
+  read off the `List`'s own child, so one applied inside an `HStack` that *is* that child reaches
+  nothing: it compiles, it reads correctly beside the row it is meant to light, and it draws
+  nothing at all. The folder pane put it on the row's button, and every row there is a stack, a
+  chevron beside that button, so the folder the user had open was the one row in the pane with no
+  highlight on it, for months. What made it survive review is that the two rows which are *not*
+  stacks, the Outbox and the pinned destinations, lit perfectly, so the modifier was demonstrably
+  working. Apply it to the row
+  ([`sidebarRowHighlight`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/Mailcal.Sidebar.swift)),
+  and check a nested row on screen rather than a flat one: no suite sees this, `swift build` and
+  the XCUITest classes included.
 - **A WinUI button with no label stands at its glyph's height, not its row's**, because the default
   button style *centres* its content rather than stretching it. So the one icon-only control in a
   row of labelled ones comes up short and vertically centred: 54px against 64px on a 200% display.
@@ -111,6 +122,19 @@ that same file.
   pixels in a screenshot, and nothing does. Prove it on a simulator whose own appearance is the
   *opposite* of the one under test, driving the picker with `idb` and flipping the host with
   `xcrun simctl ui <udid> appearance light|dark`.
+- **The C# bindings PascalCase every field, and nothing outside a Windows host compiles the code
+  that reads them.** `mailcal-bindgen-cs` emits `PasswordAlsoWorks` where Swift and Kotlin keep
+  `passwordAlsoWorks`, so a field name copied across from another client compiles on those two and
+  fails only here. `Mailcal.Tests` is plain `net10.0` and links no WinUI type, so the whole of
+  `clients/windows/Mailcal/` is invisible to it, and to `gate.sh --clients` on any other host: the
+  first thing that reads a name wrong is CI. Two habits pay for themselves: read the field out of
+  `clients/windows/Generated/mailcal_bindings.cs` rather than from the sibling client, and grep a
+  new file for a lowercase member access, which in this codebase is always either a namespace or a
+  mistake.
+- **A `MailboxModel` partial that disagrees about accessibility is reported as a broken
+  `MainWindow.xaml`.** C# rejects the class (`CS0262`), so every type in it disappears, and the
+  XAML compiler then lists a dozen `WMC0001: Unknown type` lines naming views nobody touched. The
+  one line that matters is the first error, not the loudest.
 - **On Linux, hand a URI or a file to the desktop through the portal launchers, never through
   `AppInfo`.** `gtk::UriLauncher` for a URI, `gtk::FileLauncher` for a file
   (`cargo xtask check-desktop-handoff` catches the shapes a grep can decide).
@@ -262,6 +286,16 @@ that same file.
   `AdwPreferencesGroup` supplies the list. `every_row_belongs_to_a_list`
   ([`mailbox_tests.rs`](../clients/linux/src/ui/mailbox_tests.rs)) asserts a whole window at once:
   call it from any widget test that presents one.
+- **The arrow keys stop on an insensitive `GtkListBoxRow`.** `GtkListBox` steps its cursor onto
+  every visible row and then cannot focus an insensitive one, so that press does nothing visible,
+  the next carries on, and Enter in between activates the row focus stayed on. Tab passes over the
+  row; the arrows do not. A pointer never meets it and a dump shows the row correctly insensitive,
+  so only the keyboard finds it. A list that keeps dimmed rows for context walks `move-cursor`
+  itself (`walk_destinations_only` in
+  [`folder_dialogs.rs`](../clients/linux/src/ui/folder_dialogs.rs)).
+- **A `GtkWindow` closes on no key.** `AdwDialog` closes on Escape; a plain window used as a
+  dialog does not, though every reader expects it to. [`modal::new`](../clients/linux/src/ui/modal.rs)
+  binds Escape to `window.close`, so build a modal through it.
 - **A size request or a scroll offset set from a `GtkAdjustment` notification never reaches the
   screen.** GTK emits `notify::page-size` and `notify::upper` from inside the viewport's own size
   allocation, which has already measured and placed the child for this frame. A height asked for

@@ -15,7 +15,7 @@ use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::ContactWriteStatus;
 
 use super::{
-    super::{AppInput, avatar, destinations::CONTACTS_ICON, mailbox},
+    super::{AppInput, avatar, icons, mailbox},
     dialog,
     model::{ContactsModel, ListState, PersonDetail, PersonRow, ValueGroup},
 };
@@ -54,7 +54,7 @@ impl ContactsPane {
         header.set_show_start_title_buttons(false);
         header.set_show_end_title_buttons(false);
         header.set_title_widget(Some(&adw::WindowTitle::new(l10n::contacts_title(), "")));
-        let refresh = gtk::Button::from_icon_name("view-refresh-symbolic");
+        let refresh = gtk::Button::from_icon_name(icons::SYNC);
         refresh.set_tooltip_text(Some(l10n::action_refresh()));
         refresh.update_property(&[AccessibleProperty::Label(l10n::action_refresh())]);
         let input = sender.clone();
@@ -62,7 +62,7 @@ impl ContactsPane {
         header.pack_end(&refresh);
         // Hidden until the core says there is a writable address book: offering a create with
         // nowhere to file it produces a save that fails after the user has typed everything in.
-        let create = gtk::Button::from_icon_name("list-add-symbolic");
+        let create = gtk::Button::from_icon_name(icons::ADD);
         create.set_tooltip_text(Some(l10n::contacts_new()));
         create.update_property(&[AccessibleProperty::Label(l10n::contacts_new())]);
         create.set_visible(false);
@@ -104,7 +104,7 @@ impl ContactsPane {
         let list_scroll = gtk::ScrolledWindow::new();
         list_scroll.set_child(Some(&list));
         let empty = adw::StatusPage::new();
-        empty.set_icon_name(Some(CONTACTS_ICON));
+        empty.set_icon_name(Some(icons::CONTACTS));
         let list_stack = gtk::Stack::new();
         list_stack.add_named(&list_scroll, Some("rows"));
         list_stack.add_named(&empty, Some("empty"));
@@ -127,7 +127,7 @@ impl ContactsPane {
         // The counterpart of the reading pane's placeholder, so the second column is never a
         // blank half-window before a person is picked.
         let placeholder = adw::StatusPage::new();
-        placeholder.set_icon_name(Some(CONTACTS_ICON));
+        placeholder.set_icon_name(Some(icons::CONTACTS));
         placeholder.set_title(l10n::contacts_title());
         let detail_stack = gtk::Stack::new();
         detail_stack.add_named(&detail_scroll, Some("person"));

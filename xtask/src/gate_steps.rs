@@ -10,9 +10,9 @@
 use std::path::Path;
 
 use crate::{
-    gate::{Outcome, Palette, Step},
+    gate::{Palette, Step},
     gate_clients, gate_exec,
-    gate_exec::Runner,
+    gate_exec::{Runner, Timings},
 };
 
 /// The three checkers that stay Python, and why each does.
@@ -64,6 +64,7 @@ const EARLY_CHECKS: &[&str] = &[
 const LATE_CHECKS: &[&str] = &[
     "check-showcase-flag",
     "check-dev-account",
+    "check-icons",
     "check-log-hygiene",
     "check-british-english",
     "check-dash-hygiene",
@@ -71,15 +72,21 @@ const LATE_CHECKS: &[&str] = &[
     "check-surface-publish",
 ];
 
-/// Every step, in order, run as the list is built.
-pub(crate) fn all(root: &Path, clients: bool, palette: &Palette) -> Vec<Step> {
-    let run = Runner::new(root, palette);
+/// Every step, in order, run as the list is built, and how long each took. Without `keep_going`,
+/// the steps after the first failure are not run.
+pub(crate) fn all(
+    root: &Path,
+    clients: bool,
+    keep_going: bool,
+    palette: &Palette,
+) -> (Vec<Step>, Timings) {
+    let run = Runner::new(root, palette, keep_going);
     let mut out: Vec<Step> = Vec::new();
 
     // 1. Formatting, on the pinned nightly: stable rustfmt cannot read this workspace's options and
     //    silently ignores them, so a floating `+nightly` goes green here and red in the pipeline.
     match gate_exec::nightly_channel(root) {
-        Err(why) => out.push(("format (nightly rustfmt)".to_owned(), Outcome::Need(why))),
+        Err(why) => out.push(run.needs("format (nightly rustfmt)", &why)),
         Ok(pin) => {
             run.ensure_rustfmt(&pin);
             out.push(run.external(
@@ -206,7 +213,7 @@ pub(crate) fn all(root: &Path, clients: bool, palette: &Palette) -> Vec<Step> {
         ));
     }
 
-    out
+    (out, run.into_timings())
 }
 
 /// Prints the step list without running anything.

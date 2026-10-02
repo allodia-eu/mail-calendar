@@ -6,7 +6,7 @@
     xmlns:l10n="using:Allodia.Mailcal">
 
     <ScrollViewer>
-        <StackPanel MaxWidth="480" Margin="24" Spacing="12" HorizontalAlignment="Center">
+        <StackPanel x:Name="FormRoot" MaxWidth="480" Margin="24" Spacing="12" HorizontalAlignment="Center">
 
             <!-- Email-first detection step: type only an email; the shared core looks up the
                  provider's settings and routes to the prefilled form below. "Set up manually"
@@ -37,6 +37,8 @@
                     <TextBlock x:Name="DetectingText" VerticalAlignment="Center" Visibility="Collapsed"
                                Text="{x:Bind l10n:L10n.SetupDetectLooking()}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button x:Name="DetectCancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}"
+                            Visibility="{x:Bind Model.AddingAccountVisibility, Mode=OneWay}" Click="OnCancel" />
                     <Button x:Name="ManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual()}" Click="OnSetUpManually" />
                     <Button x:Name="ContinueButton" Content="{x:Bind l10n:L10n.SetupDetectAction()}"
                             Style="{StaticResource AccentButtonStyle}" IsEnabled="False" Click="OnContinueDetect" />
@@ -70,20 +72,109 @@
 
                 <!-- IMAP / password account fields. -->
                 <StackPanel x:Name="ImapSection" Spacing="12">
-                    <TextBlock
-                        Text="{x:Bind l10n:L10n.SetupCredentialsNote()}"
-                        Style="{StaticResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-
-                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
-                    <TextBox x:Name="ImapHost" Header="{x:Bind l10n:L10n.SetupFieldMailServer()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintImap()}"
-                             TextChanged="OnFieldChanged" />
+                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount()}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <!-- Server, port and security on one row: the port is the field a user must be
+                         able to see and change, not a colon inside the server name. -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="ImapHost" Grid.Column="0" Header="{x:Bind l10n:L10n.SetupFieldMailServer()}"
+                                 PlaceholderText="{x:Bind l10n:L10n.SetupHintImap()}" TextChanged="OnFieldChanged" />
+                        <TextBox x:Name="ImapPort" Grid.Column="1" Width="88" Header="{x:Bind l10n:L10n.SetupFieldPort()}"
+                                 InputScope="Number" TextChanged="OnImapPortChanged" />
+                        <ComboBox x:Name="ImapSecurityPicker" Grid.Column="2" Width="132" Header="{x:Bind l10n:L10n.SetupFieldSecurity()}"
+                                  SelectionChanged="OnImapSecurityChanged">
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityImplicitTls()}" />
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityStarttls()}" />
+                        </ComboBox>
+                    </Grid>
                     <TextBox x:Name="Username" Header="{x:Bind l10n:L10n.SetupFieldEmail()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail()}"
                              TextChanged="OnFieldChanged" />
-                    <PasswordBox x:Name="Password" Header="{x:Bind l10n:L10n.SetupFieldPassword()}" PasswordChanged="OnPasswordChanged" />
+
+                    <!-- Said while the server is being asked, so a slow server reads as a wait
+                         rather than as a form with nothing on it. -->
+                    <StackPanel x:Name="ImapCheckingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                        <ProgressRing x:Name="ImapCheckingRing" Width="16" Height="16" IsActive="False" />
+                        <TextBlock x:Name="ImapCheckingText"
+                                   Text="{x:Bind l10n:L10n.SetupImapSigninChecking()}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+
+                    <!-- What this mail server said it accepts, and the button where it accepts a
+                         sign-in. Shown only once the core has ASKED the server (imapAuthOptions),
+                         so the button can never dead-end. Where a password also works the field
+                         waits behind "Use a password instead" (docs/mail-oauth.md rule 2); on a
+                         provider whose sign-in is closed to us the line below explains that and
+                         the field is drawn, and a failed sign-in hands it straight back. What is
+                         on screen comes from ImapSignInGate, which is WinUI-free and unit-tested;
+                         AccountSetupView.ImapSignIn.cs drives it. -->
+                    <StackPanel x:Name="ImapSignInPanel" Spacing="8" Visibility="Collapsed">
+                        <TextBlock
+                            Text="{x:Bind l10n:L10n.SetupImapSigninNote()}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button x:Name="ImapSignInButton" Content="{x:Bind l10n:L10n.SetupImapSigninButton()}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                HorizontalAlignment="Left" Click="OnSignInImap" />
+                        <HyperlinkButton x:Name="ImapUsePasswordButton"
+                                         Content="{x:Bind l10n:L10n.SetupImapSigninPasswordInstead()}"
+                                         Padding="0" Visibility="Collapsed" Click="OnUseImapPassword" />
+                        <InfoBar x:Name="ImapSignInFailedBar" IsOpen="False" IsClosable="False"
+                                 Severity="Warning"
+                                 Message="{x:Bind l10n:L10n.SetupImapSigninFailed()}" />
+                    </StackPanel>
+
+                    <!-- Said rather than left to be guessed at. Without this line, a provider
+                         whose sign-in exists but admits only pre-registered applications looks
+                         exactly like one with no sign-in at all, and somebody who has seen the
+                         button elsewhere is left wondering where theirs went. -->
+                    <TextBlock x:Name="ImapRegistrationNeededNote"
+                               Text="{x:Bind l10n:L10n.SetupImapSigninRegistrationNeeded()}"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                    <!-- The password route, as one thing: the field and the two lines about it
+                         go and come back together, so neither line describes a field that is not
+                         on screen. -->
+                    <StackPanel x:Name="ImapPasswordPanel" Spacing="8" Visibility="Collapsed">
+                        <PasswordBox x:Name="Password" Header="{x:Bind l10n:L10n.SetupFieldPassword()}" PasswordChanged="OnPasswordChanged" />
+                        <TextBlock
+                            Text="{x:Bind l10n:L10n.SetupDetectAppPasswordHint()}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock
+                            Text="{x:Bind l10n:L10n.SetupCredentialsNote()}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
 
                     <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAdvanced()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
-                    <TextBox x:Name="SmtpHost" Header="{x:Bind l10n:L10n.SetupFieldSmtp()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintSmtp()}" />
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="SmtpHost" Grid.Column="0" Header="{x:Bind l10n:L10n.SetupFieldSmtp()}"
+                                 PlaceholderText="{x:Bind l10n:L10n.SetupHintSmtp()}" />
+                        <TextBox x:Name="SmtpPort" Grid.Column="1" Width="88" Header="{x:Bind l10n:L10n.SetupFieldPort()}"
+                                 InputScope="Number" TextChanged="OnSmtpPortChanged" />
+                        <ComboBox x:Name="SmtpSecurityPicker" Grid.Column="2" Width="132" Header="{x:Bind l10n:L10n.SetupFieldSecurity()}"
+                                  SelectionChanged="OnSmtpSecurityChanged">
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityImplicitTls()}" />
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityStarttls()}" />
+                        </ComboBox>
+                    </Grid>
                     <TextBox x:Name="CaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldav()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav()}" />
 
                     <TextBlock
@@ -208,6 +299,26 @@
                               Checked="OnApprovalChanged" Unchecked="OnApprovalChanged" />
                 </StackPanel>
 
+                <!-- The certificate a server offered that could not be verified, and the
+                     confirmation that unlocks Connect. Shown only once a connect has actually been
+                     refused for one, and only on the IMAP route, whose stored config is the one
+                     that can carry an exception (docs/certificate-exceptions.md). -->
+                <StackPanel x:Name="CertificatePanel" Spacing="8" Visibility="Collapsed">
+                    <TextBlock
+                        x:Name="CertificateWarning"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                    <TextBlock
+                        x:Name="CertificateClaims"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        IsTextSelectionEnabled="True"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <CheckBox x:Name="CertificateCheck" Content="{x:Bind l10n:L10n.SetupCertificateConfirm()}"
+                              Checked="OnCertificateAcceptedChanged" Unchecked="OnCertificateAcceptedChanged" />
+                </StackPanel>
+
                 <InfoBar
                     IsOpen="{x:Bind Model.HasSetupError, Mode=OneWay}"
                     IsClosable="False"
@@ -215,28 +326,38 @@
                     Title="{x:Bind l10n:L10n.SetupErrorTitle()}"
                     Message="{x:Bind Model.SetupError, Mode=OneWay}" />
 
-                <!-- Connect (IMAP/JMAP) or Sign in (Microsoft / Google); Cancel when adding another
+                <!-- Back to the address step at the start; Connect (IMAP/JMAP) or Sign in
+                     (Microsoft / Google) at the end, with Cancel beside it when adding another
                      account. The Google button's IsEnabled is driven in code-behind, it depends on
                      the Early Access checkbox as well as the submitting state. -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" VerticalAlignment="Center">
-                    <ProgressRing Width="20" Height="20" VerticalAlignment="Center"
-                                  IsActive="{x:Bind Model.IsSubmitting, Mode=OneWay}"
-                                  Visibility="{x:Bind Model.SubmittingVisibility, Mode=OneWay}" />
-                    <Button x:Name="CancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}"
-                            Visibility="{x:Bind Model.CancelVisibility, Mode=OneWay}"
-                            IsEnabled="{x:Bind Model.CancelEnabled, Mode=OneWay}" Click="OnCancel" />
-                    <Button x:Name="ConnectButton" Content="{x:Bind Model.ConnectButtonText, Mode=OneWay}"
-                            Style="{StaticResource AccentButtonStyle}"
-                            IsEnabled="False" Click="OnConnect" />
-                    <Button x:Name="MicrosoftButton" Content="{x:Bind l10n:L10n.SetupMicrosoftSignin()}"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Visibility="Collapsed"
-                            IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnSignInMicrosoft" />
-                    <Button x:Name="GoogleButton" Content="{x:Bind l10n:L10n.SetupGoogleSignin()}"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Visibility="Collapsed"
-                            IsEnabled="False" Click="OnSignInGoogle" />
-                </StackPanel>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="BackButton" Content="{x:Bind l10n:L10n.A11yBack()}"
+                            VerticalAlignment="Center"
+                            IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnBackToDetect" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" VerticalAlignment="Center">
+                        <ProgressRing Width="20" Height="20" VerticalAlignment="Center"
+                                      IsActive="{x:Bind Model.IsSubmitting, Mode=OneWay}"
+                                      Visibility="{x:Bind Model.SubmittingVisibility, Mode=OneWay}" />
+                        <Button x:Name="CancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}"
+                                Visibility="{x:Bind Model.CancelVisibility, Mode=OneWay}"
+                                IsEnabled="{x:Bind Model.CancelEnabled, Mode=OneWay}" Click="OnCancel" />
+                        <Button x:Name="ConnectButton" Content="{x:Bind Model.ConnectButtonText, Mode=OneWay}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                IsEnabled="False" Click="OnConnect" />
+                        <Button x:Name="MicrosoftButton" Content="{x:Bind l10n:L10n.SetupMicrosoftSignin()}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Visibility="Collapsed"
+                                IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnSignInMicrosoft" />
+                        <Button x:Name="GoogleButton" Content="{x:Bind l10n:L10n.SetupGoogleSignin()}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Visibility="Collapsed"
+                                IsEnabled="False" Click="OnSignInGoogle" />
+                    </StackPanel>
+                </Grid>
 
                 <!-- Advanced escape from a detected result: reveal the full account-type picker with
                      the detected settings prefilled, for users who want to edit servers or choose a

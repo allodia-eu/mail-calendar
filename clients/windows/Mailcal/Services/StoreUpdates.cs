@@ -75,7 +75,7 @@ internal sealed class StoreUpdates
             // This needs the Store app itself installed and its services running, which is exactly
             // what the machines the other channel exists for do not have. A build that finds itself
             // there says it could not check, which is true, rather than taking Settings down.
-            Log.Warn($"store update check failed: {problem.GetType().Name}");
+            Log.Warn($"store update check failed: {problem.GetType().Name} 0x{problem.HResult:X8}");
             pending = Array.Empty<StorePackageUpdate>();
             return UpdateOutcome.Failed;
         }
@@ -95,11 +95,13 @@ internal sealed class StoreUpdates
         }
         try
         {
-            await Context().RequestDownloadAndInstallStorePackageUpdatesAsync(pending);
+            Log.Info($"store update install: handing {pending.Count} package(s) to the Store");
+            var result = await Context().RequestDownloadAndInstallStorePackageUpdatesAsync(pending);
+            Log.Info($"store update install: {result.OverallState}");
         }
         catch (Exception problem)
         {
-            Log.Warn($"store update install failed: {problem.GetType().Name}");
+            Log.Warn($"store update install failed: {problem.GetType().Name} 0x{problem.HResult:X8}");
         }
     }
 }

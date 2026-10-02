@@ -11,13 +11,13 @@ const DAY_MINUTES: f64 = 24.0 * 60.0;
 /// Half a pixel: the grain below which two viewport heights are the same viewport.
 const SAME: f64 = 0.5;
 
-/// The four numbers every offset in this file is arithmetic on.
+/// The three numbers every offset in this file is arithmetic on. The day starts at the scrolled
+/// surface's own top: the header above it is pinned outside the scroll.
 #[derive(Clone, Copy, Debug)]
 struct Frame {
-    content_top: f64,
     hour_height: f64,
     viewport_height: f64,
-    content_height: f64,
+    upper: f64,
 }
 
 impl Frame {
@@ -29,44 +29,37 @@ impl Frame {
     /// however much the window moved, which is why `caught_up` is checked before either.
     fn of(adjustment: &gtk::Adjustment, scene: &GridScene) -> Option<Self> {
         let frame = Self {
-            content_top: scene.content_top(),
             hour_height: scene.hour_height,
             viewport_height: adjustment.page_size(),
-            content_height: adjustment.upper(),
+            upper: adjustment.upper(),
         };
         (frame.is_real() && frame.caught_up(scene)).then_some(frame)
     }
 
     /// Whether these numbers describe a day that has been laid out at all.
     fn is_real(&self) -> bool {
-        [
-            self.content_top,
-            self.hour_height,
-            self.viewport_height,
-            self.content_height,
-        ]
-        .iter()
-        .all(|value| value.is_finite())
+        [self.hour_height, self.viewport_height, self.upper]
+            .iter()
+            .all(|value| value.is_finite())
             && self.hour_height > 0.0
             && self.viewport_height > 0.0
-            && self.content_height > self.viewport_height
+            && self.upper > self.viewport_height
     }
 
     /// Whether the scrolled window is measuring the day the scene describes.
     fn caught_up(&self, scene: &GridScene) -> bool {
-        (self.content_height - scene.height()).abs() < 1.5
+        (self.upper - scene.height()).abs() < 1.5
     }
 
     /// The offset that puts `minutes` at the middle of the viewport, clamped to the day's edges.
     fn centred_on(&self, minutes: f64) -> f64 {
-        let line = self.content_top + minutes.clamp(0.0, DAY_MINUTES) * self.hour_height / 60.0;
-        (line - self.viewport_height / 2.0).clamp(0.0, self.content_height - self.viewport_height)
+        let line = minutes.clamp(0.0, DAY_MINUTES) * self.hour_height / 60.0;
+        (line - self.viewport_height / 2.0).clamp(0.0, self.upper - self.viewport_height)
     }
 
     /// The minute at the middle of the viewport, for an offset of `value`.
     fn centre_minutes(&self, value: f64) -> f64 {
-        ((value + self.viewport_height / 2.0 - self.content_top) * 60.0 / self.hour_height)
-            .clamp(0.0, DAY_MINUTES)
+        ((value + self.viewport_height / 2.0) * 60.0 / self.hour_height).clamp(0.0, DAY_MINUTES)
     }
 }
 
@@ -178,47 +171,44 @@ impl Framing {
 mod tests {
     use super::Frame;
 
-    fn frame(content_top: f64, hour_height: f64, viewport_height: f64) -> Frame {
+    fn frame(hour_height: f64, viewport_height: f64) -> Frame {
         Frame {
-            content_top,
             hour_height,
             viewport_height,
-            content_height: content_top + 24.0 * hour_height,
+            upper: 24.0 * hour_height,
         }
     }
 
     #[test]
     fn current_time_is_placed_at_the_viewport_midpoint() {
         let viewport = 480.0;
-        let line = 52.0 + 12.0 * 60.0;
-        let value = frame(52.0, 60.0, viewport).centred_on(12.0 * 60.0);
+        let line = 12.0 * 60.0;
+        let value = frame(60.0, viewport).centred_on(12.0 * 60.0);
         assert!((line - value - viewport / 2.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn the_day_edges_clamp_without_exposing_empty_space() {
-        assert!((frame(52.0, 60.0, 480.0).centred_on(30.0)).abs() < f64::EPSILON);
+        assert!((frame(60.0, 480.0).centred_on(30.0)).abs() < f64::EPSILON);
         assert!(
-            (frame(52.0, 60.0, 480.0).centred_on(23.0 * 60.0 + 30.0)
-                - (52.0 + 24.0 * 60.0 - 480.0))
-                .abs()
+            (frame(60.0, 480.0).centred_on(23.0 * 60.0 + 30.0) - (24.0 * 60.0 - 480.0)).abs()
                 < f64::EPSILON
         );
     }
 
     #[test]
     fn framing_waits_for_real_layout_metrics() {
-        assert!(frame(52.0, 60.0, 480.0).is_real());
-        assert!(!frame(52.0, 60.0, 0.0).is_real());
-        assert!(!frame(52.0, 0.0, 480.0).is_real());
-        let mut as_short_as_its_viewport = frame(52.0, 60.0, 480.0);
-        as_short_as_its_viewport.content_height = 480.0;
+        assert!(frame(60.0, 480.0).is_real());
+        assert!(!frame(60.0, 0.0).is_real());
+        assert!(!frame(0.0, 480.0).is_real());
+        let mut as_short_as_its_viewport = frame(60.0, 480.0);
+        as_short_as_its_viewport.upper = 480.0;
         assert!(!as_short_as_its_viewport.is_real());
     }
 
     #[test]
     fn a_minute_survives_the_round_trip_through_an_offset() {
-        let frame = frame(78.0, 62.5, 750.0);
+        let frame = frame(62.5, 750.0);
         let minutes = 9.0 * 60.0 + 25.0;
         assert!((frame.centre_minutes(frame.centred_on(minutes)) - minutes).abs() < 0.001);
     }
@@ -229,8 +219,8 @@ mod tests {
     /// different number afterwards; keeping the number is what moved the reader three hours.
     #[test]
     fn a_taller_window_keeps_the_minute_rather_than_the_offset() {
-        let before = frame(78.0, 750.0 / 12.0, 750.0);
-        let after = frame(78.0, 1500.0 / 12.0, 1500.0);
+        let before = frame(750.0 / 12.0, 750.0);
+        let after = frame(1500.0 / 12.0, 1500.0);
         let minutes = 9.0 * 60.0 + 25.0;
         let offset = before.centred_on(minutes);
 
@@ -245,11 +235,11 @@ mod tests {
     #[test]
     fn a_restored_offset_is_always_inside_the_content() {
         for viewport in [120.0, 480.0, 750.0, 1500.0, 2400.0] {
-            let frame = frame(130.0, viewport / 12.0, viewport);
+            let frame = frame(viewport / 12.0, viewport);
             for minutes in [0.0, 1.0, 600.0, 1439.0, 1440.0] {
                 let value = frame.centred_on(minutes);
                 assert!(value >= 0.0);
-                assert!(value <= frame.content_height - frame.viewport_height);
+                assert!(value <= frame.upper - frame.viewport_height);
             }
         }
     }

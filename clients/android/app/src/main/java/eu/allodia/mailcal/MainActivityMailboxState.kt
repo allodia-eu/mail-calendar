@@ -51,9 +51,11 @@ internal fun MainActivity.reload() {
     unifiedUnread = snapshot.unifiedUnread
     outbox = snapshot.outbox
     showingOutbox = snapshot.showingOutbox
-    showingDrafts = snapshot.showingDrafts
+    drafts.showingDrafts = snapshot.showingDrafts
+    folderNotice = snapshot.folderNotice
     selectedFolder = snapshot.selected
     searchHorizon = snapshot.searchHorizon
+    emptyReason = snapshot.emptyReason
     // Re-resolve the connection-issues emails now the switcher list is (re)populated, so an outaged
     // account seeded at boot shows its address rather than its raw id in the banner. Only when
     // there's actually an outage, a healthy reload (the common case, fired repeatedly during a

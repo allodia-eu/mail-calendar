@@ -32,6 +32,7 @@ function inlineText(text: string, marks: Marks): InlineContent {
   if (marks.size) run.font_size = marks.size;
   if (marks.color) run.color = marks.color;
   if (marks.highlight) run.highlight = marks.highlight;
+  if (marks.link) run.link = marks.link;
   return { Text: run };
 }
 

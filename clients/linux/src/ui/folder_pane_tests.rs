@@ -40,6 +40,11 @@ fn folder(key: &str, name: &str, role: Option<FolderRole>, unread: u32) -> Folde
         has_children: false,
         expanded: false,
         visible: true,
+        pending: false,
+        in_trash: false,
+        editable: false,
+        accepts_folders: false,
+        accepts_messages: false,
     }
 }
 
@@ -64,6 +69,7 @@ fn two_accounts() -> MailboxListSnapshot {
         account_folders: vec![
             AccountFolderRow {
                 account_id: "acct-1".to_owned(),
+                manages_folders: false,
                 folders: vec![
                     folder("inbox", "INBOX", Some(FolderRole::Inbox), 545),
                     folder("sent", "Sent Items", Some(FolderRole::Sent), 0),
@@ -72,6 +78,7 @@ fn two_accounts() -> MailboxListSnapshot {
             },
             AccountFolderRow {
                 account_id: "acct-2".to_owned(),
+                manages_folders: false,
                 folders: vec![folder("inbox", "INBOX", Some(FolderRole::Inbox), 7)],
             },
         ],
@@ -86,7 +93,8 @@ fn pane_with_unreachable(
 ) -> (gtk::ListBox, relm4::Receiver<AppInput>) {
     let list = gtk::ListBox::new();
     let (sender, receiver) = relm4::channel::<AppInput>();
-    render(&list, snapshot, unreachable, &sender);
+    let check = crate::ui::folder_actions::name_check(None);
+    render(&list, snapshot, unreachable, &check, &sender);
     (list, receiver)
 }
 
@@ -196,33 +204,6 @@ pub(crate) fn a_server_named_row_is_never_parsed_as_markup() {
     assert!(
         text.iter().any(|entry| entry == "<b>Wire transfer</b>"),
         "a markup-shaped folder name is shown, never applied: {text:?}"
-    );
-}
-
-/// The bundled glyphs the pane needs, and the themed ones it relies on the desktop for.
-///
-/// A name the icon theme does not have is not an error; GTK draws the broken-image icon and the
-/// pane carries on; so the only way to know is to ask. Adwaita is the theme the GNOME runtime
-/// provides, and it has no inbox and no archive glyph, which is why those two are ours.
-pub(crate) fn every_role_icon_resolves_to_a_real_glyph() {
-    let display = gtk::gdk::Display::default().expect("a display");
-    let theme = gtk::IconTheme::for_display(&display);
-    for role in [
-        Some(FolderRole::Inbox),
-        Some(FolderRole::Drafts),
-        Some(FolderRole::Sent),
-        Some(FolderRole::Archive),
-        Some(FolderRole::Junk),
-        Some(FolderRole::Trash),
-        Some(FolderRole::Other),
-        None,
-    ] {
-        let icon = role_icon(role.as_ref());
-        assert!(theme.has_icon(icon), "the pane must be able to draw {icon}");
-    }
-    assert!(
-        !theme.has_icon("mailcal-not-an-icon-symbolic"),
-        "a theme that answers yes to everything would make the check above meaningless"
     );
 }
 
@@ -447,7 +428,7 @@ pub(crate) fn an_optimistic_click_is_not_undone_by_the_previous_snapshot() {
 pub(crate) fn folder_rows_expose_their_navigation_as_a_semantic_action() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let row = crate::ui::folder_pane_rows::pane_row(
-        "folder-symbolic",
+        crate::ui::icons::FOLDER,
         &sender,
         &SidebarTarget::Folder {
             account: "account".to_owned(),

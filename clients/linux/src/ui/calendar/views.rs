@@ -11,7 +11,7 @@ use super::{
     model::{CalendarModel, EventIdentity},
     paint,
 };
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 const MONTH_CAPACITY: usize = 4;
 
@@ -57,7 +57,7 @@ pub(super) fn render_agenda(
                     l10n::a11y_invitation_awaiting_response(),
                 )]);
         }
-        let open = gtk::Button::from_icon_name("go-next-symbolic");
+        let open = gtk::Button::from_icon_name(icons::NEXT);
         open.set_tooltip_text(Some(&title));
         open.update_property(&[AccessibleProperty::Label(&title)]);
         open.set_valign(gtk::Align::Center);
@@ -74,7 +74,7 @@ pub(super) fn render_agenda(
         });
         row.add_suffix(&open);
         if event.can_write {
-            let delete = gtk::Button::from_icon_name("user-trash-symbolic");
+            let delete = gtk::Button::from_icon_name(icons::REMOVE);
             delete.set_tooltip_text(Some(l10n::action_delete_event()));
             delete.update_property(&[AccessibleProperty::Label(l10n::action_delete_event())]);
             delete.add_css_class("flat");

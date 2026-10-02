@@ -1,8 +1,10 @@
 # Provider OAuth: token & redirect contract
 
-The cross-platform contract for connecting an **OAuth mail account** (Microsoft 365 and
-**Google** (Gmail + Google Calendar) today; IMAP/SMTP `XOAUTH2` later reuses the same
-machinery). It governs how the browser sign-in is run, how tokens are held, and how they are
+The cross-platform contract for connecting an **OAuth mail account** at a provider this app
+holds a registration for: Microsoft 365 and **Google** (Gmail + Google Calendar). A provider we
+have never met, discovered from the standards, is [`mail-oauth.md`](mail-oauth.md), which
+reuses this machinery and adds the decision this one never has to make: which credential to ask
+for at all. It governs how the browser sign-in is run, how tokens are held, and how they are
 refreshed, so every client does it the same safe way rather than each reinventing it. The
 rules below are written for Microsoft; **"## Google" records only where Google differs**; the
 rest of the contract is shared verbatim.
@@ -37,7 +39,7 @@ capturing the redirect), because that is inherently platform-specific.
 4. **Tokens live only in the OS keystore.** The stored account config carries **only** the
    refresh token (the single at-rest secret), never a password; access tokens are minted on
    demand and never persisted. The config secret redacts itself in logs. Storage is the same OS
-   secure store as password accounts (Keychain / Credential Manager / EncryptedSharedPreferences).
+   secure store as password accounts (Keychain / Credential Manager / Android Keystore).
 
 5. **The credential's lifecycle is the core's; the platform store is the host's.** A stored
    credential is created, replaced and erased by the **core**, through one host port:
@@ -61,6 +63,18 @@ capturing the redirect), because that is inherently platform-specific.
    feature the new scope was for. Omitting it is the only value that cannot go stale. Scope is
    asked for on the **authorisation** request, which is where consent is given and what signing in
    again re-runs.
+
+   **What a grant carries is the token response's word, and the stored copy follows it.** A
+   Microsoft or Google account stores `granted_scopes` so that what it may do can be answered at
+   launch and offline, but the value is a cache: sign-in writes the scopes the code exchange
+   named (the requested set when it named none, per RFC 6749 §5.1), and every refresh that names
+   a different set overwrites it, narrower included, since consent withdrawn at the provider
+   reaches this app in no other way. A refresh that names none leaves it alone: it asked for the
+   original grant and was given it. The access token is never read for this: Google's is opaque,
+   and Microsoft's belongs to the resource, which may change or encrypt its format. An unchanged
+   set is not written, because a secure-store write per refresh is a keychain prompt on some
+   hosts. A reader compares what it needs against the set as the provider spelled it, which is
+   not always how it was requested.
 
    **A refusal is classified, never matched on text.** `OAuthError::refusal()` answers with a
    `GrantRefusal`: `Dead` (`invalid_grant`: revoked or expired), `Underscoped` (`invalid_scope`:
@@ -263,13 +277,40 @@ capturing the redirect), because that is inherently platform-specific.
    email-first flow's Microsoft found-card).
 
 10. **The requested Graph scopes must be granted in the Azure app registration, and widening
-    them re-consents.** `MICROSOFT_GRAPH_SCOPES` requests `Mail.ReadWrite` (mail sync **and** the
-    write actions: mark-read/flag, move/archive, delete), `Mail.Send` (submission: a scope
-    **distinct** from `Mail.ReadWrite`, which does not grant send), `Calendars.ReadWrite`,
-    `User.Read`, `Contacts.ReadWrite` (the account's saved contacts) and `User.ReadBasic.All`
-    (the tenant directory, and the permission a colleague's profile photo is read through), plus
-    `offline_access` and the OIDC scopes. Each must be a delegated permission on the Azure app
-    registration's **API permissions** or Microsoft returns `access_denied` at consent.
+    them re-consents.** A sign-in requests the scopes below for what the account is used for
+    ([`accounts.md`](accounts.md)), and `MICROSOFT_GRAPH_SCOPES` is all of them, which is what an
+    account used for everything asks for. Each must be a delegated permission on the Azure app
+    registration's **API permissions** or Microsoft returns `access_denied` at consent; list every
+    one there, so an administrator's "Grant admin consent" covers any subset a person chooses. The
+    table is the justification an administrator reviewing the app asks for: every scope names the
+    calls it permits, what the user gets from them, and which choice requests it. Graph paths are
+    relative to `https://graph.microsoft.com/v1.0/me`.
+
+    | Scope | Calls | What it provides | Requested for |
+    |---|---|---|---|
+    | `offline_access` | the token endpoint | a refresh token, so the account keeps working past the first hour | every account |
+    | `User.Read` | `GET /me` | the account's own address and name | every account |
+    | `Mail.ReadWrite` | `/mailFolders`, `/messages` (delta, read, attachments), `PATCH /messages/{id}`, `POST /messages/{id}/move`, `POST /messages/{id}/permanentDelete`, `POST /messages/{id}/reportMessage`, draft create and replace | reading mail; read and flag state, moving, archiving, deleting, reporting spam, drafts | mail |
+    | `Mail.Send` | `POST /sendMail` | sending; `Mail.ReadWrite` does not grant it | mail |
+    | `Calendars.ReadWrite` | `/calendars`, `/events`, `POST /events/{id}/accept`, `decline`, `tentativelyAccept` | the calendar, event edits, answering invitations | calendar |
+    | `Contacts.ReadWrite` | `/contacts`, `/contactFolders`, `/contacts/delta` | the account's own contacts, adding and editing them | contacts |
+    | `User.ReadBasic.All` | `GET /users` (at the tenant, not under `/me`), `/users/{id}/photo` | colleagues from a work or school directory, and their photos | colleagues, beside contacts |
+
+    **A use the grant withholds is not opened.** Each use has one scope it cannot open without
+    (`Mail.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `User.ReadBasic.All`), and a
+    stored `granted_scopes` without it leaves that use closed, compared as Microsoft spells the
+    scope back (`Mail.ReadWrite`, any case, for `https://graph.microsoft.com/Mail.ReadWrite`). Mail
+    is no exception: an account whose grant withholds it opens as an account without mail
+    ([`accounts.md`](accounts.md) rules 5 to 7), so its calendar and contacts still work rather
+    than the whole account failing on a mailbox it may not read. A missing scope that serves one
+    feature within a use (`Mail.Send`) withholds nothing; the refused send is where rule 11 raises
+    its prompt. A sign-in whose grant allows nothing the account was chosen for is refused rather
+    than added.
+
+    **No OpenID Connect scope is requested.** Nothing reads an ID token (the address comes from
+    `GET /me`), and Microsoft issues a refresh token for `offline_access` alone, so `openid`,
+    `profile` and `email` would be lines on the consent screen with no feature behind them. A grant
+    that already holds them keeps them; nobody is asked to consent again for their absence.
 
     ⚠️ **A scope the account cannot grant is a setup failure, not a missing feature.** That
     `access_denied` happens *during consent*, so an unregistered or admin-gated permission does
@@ -283,13 +324,11 @@ capturing the redirect), because that is inherently platform-specific.
     "Yes" there would put every user in such a tenant behind their administrator before they
     could connect.
 
-    **Contacts are requested read *and* write although the product only reads them.** Widening a
-    scope later costs every existing account a forced re-authentication (rule 11), so a capability
-    we know is coming is cheaper to ask for once, up front. The consent screen says "full access
-    to your contacts" and the app does less than that; what bounds it is
-    [`privacy-policy.md`](privacy-policy.md), which states the read-only behaviour plainly and
-    explains the gap. If contact editing is ever dropped, narrow both back to their read-only
-    spellings (`Contacts.Read`, `contacts.readonly`).
+    **Contacts are requested read *and* write because the app adds and edits them.** It never
+    deletes one, which the consent screen's "full access to your contacts" would allow; what
+    bounds that is [`privacy-policy.md`](privacy-policy.md), which says so plainly. If contact
+    editing is ever dropped, narrow both back to their read-only spellings (`Contacts.Read`,
+    `contacts.readonly`).
 
     **All three OAuth providers moved together, deliberately.** Microsoft requests
     `Contacts.ReadWrite` + `User.ReadBasic.All`; Google requests `contacts`,
@@ -307,7 +346,8 @@ capturing the redirect), because that is inherently platform-specific.
     An account connected before a scope was added (or whose consent was **revoked server-side**)
     keeps a narrower grant than the app now requests, and a token *refresh* re-uses that original
     grant, so only a full interactive re-authentication widens it. Two detectors feed one prompt:
-    the **calendar** scope is checked by a boot-time probe (`connect_graph_calendars`), and **mail
+    the **calendar** scope is read from the stored granted set when there is one, and checked by a
+    boot-time probe (`connect_graph_calendars`) when there is not, and **mail
     write/send** is detected **reactively** at the point of use: a `403 ErrorAccessDenied` from a
     mark-read / move / delete or a `sendMail` is classified **structurally** (walk the engine
     error's `source()` chain to the typed `ProviderError` and match the `ErrorAccessDenied` code, so
@@ -319,6 +359,17 @@ capturing the redirect), because that is inherently platform-specific.
     once. The mail prompt self-clears when the next write/send succeeds. The whole re-request flow
     is logged for support (which scopes were requested, re-consent-for-existing vs. account-picker,
     and the outcome) **without ever logging the address** (per [`logging.md`](logging.md)).
+
+    **Signing an existing account in again swaps its grant in place.**
+    `begin_account_consent(account_id, redirect_uri, adding)` asks for what the account is used for
+    plus `adding`, with its address as `login_hint`, and `complete_account_consent` refuses a
+    sign-in as a different address, then connects, stores and installs the new grant through the
+    path a JMAP re-sign-in and a replaced password take. The account keeps its id, sync depth,
+    sender name, signatures, links and downloaded mail, catches up rather than downloading again,
+    and has its expired-sign-in, mail and calendar prompts reconciled against what the new grant
+    opened. Adding a capability is the same call with `adding` set: Microsoft does not re-prompt
+    scopes already consented, and Google, which has no incremental consent for installed apps, is
+    asked for the whole set.
 
 12. **A grant that is *gone* is a different prompt from a scope that is missing, and it is never
     an outage.** Rule 11 covers a grant that is too **narrow**; this covers one that is **dead**:
@@ -366,6 +417,9 @@ capturing the redirect), because that is inherently platform-specific.
     built (`AccountError::from_first_imap_login`), not a check a caller can forget: every other
     conversion of the same engine error keeps the family's own variant. JMAP has no such sequence
     (session discovery authenticates on every connect), so its mail connect is its first login.
+    A CalDAV or CardDAV connect is the first login of its own capability
+    (`AccountError::from_first_dav_connect`), and decides the account's verdict only for an
+    account without mail ([`accounts.md`](accounts.md) rule 7).
 
     **It must be classified at *both* ends, because a dead grant usually never reaches a sync.**
     The interactive app connects **nothing** synchronously at boot (it paints cached mail and
@@ -469,18 +523,35 @@ autodetection. It reuses the whole state machine above; the deltas are:
   refresh token only with `access_type=offline`, and re-prompting consent on every authorisation
   guarantees one comes back even for an already-consented account. The core still treats a
   completed sign-in with no refresh token as an error.
-- **Six scopes, all granted in one consent** (`GOOGLE_SCOPES` in `provider.rs`, which carries the
-  reasoning per scope): `https://mail.google.com/` for mail, `gmail.settings.basic` for the
-  send-as alias a sender name is written to, `calendar` for the agenda, and `contacts` +
-  `contacts.other.readonly` + `directory.readonly` for the three People sources. Because the
-  calendar and contact scopes arrive **in the same consent** as mail, there is **no
-  calendar-reauth step** for Google: the reconnect-for-calendar banner stays Microsoft-only.
-  (Microsoft grants Mail and Calendars.ReadWrite together too, but its calendar arrived later
-  behind a scope-upgrade reconnect; Google ships both at once.) Two traps sit in that set. The
-  full-mail scope is what grants **permanent delete**, which no narrower `gmail.*` scope does.
-  And `mail.google.com` reaches `users.settings.sendAs.list` but **not** its `patch`, which is
-  why the settings scope is listed separately: without it the sender name a user sets would
-  read the account's aliases and then fail to update the one it found.
+- **Up to eight scopes, by what the account is used for** (`GOOGLE_SCOPES` in `provider.rs`
+  carries the reasoning per scope, `mailcal_oauth::scopes` the grouping):
+
+  | Scope | What it provides | Requested for |
+  |---|---|---|
+  | `https://mail.google.com/` | every Gmail call | mail |
+  | `gmail.settings.basic` | `sendAs.patch`, the send-as alias a sender name is written to | mail |
+  | `calendar` | events, edits, answering invitations | calendar |
+  | `contacts`, `contacts.other.readonly` | the account's own contacts, and the addresses Google collects for it | contacts |
+  | `directory.readonly` | colleagues on a Workspace domain | colleagues, beside contacts |
+  | `userinfo.email` | the account's address from `oauth2/v3/userinfo` | every account |
+
+  `userinfo.email` is asked for whatever the account is used for, because it is what names the
+  account: a person who keeps the calendar and unticks Gmail on the consent screen gets an account
+  without mail rather than a failed sign-in, which is how someone moving away from Google keeps its
+  calendar while their mail lives elsewhere. A grant from before it was asked for is named through
+  the Gmail profile instead. It is non-sensitive and belongs on the Cloud project's consent screen,
+  though Google accepted it for an Early Access test user before it was listed; Google adds
+  `openid` to a grant that asks for it, and nothing reads that. Google has no incremental consent for installed
+  apps, so a sign-in always requests the whole chosen set rather than relying on
+  `include_granted_scopes`; and Google lets a person untick a scope on the consent screen, so the
+  granted set is read back and a use whose scope was refused is not opened (rule 10's rule, with
+  Google's spelling compared as written). There is **no calendar-reauth step** for Google: the
+  reconnect-for-calendar banner stays Microsoft-only, and a refused calendar stays closed. Two
+  traps sit in the set. The full-mail scope is what grants **permanent delete**, which no
+  narrower `gmail.*` scope does. And `mail.google.com` reaches `users.settings.sendAs.list` but
+  **not** its `patch`, which is why the settings scope is listed separately: without it the
+  sender name a user sets would read the account's aliases and then fail to update the one it
+  found.
 - **Redirect differs by client type (rule 3).** **iOS/iPadOS and Android** register a Google
   **iOS/Android client**, whose redirect is the **reversed-client-id custom scheme**
   `com.googleusercontent.apps.<CLIENT_ID>:/oauth2redirect`, where `<CLIENT_ID>` is the **whole**
@@ -539,7 +610,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | System browser (no in-app WebView) | — | ✅ `ASWebAuthenticationSession` | ✅ default browser + protocol activation | 🚧 Chrome Custom Tabs | ✅ default browser + loopback |
 | Redirect capture | — | ✅ custom scheme | ✅ custom-scheme protocol activation | 🚧 custom-scheme `intent-filter` | ✅ `127.0.0.1` Rust `TcpListener` |
 | `state` validated on callback | ✅ | ✅ | ✅ | 🚧 | ✅ |
-| Refresh token only, in OS keystore | ✅ | ✅ Keychain | ✅ Credential Manager | 🚧 EncryptedSharedPreferences | ✅ Secret Service |
+| Refresh token only, in OS keystore | ✅ | ✅ Keychain | ✅ Credential Manager | 🚧 Android Keystore | ✅ Secret Service |
 | Token refresh + rotation persistence | ✅ refresh · rotation **verified live** (Graph + JMAP both rotate) | ✅ | ✅ refresh · rotation **verified live** `CredentialStoreSink` (Graph + JMAP) | ✅ verified on-device | ✅ verified live (Graph + JMAP) |
 | One refresh in flight per account (no replay on a ratcheting server, rule 5) | ✅ | — | — | — | — |
 | A rotation is persistable from the first refresh (the store is a constructor param on **both** constructors, rule 5) | ✅ | ✅ | ✅ (no worker; the app itself) | ✅ | ✅ |
@@ -554,7 +625,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Client secret on token exchange | ✅ optional (sent on exchange + refresh when present) | 🚧 iOS none · macOS non-confidential Desktop secret | 🚧 non-confidential Desktop secret | 🚧 none (Android client) | ✅ non-confidential Desktop secret |
 | System browser (no in-app WebView) | — | 🚧 iOS `ASWebAuthenticationSession` · macOS default browser + loopback | 🚧 default browser + loopback | 🚧 Chrome Custom Tabs | ✅ default browser + loopback |
 | Redirect capture | — | 🚧 iOS reversed-client-id scheme · macOS `127.0.0.1` loopback `NWListener` | 🚧 `127.0.0.1` loopback `HttpListener` | 🚧 reversed-client-id `intent-filter` | ✅ `127.0.0.1` Rust `TcpListener` |
-| Refresh token only, in OS keystore | ✅ | 🚧 Keychain | 🚧 Credential Manager | 🚧 EncryptedSharedPreferences | ✅ Secret Service |
+| Refresh token only, in OS keystore | ✅ | 🚧 Keychain | 🚧 Credential Manager | 🚧 Android Keystore | ✅ Secret Service |
 | Rotation persistence (the shared `AccountCredentialStore`) | ✅ | 🚧 | 🚧 | 🚧 | ✅ |
 | Core-owned add/persist/rollback/erase (rule 5) | ✅ | 🚧 | 🚧 | 🚧 | ✅ |
 | Early Access notice + mandatory confirm checkbox | — | 🚧 | 🚧 | 🚧 | ✅ |
@@ -617,6 +688,12 @@ in the Azure app registration. JMAP needs no such entry: RFC 7591 dynamic regist
 whatever redirect URI the client hands it, so a dev build registers itself under the dev scheme
 with no portal step. Google is unaffected (loopback, not a custom scheme).
 
+The same picker comes back between dev builds. An unpackaged build registers the dev scheme against
+its own exe, so every checkout, worktree and architecture that has run adds a handler, and only the
+running build can finish a sign-in: any other row starts a process with nothing waiting for the
+redirect. So the dev build that launches last owns the scheme and withdraws every other build's
+registration (`Program.WithdrawOtherDevBuilds`, decided in `DevSchemeOwnership`).
+
 The Apple path is code-shared; macOS is runtime-confirmed, while iPhone/iPad use the same
 `ASWebAuthenticationSession` host and remain behind the Apple background-delivery follow-up before
 they are marked shipped.
@@ -662,6 +739,17 @@ the doctrine's "provider sync" language for *account connection* specifically.)
 
 ## Known gaps
 
+- **No client offers the choice yet.** `begin_microsoft_login` and `begin_google_login` take the
+  capabilities an account is to be used for, and every client passes none, which asks for
+  everything as before. So rule 10's subsets are reachable only from the core, through the gated
+  `live_provider_consent` test.
+- **A use the grant withholds is closed silently.** An account whose mail was withheld leaves
+  the mail surfaces without saying why. Neither setup nor Settings says "Calendar was
+  not allowed" or offers to ask again, because there is no "needs permission" state for a client
+  to read ([`accounts.md`](accounts.md)); Microsoft's calendar is the exception, through rule 11's
+  prompt. No client calls `begin_account_consent` yet, so **Reconnect** and "sign in again" still
+  run `complete_microsoft_login` / `complete_google_login`, which ask for everything and start a
+  visible first download of an account that already has its mail.
 - **Graph mail: read/sync + mail actions + sending.** The engine's Graph adapter does mail folders
   + messages + message source (bodies render via `/messages/{id}/$value`) + a `receivedDateTime`
   sync-depth window, mail edits (`edit_mail`: mark-read/flag, move/archive, permanent

@@ -83,8 +83,12 @@ internal fun FlatMessageRow(
     // The signature library + lookups for the reply/forward composer, or null to leave signatures
     // out (a screenshot run, a test).
     signatures: ComposerSignatures? = null,
+    // Where the overflow's Move to folder… may file this message, or null to leave it out.
+    messageFiling: MessageFiling? = null,
 ) {
     val ctx = LocalContext.current
+    // The Move to folder… list while its dialog is open.
+    var filing by remember { mutableStateOf<List<MoveTarget>?>(null) }
     // The open rich composer for this row (null = closed, else the active mode). One dialog
     // serves reply/reply-all/forward; the mode picks the pre-filled recipients and which rich
     // submit Send calls. State lives per-row (cf. FlatMessageOverflow's own `expanded`).
@@ -204,10 +208,23 @@ internal fun FlatMessageRow(
                     composing = RichComposeMode.Forward
                 }
             },
+            moveTargets = messageFiling?.let { { it.targets(message.account) } },
+            onMoveToFolder = { filing = it },
             onDelete = { onDelete(message.account, message.key) },
             onMarkAsSpam = { onMarkAsSpam(message.account, message.key) },
             onMarkAsNotSpam = { onMarkAsNotSpam(message.account, message.key) },
             onPermanentlyDelete = { onPermanentlyDelete(message.account, message.key) },
+        )
+    }
+
+    filing?.let { targets ->
+        MoveTargetDialog(
+            title = L10n.message_move_title(ctx),
+            targets = targets,
+            onPick = { target ->
+                target.key?.let { messageFiling?.move(message.account, message.key, it) }
+            },
+            onClose = { filing = null },
         )
     }
 
@@ -274,6 +291,9 @@ private fun FlatMessageOverflow(
     onReply: () -> Unit,
     onReplyAll: () -> Unit,
     onForward: () -> Unit,
+    // Where the message may be filed, read when the menu opens; null leaves the item out.
+    moveTargets: (() -> List<MoveTarget>)?,
+    onMoveToFolder: (List<MoveTarget>) -> Unit,
     onDelete: () -> Unit,
     onMarkAsSpam: () -> Unit,
     onMarkAsNotSpam: () -> Unit,
@@ -327,6 +347,17 @@ private fun FlatMessageOverflow(
                     onForward()
                 },
             )
+            // Offered only where some folder can take the message (rule 24).
+            val targets = remember { moveTargets?.invoke().orEmpty() }
+            if (targets.any { it.enabled }) {
+                DropdownMenuItem(
+                    text = { Text(L10n.action_move_to_folder(ctx)) },
+                    onClick = {
+                        expanded = false
+                        onMoveToFolder(targets)
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text(L10n.action_move_to_trash(ctx)) },
                 onClick = {

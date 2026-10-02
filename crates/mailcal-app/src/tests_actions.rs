@@ -403,12 +403,18 @@ async fn failing_bodies_do_not_block_older_mail_from_warming() {
 
 #[tokio::test]
 async fn a_body_conflict_resyncs_the_folder_and_warms_its_renumbered_keys() {
-    // A folder synced on demand holds keys under an old UIDVALIDITY; the server renumbers
-    // (every stored key is now stale) and nothing else ever re-syncs that folder; on a real
-    // account this left 882 bodies failing on every pass, forever. On a fetch **conflict**
-    // the warm pass must re-sync that folder and warm the replacement keys.
-    let provider = FakeProvider::new() // inbox m1, m2
-        .with_failing_sources(["c-old".to_owned()]); // the stale key conflicts on fetch
+    // A folder holds keys under an old UIDVALIDITY; the server renumbers (every stored key is
+    // now stale) and the pass has not re-synced the folder yet; on a real account this left 882
+    // bodies failing on every pass, forever, for a folder no pass reached. On a fetch
+    // **conflict** the warm pass must re-sync that folder and warm the replacement keys. The
+    // folder here is one no pass reaches, so only that re-sync can recover it. It is listed,
+    // because the mail of a folder the list does not hold is forgotten by the next pass.
+    let inbox = vec![
+        message("m1", "a", "Quarterly report"),
+        message("m2", "a", "Lunch plans"),
+    ];
+    let provider =
+        FakeProvider::imap_inbox(inbox, &["custom"]).with_failing_sources(["c-old".to_owned()]); // the stale key conflicts on fetch
     let offline = provider.failure_switch();
     let connector = FakeConnector::new(vec![(
         "custom".to_owned(),

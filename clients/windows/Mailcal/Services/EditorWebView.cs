@@ -5,16 +5,18 @@
 // gates"; docs/signatures.md). Two hosts with two copies of these settings is two chances for one of
 // them to drift, which is exactly why Android collapsed its two into EditorWebView.kt.
 //
-// What it guarantees: script runs for the bundled local document only, no host objects, no web
-// messages, a context menu filtered down to the editing actions, no new windows, every navigation
-// away is cancelled, and every http/https subresource request is answered 403, the native barrier
-// behind the bundle's own CSP.
+// What it guarantees: script runs for the bundled local document only, no host objects, web
+// messages only for the editor's request channel and only where a host answers it (each message
+// parsed by the core, Gate 2), a context menu filtered down to the editing actions, no new windows,
+// every navigation away is cancelled, and every http/https subresource request is answered 403, the
+// native barrier behind the bundle's own CSP.
 //
 // Do not relax one of these without updating that doc (rule AND matrix) and every other platform.
 
 using System.Text.Json;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
@@ -43,6 +45,12 @@ internal sealed class EditorWebViewHost
     /// default state with no error anywhere.
     /// </summary>
     internal Func<Task>? PageReady { get; set; }
+
+    /// <summary>
+    /// Receives the editor's requests, each already parsed by the core. Set before the first load
+    /// to turn the channel on; a host that leaves it unset keeps web messages off altogether.
+    /// </summary>
+    internal Action<ComposerHostRequest>? HostRequested { get; set; }
 
     /// <summary>The underlying WebView2 environment, or <c>null</c> before the first load. Callers
     /// use it to tell "the page is up" from "nothing has loaded yet".</summary>
@@ -113,7 +121,11 @@ internal sealed class EditorWebViewHost
         // in this WebView2 (the reading pane keeps its own, with scripting off).
         settings.IsScriptEnabled = true;
         settings.AreHostObjectsAllowed = false;
-        settings.IsWebMessageEnabled = false;
+        settings.IsWebMessageEnabled = HostRequested is not null;
+        if (HostRequested is not null)
+        {
+            core.WebMessageReceived += OnWebMessageReceived;
+        }
         // On, but filtered: `OnContextMenuRequested` keeps only the editing actions. Left off, a
         // right-click did nothing at all, and a link in a quoted original was text the user could
         // see and not copy.
@@ -149,6 +161,24 @@ internal sealed class EditorWebViewHost
             {
                 args.MenuItems.RemoveAt(index);
             }
+        }
+    }
+
+    /// A message that is not a string, or not a request the core has a type for, is dropped.
+    private void OnWebMessageReceived(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs args)
+    {
+        string message;
+        try
+        {
+            message = args.TryGetWebMessageAsString();
+        }
+        catch (ArgumentException)
+        {
+            return;
+        }
+        if (MailcalBindingsMethods.ParseComposerHostRequest(message) is { } request)
+        {
+            HostRequested?.Invoke(request);
         }
     }
 

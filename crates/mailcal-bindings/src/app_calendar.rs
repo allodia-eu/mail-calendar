@@ -214,6 +214,7 @@ impl From<AppCalendarRow> for CalendarRow {
     fn from(row: AppCalendarRow) -> Self {
         Self {
             account: row.account,
+            account_address: row.account_address,
             id: row.id,
             name: row.name,
             color: row.color.into(),

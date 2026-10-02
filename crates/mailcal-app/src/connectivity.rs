@@ -7,7 +7,7 @@
 //! ([`Intent::ReportNetworkReachable`](crate::Intent::ReportNetworkReachable)), so a host
 //! that never wires reachability behaves exactly as before.
 
-use std::error::Error as StdError;
+use std::{error::Error as StdError, time::Duration};
 
 use engine_api::{AccountId, ApiError, Provider};
 use engine_core::error::FailureClass;
@@ -388,6 +388,35 @@ pub(crate) fn is_graph_permission_denied(error: &(dyn StdError + 'static)) -> bo
 pub(crate) fn is_signin_expired(error: &(dyn StdError + 'static)) -> bool {
     provider_error_of(error)
         .is_some_and(|provider| provider.class() == FailureClass::Authentication)
+}
+
+/// Whether this failure is the server **refusing for now** rather than failing:
+/// [`FailureClass::RateLimited`].
+///
+/// Read off the typed class for the same reason [`is_signin_expired`] is, and it matters for
+/// the same reason: a throttled account **reached its server**. Treating a refusal as an
+/// outage would put the "can't reach the server" badge up on an account whose server answered
+/// promptly and said "not so fast", and send someone to check their wifi.
+pub(crate) fn is_throttled(error: &(dyn StdError + 'static)) -> bool {
+    provider_error_of(error).is_some_and(|provider| provider.class() == FailureClass::RateLimited)
+}
+
+/// How long the provider said to wait, where it named an instant.
+///
+/// `None` covers both "not a throttle" and "a throttle that named nothing": about two Gmail
+/// refusals in three state the quota but not its window. A caller that gets `None` from
+/// a refusal it knows is a throttle falls back to its own schedule; there is nothing better to
+/// be had, and inventing one would put a guess where a server's word belongs.
+pub(crate) fn throttled_for(error: &(dyn StdError + 'static)) -> Option<Duration> {
+    let stated = provider_error_of(error)?.retry_after()?;
+    // The engine's duration is ISO-8601-shaped; a provider's retry hint is an exact span, so
+    // its day component is always zero and this cannot silently truncate one.
+    Some(Duration::from_secs(
+        stated
+            .days()
+            .saturating_mul(86_400)
+            .saturating_add(stated.seconds()),
+    ))
 }
 
 /// Walks `error`'s `source()` chain to the typed [`ProviderError`](engine_provider::ProviderError)

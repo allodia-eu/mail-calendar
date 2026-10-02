@@ -21,6 +21,7 @@ use crate::{
 };
 
 mod bulk;
+mod folder_tree;
 mod folders;
 mod report;
 pub(crate) mod result;
@@ -204,14 +205,8 @@ impl<P: Provider> App<P> {
         write: MailWrite,
         refresh: WriteRefresh,
     ) -> bool {
-        let id = (
-            message.account.as_str().to_owned(),
-            message.key.as_str().to_owned(),
-        );
-        self.pending_removals
-            .lock()
-            .expect("pending-removals mutex poisoned")
-            .insert(id.clone());
+        self.hide_rows(&message.account, std::slice::from_ref(&message.key))
+            .await;
         // Republish immediately so the row leaves the list before the network round-trip.
         self.rebuild_snapshot().await;
         let applied = self.apply_only(&message.account, &write).await;
@@ -220,13 +215,10 @@ impl<P: Provider> App<P> {
             // so the row returns on the re-sync below.
             log::warn!(
                 "remove: write didn't apply for key {} on account {}; restoring the row",
-                id.1,
-                id.0,
+                message.key.as_str(),
+                message.account.as_str(),
             );
-            self.pending_removals
-                .lock()
-                .expect("pending-removals mutex poisoned")
-                .remove(&id);
+            self.restore_row(&message.account, &message.key);
         }
         if refresh == WriteRefresh::Immediate {
             self.refresh_after_write(&message.account).await;

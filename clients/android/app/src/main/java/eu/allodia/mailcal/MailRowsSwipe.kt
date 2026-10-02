@@ -75,6 +75,7 @@ internal fun SwipeableFlatMessageRow(
     // The signature library + lookups for the reply/forward composer, or null to leave signatures
     // out (a screenshot run, a test).
     signatures: ComposerSignatures? = null,
+    messageFiling: MessageFiling? = null,
 ) {
     // `onDismiss` is remembered once (see below), so reading `swipe`/`onSwipe`/`message` directly
     // would pin whatever they were at first composition. Today the Settings screen unmounts this
@@ -156,6 +157,7 @@ internal fun SwipeableFlatMessageRow(
             stageForwardFiles = stageForwardFiles,
             suggestionsFor = suggestionsFor,
             signatures = signatures,
+            messageFiling = messageFiling,
         )
     }
 }

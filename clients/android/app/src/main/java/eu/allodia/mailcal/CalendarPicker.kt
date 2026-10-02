@@ -55,7 +55,7 @@ internal fun CalendarPickerSheet(
             byAccount.forEach { (account, rows) ->
                 item(key = "acct-$account") {
                     Text(
-                        text = account,
+                        text = rows.firstOrNull()?.accountAddress ?: account,
                         modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 4.dp),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,

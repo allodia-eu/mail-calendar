@@ -31,12 +31,12 @@ use engine_provider::{ConnectObserver, ConnectStep};
 /// An observer that records `protocol`'s connect steps in the diagnostic log: the URL-free trace
 /// described in this module's docs.
 ///
-/// `protocol` (`imap` / `jmap` / `caldav`) labels the line, because several accounts connect
-/// concurrently at boot and their steps interleave in one log.
+/// `protocol` (`imap` / `jmap` / `caldav` / `carddav`) labels the line, because several accounts
+/// connect concurrently at boot and their steps interleave in one log.
 ///
-/// Carried on the provider's *config*, so every connect built from it is traced; including an
-/// `ImapWatcher`'s separate `IDLE` connection and a `ReconnectingImapProvider`'s re-dial, which is
-/// precisely when a connect problem shows up in the field.
+/// Carried on the provider's *config*, so every connect built from it is traced; for IMAP that is
+/// every connection the account's pool opens after the first, for a sync, a watch or in place of a
+/// dead one, which is precisely when a connect problem shows up in the field.
 pub(crate) fn connect_logger(protocol: &'static str) -> Arc<dyn ConnectObserver> {
     Arc::new(move |step: &ConnectStep<'_>| {
         if let Some(line) = step_line(protocol, step) {

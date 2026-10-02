@@ -287,6 +287,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 onShowOutbox = {
                                     instance.dispatch(Intent.Outbox(OutboxIntent.Show))
                                 },
+                                folderEditing = FolderEditing.of(instance),
+                                folderNotice = folderNotice,
                             ) {
                             if (showingOutbox) {
                                 // The Outbox replaces the mailbox list rather than covering it:
@@ -387,6 +389,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // this mode, re-resolved when From changes, overridable per message.
                             signatures = composerSignatures(instance, signatures?.signatures.orEmpty()),
                             drafts = composerDrafts(instance),
+                            messageFiling = MessageFiling.of(instance, this@MailboxTabContent),
                             replyRecipients = { account, key, replyAll ->
                                 try {
                                     instance.replyRecipients(account, key, replyAll)
@@ -414,6 +417,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             onDismissTimeZoneChange = { instance.dispatch(Intent.DismissTimeZoneChange) },
                             // Background-download progress bar.
                             syncProgress = syncProgress,
+                            emptyReason = emptyReason,
                             // Connectivity: the offline banner + per-account outage badges + the
                             // friendly connection-issues banner (names affected accounts, with a
                             // Details action and Try again). Retry re-dials via a refresh.
@@ -469,8 +473,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             ResumedDraftPane(instance)
                             // A draft that could not be opened. The message opens for reading
                             // behind this, so nothing is lost; what it cannot do is be edited.
-                            if (draftOpenFailed) {
-                                DraftOpenFailedDialog(onDismiss = { draftOpenFailed = false })
+                            if (drafts.draftOpenFailed) {
+                                DraftOpenFailedDialog(onDismiss = { drafts.draftOpenFailed = false })
                             }
                             } // FolderDrawerScaffold
                           }

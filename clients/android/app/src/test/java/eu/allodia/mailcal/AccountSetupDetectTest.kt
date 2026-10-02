@@ -9,6 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.DetectedServerRow
+import uniffi.mailcal_bindings.RejectedCertificate
 import uniffi.mailcal_bindings.SetupRecommendation
 
 class AccountSetupDetectTest {
@@ -33,6 +34,7 @@ class AccountSetupDetectTest {
         incoming = DetectedServerRow("IMAP", "imap.example.com", 993u, "SSL/TLS", "alice@example.com"),
         outgoing = if (withSmtp) DetectedServerRow("SMTP", "smtp.example.com", 465u, "SSL/TLS", "alice@example.com") else null,
         caldavUrl = caldavUrl,
+        oauthIssuer = null,
         isTrusted = isTrusted,
         source = "https://autoconfig.example.com/mail/config-v1.1.xml",
     )
@@ -81,6 +83,56 @@ class AccountSetupDetectTest {
         assertEquals("alice@example.com", setup.username)
         assertEquals("smtp.example.com", setup.smtpHost)
         assertNull(setup.caldavBaseUrl)
+    }
+
+    private fun refusedCertificate() = RejectedCertificate(
+        serverName = "imap.example.com",
+        sha256 = "AB:CD",
+        subjectCommonName = "imap.example.com",
+        subjectOrganisation = "Example Ltd",
+        issuerCommonName = "imap.example.com",
+        issuerOrganisation = "Example Ltd",
+        notBefore = 0L,
+        notAfter = 1L,
+    )
+
+    // A refused certificate gates Connect the way an untrusted result does, and nothing is
+    // handed back to store until somebody has accepted it (docs/certificate-exceptions.md).
+    @Test
+    fun aRefusedCertificateGatesConnectUntilItIsAccepted() {
+        val form = DetectedConnectForm(imap(isTrusted = true))
+        form.password = "hunter2"
+        assertTrue(form.canConnect)
+
+        form.rejectedCertificate = refusedCertificate()
+        assertFalse("a refused certificate must gate Connect", form.canConnect)
+        assertNull(form.acceptedCertificate)
+
+        form.certificateAccepted = true
+        assertTrue(form.canConnect)
+        assertEquals(refusedCertificate(), form.imapSetup().acceptedCertificate)
+    }
+
+    // The two gates are independent: accepting the certificate does not also approve settings
+    // that arrived over a connection that was not secure.
+    @Test
+    fun acceptingACertificateDoesNotApproveUntrustedSettings() {
+        val form = DetectedConnectForm(imap(isTrusted = false))
+        form.password = "hunter2"
+        form.rejectedCertificate = refusedCertificate()
+        form.certificateAccepted = true
+        assertFalse(form.canConnect)
+
+        form.approved = true
+        assertTrue(form.canConnect)
+    }
+
+    // A setup that met no certificate problem stores none, so an ordinary account is unchanged.
+    @Test
+    fun anOrdinarySetupCarriesNoAcceptedCertificate() {
+        val form = DetectedConnectForm(imap(isTrusted = true))
+        form.password = "hunter2"
+        assertNull(form.imapSetup().acceptedCertificate)
     }
 
     @Test

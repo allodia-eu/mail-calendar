@@ -240,3 +240,18 @@ mod logging;
 
 #[path = "tests_contacts_write.rs"]
 mod write;
+
+/// An account used for its contacts alone has neither a mail pass nor a calendar pass to learn
+/// from, so its contacts say whether its server answers.
+#[tokio::test]
+async fn an_account_with_contacts_alone_is_unreachable_when_they_are() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let mut contacts_only = account("book", vec![Box::new(FakeContacts::failing("personal"))]);
+    contacts_only.providers.clear();
+    contacts_only.uses_mail = false;
+    let app = app(vec![contacts_only], &surfaces);
+
+    app.refresh_contacts().await;
+
+    assert_eq!(app.connectivity().unreachable_accounts, ["book"]);
+}

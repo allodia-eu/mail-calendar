@@ -78,6 +78,11 @@
       "groupName": "Android client dependencies"
     },
     {
+      "description": "A new Gradle waits three months. Its deprecations land before the Android Gradle Plugin stops calling the deprecated API, and `org.gradle.warning.mode=fail` turns every one into a failed build: Gradle 9.8 deprecated `Configuration.setVisible`, which AGP 9.4 still calls.",
+      "matchManagers": ["gradle-wrapper"],
+      "minimumReleaseAge": "90 days"
+    },
+    {
       "matchFileNames": ["clients/windows/**"],
       "labels": ["dependencies", "windows"]
     },

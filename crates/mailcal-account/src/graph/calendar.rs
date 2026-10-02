@@ -36,7 +36,7 @@ use provider_graph::{CalendarWindow, GraphCalendarProvider, GraphClient, Mailbox
 use time::{Duration, OffsetDateTime};
 
 use super::{GraphTokenSource, calendar_date, should_reconnect};
-use crate::{AccountError, throttle::account_retry, tls::account_tls};
+use crate::{AccountError, tls::tls_with};
 
 /// What a Graph series edit costs the occurrences the user changed by hand: moving the
 /// series' time **or** changing its rule destroys every one of them.
@@ -139,7 +139,7 @@ impl RefreshingGraphCalendarProvider {
             token.clone(),
             MailboxPrincipal::Me,
             &self.tls,
-            &account_retry(),
+            &self.tokens.retry(),
         )
         .map_err(ProviderError::from)?;
         let provider = Arc::new(GraphCalendarProvider::new(
@@ -201,11 +201,9 @@ impl Provider for RefreshingGraphCalendarProvider {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
-            let permit = self.tokens.acquire().await;
             match provider.sync_calendars(account, cursor).await {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
-                    drop(permit);
                     self.invalidate_delegate();
                     provider = self.delegate().await?;
                     reconnected = true;
@@ -223,11 +221,9 @@ impl Provider for RefreshingGraphCalendarProvider {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
-            let permit = self.tokens.acquire().await;
             match provider.sync_events(account, cursor).await {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
-                    drop(permit);
                     self.invalidate_delegate();
                     provider = self.delegate().await?;
                     reconnected = true;
@@ -237,6 +233,8 @@ impl Provider for RefreshingGraphCalendarProvider {
         }
     }
 }
+
+impl engine_api::MailboxWrites for RefreshingGraphCalendarProvider {}
 
 #[async_trait]
 impl CalendarWrites for RefreshingGraphCalendarProvider {
@@ -248,7 +246,6 @@ impl CalendarWrites for RefreshingGraphCalendarProvider {
         // A create is a non-idempotent `POST`; a blind retry could double-create, so this makes a
         // single attempt (the token is refreshed by `delegate`). A failure surfaces to the app.
         let provider = self.delegate().await?;
-        let _permit = self.tokens.acquire().await;
         provider.create_event(account, draft).await
     }
 
@@ -261,7 +258,6 @@ impl CalendarWrites for RefreshingGraphCalendarProvider {
         // `If-Match`-guarded, so a retry after a partial success risks a spurious `412`. Single
         // attempt, like `create_event`.
         let provider = self.delegate().await?;
-        let _permit = self.tokens.acquire().await;
         provider.patch_event(account, base, edit).await
     }
 
@@ -272,7 +268,6 @@ impl CalendarWrites for RefreshingGraphCalendarProvider {
         deletion: &EventDeletion,
     ) -> ProviderResult<()> {
         let provider = self.delegate().await?;
-        let _permit = self.tokens.acquire().await;
         provider.delete_event(account, base, deletion).await
     }
 }
@@ -297,7 +292,7 @@ pub async fn connect_graph_calendar_providers(
     tokens: Arc<GraphTokenSource>,
     display_zone: TimeZoneId,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     let window = rolling_window()?;
     let calendars = list_calendars(account_id, &tokens, &tls, window, display_zone.clone()).await?;
     let calendar = calendars
@@ -326,7 +321,7 @@ async fn list_calendars(
     display_zone: TimeZoneId,
 ) -> Result<Vec<Calendar>, AccountError> {
     let token = tokens.access_token().await?;
-    let client = GraphClient::for_mailbox(token, MailboxPrincipal::Me, tls, &account_retry())
+    let client = GraphClient::for_mailbox(token, MailboxPrincipal::Me, tls, &tokens.retry())
         .map_err(|err| AccountError::Graph(err.to_string()))?;
     let placeholder =
         CalendarId::try_from("calendar").map_err(|err| AccountError::Graph(err.to_string()))?;
@@ -394,7 +389,7 @@ mod tests {
             source,
             rolling_window().unwrap(),
             TimeZoneId::utc(),
-            account_tls().unwrap(),
+            tls_with(&[]).unwrap(),
         );
         // Calendar capability with a server-enforced write guard, and no mail capability.
         let info = provider.connection_info();

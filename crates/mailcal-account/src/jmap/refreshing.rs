@@ -24,7 +24,7 @@ use engine_provider::{Capabilities, Provider, ProviderError, ProviderResult};
 use engine_tls::TlsClientConfig;
 use provider_jmap::{Credentials, JmapConfig, JmapProvider};
 
-use crate::{AccountError, GraphTokenSource, connect_log::connect_logger, throttle::account_retry};
+use crate::{AccountError, GraphTokenSource, connect_log::connect_logger};
 
 /// A [`Provider`](engine_provider::Provider) for an OAuth JMAP account: refreshes the access
 /// token as needed and delegates to a [`JmapProvider`] built with it. Account-global; one
@@ -148,7 +148,7 @@ impl RefreshingJmapProvider {
         log::debug!("jmap: access token changed; rebuilding the provider session");
         let config = JmapConfig::new(self.base_url.clone(), Credentials::bearer(token.clone()))
             .with_tls(self.tls.clone())
-            .with_retry(account_retry())
+            .with_retry(self.tokens.retry())
             .with_connect_observer(connect_logger("jmap"));
         let rebuilt = JmapProvider::connect(config)
             .await

@@ -58,6 +58,22 @@ pub fn caldav_well_known(domain: &Domain) -> Url {
     parse(&format!("https://{domain}/.well-known/caldav"))
 }
 
+/// The RFC 6764 CardDAV bootstrap URL for `domain`, `https://{domain}/.well-known/carddav`,
+/// under the rules [`caldav_well_known`] gives.
+pub fn carddav_well_known(domain: &Domain) -> Url {
+    parse(&format!("https://{domain}/.well-known/carddav"))
+}
+
+/// A DAV bootstrap URL on the `host:port` a `_caldavs._tcp` or `_carddavs._tcp` SRV record
+/// names, `well_known` being `caldav` or `carddav` (RFC 6764 §6: with no TXT `path`, the
+/// client starts from the target's `.well-known`). Only the standard `443` is elided.
+pub fn dav_well_known_at(host: &Domain, port: u16, well_known: &str) -> Url {
+    parse(&format!(
+        "https://{}/.well-known/{well_known}",
+        authority(host, port)
+    ))
+}
+
 /// The JMAP autodiscovery URL for `domain` (RFC 8620 §2.2), normally
 /// `https://{domain}/.well-known/jmap`. `override_base` (dev harness only) redirects
 /// the probe at a local server that can't be reached by domain name.
@@ -78,12 +94,19 @@ const HTTPS_PORT: u16 = 443;
 /// `host` is a validated [`Domain`] (never a raw DNS string) and only the standard `443`
 /// is elided, so the target is disclosed but the email address still never is.
 pub fn jmap_well_known_at(host: &Domain, port: u16) -> Url {
-    let authority = if port == HTTPS_PORT {
+    parse(&format!(
+        "https://{}/.well-known/jmap",
+        authority(host, port)
+    ))
+}
+
+/// `host`, with `:port` unless the port is the standard HTTPS one.
+fn authority(host: &Domain, port: u16) -> String {
+    if port == HTTPS_PORT {
         host.to_string()
     } else {
         format!("{host}:{port}")
-    };
-    parse(&format!("https://{authority}/.well-known/jmap"))
+    }
 }
 
 /// Parses a URL built from a validated [`Domain`] and fixed template text; cannot fail.
@@ -96,8 +119,8 @@ mod tests {
     use url::Url;
 
     use super::{
-        autoconfig_urls, caldav_well_known, ispdb_url, jmap_well_known, jmap_well_known_at,
-        post_mx_urls,
+        autoconfig_urls, caldav_well_known, carddav_well_known, dav_well_known_at, ispdb_url,
+        jmap_well_known, jmap_well_known_at, post_mx_urls,
     };
     use crate::types::Domain;
 
@@ -151,6 +174,23 @@ mod tests {
     }
 
     #[test]
+    fn carddav_well_known_and_an_srv_target_are_pinned() {
+        assert_eq!(
+            carddav_well_known(&domain()).to_string(),
+            "https://company.example/.well-known/carddav"
+        );
+        let target = Domain::parse("dav.provider.example").unwrap();
+        assert_eq!(
+            dav_well_known_at(&target, 443, "caldav").to_string(),
+            "https://dav.provider.example/.well-known/caldav"
+        );
+        assert_eq!(
+            dav_well_known_at(&target, 8443, "carddav").to_string(),
+            "https://dav.provider.example:8443/.well-known/carddav"
+        );
+    }
+
+    #[test]
     fn jmap_well_known_is_pinned_and_overridable() {
         assert_eq!(
             jmap_well_known(&domain(), None).to_string(),
@@ -188,7 +228,9 @@ mod tests {
             .chain(post_mx_urls(&domain()))
             .chain([jmap_well_known(&domain(), None)])
             .chain([jmap_well_known_at(&target, 443)])
-            .chain([caldav_well_known(&domain())]);
+            .chain([caldav_well_known(&domain())])
+            .chain([carddav_well_known(&domain())])
+            .chain([dav_well_known_at(&target, 443, "caldav")]);
         for url in all {
             assert!(url.query().is_none(), "{url} must carry no query");
             assert!(!url.as_str().contains('@'), "{url} must carry no address");

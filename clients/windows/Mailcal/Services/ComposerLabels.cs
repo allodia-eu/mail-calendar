@@ -52,6 +52,11 @@ internal static class ComposerLabels
         ["deleteRow"] = L10n.EditorDeleteRow(),
         ["deleteColumn"] = L10n.EditorDeleteColumn(),
         ["deleteTable"] = L10n.EditorDeleteTable(),
+        ["link"] = L10n.EditorLink(),
+        ["linkText"] = L10n.EditorLinkText(),
+        ["linkAddress"] = L10n.EditorLinkAddress(),
+        ["linkApply"] = L10n.EditorLinkApply(),
+        ["linkRemove"] = L10n.EditorLinkRemove(),
     };
 
     /// <summary>The call the hosts inject once the bundle has parsed. The serializer is what makes

@@ -16,6 +16,7 @@
 // and the rows on three different left edges, and stranded the explanatory footnote far below the
 // fields it explains.
 
+import MailcalBindings // L10n
 import SwiftUI
 
 /// The shared setup chrome: a width-capped column, centred and scrollable on iOS/iPadOS, and the
@@ -84,14 +85,25 @@ struct SetupCard<Content: View>: View {
 
 /// The setup screens' footer: the actions, trailing-aligned, with a full-width hairline above them
 /// so they read as the end of the form rather than as controls floating in the empty space the old
-/// layout left below the fields.
+/// layout left below the fields. A second step puts its way back to the address at the leading
+/// edge (`docs/account-autodetect.md`, rule 12).
 struct SetupFooter<Content: View>: View {
+    var back: (() -> Void)? = nil
+    /// Set while a connect or a sign-in is running, whose answer belongs to the step on screen.
+    var backDisabled = false
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         VStack(spacing: 12) {
             Divider()
             HStack(spacing: 12) {
+                if let back {
+                    // The identifier is for the UI suite: behind a later add's sheet the calendar's
+                    // previous-week chevron is also a button labelled "Back".
+                    Button(L10n.a11y_back(), action: back)
+                        .disabled(backDisabled)
+                        .accessibilityIdentifier("setup-back")
+                }
                 Spacer()
                 content()
             }

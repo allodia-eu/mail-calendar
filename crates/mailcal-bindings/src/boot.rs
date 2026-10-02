@@ -25,6 +25,7 @@ use crate::{
     device_zone, logging,
     observer::{DebouncedObserver, ObserverBridge},
     runtime::build_runtime,
+    store_files::STORE_FILE,
     token_sink::token_sink,
 };
 
@@ -48,7 +49,7 @@ pub(crate) struct HostDevice {
 // detection, plus the FFI-surface tests.
 pub(crate) use connect::{connect_google_calendars, connect_jmap_calendars};
 pub(crate) use contacts::{
-    connect_caldav_contacts, connect_google_contacts, connect_jmap_contacts,
+    connect_caldav_contacts, connect_google_contacts, connect_graph_contacts, connect_jmap_contacts,
 };
 // The in-memory demo/showcase builders (no real account, no network) live in their own module.
 pub(crate) use inmemory::{build_demo, build_showcase, build_showcase_first_run};
@@ -57,7 +58,9 @@ pub(crate) use inmemory::{build_demo, build_showcase, build_showcase_first_run};
 pub(crate) use outcome::DialFailure;
 use outcome::dial_registered;
 pub(crate) use outcome::{FailedDial, record_dial_outcome};
-pub(crate) use stored::{PreparedAccount, connect_graph_calendars, prepare_stored_account};
+pub(crate) use stored::{
+    PreparedAccount, connect_graph_calendars, placeholder, prepare_stored_account,
+};
 
 /// Builds a real account-backed app from the host's stored account `configs`: the body of
 /// [`MailcalApp::new_accounts`]; see that method for the full contract.
@@ -204,8 +207,8 @@ pub(crate) fn build_accounts(
     };
 
     let engine_start = Instant::now();
-    let engine = Engine::open(base.join("mailcal.sqlite"))
-        .map_err(|err| MailcalError::Engine(err.to_string()))?;
+    let engine =
+        Engine::open(base.join(STORE_FILE)).map_err(|err| MailcalError::Engine(err.to_string()))?;
     log::info!(
         "boot: engine open+migrate in {}ms",
         engine_start.elapsed().as_millis(),

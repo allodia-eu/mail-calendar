@@ -17,7 +17,7 @@ use engine_core::ids::{AccountId, IdError};
 use mailcal_oauth::OAuthProviderConfig;
 use serde::Deserialize;
 
-use crate::{AccountError, ConfigError, Secret, tls::account_tls};
+use crate::{AccountError, ConfigError, Secret, tls::tls_with};
 
 /// The host sentinel appended to a Google account's address to form its stable [`AccountId`],
 /// mirroring [`MicrosoftConfig`](crate::MicrosoftConfig)'s `graph.microsoft.com`. Gmail
@@ -29,6 +29,12 @@ const GOOGLE_ID_HOST: &str = "mail.google.com";
 /// Google parallel of Graph's `/me`. Covered by the `https://mail.google.com/` scope, so no
 /// separate `openid`/`email` scope is needed to name the account.
 const GMAIL_PROFILE_ENDPOINT: &str = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
+
+/// Where an account granted `userinfo.email` reads its own `email`.
+const GOOGLE_USERINFO_ENDPOINT: &str = "https://www.googleapis.com/oauth2/v3/userinfo";
+
+/// The scope that endpoint answers to.
+const USERINFO_EMAIL_SCOPE: &str = "https://www.googleapis.com/auth/userinfo.email";
 
 /// One Google account's connection config: the app registration, the signed-in address, and
 /// the long-lived refresh token. Deserialized from the `[google]` section a host stores in its
@@ -57,9 +63,53 @@ pub struct GoogleConfig {
     /// The OAuth refresh token: the only stored secret; access tokens are minted from it at
     /// connect time and never persisted.
     pub refresh_token: Secret,
+    /// The scopes the provider actually granted, which may be fewer than were requested: a
+    /// person can untick one on the consent screen, or withdraw one later. A copy of the last
+    /// token response that named them, written at sign-in and overwritten by any refresh that
+    /// names a different set, so it is only ever as old as the last refresh. `None` for a grant
+    /// stored before this was recorded, which is read as withholding nothing until a refresh says
+    /// otherwise.
+    #[serde(default)]
+    pub granted_scopes: Option<Vec<String>>,
+    /// What the account is used for, its pinned id and its links: the keys every kind shares at
+    /// the document's root ([`AccountShape`](crate::AccountShape)). Read by the loader beside the
+    /// kind's own section.
+    #[serde(skip)]
+    pub shape: crate::AccountShape,
 }
 
 impl GoogleConfig {
+    /// What this account is used for: its stored choice, or what the kind has always meant
+    /// (everything, since sign-in asked for everything).
+    #[must_use]
+    pub fn capabilities(&self) -> crate::Capabilities {
+        self.shape.capabilities_or(crate::Capability::ALL)
+    }
+
+    /// The uses this account is chosen for that its grant does not allow.
+    #[must_use]
+    pub fn withheld_capabilities(&self) -> crate::Capabilities {
+        crate::withheld(
+            &mailcal_oauth::scopes::GOOGLE,
+            &self.capabilities(),
+            self.granted_scopes.as_deref(),
+        )
+    }
+
+    /// This account's id: the one pinned in its stored config when there is one, and otherwise
+    /// the one [`derived_account_id`](Self::derived_account_id) derives. A pinned id is what lets
+    /// the settings it was derived from be edited without the account becoming another one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IdError`] only if there is no pinned id and the derived one is empty.
+    pub fn account_id(&self) -> Result<AccountId, IdError> {
+        match &self.shape.id {
+            Some(id) => Ok(id.clone()),
+            None => self.derived_account_id(),
+        }
+    }
+
     /// Derives this account's stable [`AccountId`] from its **lowercased address** plus the
     /// Google host sentinel; stable across launches, and distinct from an IMAP (or Microsoft)
     /// account for the same address (see `GOOGLE_ID_HOST`).
@@ -67,7 +117,7 @@ impl GoogleConfig {
     /// # Errors
     ///
     /// Returns [`IdError`] only if the address is empty (an empty id).
-    pub fn account_id(&self) -> Result<AccountId, IdError> {
+    pub fn derived_account_id(&self) -> Result<AccountId, IdError> {
         let email = self.email.trim().to_lowercase();
         AccountId::try_from(format!("{email}@{GOOGLE_ID_HOST}").as_str())
     }
@@ -118,7 +168,14 @@ impl GoogleConfig {
             "refresh_token".into(),
             self.refresh_token.expose().to_owned().into(),
         );
+        if let Some(granted) = &self.granted_scopes {
+            google.insert(
+                "granted_scopes".into(),
+                toml::Value::Array(granted.iter().map(|s| s.clone().into()).collect()),
+            );
+        }
         let mut root = toml::Table::new();
+        self.shape.write_into(&mut root);
         root.insert("google".into(), google.into());
         Ok(toml::to_string(&root)?)
     }
@@ -138,24 +195,39 @@ struct GoogleDocument {
 /// Returns [`ConfigError::Parse`] if the text is not a valid `[google]` config.
 pub fn load_google_str(text: &str) -> Result<GoogleConfig, ConfigError> {
     let doc: GoogleDocument = toml::from_str(text)?;
-    Ok(doc.google)
+    let mut config = doc.google;
+    config.shape = crate::AccountShape::read(text)?;
+    Ok(config)
 }
 
-/// Looks up the signed-in account's own email address via the Gmail `users/me/profile`
-/// endpoint, so a freshly authorised account can be named and keyed without asking the user to
-/// type it: the Google parallel of [`fetch_primary_address`](crate::fetch_primary_address).
-/// Authenticates with the bearer `access_token` just obtained in the flow.
+/// Looks up the signed-in account's own email address, so a freshly authorised account can be
+/// named and keyed without asking the user to type it: the Google parallel of
+/// [`fetch_primary_address`](crate::fetch_primary_address). Authenticates with the bearer
+/// `access_token` just obtained in the flow.
+///
+/// `granted` is what the grant carries. Every sign-in asks for `userinfo.email`, which names the
+/// account whatever else the person allowed; a grant without it (one issued before it was asked
+/// for) is read through the Gmail profile, which its mail scope covers.
 ///
 /// # Errors
 ///
 /// Returns [`AccountError::Google`] if the request fails, is non-2xx, or returns no address.
-pub async fn fetch_google_primary_address(access_token: &str) -> Result<String, AccountError> {
-    let http = account_tls()?
+pub async fn fetch_google_primary_address(
+    access_token: &str,
+    granted: &[String],
+) -> Result<String, AccountError> {
+    let scopes = &mailcal_oauth::scopes::GOOGLE;
+    let (endpoint, field) = if scopes.holds(granted, USERINFO_EMAIL_SCOPE) {
+        (GOOGLE_USERINFO_ENDPOINT, "email")
+    } else {
+        (GMAIL_PROFILE_ENDPOINT, "emailAddress")
+    };
+    let http = tls_with(&[])?
         .reqwest_builder()
         .build()
         .map_err(|err| AccountError::Google(format!("profile lookup client: {err}")))?;
     let resp = http
-        .get(GMAIL_PROFILE_ENDPOINT)
+        .get(endpoint)
         .bearer_auth(access_token)
         .send()
         .await
@@ -171,7 +243,7 @@ pub async fn fetch_google_primary_address(access_token: &str) -> Result<String, 
         .await
         .map_err(|err| AccountError::Google(format!("profile lookup decode: {err}")))?;
     let address = body
-        .get("emailAddress")
+        .get(field)
         .and_then(serde_json::Value::as_str)
         .filter(|address| !address.is_empty())
         .ok_or_else(|| AccountError::Google("profile lookup returned no address".to_owned()))?;
@@ -193,6 +265,8 @@ mod tests {
                 "https://www.googleapis.com/auth/calendar".to_owned(),
             ],
             refresh_token: Secret::new("secret-refresh-token".to_owned()),
+            granted_scopes: None,
+            shape: crate::AccountShape::default(),
         }
     }
 

@@ -153,13 +153,19 @@ pub struct DetectedMailSettings {
     pub is_trusted: bool,
     /// Which strategy and URL produced the config.
     pub source: Source,
-    /// A CalDAV endpoint discovered for this account, if any: a follow-on RFC 6764
-    /// probe (autoconfig/ISPDB describe mail only) found the account's email domain or
-    /// its provider's registrable domain advertising `.well-known/caldav` over HTTPS.
-    /// `None` means none was found (the user can still add one by hand). Calendar sync
-    /// reuses the IMAP credentials at connect; the engine does the authenticated
-    /// collection discovery: this is only the unauthenticated "is there one, and where".
-    pub caldav_url: Option<String>,
+    /// The OAuth issuer the provider's **own** autoconfig named (`<oAuth2><issuer>`), as an
+    /// HTTPS URL, or `None`.
+    ///
+    /// Only the endpoints an *issuer* publishes about itself are ever used, never the
+    /// `authURL`/`tokenURL`/`clientID` a document writes beside the issuer, and only a
+    /// provider describing itself over HTTPS may name one at all: the ISPDB's block is
+    /// dropped (`docs/account-autodetect.md` rule 7). `None` is the ordinary case, and the
+    /// setup path then looks for an issuer at the provider's own well-known locations
+    /// instead.
+    pub oauth_issuer: Option<String>,
+    /// The calendar and address-book servers found beside the mail servers, which
+    /// autoconfig and the ISPDB never describe.
+    pub dav: DetectedDav,
 }
 
 /// A JMAP server discovered for the email's domain.
@@ -177,6 +183,29 @@ pub struct DetectedJmap {
     pub is_trusted: bool,
     /// Which strategy and URL produced the hit.
     pub source: Source,
+    /// The calendar and address-book servers found beside the JMAP server, for whatever
+    /// the JMAP account turns out not to offer once signed in.
+    pub dav: DetectedDav,
+}
+
+/// The CalDAV and CardDAV servers an unauthenticated RFC 6764 probe found: each a
+/// `.well-known` landing point reached over HTTPS, from the domain itself or from the
+/// target its `_caldavs._tcp` / `_carddavs._tcp` SRV record names. Only "is there one, and
+/// where": the engine does the authenticated discovery at connect.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DetectedDav {
+    /// The CalDAV endpoint, or `None` when none was found.
+    pub caldav_url: Option<String>,
+    /// The CardDAV endpoint, or `None` when none was found.
+    pub carddav_url: Option<String>,
+}
+
+impl DetectedDav {
+    /// Whether neither server was found.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.caldav_url.is_none() && self.carddav_url.is_none()
+    }
 }
 
 /// The outcome of a detection run.
@@ -186,6 +215,8 @@ pub enum Detected {
     Jmap(DetectedJmap),
     /// IMAP/SMTP settings were published for the domain.
     Mail(DetectedMailSettings),
+    /// No mail server was found, but the domain names a calendar or address-book server.
+    Dav(DetectedDav),
     /// No strategy produced usable settings.
     Nothing {
         /// `true` when **every** strategy failed on transport (likely offline), as

@@ -9,6 +9,7 @@
 //! must move nothing.
 
 use engine_core::error::FailureClass;
+use provider_caldav::CalDavError;
 use provider_imap::ImapError;
 use provider_jmap::JmapError;
 
@@ -25,6 +26,9 @@ fn jmap_status(status: u16) -> JmapError {
     JmapError::Status {
         status,
         body: "{}".to_owned(),
+        // The engine carries a server's own instant here now; nothing this fake stands in
+        // for names one.
+        retry_after: None,
     }
 }
 
@@ -90,6 +94,55 @@ fn a_refusal_converted_the_ordinary_way_is_never_a_rejected_signin() {
     assert!(matches!(
         AccountError::from(refused_login()),
         AccountError::Imap(_)
+    ));
+}
+
+fn dav_status(status: u16) -> CalDavError {
+    CalDavError::Status {
+        status,
+        body: String::new(),
+        retry_after: None,
+    }
+}
+
+#[test]
+fn a_dav_401_is_a_rejected_signin() {
+    assert_eq!(
+        dav_status(401).failure_class(),
+        FailureClass::Authentication,
+        "the engine no longer classifies a 401 as an authentication failure"
+    );
+    assert!(matches!(
+        AccountError::from_first_dav_connect(dav_status(401)),
+        AccountError::SigninRejected(_)
+    ));
+}
+
+#[test]
+fn a_dav_connect_that_failed_some_other_way_is_not_a_rejected_signin() {
+    // A plain 403 is the server declining this request with the credential it accepted.
+    for err in [
+        dav_status(403),
+        dav_status(503),
+        CalDavError::Protocol("no collections".to_owned()),
+    ] {
+        let class = err.failure_class();
+        assert!(
+            matches!(
+                AccountError::from_first_dav_connect(err),
+                AccountError::CalDav(_)
+            ),
+            "a {class:?} failure was read as a refused credential"
+        );
+    }
+}
+
+/// The DAV side of the corroboration rule: only the connect decides.
+#[test]
+fn a_dav_refusal_converted_the_ordinary_way_is_never_a_rejected_signin() {
+    assert!(matches!(
+        AccountError::from(dav_status(401)),
+        AccountError::CalDav(_)
     ));
 }
 

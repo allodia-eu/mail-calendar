@@ -19,6 +19,11 @@ fn folder(key: &str, name: &str, role: Option<FolderRole>) -> FolderRow {
         has_children: false,
         expanded: false,
         visible: true,
+        pending: false,
+        in_trash: false,
+        editable: false,
+        accepts_folders: false,
+        accepts_messages: false,
     }
 }
 
@@ -35,6 +40,7 @@ fn snapshot(selected_account: Option<&str>, selected: Option<&str>) -> MailboxLi
         selected: selected.map(str::to_owned),
         account_folders: vec![AccountFolderRow {
             account_id: "acct-1".to_owned(),
+            manages_folders: false,
             folders: vec![
                 folder("inbox", "INBOX", Some(FolderRole::Inbox)),
                 folder("custom", "Sales & Marketing", None),

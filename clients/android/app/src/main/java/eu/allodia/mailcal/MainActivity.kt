@@ -36,7 +36,9 @@ import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.CalendarWriteStatus
 import uniffi.mailcal_bindings.ContactRow
 import uniffi.mailcal_bindings.DisplaySettings
+import uniffi.mailcal_bindings.EmptyReason
 import uniffi.mailcal_bindings.EventRow
+import uniffi.mailcal_bindings.FolderNotice
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailtoPrefill
@@ -94,27 +96,21 @@ class MainActivity : AppCompatActivity() {
     // Outbox *and* on the unified inbox (docs/folder-pane.md, rule 18).
     internal var outbox by mutableStateOf<List<QueuedRow>>(emptyList())
     internal var showingOutbox by mutableStateOf(false)
-    // Whether the list is showing the account's Drafts folder, so a row opens into a composer that
-    // saves over it rather than into the reading view (docs/drafts.md). The core answers it from
-    // the folder's role, never from its name.
-    internal var showingDrafts by mutableStateOf(false)
-    // Bumped on every Surface.DRAFT_STATUS signal, so each open composer re-pulls its own
-    // composition's state. The signal says that *some* composition's save moved, not which, and
-    // there is nothing else to publish.
-    internal var draftStatusVersion by mutableStateOf(0)
+    // The Drafts folder's state on this screen: whether it is open, and a draft on its way back
+    // into a composer (MainActivityDrafts.kt).
+    internal val drafts = DraftUiState()
+    // A folder change the server refused, until the user closes it (docs/folder-pane.md, rule 28).
+    internal var folderNotice by mutableStateOf<FolderNotice?>(null)
     // A message the core withdrew from the Outbox so the user can change it. It exists nowhere
     // else by the time it arrives, so it is held until this client's composer has it.
     internal var withdrawnMessage by mutableStateOf<ComposeRequest?>(null)
-    // A draft the core has opened back up, waiting for its composer to be drawn. Null the rest of
-    // the time; set only by a tap on a Drafts-folder row (docs/drafts.md).
-    internal var resumedDraft by mutableStateOf<ResumedDraft?>(null)
-    // Whether to say that a draft could not be opened back into a composer. Raised instead of
-    // opening an empty one, whose next save would replace the draft.
-    internal var draftOpenFailed by mutableStateOf(false)
     // The selected folder key within the selected account (null = all mail). Pulled with the snapshot.
     internal var selectedFolder by mutableStateOf<String?>(null)
     // How far back the active search looked, or null when the list is not a search.
     internal var searchHorizon by mutableStateOf<SearchHorizon?>(null)
+    // Why the mail list has no rows, or null whenever it has some. A search explains itself
+    // through searchHorizon instead, so the two are never both up.
+    internal var emptyReason by mutableStateOf<EmptyReason?>(null)
     // The display-timezone setting (active zone + any pending device-zone change). Owned by
     // the Rust core; null until the first settings pull after construction.
     internal var timeZone by mutableStateOf<TimeZoneSnapshot?>(null)
@@ -290,6 +286,17 @@ class MainActivity : AppCompatActivity() {
     // A failed add-account connect, shown on the setup form (distinct from the launch-time
     // `connectError`).
     internal var addError by mutableStateOf<String?>(null)
+
+    // A connect that was refused for a certificate, kept whole rather than as its message: the
+    // form offers to accept it, and the generated message dumps the certificate into one line
+    // (docs/certificate-exceptions.md rule 3). `addAccount` connects on a thread of its own, so
+    // this is the only way back from it.
+    internal var addFailure by mutableStateOf<ConnectFailure?>(null)
+
+    // A certificate already accepted during this setup. The refusal itself lives in the form,
+    // which is a question; this is the answer, and it outlives a retry that then fails on the
+    // password so nobody is asked the same thing twice (docs/certificate-exceptions.md).
+    internal var setupAcceptedCertificate: uniffi.mailcal_bindings.RejectedCertificate? = null
     // True while an IMAP account's Connect is in flight (the blocking login + first sync runs off
     // the main thread), so the Connect button shows a spinner and is disabled.
     internal var isConnecting by mutableStateOf(false)
@@ -308,6 +315,9 @@ class MainActivity : AppCompatActivity() {
     // through the same redirect scheme, and only this tells the two apart, null means "a new
     // account". Set and cleared alongside `pendingJmapLogin`.
     internal var pendingJmapReauthAccount: String? = null
+    // The equivalent handle for an in-flight IMAP sign-in. Separate again, so no two flows can
+    // clobber each other. Not persisted, it carries the PKCE verifier.
+    internal var pendingImapLogin: String? = null
     // The equivalent handle for an in-flight Allodia account sign-in. Separate again. Not
     // persisted, it carries the PKCE verifier.
     internal var pendingAllodiaSignIn: String? = null
@@ -331,6 +341,9 @@ class MainActivity : AppCompatActivity() {
     // The same, for an in-flight JMAP sign-in, set while discovery + registration run and the
     // browser is open.
     internal var signingInJmap by mutableStateOf(false)
+    // The same, for an in-flight IMAP sign-in, set while discovery and registration run and the
+    // browser is open.
+    internal var signingInImap by mutableStateOf(false)
     // The same, for an in-flight Allodia account sign-in, set while the metadata read and the
     // browser hop run, and again from the redirect until the grant is stored.
     internal var signingInAllodia by mutableStateOf(false)

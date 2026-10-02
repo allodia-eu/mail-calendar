@@ -126,7 +126,9 @@ export function caretInto(target: Node, atStart = true): void {
 
 // `Range.compareBoundaryPoints` comparison modes. Spelled out rather than read off the Range
 // interface object, which not every DOM implementation exposes as a static.
+const START_TO_START = 0;
 const START_TO_END = 1;
+const END_TO_END = 2;
 const END_TO_START = 3;
 
 /// Whether `range` overlaps `target`'s boundaries at all.
@@ -140,6 +142,29 @@ export function rangeOverlaps(range: Range, target: Range): boolean {
     range.compareBoundaryPoints(END_TO_START, target) <= 0 &&
     range.compareBoundaryPoints(START_TO_END, target) >= 0
   );
+}
+
+/// Whether every character `range` covers lies inside `node`.
+///
+/// Read from the text rather than from boundary points alone: an engine may put the edges of a
+/// selection of a whole element in the text beside it (the end of the word before a link), which
+/// in DOM order lies outside the element while covering nothing that is.
+export function rangeTextInside(range: Range, node: Node): boolean {
+  const doc = documentOf(node);
+  const nodeRange = doc.createRange();
+  nodeRange.selectNode(node);
+  const outside = doc.createRange();
+  if (range.compareBoundaryPoints(START_TO_START, nodeRange) < 0) {
+    outside.setStart(range.startContainer, range.startOffset);
+    outside.setEnd(nodeRange.startContainer, nodeRange.startOffset);
+    if (outside.toString() !== "") return false;
+  }
+  if (range.compareBoundaryPoints(END_TO_END, nodeRange) > 0) {
+    outside.setStart(nodeRange.endContainer, nodeRange.endOffset);
+    outside.setEnd(range.endContainer, range.endOffset);
+    if (outside.toString() !== "") return false;
+  }
+  return true;
 }
 
 /// Whether `range` overlaps the contents of `node`.

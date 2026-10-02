@@ -63,14 +63,19 @@ def reading_date(iso):
     return f"{day.day} {MONTHS[day.month - 1]} {day.year}"
 
 
-def shipping_platforms():
-    """The platforms a user can actually install today; the ones that reach a store.
+# Installed from a download rather than a store: no console in `PLATFORM_STORES`, but a reader can
+# still go and get it.
+DOWNLOAD_ONLY = ("linux",)
 
-    Derived rather than listed, so the day Linux gets a store it moves out of "in development" on
-    its own. A hand-kept list here would instead keep saying "not yet released" about a shipped
-    client, in the one document written to be read by people who do not follow the repo.
+
+def shipping_platforms():
+    """The platforms a user can actually install today: from a store, or from a download.
+
+    Derived from the store map, so the day a platform gets a store it moves out of "not yet in a
+    store" on its own. A hand-kept list here would instead keep saying "not yet released" about a
+    shipped client, in the one document written to be read by people who do not follow the repo.
     """
-    return tuple(p for p in PLATFORM_ORDER if PLATFORM_STORES[p])
+    return tuple(p for p in PLATFORM_ORDER if PLATFORM_STORES[p] or p in DOWNLOAD_ONLY)
 
 
 def _bullet(fragment):

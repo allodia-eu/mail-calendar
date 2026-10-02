@@ -1,5 +1,5 @@
-//! `probe`; connect to a real IMAP account from a config file, sync its Inbox + Sent
-//! folders through an on-disk engine and report what synced (+ a CalDAV
+//! `probe`; connect to a real IMAP account from a config file, sync every folder it lists
+//! through an on-disk engine and report what synced (+ a CalDAV
 //! calendar sync when configured). It proves the engine ⇄ provider path; including
 //! cross-folder threading; against a *real* server (e.g. Soverin) rather than the
 //! harness, which is what the native apps otherwise exercise.
@@ -36,18 +36,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::open(&db)?;
     let account = AccountId::try_from("probe")?;
 
-    let security = match config.imap.security {
+    let imap = config
+        .imap
+        .as_ref()
+        .ok_or(mailcal_account::AccountError::NoImap)?;
+    let security = match imap.security {
         mailcal_account::ConnectionSecurity::ImplicitTls => "implicit TLS",
         mailcal_account::ConnectionSecurity::StartTls => "STARTTLS",
     };
     eprintln!(
         "Connecting to {} as {} ({security}, verifying)…",
-        config.imap.addr, config.imap.username
+        imap.addr, imap.username
     );
     // The probe syncs the whole mailbox (no sync-depth window) for the de-risk run.
-    let providers = mailcal_account::connect_mail_providers(&config, &account, None).await?;
+    let connections = mailcal_account::ImapConnections::new();
+    let providers =
+        mailcal_account::connect_mail_providers(&connections, &config, None, &account).await?;
 
-    eprintln!("Syncing {} folder(s) (Inbox + Sent)…", providers.len());
+    eprintln!("Syncing {} folder(s)…", providers.len());
     // One pass over the whole account: the engine syncs the folder list once and fans the
     // folders out itself, which is what the app does too.
     let report = engine
@@ -112,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "\nConnecting to {} as {} (https, verifying)…",
             caldav.base_url, caldav.username
         );
-        let provider = mailcal_account::connect_caldav(&config).await?;
+        let provider = mailcal_account::connect_caldav(&config, None).await?;
 
         // A one-year materialization window, with floating times resolved through the
         // user's home zone. Both are fixed here because this is a probe (a real host

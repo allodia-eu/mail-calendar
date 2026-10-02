@@ -1,6 +1,6 @@
 # Privacybeleid: Allodia Mail & Calendar
 
-**Versie 2.5 · Van kracht: 2026-09-20**
+**Versie 2.6 · Van kracht: 2026-10-01**
 
 Allodia Mail & Calendar is een e-mail- en agenda-app die op je eigen apparaat draait en verbinding
 maakt met de e-mailprovider die **jij** kiest. Dit beleid legt in gewone taal uit wat dat betekent
@@ -146,9 +146,9 @@ Privacybescherming die op elk platform is ingebouwd:
 
 **Je instellingen vinden als je een account toevoegt.** Zodat je geen servernamen hoeft in te
 typen, kan de app ze op jouw verzoek afleiden uit je e-mailadres. Hij kijkt op de standaardplekken
-naar de instellingen die je provider publiceert: de autodiscovery-adressen voor e-mail, JMAP en
-agenda op **je eigen e-maildomein en het domein van je provider**, een gewone DNS-opzoeking naar de
-mailhost van je provider, en de **openbare autoconfig-database van het Thunderbird-project**
+naar de instellingen die je provider publiceert: de autodiscovery-adressen voor e-mail, JMAP,
+agenda en adresboek op **je eigen e-maildomein en het domein van je provider**, gewone
+DNS-opzoekingen naar de mail-, agenda- en adresboekservers van je provider, en de **openbare autoconfig-database van het Thunderbird-project**
 (`autoconfig.thunderbird.net`, beheerd door MZLA/Mozilla), een gedeelde gids met
 providerinstellingen. Twee regels begrenzen dat allemaal: alleen je **domein** wordt ooit
 verstuurd, nooit je volledige e-mailadres; en alles wordt over HTTPS geprobeerd, en een bron van

@@ -48,7 +48,7 @@ use engine_provider::{
 use engine_tls::TlsClientConfig;
 use provider_google::{GoogleClient, GoogleContactProvider, GoogleContactSource};
 
-use crate::{AccountError, GraphTokenSource, throttle::account_retry, tls::account_tls};
+use crate::{AccountError, GraphTokenSource, tls::tls_with};
 
 /// The People sources an account binds, in the order they are bound. Groups is the one the
 /// engine also offers and this list leaves out; the module doc says why.
@@ -57,6 +57,15 @@ const BOUND_SOURCES: &[GoogleContactSource] = &[
     GoogleContactSource::OtherContacts,
     GoogleContactSource::Directory,
 ];
+
+/// The sources an account binds: all of [`BOUND_SOURCES`], less the Workspace directory unless
+/// the person chose colleagues from their organisation.
+fn bound_sources(directory: bool) -> impl Iterator<Item = GoogleContactSource> {
+    BOUND_SOURCES
+        .iter()
+        .copied()
+        .filter(move |source| directory || *source != GoogleContactSource::Directory)
+}
 
 /// A [`ContactsProvider`] bound to one Google People source that refreshes its access token
 /// before every network call and delegates to a [`GoogleContactProvider`] built with it.
@@ -106,7 +115,7 @@ impl RefreshingGoogleContactProvider {
                 return Ok(Arc::clone(&cache.1));
             }
         }
-        let provider = Arc::new(build(self.source, &token, &self.tls)?);
+        let provider = Arc::new(build(self.source, &token, &self.tls, &self.tokens.retry())?);
         *self.cached.lock().expect("google contacts mutex poisoned") =
             (token, Arc::clone(&provider));
         Ok(provider)
@@ -126,13 +135,18 @@ impl RefreshingGoogleContactProvider {
 }
 
 /// Builds the People adapter for one source on a fresh access token.
+///
+/// `retry` comes from the account's own [`GraphTokenSource`], not from a global: these
+/// providers belong to the same account as its mail and calendar, and a server that limits
+/// concurrency counts all of them together (`crate::throttle`).
 fn build(
     source: GoogleContactSource,
     token: &str,
     tls: &TlsClientConfig,
+    retry: &engine_api::RetryConfig,
 ) -> Result<GoogleContactProvider, ProviderError> {
-    let client = GoogleClient::connect(token.to_owned(), tls, &account_retry())
-        .map_err(ProviderError::from)?;
+    let client =
+        GoogleClient::connect(token.to_owned(), tls, retry).map_err(ProviderError::from)?;
     Ok(match source {
         GoogleContactSource::Connections => GoogleContactProvider::connections(client),
         GoogleContactSource::OtherContacts => GoogleContactProvider::other_contacts(client),
@@ -148,6 +162,7 @@ impl Provider for RefreshingGoogleContactProvider {
     }
 }
 
+impl engine_api::MailboxWrites for RefreshingGoogleContactProvider {}
 impl CalendarWrites for RefreshingGoogleContactProvider {}
 
 #[async_trait]
@@ -232,7 +247,8 @@ impl ContactsProvider for RefreshingGoogleContactProvider {
 }
 
 /// Connects the People contact adapters a Google account syncs its address books through: one
-/// per source the app reads, each sharing the account's token source.
+/// per source the app reads, each sharing the account's token source. The Workspace directory is
+/// bound only when `directory` says the person chose colleagues from their organisation.
 ///
 /// One token is minted here and seeded into every provider, so the fan-out costs a single
 /// refresh rather than one per source, and each provider can answer its synchronous questions
@@ -245,16 +261,18 @@ impl ContactsProvider for RefreshingGoogleContactProvider {
 /// cannot be constructed.
 pub async fn connect_google_contact_providers(
     tokens: Arc<GraphTokenSource>,
+    directory: bool,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
-    let tls = account_tls()?;
+    let tls = tls_with(&[])?;
     let token = tokens.access_token().await?;
     let mut providers: Vec<Box<dyn ContactsProvider>> = Vec::with_capacity(BOUND_SOURCES.len());
-    for source in BOUND_SOURCES {
+    for source in bound_sources(directory) {
         let delegate = Arc::new(
-            build(*source, &token, &tls).map_err(|err| AccountError::Google(err.to_string()))?,
+            build(source, &token, &tls, &tokens.retry())
+                .map_err(|err| AccountError::Google(err.to_string()))?,
         );
         providers.push(Box::new(RefreshingGoogleContactProvider::new(
-            *source,
+            source,
             Arc::clone(&tokens),
             tls.clone(),
             (token.clone(), delegate),
@@ -288,8 +306,9 @@ mod tests {
     }
 
     fn provider(source: GoogleContactSource) -> RefreshingGoogleContactProvider {
-        let tls = account_tls().unwrap();
-        let delegate = Arc::new(build(source, "access-token", &tls).unwrap());
+        let tls = tls_with(&[]).unwrap();
+        let delegate =
+            Arc::new(build(source, "access-token", &tls, &google_source().retry()).unwrap());
         RefreshingGoogleContactProvider::new(
             source,
             google_source(),
@@ -308,6 +327,20 @@ mod tests {
                 GoogleContactSource::Directory,
             ],
         );
+    }
+
+    /// Colleagues are a choice of their own: without it the account reads its own contacts and
+    /// the ones Google collected, and never the organisation's directory.
+    #[test]
+    fn the_directory_is_bound_only_when_colleagues_were_chosen() {
+        assert_eq!(
+            bound_sources(false).collect::<Vec<_>>(),
+            [
+                GoogleContactSource::Connections,
+                GoogleContactSource::OtherContacts
+            ],
+        );
+        assert_eq!(bound_sources(true).collect::<Vec<_>>(), BOUND_SOURCES);
     }
 
     /// The wrapper must forward both scopes rather than let them fall through:

@@ -304,13 +304,33 @@ fn multiple_imap_servers_are_kept_in_order() {
 }
 
 #[test]
-fn top_level_oauth2_block_is_ignored() {
+fn the_oauth_issuer_is_read_beside_the_provider_where_the_format_puts_it() {
+    // `<oAuth2>` is a child of `<clientConfig>`, after `</emailProvider>`: that is where
+    // Thunderbird's own documents put it (gmail.com's, for one). Read only from inside the
+    // provider, every standard-shaped document named no issuer at all.
     let xml = MINIMAL.replace(
         "</emailProvider>",
         "</emailProvider>\n  <oAuth2>\n    <issuer>accounts.example.com</issuer>\n    <authURL>https://accounts.example.com/auth</authURL>\n  </oAuth2>",
     );
-    // The oAuth2 endpoints are ignored; parsing still succeeds from the servers alone.
-    assert!(parse(&xml).is_ok());
+    let parsed = parse(&xml).expect("valid document");
+    assert_eq!(
+        parsed.oauth_issuer.as_deref(),
+        Some("https://accounts.example.com")
+    );
+    assert_eq!(parsed.incoming.len(), 1);
+}
+
+#[test]
+fn a_tail_that_will_not_parse_costs_the_issuer_and_never_the_servers() {
+    // Nothing after the provider was read before the issuer was looked for there, so a
+    // malformed tail must not turn a usable config into a miss.
+    let xml = MINIMAL.replace(
+        "</emailProvider>",
+        "</emailProvider>\n  <oAuth2><issuer>accounts.example.com</wrong></oAuth2>",
+    );
+    let parsed = parse(&xml).expect("the servers still parse");
+    assert_eq!(parsed.oauth_issuer, None);
+    assert_eq!(parsed.outgoing.len(), 1);
 }
 
 #[test]
@@ -364,4 +384,81 @@ fn malformed_xml_is_reported() {
         parse("<clientConfig><x></y></clientConfig>").unwrap_err(),
         ParseError::Xml(_)
     ));
+}
+
+/// The `<oAuth2>` block as the format writes it: a bare-host issuer beside endpoints and a
+/// client id we deliberately never read.
+const OAUTH_BLOCK: &str = r"    <oAuth2>
+      <issuer>login.example.com</issuer>
+      <authURL>https://login.example.com/authorize</authURL>
+      <tokenURL>https://login.example.com/token</tokenURL>
+      <scope>IMAP SMTP offline_access</scope>
+      <clientID>not-ours</clientID>
+    </oAuth2>
+";
+
+#[test]
+fn the_oauth_issuer_is_read_and_given_the_scheme_the_rfc_requires() {
+    // The format writes a bare hostname; RFC 8414 defines an issuer identifier as an HTTPS
+    // URL, and the whole well-known path is derived from it, so the scheme is added here
+    // rather than at four call sites that would each have to remember.
+    let parsed = parse(&MINIMAL.replace(
+        "  </emailProvider>",
+        &format!("{OAUTH_BLOCK}  </emailProvider>"),
+    ))
+    .expect("valid document");
+    assert_eq!(
+        parsed.oauth_issuer.as_deref(),
+        Some("https://login.example.com")
+    );
+    // The servers are unaffected: an OAuth block is extra information, not a different config.
+    assert_eq!(parsed.incoming.len(), 1);
+    assert_eq!(parsed.outgoing.len(), 1);
+}
+
+#[test]
+fn a_document_with_no_oauth_block_names_no_issuer() {
+    assert_eq!(parse(MINIMAL).expect("valid document").oauth_issuer, None);
+}
+
+#[test]
+fn an_issuer_written_as_a_full_https_url_is_kept() {
+    // Some documents write the identifier out in full. Prefixing it again would produce
+    // `https://https://…`, which fails discovery in a way that reads like a server fault.
+    let block = OAUTH_BLOCK.replace(
+        "<issuer>login.example.com</issuer>",
+        "<issuer>https://login.example.com/</issuer>",
+    );
+    let parsed =
+        parse(&MINIMAL.replace("  </emailProvider>", &format!("{block}  </emailProvider>")))
+            .expect("valid document");
+    assert_eq!(
+        parsed.oauth_issuer.as_deref(),
+        Some("https://login.example.com")
+    );
+}
+
+#[test]
+fn an_issuer_that_is_not_a_hostname_is_dropped_rather_than_half_understood() {
+    // An issuer decides which page a person types their password into. A value we cannot
+    // read as a host is not a smaller version of that decision, it is no decision, so the
+    // route is simply not offered and the password field stays.
+    for value in [
+        "http://login.example.com",
+        "not a host",
+        "",
+        "ftp://x.example",
+    ] {
+        let block = OAUTH_BLOCK.replace(
+            "<issuer>login.example.com</issuer>",
+            &format!("<issuer>{value}</issuer>"),
+        );
+        let parsed =
+            parse(&MINIMAL.replace("  </emailProvider>", &format!("{block}  </emailProvider>")))
+                .expect("valid document");
+        assert_eq!(
+            parsed.oauth_issuer, None,
+            "issuer {value:?} must be dropped"
+        );
+    }
 }

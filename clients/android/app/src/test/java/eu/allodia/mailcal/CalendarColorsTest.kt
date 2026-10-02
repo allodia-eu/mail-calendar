@@ -16,6 +16,7 @@ import uniffi.mailcal_bindings.Swatch
 
 private fun row(account: String, id: String, name: String, hex: String) = CalendarRow(
     account = account,
+    accountAddress = "me@example.org",
     id = id,
     name = name,
     color = CalendarColor(

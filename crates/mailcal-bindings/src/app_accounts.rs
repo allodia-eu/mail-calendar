@@ -11,7 +11,7 @@ use engine_api::AccountId;
 
 use crate::{
     AccountCredentialStore, AccountRow, DeviceInfo, LogLevel, Logger, MailcalApp, MailcalError,
-    Observer, ShowcaseLocale, boot, connection_log,
+    Observer, ShowcaseLocale, background, boot, connection_log,
 };
 
 #[uniffi::export]
@@ -85,7 +85,7 @@ impl MailcalApp {
 
     /// Builds a real account-backed app from the host's stored account `configs` (each a
     /// TOML blob of endpoints + credentials, read from the OS secure store; Keychain /
-    /// EncryptedSharedPreferences: not a plaintext file): opens one on-disk engine shared
+    /// Android Keystore: not a plaintext file): opens one on-disk engine shared
     /// by every account, connects each account's IMAP folders over a certificate-verifying
     /// TLS connector, and notifies `observer` on changes. Each connect blocks on the
     /// internal runtime, so this returns only once every account has been attempted. An
@@ -247,7 +247,7 @@ impl MailcalApp {
                      not added",
                     started.elapsed().as_millis(),
                 );
-                return Err(MailcalError::Connect(err.to_string()));
+                return Err(MailcalError::from(err));
             }
         };
         let account = outcome.account;
@@ -287,13 +287,14 @@ impl MailcalApp {
         let app = Arc::clone(&self.app);
         self.runtime
             .block_on(async move { app.add_new_account_deferred(account).await });
-        // Start this account's background sync (push watches / poll timer) per its settings.
-        self.refresh_background(&row.id);
         // The first sync runs with the download bar **visible**; adding an account is an explicit
-        // download the user is waiting on, so it shows progress immediately.
+        // download the user is waiting on, so it shows progress immediately. The account's push
+        // watches / poll timer start inside it, once its folders are known.
         let app_sync = Arc::clone(&self.app);
-        self.runtime
-            .spawn(async move { app_sync.sync_added_account(&sync_id).await });
+        let background = Arc::clone(&self.background);
+        self.runtime.spawn(async move {
+            background::sync_added_account(&app_sync, &background, &sync_id).await;
+        });
         // Closes the narration the way the Microsoft path does: connected, stored, registered,
         // and how long the whole transaction took: so the next line in the log being a sync is
         // an expected continuation rather than the first evidence that anything worked.
@@ -307,7 +308,9 @@ impl MailcalApp {
     }
 
     /// Removes the account `id`: stops its background sync, drops it from the reconnection
-    /// registry, removes it from the runtime (switcher, selection) so its mail leaves the list,
+    /// registry, clears every link the other accounts hold to it (storing each one it changed;
+    /// [`AccountEntry::linked_from`](crate::AccountEntry::linked_from) names them beforehand),
+    /// removes it from the runtime (switcher, selection) so its mail leaves the list,
     /// and **erases its credential** from the host's OS secure store so it does not return at the
     /// next launch. The observer fires as the snapshot rebuilds. A no-op for an unknown id.
     ///
@@ -325,6 +328,7 @@ impl MailcalApp {
         #[cfg(feature = "allodia-license")]
         self.forget_allodia_record(&id);
         self.registry.remove(&id);
+        self.clear_links_to(&id);
         self.refresh_analytics_accounts();
         // Drop it from the reconnect queue too, so a pending retry doesn't try to re-dial an
         // account the user just removed (the in-flight-plan case is caught by the registry

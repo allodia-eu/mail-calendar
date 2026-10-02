@@ -3,8 +3,8 @@
 use std::{fmt, path::PathBuf};
 
 use mailcal_bindings::{
-    AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget, DraftResume, Intent,
-    MailtoPrefill, SearchScope, SetupRecommendation, SharePrefill, Surface,
+    AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget, DraftResume, ImapAuthOffer,
+    Intent, MailtoPrefill, SearchScope, SetupRecommendation, SharePrefill, Surface,
 };
 
 use super::{
@@ -14,8 +14,10 @@ use super::{
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
     composer_model::{ComposerSubmission, PickedFile},
     contacts::EditTarget,
+    folder_actions::FolderInput,
     folder_pane::SidebarTarget,
     google::GoogleOutcome,
+    imap_signin::{ImapOutcome, ImapPrepared},
     invitation::InvitationAnswer,
     jmap::{JmapOutcome, JmapPrepared, JmapReauthOutcome, JmapReauthPrepared},
     mail_actions::{ActionKind, MailActionRequest, MessageTarget},
@@ -25,7 +27,7 @@ use super::{
     outbox::{QueuedAction, QueuedTarget},
     reader::{ComposerHost, ReadingSource},
     selection::SelectMode,
-    setup_model::{AccountSubmission, ManualForm},
+    setup_model::{AccountSubmission, ImapForm, ManualForm},
 };
 
 pub(crate) enum AppInput {
@@ -147,6 +149,8 @@ pub(crate) enum AppInput {
     },
     /// Show the Outbox: every account's unsent messages, in one list.
     ShowOutbox,
+    /// Change the folder tree, or file dropped mail (`docs/folder-pane.md`, rules 22 to 29).
+    Folder(FolderInput),
     /// Send now, withdraw, or reopen one queued message (`docs/sending.md`).
     QueuedSendAction {
         target: QueuedTarget,
@@ -215,6 +219,8 @@ pub(crate) enum AppInput {
         destination: PathBuf,
     },
     MessageExported(bool),
+    /// A print the dialog accepted could not be laid out or handed to the printer.
+    PrintFailed,
     AttachmentDecoded(Result<PathBuf, ()>),
     /// The desktop refused to open a decoded attachment; the portal's answer, which arrives
     /// after the launch rather than from it.
@@ -242,7 +248,7 @@ pub(crate) enum AppInput {
     SubmitAccount(Box<AccountSubmission>),
     /// A manual add finished: the account's id, or why it failed. The id is what raises the
     /// "your name" step, so a route that cannot report one raises nothing.
-    AccountAdded(Result<String, String>),
+    AccountAdded(Result<String, super::setup_model::ConnectFailure>),
     /// The provider answered what it already calls this person, so the "your name" step can
     /// open seeded. Carried back from a worker thread because the read is a provider round
     /// trip; empty is the ordinary IMAP answer and means *ask*.
@@ -268,6 +274,17 @@ pub(crate) enum AppInput {
     MicrosoftCallbackReceived(u64),
     MicrosoftFinished(u64, MicrosoftOutcome),
     StartJmapLogin(String, String),
+    ProbeManualImapSignIn(Box<ManualForm>),
+    ImapAuthAnswered {
+        email: String,
+        imap_host: String,
+        offer: Box<ImapAuthOffer>,
+    },
+    StartImapLogin(Box<ImapForm>),
+    CancelImapLogin,
+    ImapPrepared(u64, Result<Box<ImapPrepared>, String>),
+    ImapCallbackReceived(u64),
+    ImapFinished(u64, ImapOutcome),
     CancelJmapLogin,
     JmapPrepared(u64, Result<Box<JmapPrepared>, String>),
     JmapCallbackReceived(u64),
@@ -383,6 +400,7 @@ impl fmt::Debug for AppInput {
             Self::SetAccountExpanded { .. } => "SetAccountExpanded",
             Self::SetFolderExpanded { .. } => "SetFolderExpanded",
             Self::ShowOutbox => "ShowOutbox",
+            Self::Folder(_) => "Folder",
             Self::QueuedSendAction { .. } => "QueuedSendAction",
             Self::RespondToInvitation(..) => "RespondToInvitation",
             Self::AnswerReplyPrompt { .. } => "AnswerReplyPrompt",
@@ -407,6 +425,7 @@ impl fmt::Debug for AppInput {
             Self::AttachmentSaved(_) => "AttachmentSaved",
             Self::ExportMessage { .. } => "ExportMessage",
             Self::MessageExported(_) => "MessageExported",
+            Self::PrintFailed => "PrintFailed",
             Self::AttachmentDecoded(_) => "AttachmentDecoded",
             Self::AttachmentOpenFailed => "AttachmentOpenFailed",
             Self::WebViewReady => "WebViewReady",
@@ -437,6 +456,13 @@ impl fmt::Debug for AppInput {
             Self::MicrosoftCallbackReceived(_) => "MicrosoftCallbackReceived",
             Self::MicrosoftFinished(..) => "MicrosoftFinished",
             Self::StartJmapLogin(..) => "StartJmapLogin",
+            Self::ProbeManualImapSignIn(_) => "ProbeManualImapSignIn",
+            Self::ImapAuthAnswered { .. } => "ImapAuthAnswered",
+            Self::StartImapLogin(_) => "StartImapLogin",
+            Self::CancelImapLogin => "CancelImapLogin",
+            Self::ImapPrepared(..) => "ImapPrepared",
+            Self::ImapCallbackReceived(_) => "ImapCallbackReceived",
+            Self::ImapFinished(..) => "ImapFinished",
             Self::CancelJmapLogin => "CancelJmapLogin",
             Self::JmapPrepared(..) => "JmapPrepared",
             Self::JmapCallbackReceived(_) => "JmapCallbackReceived",

@@ -15,7 +15,8 @@ internal static class SidebarFixture
         "Add account…",
         "Outbox",
         count => $"{count} unread",
-        count => $"{count} waiting to send");
+        count => $"{count} waiting to send",
+        "Waiting to sync");
 
     public static readonly SidebarGlyphs Glyphs = new(
         "account",

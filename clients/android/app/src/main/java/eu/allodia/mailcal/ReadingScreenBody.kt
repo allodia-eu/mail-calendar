@@ -5,8 +5,6 @@
 // user opted in. See docs/rendering-security.md.
 package eu.allodia.mailcal
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -41,7 +39,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import uniffi.mailcal_bindings.renderMessageHtml
-import uniffi.mailcal_bindings.shouldOpenExternalLink
 
 // The recipient headers (To / Cc / Bcc) shown below the subject/sender. Each row appears only
 // when non-empty; Bcc is present only on the user's own Sent/Drafts copies.
@@ -127,6 +124,18 @@ internal fun WebSettings.applyReadingPolicy() {
     displayZoomControls = false
 }
 
+// The reading host's second barrier behind the document CSP, shared with the print host: an empty
+// answer for a remote http(s) sub-resource (image, font, CSS) the reader has not opted into, and
+// null, meaning "load it", for everything else.
+internal fun blockRemoteLoad(request: WebResourceRequest?, allowRemote: Boolean): WebResourceResponse? {
+    val scheme = request?.url?.scheme?.lowercase()
+    return if (!allowRemote && (scheme == "http" || scheme == "https")) {
+        WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+    } else {
+        null
+    }
+}
+
 // Renders the core's sanitised HTML in a hardened WebView. The full document (strict CSP,
 // base styling, remote-image gating) is produced by shared Rust (`renderMessageHtml`); this
 // adds the native defenses: JavaScript disabled, in-view navigation blocked (tapped links
@@ -182,17 +191,9 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean) {
                         request: WebResourceRequest?,
                     ): Boolean {
                         val url = request?.url
-                        if (request?.hasGesture() == true && url != null &&
-                            shouldOpenExternalLink(url.toString())
-                        ) {
-                            try {
-                                view?.context?.startActivity(
-                                    Intent(Intent.ACTION_VIEW, url)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            } catch (_: ActivityNotFoundException) {
-                                // No app handles this scheme, ignore rather than crash.
-                            }
+                        val context = view?.context
+                        if (request?.hasGesture() == true && url != null && context != null) {
+                            openExternalLink(context, url.toString())
                         }
                         return true
                     }
@@ -202,14 +203,7 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean) {
                     override fun shouldInterceptRequest(
                         view: WebView?,
                         request: WebResourceRequest?,
-                    ): WebResourceResponse? {
-                        val scheme = request?.url?.scheme?.lowercase()
-                        return if (!policy.allowRemote && (scheme == "http" || scheme == "https")) {
-                            WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
-                        } else {
-                            null
-                        }
-                    }
+                    ): WebResourceResponse? = blockRemoteLoad(request, policy.allowRemote)
                 }
             }
         },

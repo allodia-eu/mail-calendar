@@ -51,7 +51,7 @@ fn rotating_account(who: &str, endpoint: String) -> (String, engine_api::Account
         base_url: "http://127.0.0.1:1".to_owned(),
         password: None,
         token: None,
-        oauth: Some(mailcal_account::JmapOAuth {
+        oauth: Some(mailcal_account::OAuthGrant {
             client_id: "client-abc".to_owned(),
             client_secret: None,
             refresh_token: mailcal_account::Secret::new("original-refresh".to_owned()),
@@ -60,7 +60,9 @@ fn rotating_account(who: &str, endpoint: String) -> (String, engine_api::Account
             redirect_uri: "eu.allodia.mailcal://jmap-oauth".to_owned(),
             scopes: vec!["offline_access".to_owned()],
             resource: None,
+            issuer: None,
         }),
+        shape: mailcal_account::AccountShape::default(),
     };
     let id = config.account_id().expect("a valid account id");
     (config.to_toml().expect("serializable config"), id)

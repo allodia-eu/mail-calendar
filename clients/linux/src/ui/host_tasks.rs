@@ -18,8 +18,9 @@ use std::sync::{
 };
 
 use super::{
-    AppInput, AppModel, dns, notifications, oauth_loopback::OAuthLoopback,
-    setup_model::AccountSubmission,
+    AppInput, AppModel, dns, notifications,
+    oauth_loopback::OAuthLoopback,
+    setup_model::{AccountSubmission, ConnectFailure},
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,6 +47,7 @@ pub(super) struct HostTasks {
     pub(super) google: AttemptSlot,
     pub(super) microsoft: AttemptSlot,
     pub(super) jmap: AttemptSlot,
+    pub(super) imap: AttemptSlot,
     pub(super) allodia: AttemptSlot,
     jmap_loopback: Option<OAuthLoopback>,
 }
@@ -128,14 +130,17 @@ impl HostTasks {
             google: AttemptSlot::empty(),
             microsoft: AttemptSlot::empty(),
             jmap: AttemptSlot::empty(),
+            imap: AttemptSlot::empty(),
             allodia: AttemptSlot::empty(),
             jmap_loopback: None,
         }
     }
 
-    /// One redirect URI for every JMAP attempt in this process, so a retry reuses the core's
-    /// dynamic-registration cache instead of registering this install again.
-    pub(super) fn jmap_loopback(&mut self) -> std::io::Result<OAuthLoopback> {
+    /// One redirect URI for every discovered sign-in in this process, JMAP and IMAP alike, so
+    /// a retry reuses the core's dynamic-registration cache instead of registering this
+    /// install again. The listener is protocol-neutral: it binds a loopback port and reads one
+    /// redirect off it, and only one sign-in is ever in flight.
+    pub(super) fn oauth_loopback(&mut self) -> std::io::Result<OAuthLoopback> {
         if self.jmap_loopback.is_none() {
             self.jmap_loopback = Some(OAuthLoopback::bind()?);
         }
@@ -147,7 +152,7 @@ impl HostTasks {
 
     /// Returns the listener named by an existing JMAP grant. A cold launch has to rebind its
     /// registered port; a same-process repair reuses the listener already retaining that port.
-    pub(super) fn jmap_loopback_for_redirect(
+    pub(super) fn oauth_loopback_for_redirect(
         &mut self,
         redirect_uri: &str,
     ) -> std::io::Result<OAuthLoopback> {
@@ -191,6 +196,29 @@ impl HostTasks {
     }
 }
 
+/// What the form should say about a connect that did not succeed. A refused certificate comes
+/// back whole, because the IMAP pane offers to accept it; everything else is a message
+/// (`docs/certificate-exceptions.md`). The rendered message of a refusal carries the whole
+/// certificate, so it is deliberately not used for that case.
+fn connect_failure(
+    error: mailcal_bindings::MailcalError,
+    offers_exception: bool,
+) -> ConnectFailure {
+    match error {
+        mailcal_bindings::MailcalError::CertificateRejected {
+            reason,
+            certificate,
+        } => ConnectFailure {
+            message: Some(reason),
+            certificate: offers_exception.then_some(certificate),
+        },
+        other => ConnectFailure {
+            message: Some(other.to_string()),
+            certificate: None,
+        },
+    }
+}
+
 impl AppModel {
     pub(super) fn detect_account(&mut self, email: String, sender: relm4::Sender<AppInput>) {
         let Some(app) = self.app.clone() else {
@@ -206,28 +234,48 @@ impl AppModel {
 
     pub(super) fn submit_account(
         &mut self,
-        submission: AccountSubmission,
+        mut submission: AccountSubmission,
         sender: relm4::Sender<AppInput>,
     ) {
         let Some(app) = self.app.clone() else {
             return;
         };
+        // Only an IMAP account's stored config can carry a certificate exception, so only an
+        // IMAP submission may raise the panel or re-send an acceptance
+        // (`docs/certificate-exceptions.md` rule 8).
+        let mut offers_exception = false;
+        if let AccountSubmission::Imap(form) = &mut submission {
+            offers_exception = true;
+            match &form.accepted_certificate {
+                // Accepted once, carried for the rest of this setup: a retry that then fails on
+                // the password must not ask the same question over again.
+                Some(accepted) => self.setup.remember_accepted_certificate(accepted.clone()),
+                None => form.accepted_certificate = self.setup.accepted_certificate(),
+            }
+        }
         self.setup.connecting();
         std::thread::spawn(move || {
-            let result = submission.config_toml().and_then(|config| {
-                // The core persists the credential through the host's `AccountCredentialStore`
-                // and rolls the add back itself when that write fails.
-                app.add_account(config)
-                    .map(|account| account.id)
-                    .map_err(|error| error.to_string())
-            });
+            let result = submission
+                .config_toml()
+                .map_err(|message| ConnectFailure {
+                    message: Some(message),
+                    certificate: None,
+                })
+                .and_then(|config| {
+                    // The core persists the credential through the host's
+                    // `AccountCredentialStore` and rolls the add back itself when that write
+                    // fails.
+                    app.add_account(config)
+                        .map(|account| account.id)
+                        .map_err(|error| connect_failure(error, offers_exception))
+                });
             sender.emit(AppInput::AccountAdded(result));
         });
     }
 
     pub(super) fn account_added(
         &mut self,
-        result: Result<String, String>,
+        result: Result<String, ConnectFailure>,
         sender: relm4::Sender<AppInput>,
     ) {
         match result {
@@ -240,9 +288,12 @@ impl AppModel {
                 self.try_open_pending_mailto();
                 self.try_open_pending_share();
             }
-            Err(error) => self
-                .setup
-                .failed(crate::l10n::status_connect_failed(&error)),
+            Err(failure) => self.setup.connect_failed(ConnectFailure {
+                message: failure
+                    .message
+                    .map(|message| crate::l10n::status_connect_failed(&message)),
+                certificate: failure.certificate,
+            }),
         }
     }
 
@@ -409,8 +460,8 @@ mod tests {
     #[test]
     fn jmap_retries_keep_one_redirect_for_dynamic_registration_cache_reuse() {
         let mut state = HostTasks::new(false, false);
-        let first = state.jmap_loopback().expect("first listener");
-        let second = state.jmap_loopback().expect("cloned listener");
+        let first = state.oauth_loopback().expect("first listener");
+        let second = state.oauth_loopback().expect("cloned listener");
 
         assert_eq!(first.redirect_uri(), second.redirect_uri());
     }
@@ -418,9 +469,9 @@ mod tests {
     #[test]
     fn jmap_reauthentication_reuses_the_registered_redirect() {
         let mut state = HostTasks::new(false, false);
-        let original = state.jmap_loopback().expect("original listener");
+        let original = state.oauth_loopback().expect("original listener");
         let rebound = state
-            .jmap_loopback_for_redirect(&original.redirect_uri())
+            .oauth_loopback_for_redirect(&original.redirect_uri())
             .expect("reuse registered listener");
 
         assert_eq!(original.redirect_uri(), rebound.redirect_uri());

@@ -60,6 +60,6 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // A composition's save moved. The signal names none, so there is nothing to publish
         // but the fact that one did: every open composer re-pulls its own off this counter
         // (docs/drafts.md).
-        CoreSurface.DRAFT_STATUS -> draftStatusVersion += 1
+        CoreSurface.DRAFT_STATUS -> drafts.draftStatusVersion += 1
     }
 }

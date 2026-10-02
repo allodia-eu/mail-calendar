@@ -63,8 +63,13 @@ put() { # uid  body
     --data-binary @- "$CAL_COLLECTION/$1.ics" >/dev/null
 }
 
-timed() { # uid  summary  day-offset  HHMM-start  HHMM-end
+timed() { # uid  summary  day-offset  HHMM-start  HHMM-end  [notes]
   d=$(day "$3")
+  notes=""
+  if [ -n "${6:-}" ]; then
+    notes="
+DESCRIPTION:$6"
+  fi
   put "$1" "BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Allodia//Harness Living Week//EN
@@ -75,7 +80,7 @@ UID:$1@test.local
 DTSTAMP:20260101T000000Z
 DTSTART;TZID=Europe/Amsterdam:${d}T$400
 DTEND;TZID=Europe/Amsterdam:${d}T$500
-SUMMARY:$2
+SUMMARY:$2$notes
 END:VEVENT
 END:VCALENDAR"
 }
@@ -112,7 +117,9 @@ allday week-oncall      "On call"                    1 1
 allday week-birthday    "Ada's birthday"             1 1
 allday week-deadline    "Tax deadline"               1 1
 allday week-leave       "Sam on leave"               1 1
-timed week-1500         "Customer call"              1 1500 1600
+# Notes with an address in them, which every client's event detail draws as a link.
+timed week-1500         "Customer call"              1 1500 1600 \
+  "Dial-in page: https://meet.example.com/customer-call"
 
 # --- Wednesday–Friday: a band that spans its days, and is hidden on every one of them -----------
 allday week-offsite     "Offsite (3 days)"           2 3

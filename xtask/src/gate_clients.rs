@@ -190,7 +190,7 @@ fn linux(run: &Runner<'_>) -> Vec<Step> {
     if std::env::consts::OS != "linux" {
         return vec![run.skip(
             "linux (mailcal-linux)",
-            "needs a Linux host with GTK 4.14+/libadwaita 1.5+",
+            "needs a Linux host with GTK 4.22+/libadwaita 1.9+",
         )];
     }
     vec![

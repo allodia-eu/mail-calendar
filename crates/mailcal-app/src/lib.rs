@@ -54,6 +54,7 @@ mod folder_pane;
 mod folder_pane_snapshot;
 mod form_factor;
 mod helpers;
+mod hidden_rows;
 mod html;
 mod outbox_ops;
 // The meeting-invitation card: the RSVP gate and the text/conflict rules (pure), and the
@@ -81,6 +82,7 @@ mod invitations_tests;
 // calendar server will accept as a stored resource.
 mod itip;
 mod lifecycle;
+mod linkify;
 mod live_mailbox;
 mod mail_compose;
 mod mail_compose_quote;
@@ -116,6 +118,7 @@ mod sync_folder;
 mod sync_progress;
 mod sync_progress_staged;
 mod sync_settings;
+mod sync_unbound;
 mod telemetry;
 mod timezone;
 mod tuning;
@@ -139,17 +142,18 @@ use display_settings::DisplaySettingsState;
 use draft_ops::DraftState;
 pub use draft_ops::{DRAFT_AUTOSAVE_IDLE, resume::DraftResume};
 pub use helpers::{export_file_name, forward_subject, reply_subject};
-pub use html::{Canvas, MESSAGE_CANVAS, render_document, should_open_external_link};
+pub use html::{Canvas, MESSAGE_CANVAS, print, render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;
+pub use linkify::{FoundLink, TextSegment, find_links, segments as link_segments};
 pub use mail_ops::result::{MailActionError, SendActionError};
 pub use mailcal_account::EventDetail;
 use mcp_settings::McpSettingsState;
 pub use prefetch::default_prefetch_size_limit;
 pub use protocol::{
     AppObserver, BulkAction, CalendarWriteStatus, ComposerBlob, CompositionId, ContactWriteStatus,
-    ContactsIntent, DraftStatus, DraftsIntent, Intent, OutboxIntent, RecipientSuggestion,
-    SearchScope, SendStatus, StagedAttachment, Surface,
+    ContactsIntent, DraftStatus, DraftsIntent, FolderIntent, Intent, OutboxIntent,
+    RecipientSuggestion, SearchScope, SendStatus, StagedAttachment, Surface,
 };
 pub use query::{MessageDetail, MessagePage};
 use quote_settings::QuoteSettingsState;
@@ -299,19 +303,19 @@ pub struct App<P> {
     contact_write_status: Mutex<ContactWriteStatus>,
     /// Aggregated background-sync download progress, surfaced via [`Surface::SyncProgress`].
     sync_progress: Mutex<SyncProgressState>,
-    /// The host-injected port for on-demand "sync the folder you open"; `None` disables it
-    /// (the demo / tests), so opening an unsynced folder just shows it empty.
+    /// The host-injected port that binds one folder of an account: for a folder the account
+    /// lists that no provider of it is bound to, and for one opened before any pass synced it.
+    /// `None` disables both (the demo / tests), so such a folder just shows empty.
     connector: Option<Box<dyn MailboxConnector<P>>>,
     /// Folders an on-demand sync has already been attempted for this session (by
     /// `(account, folder key)`), so re-selecting one does not reconnect it.
     attempted_folders: Mutex<HashSet<(String, String)>>,
+    /// The folders bound to a scope of their own that a pass or a refresh has synced this
+    /// session, by `(account, folder key)`.
+    synced_folders: Mutex<HashSet<(String, String)>>,
     /// Accounts (by id) with a body-warming pass currently in flight, so overlapping
     /// post-sync prefetch triggers collapse into the one running drain (`prefetch`).
     prefetching: Mutex<HashSet<String>>,
-    /// The largest message the body warm pulls in full, in octets; `None` warms every size.
-    ///
-    /// Behind a `Mutex` rather than plain, because every host holds the app as an `Arc` and
-    /// so never has a `&mut` to set it through: a `&mut self` setter here is one no caller
     /// What is known about each sender's photo, keyed by canonical address.
     ///
     /// In memory only: the durable cache is the engine's, and this exists so that projecting a
@@ -342,9 +346,9 @@ pub struct App<P> {
     /// instant the user archives/deletes one, so the row leaves the list without waiting for
     /// the move to land server-side and the re-sync to observe the expunge (IMAP deltas don't
     /// carry it, and a fresh snapshot can lag a beat). A key stays here only while the store
-    /// still reports the message; [`cached_rows`](crate::App::cached_rows) drops it once the
-    /// store agrees it's gone, so the set self-prunes and a failed edit reappears.
-    pending_removals: Mutex<HashSet<(String, String)>>,
+    /// reports it filed where it was; [`cached_rows`](crate::App::cached_rows) drops it once the
+    /// store has it gone or elsewhere, so the set self-prunes and a failed edit reappears.
+    pending_removals: Mutex<hidden_rows::HiddenRows>,
     /// Bumped on every [`invalidate_list_cache`](Self::invalidate_list_cache). A row load
     /// captures this before reading the store and refuses to cache its result if the value
     /// moved while the read was in flight: so a slow pre-sync load can't land after the
@@ -446,6 +450,8 @@ mod tests_contacts;
 mod tests_default_mail_app;
 #[cfg(test)]
 mod tests_depth;
+#[cfg(test)]
+mod tests_folder_coverage;
 #[cfg(test)]
 mod tests_folder_tree;
 #[cfg(test)]

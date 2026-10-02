@@ -10,10 +10,10 @@ use std::sync::{Arc, Mutex};
 
 use engine_api::AccountId;
 use fakes::{
-    FakeConnector, FakeProvider, FlakyConnector, ObservingConnector, account, app,
-    app_with_connector, flat_subjects, message, open_folder,
+    FakeConnector, FakeProvider, FlakyConnector, ObservingConnector, SyncFailingConnector, account,
+    app, app_with_connector, flat_subjects, message, open_folder,
 };
-use mailcal_viewmodel::{SnapshotRow, ViewMode};
+use mailcal_viewmodel::{EmptyReason, SnapshotRow, ViewMode};
 
 use super::{Intent, OutboxIntent, Surface};
 
@@ -24,14 +24,14 @@ mod fakes;
 #[tokio::test]
 async fn opening_an_unsynced_folder_downloads_it_on_demand() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
-    // The connector serves an "archive" folder the eager bind never synced (its one
-    // message lives in the `archive` mailbox).
+    // The connector serves an "archive" folder no pass has synced (its one message lives in
+    // the `archive` mailbox).
     let connector = FakeConnector::new(vec![(
         "archive".to_owned(),
         vec![message("c1", "archive", "Archived report")],
     )]);
     let app = app_with_connector(
-        vec![account("acct-1", FakeProvider::new())],
+        vec![account("acct-1", FakeProvider::imap_inbox(Vec::new(), &[]))],
         connector,
         &surfaces,
     );
@@ -69,7 +69,7 @@ async fn opening_an_unsynced_folder_downloads_it_on_demand() {
 
 #[tokio::test]
 async fn the_folder_is_on_screen_before_its_mail_is_downloaded() {
-    // Opening a folder the eager bind skipped costs a provider connection and a download.
+    // Opening a folder no pass has synced costs a provider connection and a download.
     // Awaiting that before publishing left the window on the folder the user had just left
     // for the length of a network round trip: the click looked like it had missed. The
     // scope is published first; the download's own pass raises the progress bar and
@@ -82,7 +82,7 @@ async fn the_folder_is_on_screen_before_its_mail_is_downloaded() {
     );
     let published = connector.published_before_connect();
     let app = app_with_connector(
-        vec![account("acct-1", FakeProvider::new())],
+        vec![account("acct-1", FakeProvider::imap_inbox(Vec::new(), &[]))],
         connector,
         &surfaces,
     );
@@ -118,7 +118,7 @@ async fn a_transient_folder_connect_failure_retries_on_the_next_open() {
     );
     let attempts = connector.attempts();
     let app = app_with_connector(
-        vec![account("acct-1", FakeProvider::new())],
+        vec![account("acct-1", FakeProvider::imap_inbox(Vec::new(), &[]))],
         connector,
         &surfaces,
     );
@@ -156,11 +156,105 @@ async fn a_transient_folder_connect_failure_retries_on_the_next_open() {
 }
 
 #[tokio::test]
-async fn a_refresh_re_syncs_the_folder_on_screen() {
-    // A folder the eager bind skipped is downloaded once, when it is opened, and no account
-    // pass names it afterwards: it binds no provider of its own, and only the Inbox is watched.
-    // So standing in a mailing-list folder, the pull the user asked for republished exactly the
-    // rows already on screen, and restarting the app was the only way to see new mail in it.
+async fn a_folder_whose_download_failed_retries_on_the_next_open() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    // The folder connects both times; its first sync is the one that fails, which is what a
+    // throttled server does to a provider that is already bound.
+    let connector = SyncFailingConnector::new(
+        "archive",
+        vec![message("c1", "archive", "Archived report")],
+        1,
+    );
+    let app = app_with_connector(
+        vec![account("acct-1", FakeProvider::imap_inbox(Vec::new(), &[]))],
+        connector,
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(Intent::SelectAccount(Some("acct-1".to_owned())))
+        .await;
+
+    // First open: the download fails, so the folder shows empty for now…
+    app.dispatch(open_folder("acct-1", "archive")).await;
+    assert!(
+        !flat_subjects(&app.mailbox_list())
+            .iter()
+            .any(|s| s == "Archived report"),
+        "a failed download leaves the folder empty for now"
+    );
+    // …and says nothing about why. The two things the list can say are "this folder is empty" and
+    // "your depth is keeping mail out", and a download that failed establishes neither: the
+    // folder was never looked at (`docs/folder-pane.md`, rule 20).
+    assert_eq!(
+        app.mailbox_list().empty_reason,
+        None,
+        "a folder nobody managed to download must not be called empty"
+    );
+
+    // …and because the open read the engine's report instead of discarding it, the attempt was
+    // not remembered: re-opening downloads the folder. The bug was that a sync failure was
+    // invisible here, so the folder counted as attempted and stayed empty until a restart.
+    app.dispatch(Intent::SelectAccount(Some("acct-1".to_owned())))
+        .await;
+    app.dispatch(open_folder("acct-1", "archive")).await;
+    assert!(
+        flat_subjects(&app.mailbox_list())
+            .iter()
+            .any(|s| s == "Archived report"),
+        "re-opening after a failed download re-attempts it: {:?}",
+        flat_subjects(&app.mailbox_list())
+    );
+}
+
+#[tokio::test]
+async fn an_open_that_downloads_nothing_republishes_the_list_once_to_explain_itself() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    // A folder the server holds nothing in: the open succeeds and stores nothing.
+    let connector = FakeConnector::new(vec![("archive".to_owned(), Vec::new())]);
+    let app = app_with_connector(
+        vec![account("acct-1", FakeProvider::imap_inbox(Vec::new(), &[]))],
+        connector,
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(Intent::SelectAccount(Some("acct-1".to_owned())))
+        .await;
+    surfaces.lock().unwrap().clear();
+
+    app.dispatch(open_folder("acct-1", "archive")).await;
+
+    // Two publishes, and the second earns its place: the first puts the folder on screen while
+    // its download is still to come, where the list says nothing about being empty because
+    // nothing has looked yet; the second carries the answer the download produced
+    // (`docs/folder-pane.md`, rule 20). Bounded at two: the open must not repaint beyond the one
+    // snapshot that changed, which is what it did when it claimed every open had landed mail.
+    assert_eq!(
+        surfaces
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|surface| **surface == Surface::MailboxList)
+            .count(),
+        2,
+        "an open that downloaded nothing repaints once, to say so"
+    );
+    // The variant, not the month count: which depth an account starts at is the form factor's
+    // decision and is asserted where it is made (`tests_depth`).
+    assert!(
+        matches!(
+            app.mailbox_list().empty_reason,
+            Some(EmptyReason::OutsideSyncDepth(_))
+        ),
+        "and what it says is why the folder is empty"
+    );
+}
+
+#[tokio::test]
+async fn a_folder_listed_after_the_account_connected_stays_current() {
+    // A folder the account was not bound to when it connected (created since, on the server or
+    // by another client) is synced by every pass that lists it, not only when it is opened: only
+    // the Inbox is watched, so standing in a mailing-list folder, the pull the user asks for is
+    // what brings its new mail.
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let connector = FakeConnector::new(vec![(
         "binutils".to_owned(),
@@ -168,7 +262,10 @@ async fn a_refresh_re_syncs_the_folder_on_screen() {
     )]);
     let folders = connector.folders();
     let app = app_with_connector(
-        vec![account("acct-1", FakeProvider::new())],
+        vec![account(
+            "acct-1",
+            FakeProvider::imap_inbox(Vec::new(), &["binutils"]),
+        )],
         connector,
         &surfaces,
     );
@@ -187,16 +284,15 @@ async fn a_refresh_re_syncs_the_folder_on_screen() {
         flat_subjects(&app.mailbox_list())
             .iter()
             .any(|s| s == "Patch v2"),
-        "the refresh must reach the open folder: {:?}",
+        "the refresh must reach every listed folder: {:?}",
         flat_subjects(&app.mailbox_list()),
     );
 }
 
 #[tokio::test]
 async fn a_refresh_does_not_reconnect_a_folder_the_account_already_binds() {
-    // INBOX and the SPECIAL-USE role folders sync with the account pass itself, so connecting
-    // one again afterwards is a second login and a second download of a folder that has just
-    // synced: on every poll tick, of every account.
+    // A bound folder syncs with the account pass itself, so connecting it again afterwards is a
+    // second download of a folder that has just synced: on every poll tick, of every account.
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let connector = FlakyConnector::new("a", vec![message("c1", "a", "Never on demand")], 0);
     let attempts = connector.attempts();
@@ -207,15 +303,15 @@ async fn a_refresh_does_not_reconnect_a_folder_the_account_already_binds() {
     );
     app.dispatch(Intent::RefreshMail).await;
 
-    // "a" is the fake's role-Inbox mailbox: opening it needs no connection of its own, and
-    // neither does the refresh that follows.
+    // "a" is the fake's Inbox: opening it needs no connection of its own, and neither does
+    // the refresh that follows.
     app.dispatch(open_folder("acct-1", "a")).await;
     app.dispatch(Intent::RefreshMail).await;
 
     assert_eq!(
         *attempts.lock().unwrap(),
         0,
-        "an eagerly bound folder is synced by the pass, never on its own connection",
+        "a bound folder is synced by the pass, never on its own connection",
     );
 }
 

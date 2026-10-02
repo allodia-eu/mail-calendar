@@ -140,6 +140,14 @@ enum ShowcaseMode {
         return name.flatMap(Screen.init(rawValue:)) ?? .list
     }
 
+    /// The instant a showcase run treats as now (today, at the wall clock the sample content is
+    /// dated from), else nil. The calendar frames itself and draws its now line from it, so a
+    /// capture's grid agrees with the seeded mail and the status bar at any hour.
+    static var now: Date? {
+        guard isOn else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(showcaseNow(deviceTimezone: deviceTimeZone())))
+    }
+
     /// The sample reply text to open the composer pre-filled with when replying to the showcase's
     /// designated message, else nil, every other message, and every non-showcase run, keeps the
     /// normal empty composer. Plain text; see `docs/composer-security.md` Gate 11.
