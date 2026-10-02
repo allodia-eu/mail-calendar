@@ -1,0 +1,157 @@
+//! What the accounts list and an account's page say, from a snapshot entry.
+
+use mailcal_bindings::{
+    AccountCapability, AccountEntry, AccountKind, AccountLinksView, AccountUse, CapabilityState,
+    LinkCandidates, LinkSlot, LinkedAccount,
+};
+
+use super::{UseSwitch, link_pickers, needs_permission, summary, use_switch};
+use crate::l10n;
+
+fn linked(id: &str) -> LinkedAccount {
+    LinkedAccount {
+        id: id.to_owned(),
+        address: id.to_owned(),
+    }
+}
+
+fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> AccountEntry {
+    AccountEntry {
+        id: "alice@example.org@imap.example.org".to_owned(),
+        address: "alice@example.org".to_owned(),
+        kind,
+        uses: uses
+            .iter()
+            .map(|(capability, state)| AccountUse {
+                capability: *capability,
+                state: *state,
+            })
+            .collect(),
+        links: AccountLinksView::default(),
+        linked_from: Vec::new(),
+        link_candidates: LinkCandidates::default(),
+        endpoints: None,
+    }
+}
+
+fn mailbox_only() -> AccountEntry {
+    entry(
+        AccountKind::Imap,
+        &[
+            (AccountCapability::Mail, CapabilityState::On),
+            (AccountCapability::Calendar, CapabilityState::Off),
+            (AccountCapability::Contacts, CapabilityState::Off),
+        ],
+    )
+}
+
+#[test]
+fn the_last_use_cannot_be_switched_off() {
+    let entry = mailbox_only();
+    assert_eq!(
+        use_switch(&entry, AccountCapability::Mail),
+        UseSwitch {
+            active: true,
+            sensitive: false,
+            note: Some(l10n::settings_account_use_last()),
+        }
+    );
+    assert_eq!(
+        use_switch(&entry, AccountCapability::Calendar),
+        UseSwitch {
+            active: false,
+            sensitive: true,
+            note: None,
+        }
+    );
+}
+
+#[test]
+fn colleagues_wait_for_contacts() {
+    let mut entry = entry(
+        AccountKind::Microsoft,
+        &[
+            (AccountCapability::Mail, CapabilityState::On),
+            (AccountCapability::Calendar, CapabilityState::On),
+            (AccountCapability::Contacts, CapabilityState::Off),
+            (AccountCapability::Colleagues, CapabilityState::Off),
+        ],
+    );
+    let colleagues = use_switch(&entry, AccountCapability::Colleagues);
+    assert!(!colleagues.sensitive);
+    assert_eq!(
+        colleagues.note,
+        Some(l10n::settings_account_colleagues_needs_contacts())
+    );
+
+    entry.uses[2].state = CapabilityState::On;
+    assert!(use_switch(&entry, AccountCapability::Colleagues).sensitive);
+}
+
+#[test]
+fn a_use_waiting_on_permission_reads_as_used_and_says_so() {
+    let entry = entry(
+        AccountKind::Google,
+        &[
+            (AccountCapability::Mail, CapabilityState::On),
+            (
+                AccountCapability::Calendar,
+                CapabilityState::NeedsPermission,
+            ),
+            (AccountCapability::Contacts, CapabilityState::Off),
+            (AccountCapability::Colleagues, CapabilityState::Off),
+        ],
+    );
+    let calendar = use_switch(&entry, AccountCapability::Calendar);
+    assert!(calendar.active && calendar.sensitive);
+    assert_eq!(
+        calendar.note,
+        Some(l10n::settings_account_needs_permission())
+    );
+    assert!(needs_permission(&entry));
+    assert!(summary(&entry).contains(l10n::settings_account_needs_permission()));
+}
+
+#[test]
+fn the_summary_names_the_kind_the_uses_and_the_links() {
+    let mut entry = mailbox_only();
+    entry.links.calendar = Some(linked("alice@cloud.example"));
+    let summary = summary(&entry);
+    let lines: Vec<_> = summary.lines().collect();
+    assert_eq!(
+        lines[0],
+        format!(
+            "{} · {}",
+            l10n::setup_account_type_password(),
+            l10n::nav_mail()
+        )
+    );
+    assert_eq!(
+        lines[1],
+        l10n::settings_account_linked_line(l10n::nav_calendar(), "alice@cloud.example")
+    );
+}
+
+#[test]
+fn a_picker_is_offered_only_for_a_slot_the_account_can_hold() {
+    let mut entry = mailbox_only();
+    assert!(link_pickers(&entry).is_empty());
+
+    entry.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
+    entry.links.calendar = Some(linked("b@cloud.example"));
+    let pickers = link_pickers(&entry);
+    assert_eq!(pickers.len(), 1);
+    assert_eq!(pickers[0].slot, LinkSlot::Calendar);
+    assert_eq!(pickers[0].options.len(), 2);
+    assert_eq!(pickers[0].selected, Some(1));
+}
+
+#[test]
+fn a_linked_account_missing_from_the_candidates_is_still_shown() {
+    let mut entry = mailbox_only();
+    entry.links.contacts = Some(linked("book@cloud.example"));
+    let pickers = link_pickers(&entry);
+    assert_eq!(pickers[0].slot, LinkSlot::Contacts);
+    assert_eq!(pickers[0].options, [linked("book@cloud.example")]);
+    assert_eq!(pickers[0].selected, Some(0));
+}

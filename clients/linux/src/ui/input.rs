@@ -318,6 +318,8 @@ pub(crate) enum AppInput {
     /// Set up an account one of the person's other devices offered, on the route its record
     /// names rather than one re-derived from the address.
     SetUpOfferedAccount(Box<mailcal_bindings::AllodiaAccountOffer>),
+    /// Settings → Accounts' account pages, as one input.
+    Accounts(crate::ui::account_settings::AccountsInput),
     RemoveAccount(String),
     AccountRemoved(Result<(), String>),
     AnalyticsDecided(bool),
@@ -476,6 +478,7 @@ impl fmt::Debug for AppInput {
             Self::JmapReauthFinished(..) => "JmapReauthFinished",
             Self::ReplaceAccountSecret { .. } => "ReplaceAccountSecret",
             Self::AccountSecretReplaced { .. } => "AccountSecretReplaced",
+            Self::Accounts(_) => "Accounts",
             Self::RemoveAccount(_) => "RemoveAccount",
             Self::AccountRemoved(_) => "AccountRemoved",
             Self::AnalyticsDecided(_) => "AnalyticsDecided",

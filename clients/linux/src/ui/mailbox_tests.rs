@@ -312,8 +312,9 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::allodia_sync::tests::every_health_row_is_reachable_from_the_keyboard();
     crate::ui::settings::about::assert_about_page_states_version_support_and_attributions();
     crate::ui::settings::general::assert_the_appearance_row_shows_the_stored_choice();
-    crate::ui::settings::accounts::tests::
+    crate::ui::settings::account_mail::tests::
         an_expired_password_is_replaced_without_removing_the_account();
+    crate::ui::settings::accounts::tests::an_account_row_opens_its_page();
     connectivity::the_banners_render_the_snapshot_and_keep_the_remedy_actionable();
     crate::ui::unfiled_copy::tests::
         the_unfiled_copy_question_offers_both_answers_and_blocks_double_answers();
