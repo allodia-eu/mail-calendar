@@ -1,8 +1,8 @@
 //! Recommendation-mapping tests; one per routing rule.
 
 use mailcal_autodetect::{
-    AuthKind, Detected, DetectedJmap, DetectedMailSettings, DetectedServer, SocketKind, Source,
-    SourceKind,
+    AuthKind, Detected, DetectedDav, DetectedJmap, DetectedMailSettings, DetectedServer,
+    SocketKind, Source, SourceKind,
 };
 
 use super::{ConnectionSecurity, MissReason, OauthRoutes, SetupRecommendation};
@@ -53,7 +53,10 @@ fn mail_with_caldav(
         outgoing,
         is_trusted: true,
         source: source(),
-        caldav_url,
+        dav: DetectedDav {
+            caldav_url,
+            carddav_url: None,
+        },
         oauth_issuer: None,
     })
 }
@@ -73,6 +76,7 @@ fn jmap_routes_to_the_jmap_form() {
         base_url: "https://example.com".to_owned(),
         is_trusted: true,
         source: source(),
+        dav: DetectedDav::default(),
     });
     let SetupRecommendation::Jmap {
         email,

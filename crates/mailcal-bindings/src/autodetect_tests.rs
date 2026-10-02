@@ -3,8 +3,8 @@
 //! folds into a manual route.
 
 use mailcal_autodetect::{
-    AuthKind, Detected, DetectedJmap, DetectedMailSettings, DetectedServer, SocketKind, Source,
-    SourceKind,
+    AuthKind, Detected, DetectedDav, DetectedJmap, DetectedMailSettings, DetectedServer,
+    SocketKind, Source, SourceKind,
 };
 
 use super::{
@@ -25,6 +25,7 @@ fn a_jmap_detection_converts_to_the_ffi_jmap_route() {
         base_url: "https://example.com".to_owned(),
         is_trusted: true,
         source: source(),
+        dav: DetectedDav::default(),
     });
     let SetupRecommendation::Jmap {
         email, server_url, ..
@@ -78,7 +79,10 @@ fn a_discovered_caldav_endpoint_survives_the_ffi_conversion() {
         outgoing: Vec::new(),
         is_trusted: true,
         source: source(),
-        caldav_url: Some("https://caldav.soverin.net/calendars".to_owned()),
+        dav: DetectedDav {
+            caldav_url: Some("https://caldav.soverin.net/calendars".to_owned()),
+            carddav_url: None,
+        },
     });
     let SetupRecommendation::Imap { caldav_url, .. } =
         to_recommendation("info@example.org", Ok(detected))
@@ -89,6 +93,25 @@ fn a_discovered_caldav_endpoint_survives_the_ffi_conversion() {
         caldav_url.as_deref(),
         Some("https://caldav.soverin.net/calendars")
     );
+}
+
+/// No client offers an account without mail from detection yet, so a domain naming only a
+/// calendar reaches them as the manual form it always did.
+#[test]
+fn a_domain_with_only_dav_reaches_the_clients_as_nothing_found() {
+    let result = to_recommendation(
+        "a@example.com",
+        Ok(Detected::Dav(DetectedDav {
+            caldav_url: Some("https://example.com/.well-known/caldav".to_owned()),
+            carddav_url: None,
+        })),
+    );
+    assert!(matches!(
+        result,
+        SetupRecommendation::Manual {
+            reason: MissReason::NothingFound
+        }
+    ));
 }
 
 #[test]

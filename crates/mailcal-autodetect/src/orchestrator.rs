@@ -12,11 +12,11 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 
 use crate::{
-    DetectConfig, caldav,
+    DetectConfig, dav,
     fetch::{Fetch, Fetcher},
     jmap_probe, mx, srv, strategy,
     strategy::StrategyOutcome,
-    types::{DetectError, Detected, EmailParts},
+    types::{DetectError, Detected, DetectedDav, Domain, EmailParts},
 };
 
 /// Detects mail-server settings for `email`. `resolver` enables the MX fallback (the
@@ -45,11 +45,21 @@ pub(crate) async fn orchestrate(
     config: DetectConfig,
 ) -> Detected {
     let deadline = config.overall_deadline;
-    let handles = spawn_all(&fetcher, &email, resolver, &config);
+    let handles = spawn_all(&fetcher, &email, resolver.clone(), &config);
     let aborts: Vec<_> = handles.iter().map(JoinHandle::abort_handle).collect();
 
     let detected = match tokio::time::timeout(deadline, collect(handles)).await {
-        Ok(detected) => detected,
+        Ok(detected) => {
+            with_dav(
+                fetcher.as_ref(),
+                &email,
+                resolver.as_ref(),
+                &config,
+                detected,
+            )
+            .await
+        }
+        // A run that hung until the deadline is not a clean miss, so no DAV probe extends it.
         Err(_elapsed) => {
             for abort in &aborts {
                 abort.abort();
@@ -60,7 +70,6 @@ pub(crate) async fn orchestrate(
             }
         }
     };
-    let detected = with_caldav(fetcher.as_ref(), &email, &config, detected).await;
     log_outcome(&detected);
     detected
 }
@@ -74,9 +83,10 @@ fn log_outcome(detected: &Detected) {
     match detected {
         Detected::Jmap(jmap) => {
             log::info!(
-                "autodetect: jmap via {:?} ({})",
+                "autodetect: jmap via {:?} ({}){}",
                 jmap.source.kind,
-                trust(jmap.is_trusted)
+                trust(jmap.is_trusted),
+                found_dav(&jmap.dav)
             );
         }
         Detected::Mail(mail) => {
@@ -84,12 +94,11 @@ fn log_outcome(detected: &Detected) {
                 "autodetect: mail via {:?} ({}){}",
                 mail.source.kind,
                 trust(mail.is_trusted),
-                if mail.caldav_url.is_some() {
-                    " +caldav"
-                } else {
-                    ""
-                }
+                found_dav(&mail.dav)
             );
+        }
+        Detected::Dav(dav) => {
+            log::info!("autodetect: no mail{}", found_dav(dav));
         }
         Detected::Nothing { network_error } => {
             log::info!(
@@ -104,22 +113,63 @@ fn log_outcome(detected: &Detected) {
     }
 }
 
-/// A found IMAP config gets a follow-on RFC 6764 CalDAV probe; autoconfig/ISPDB describe
-/// mail only, so the calendar endpoint (when there is one) is discovered separately. Every
-/// other outcome passes through untouched. The probe is **soft**: bounded by its own
-/// timeout and outside the overall deadline, it never turns a found config into a miss, so
-/// a slow or absent calendar host never costs the user their mail settings.
-async fn with_caldav(
+/// Which DAV servers a result carries, for the info log: names only, never a URL.
+fn found_dav(dav: &DetectedDav) -> &'static str {
+    match (dav.caldav_url.is_some(), dav.carddav_url.is_some()) {
+        (true, true) => " +caldav +carddav",
+        (true, false) => " +caldav",
+        (false, true) => " +carddav",
+        (false, false) => "",
+    }
+}
+
+/// Looks for CalDAV and CardDAV beside a found server (autoconfig, the ISPDB and a JMAP
+/// session's discovery say nothing about them), and alone after a clean miss, which becomes
+/// [`Detected::Dav`] when the domain names one. An offline miss is not probed again.
+///
+/// The probe is **soft**: bounded per candidate and outside the overall deadline, it never
+/// turns a found config into a miss. Beside JMAP it is skipped under the harness override,
+/// whose typed domain resolves nowhere.
+async fn with_dav(
     fetcher: &dyn Fetch,
     email: &EmailParts,
+    resolver: Option<&Arc<dyn mx::MxResolver>>,
     config: &DetectConfig,
     detected: Detected,
 ) -> Detected {
-    let Detected::Mail(mut settings) = detected else {
-        return detected;
+    let probe = |provider: Option<Domain>| async move {
+        dav::probe(fetcher, resolver, &email.domain, provider.as_ref(), config).await
     };
-    settings.caldav_url = caldav::probe(fetcher, email, &settings, config.http_timeout).await;
-    Detected::Mail(settings)
+    match detected {
+        Detected::Mail(mut settings) => {
+            let provider = settings
+                .incoming
+                .first()
+                .and_then(|server| dav::provider_domain(&server.hostname));
+            settings.dav = probe(provider).await;
+            Detected::Mail(settings)
+        }
+        Detected::Jmap(mut jmap) if config.well_known_base_override.is_none() => {
+            let provider = url::Url::parse(&jmap.base_url)
+                .ok()
+                .and_then(|base| base.host_str().and_then(dav::provider_domain));
+            jmap.dav = probe(provider).await;
+            Detected::Jmap(jmap)
+        }
+        Detected::Nothing {
+            network_error: false,
+        } => {
+            let dav = probe(None).await;
+            if dav.is_empty() {
+                Detected::Nothing {
+                    network_error: false,
+                }
+            } else {
+                Detected::Dav(dav)
+            }
+        }
+        other => other,
+    }
 }
 
 /// Spawns every strategy at once, in priority order: JMAP probe (apex + `_jmap._tcp`

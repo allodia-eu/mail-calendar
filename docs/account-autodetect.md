@@ -89,22 +89,26 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
    the server must advertise S256 PKCE. Detection itself runs neither; both are **setup-form**
    steps, after a route has been chosen.
 
-8. **A found IMAP config gets a CalDAV follow-on probe.** Autoconfig/ISPDB describe **mail
-   only** (they carry no calendar endpoint), so once IMAP settings are found the core
-   probes `.well-known/caldav` (RFC 6764) on the account's **email domain** and its
-   **provider's registrable domain** (derived from the winning IMAP host, e.g.
-   `imap.soverin.net` → `soverin.net`, which advertises CalDAV even when the custom
-   `allodia.eu` does not), concurrently, email-domain hit preferred. Only an HTTPS `401`
-   (a credential challenge) or `207` (a WebDAV multi-status) counts, so a catch-all
-   `301`-to-homepage is not a false positive, and because only HTTPS is followed, a
-   discovered endpoint is always tamper-resistant-sourced. The client offers it as
-   calendar sync **pre-selected** (opt-out), reusing the IMAP credentials; when nothing is
-   found it offers an opt-in manual CalDAV field. The probe is **soft**: bounded by its own
-   timeout, run outside the overall deadline, it never turns a found mail config into a
-   miss, and the engine still does the real authenticated collection discovery at connect
-   (a wrong guess degrades to "no calendar", surfaced non-blocking, never a broken
-   account). Discovery attaches to the **IMAP** route only; JMAP/Microsoft/Gmail carry
-   their calendar over their own session and need no probe.
+8. **CalDAV and CardDAV are looked for beside every server found, and alone when none was.**
+   Autoconfig/ISPDB describe **mail only**, and a JMAP server need not offer calendars or
+   contacts, so after a mail or JMAP result the core probes both DAV services (RFC 6764) on
+   the account's **email domain** and the **provider's registrable domain** (derived from the
+   winning IMAP or JMAP host, e.g. `imap.soverin.net` → `soverin.net`, which advertises CalDAV
+   even when the custom `allodia.eu` does not). On each domain it tries the target of the
+   `_caldavs._tcp` / `_carddavs._tcp` SRV record and the domain's own `.well-known/caldav` /
+   `.well-known/carddav`, concurrently; the SRV target is preferred, then the domain's own, the
+   email domain before the provider's. After a clean miss (not an offline one) the email domain
+   alone is probed, and a hit there is a **calendar-and-contacts** result rather than nothing.
+   Only an HTTPS `401` (a credential challenge) or `207` (a WebDAV multi-status) counts, so a
+   catch-all `301`-to-homepage is not a false positive, and because only HTTPS is followed, a
+   discovered endpoint is always tamper-resistant-sourced. A found calendar is offered
+   **pre-selected** (opt-out), reusing the account's credential; when nothing is found an
+   opt-in manual CalDAV field is offered. The probe is **soft**: every candidate is bounded by
+   its own timeout, it runs outside the overall deadline, it never turns a found config into a
+   miss, and the engine still does the real authenticated collection discovery at connect (a
+   wrong guess degrades to "no calendar", surfaced non-blocking, never a broken account).
+   Microsoft and Google carry calendar and contacts over their own session, so what the probe
+   found is dropped on those routes.
 
 9. **SRV autodiscovery covers providers that publish services in DNS, not on the apex.** Two
    strategies use the host resolver's SRV lookup (rule 6). The **JMAP probe**, on an apex
@@ -171,8 +175,8 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
 ## Strategy order
 
 The whole flow has three stages: **(1)** the five discovery strategies below, raced in priority
-order; **(2)** once a mail config is found, the [CalDAV follow-on](#the-rules) probe (rule 8, not
-one of the raced strategies); **(3)** [routing](#routing) the winner onto a prefilled client form.
+order; **(2)** the [DAV probe](#the-rules) (rule 8, not one of the raced strategies);
+**(3)** [routing](#routing) the winner onto a prefilled client form.
 Stages 1–2 are the discovery; stage 3 is what the client does with the result.
 
 The five strategies, for `user@company.example`, in priority order (each an independent parallel
@@ -193,13 +197,13 @@ the target's origin (`https://api.fastmail.com`, port kept only when non-standar
 the engine re-resolves `/.well-known/jmap` at connect, so no ephemeral redirect target is baked
 in. The SRV path is skipped under the dev-harness override (which targets a fixed local base).
 
-After a **mail** result, a **CalDAV follow-on** (rule 8, not one of the raced strategies)
-probes `.well-known/caldav` on the email domain and the provider's registrable domain, and
-attaches any discovered endpoint to the IMAP route. It uses only `.well-known`, no
-`_caldavs._tcp` SRV lookup: the well-known signal covers hosted providers like Soverin
-(whose calendar lives on the provider domain, not the custom email domain). The mail SRV
-strategies now use the same host resolver, so a CalDAV SRV lookup is a small extension (see
-Known gaps).
+After a **mail** or **JMAP** result, and after a clean miss, the **DAV probe** (rule 8, not one
+of the raced strategies) looks for CalDAV and CardDAV:
+
+| Domain | Requests, per service, concurrently |
+|---|---|
+| Email domain | `_caldavs._tcp.company.example` SRV → `https://{target}/.well-known/caldav` · `https://company.example/.well-known/caldav` (the same for `carddav`) |
+| Provider domain (mail or JMAP result only) | the same, on the registrable domain of the winning host |
 
 No port guessing/probing, no Exchange AutoDiscover, no bundled `providers.xml`: otherwise
 the scope of Thunderbird for Android, **extended** with the JMAP and IMAP/SMTP SRV strategies
@@ -229,9 +233,9 @@ engine can connect, so it lives in `mailcal-account`, not the protocol-neutral d
   the detected connection security (implicit TLS or STARTTLS) carried through to connect; the
   outgoing server likewise, or none when the provider has no SMTP the engine can use (send
   stays unconfigured rather than blocking mail-read). An `_imaps`/`_imap` /
-  `_submissions`/`_submission` SRV result (rule 9) lands here too. A CalDAV endpoint found by
-  the follow-on probe (rule 8) rides along on this route, offered as pre-selected calendar sync
-  that reuses the account's credential. Any issuer the provider named for itself (rule 7) rides
+  `_submissions`/`_submission` SRV result (rule 9) lands here too. A CalDAV or CardDAV endpoint
+  found by the DAV probe (rule 8) rides along on this route, offered pre-selected, reusing the
+  account's credential. Any issuer the provider named for itself (rule 7) rides
   along too, and the form asks the server what it accepts before drawing a credential field
   ([`mail-oauth.md`](mail-oauth.md)).
 
@@ -239,6 +243,8 @@ engine can connect, so it lives in `mailcal-account`, not the protocol-neutral d
   "OAuth-only provider", which was a fact about this client rather than about the provider, and
   stopped being true when IMAP gained OAuth. What a document *claims* is a routing hint either
   way: which credential is actually asked for is settled against the live server.
+- **No mail, but a calendar or address book** → an account used for calendar and contacts
+  only, its endpoints prefilled.
 - **Nothing found** / **offline** → manual setup, with a plain-language reason line.
 
 **A route the build cannot start is never recommended.** The Microsoft and Google sign-ins need
@@ -261,10 +267,11 @@ never-log-content rule. Account connection is **not** jurisdiction-gated: the
 the provider's own endpoints, to Mozilla's ISPDB, and to the device's DNS resolver (including
 the `_service._tcp.{domain}` SRV queries of rule 9); a JMAP-SRV *target* host additionally sees
 a `.well-known/jmap` probe, but only that host. [`privacy-policy.md`](privacy-policy.md) §2
-discloses this (the ISPDB third party, the DNS lookups, domain-only). The CalDAV follow-on
-(rule 8) stays within this envelope: it discloses only the email domain and the provider's
-registrable domain to their own `.well-known/caldav` (both the user's own provider, no new
-third party), never the local part.
+discloses this (the ISPDB third party, the DNS lookups, domain-only). The DAV probe (rule 8)
+stays within this envelope: it discloses only the email domain and the provider's registrable
+domain, to the DNS resolver as `_caldavs._tcp` / `_carddavs._tcp` owner names, to their own
+`.well-known/caldav` and `.well-known/carddav`, and to the host their SRV record names (the
+user's own provider, no new third party), never the local part.
 
 ## Per-platform matrix
 
@@ -287,6 +294,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | IMAP/SMTP SRV (`_imaps`/`_submissions`, RFC 6186/8314) | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | DNSSEC AD bit read (reserved for a future "require DNSSEC" opt-in) | ✅ | n/a | n/a | ✅ | n/a |
 | CalDAV follow-on discovery (RFC 6764) | ✅ | ✅ | 🚧 | ✅ | ✅ |
+| CardDAV, DAV SRV, DAV beside JMAP, the calendar-and-contacts result (rule 8) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | JMAP OAuth metadata chain (RFC 9728 → 8414 → 7591), offered only when advertised | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | `<oAuth2><issuer>` read from the provider's own trusted autoconfig, carried to setup | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 
@@ -410,16 +418,19 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   stranding the user. The **manual** pane keeps its secret field throughout: it is already on
   screen, so a negative answer changes nothing there and must not rebuild over a secret being
   typed.
-- **CalDAV discovery is `.well-known`-only.** No `_caldavs._tcp` SRV lookup, though the mail
-  SRV strategies now use the same host resolver, so adding one is a small extension. A provider
-  that advertises CalDAV solely via SRV isn't found, and the user adds it manually. A
-  Microsoft-family or Gmail result runs the CalDAV probe but discards it: those carry calendar
-  over their own session, costing one bounded, concurrent request.
+- **No client offers what rule 8 adds yet.** The core finds CardDAV, SRV-named DAV hosts, DAV
+  beside a JMAP server and a domain with DAV but no mail, but `detect_account_settings` hands a
+  client only the CalDAV endpoint on the IMAP route, and a domain with DAV alone reaches it as
+  "nothing found". Each client takes the rest when its setup offers calendar and contacts
+  choices.
+- **TXT `path` records are not read** (RFC 6764 §4). The host resolver has no TXT lookup, so a
+  DAV server whose context path is published only in TXT, and not under `.well-known` on the
+  SRV target, is not found, and the user adds it manually.
+- A Microsoft-family or Gmail result runs the DAV probe but discards it: those carry calendar
+  and contacts over their own session, costing a few bounded, concurrent requests.
 - **The discovered endpoint is a hint, not a guarantee.** The unauthenticated probe proves a
   CalDAV service exists; the engine's authenticated PROPFIND at connect is the real validation,
   and a failure degrades to "no calendar" (surfaced non-blocking), never a broken account.
-- **JMAP accounts get no CalDAV probe.** Discovery attaches to the IMAP route only; a
-  JMAP/Fastmail account's calendar is future work on that route.
 
 ## Testing
 
@@ -427,9 +438,11 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   error), the fetcher (one-shot 127.0.0.1 servers), the JMAP probe (apex **and** `_jmap._tcp`
   SRV fallback, trusted vs. approval-gated), the MX derivation, the IMAP/SMTP SRV strategy, SRV
   target selection (the `.` sentinel, a zero port, priority order, the trailing-dot trim), the
-  CalDAV probe (classification + email-vs-provider candidate selection), and the orchestrator's
+  DAV probe (classification, CardDAV beside CalDAV, the SRV target before the domain's own and
+  the email domain before the provider's, the per-candidate budget), and the orchestrator's
   priority/deadline behaviour under `tokio` paused time (including the **Fastmail-shape** case
-  where a `_jmap._tcp` SRV hit beats an ISPDB IMAP result), ~108 tests. The recommendation
+  where a `_jmap._tcp` SRV hit beats an ISPDB IMAP result, and DAV beside JMAP or alone),
+  ~127 tests. The recommendation
   mapping (`mailcal-account`) and the FFI conversion (`mailcal-bindings`) each have per-rule
   tests (including the CalDAV pass-through). A gated live test (`AUTODETECT_LIVE=1`) hits
   gmail/fastmail read-only.

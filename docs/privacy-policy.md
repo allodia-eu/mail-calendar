@@ -1,6 +1,6 @@
 # Privacy Policy: Allodia Mail & Calendar
 
-**Version 2.5 · Effective: 2026-09-20**
+**Version 2.6 · Effective: 2026-10-01**
 
 Allodia Mail & Calendar is a mail and calendar app that runs on your device and connects to the
 mail provider **you** choose. This policy explains, in plain language, what that means for your
@@ -135,9 +135,9 @@ Privacy protections that are built in, on every platform:
 
 **Finding your settings when you add an account.** So you don't have to type server names, the
 app can work them out from your email address when you ask it to. It looks in the standard
-places for your provider's published settings: the mail, JMAP, and calendar autodiscovery
-addresses on **your own email domain and your provider's domain**, a normal DNS lookup for your
-provider's mail host, and the **Thunderbird project's public autoconfig database**
+places for your provider's published settings: the mail, JMAP, calendar and address-book
+autodiscovery addresses on **your own email domain and your provider's domain**, normal DNS
+lookups for your provider's mail, calendar and address-book servers, and the **Thunderbird project's public autoconfig database**
 (`autoconfig.thunderbird.net`, run by MZLA/Mozilla), a shared directory of provider settings.
 Two rules bound all of it: only your **domain** is ever sent, never your full email address;
 and everything is attempted over HTTPS, and a settings source reached any other way is shown to

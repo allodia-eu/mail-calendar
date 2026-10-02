@@ -6,7 +6,7 @@ use url::Url;
 use crate::{
     fetch::{Fetch, FetchOutcome},
     parser::parse_autoconfig,
-    types::{DetectedJmap, DetectedMailSettings, EmailParts, Source, SourceKind},
+    types::{DetectedDav, DetectedJmap, DetectedMailSettings, EmailParts, Source, SourceKind},
     urls,
 };
 
@@ -58,9 +58,9 @@ pub(crate) async fn fetch_mail_config(
                         kind,
                         url: response.final_url.to_string(),
                     },
-                    // Filled in later by the CalDAV follow-on probe in the orchestrator;
-                    // mail settings alone carry no calendar endpoint.
-                    caldav_url: None,
+                    // Filled in later by the DAV probe in the orchestrator; mail settings
+                    // alone carry no calendar or address-book endpoint.
+                    dav: DetectedDav::default(),
                 }),
                 Err(err) => {
                     log::debug!("autodetect could not parse {}: {err}", response.final_url);

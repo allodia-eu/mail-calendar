@@ -34,7 +34,7 @@
 //! resolver so each platform's native API (and thus the device's real DNS settings;
 //! VPNs, private DNS) answers the MX and SRV queries.
 
-mod caldav;
+mod dav;
 mod fetch;
 mod hostname;
 mod jmap_probe;
@@ -55,8 +55,8 @@ use engine_tls::TlsPolicy;
 pub use mx::{MxError, MxRecord, MxResolution, MxResolver, SrvRecord, SrvResolution};
 pub use orchestrator::detect;
 pub use types::{
-    AuthKind, DetectError, Detected, DetectedJmap, DetectedMailSettings, DetectedServer, Domain,
-    EmailParts, SocketKind, Source, SourceKind,
+    AuthKind, DetectError, Detected, DetectedDav, DetectedJmap, DetectedMailSettings,
+    DetectedServer, Domain, EmailParts, SocketKind, Source, SourceKind,
 };
 use url::Url;
 
