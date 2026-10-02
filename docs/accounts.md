@@ -84,6 +84,12 @@ mail, its calendar working.
 A Microsoft grant names every scope the app was ever granted for that account, not only those asked
 for, so what opens is decided by the choice and never by the grant alone.
 
+Link suggestions are checked against the harness by
+`crates/mailcal-bindings/tests/live_link_suggestions.rs` (`scripts/dev/harness.sh test`), in the
+shape of the `stalwart-linked` dev account: Stalwart lists each user's address in their principal's
+`calendar-user-address-set`, so alice's calendar is suggested for her mailbox, and her mailbox for
+it, while bob's calendar is offered without being suggested.
+
 ## 4. Known gaps
 
 - **No client creates an account without mail yet.** `account_config_toml` takes the person's
