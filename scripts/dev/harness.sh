@@ -155,6 +155,8 @@ case "$cmd" in
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
       STALWART_OAUTH_HTTP_ADDR="$STALWART_OAUTH_HTTP_ADDR" \
       cargo test -p mailcal-bindings --test live_jmap_oauth -- --nocapture
+    STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
+      cargo test -p mailcal-bindings --test live_link_suggestions -- --nocapture
     extract_harness_ca || die "the IMAP sign-in tests need the harness certificates"
     MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \

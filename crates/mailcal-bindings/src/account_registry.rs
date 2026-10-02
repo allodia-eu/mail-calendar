@@ -51,6 +51,7 @@ pub(crate) type ImapEntry = (
 
 use crate::{AccountProvider, ConnectedAccount};
 
+mod calendar_users;
 mod credentials;
 mod dial;
 mod dial_parts;
@@ -69,6 +70,8 @@ pub(crate) use uses::UseChange;
 #[derive(Debug, Default)]
 pub(crate) struct AccountRegistry {
     entries: Mutex<HashMap<String, ConnectedAccount>>,
+    /// What each account's calendar server said it schedules as: `None` while it is being asked.
+    calendar_users: Mutex<HashMap<String, Option<Vec<String>>>>,
 }
 
 /// What one rotation did to the registry, for the token sink to report and persist.
@@ -106,6 +109,7 @@ impl AccountRegistry {
     /// The only way to add an account. It takes the entry by value and returns nothing borrowed, so
     /// a caller cannot keep a second copy to write back later.
     pub(crate) fn pre_register(&self, id: String, entry: ConnectedAccount) -> Registered {
+        self.forget_calendar_users(&id);
         let replaced = self
             .entries
             .lock()
@@ -116,6 +120,7 @@ impl AccountRegistry {
 
     /// Forgets `id`: the account has been removed.
     pub(crate) fn remove(&self, id: &str) {
+        self.forget_calendar_users(id);
         self.entries
             .lock()
             .expect("account registry mutex poisoned")

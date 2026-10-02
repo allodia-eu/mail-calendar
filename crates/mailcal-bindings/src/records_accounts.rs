@@ -100,6 +100,10 @@ pub struct LinkCandidates {
     pub contacts: Vec<LinkedAccount>,
     /// Mail accounts a calendar account may send its invitations through.
     pub mail: Vec<LinkedAccount>,
+    /// The ids of the candidates above to suggest: a calendar whose server schedules as this
+    /// account's address, or a mail account whose address this calendar's server schedules as.
+    /// Setup and Settings pre-select one where nothing is linked yet; the person confirms.
+    pub suggested: Vec<String>,
 }
 
 /// One link an account can hold.
