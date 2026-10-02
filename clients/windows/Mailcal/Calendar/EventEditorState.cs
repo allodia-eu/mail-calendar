@@ -44,7 +44,7 @@ internal sealed record EditTarget(
     /// iTIP, which is a separate feature.</summary>
     IReadOnlyList<EventAttendee> Attendees);
 
-/// <summary>The arguments a create dispatches (<c>Intent.CreateEvent</c>).</summary>
+/// <summary>The arguments a create dispatches (<c>EventIntent.Create</c>).</summary>
 internal sealed record CreateArgs(
     string Title,
     string Start,
@@ -58,7 +58,7 @@ internal sealed record CreateArgs(
     /// <summary>The rule a new event starts with, or null for a one-off.</summary>
     SimpleRecurrence? Recurrence);
 
-/// <summary>The arguments an edit dispatches (<c>Intent.UpdateEvent</c>).</summary>
+/// <summary>The arguments an edit dispatches (<c>EventIntent.Update</c>).</summary>
 internal sealed record UpdateArgs(
     string Account,
     string Key,

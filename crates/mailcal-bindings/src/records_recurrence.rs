@@ -323,7 +323,7 @@ impl From<RecurrenceEnd> for mailcal_account::RecurrenceEnd {
 
 /// The edit a client is about to save, as the question "what would this cost?" is asked with.
 ///
-/// The same fields as `Intent::UpdateEvent`, in the same three-state form: absent leaves a
+/// The same fields as `EventIntent::Update`, in the same three-state form: absent leaves a
 /// property alone, an empty string clears it, a value sets it. Build it from the payload the
 /// Save button is about to dispatch rather than from the form's state: the two differ exactly
 /// when the user changed something and changed it back, and that is not a change.
@@ -356,7 +356,7 @@ pub struct ProposedEdit {
 impl ProposedEdit {
     /// This edit as the account layer states one, or `None` if a wall clock is unparseable.
     ///
-    /// `None` is the same answer an unparseable clock gets from `Intent::UpdateEvent`; the
+    /// `None` is the same answer an unparseable clock gets from `EventIntent::Update`; the
     /// write refuses it too, so the question and the save agree about what is askable.
     pub(crate) fn into_account_edit(self) -> Option<mailcal_account::EventEdit> {
         let local = |value: Option<String>| match value.filter(|value| !value.is_empty()) {

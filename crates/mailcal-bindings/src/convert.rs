@@ -7,12 +7,10 @@
 //! macros live here, so the generated bindings are unaffected. The observer adapters
 //! ([`ObserverBridge`], [`DebouncedObserver`]) live in [`crate::observer`].
 
-use engine_api::LocalDateTime;
-use mailcal_account::{EventDrag, EventEdge as AppEventEdge, EventEdit};
 use mailcal_app::{
     BulkAction as AppBulkAction, CalendarWriteStatus as AppCalendarWriteStatus,
-    ContactWriteStatus as AppContactWriteStatus, ContactsIntent as AppContactsIntent, EventRef,
-    FolderRef, Intent as AppIntent, InvitationResponse as AppInvitationResponse, MessageRef,
+    ContactWriteStatus as AppContactWriteStatus, ContactsIntent as AppContactsIntent, FolderRef,
+    Intent as AppIntent, InvitationResponse as AppInvitationResponse, MessageRef,
     OutboxIntent as AppOutboxIntent, QueuedRef, ReaderId as AppReaderId,
     RecipientSuggestion as AppRecipientSuggestion, RowRef, SearchScope as AppSearchScope,
     SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
@@ -20,9 +18,9 @@ use mailcal_app::{
 use mailcal_viewmodel::{CalendarSnapshot as AppCalendarSnapshot, EventRow as AppEventRow};
 
 use crate::{
-    BulkAction, CalendarSnapshot, CalendarWriteStatus, ContactWriteStatus, EventEdge, EventRow,
-    Intent, InvitationResponse, OutboxIntent, RecipientSuggestion, SearchScope, SelectedRow,
-    SendStatus, Surface, convert_folders::folder_intent,
+    BulkAction, CalendarSnapshot, CalendarWriteStatus, ContactWriteStatus, EventRow, Intent,
+    InvitationResponse, OutboxIntent, RecipientSuggestion, SearchScope, SelectedRow, SendStatus,
+    Surface, convert_events::event_intent, convert_folders::folder_intent,
 };
 
 impl From<AppSurface> for Surface {
@@ -107,8 +105,8 @@ impl From<AppCalendarWriteStatus> for CalendarWriteStatus {
 
 impl TryFrom<Intent> for AppIntent {
     /// A key-routed intent's `account` id or provider `key` was malformed, so a typed
-    /// [`MessageRef`]/[`EventRef`] couldn't be built. In practice impossible: the host
-    /// passes back a row's own account and key: so the
+    /// [`MessageRef`]/[`EventRef`](mailcal_app::EventRef) couldn't be built. In practice
+    /// impossible: the host passes back a row's own account and key: so the
     /// [`dispatch`](crate::MailcalApp::dispatch) caller drops such an intent rather than
     /// risk routing the action to the wrong account.
     type Error = String;
@@ -121,9 +119,6 @@ impl TryFrom<Intent> for AppIntent {
             MessageRef::from_parts(&account, key)
                 .ok_or_else(|| "invalid message reference".to_owned())
         };
-        let event = |account: String, key: String| {
-            EventRef::from_parts(&account, key).ok_or_else(|| "invalid event reference".to_owned())
-        };
         let folder = |account: String, key: String| {
             FolderRef::from_parts(&account, key)
                 .ok_or_else(|| "invalid folder reference".to_owned())
@@ -131,18 +126,6 @@ impl TryFrom<Intent> for AppIntent {
         let thread = |account: String, thread_id: String| {
             ThreadRef::from_parts(&account, thread_id)
                 .ok_or_else(|| "invalid thread reference".to_owned())
-        };
-        // A wall-clock edit field: absent or empty leaves the property unchanged; a value is
-        // parsed as a `LocalDateTime` in the event's own zone. A malformed value drops the
-        // whole intent rather than silently editing the wrong time.
-        let parse_local = |value: Option<String>| -> Result<Option<LocalDateTime>, String> {
-            match value.filter(|value| !value.is_empty()) {
-                Some(value) => value
-                    .parse::<LocalDateTime>()
-                    .map(Some)
-                    .map_err(|err| format!("invalid wall-clock {value:?}: {err}")),
-                None => Ok(None),
-            }
         };
         Ok(match intent {
             Intent::RefreshMail => Self::RefreshMail,
@@ -258,76 +241,7 @@ impl TryFrom<Intent> for AppIntent {
             Intent::MarkAsNotSpam { account, key } => Self::MarkAsNotSpam {
                 message: message(account, key)?,
             },
-            Intent::CreateEvent {
-                title,
-                start,
-                end,
-                account,
-                calendar,
-                all_day,
-                timezone,
-                notes,
-                location,
-                recurrence,
-            } => Self::CreateEvent {
-                title,
-                start,
-                end,
-                account,
-                calendar,
-                all_day,
-                timezone,
-                notes,
-                location,
-                recurrence: recurrence.map(Into::into),
-            },
-            Intent::UpdateEvent {
-                account,
-                key,
-                title,
-                start,
-                end,
-                notes,
-                location,
-                occurrence,
-                recurrence,
-                times_from_occurrence,
-            } => Self::UpdateEvent {
-                event: event(account, key)?,
-                edit: EventEdit {
-                    title: title.filter(|title| !title.is_empty()),
-                    start: parse_local(start)?,
-                    end: parse_local(end)?,
-                    notes,
-                    location,
-                    recurrence: recurrence.map(Into::into),
-                    occurrence: parse_local(occurrence)?,
-                    times_from_occurrence: parse_local(times_from_occurrence)?,
-                },
-            },
-            Intent::MoveEvent {
-                account,
-                key,
-                edge,
-                days,
-                minutes,
-                occurrence,
-            } => Self::MoveEvent {
-                event: event(account, key)?,
-                drag: EventDrag {
-                    edge: match edge {
-                        EventEdge::Whole => AppEventEdge::Whole,
-                        EventEdge::Start => AppEventEdge::Start,
-                        EventEdge::End => AppEventEdge::End,
-                    },
-                    days,
-                    minutes,
-                    // The same parse as the editor's, on the same token: a malformed value
-                    // drops the whole intent rather than quietly moving the entire series when
-                    // the user asked for one Tuesday.
-                    occurrence: parse_local(occurrence)?,
-                },
-            },
+            Intent::Events { intent } => Self::Events(event_intent(intent)?),
             Intent::RespondToInvitation {
                 account,
                 key,
@@ -356,17 +270,6 @@ impl TryFrom<Intent> for AppIntent {
                 send,
                 remember,
                 reply_subject,
-            },
-            Intent::DeleteEvent {
-                account,
-                key,
-                occurrence,
-            } => Self::DeleteEvent {
-                event: event(account, key)?,
-                // The same parse as the editor's, on the same token: a malformed value drops
-                // the whole intent rather than deleting the entire series when the user asked
-                // for one Tuesday.
-                occurrence: parse_local(occurrence)?,
             },
             Intent::ReportNetworkReachable { reachable } => Self::ReportNetworkReachable(reachable),
             Intent::ReportDeviceTimeZone { id } => Self::ReportDeviceTimeZone(id),

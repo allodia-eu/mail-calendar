@@ -17,7 +17,7 @@ use std::{collections::BTreeMap, path::PathBuf, sync::Mutex};
 use engine_api::{AccountId, Provider, UtcDateTime};
 use mailcal_account::{load_preferences, save_preferences};
 
-use crate::{App, Intent};
+use crate::{App, EventIntent, Intent};
 
 mod event;
 mod payload;
@@ -406,7 +406,7 @@ impl<P: Provider> App<P> {
         let (feature, attachments) = match intent {
             Intent::Search(Some(query)) if !query.trim().is_empty() => (Feature::Search, None),
             Intent::RefreshCalendar => (Feature::Calendar, None),
-            Intent::CreateEvent { .. } => (Feature::EventCreate, None),
+            Intent::Events(EventIntent::Create { .. }) => (Feature::EventCreate, None),
             Intent::SubmitMail { .. } => (Feature::ComposerNew, None),
             Intent::SubmitRichMail { blobs, .. } => (Feature::ComposerNew, Some(blobs)),
             Intent::SubmitRichReply { blobs, .. } => (Feature::ComposerReply, Some(blobs)),
