@@ -42,6 +42,39 @@ extension MailboxModel {
         }
     }
 
+    /// Saves what the composer holds and forgets the composition, in one call: what leaving a
+    /// composer means. The draft stays in Drafts and nobody is asked (`docs/drafts.md`).
+    ///
+    /// One call rather than `saveDraft` then `closeComposition`, which the core would run as
+    /// two tasks: a close that landed first would leave the save nothing to supersede.
+    func saveDraftAndClose(
+        _ composition: String,
+        _ recipients: Recipients,
+        _ subject: String,
+        _ documentJson: String,
+        _ files: [ComposerFileAttachment],
+        from: String?
+    ) {
+        do {
+            try app?.saveDraftAndClose(
+                composition: composition,
+                recipients: recipients,
+                subject: subject,
+                documentJson: documentJson,
+                files: files,
+                from: from
+            )
+        } catch {
+            print("[Mailcal] draft save on leaving failed: \(type(of: error))")
+        }
+    }
+
+    /// Whether `composition` has a copy in Drafts, or a save queued for one: what Discard would
+    /// remove, and so whether Discard has anything to ask about.
+    func draftIsStored(_ composition: String) -> Bool {
+        (try? app?.draftIsStored(composition: composition)) ?? false
+    }
+
     /// Removes this composition's stored draft from the server and forgets the composition.
     ///
     /// A composition that never saved reaches no server, so this is safe on a composer the user

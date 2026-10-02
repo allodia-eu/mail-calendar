@@ -91,18 +91,22 @@ extension ContentView {
                 .background(SplitViewAutosave(name: AppPrefs.autosaveName("AllodiaMailMacMailV3")))
             // The second column is the reading pane, or, while a draft is open, the composer in
             // its place. Writing a message no longer blacks out the mailbox behind a sheet: the
-            // sidebar and the list stay live, and clicking another message asks before it drops
-            // the draft (openGuardingDraft). Swapping the two keeps this split at two panes, so
-            // opening a draft doesn't disturb the divider either.
+            // sidebar and the list stay live, and clicking another message leaves the composer,
+            // which keeps its draft in Drafts (openGuardingDraft). Swapping the two keeps this
+            // split at two panes, so opening a draft doesn't disturb the divider either.
             detailColumn
                 .frame(minWidth: 420, idealWidth: 760)
         }
     }
 
     /// The macOS detail column: the composer when one is open, else the reading pane.
+    ///
+    /// Keyed on the context, so a composer replaced by another (a link or a share arriving while
+    /// one is open) is a new view: the old one disappears, which is where it saves its draft and
+    /// closes, and the new one opens with state of its own rather than inheriting the old one's.
     @ViewBuilder var detailColumn: some View {
         if let compose {
-            composeContent(compose)
+            composeContent(compose).id(compose.id)
         } else {
             readingPane
         }

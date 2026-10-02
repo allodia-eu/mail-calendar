@@ -1,60 +1,20 @@
-// The unsent-draft guard for the macOS inline composer.
+// Handing the macOS detail column from the composer to something else.
 //
-// On macOS the composer no longer opens as a window-sheet: it REPLACES the reading pane, so the
-// sidebar and the message list stay live and clickable while you write. That makes a click on
-// another message reachable for the first time, and it would silently throw the draft away. So it
-// asks first: Discard, or Keep editing.
+// On macOS the composer replaces the reading pane, so the sidebar and the message list stay live
+// while you write, and a click on another message takes the column away from it. That is leaving
+// the composer, and the composer keeps its own draft on the way out: it saves what was written and
+// closes, without asking (`docs/drafts.md`). All the shell does is clear the column.
 //
-// iPhone and iPad keep the full-screen composer, where no row is clickable behind it, so none of
-// this applies there, the guard short-circuits.
+// iPhone and iPad keep the full-screen composer, where no row is clickable behind it, so the
+// guard short-circuits there.
 
 import MailcalBindings
 import SwiftUI
 
-/// Whether the composer in the detail column has anything in it worth keeping.
-///
-/// `RichComposeView` is a struct that owns its field state privately, so the shell, the thing that
-/// has to ask "discard this draft?" before handing the column to another message, cannot see
-/// inside it. This is the narrow channel between the two: the composer reports header edits
-/// eagerly, and hands over a closure the shell can await to ask the editor whether its document
-/// still matches the quoted original it opened with.
-@MainActor
-@Observable
-final class ComposeDraftProbe {
-    /// Set the moment the user edits To/Cc/Bcc/Subject, or attaches a file. Needs no round-trip.
-    var headersEdited = false
-
-    /// Asks the hosted editor whether its document differs from the seed it opened with.
-    var bodyEdited: (() async -> Bool)?
-
-    /// Removes the composer's stored draft from the server, if it has one.
-    ///
-    /// The other direction of the same narrow channel: the composer knows its composition and the
-    /// shell only knows that a draft is up, so Discard has to be handed down rather than reached
-    /// for. `nil` on a composer with draft saving turned off, where there is nothing stored.
-    var discardStored: (() -> Void)?
-
-    /// Whether anything has been written since the composer opened.
-    ///
-    /// A reply that merely carries its quoted original is **not** dirty: the seeded document is the
-    /// baseline, so the user has to actually write something (or restyle the quote) before we
-    /// interrupt them. Opening a reply and immediately clicking another message must not prompt.
-    func isDirty() async -> Bool {
-        if headersEdited { return true }
-        return await bodyEdited?() ?? false
-    }
-
-    /// Forgets the previous draft. Called as each composer opens.
-    func reset() {
-        headersEdited = false
-        bodyEdited = nil
-        discardStored = nil
-    }
-}
-
-/// The header state the draft probe watches, one `Equatable` value, so a single `onChange` covers
-/// every field instead of one per field.
-private struct DraftHeaders: Equatable {
+/// The header state the composer watches, one `Equatable` value, so a single `onChange` covers
+/// every field instead of one per field. Also the snapshot of what the composer opened with, which
+/// is what "was anything written in it?" compares against.
+struct DraftHeaders: Equatable {
     let to: String
     let cc: String
     let bcc: String
@@ -63,81 +23,35 @@ private struct DraftHeaders: Equatable {
 }
 
 extension View {
-    /// Reports the composer's edits to the shell's draft probe, so the "Discard draft?" prompt can
-    /// tell a written draft from an untouched one.
+    /// Reports every header edit, for the autosave timer, which restarts on each one
+    /// (`docs/drafts.md`).
     ///
-    /// Header edits are recorded eagerly (they need no round-trip). The body is asked for on demand
-    /// instead, reading the editor document means a hop into its WebView, which is not worth doing
-    /// on every keystroke when the answer is only ever needed at the moment the user clicks away.
     /// The recipient pre-fill of a reply arrives as the field's *initial* value, so it raises no
-    /// change and does not make the draft dirty.
-    ///
-    /// `discard` is set beside `bodyEdited`, in the one place the probe is wired, so nothing
-    /// depends on the order two modifiers' `onAppear` run in.
-    ///
-    /// `edited` is called on the same change, for the autosave timer, which restarts on every one
-    /// (`docs/drafts.md`). The two consumers want the same event and differ only in what they do
-    /// with it, so watching the fields twice would be two answers to one question. iOS raises no
-    /// probe (no row is clickable behind a full-screen cover) and still wants the edits.
-    func composeDraftTracking(
-        probe: ComposeDraftProbe?,
-        editor: RichComposerEditor,
-        to: String,
-        cc: String,
-        bcc: String,
-        subject: String,
-        attachments: Int,
-        edited: @escaping () -> Void = {},
-        discard: (() -> Void)? = nil
-    ) -> some View {
-        onAppear {
-            probe?.reset()
-            probe?.bodyEdited = { await editor.bodyChangedFromSeed() }
-            probe?.discardStored = discard
-        }
-        .onDisappear { probe?.reset() }
-        .onChange(
-            of: DraftHeaders(to: to, cc: cc, bcc: bcc, subject: subject, attachments: attachments)
-        ) { _, _ in
-            probe?.headersEdited = true
-            edited()
-        }
+    /// change. The body is not watched here: the editor is a web view, and the composer samples
+    /// it instead.
+    func composeDraftTracking(_ headers: DraftHeaders, edited: @escaping () -> Void) -> some View {
+        onChange(of: headers) { _, _ in edited() }
     }
 }
 
 extension ContentView {
-    /// Performs `open`, unless a draft is up with something written in it, in which case it asks
-    /// first and defers `open` until the user chooses. `Discard` drops the draft and runs it;
-    /// `Keep editing` abandons it and leaves the composer alone.
+    /// Performs `open`, taking the detail column away from a composer that holds it first.
     ///
-    /// A clean draft (nothing typed) is dropped without a prompt: there is nothing to lose, and
-    /// stopping the user to say so would be noise.
+    /// The composer saves its draft as it goes and closes, so there is nothing to ask: a draft
+    /// with something written in it is in Drafts, and one with nothing written in it had nothing
+    /// to keep.
     func openGuardingDraft(_ open: @escaping () -> Void) {
         #if os(macOS)
-        guard compose != nil else {
-            open()
-            return
-        }
-        Task { @MainActor in
-            if await draftProbe.isDirty() {
-                pendingOpen = open
-                confirmingDiscard = true
-            } else {
-                compose = nil
-                open()
-            }
-        }
-        #else
-        // iOS/iPadOS: the composer is a full-screen cover, so there is no row behind it to click.
-        open()
+        compose = nil
         #endif
+        open()
     }
 
     /// Opens a `mailto:` link in the composer, pre-filled (docs/os-integration.md).
     ///
-    /// Behind the same discard guard a message click uses, for the same reason the assistant's
-    /// draft is: a link arrives unprompted, from a web page or another app, and must not be able
-    /// to throw away a half-written message. Linux and Windows guard it identically.
+    /// Through the same handover a message click uses: a link arrives unprompted, from a web page
+    /// or another app, and the composer it replaces keeps its draft on the way out. Linux and
+    /// Windows hand over identically.
     ///
     /// A link arriving before there is an account to send from is put back on the model, and the
     /// shell opens it once accounts exist: the alternative is a composer with nothing in its From
@@ -152,52 +66,11 @@ extension ContentView {
 
     /// Opens an assistant's draft in the composer, unsent (docs/mcp.md).
     ///
-    /// Behind the same discard guard a message click uses. An assistant asking to open a draft
-    /// must not be able to throw away a half-written message the user is in the middle of, it
-    /// arrives from another process, unprompted, and could arrive at any moment.
+    /// Through the same handover a message click uses. An assistant's draft arrives from another
+    /// process, unprompted, at any moment, so the composer it replaces must keep what the user was
+    /// writing, which it does by saving it to Drafts on the way out.
     func openDraft(_ request: AgentDraftRequest) {
         openGuardingDraft { compose = .agentDraft(request) }
-    }
-}
-
-/// The "Discard draft?" confirmation, attached to the shell. Only macOS can raise it, it fires
-/// when a click lands on another message while an inline draft has something written in it.
-///
-/// `Discard` drops the draft and runs the open that was deferred; `Keep editing` drops the deferred
-/// open instead and leaves the composer exactly as it was.
-struct DiscardDraftDialog: ViewModifier {
-    @Binding var isPresented: Bool
-    @Binding var compose: ComposeContext?
-    @Binding var pendingOpen: (() -> Void)?
-    /// The composer's own handle, for the one thing this dialog does that the shell cannot: take
-    /// the stored draft off the server.
-    let probe: ComposeDraftProbe
-
-    func body(content: Content) -> some View {
-        content// An `alert`, not a `confirmationDialog`: iPadOS presents the latter as a popover, and a
-// popover DROPS the `.cancel`-role button, so this read as one destructive button with no
-// way out. See the remove-account alert in Mailcal.swift for the full note.
-.alert(
-            L10n.compose_discard_title(),
-            isPresented: $isPresented
-        ) {
-            Button(L10n.action_discard(), role: .destructive) {
-                // Before `compose` is cleared, not after: clearing it takes the composer off
-                // screen, and the composer is what knows which composition to remove. Discarding
-                // is also the one path that takes the stored copy off the server; closing the
-                // composer any other way leaves the draft in Drafts (`docs/drafts.md`).
-                probe.discardStored?()
-                compose = nil
-                let open = pendingOpen
-                pendingOpen = nil
-                open?()
-            }
-            Button(L10n.action_keep_editing(), role: .cancel) {
-                pendingOpen = nil
-            }
-        } message: {
-            Text(L10n.compose_discard_message())
-        }
     }
 }
 

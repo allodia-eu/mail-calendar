@@ -17,10 +17,6 @@ import SwiftUI
 struct ComposeHost: View {
     var model: MailboxModel
     let context: ComposeContext
-    /// Where this composer reports its edits, for a host that has to ask "discard this draft?"
-    /// before taking it away. The shell passes one; a composer window passes none, because
-    /// nothing takes its draft away except the person closing it (`docs/reading-window.md`).
-    var probe: ComposeDraftProbe?
     /// Called once the draft is finished with, sent or cancelled. Closing the column, the cover
     /// or the window is the host's to do, because only the host knows which of those it is.
     let dismiss: () -> Void
@@ -50,9 +46,15 @@ struct ComposeHost: View {
             save: { composition, recipients, subject, documentJson, files, from in
                 model.saveDraft(composition, recipients, subject, documentJson, files, from: from)
             },
+            leave: { composition, recipients, subject, documentJson, files, from in
+                model.saveDraftAndClose(
+                    composition, recipients, subject, documentJson, files, from: from
+                )
+            },
             discard: { model.discardDraft($0) },
             close: { model.closeComposition($0) },
             status: { model.draftStatus($0) },
+            isStored: { model.draftIsStored($0) },
             version: model.draftStatusVersion
         )
     }
@@ -119,7 +121,6 @@ struct ComposeHost: View {
             mode: .new,
             accounts: model.accounts,
             initialFrom: model.sendAccount(preferring: from)?.id,
-            probe: probe,
             suggestionsFor: recipientSuggestions,
             signatures: signatures,
             drafts: drafts
@@ -150,7 +151,6 @@ struct ComposeHost: View {
             initialBody: bodyText,
             initialAttachments: attachments,
             initialError: error,
-            probe: probe,
             suggestionsFor: recipientSuggestions,
             signatures: signatures,
             drafts: drafts
@@ -179,7 +179,6 @@ struct ComposeHost: View {
             initialBody: request.draft.bodyText,
             initialAttachments: request.draft.attachments,
             composition: request.composition,
-            probe: probe,
             suggestionsFor: recipientSuggestions,
             drafts: drafts
         ) { submission in
@@ -202,7 +201,6 @@ struct ComposeHost: View {
             quote: quote,
             quoteStyle: quoteStyle,
             quoteStylePerMessage: model.quoteSettings.perMessage,
-            probe: probe,
             suggestionsFor: recipientSuggestions,
             signatures: signatures,
             drafts: drafts
@@ -226,7 +224,6 @@ struct ComposeHost: View {
             quote: quote,
             quoteStyle: quoteStyle,
             quoteStylePerMessage: model.quoteSettings.perMessage,
-            probe: probe,
             suggestionsFor: recipientSuggestions,
             signatures: signatures,
             drafts: drafts

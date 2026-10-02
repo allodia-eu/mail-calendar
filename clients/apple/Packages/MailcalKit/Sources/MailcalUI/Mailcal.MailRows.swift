@@ -32,9 +32,9 @@ extension ContentView {
     /// Opens a message for reading: records the header and asks the core to fetch its body. In
     /// the Drafts folder it opens the composer the message was written in instead.
     ///
-    /// Guarded: on macOS the composer lives in the detail column, so opening a message would drop
-    /// an unsent draft. `openGuardingDraft` asks first when there is something written to lose
-    /// (Mailcal.ComposeDraft.swift); on iPhone/iPad it just runs the open.
+    /// On macOS the composer lives in the detail column, so opening a message takes the column
+    /// from it; `openGuardingDraft` hands it over, and the composer keeps its draft in Drafts on
+    /// the way out (Mailcal.ComposeDraft.swift). On iPhone/iPad it just runs the open.
     func open(_ message: FlatRow) {
         openGuardingDraft {
             resumeOrRead(message.account, message.key) { openNow(message) }
@@ -83,8 +83,8 @@ extension ContentView {
     /// the latest **in-scope** message (`latestKey`, the one the row summarises), so a Sent reply
     /// filed elsewhere doesn't steal focus. Tapping again collapses it and leaves the pane as-is.
     ///
-    /// The whole thing is guarded, expansion included: "Keep editing" should leave the list exactly
-    /// as it was, not expand the thread the user has just been talked out of opening.
+    /// The whole thing goes through the handover, expansion included, so a thread opened beside a
+    /// composer replaces it like any other open.
     func open(_ thread: ThreadRow) {
         openGuardingDraft {
             let key = threadKey(thread)

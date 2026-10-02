@@ -31,13 +31,6 @@ public struct ContentView: View {
     /// that already accounts for both. iOS/iPadOS hands it to the Settings cover; see there.
     @Environment(\.colorScheme) var windowScheme
     @State var compose: ComposeContext?
-    /// The open draft's dirtiness, as reported by the hosted composer. macOS renders the composer in
-    /// the detail column, so a click on another message can reach it, and must ask before dropping
-    /// what the user has written. See Mailcal.ComposeDraft.swift.
-    @State var draftProbe = ComposeDraftProbe()
-    /// The message-open deferred while the "Discard draft?" prompt is up, run if the user discards.
-    @State var pendingOpen: (() -> Void)?
-    @State var confirmingDiscard = false
     /// Whether to say that a draft could not be opened back into a composer. Raised instead of
     /// opening an empty one, whose next save would replace the draft (`docs/drafts.md`).
     @State var draftOpenFailed = false
@@ -354,13 +347,6 @@ public struct ContentView: View {
         ) {
             Button(L10n.action_close(), role: .cancel) {}
         }
-        // Clicking another message with an unsent draft in the pane: Discard, or Keep editing.
-        .modifier(DiscardDraftDialog(
-            isPresented: $confirmingDiscard,
-            compose: $compose,
-            pendingOpen: $pendingOpen,
-            probe: draftProbe
-        ))
         // Settings. One taxonomy (docs/settings.md), three chromes over the shared
         // SettingsCategoryDetail: macOS a sidebar+detail window, iPad a two-pane split, iPhone a
         // hub-and-spoke. iOS presents full-screen (like the composer): the iPad split needs a

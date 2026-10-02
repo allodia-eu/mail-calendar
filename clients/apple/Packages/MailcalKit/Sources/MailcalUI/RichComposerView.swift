@@ -58,10 +58,6 @@ struct RichComposeView: View {
     /// contacts **and** from people the user has written to before, so it works on an account with
     /// no address book at all. `nil` disables autosuggest (a preview or a screenshot run).
     var suggestionsFor: ((String) async -> [RecipientMatch])?
-    /// The shell's handle on this draft, so it can ask whether anything has been written before it
-    /// hands the detail column to another message (macOS's inline composer). `nil` on
-    /// iOS/iPadOS, where the composer is a full-screen cover and no row is clickable behind it.
-    var probe: ComposeDraftProbe?
     /// The signature library + lookups, or `nil` to disable signatures for this composer.
     var signatures: ComposerSignatures?
     /// The core verbs this composer keeps its draft on the server with, or `nil` to turn draft
@@ -94,10 +90,13 @@ struct RichComposeView: View {
     @State var draftStatus: DraftStatus = .idle
     /// How many changes the composer has seen. Each one restarts the idle interval.
     @State var draftChanges = 0
-    /// Whether this composer's message was submitted, so the send owns the composition from here
-    /// and closing it as well would race the cleanup that takes the stored draft away
-    /// (`docs/drafts.md`).
-    @State var draftSubmitted = false
+    /// Whether this composer's composition was handed over, by a submit or a discard: each
+    /// finishes with it, so leaving must not close it as well (`docs/drafts.md`).
+    @State var draftReleased = false
+    /// Whether "Discard draft?" is up.
+    @State var confirmingDiscard = false
+    /// The header fields as the composer opened, which "was anything written?" compares against.
+    let openingHeaders: DraftHeaders
     /// The one error line under the composer, which more than one failure writes to: a send that
     /// could not be prepared, a dropped picture that could not be shown, and a forward whose
     /// files could not be read. It carries the message rather than a flag, so each says which.
@@ -142,7 +141,6 @@ struct RichComposeView: View {
         quote: String? = nil,
         quoteStyle: QuoteStyleKind = .indented,
         quoteStylePerMessage: Bool = false,
-        probe: ComposeDraftProbe? = nil,
         suggestionsFor: ((String) async -> [RecipientMatch])? = nil,
         signatures: ComposerSignatures? = nil,
         drafts: ComposerDrafts? = nil,
@@ -154,7 +152,6 @@ struct RichComposeView: View {
         self.accounts = accounts
         self.send = send
         self.cancel = cancel
-        self.probe = probe
         self.suggestionsFor = suggestionsFor
         self.signatures = signatures
         self.drafts = drafts
@@ -194,6 +191,13 @@ struct RichComposeView: View {
         // they cannot remove (docs/composer-security.md, Gate 12).
         _showsCcBcc = State(initialValue: revealsCcBcc(cc: initialCc, bcc: initialBcc))
         _subject = State(initialValue: initialSubject)
+        openingHeaders = DraftHeaders(
+            to: seededRecipientField(initialTo),
+            cc: seededRecipientField(initialCc),
+            bcc: seededRecipientField(initialBcc),
+            subject: initialSubject,
+            attachments: initialAttachments.count
+        )
         _composition = State(initialValue: composition ?? UUID().uuidString)
         _quoteStyle = State(initialValue: quoteStyle)
         _attachments = State(initialValue: initialAttachments.map(PickedAttachment.init(staged:)))
@@ -250,23 +254,21 @@ struct RichComposeView: View {
         .recipientSuggestionLayer()
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .composeDraftTracking(
-            probe: probe, editor: editor, to: to, cc: cc, bcc: bcc, subject: subject,
-            attachments: attachments.count, edited: { draftChanges &+= 1 },
-            discard: discardStoredDraft
-        )
+        .composeDraftTracking(currentHeaders) { draftChanges &+= 1 }
         .modifier(composerDrop)
         .modifier(draftSaving)
+        .discardDraftQuestion(isPresented: $confirmingDiscard, discard: discardNow)
         .modifier(ComposerLinkDialogModifier(request: $editor.linkRequest, channel: editor.hostChannel))
         #else
-        // iOS/iPadOS: a full-height sheet with the title + Cancel/Send in the navigation bar.
+        // iOS/iPadOS: a full-height sheet with the title + Close/Send in the navigation bar. Close
+        // is leaving, so it keeps the draft; Discard is in the action bar (`docs/drafts.md`).
         NavigationStack {
             phoneComposerBody
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(L10n.action_cancel(), role: .cancel) { cancel() }
+                    Button(L10n.action_close(), role: .cancel) { cancel() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(L10n.action_send()) { prepareAndSend() }.disabled(sendDisabled)
@@ -277,13 +279,9 @@ struct RichComposeView: View {
         // Inside it, on the scroll view, or on the field, WebKit draws over the list.
         .recipientSuggestionLayer()
         .modifier(composerDrop)
-        // The header fields raise no probe on iOS (there is no row behind the cover to click),
-        // but they still change the message, so the draft tracking runs here for its edits alone.
-        .composeDraftTracking(
-            probe: nil, editor: editor, to: to, cc: cc, bcc: bcc, subject: subject,
-            attachments: attachments.count, edited: { draftChanges &+= 1 }
-        )
+        .composeDraftTracking(currentHeaders) { draftChanges &+= 1 }
         .modifier(draftSaving)
+        .discardDraftQuestion(isPresented: $confirmingDiscard, discard: discardNow)
         .modifier(ComposerLinkDialogModifier(request: $editor.linkRequest, channel: editor.hostChannel))
         #endif
     }
@@ -401,8 +399,9 @@ struct RichComposeView: View {
     /// so it moved out of its own row below the editor and joined it.
     ///
     /// Send and Discard lead the bar on macOS, where the composer is an inline pane with no window
-    /// chrome of its own. On iOS they stay in the navigation bar, the platform puts confirm/cancel
-    /// there, and repeating them in the body would be two Sends on one screen.
+    /// chrome of its own. On iOS Send stays in the navigation bar beside Close, the platform puts
+    /// confirm/cancel there, and Discard joins Save as draft here, because Close is leaving and
+    /// keeps the draft (`docs/drafts.md`).
     @ViewBuilder private var actionBar: some View {
         HStack(spacing: 10) {
             #if os(macOS)
@@ -414,13 +413,7 @@ struct RichComposeView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .disabled(sendDisabled)
-            Button(role: .cancel) {
-                cancel()
-            } label: {
-                Label(L10n.action_cancel(), systemImage: "trash")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            discardButton
             Divider().frame(height: 16)
             #endif
             Button {
@@ -441,6 +434,9 @@ struct RichComposeView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                #if !os(macOS)
+                discardButton
+                #endif
             }
             if showsSignaturePicker {
                 signatureMenu
@@ -466,7 +462,7 @@ struct RichComposeView: View {
                     composition: drafts == nil ? nil : composition
                 )
                 if send(submission) {
-                    draftSubmitted = true
+                    draftReleased = true
                 } else {
                     composerError = L10n.compose_prepare_error()
                 }
