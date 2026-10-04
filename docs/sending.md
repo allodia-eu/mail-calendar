@@ -45,6 +45,11 @@ queue the engine owns, and goes out by itself when it can.
   sync while the device is offline, which is right (there is nothing to read), but it must
   still republish the list: without that the send hint says "waiting to send" while the pane
   offers nowhere to look, and reconnecting hides the evidence by fixing both at once.
+- **The Outbox never waits on a server.** Once a send or a drain pass has an outcome, the list
+  is republished from the store **before** anything that reaches a server: the discard of the
+  composer's draft, and the follow-up sync. A server that accepts the connection and then says
+  nothing holds that sync for as long as it stays silent, and the Outbox it would have
+  republished is the one place the user can see and edit the message in the meantime.
 - **The queue drains on three signals and no timer**: the device coming back online, the end
   of every sync pass, and the user pressing Send now. A timer would wake a dead network on a
   battery, and the reachability signal alone is not enough: a *server* outage with no device

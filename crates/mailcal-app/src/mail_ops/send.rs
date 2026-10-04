@@ -75,6 +75,12 @@ impl<P: Provider> App<P> {
             SendOutcome::Queued => SendStatus::Queued,
             SendOutcome::Failed => SendStatus::Failed,
         });
+        // Every outcome may have changed the Outbox: a queued send joined it, and a rebuild
+        // that ran during the attempt may have drawn a row that has since gone. The queue is in
+        // the store, so it is published now rather than by the sync below, which a server that
+        // accepts the connection and then says nothing can hold for as long as it likes
+        // (`docs/sending.md`). The draft discard after this reaches the server too.
+        self.rebuild_snapshot().await;
         // The send is what finishes with the composition, not the host.
         //
         // The message the composer held now lives somewhere that will deliver it, so the draft
@@ -115,6 +121,10 @@ impl<P: Provider> App<P> {
             log::warn!("send: account has no provider to submit through");
             return SendOutcome::Failed;
         };
+        // Before the round trip, so a send that never comes back still left a line saying it
+        // started.
+        let acct = self.account_ordinal(account).await;
+        log::info!("send[a{acct}]: submitting a message");
         match self.engine.submit_mail(provider, account, draft).await {
             Ok(outcome) => {
                 // The send went out, so the grant carries `Mail.Send`; clear any standing

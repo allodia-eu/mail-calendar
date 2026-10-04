@@ -5,10 +5,16 @@
 //!
 //! Split from [`super`] (the tests themselves) so each file stays under the 500-line limit.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+};
 
-use engine_api::{AccountId, CalendarWrites, Draft, ProviderKey, SubmissionReceipt};
-use engine_provider::{Capabilities, ConnectionInfo, Provider, ProviderError, ProviderResult};
+use engine_api::{AccountId, CalendarWrites, Draft, Mailbox, ProviderKey, SubmissionReceipt};
+use engine_core::sync::SyncState;
+use engine_provider::{
+    Capabilities, ConnectionInfo, Provider, ProviderError, ProviderResult, ScopeSync,
+};
 use tokio::sync::Notify;
 
 /// One recorded draft save: what was stored, and the key it said it was superseding.
@@ -50,6 +56,11 @@ pub(super) struct SubmitProvider {
     /// notified: the seam a test needs to hold one save open and start a second while it is
     /// in flight, which is the only way to observe whether the two overlap.
     save_gate: Option<Arc<Notify>>,
+    /// While set, a sync's folder-list request never returns: a server that accepts the
+    /// connection and then says nothing, which no deadline of the sync's own bounds.
+    silent: Arc<AtomicBool>,
+    /// How many folder-list requests are parked on [`Self::silent`] right now.
+    parked_syncs: Arc<AtomicUsize>,
 }
 
 impl SubmitProvider {
@@ -68,7 +79,20 @@ impl SubmitProvider {
             offline_saves: Arc::new(Mutex::new(0)),
             saves_before_outage: Arc::new(Mutex::new(None)),
             save_gate: None,
+            silent: Arc::new(AtomicBool::new(false)),
+            parked_syncs: Arc::new(AtomicUsize::new(0)),
         }
+    }
+
+    /// The switch that makes this provider's server go silent for every sync started after
+    /// it is set.
+    pub(super) fn silence(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.silent)
+    }
+
+    /// How many syncs are parked on the silent server.
+    pub(super) fn parked_syncs(&self) -> Arc<AtomicUsize> {
+        Arc::clone(&self.parked_syncs)
     }
 
     /// A provider whose next `saves` draft saves fail retryably and which then works.
@@ -166,6 +190,22 @@ impl SubmitProvider {
 impl Provider for SubmitProvider {
     fn connection_info(&self) -> ConnectionInfo {
         ConnectionInfo::new(self.caps)
+    }
+
+    /// Answers as the trait's default does (this fake keeps no folders), unless the server
+    /// has gone silent, in which case it never answers at all.
+    async fn sync_mailboxes(
+        &self,
+        _account: &AccountId,
+        _cursor: Option<&SyncState>,
+    ) -> ProviderResult<ScopeSync<Mailbox>> {
+        if self.silent.load(Ordering::SeqCst) {
+            self.parked_syncs.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+        }
+        Err(ProviderError::invalid_state(
+            "provider does not support mail sync",
+        ))
     }
 
     async fn submit_email(
