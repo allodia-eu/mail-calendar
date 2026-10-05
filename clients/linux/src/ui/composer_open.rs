@@ -17,6 +17,7 @@ use super::{
     composer_model::{ComposeContext, ComposeKind, PickedFile, initial_sender, new_composition},
     composer_notice::ComposerNotice,
     composer_quote::quote_seed,
+    model::OpenedMessage,
     reader::{ComposerHost, ReadingSource},
 };
 
@@ -95,7 +96,7 @@ impl AppModel {
             return None;
         };
         let reading = self.reader(source)?;
-        let opened = reading.opened.as_ref();
+        let opened = answered(kind, reading.opened.as_ref());
         if kind != ComposeKind::New && opened.is_none() {
             return None;
         }
@@ -182,6 +183,16 @@ impl AppModel {
     }
 }
 
+/// The message a composer of `kind` answers, out of what is open where it was raised: the open
+/// one for a reply or a forward, and none for a new message, whatever the reading pane shows.
+///
+/// Everything a composer takes from a message (its quote, the account and key it answers, the
+/// From it opens on) is read from this, so a new message opens empty and from the folder's
+/// account, as on every other client.
+fn answered(kind: ComposeKind, opened: Option<&OpenedMessage>) -> Option<&OpenedMessage> {
+    opened.filter(|_| kind != ComposeKind::New)
+}
+
 /// A directory of this composer's own under the user's cache, so two forwards never share a
 /// staged file. Under the **cache** directory rather than `/tmp`, which inside a Flatpak is the
 /// sandbox's own, the same rule an opened attachment follows ([`super::operations`]).
@@ -196,6 +207,66 @@ fn forward_staging_dir() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use super::{ComposeKind, answered};
+    use crate::ui::{composer_model::initial_sender, model::OpenedMessage};
+
+    fn open_message() -> OpenedMessage {
+        OpenedMessage {
+            account: "message-account".to_owned(),
+            key: "message".to_owned(),
+            subject: "Planning".to_owned(),
+            from: "Sender <sender@example.test>".to_owned(),
+            date: "2026-07-20".to_owned(),
+            avatar: crate::ui::avatar::AvatarData::from(&crate::ui::model::blank_avatar()),
+        }
+    }
+
+    /// New Mail with a message open in the reading pane: nothing to quote or answer, and the From
+    /// of the folder on screen rather than of the message beside it.
+    #[test]
+    fn a_new_message_answers_nothing_even_with_a_message_open() {
+        let message = open_message();
+
+        let answered_new = answered(ComposeKind::New, Some(&message));
+        assert!(
+            answered_new.is_none(),
+            "New Mail is not a reply to the open message"
+        );
+        assert_eq!(
+            initial_sender(
+                answered_new,
+                Some("selected-account"),
+                Some("default-account".to_owned()),
+            )
+            .as_deref(),
+            Some("selected-account"),
+            "a new message goes out from the folder's account"
+        );
+        assert_eq!(
+            initial_sender(answered_new, None, Some("default-account".to_owned())).as_deref(),
+            Some("default-account"),
+            "and from the default send account where the list belongs to none"
+        );
+    }
+
+    #[test]
+    fn a_reply_or_forward_answers_the_open_message() {
+        let message = open_message();
+
+        for kind in [
+            ComposeKind::Reply,
+            ComposeKind::ReplyAll,
+            ComposeKind::Forward,
+        ] {
+            assert_eq!(
+                answered(kind, Some(&message)).map(|message| message.key.as_str()),
+                Some("message"),
+                "{kind:?}"
+            );
+            assert!(answered(kind, None).is_none(), "{kind:?}");
+        }
+    }
+
     /// The twin of `operations`' assertion for an opened attachment, and it fails the same way:
     /// a path under the sandbox's private `/tmp` looks right in a host build and is not there in
     /// the Flatpak the user runs.
