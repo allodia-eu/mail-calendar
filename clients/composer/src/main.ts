@@ -21,7 +21,7 @@ import { pastedHtml, pasteContent } from "./paste";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
 import { installImageResize } from "./resize";
 import { installRevisionCounter } from "./revision";
-import { focusComposerBody, setPlainText } from "./seeds";
+import { type BodySeed, focusComposerBody, setComposerBody, setPlainText } from "./seeds";
 import {
   routeClickBelowSignature,
   setComposerSignature,
@@ -159,6 +159,7 @@ declare global {
     insertSignatureImage: (image: string | Record<string, unknown>) => void;
     focusComposerBody: () => void;
     setPlainText: (text: unknown) => void;
+    setComposerBody: (seed: string | BodySeed) => void;
     useNativeComposerChrome: () => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
@@ -200,6 +201,7 @@ window.signatureBody = () => JSON.stringify(signatureBody(editor));
 // caret out of To on macOS the moment the bundle finished parsing.
 window.focusComposerBody = () => focusComposerBody(editor);
 window.setPlainText = (text) => setPlainText(editor, text);
+window.setComposerBody = (seed) => setComposerBody(editor, attachments, parsed<BodySeed>(seed) ?? {});
 window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 

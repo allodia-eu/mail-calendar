@@ -1,6 +1,9 @@
 // Seeding the body from the host, and putting the caret in it.
 
+import type { Attachments } from "./attachments";
+import { setBlocks } from "./blocks_dom";
 import { caretInto, documentOf, focusEditor, rangeWithin } from "./dom";
+import { blocksFromHtml } from "./read_html";
 
 /// Focuses the message area so the composer opens ready to type; a host calls this when it opens a
 /// reply or forward, where the addresses and subject are already filled in and writing is the only
@@ -35,4 +38,24 @@ export function setPlainText(editor: HTMLElement, text: unknown): void {
     else div.appendChild(doc.createElement("br"));
     editor.appendChild(div);
   }
+}
+
+/// A stored message's body, as the core hands it over to reopen in the composer: its HTML,
+/// sanitised and with its pictures inline, or its text when it has no HTML.
+export interface BodySeed {
+  html?: string;
+  text?: string;
+}
+
+/// Seeds the body with a message that already exists: a draft reopened from Drafts, or a message
+/// moved back out of the Outbox. The composer saves over that message, so it opens holding all of
+/// it the editor can hold (`docs/drafts.md`): the formatting, the pictures, the quoted original and
+/// the signature, read back by `read_html.ts`. A message with no HTML opens as its text.
+export function setComposerBody(editor: HTMLElement, attachments: Attachments, seed: BodySeed): void {
+  const html = typeof seed.html === "string" ? seed.html : "";
+  if (!html.trim()) {
+    setPlainText(editor, seed.text);
+    return;
+  }
+  setBlocks(editor, blocksFromHtml(editor, html, attachments), attachments);
 }

@@ -52,12 +52,22 @@ export function normalizeColor(value: string | null | undefined): HexColor | nul
 /// writes, else its inline `style` attribute: never from `getComputedStyle`. Computed colour is
 /// always set (every element inherits one), so reading it would stamp an explicit colour on every
 /// run in every message and bloat the document with a colour nobody chose.
+///
+/// A body being reopened (`read_html.ts`) is parsed into a document with no window, so nothing in it
+/// has a computed style: there the element's own `style` attribute answers instead, and a heading
+/// stands for the bold, larger run it looks like.
 export function elementMarks(element: Element, inherited: Marks): Marks {
   const tag = element.tagName;
   const style = (element as HTMLElement).style;
   const computed = element.ownerDocument.defaultView?.getComputedStyle(element);
-  const weight = Number.parseInt(computed?.fontWeight ?? "", 10);
-  const decoration = `${computed?.textDecorationLine ?? ""} ${computed?.textDecoration ?? ""}`;
+  const fontWeight = computed?.fontWeight || style?.fontWeight || "";
+  const weight = fontWeight.startsWith("bold") ? 700 : Number.parseInt(fontWeight, 10);
+  const decoration = [
+    computed?.textDecorationLine,
+    computed?.textDecoration,
+    style?.textDecorationLine,
+    style?.textDecoration,
+  ].join(" ");
 
   const size = (element as HTMLElement).dataset.size;
   const color = normalizeColor((element as HTMLElement).dataset.color ?? style?.color);
@@ -66,17 +76,38 @@ export function elementMarks(element: Element, inherited: Marks): Marks {
   );
 
   return {
-    bold: inherited.bold || tag === "B" || tag === "STRONG" || weight >= 600,
-    italic: inherited.italic || tag === "I" || tag === "EM",
+    bold: inherited.bold || tag === "B" || tag === "STRONG" || tag in HEADING_SIZES || weight >= 600,
+    italic: inherited.italic || tag === "I" || tag === "EM" || style?.fontStyle === "italic",
     // A link's underline is how the editor draws a link, not a mark the user chose: read from
     // the computed style it would send every link out underlined twice.
     underline:
       inherited.underline || tag === "U" || (tag !== "A" && decoration.includes("underline")),
-    size: isFontSize(size) ? size : inherited.size,
+    size: isFontSize(size) ? size : (sizeOfCss(style?.fontSize) ?? HEADING_SIZES[tag] ?? inherited.size),
     color: color ?? inherited.color,
     highlight: highlight ?? inherited.highlight,
     link: tag === "A" ? safeLinkHref(element.getAttribute("href")) : inherited.link,
   };
+}
+
+/// The run size a heading reads as. `H3` to `H6` are bold at the body's size, which is what they
+/// look like beside the two larger ones.
+const HEADING_SIZES: Record<string, FontSize | null> = {
+  H1: "Huge",
+  H2: "Large",
+  H3: null,
+  H4: null,
+  H5: null,
+  H6: null,
+};
+
+/// The size a CSS `font-size` is, when it is exactly one the editor emits (`SIZE_PX`). Anything
+/// else is another client's typography, which the closed set of sizes has no honest answer for, so
+/// the run keeps the body's size.
+function sizeOfCss(value: string | null | undefined): FontSize | null {
+  const px = /^(\d+)px$/.exec((value ?? "").trim());
+  if (!px) return null;
+  const sizes = Object.keys(SIZE_PX) as FontSize[];
+  return sizes.find((key) => SIZE_PX[key] === Number(px[1])) ?? null;
 }
 
 /// Rewrites the `<font>` elements `execCommand` leaves behind into marked-up `<span>`s.

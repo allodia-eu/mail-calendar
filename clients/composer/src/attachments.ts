@@ -59,6 +59,12 @@ export class Attachments {
     );
   }
 
+  /// The bytes of a picture that travels in the document, as the `data:` URI its `<img>` shows, or
+  /// an empty string for an id that is not one.
+  dataUrlOf(id: string): string {
+    return this.items.find((item) => item.id === id)?.data_url ?? "";
+  }
+
   add(meta: AttachmentMeta): void {
     this.remember({
       id: String(meta.id),
