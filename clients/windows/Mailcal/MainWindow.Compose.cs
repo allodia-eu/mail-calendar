@@ -102,21 +102,22 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
-    /// Opens a message the core withdrew from the Outbox, <b>unsent</b>, so the user can change it
-    /// and send it again (docs/sending.md).
+    /// Opens a queued send the core moved back into Drafts, <b>unsent</b>, so the user can change
+    /// it and send it again (docs/sending.md).
     /// </summary>
     /// <remarks>
     /// <para>
-    /// What arrives here is the <b>only</b> copy: the core took it out of the queue before raising
-    /// the request, precisely so a drain cannot deliver the message while it is being edited. So
-    /// this may not refuse, and it does not need to: leaving the composer already in the pane
-    /// keeps that draft in Drafts.
+    /// The core saved it as a draft under <c>Composition</c> and took it out of the queue before
+    /// raising the request, so a drain cannot deliver the message while it is being edited. This
+    /// may not refuse, and it does not need to: leaving the composer already in the pane keeps
+    /// that draft in Drafts.
     /// </para>
     /// <para>
-    /// The same composer an assistant's draft opens (<see cref="ComposeAgentDraft"/>): a prefilled,
-    /// unsent message a person reviews and sends themselves is the same thing either way. It seeds
-    /// no signature for the same reason, the body already carries whatever was on it when it was
-    /// queued, and a second one would be sent with it.
+    /// It opens as a resumed draft does (<see cref="ResumedDraftContext"/>): on the composition
+    /// the core saved it under, never a fresh one, or the first save would store a second draft
+    /// beside it; holding every staged file, because that save replaces the draft and a file left
+    /// out is taken off it; and with no signature, because the body already carries whatever was
+    /// on it when it was queued.
     /// </para>
     /// </remarks>
     // Qualified, and it has to be: this file has both namespaces in scope, and the core's
@@ -124,7 +125,7 @@ public sealed partial class MainWindow
     internal async void ComposeWithdrawnMessage(uniffi.mailcal_bindings.ComposeRequest request)
     {
         // The recipients, the subject and the body are the user's own mail; none is logged.
-        Log.Info("outbox: a withdrawn message is going back into the composer");
+        Log.Info($"outbox: a queued message is going back into the composer with {request.Attachments.Length} files");
         var context = new ComposeContext(
             RichComposeKind.New,
             Account: null,
@@ -138,7 +139,9 @@ public sealed partial class MainWindow
             InitialBcc: request.Bcc,
             InitialSubject: request.Subject,
             InitialBody: request.BodyText,
-            SeedsSignature: false);
+            SeedsSignature: false,
+            Attachments: request.Attachments,
+            Composition: request.Composition);
         await LeaveComposerAsync();
         // The composer lives in the mail surface's detail column, and Edit is reachable from the
         // Outbox while the calendar or Contacts is up, where it would open unseen.

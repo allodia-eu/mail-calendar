@@ -35,6 +35,11 @@ impl AppModel {
                     // The passing form of what the pane's Outbox row says for as long as the
                     // message is waiting.
                     SendStatus::Queued => Some(l10n::send_status_queued().to_owned()),
+                    // Not a failure either, and not a wait: it may have been delivered, and
+                    // the Outbox row asks whether it was.
+                    SendStatus::Unconfirmed => Some(l10n::send_status_unconfirmed().to_owned()),
+                    // Refused, and kept: the hint says where the message is now.
+                    SendStatus::NotSent => Some(l10n::send_status_not_sent().to_owned()),
                     SendStatus::Failed => Some(l10n::send_status_failed().to_owned()),
                     // Nothing to show, for two different reasons: nothing is in flight, and for
                     // `SentNotFiled` the standing UnfiledCopy question already says it: with a

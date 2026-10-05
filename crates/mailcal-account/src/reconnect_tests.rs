@@ -9,7 +9,7 @@ use std::{
 };
 
 use engine_core::{ids::MessageIdHeader, mail::EmailAddress, sync::SyncUpdate};
-use engine_provider::{Capabilities, ProviderError, TlsVersion};
+use engine_provider::{Capabilities, ProviderError, TlsVersion, Unrecorded};
 
 use super::*;
 
@@ -76,6 +76,7 @@ impl Provider for FakeDelegate {
         &self,
         _account: &AccountId,
         _draft: &Draft,
+        _hand_over: &HandOver<'_>,
     ) -> ProviderResult<SubmissionReceipt> {
         self.record()?;
         unreachable!("submit tests only script a failing outcome");
@@ -248,7 +249,9 @@ async fn a_send_is_never_blind_retried() {
     let provider =
         ReconnectingImapProvider::adopt(initial, mailbox(), healthy_redial(Arc::clone(&redials)));
 
-    let result = provider.submit_email(&account(), &draft()).await;
+    let result = provider
+        .submit_email(&account(), &draft(), &HandOver::new(&Unrecorded))
+        .await;
     assert!(result.is_err(), "a retryable send surfaces the error");
     assert_eq!(
         submits.load(Ordering::SeqCst),

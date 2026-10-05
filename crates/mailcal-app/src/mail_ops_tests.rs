@@ -23,6 +23,10 @@ mod draft_ops_tests;
 mod fake;
 #[path = "mail_ops_mail_provider.rs"]
 mod mail_fake;
+#[path = "outbox_edit_tests.rs"]
+mod outbox_edit_tests;
+#[path = "outbox_recovery_tests.rs"]
+mod outbox_recovery_tests;
 #[path = "outbox_tests.rs"]
 mod outbox_tests;
 #[path = "mail_ops_resume_tests.rs"]
@@ -325,8 +329,8 @@ async fn a_send_refused_for_lack_of_permission_raises_the_mail_reconnect_prompt(
     );
 
     // The send sets Sending → Failed, then parks on the auto-clear sleep.
-    let task = dispatch_until(&app, plain_send(), SendStatus::Failed).await;
-    assert_eq!(app.send_status(), SendStatus::Failed);
+    let task = dispatch_until(&app, plain_send(), SendStatus::NotSent).await;
+    assert_eq!(app.send_status(), SendStatus::NotSent);
 
     // The account is flagged for a mail re-consent; surfaced to the host as the reconnect banner.
     // (Independent of the transient send-status hint, which auto-clears; this permission gap

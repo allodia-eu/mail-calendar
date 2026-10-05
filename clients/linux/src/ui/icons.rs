@@ -82,6 +82,8 @@ icons! {
     // State a row or page reports.
     SENDING = SENT;
     WARNING = "dialog-warning-symbolic";
+    /// A message the server refused, kept in the Outbox.
+    NOT_SENT = "dialog-error-symbolic";
     WAITING = "document-open-recent-symbolic";
     /// A document going out. Not `mail-send`, which the pane gives Sent: an Outbox that looks like
     /// Sent is the one confusion that row exists to prevent.

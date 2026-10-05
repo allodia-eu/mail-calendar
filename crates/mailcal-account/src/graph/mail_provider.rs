@@ -12,9 +12,9 @@ use engine_core::{
     sync::{SyncScope, SyncState, SyncWindow},
 };
 use engine_provider::{
-    ConnectionInfo, Draft, EmailStream, MailEdit, MailEditReceipt, MailboxEdit, MailboxEditReceipt,
-    MailboxWrites, MessageReport, Provider, ProviderResult, ReportReceipt, ScopeSync,
-    SenderIdentity, SubmissionReceipt,
+    ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
+    MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderResult, ReportReceipt,
+    ScopeSync, SenderIdentity, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -172,15 +172,12 @@ impl Provider for RefreshingGraphProvider {
     /// failure.**
     ///
     /// A send is the one non-idempotent Graph call: re-`POST`ing `sendMail` delivers the
-    /// message twice. A retryable transport error covers both a request that died at the
-    /// socket *before* Graph accepted it (a resend would be safe) and one lost *after* Graph
-    /// queued it (a resend double-sends): the two are indistinguishable here. The engine's
-    /// outbox is built on exactly this: it calls `submit_email` once and never blind-retries,
-    /// parking an ambiguous loss for the user to confirm rather than risk a duplicate
-    /// (`engine-sync`'s `submit_mail`). So this wrapper honours that contract; on a transport
-    /// error it only **drops** the (possibly dead-socketed) cached delegate, so the user's
-    /// *deliberate* retry dials a fresh connection, then propagates the error instead of
-    /// resending itself.
+    /// message twice. Whether a failed attempt may have reached Graph is the outbox's to decide,
+    /// from the hand-over record the adapter writes before the end of the request goes out
+    /// (`hand_over`); it retries one that cannot have left and asks about one that may have. So
+    /// on a transport error this only **drops** the (possibly dead-socketed) cached delegate, so
+    /// the next attempt dials a fresh connection, then propagates the error instead of resending
+    /// itself.
     ///
     /// A throttled send *is* re-issued, one layer down: Graph rejects it *before* sending, so
     /// the message never left and a replay cannot double-deliver.
@@ -188,10 +185,11 @@ impl Provider for RefreshingGraphProvider {
         &self,
         account: &AccountId,
         draft: &Draft,
+        hand_over: &HandOver<'_>,
     ) -> ProviderResult<SubmissionReceipt> {
         let provider = self.delegate().await?;
         provider
-            .submit_email(account, draft)
+            .submit_email(account, draft, hand_over)
             .await
             .inspect_err(|err| {
                 // A send is not idempotent and the outbox never blind-retries it, so this never

@@ -178,6 +178,7 @@ impl Provider for ThreadProvider {
         &self,
         _account: &AccountId,
         draft: &Draft,
+        hand_over: &engine_provider::HandOver<'_>,
     ) -> ProviderResult<SubmissionReceipt> {
         self.submissions.lock().unwrap().push(draft.clone());
         if self.send_fails {
@@ -188,9 +189,11 @@ impl Provider for ThreadProvider {
                 "no route to host",
             ));
         }
+        let handed = hand_over.commit().await?;
         Ok(SubmissionReceipt::filed(
             ProviderKey::new("sent-1").unwrap(),
             draft.message_id.clone(),
+            &handed,
         ))
     }
 

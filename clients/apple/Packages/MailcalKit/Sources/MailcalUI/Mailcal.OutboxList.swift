@@ -1,5 +1,4 @@
-// The Outbox list: the messages that have not gone, and the three things a person can do
-// about one.
+// The Outbox list: the messages that have not gone, and what a person can do about each.
 //
 // Its own list rather than a case inside the message list, because a queued message is not a
 // stored one: it has no sender to show (it is the user), no read or flagged state, no date it
@@ -12,7 +11,7 @@ extension ContentView {
     /// The queued sends, oldest first: the order they will go out in.
     var outboxList: some View {
         List {
-            ForEach(model.outbox, id: \.op) { row in
+            ForEach(model.outbox, id: \.rowID) { row in
                 outboxRowView(row)
                     .contextMenu { outboxActions(row) }
             }
@@ -27,6 +26,23 @@ extension ContentView {
                     description: Text(L10n.outbox_waiting())
                 )
             }
+        }
+        // An `alert`, not a `confirmationDialog`, for the reason the remove-account prompt
+        // gives: an iPad popover drops the cancel button.
+        .alert(
+            L10n.outbox_send_again_title(),
+            isPresented: Binding(
+                get: { outboxToConfirm != nil },
+                set: { if !$0 { outboxToConfirm = nil } }
+            ),
+            presenting: outboxToConfirm
+        ) { pending in
+            Button(L10n.action_send_again()) {
+                model.performOutboxAction(pending.action, on: pending.row)
+            }
+            Button(L10n.action_cancel(), role: .cancel) {}
+        } message: { _ in
+            Text(L10n.outbox_send_again_message())
         }
     }
 
@@ -53,15 +69,31 @@ extension ContentView {
         .accessibilityElement(children: .combine)
     }
 
-    /// The row's actions. A message already on its way, or one whose delivery could not be
-    /// confirmed, offers **none**: neither can be called back, and offering to send an
-    /// unconfirmed message again is how it arrives twice.
+    /// The row's actions, as `OutboxRowAction.offered(for:)` decides them; a destructive one
+    /// sits below a divider, and one that needs confirming asks first.
     @ViewBuilder func outboxActions(_ row: QueuedRow) -> some View {
-        if model.queuedRowIsActionable(row) {
-            Button(L10n.action_send_now()) { model.sendQueuedNow(row) }
-            Button(L10n.action_edit_queued()) { model.editQueued(row) }
-            Divider()
-            Button(L10n.action_cancel_send(), role: .destructive) { model.cancelQueued(row) }
+        ForEach(OutboxRowAction.offered(for: row), id: \.self) { action in
+            if action.isDestructive {
+                Divider()
+            }
+            Button(outboxActionLabel(action), role: action.isDestructive ? .destructive : nil) {
+                if action.needsConfirmation {
+                    outboxToConfirm = PendingOutboxAction(action: action, row: row)
+                } else {
+                    model.performOutboxAction(action, on: row)
+                }
+            }
+        }
+    }
+
+    func outboxActionLabel(_ action: OutboxRowAction) -> String {
+        switch action {
+        case .sendNow: L10n.action_send_now()
+        case .edit: L10n.action_edit_queued()
+        case .cancelSend: L10n.action_cancel_send()
+        case .markSent: L10n.action_mark_sent()
+        case .confirmNotSent, .sendAgain: L10n.action_send_again()
+        case .discard: L10n.action_discard()
         }
     }
 
@@ -71,16 +103,29 @@ extension ContentView {
         case .waiting: L10n.outbox_waiting()
         case .sending: L10n.outbox_sending()
         case .unconfirmed: L10n.outbox_unconfirmed()
+        case .notSent: L10n.outbox_not_sent()
         }
     }
 
     /// The glyph beside it. Unconfirmed earns the warning: it is the one state a person may
-    /// need to check on another device.
+    /// need to check on another device. A refused message is marked as not having gone.
     func outboxStateIcon(_ state: QueuedState) -> String {
         switch state {
         case .waiting: "clock"
         case .sending: "arrow.up.circle"
         case .unconfirmed: "exclamationmark.triangle"
+        case .notSent: "xmark.circle"
         }
     }
+}
+
+extension QueuedRow {
+    /// The row's identity in the list: an op id is unique only within its own account's queue.
+    var rowID: String { "\(account):\(op)" }
+}
+
+/// An Outbox action waiting on the user's confirmation, and the row it is for.
+struct PendingOutboxAction {
+    let action: OutboxRowAction
+    let row: QueuedRow
 }

@@ -300,6 +300,7 @@ fn the_pane_is_rebuilt_when_a_tree_opens_or_a_count_moves() {
         state: QueuedState::Waiting,
         attempts: 1,
         detail: None,
+        editable: true,
     }];
     assert_ne!(
         key,

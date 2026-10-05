@@ -144,7 +144,8 @@ noted beside it, and the two without one are this app's own drawings.
 |---|---|---|---|---|
 | Waiting | `clock` | — | `E823` Recent | `document-open-recent-symbolic` |
 | Sending | `arrow.up.circle` | — | `E724` Send | `mail-send-symbolic` |
-| Unconfirmed | `exclamationmark.triangle` | — | `E7BA` Warning | `dialog-warning-symbolic` |
+| Unconfirmed | `exclamationmark.triangle` | `ic_warning` | `E7BA` Warning | `dialog-warning-symbolic` |
+| Not sent | `xmark.circle` | `ic_error` | `E783` Error | `dialog-error-symbolic` |
 | A queued message's actions | — | `ic_more_vert` | — | `view-more-symbolic` |
 
 ### Composer
@@ -289,8 +290,8 @@ Adding or changing a glyph:
 - **Windows' Settings draws no category icons.** Segoe Fluent covers most of the meanings, so this
   is wiring rather than a missing set.
 - **A few meanings differ in kind, not only in artwork.** Android marks a flagged message with a
-  star where the others draw a flag, and draws no glyph for an Outbox state or an invitation's
-  answer, which Apple does.
+  star where the others draw a flag, draws no glyph for a waiting or sending Outbox row, and none
+  for an invitation's answer, which Apple does.
 - **Linux screenshots photograph the capturing desktop's icon theme.** `showcase.sh linux` runs the
   host build on the host's settings, so a capture taken on an Ubuntu desktop shows Yaru rather than
   the Adwaita the Flatpak draws.

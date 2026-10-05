@@ -467,6 +467,8 @@ mod tests_invitation_rsvp;
 #[cfg(test)]
 mod tests_live_mailbox;
 #[cfg(test)]
+mod tests_log_capture;
+#[cfg(test)]
 mod tests_mail_actions;
 #[cfg(test)]
 mod tests_message_size;

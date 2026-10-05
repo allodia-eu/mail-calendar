@@ -109,8 +109,17 @@ impl ComposeContext {
             quote: None,
             initial_from,
             seeds_signature: false,
-            composition: new_composition(),
-            files: Vec::new(),
+            // The draft the core moved it into: saved over, and holding its files, as a resume.
+            composition: request.composition,
+            files: request
+                .attachments
+                .into_iter()
+                .map(|file| PickedFile {
+                    path: file.path,
+                    file_name: file.file_name,
+                    media_type: file.media_type,
+                })
+                .collect(),
         }
     }
 

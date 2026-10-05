@@ -169,6 +169,7 @@ impl<P: Provider> App<P> {
                 key: Some(message.key.clone()),
                 saved: None,
                 queued: None,
+                threading: None,
             },
         );
     }

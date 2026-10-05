@@ -185,9 +185,9 @@ pub use protocol::{
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
     AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, EmptyReason, FlatRow,
-    MailboxListSnapshot, ReadingSnapshot, RecipientSuggestion, SearchHorizon, SendStatus,
-    SnapshotRow, SyncProgressSnapshot, ThreadMessage, ThreadRow, ThrottledAccount,
-    TimeZoneSnapshot, UnfiledCopy, ViewMode,
+    MailboxListSnapshot, ReadingSnapshot, RecipientSuggestion, SearchHorizon, SnapshotRow,
+    SyncProgressSnapshot, ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot,
+    UnfiledCopy, ViewMode,
     settings::{
         AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
         McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow,
@@ -219,7 +219,7 @@ pub use records_folders::{
 pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
 };
-pub use records_outbox::{ComposeRequest, QueuedRow, QueuedState};
+pub use records_outbox::{ComposeRequest, QueuedRow, QueuedState, SendStatus};
 pub use records_recurrence::{
     EventRecurrence, ProposedEdit, RecurrenceChange, RecurrenceDay, RecurrenceEnd,
     RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,

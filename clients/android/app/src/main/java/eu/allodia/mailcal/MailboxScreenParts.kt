@@ -49,6 +49,14 @@ internal fun SendStatusBanner(status: SendStatus, ctx: Context) {
         // failed would invite writing it a second time, and then both arrive. The hint is the
         // passing form of what the Outbox row says for as long as the message is waiting.
         SendStatus.QUEUED -> L10n.send_status_queued(ctx) to MaterialTheme.colorScheme.onSurfaceVariant
+        // A warning, never a failure: the message may already be with its recipients, and
+        // reading it as failed invites writing it again. The glyph below carries the warning.
+        SendStatus.UNCONFIRMED ->
+            L10n.send_status_unconfirmed(ctx) to MaterialTheme.colorScheme.onSurfaceVariant
+        // Refused by the server: it stays in the Outbox until the user sends it again, edits it or
+        // discards it, and the banner says where to find it.
+        SendStatus.NOT_SENT -> L10n.send_status_not_sent(ctx) to MaterialTheme.colorScheme.error
+        // The send never reached the Outbox; only the composer's draft keeps it.
         SendStatus.FAILED -> L10n.send_status_failed(ctx) to MaterialTheme.colorScheme.error
     }
     Row(
@@ -61,6 +69,15 @@ internal fun SendStatusBanner(status: SendStatus, ctx: Context) {
     ) {
         if (status == SendStatus.SENDING) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        if (status == SendStatus.UNCONFIRMED) {
+            Icon(
+                painter = painterResource(R.drawable.ic_warning),
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(16.dp),
+            )
             Spacer(modifier = Modifier.width(8.dp))
         }
         Text(text = text, style = MaterialTheme.typography.bodyMedium, color = color)

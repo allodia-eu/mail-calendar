@@ -58,7 +58,7 @@ pub fn composer_image_data_url_from_bytes(bytes: &[u8]) -> Result<String, Mailca
 }
 
 /// A host-selected file to attach to a rich composer submission.
-#[derive(uniffi::Record)]
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct ComposerFileAttachment {
     /// Filesystem path the host selected or staged.
     pub path: String,

@@ -90,11 +90,18 @@ core, the bindings, and the native host land in one stream.
   counts, an `unavailable` source's server-given reason, and a per-pass summary; the reads log
   row/match counts with durations. The point is that "Contacts is empty" resolves to the stage
   that produced nothing instead of to a guess. Same test file gates that the lines exist.
-- **A send says it has started before it goes out.** An interactive send logs
-  `send[a0]: submitting a message` ahead of its round trip, and a drain pass logs
-  `outbox[a0]: retrying a queued send, attempt 2` for each queued send it is about to retry, so a
-  send that never comes back still left a line saying it began. Neither carries anything of the
-  message: no subject, address or `Message-ID`.
+- **A send says it has started before it goes out, and every queued write says how it ended.** A
+  queued send goes out with nobody watching, so the log is the only record of what happened to
+  it. An interactive send logs `send[a0]: submitting a message` ahead of its round trip and one
+  line for its outcome, naming the queued send's number when the Outbox kept it. A drain pass
+  logs `outbox[a0]: retrying queued send 12, attempt 2` before it runs and one line per write it
+  attempted afterwards (went through, stays queued, not sent, may have been delivered), with the
+  server's own detail. Each action a person takes on a queued send (send now, withdraw, edit, an
+  answer to an unconfirmed send) logs what it did or why it was refused, and start-up logs what
+  the last run left unfinished and what each account's Outbox holds. None carries anything of
+  the message: no subject, address or `Message-ID`. Gated by
+  `crates/mailcal-app/src/outbox_recovery_tests.rs` against the shared capture in
+  `tests_log_capture.rs`.
 
 ## The shared bar
 

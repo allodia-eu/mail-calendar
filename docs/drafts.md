@@ -48,15 +48,21 @@ This is the opposite of [`sending.md`](sending.md)'s rule, and the two must not 
 send that reached the server is final and is never repeated. A save is repeated every time the
 user pauses.
 
-**A send that was accepted takes the stored draft away.** Once the message is somewhere that
-will deliver it, whether it has gone out or is in the Outbox, the copy in Drafts is a
-duplicate of a message already on its way, and the user would find it there weeks later
-unable to tell whether it went. The composer names its composition on the submit and the core
-removes the draft; a client that does not name it leaves one behind.
+**A send the Outbox holds takes the stored draft away.** Once Send is pressed the Outbox is
+the message's one place ([`sending.md`](sending.md)), whether it has gone out, is waiting,
+awaits confirmation or was refused, and a copy left in Drafts is a second one: the user would
+find it weeks later unable to tell whether it went, or send it a second time. The composer
+names its composition on the submit and the core removes the draft; a client that does not
+name it leaves one behind.
 
-**A send that failed keeps it.** That is the one outcome where the stored copy is the only one
-left: nothing will retry the message, and the composer that held the words has already
+**A send that never reached the Outbox keeps it.** No account or provider to send through:
+nothing holds the message but the draft, and the composer that held the words has already
 closed. Removing it there would make sending a way to lose mail.
+
+**Edit on a queued send moves it back here.** It is the one way out of the Outbox into Drafts,
+and it saves the message as a draft before the send leaves the queue, so nothing is ever in
+neither place. The composer it opens adopts that draft's composition and holds every file, as
+a resumed draft's does, and keeps a reply's threading headers on every save and on the send.
 
 **The send owns the composition from the submit on, and a client must not close it.** A composer
 is dismissed the moment its submit is accepted, which is validation only: the message has not

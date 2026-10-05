@@ -150,3 +150,6 @@ fn new_accounts_abandons_interrupted_sync_leases_on_boot() {
 
     let _ = fs::remove_dir_all(data_dir);
 }
+
+#[path = "tests_boot_outbox.rs"]
+mod outbox;

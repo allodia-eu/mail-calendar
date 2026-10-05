@@ -237,28 +237,16 @@
         <!-- One unsent message (docs/sending.md). No swipe, no selection, no disclosure: none of
              the message list's gestures mean anything over something that is not in a folder yet.
 
-             The three actions are the context menu alone, which is where the mail row beside it
-             keeps its full action set too, and they are DISABLED rather than absent on a row that
-             cannot take them: a message in flight cannot be called back, and one whose delivery
-             could not be confirmed may already be in front of its recipients, so offering to send
-             it again is how it arrives twice. An empty popup would say none of that.
+             Its actions are the context menu alone, which is where the mail row beside it keeps
+             its full action set too. The items differ by state, so the menu is built in code for
+             the row it is attached to (MailListView.Outbox.cs) from what OutboxRows decides.
 
              The whole row carries one spoken name. Three TextBlocks are announced as three items,
              which is what a list of messages sounds like, and this is not one. -->
         <DataTemplate x:Key="OutboxRowTemplate" x:DataType="vm:QueuedRowItem">
             <Grid Padding="4,6" RowSpacing="2"
-                  AutomationProperties.Name="{x:Bind A11yText}">
-                <Grid.ContextFlyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionSendNow()}" Tag="{x:Bind}"
-                                        IsEnabled="{x:Bind IsActionable}" Click="OnSendQueuedNow" />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionEditQueued()}" Tag="{x:Bind}"
-                                        IsEnabled="{x:Bind IsActionable}" Click="OnEditQueued" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionCancelSend()}" Tag="{x:Bind}"
-                                        IsEnabled="{x:Bind IsActionable}" Click="OnCancelQueued" />
-                    </MenuFlyout>
-                </Grid.ContextFlyout>
+                  AutomationProperties.Name="{x:Bind A11yText}"
+                  DataContextChanged="OnQueuedRowDataContextChanged">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />

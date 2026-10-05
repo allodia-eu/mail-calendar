@@ -1,4 +1,5 @@
-// Opening a draft from the Drafts folder back into its composer (docs/drafts.md).
+// Opening a draft back into its composer, from the Drafts folder or from an edited queued send
+// (docs/drafts.md).
 //
 // The join between the composition and the copy on the server is the core's, and is held by its
 // own Rust tests. What is Apple's, and what is covered here, is how the resumed draft travels to
@@ -41,6 +42,37 @@ import Testing
         // supersede the other.
         let request = ResumedDraftRequest(composition: "c-1", draft: resume())
         #expect(request.composition == "c-1")
+    }
+
+    @Test func anEditedQueuedSendOpensOnItsCompositionHoldingItsFiles() {
+        // The core has saved the queued send into Drafts under `composition`: a composer on a
+        // fresh id would save a second copy beside it, and one missing a file would take that
+        // file off the draft on its first save.
+        let file = ComposerFileAttachment(
+            path: "/tmp/staging/terms.pdf",
+            fileName: "terms.pdf",
+            mediaType: "application/pdf"
+        )
+        let request = ResumedDraftRequest(
+            ComposeRequest(
+                account: "acct-1",
+                composition: "c-queued",
+                to: "ada@example.test",
+                cc: "grace@example.test",
+                bcc: "",
+                subject: "Terms",
+                bodyText: "See attached.",
+                attachments: [file]
+            )
+        )
+        #expect(request.composition == "c-queued")
+        #expect(request.draft.account == "acct-1")
+        #expect(request.draft.to == "ada@example.test")
+        #expect(request.draft.cc == "grace@example.test")
+        #expect(request.draft.subject == "Terms")
+        #expect(request.draft.bodyText == "See attached.")
+        #expect(request.draft.attachments.map(\.path) == [file.path])
+        #expect(request.draft.attachments.map(\.fileName) == [file.fileName])
     }
 
     @Test func aWindowShowingADraftIsNamedForIt() {

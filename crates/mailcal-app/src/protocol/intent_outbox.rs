@@ -18,20 +18,39 @@ use crate::reference::QueuedRef;
 pub enum OutboxIntent {
     /// Show the Outbox: the sends that have not gone, across every account.
     Show,
-    /// Withdraw a queued send so it is never delivered.
+    /// Withdraw a queued send so it is never delivered, or dismiss one that was not sent.
     ///
     /// Refused by the store while the send is actually in flight, because stopping
-    /// something already on its way is not a promise this app can keep.
+    /// something already on its way is not a promise this app can keep, and while it awaits
+    /// confirmation, because it may already have been delivered.
     Cancel(QueuedRef),
-    /// Attempt a queued send now, rather than waiting out its backoff.
+    /// Attempt a queued send now, rather than waiting out its backoff, or send again one the
+    /// server refused.
     ///
-    /// Does **not** reset the attempt count: one more attempt now is not a fresh bound, so
-    /// holding the button cannot outrun the retry limit.
+    /// Does **not** reset the attempt count: one more attempt now is not a fresh bound. Never
+    /// sends a message awaiting confirmation; only [`ConfirmNotSent`](Self::ConfirmNotSent)
+    /// does, so a row that changed state under the user's click cannot deliver it twice.
     SendNow(QueuedRef),
-    /// Withdraw a queued send and reopen it in the composer.
+    /// Move a queued send back into Drafts and open it in the composer, holding its files.
     ///
-    /// Withdrawing first is what makes this safe: the message leaves the queue before the
-    /// composer opens, so a drain running in the same moment cannot deliver the copy the
-    /// user is editing. Pressing Send in the composer queues a **new** op.
-    Edit(QueuedRef),
+    /// The draft is saved before the send leaves the queue, and the send leaves the queue
+    /// before the composer opens: an app that ends part way leaves the message in both
+    /// places, never in neither, and a drain cannot deliver the copy being edited. Pressing
+    /// Send in the composer queues a **new** op.
+    Edit {
+        /// The queued send.
+        queued: QueuedRef,
+        /// Where the host's composer reads attachments from; the message's files are written
+        /// there before the composer is offered.
+        staging_directory: String,
+    },
+    /// The user's answer to a send whose delivery could not be confirmed: it reached its
+    /// recipients. It settles and leaves the Outbox, and is never sent again.
+    ConfirmSent(QueuedRef),
+    /// The user's answer to a send whose delivery could not be confirmed: it did not reach
+    /// them. It goes back in the queue and is sent now.
+    ///
+    /// Refused by the store on a send that is not awaiting confirmation, so this is the one
+    /// way a message that may have been delivered is ever attempted again.
+    ConfirmNotSent(QueuedRef),
 }

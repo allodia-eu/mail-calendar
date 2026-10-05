@@ -32,6 +32,11 @@ pub enum QueuedState {
     /// Its own state because it is the one queued row where "try again" is the wrong
     /// offer: the message may already be in front of its recipients.
     Unconfirmed,
+    /// The server refused it, and nothing will try again on its own.
+    ///
+    /// Kept rather than dropped: it is the user's message, and the Outbox may be the only
+    /// place left holding it. It stays until they send it again, edit it or discard it.
+    NotSent,
 }
 
 /// One queued send, as the Outbox shows it.
@@ -55,6 +60,9 @@ pub struct QueuedRow {
     /// A class and protocol detail, never draft content: this reaches a log line and a
     /// host-visible hint (`docs/logging.md`).
     pub detail: Option<String>,
+    /// Whether Edit is offered: false for a send that answers an invitation, whose calendar
+    /// part a composer cannot hold, so editing it would send something else.
+    pub editable: bool,
 }
 
 /// Projects an account's outstanding outbox rows into the Outbox list.
@@ -78,11 +86,10 @@ fn queued_row(account: &str, row: &PendingOpRow) -> Option<QueuedRow> {
         PendingOpState::Pending => QueuedState::Waiting,
         PendingOpState::InFlight => QueuedState::Sending,
         PendingOpState::NeedsConfirmation => QueuedState::Unconfirmed,
-        // The queue read returns nothing settled, so these are unreachable in practice;
-        // dropping the row is the harmless reading either way.
-        PendingOpState::Succeeded | PendingOpState::Failed | PendingOpState::Cancelled => {
-            return None;
-        }
+        PendingOpState::Failed => QueuedState::NotSent,
+        // The queue read returns nothing else that settled, so these are unreachable in
+        // practice; dropping the row is the harmless reading either way.
+        PendingOpState::Succeeded | PendingOpState::Cancelled => return None,
     };
     Some(QueuedRow {
         account: account.to_owned(),
@@ -97,5 +104,6 @@ fn queued_row(account: &str, row: &PendingOpRow) -> Option<QueuedRow> {
         state,
         attempts: row.attempts,
         detail: row.detail.clone(),
+        editable: draft.calendar.is_none(),
     })
 }

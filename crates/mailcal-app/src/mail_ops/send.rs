@@ -5,7 +5,7 @@
 
 use std::sync::atomic::Ordering;
 
-use engine_api::{AccountId, Draft, Provider};
+use engine_api::{AccountId, Draft, PendingOpState, Provider};
 
 use super::AUTO_CLEAR_DELAY;
 use crate::{App, CompositionId, SendStatus};
@@ -25,11 +25,17 @@ enum SendOutcome {
     /// Not delivered **yet**: the attempt failed for a reason worth retrying, so the message
     /// is in the Outbox and will go out when the network comes back.
     ///
-    /// Distinct from [`Failed`](Self::Failed) because the message is not lost. Before the
-    /// outbox could be read back, this case was reported as a failure and the draft was
-    /// gone: a 2.5-second hint, and no copy of the message anywhere.
+    /// Distinct from [`Failed`](Self::Failed) because the message is not lost: telling
+    /// someone it failed invites them to write it again, and then both arrive.
     Queued,
-    /// Not delivered, and not queued: nothing will retry it.
+    /// The message may have been delivered: it reached the point where the server could act
+    /// on it, and no answer came back. It is in the Outbox, never retried on its own, and
+    /// waits for the user or for its copy to appear in Sent.
+    Unconfirmed,
+    /// Not delivered, and nothing will retry it: the server refused it. The Outbox keeps it
+    /// until the user sends it again, edits it or discards it.
+    NotSent,
+    /// Not delivered, and never reached the Outbox: nothing holds it but the composer's draft.
     Failed,
 }
 
@@ -73,6 +79,8 @@ impl<P: Provider> App<P> {
             SendOutcome::Sent => SendStatus::Sent,
             SendOutcome::SentNotFiled => SendStatus::SentNotFiled,
             SendOutcome::Queued => SendStatus::Queued,
+            SendOutcome::Unconfirmed => SendStatus::Unconfirmed,
+            SendOutcome::NotSent => SendStatus::NotSent,
             SendOutcome::Failed => SendStatus::Failed,
         });
         // Every outcome may have changed the Outbox: a queued send joined it, and a rebuild
@@ -83,10 +91,10 @@ impl<P: Provider> App<P> {
         self.rebuild_snapshot().await;
         // The send is what finishes with the composition, not the host.
         //
-        // The message the composer held now lives somewhere that will deliver it, so the draft
-        // beside it is a copy of a message already on its way, and one the user would find in
-        // Drafts long after they sent it. Only a **failed** send keeps it: the composer is gone
-        // by then and those words are nowhere else (`docs/drafts.md`).
+        // Once the Outbox holds the message, whether it went, is waiting, or was refused, that
+        // is its one place, and the draft beside it is a second copy the user would find in
+        // Drafts long after (`docs/drafts.md`). Only a send that never reached the Outbox keeps
+        // it: the composer is gone by then and those words are nowhere else.
         //
         // Either way the record goes. A host dismisses the composer the moment the submit is
         // accepted, which is long before the message has been anywhere, so it cannot be the one
@@ -113,12 +121,12 @@ impl<P: Provider> App<P> {
     /// hint. A Graph `403 ErrorAccessDenied` (the grant lacks `Mail.Send`) additionally raises the
     /// account's mail re-consent prompt; a successful send clears it.
     async fn submit_through_outbox(&self, account: &AccountId, draft: &Draft) -> SendOutcome {
-        let Some(acct) = self.account_handle(account).await else {
-            log::warn!("send: no connected account to submit from");
+        let Some(handle) = self.account_handle(account).await else {
+            log::warn!("send: no connected account to submit from; nothing was queued");
             return SendOutcome::Failed;
         };
-        let Some(provider) = acct.providers.first() else {
-            log::warn!("send: account has no provider to submit through");
+        let Some(provider) = handle.providers.first() else {
+            log::warn!("send: account has no provider to submit through; nothing was queued");
             return SendOutcome::Failed;
         };
         // Before the round trip, so a send that never comes back still left a line saying it
@@ -131,48 +139,81 @@ impl<P: Provider> App<P> {
                 // "reconnect to send" prompt for this account.
                 self.clear_mail_reauth_required(account);
                 match outcome.sent_copy.unfiled_detail() {
-                    None => SendOutcome::Sent,
+                    None => {
+                        log::info!("send[a{acct}]: delivered, and the copy is in Sent");
+                        SendOutcome::Sent
+                    }
                     Some(detail) => {
                         // The mail has reached its recipients and the sender's copy is not in
                         // Sent, and will not appear later, because there is nothing on the
                         // server for a sync to find. Raise the standing question so the user
                         // can file it, and log it either way.
-                        log::warn!("send: delivered, but the Sent copy was not filed: {detail}");
+                        log::warn!(
+                            "send[a{acct}]: delivered, but the Sent copy was not filed: {detail}"
+                        );
                         self.note_unfiled_copy(account, draft, detail);
                         SendOutcome::SentNotFiled
                     }
                 }
             }
             Err(err) => {
-                // The engine parks a retryable failure in the outbox and settles the rest,
+                // The engine decides what became of a failed attempt and records it on the op,
                 // so the queue itself answers "is this message lost?": asked of the store
-                // rather than re-derived from the error's class here, which would be a
-                // second copy of a rule the engine already owns.
-                if self.is_queued(account, draft).await {
-                    log::info!("send: not sent yet; the message is in the Outbox: {err}");
-                    SendOutcome::Queued
-                } else {
-                    log::warn!("send: submission failed: {err}");
-                    self.note_mail_write_error(account, &err);
-                    SendOutcome::Failed
+                // rather than re-derived from the error's class here, which would be a second
+                // copy of a rule the engine already owns.
+                match self.queued_state(account, draft).await {
+                    Some((op, PendingOpState::Pending | PendingOpState::InFlight)) => {
+                        log::info!(
+                            "send[a{acct}]: not sent yet; it is in the Outbox as queued send \
+                             {op}: {err}"
+                        );
+                        SendOutcome::Queued
+                    }
+                    Some((op, PendingOpState::NeedsConfirmation)) => {
+                        log::warn!(
+                            "send[a{acct}]: the server may have accepted the message but did not \
+                             confirm it; it is in the Outbox as queued send {op}, waiting for an \
+                             answer, and will not be sent again on its own: {err}"
+                        );
+                        SendOutcome::Unconfirmed
+                    }
+                    Some((op, _)) => {
+                        log::warn!(
+                            "send[a{acct}]: not sent; it stays in the Outbox as queued send {op} \
+                             until it is sent again, edited or discarded: {err}"
+                        );
+                        self.note_mail_write_error(account, &err);
+                        SendOutcome::NotSent
+                    }
+                    None => {
+                        log::error!(
+                            "send[a{acct}]: not sent, and the message was not kept in the \
+                             Outbox: {err}"
+                        );
+                        self.note_mail_write_error(account, &err);
+                        SendOutcome::Failed
+                    }
                 }
             }
         }
     }
 
-    /// Whether `draft` is still in `account`'s outbox: the message did not go, but it has
-    /// not been lost either.
+    /// Where `draft` stands in `account`'s outbox, with its number in the queue, or `None`
+    /// when the outbox does not hold it.
     ///
     /// Matched on the `Message-ID` the draft carries, which is what the engine makes the op
     /// idempotent by, so a second send of the same draft finds the same row.
-    async fn is_queued(&self, account: &AccountId, draft: &Draft) -> bool {
-        let Ok(queued) = self.engine.outbox(account).await else {
-            return false;
-        };
-        queued
-            .iter()
-            .filter_map(engine_api::queued_draft)
-            .any(|d| d.message_id == draft.message_id)
+    async fn queued_state(
+        &self,
+        account: &AccountId,
+        draft: &Draft,
+    ) -> Option<(u64, PendingOpState)> {
+        let queued = self.engine.outbox(account).await.ok()?;
+        queued.iter().find_map(|row| {
+            engine_api::queued_draft(row)
+                .filter(|d| d.message_id == draft.message_id)
+                .map(|_| (row.id.get(), row.state))
+        })
     }
 
     /// Surfaces a rich-draft build failure as a failed send. The composer document has

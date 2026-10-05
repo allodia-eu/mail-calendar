@@ -186,30 +186,6 @@ pub enum ViewMode {
     Threaded,
 }
 
-/// The state of the most recent outgoing send (pulled after a `Surface::Sending` signal).
-#[derive(uniffi::Enum)]
-pub enum SendStatus {
-    /// No send has started this session.
-    Idle,
-    /// A validated message is being submitted through the outbox.
-    Sending,
-    /// The most recent submission completed, and a copy is in the account's Sent folder.
-    Sent,
-    /// The message **was sent**, but its copy could not be filed in the account's Sent
-    /// folder; it is not there and will not appear later. Show it as sent, with a warning:
-    /// the recipients have the message, only the sender's own record of it is missing.
-    /// Never as a failure, that invites a re-send of mail that already went out.
-    SentNotFiled,
-    /// The submission has **not gone yet** and is waiting in the Outbox; it will be sent
-    /// when the network comes back. Show it as pending, never as a failure: the message is
-    /// not lost, and telling someone their send failed invites them to write it again.
-    /// The standing form of this is the pane's Outbox row.
-    Queued,
-    /// The most recent submission failed: the message did **not** go out, and nothing will
-    /// retry it.
-    Failed,
-}
-
 /// A message that was **sent** but whose copy is not in the account's Sent folder (pulled
 /// after a `Surface::UnfiledCopy` signal).
 ///
