@@ -3,8 +3,8 @@
 use std::{fmt, path::PathBuf};
 
 use mailcal_bindings::{
-    AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget, ImapAuthOffer, Intent,
-    MailtoPrefill, SearchScope, SetupRecommendation, SharePrefill, Surface,
+    AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget, DraftResume, ImapAuthOffer,
+    Intent, MailtoPrefill, SearchScope, SetupRecommendation, SharePrefill, Surface,
 };
 
 use super::{
@@ -99,8 +99,7 @@ pub(crate) enum AppInput {
     /// A reading window has gone, by the id the core holds its body under. The host forgets the
     /// header and the core drops the body; a closed window may not keep either.
     CloseReadingWindow(String),
-    /// A composer window has gone: sent, cancelled, or closed, which are the same act because
-    /// closing one discards the draft exactly as Cancel does.
+    /// A composer window has gone: sent, discarded, or closed, which leaves its draft in Drafts.
     CloseComposerWindow(u64),
     SetThreadExpanded {
         thread: ThreadKey,
@@ -186,14 +185,23 @@ pub(crate) enum AppInput {
     /// could not be read. The composer opens on this rather than on `BeginForward`: on screen
     /// holding nothing it can be sent in the window before they arrive.
     ForwardStaged(ReadingSource, Result<Vec<PickedFile>, ()>),
-    CancelComposer(ComposerHost),
-    /// The open draft's answer to "would anything be lost?": see [`super::composer_draft`].
-    ComposerDraftChecked(bool),
-    /// Throw the draft away and take the navigation that was waiting on it.
+    /// The composer's Discard button: its host, and whether anything was written in it.
+    DiscardComposer(ComposerHost, bool),
+    /// Leaving a composer nothing was written in: close it, then take any waiting navigation.
+    ComposerUntouched(ComposerHost),
+    /// Leaving a composer that was written in: save and close it, then take any navigation.
+    LeaveComposer(Box<ComposerSubmission>),
+    /// The "Discard draft?" question's Discard: throw the draft away.
     DiscardDraft,
-    /// Keep the draft, and drop the navigation that was waiting on it.
+    /// The question's Keep editing: leave the composer as it was.
     KeepEditing,
     SubmitComposer(Box<ComposerSubmission>),
+    /// Store the composer's message in Drafts over this composition's previous save. The Save
+    /// button and the idle timer both emit it; the core cannot tell them apart (`docs/drafts.md`).
+    SaveComposerDraft(Box<ComposerSubmission>),
+    /// A draft the core opened back up, under the composition it was adopted into. `Err` is said,
+    /// never shown as an empty composer, which would replace the draft on its next save.
+    DraftResumed(String, Box<Result<DraftResume, ()>>),
     SaveAttachment {
         source: ReadingSource,
         id: u32,
@@ -407,11 +415,14 @@ impl fmt::Debug for AppInput {
             Self::BeginReply { .. } => "BeginReply",
             Self::BeginForward(_) => "BeginForward",
             Self::ForwardStaged(..) => "ForwardStaged",
-            Self::CancelComposer(_) => "CancelComposer",
-            Self::ComposerDraftChecked(_) => "ComposerDraftChecked",
+            Self::DiscardComposer(..) => "DiscardComposer",
+            Self::ComposerUntouched(_) => "ComposerUntouched",
+            Self::LeaveComposer(_) => "LeaveComposer",
             Self::DiscardDraft => "DiscardDraft",
             Self::KeepEditing => "KeepEditing",
             Self::SubmitComposer(_) => "SubmitComposer",
+            Self::SaveComposerDraft(_) => "SaveComposerDraft",
+            Self::DraftResumed(..) => "DraftResumed",
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::OpenAttachment { .. } => "OpenAttachment",
             Self::AttachmentSaved(_) => "AttachmentSaved",

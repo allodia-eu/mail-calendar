@@ -51,6 +51,7 @@ internal fun MainActivity.reload() {
     unifiedUnread = snapshot.unifiedUnread
     outbox = snapshot.outbox
     showingOutbox = snapshot.showingOutbox
+    drafts.showingDrafts = snapshot.showingDrafts
     folderNotice = snapshot.folderNotice
     selectedFolder = snapshot.selected
     searchHorizon = snapshot.searchHorizon

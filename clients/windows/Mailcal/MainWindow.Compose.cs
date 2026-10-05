@@ -10,12 +10,10 @@
 // The Windows twin of the Apple client's `@State var compose: ComposeContext?`, which the macOS
 // detail column renders the same way.
 
-using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal;
@@ -23,7 +21,7 @@ namespace Allodia.Mailcal;
 public sealed partial class MainWindow
 {
     /// <summary>The composer currently in the detail column, or <c>null</c> when the reading pane
-    /// has it. Built fresh per draft and torn down on Send/Cancel, never reused across messages,
+    /// has it. Built fresh per draft and torn down on Send/Discard, never reused across messages,
     /// so no document, quote, or attachment list can leak from one draft into the next.</summary>
     private ComposerView? _composer;
 
@@ -72,17 +70,13 @@ public sealed partial class MainWindow
     /// </summary>
     /// <remarks>
     /// Structurally a new message: the same composer, the same Send button, the same submit path,
-    /// merely arriving prefilled. Behind the same discard guard a message click uses, an assistant
-    /// asking to open a draft arrives unprompted, at any moment, and must not be able to throw away
-    /// a half-written message the user is in the middle of.
+    /// merely arriving prefilled. It leaves the open composer first, as every route into the
+    /// composer does: an assistant's draft arrives unprompted, at any moment, and whatever the
+    /// user was writing is kept in Drafts rather than replaced.
     /// </remarks>
     internal async void ComposeAgentDraft(AgentDraft draft)
     {
-        if (!await ConfirmDiscardDraftAsync())
-        {
-            Log.Info("mcp: a prefilled draft was declined, the open draft was kept");
-            return;
-        }
+        await LeaveComposerAsync();
         // Recipients, subject and body are the assistant's; none of them is logged.
         Log.Info("mcp: opening a prefilled draft in the composer");
         // The composer lives in the mail surface's detail column, and a draft can arrive while the
@@ -115,9 +109,8 @@ public sealed partial class MainWindow
     /// <para>
     /// What arrives here is the <b>only</b> copy: the core took it out of the queue before raising
     /// the request, precisely so a drain cannot deliver the message while it is being edited. So
-    /// this may not refuse. The discard guard still runs, because a half-written draft in the pane
-    /// is the user's own too, but its "Keep editing" answer opens the withdrawn message in a
-    /// composer window instead of dropping it, which is the one thing nothing here may do.
+    /// this may not refuse, and it does not need to: leaving the composer already in the pane
+    /// keeps that draft in Drafts.
     /// </para>
     /// <para>
     /// The same composer an assistant's draft opens (<see cref="ComposeAgentDraft"/>): a prefilled,
@@ -146,18 +139,11 @@ public sealed partial class MainWindow
             InitialSubject: request.Subject,
             InitialBody: request.BodyText,
             SeedsSignature: false);
-        if (await ConfirmDiscardDraftAsync())
-        {
-            // The composer lives in the mail surface's detail column, and Edit is reachable from
-            // the Outbox while the calendar or Contacts is up, where it would open unseen.
-            Model.ShowMail();
-            BeginCompose(context);
-        }
-        else
-        {
-            Log.Info("outbox: the open draft was kept, so the withdrawn message took a window");
-            OpenComposerWindow(context);
-        }
+        await LeaveComposerAsync();
+        // The composer lives in the mail surface's detail column, and Edit is reachable from the
+        // Outbox while the calendar or Contacts is up, where it would open unseen.
+        Model.ShowMail();
+        BeginCompose(context);
         BringToForeground();
         // Only now: the core holds this message and nothing else does, so it may forget it only
         // once a composer on screen has it (docs/sending.md).
@@ -177,8 +163,8 @@ public sealed partial class MainWindow
             opened.Account, opened.Key, opened.RawSubject, opened, body));
 
     // Swap the detail column over to a freshly-built composer. Any composer already up is torn down
-    // first, the caller has already asked the user about an unsent draft (ConfirmDiscardDraftAsync),
-    // so reaching here means it may go.
+    // first: the caller has already left it (LeaveComposerAsync), so what was written there is in
+    // Drafts.
     private void BeginCompose(ComposeContext context)
     {
         TeardownComposer();
@@ -198,9 +184,9 @@ public sealed partial class MainWindow
 
     /// <summary>
     /// Closes the composer and gives the detail column back to the reading pane. Called on Send
-    /// (after the draft is queued), on Cancel, and by the list when the user opens another message
-    /// and has let the draft go, without that last one the message would open *behind* a composer
-    /// still covering the column, and the click would look like it did nothing.
+    /// (after the draft is queued), on Discard, and by the list when the user opens another message
+    /// and the composer has been left, without that last one the message would open *behind* a
+    /// composer still covering the column, and the click would look like it did nothing.
     ///
     /// A no-op when nothing is composing, so callers needn't check.
     /// </summary>
@@ -228,29 +214,19 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
-    /// Asks the user before an action that would drop the open draft, opening another message,
-    /// or starting a different compose. Returns <c>true</c> when the action may proceed: there is
-    /// no composer, nothing has been written into it, or the user chose Discard. Returns
-    /// <c>false</c> for Keep editing, and the caller abandons whatever it was about to do.
-    ///
-    /// The composer being a pane rather than a modal is exactly what makes this reachable: a click
-    /// on another message was impossible while the dialog was up. Silently losing a draft to that
-    /// click was not an option.
+    /// Leaves the open composer before something takes its place: another message, a different
+    /// compose, a link, a share or an assistant's draft. What was written in it is kept in Drafts,
+    /// and nobody is asked (docs/drafts.md, "Leaving a composer"). A no-op with no composer.
     /// </summary>
-    internal async Task<bool> ConfirmDiscardDraftAsync()
+    /// <remarks>
+    /// This only finishes the composition; the caller decides what replaces the composer, either
+    /// closing it (<see cref="CloseComposer"/>) or building the next one (<c>BeginCompose</c>).
+    /// </remarks>
+    internal async Task LeaveComposerAsync()
     {
-        if (_composer is null || !await _composer.IsDirtyAsync())
+        if (_composer is not null)
         {
-            return true;
+            await _composer.LeaveAsync();
         }
-        // "Keep editing" rather than the helper's default "Cancel", next to "Discard", a button
-        // labelled Cancel reads ambiguously as "cancel the draft".
-        var result = await DialogHelper.ConfirmAsync(
-            Content.XamlRoot,
-            L10n.ComposeDiscardTitle(),
-            L10n.ComposeDiscardMessage(),
-            L10n.ActionDiscard(),
-            L10n.ActionKeepEditing());
-        return result == ContentDialogResult.Primary;
     }
 }

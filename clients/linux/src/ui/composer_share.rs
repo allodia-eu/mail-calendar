@@ -22,7 +22,7 @@ use mailcal_bindings::SharePrefill;
 
 use super::{
     AppModel, PendingNavigation,
-    composer_model::{ComposeContext, ComposeKind, PickedFile},
+    composer_model::{ComposeContext, ComposeKind, PickedFile, new_composition},
     reader::ComposerHost,
 };
 
@@ -46,6 +46,7 @@ impl ComposeContext {
             quote: None,
             initial_from,
             seeds_signature: true,
+            composition: new_composition(),
             files: prefill
                 .attachments
                 .into_iter()

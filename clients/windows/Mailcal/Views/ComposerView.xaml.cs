@@ -65,7 +65,7 @@ public sealed partial class ComposerView : UserControl
     }
 
     /// <summary>Binds the composer to a request and starts loading the editor. <paramref name="onDone"/>
-    /// is invoked once the composer is finished, after a successful send, or on Cancel, and the
+    /// is invoked once the composer is finished, after a successful send or a Discard, and the
     /// shell restores the reading pane.</summary>
     internal void Init(MailboxModel model, ComposeContext request, Action onDone)
     {
@@ -177,12 +177,15 @@ public sealed partial class ComposerView : UserControl
         // Pre-filled recipients are the request's doing, not the user's, arm the dirty tracking
         // only once they are in place, so a reply doesn't open already "dirty".
         _headersDirty = false;
+        // Likewise the draft half, so the pre-fill does not read as an edit and start the interval
+        // (ComposerView.Drafts.cs).
+        InitDrafts(model, request);
         _ = LoadEditorAsync();
     }
 
     /// <summary>
-    /// Whether the user has changed anything since the composer opened, the question the
-    /// "Discard draft?" prompt turns on. True as soon as a header field is edited; otherwise the
+    /// Whether the user has changed anything since the composer opened, the question both leaving
+    /// (save or only close) and Discard (ask or not) turn on. True as soon as a header field is edited; otherwise the
     /// editor document is compared against the seed it opened with, so a reply that merely carries
     /// its quoted original does NOT count as dirty until something is actually written above it
     /// (and flipping the quote-style toggle, which rewrites the document, does).
@@ -199,7 +202,7 @@ public sealed partial class ComposerView : UserControl
             return true;
         }
         // No seed yet means the editor bundle hasn't finished loading, so nothing can have been
-        // typed into it. Treat that as clean rather than blocking the user behind a prompt.
+        // typed into it. Treat that as clean: there is nothing to save and nothing to ask about.
         if (_seedDocument is null || _editor.Core is null)
         {
             return false;
@@ -210,7 +213,7 @@ public sealed partial class ComposerView : UserControl
         }
         catch (Exception ex)
         {
-            // Can't tell, err toward keeping the draft (prompt), never toward silently dropping it.
+            // Can't tell, so err toward keeping the draft: save on leaving, ask before discarding.
             Log.Warn($"composer: couldn't read the document to check for edits ({ex.GetType().Name})");
             return true;
         }
@@ -219,7 +222,13 @@ public sealed partial class ComposerView : UserControl
     /// <summary>Tears the editor down. The composer is built fresh per draft rather than reused, so
     /// nothing, a document, a quote, an attachment list, can leak from one message into the next;
     /// this releases the WebView2 that backed it.</summary>
-    internal void Teardown() => _editor.Close();
+    internal void Teardown()
+    {
+        // Before the editor goes: a composition nothing else finished is forgotten here, and leaves
+        // the stored draft in Drafts (docs/drafts.md).
+        TeardownDrafts();
+        _editor.Close();
+    }
 
     private async void OnSend(object sender, RoutedEventArgs e)
     {
@@ -243,6 +252,7 @@ public sealed partial class ComposerView : UserControl
                 return;
             }
             PrepareError.Visibility = Visibility.Collapsed;
+            _finished = true;
             _onDone?.Invoke();
         }
         catch (Exception ex)
@@ -268,17 +278,21 @@ public sealed partial class ComposerView : UserControl
     // different account, and the core still resolves the original in the one that holds it, so a
     // cross-account reply still threads. The Subject rides every call: the field is editable, so
     // what it holds is what goes out, and the core's derivation is only what it opened with.
-    private bool Submit(Recipients recipients, string documentJson, ComposerFileAttachment[] files, string? from) =>
-        _request! switch
+    // `composition` names the composer this was written in whenever it keeps a draft, so an
+    // accepted send takes the stored copy away; a send that omitted it would leave a duplicate in
+    // Drafts of a message already on its way (docs/drafts.md).
+    private bool Submit(Recipients recipients, string documentJson, ComposerFileAttachment[] files, string? from)
+    {
+        var composition = _keepsDraft ? _composition : null;
+        return _request! switch
         {
             { Kind: RichComposeKind.Forward, Account: { } account, Key: { } key } =>
-                _model!.SubmitRichForward(account, key, recipients, SubjectBox.Text, documentJson, files, from),
+                _model!.SubmitRichForward(account, key, recipients, SubjectBox.Text, documentJson, files, from, composition),
             { Kind: RichComposeKind.Reply or RichComposeKind.ReplyAll, Account: { } account, Key: { } key } =>
-                _model!.SubmitRichReply(account, key, recipients, SubjectBox.Text, documentJson, files, from),
-            _ => _model!.SubmitRich(recipients, SubjectBox.Text, documentJson, files, from),
+                _model!.SubmitRichReply(account, key, recipients, SubjectBox.Text, documentJson, files, from, composition),
+            _ => _model!.SubmitRich(recipients, SubjectBox.Text, documentJson, files, from, composition),
         };
-
-    private void OnCancel(object sender, RoutedEventArgs e) => _onDone?.Invoke();
+    }
 
     private void OnToggleCcBcc(object sender, RoutedEventArgs e) => ApplyCcBcc();
 
@@ -293,6 +307,7 @@ public sealed partial class ComposerView : UserControl
     private void OnHeaderChanged(object sender, TextChangedEventArgs e)
     {
         _headersDirty = true;
+        NoteDraftChange();
         SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);
     }
 
@@ -301,6 +316,7 @@ public sealed partial class ComposerView : UserControl
     private void OnRecipientsChanged(object? sender, EventArgs e)
     {
         _headersDirty = true;
+        NoteDraftChange();
         SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);
     }
 
@@ -425,6 +441,8 @@ public sealed partial class ComposerView : UserControl
                 // to begin.
                 ToField.FocusInput();
             }
+            // Last, so neither the seeds nor the caret count as an edit (ComposerView.Drafts.cs).
+            await BaselineEditorRevisionAsync();
         }
         catch (Exception ex)
         {

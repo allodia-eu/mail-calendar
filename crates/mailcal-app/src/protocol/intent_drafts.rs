@@ -82,6 +82,13 @@ pub enum DraftsIntent {
         document: ComposerDocument,
         /// Host-resolved bytes for every attachment handle `document` references.
         blobs: Vec<ComposerBlob>,
+        /// Forget the composition once the save has settled: the composer is being left, by a
+        /// click elsewhere or a closed window, and the draft stays in Drafts.
+        ///
+        /// Part of the save rather than a [`DraftsIntent::Close`] after it, because each intent
+        /// is its own task. A close that landed first would leave the save with no stored key
+        /// to supersede, and the server would keep the old copy beside the new one.
+        then_close: bool,
     },
     /// Remove this composition's stored draft from the server and forget the composition.
     ///

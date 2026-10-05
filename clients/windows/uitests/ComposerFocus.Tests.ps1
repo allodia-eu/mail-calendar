@@ -17,9 +17,9 @@
 # thing it cannot see. The harness seeds ten-odd addresses, which fills the list to its 160epx cap
 # and puts 130-odd pixels of it over the editor.
 #
-# Nothing here sends: composers are opened, read, and cancelled. Cancel discards without prompting
-# (the "Discard draft?" question guards REPLACING an open composer, not closing one), so a case may
-# type freely.
+# Nothing here sends: composers are opened, read, and discarded. Discard asks first over a composer
+# something was typed in, and Close-Composer confirms it, so a case may type freely and leaves no
+# draft behind.
 
 # How many suggestions a case needs before the overlap assertion means anything. Measured here,
 # three already clears the gap between the field and the editor (258px against 188px) and two does
@@ -97,10 +97,14 @@ function Open-Reply {
 }
 
 # By id, not by the label: unlike a showcase suite this one runs in whatever language the developer
-# has the app in, so matching 'Cancel' would make every case pass or fail by that.
+# has the app in, so matching 'Discard' would make every case pass or fail by that.
 function Close-Composer {
-  $cancel = Find-UiaElement -AutomationId 'CancelButton' -Type Button
-  if ($cancel) { Invoke-UiaElement $cancel }
+  $discard = Find-UiaElement -AutomationId 'DiscardButton' -Type Button
+  if ($discard) { Invoke-UiaElement $discard }
+  # The question's primary button is Discard (ComposerView.Drafts.cs).
+  Wait-UiaQuiet -CapMs 800
+  $confirm = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button
+  if ($confirm) { Invoke-UiaElement $confirm }
   Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec 10 | Out-Null
 }
 

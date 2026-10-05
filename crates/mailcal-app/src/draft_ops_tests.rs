@@ -52,6 +52,7 @@ fn save(id: &str, text: &str) -> Intent {
         subject: "Later".to_owned(),
         document: document(text),
         blobs: Vec::new(),
+        then_close: false,
     })
 }
 
@@ -346,6 +347,7 @@ async fn a_draft_with_no_recipient_is_still_saved() {
         subject: String::new(),
         document: document("who was this for again"),
         blobs: Vec::new(),
+        then_close: false,
     }))
     .await;
 

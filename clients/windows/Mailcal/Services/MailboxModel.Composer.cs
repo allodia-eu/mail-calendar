@@ -14,13 +14,17 @@ public sealed partial class MailboxModel
     /// decides both the <c>From:</c> identity and the outbox the draft goes out through.
     /// <c>null</c> lets the core derive it. An id naming an account that is no longer configured
     /// fails the send rather than substituting another sender.
+    /// <para><paramref name="composition"/> names the composer this was written in, so an accepted
+    /// send takes its stored draft out of Drafts. Omitting it sends correctly and leaves a copy of
+    /// the message behind in the user's Drafts folder (<c>docs/drafts.md</c>).</para>
     /// </summary>
     internal bool SubmitRich(
         Recipients recipients,
         string subject,
         string documentJson,
         ComposerFileAttachment[] files,
-        string? from)
+        string? from,
+        string? composition)
     {
         if (_app is null || BlockedByHarnessGate(recipients))
         {
@@ -28,7 +32,7 @@ public sealed partial class MailboxModel
         }
         try
         {
-            _app.SubmitRichMailWithFiles(recipients, subject, documentJson, files, from);
+            _app.SubmitRichMailWithFiles(recipients, subject, documentJson, files, from, composition);
             return true;
         }
         catch (Exception ex)
@@ -48,6 +52,9 @@ public sealed partial class MailboxModel
     /// <c>Re:</c> subject and <c>In-Reply-To</c>/<c>References</c> chain, in the account that
     /// holds it, so a cross-account reply still threads. <c>null</c> replies from the original's
     /// account.
+    /// <para><paramref name="composition"/> names the composer this was written in, so an accepted
+    /// send takes its stored draft out of Drafts. Omitting it sends correctly and leaves a copy of
+    /// the message behind in the user's Drafts folder (<c>docs/drafts.md</c>).</para>
     /// </summary>
     internal bool SubmitRichReply(
         string account,
@@ -56,7 +63,8 @@ public sealed partial class MailboxModel
         string subject,
         string documentJson,
         ComposerFileAttachment[] files,
-        string? from)
+        string? from,
+        string? composition)
     {
         if (_app is null || BlockedByHarnessGate(recipients))
         {
@@ -64,7 +72,7 @@ public sealed partial class MailboxModel
         }
         try
         {
-            _app.SubmitRichReplyWithFiles(account, key, recipients, documentJson, files, from, subject);
+            _app.SubmitRichReplyWithFiles(account, key, recipients, documentJson, files, from, subject, composition);
             return true;
         }
         catch (Exception ex)
@@ -79,6 +87,9 @@ public sealed partial class MailboxModel
     /// <paramref name="recipients"/> under <paramref name="subject"/>. Only the error category is
     /// surfaced for diagnostics, the body is never logged. <paramref name="from"/> is the sending
     /// account (the composer's From dropdown); <c>null</c> forwards from the original's account.
+    /// <para><paramref name="composition"/> names the composer this was written in, so an accepted
+    /// send takes its stored draft out of Drafts. Omitting it sends correctly and leaves a copy of
+    /// the message behind in the user's Drafts folder (<c>docs/drafts.md</c>).</para>
     /// </summary>
     internal bool SubmitRichForward(
         string account,
@@ -87,7 +98,8 @@ public sealed partial class MailboxModel
         string subject,
         string documentJson,
         ComposerFileAttachment[] files,
-        string? from)
+        string? from,
+        string? composition)
     {
         if (_app is null || BlockedByHarnessGate(recipients))
         {
@@ -95,7 +107,7 @@ public sealed partial class MailboxModel
         }
         try
         {
-            _app.SubmitRichForwardWithFiles(account, key, recipients, documentJson, files, from, subject);
+            _app.SubmitRichForwardWithFiles(account, key, recipients, documentJson, files, from, subject, composition);
             return true;
         }
         catch (Exception ex)

@@ -13,9 +13,10 @@ use relm4::{ComponentParts, ComponentSender, SimpleComponent};
 
 use super::{
     AppInput, AppModel, PrimaryView, SetupState, allodia_sync, calendar::CalendarModel,
-    calendar_actions, connectivity, contacts::ContactsModel, host_tasks::HostTasks, mcp, model,
-    model::ReadingState, preferences, runtime_timers, search::SearchState, selection::Selection,
-    settings, setup_onboarding, shell::AppWidgets, sync_line, time_zone, welcome,
+    calendar_actions, composer_drafts, connectivity, contacts::ContactsModel,
+    host_tasks::HostTasks, mcp, model, model::ReadingState, preferences, runtime_timers,
+    search::SearchState, selection::Selection, settings, setup_onboarding, shell::AppWidgets,
+    sync_line, time_zone, welcome,
 };
 use crate::{appearance, boot, crash, logger, observer::SurfaceObserver};
 
@@ -167,12 +168,13 @@ impl SimpleComponent for AppModel {
             composer_windows: Vec::new(),
             composer_window_seq: 0,
             composer_error: None,
+            draft_status: composer_drafts::DraftStatuses::new(),
             pending_navigation: None,
             pending_mailto: None,
             pending_share: None,
             draft_check: None,
             draft_check_seq: 0,
-            discard_prompt: false,
+            discard_prompt: None,
             notice: None,
             sync_status,
             sync_bar,

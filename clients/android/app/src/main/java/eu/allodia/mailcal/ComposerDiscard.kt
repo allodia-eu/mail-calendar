@@ -1,17 +1,18 @@
-// The unsent-draft guard for the Android composer, the same prompt macOS and Windows
-// already raise, reaching Android because the back button reached it first.
+// Leaving the Android composer, and throwing its draft away (docs/drafts.md, "Leaving a
+// composer").
 //
-// On the desktops the guard exists because the composer is an inline pane: a click on another
-// message stayed reachable while you wrote, and would have thrown the draft away silently. Android's
-// composer is a full-screen dialog with nothing clickable behind it, which is why iPhone and iPad
-// still short-circuit the guard, but Android has a back button and a back gesture, and an edge
-// swipe is far easier to hit by accident than any click. Same loss, same answer: ask first.
+// The composer is a full-screen dialog, so its ✕ and the system back are the only ways out, and
+// both mean leaving: what was written is saved to Drafts and the composer closes, with no
+// question. An edge swipe is easy to make by accident, and autosave has already put the words on
+// the server, so a prompt there would offer nothing but a way to lose them. Discard, beside Save
+// as draft in the app bar, is the one way to throw a draft away, and it asks first whenever there
+// is something to lose.
 //
-// The dirtiness rule is the desktops', deliberately: header fields are compared against what the
+// "Written" is the desktops' rule, deliberately: header fields are compared against what the
 // composer OPENED with, and the body against the seed captured once the quote and signature were
 // in (see configureComposerWebView). A reply nobody typed into is not a draft. The comparison
-// happens here in the client and yields one boolean, the document is never logged, stored, or
-// shipped (docs/composer-security.md, gate 8).
+// happens here in the client and yields one boolean; the document is never logged
+// (docs/composer-security.md, gate 8).
 package eu.allodia.mailcal
 
 import androidx.compose.material3.AlertDialog
@@ -27,14 +28,13 @@ import androidx.compose.ui.platform.LocalContext
  * draft to lose?" that needs no round trip into the editor.
  *
  * Compared against what the composer opened with, never against empty: the core pre-fills a reply's
- * To (and a reply-all's Cc), and a mail link may pre-fill every one of the four. Stopping someone to
- * ask about a message they never typed into is exactly the noise this guard must not create. Typing
- * something and then deleting it lands back on the opening values and counts as clean, which is true
- * there is nothing left to lose.
+ * To (and a reply-all's Cc), and a mail link may pre-fill every one of the four. Leaving one of those
+ * untouched must neither put it in Drafts nor make Discard ask. Typing something and then deleting
+ * it lands back on the opening values and counts as clean, which is true: there is nothing to keep.
  *
  * `attachments` is measured against `initialAttachments`, which is **not** simply what the composer
  * opened holding. A forward's staged originals are still in the mailbox, so abandoning one loses
- * nothing and must not be worth a prompt; a share's files the user chose in their file manager and
+ * nothing and is not worth a draft; a share's files the user chose in their file manager and
  * would have to share again, so those count from the start. Removing a forwarded file, like adding
  * any file, changes the count and does count.
  */

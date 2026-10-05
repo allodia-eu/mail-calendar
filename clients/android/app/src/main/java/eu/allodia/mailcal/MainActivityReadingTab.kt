@@ -52,24 +52,8 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                             // core derives the Re:/Fwd: subject + threading from the original.
                             // `from` is the account picked in the composer's From dropdown; the
                             // core sends as, and through, it, defaulting to `account`.
-                            onReply = { account, key, from, recipients, subject, documentJson, files ->
-                                try {
-                                    instance.submitRichReplyWithFiles(account, key, recipients, documentJson, files, from, subject)
-                                    true
-                                } catch (e: MailcalException) {
-                                    Log.w(TAG, "rich reply submit failed: ${e.javaClass.simpleName}")
-                                    false
-                                }
-                            },
-                            onForward = { account, key, from, recipients, subject, documentJson, files ->
-                                try {
-                                    instance.submitRichForwardWithFiles(account, key, recipients, documentJson, files, from, subject)
-                                    true
-                                } catch (e: MailcalException) {
-                                    Log.w(TAG, "rich forward submit failed: ${e.javaClass.simpleName}")
-                                    false
-                                }
-                            },
+                            onReply = { account, key, submission -> submitReply(instance, account, key, submission) },
+                            onForward = { account, key, submission -> submitForward(instance, account, key, submission) },
                             // Pre-fill a reply/reply-all's To/Cc from the core (empty on failure).
                             // Composer autosuggest: ranked addresses for a partially-typed
                             // recipient, drawn from synced contacts AND from people the user has
@@ -86,6 +70,7 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                             // The composer's signature: seeded from the From account's slot for
                             // this mode, re-resolved when From changes, overridable per message.
                             signatures = composerSignatures(instance, signatures?.signatures.orEmpty()),
+                            drafts = composerDrafts(instance),
                             replyRecipients = { account, key, replyAll ->
                                 try {
                                     instance.replyRecipients(account, key, replyAll)

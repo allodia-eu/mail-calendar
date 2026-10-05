@@ -31,12 +31,16 @@ impl AppModel {
             self.show_composer_error(host, ComposerNotice::Prepare);
             return;
         }
+        // The composition is NOT forgotten here. From the submit on, the send owns it and
+        // finishes with it when the message settles, taking the stored draft away or leaving
+        // it; a `Close` from this host would be a second task racing that one, and landing
+        // first would leave the draft in Drafts for ever (`docs/drafts.md`).
         match host {
             ComposerHost::Pane => {
                 self.composer = None;
                 self.composer_error = None;
             }
-            ComposerHost::Window(id) => self.close_composer_window(id),
+            ComposerHost::Window(id) => self.forget_composer_window(id),
         }
     }
 
@@ -215,9 +219,10 @@ fn submit(
             submission.document_json.clone(),
             files,
             submission.from.clone(),
-            // No composition: this composer does not save drafts yet, so there is no stored
-            // copy for the send to take away (`docs/drafts.md`).
-            None,
+            // The composer this was written in, so an accepted send takes its stored draft out of
+            // Drafts. A send that omitted it would leave a duplicate there of a message already
+            // on its way (`docs/drafts.md`).
+            Some(submission.request.composition.clone()),
         ),
         ComposeKind::Reply | ComposeKind::ReplyAll => app.submit_rich_reply_with_files(
             submission.request.account.clone().unwrap_or_default(),
@@ -229,8 +234,8 @@ fn submit(
             // The Subject field is editable here too, so what it holds is what goes out; the
             // core's derived `Re:`/`Fwd:` is only the value it opened with.
             Some(submission.subject.clone()),
-            // No composition, as above.
-            None,
+            // The composition, as above.
+            Some(submission.request.composition.clone()),
         ),
         ComposeKind::Forward => app.submit_rich_forward_with_files(
             submission.request.account.clone().unwrap_or_default(),
@@ -242,8 +247,8 @@ fn submit(
             // The Subject field is editable here too, so what it holds is what goes out; the
             // core's derived `Re:`/`Fwd:` is only the value it opened with.
             Some(submission.subject.clone()),
-            // No composition, as above.
-            None,
+            // The composition, as above.
+            Some(submission.request.composition.clone()),
         ),
     }
 }
@@ -284,7 +289,11 @@ mod tests {
     }
 
     use super::{ComposeKind, ComposerSubmission, submit};
-    use crate::{boot, observer::SurfaceObserver, ui::composer_model::ComposeContext};
+    use crate::{
+        boot,
+        observer::SurfaceObserver,
+        ui::composer_model::{ComposeContext, new_composition},
+    };
 
     const DOCUMENT: &str = r#"{
         "blocks": [{
@@ -344,6 +353,7 @@ mod tests {
                 quote: None,
                 initial_from: Some(account.clone()),
                 seeds_signature: true,
+                composition: new_composition(),
                 files: Vec::new(),
             },
             to: recipients.to,

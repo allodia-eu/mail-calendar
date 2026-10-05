@@ -103,9 +103,13 @@ impl<P: Provider> App<P> {
                 subject,
                 document,
                 blobs,
+                then_close,
             } => {
-                self.save_draft(composition, from, to, cc, bcc, subject, document, blobs)
+                self.save_draft(&composition, from, to, cc, bcc, subject, document, blobs)
                     .await;
+                if then_close {
+                    self.close_composition(&composition);
+                }
             }
             DraftsIntent::Discard { composition } => self.discard_draft(&composition).await,
             DraftsIntent::Close { composition } => self.close_composition(&composition),
@@ -128,12 +132,24 @@ impl<P: Provider> App<P> {
             .unwrap_or_default()
     }
 
+    /// Whether `composition` has a copy on the server, or a save queued for one: what a
+    /// composer's Discard would remove, and so whether it has anything to ask about.
+    #[must_use]
+    pub fn draft_is_stored(&self, composition: &CompositionId) -> bool {
+        self.drafts
+            .lock()
+            .expect("drafts mutex poisoned")
+            .open
+            .get(composition)
+            .is_some_and(|open| open.key.is_some() || open.queued.is_some())
+    }
+
     /// Stores the composer's content in the account's Drafts folder, replacing what this
     /// composition's previous save left there.
     #[allow(clippy::too_many_arguments)]
     async fn save_draft(
         &self,
-        composition: CompositionId,
+        composition: &CompositionId,
         from: Option<AccountId>,
         to: String,
         cc: String,
@@ -147,39 +163,39 @@ impl<P: Provider> App<P> {
         let _saving = gate.lock().await;
         // An account already carrying this draft wins over the composer's dropdown: see
         // `Composition::account`.
-        let account = match self.composition_account(&composition) {
+        let account = match self.composition_account(composition) {
             Some(account) => account,
             None => match from.or(self.compose_account().await) {
                 Some(account) => account,
-                None => return self.fail_draft(&composition, "no account to save a draft to"),
+                None => return self.fail_draft(composition, "no account to save a draft to"),
             },
         };
         let Some(identity) = self.account_identity(&account).await else {
-            return self.fail_draft(&composition, "the account to save to is not configured");
+            return self.fail_draft(composition, "the account to save to is not configured");
         };
-        let message_id = self.composition_message_id(&composition, &account);
+        let message_id = self.composition_message_id(composition, &account);
         let Some(message_id) = message_id else {
-            return self.fail_draft(&composition, "could not mint a Message-ID for the draft");
+            return self.fail_draft(composition, "could not mint a Message-ID for the draft");
         };
         let Some(draft) = build(
             message_id, &identity, &to, &cc, &bcc, subject, document, blobs,
         ) else {
-            return self.fail_draft(&composition, "the draft could not be rendered");
+            return self.fail_draft(composition, "the draft could not be rendered");
         };
 
         // Nothing changed since the last save, so there is nothing to write. Still "saved":
         // what the user asked to keep is on the server (`docs/drafts.md`).
         let digest = digest(&draft);
-        if self.already_saved(&composition, digest) {
-            return self.set_draft_status(&composition, DraftStatus::Saved);
+        if self.already_saved(composition, digest) {
+            return self.set_draft_status(composition, DraftStatus::Saved);
         }
 
-        self.set_draft_status(&composition, DraftStatus::Saving);
-        let replacing = self.composition_key(&composition);
+        self.set_draft_status(composition, DraftStatus::Saving);
+        let replacing = self.composition_key(composition);
         match self.put_draft(&account, &draft, replacing.as_ref()).await {
             Some(Ok(key)) => {
-                self.record_save(&composition, key, digest);
-                self.set_draft_status(&composition, DraftStatus::Saved);
+                self.record_save(composition, key, digest);
+                self.set_draft_status(composition, DraftStatus::Saved);
                 // So the Drafts folder shows what was just put in it.
                 self.refresh_after_write(&account).await;
             }
@@ -190,14 +206,14 @@ impl<P: Provider> App<P> {
             Some(Err(err)) => {
                 if let Some(op) = self.queued_save(&account, &draft).await {
                     log::info!("drafts: the save is queued until there is a network: {err}");
-                    self.record_queued(&composition, op);
-                    self.set_draft_status(&composition, DraftStatus::Queued);
+                    self.record_queued(composition, op);
+                    self.set_draft_status(composition, DraftStatus::Queued);
                 } else {
                     log::warn!("drafts: the save failed: {err}");
-                    self.set_draft_status(&composition, DraftStatus::Failed);
+                    self.set_draft_status(composition, DraftStatus::Failed);
                 }
             }
-            None => self.fail_draft(&composition, "the account has no provider to save through"),
+            None => self.fail_draft(composition, "the account has no provider to save through"),
         }
     }
 
@@ -254,7 +270,10 @@ impl<P: Provider> App<P> {
     }
 
     /// Forgets the composition, leaving the stored draft where it is.
-    fn close_composition(&self, composition: &CompositionId) {
+    ///
+    /// The host's `Close` for a composer that was dismissed without sending, and the send's own
+    /// tail when the message could not go out ([`send_draft`](Self::send_draft)).
+    pub(crate) fn close_composition(&self, composition: &CompositionId) {
         let _ = self.forget(composition);
     }
 

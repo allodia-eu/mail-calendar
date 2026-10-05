@@ -20,7 +20,8 @@ use adw::prelude::*;
 use super::{
     AppInput, AppModel,
     composer::ComposerPane,
-    reader::ReadingSource,
+    composer_discard::DiscardDraftDialog,
+    reader::{ComposerHost, ReadingSource},
     reading::{InvitationClock, ReadingPane},
 };
 use crate::l10n;
@@ -31,10 +32,11 @@ struct ReadingWindow {
     view: ReadingPane,
 }
 
-/// One draft in a window of its own.
+/// One draft in a window of its own, and the "Discard draft?" question it asks over itself.
 struct ComposerWindow {
     window: adw::Window,
     view: ComposerPane,
+    discard: DiscardDraftDialog,
 }
 
 #[derive(Default)]
@@ -116,6 +118,7 @@ impl DetachedWindows {
         windows.composer.retain(|id, open| {
             let live = model.composer_windows.iter().any(|draft| draft.id == *id);
             if !live {
+                open.discard.dismiss();
                 open.view.teardown();
                 open.window.close();
             }
@@ -148,6 +151,15 @@ impl DetachedWindows {
             if let Some(notice) = draft.error {
                 open.view.show_error(notice.text());
             }
+            // Each window reads its own composition's state back, never the pane's
+            // (`docs/drafts.md`).
+            open.view
+                .show_draft_hint(model, ComposerHost::Window(draft.id));
+            open.discard.render(
+                model.discard_prompt == Some(ComposerHost::Window(draft.id)),
+                &open.window,
+                sender,
+            );
         }
     }
 
@@ -162,7 +174,8 @@ impl DetachedWindows {
             open.view.suspend();
             open.window.close();
         }
-        for (_, open) in windows.composer.drain() {
+        for (_, mut open) in windows.composer.drain() {
+            open.discard.dismiss();
             open.view.teardown();
             open.window.close();
         }
@@ -207,17 +220,25 @@ fn composer_window(id: u64, sender: &relm4::Sender<AppInput>) -> ComposerWindow 
     let detached = new_window(760, 700);
     let view = ComposerPane::new();
     detached.set_content(Some(view.widget()));
-    // Closing discards the draft, exactly as Cancel does, and asks no more than Cancel does: the
-    // two are the same act, and a client that questioned one but not the other would be teaching
-    // two rules for one thing (`docs/reading-window.md`).
+    // Closing the window is leaving the draft, and asks nothing: one that was written in is saved
+    // and closed, and the window stays up until the model takes it away, which it does as soon as
+    // the save is on its way. A window whose draft has gone, swept with the mailbox or already
+    // left, simply closes (`docs/drafts.md`).
     let input = sender.clone();
+    let draft = view.draft_cell();
     detached.connect_close_request(move |_| {
+        let guard = draft.borrow().clone();
+        if let Some(guard) = guard {
+            guard.leave(&input);
+            return gtk::glib::Propagation::Stop;
+        }
         input.emit(AppInput::CloseComposerWindow(id));
         gtk::glib::Propagation::Proceed
     });
     ComposerWindow {
         window: detached,
         view,
+        discard: DiscardDraftDialog::default(),
     }
 }
 

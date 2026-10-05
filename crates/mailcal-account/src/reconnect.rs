@@ -23,7 +23,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use engine_api::CalendarWrites;
+use engine_api::{CalendarWrites, ProviderKey};
 use engine_core::{
     error::FailureClass,
     ids::{AccountId, MailboxId},
@@ -314,6 +314,38 @@ impl Provider for ReconnectingImapProvider {
             }
             result => result,
         }
+    }
+
+    /// Saving a draft is **not** auto-retried, for the reason a send is not: it is an `APPEND`,
+    /// and one that landed before the socket died would be stored a second time by a replay.
+    /// The outbox op behind it retries on a fresh session instead.
+    async fn put_draft(
+        &self,
+        account: &AccountId,
+        draft: &Draft,
+        replacing: Option<&ProviderKey>,
+    ) -> ProviderResult<ProviderKey> {
+        let provider = self.delegate().await?;
+        match provider.put_draft(account, draft, replacing).await {
+            Err(err) if err.class() == FailureClass::Retryable => {
+                self.invalidate();
+                Err(err)
+            }
+            result => result,
+        }
+    }
+
+    /// Removing one is retried: the trait requires an absent draft to settle as done, so a
+    /// repeat of a removal that already landed is a no-op.
+    async fn delete_draft(&self, account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {
+        let account = account.clone();
+        let draft = draft.clone();
+        self.with_reconnect(move |provider| {
+            let account = account.clone();
+            let draft = draft.clone();
+            async move { provider.delete_draft(&account, &draft).await }
+        })
+        .await
     }
 
     /// IMAP reports a message by storing the `$Junk`/`$NotJunk` keyword, forwarded through the same

@@ -126,13 +126,11 @@ fn rendered(
 /// Everything the rows have reported, read behind a sentinel so a missing report fails the test
 /// rather than blocking it.
 fn reported(sender: &relm4::Sender<AppInput>, receiver: &relm4::Receiver<AppInput>) -> Vec<String> {
-    sender.emit(AppInput::CancelComposer(
-        crate::ui::reader::ComposerHost::Pane,
-    ));
+    sender.emit(AppInput::KeepEditing);
     let mut reports = Vec::new();
     while let Some(input) = receiver.recv_sync() {
         match input {
-            AppInput::CancelComposer(_) => break,
+            AppInput::KeepEditing => break,
             AppInput::OpenThreadMessage(message) => reports.push(format!("open {}", message.key)),
             AppInput::SetThreadExpanded { expanded, .. } => {
                 reports.push(format!("expanded {expanded}"));

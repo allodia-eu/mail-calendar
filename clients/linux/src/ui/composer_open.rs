@@ -13,7 +13,8 @@ use std::{
 
 use super::{
     AppInput, AppModel,
-    composer_model::{ComposeContext, ComposeKind, PickedFile, initial_sender},
+    composer_draft::PendingNavigation,
+    composer_model::{ComposeContext, ComposeKind, PickedFile, initial_sender, new_composition},
     composer_notice::ComposerNotice,
     composer_quote::quote_seed,
     reader::{ComposerHost, ReadingSource},
@@ -161,10 +162,15 @@ impl AppModel {
                 app.default_send_account(),
             ),
             seeds_signature: true,
+            composition: new_composition(),
             // Empty for every route but a share and a forward, which open holding files.
             files,
         };
         match host {
+            // A composer already in the pane is left first, so what it holds is kept in Drafts.
+            ComposerHost::Pane if self.composer.is_some() => {
+                self.queue_navigation(PendingNavigation::Composer(request));
+            }
             ComposerHost::Pane => {
                 self.composer_generation = self.composer_generation.wrapping_add(1);
                 self.composer_error = None;

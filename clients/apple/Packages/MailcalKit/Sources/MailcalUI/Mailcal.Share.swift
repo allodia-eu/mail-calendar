@@ -106,9 +106,9 @@ struct ShareRouting: ViewModifier {
 extension ContentView {
     /// Opens a share in the composer, holding what was shared and fully editable.
     ///
-    /// Behind the same discard guard a message click and a mail link use, for the same reason: a
-    /// share arrives from another app, unprompted, and must not be able to throw away a
-    /// half-written message.
+    /// Through the same handover a message click and a mail link use, for the same reason: a
+    /// share arrives from another app, unprompted, and the composer it replaces keeps what the
+    /// user was writing by saving it to Drafts on the way out.
     ///
     /// A share arriving before there is an account to send from is put back on the model, and the
     /// shell opens it once accounts exist: the alternative is a composer with nothing in its From

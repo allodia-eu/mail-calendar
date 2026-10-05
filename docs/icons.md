@@ -152,7 +152,9 @@ noted beside it, and the two without one are this app's own drawings.
 | Meaning | Apple | Android | Windows | Linux |
 |---|---|---|---|---|
 | Send | `paperplane` | `ic_send` | text | text |
-| Discard | `trash` | `ic_close` | text | text |
+| Discard | `trash` | `ic_delete` | text | text |
+| Close, keeping the draft | text | `ic_close` | — | — |
+| Save as draft | `tray.and.arrow.down` | `ic_save_draft` | text | text |
 | Attach | `paperclip` | `ic_attachment` | text | text |
 | Choose a signature | `signature` | `ic_signature` | text | text |
 | The chosen signature | — | `ic_check` | — | — |

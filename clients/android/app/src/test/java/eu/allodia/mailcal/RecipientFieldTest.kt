@@ -101,7 +101,7 @@ class RecipientFieldTest {
                 RichComposeMessageDialog(
                     mode = RichComposeMode.ReplyAll,
                     onDismiss = {},
-                    onSubmitRich = { _, _, _, _, _ -> true },
+                    onSubmitRich = { _ -> true },
                     accounts = emptyList(),
                     initialTo = "bestuur@example.test, tc@example.test",
                     initialCc = "rene@example.test",
