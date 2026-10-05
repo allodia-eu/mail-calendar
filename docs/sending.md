@@ -86,8 +86,13 @@ sent again without asking.
   that is not awaiting one, so a row that changed state under the click cannot send twice.
 - **A refused send is kept.** A refusal no retry fixes settles the send as not sent, and the
   Outbox keeps it, payload and all, until the user sends it again, edits it or discards it.
-  Reconnecting never sends it again: it hurries what is waiting, not what was refused. The
-  composer's stored draft stays too ([`drafts.md`](drafts.md)).
+  Reconnecting never sends it again: it hurries what is waiting, not what was refused. The hint
+  says where it is (`SendStatus::NotSent`, "Not sent. Your message is in the Outbox.").
+- **Once Send is pressed the Outbox is the message's one place.** Whether it went, is waiting,
+  awaits confirmation or was refused, the composer's stored draft goes ([`drafts.md`](drafts.md)):
+  two copies would invite sending both. Only a send that never reached the Outbox (no account
+  or provider to send through) leaves the draft, because nothing else holds the words. The user
+  moves a message back into Drafts with **Edit**, and with nothing else.
 - **Every step leaves a log line**, because a queued send goes out with nobody watching
   ([`logging.md`](logging.md)).
 
@@ -104,14 +109,27 @@ sent again without asking.
 |---|---|---|---|
 | **Send Now**, and **Send Again** on a refused send | `SendNow` | Clears the backoff, or puts a refused send back in the queue, and drains immediately | In flight, or awaiting confirmation |
 | **Cancel Send**, **Discard** | `Cancel` | Withdraws it so it is never delivered | Same |
-| **Edit** | `Edit` | **Withdraws it, then** hands it back to the composer | Same |
+| **Edit** | `Edit` | **Moves it back into Drafts** and opens it in the composer, files included | Same, and on a message a composer cannot hold (`QueuedRow::editable`) |
 | **Mark as Sent** | `ConfirmSent` | Settles it as delivered; it leaves the Outbox | On a send not awaiting confirmation |
-| **Send Again** on an unconfirmed send | `ConfirmNotSent` | Puts it back in the queue and drains immediately | Same |
+| **Send Again** on an unconfirmed send | `ConfirmNotSent` | **After the user confirms**, puts it back in the queue and drains immediately | Same |
 
-**Edit withdraws before it opens.** The other order leaves a window in which a drain delivers
-the message being edited, and no part of this app can take that back. The withdrawn message
-then exists *only* in `Surface::ComposeRequest`, which is why that request stands until the
-host says its composer holds it rather than auto-clearing.
+**Edit saves, then withdraws, then opens.** The message is saved into Drafts first, through the
+outbox, so it is durable before it leaves the queue; then the send is withdrawn; then
+`Surface::ComposeRequest` offers the composer. An app that ends part way leaves the message in
+both places, never in neither, and a drain cannot deliver the copy being edited. If the
+withdrawal is refused the draft is taken away again and nothing opens. The request names the
+**composition** the draft was saved under and carries the message's **files**, already staged
+where the host named on `Edit`: the composer opens on that composition holding all of them,
+exactly as a resumed draft does, so its saves replace the draft rather than add one and its
+first save cannot take a file off it. A reply stays a reply: the composition keeps the message's
+`In-Reply-To` and `References` for every save and for the send. A message carrying an
+invitation's answer is not editable, because no composer holds its calendar part, so no client
+offers Edit on it.
+
+**Send Again on an unconfirmed send asks first.** It is the one action here whose mistake lands
+in other people's inboxes: the message may be there already. The question names the risk and
+where to look (the Sent folder, or a recipient); Cancel is the default. Send Again on a refused
+send does not ask, since that message did not go.
 
 **A message awaiting confirmation offers only the user's answer.** It may already be in front of
 its recipients, so no client offers Send Now, Edit or Cancel on it, and Send Again there sends
@@ -255,12 +273,12 @@ someone their own file back is noise that repeats on every turn of a long thread
 | Android | ✅ drawer row, hidden at zero | ✅ its own screen | ✅ row menu | ✅ row menu | ✅ row menu |
 | Linux | ✅ pane row, hidden at zero | ✅ | ✅ row menu | ✅ row menu | ✅ row menu |
 
-| Platform | Mark as Sent · Send Again on an unconfirmed send | Send Again · Edit · Discard on a refused send | Unconfirmed send hint |
-|---|---|---|---|
-| macOS / iOS / iPadOS | ✅ context menu | ✅ context menu | ✅ banner, warning |
-| Windows | ✅ row menu | ✅ row menu | ✅ InfoBar, Warning |
-| Android | ✅ row menu | ✅ row menu | ✅ banner, warning |
-| Linux | ✅ row menu | ✅ row menu | ✅ banner |
+| Platform | Mark as Sent · Send Again on an unconfirmed send | Send Again asks first | Send Again · Edit · Discard on a refused send | Edit opens on the draft, holding its files | Unconfirmed and not-sent hints |
+|---|---|---|---|---|---|
+| macOS / iOS / iPadOS | ✅ context menu | ✅ alert | ✅ context menu | ✅ | ✅ banner |
+| Windows | ✅ row menu | ✅ `ContentDialog` | ✅ row menu | ✅ | ✅ InfoBar |
+| Android | ✅ row menu | ✅ `AlertDialog` | ✅ row menu | ✅ | ✅ banner |
+| Linux | ✅ row menu | ✅ modal | ✅ row menu | ✅ | ✅ banner |
 
 **Each state offers what the first table says and nothing else.** A row in flight offers nothing:
 Apple, Linux and Android leave its menu off, the latter two dropping the overflow control rather
@@ -268,12 +286,12 @@ than opening it onto nothing, and Windows draws its items disabled, so its menu 
 and the state beside it says why. An unconfirmed row offers only its two answers on every
 platform.
 
-**Edit may not be refused.** The message has left the queue by the time a host is asked to open it,
-so it exists nowhere else, and the request stays standing until a host says its composer has had
-it. On Windows and Linux the composer's own discard guard still runs, because a half-written draft
-in the pane is the user's too, but answering *Keep editing* opens the withdrawn message in a
-composer window of its own rather than dropping it. Android has no second window and needs none:
-its composer is a full-screen dialog over whichever list is behind it, so the withdrawn message
+**A compose request may not be refused.** The message is in Drafts by then, but the request is
+how the user sees the Edit they asked for land, so it stays standing until a host says its
+composer has had it. On Windows and Linux a composer already in the pane is left first, which
+keeps what it holds in Drafts without asking ([`drafts.md`](drafts.md)), so the edited message
+takes the pane and nothing of the user's is lost. Android has no second window and needs none:
+its composer is a full-screen dialog over whichever list is behind it, so the edited message
 opens there and nothing of the user's is displaced.
 
 | Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup, only where the provider holds none | Name in Settings | `Name <address>` in From |
@@ -306,12 +324,11 @@ opens there and nothing of the user's is displaced.
   holding every account's mail at once; the Apple row puts the account on the first line as a
   stand-in for recipients it has not got, and otherwise leaves it off. On a single-account device
   nothing is lost. Windows draws it on every row.
-- **Edit hands back the words, not the whole message.** `ComposeRequest` carries the recipients,
-  subject and text body, so a queued or refused send withdrawn to be edited reopens without its
-  attachments, its formatting and the headers that thread a reply, and the message the composer
-  sends is a new one. Nothing is lost silently from the Outbox itself, which sends the stored
-  payload whole; the loss is in the copy the user edits. Carrying the files means staging them
-  as a resumed draft's are ([`drafts.md`](drafts.md)).
+- **Edit opens the words as text.** A queued send moved back into Drafts opens with its files and
+  its conversation, but its formatting and inline pictures do not come back into the composer,
+  for the reason a resumed draft's do not ([`drafts.md`](drafts.md), known gaps); the draft keeps
+  them until the composer's first save. Nor does an alias it was sent from: the composer opens on
+  the account.
 - **No automated suite watches a queued message appear.** Getting one takes a send that fails for
   a reason worth retrying, which means taking the mail server away between the connect and the
   send. The showcase seeds have no server to take away, and a Windows CI runner cannot run the
