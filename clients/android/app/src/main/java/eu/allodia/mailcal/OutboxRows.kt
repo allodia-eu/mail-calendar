@@ -1,5 +1,5 @@
-// The Outbox list's one decision: what each queued send says about itself, and whether it may be
-// acted on at all (docs/sending.md).
+// The Outbox list's one decision: what each queued send says about itself, and what it may be
+// asked to do (docs/sending.md).
 //
 // Compose-free on purpose, so the JVM suite can pin it without composing a screen. The failure it
 // exists to catch is silent on the screen: a state mapped to the wrong word tells someone their
@@ -9,8 +9,18 @@ package eu.allodia.mailcal
 
 import android.content.Context
 import uniffi.mailcal_bindings.AccountRow
+import uniffi.mailcal_bindings.OutboxIntent
 import uniffi.mailcal_bindings.QueuedRow
 import uniffi.mailcal_bindings.QueuedState
+
+/** What a queued send can be asked to do. Each is exactly one [OutboxIntent]. */
+internal enum class QueuedAction { SEND_NOW, EDIT, CANCEL, CONFIRM_SENT, CONFIRM_NOT_SENT }
+
+/** One entry in a queued send's menu: the words it shows, and the action it asks for. */
+internal data class QueuedMenuItem(val label: String, val action: QueuedAction)
+
+/** The glyph a row draws beside its state, for the two states that need the user. */
+internal enum class QueuedStateMark { NONE, WARNING, ERROR }
 
 /** One unsent message, as the Outbox list draws it. */
 internal data class OutboxRowItem(
@@ -23,16 +33,12 @@ internal data class OutboxRowItem(
     val subject: String,
     /** Where the send has got to, in the app's own words. */
     val stateText: String,
+    /** The glyph drawn beside [stateText]. */
+    val mark: QueuedStateMark,
     /** The address of the account it goes out from, drawn on every row. */
     val accountText: String,
-    /**
-     * Whether this row offers its three actions at all.
-     *
-     * A message in flight is on its way and cannot be called back; one awaiting confirmation may
-     * already be in front of its recipients, and offering to send that again is how it arrives
-     * twice (docs/sending.md). Both show their state and offer nothing.
-     */
-    val actionable: Boolean,
+    /** The row's menu, in order. Empty means the row draws no menu at all. */
+    val actions: List<QueuedMenuItem>,
 )
 
 /**
@@ -62,8 +68,9 @@ internal fun outboxRows(
             recipients = row.to.ifEmpty { account },
             subject = row.subject.ifEmpty { L10n.mail_no_subject(ctx) },
             stateText = queuedStateText(row.state, ctx),
+            mark = queuedStateMark(row.state),
             accountText = account,
-            actionable = isActionable(row.state),
+            actions = queuedActions(row.state, ctx),
         )
     }
 }
@@ -73,13 +80,58 @@ internal fun queuedStateText(state: QueuedState, ctx: Context): String = when (s
     QueuedState.SENDING -> L10n.outbox_sending(ctx)
     QueuedState.UNCONFIRMED -> L10n.outbox_unconfirmed(ctx)
     QueuedState.WAITING -> L10n.outbox_waiting(ctx)
+    QueuedState.NOT_SENT -> L10n.outbox_not_sent(ctx)
 }
 
 /**
- * Whether a queued send may be acted on.
- *
- * Only `WAITING`. A state a later core adds arrives here as not actionable, which is the safe
- * way for this to fall: a new state read as actionable would offer a retry on a message nobody
- * has decided is safe to retry.
+ * The glyph beside a state. An unconfirmed delivery is a warning, not a failure: the message may
+ * well be with its recipients. A refused one is an error, and the only state nothing will move on
+ * its own.
  */
-internal fun isActionable(state: QueuedState): Boolean = state == QueuedState.WAITING
+internal fun queuedStateMark(state: QueuedState): QueuedStateMark = when (state) {
+    QueuedState.WAITING, QueuedState.SENDING -> QueuedStateMark.NONE
+    QueuedState.UNCONFIRMED -> QueuedStateMark.WARNING
+    QueuedState.NOT_SENT -> QueuedStateMark.ERROR
+}
+
+/**
+ * What a queued send offers, in menu order.
+ *
+ * A message in flight cannot be called back, so it offers nothing. One whose delivery is
+ * unconfirmed may already be in front of its recipients, so it offers only the two answers to that
+ * question and never Send Now, Edit or Cancel: its Send Again is the user saying it did not
+ * arrive, which is a different intent from a refused message's Send Again.
+ */
+internal fun queuedActions(state: QueuedState, ctx: Context): List<QueuedMenuItem> = when (state) {
+    QueuedState.WAITING -> listOf(
+        QueuedMenuItem(L10n.action_send_now(ctx), QueuedAction.SEND_NOW),
+        QueuedMenuItem(L10n.action_edit_queued(ctx), QueuedAction.EDIT),
+        QueuedMenuItem(L10n.action_cancel_send(ctx), QueuedAction.CANCEL),
+    )
+    QueuedState.SENDING -> emptyList()
+    QueuedState.UNCONFIRMED -> listOf(
+        QueuedMenuItem(L10n.action_mark_sent(ctx), QueuedAction.CONFIRM_SENT),
+        QueuedMenuItem(L10n.action_send_again(ctx), QueuedAction.CONFIRM_NOT_SENT),
+    )
+    QueuedState.NOT_SENT -> listOf(
+        QueuedMenuItem(L10n.action_send_again(ctx), QueuedAction.SEND_NOW),
+        QueuedMenuItem(L10n.action_edit_queued(ctx), QueuedAction.EDIT),
+        QueuedMenuItem(L10n.action_discard(ctx), QueuedAction.CANCEL),
+    )
+}
+
+/**
+ * The intent an action sends, naming the queued send by its account **and** its op id: an op id
+ * is unique only within its own account's queue, and the Outbox holds every account's at once.
+ *
+ * Edit only asks: the core withdraws the message first and offers it back through
+ * `Surface::ComposeRequest`, which `WithdrawnMessagePane` answers.
+ */
+internal fun outboxIntent(account: String, op: ULong, action: QueuedAction): OutboxIntent =
+    when (action) {
+        QueuedAction.SEND_NOW -> OutboxIntent.SendNow(account, op)
+        QueuedAction.EDIT -> OutboxIntent.Edit(account, op)
+        QueuedAction.CANCEL -> OutboxIntent.Cancel(account, op)
+        QueuedAction.CONFIRM_SENT -> OutboxIntent.ConfirmSent(account, op)
+        QueuedAction.CONFIRM_NOT_SENT -> OutboxIntent.ConfirmNotSent(account, op)
+    }

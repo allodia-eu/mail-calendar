@@ -7,6 +7,63 @@
 import Foundation
 import MailcalBindings
 
+/// One thing a person can do about an unsent message, as its Outbox row offers it.
+///
+/// Two of them read "Send Again" and are different answers. On a refused message it is an
+/// ordinary send; on one whose delivery was not confirmed it is the user saying it did not
+/// arrive, which is the only way such a message is ever sent a second time.
+enum OutboxRowAction: Hashable {
+    /// Send a waiting message now instead of waiting out its backoff.
+    case sendNow
+    /// Withdraw the message and reopen it in the composer. The core withdraws it first and
+    /// then offers it back through `Surface::ComposeRequest`, which `MailcalModel.Composer`
+    /// opens.
+    case edit
+    /// Withdraw a waiting message so it is never delivered.
+    case cancelSend
+    /// The user says an unconfirmed message was delivered: it leaves the Outbox.
+    case markSent
+    /// The user says an unconfirmed message was not delivered: it is sent again now.
+    case confirmNotSent
+    /// Send a message the server refused once more.
+    case sendAgain
+    /// Drop a message the server refused.
+    case discard
+
+    /// What a row in `state` offers, in the order it shows them.
+    ///
+    /// A message on its way offers nothing: it cannot be called back. One whose delivery was
+    /// not confirmed may already be with its recipients, so it offers only the two answers and
+    /// never Send Now, Edit or Cancel.
+    static func offered(for state: QueuedState) -> [OutboxRowAction] {
+        switch state {
+        case .waiting: [.sendNow, .edit, .cancelSend]
+        case .sending: []
+        case .unconfirmed: [.markSent, .confirmNotSent]
+        case .notSent: [.sendAgain, .edit, .discard]
+        }
+    }
+
+    /// Whether the action loses the message, and is styled and placed as such.
+    var isDestructive: Bool {
+        switch self {
+        case .cancelSend, .discard: true
+        case .sendNow, .edit, .markSent, .confirmNotSent, .sendAgain: false
+        }
+    }
+
+    /// The intent this action dispatches for the queued message `op` in `account`.
+    func intent(account: String, op: UInt64) -> OutboxIntent {
+        switch self {
+        case .sendNow, .sendAgain: .sendNow(account: account, op: op)
+        case .edit: .edit(account: account, op: op)
+        case .cancelSend, .discard: .cancel(account: account, op: op)
+        case .markSent: .confirmSent(account: account, op: op)
+        case .confirmNotSent: .confirmNotSent(account: account, op: op)
+        }
+    }
+}
+
 extension MailboxModel {
     /// Shows the Outbox: every account's unsent messages, in one list.
     func showOutbox() {
@@ -14,33 +71,8 @@ extension MailboxModel {
         app?.dispatch(intent: .outbox(intent: .show))
     }
 
-    /// Sends a queued message now instead of waiting out its backoff.
-    ///
-    /// Not offered for a message that is already going out, or one whose delivery could not
-    /// be confirmed: that one may already have reached its recipients, and asking again is
-    /// how it arrives twice.
-    func sendQueuedNow(_ row: QueuedRow) {
-        app?.dispatch(intent: .outbox(intent: .sendNow(account: row.account, op: row.op)))
-    }
-
-    /// Withdraws a queued message so it is never delivered.
-    func cancelQueued(_ row: QueuedRow) {
-        app?.dispatch(intent: .outbox(intent: .cancel(account: row.account, op: row.op)))
-    }
-
-    /// Withdraws a queued message and reopens it in the composer.
-    ///
-    /// The core withdraws it first and then offers it back through `Surface::ComposeRequest`,
-    /// which `MailcalModel.Composer` opens; this only asks.
-    func editQueued(_ row: QueuedRow) {
-        app?.dispatch(intent: .outbox(intent: .edit(account: row.account, op: row.op)))
-    }
-
-    /// Whether `row` may be acted on at all.
-    ///
-    /// A message in flight is on its way, and one awaiting confirmation may already have
-    /// arrived; neither can be called back, so the row shows its state and offers nothing.
-    func queuedRowIsActionable(_ row: QueuedRow) -> Bool {
-        row.state == .waiting
+    /// Carries out `action` on `row`. The core decides; this only asks.
+    func performOutboxAction(_ action: OutboxRowAction, on row: QueuedRow) {
+        app?.dispatch(intent: .outbox(intent: action.intent(account: row.account, op: row.op)))
     }
 }

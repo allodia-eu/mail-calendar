@@ -32,6 +32,7 @@ public sealed partial class MailboxModel
         // arm the bar still shows (SendStatusVisible is true for it) carrying no text at
         // all, because C# takes the discard rather than refusing to compile.
         SendStatus.Queued => L10n.SendStatusQueued(),
+        SendStatus.Unconfirmed => L10n.SendStatusUnconfirmed(),
         _ => string.Empty,
     };
     /// <summary>The info-bar severity for the current status.</summary>
@@ -39,6 +40,8 @@ public sealed partial class MailboxModel
     {
         SendStatus.Failed => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error,
         SendStatus.Sent => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success,
+        // It may have arrived, so neither a failure nor a success: the Outbox row asks the user.
+        SendStatus.Unconfirmed => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning,
         _ => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Informational,
     };
 

@@ -11,10 +11,11 @@
 use std::collections::HashSet;
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountRow, MailboxListSnapshot, QueuedRow, QueuedState};
+use mailcal_bindings::{AccountRow, MailboxListSnapshot, OutboxIntent, QueuedRow, QueuedState};
 
 use super::{
-    account_email, is_actionable, recipients_line, render, row_a11y, state_label, subject_line,
+    QueuedAction, account_email, actions, recipients_line, render, row_a11y, state_label,
+    subject_line,
 };
 use crate::{
     l10n,
@@ -48,14 +49,57 @@ fn with_outbox(outbox: Vec<QueuedRow>) -> MailboxListSnapshot {
     }
 }
 
-/// **The rule the whole surface turns on.** Only a message still waiting may be acted on: one in
-/// flight cannot be called back, and one whose delivery could not be confirmed may already be in
-/// front of its recipients (`docs/sending.md`).
+/// **The rule the whole surface turns on.** A message in flight cannot be called back, and one
+/// whose delivery could not be confirmed may already be in front of its recipients, so it is
+/// offered nothing that sends, edits or withdraws it: only the user's answer (`docs/sending.md`).
 #[test]
-fn only_a_message_still_waiting_offers_its_three_actions() {
-    assert!(is_actionable(QueuedState::Waiting));
-    assert!(!is_actionable(QueuedState::Sending));
-    assert!(!is_actionable(QueuedState::Unconfirmed));
+fn each_state_offers_only_what_is_safe_for_it() {
+    use QueuedAction::{Cancel, ConfirmNotSent, Discard, Edit, MarkSent, SendAgain, SendNow};
+    assert_eq!(actions(QueuedState::Waiting), &[SendNow, Edit, Cancel]);
+    assert_eq!(actions(QueuedState::Sending), &[]);
+    assert_eq!(
+        actions(QueuedState::Unconfirmed),
+        &[MarkSent, ConfirmNotSent]
+    );
+    assert_eq!(actions(QueuedState::NotSent), &[SendAgain, Edit, Discard]);
+}
+
+/// Sending again reads the same on both rows, and sends a different intent on each: an
+/// unconfirmed message goes again only through the answer the core refuses on any other state.
+#[test]
+fn sending_again_is_an_answer_on_an_unconfirmed_row_and_a_retry_on_a_refused_one() {
+    assert_eq!(
+        QueuedAction::ConfirmNotSent.label(),
+        QueuedAction::SendAgain.label()
+    );
+    assert_eq!(
+        QueuedAction::ConfirmNotSent.intent("acct-1".to_owned(), 7),
+        OutboxIntent::ConfirmNotSent {
+            account: "acct-1".to_owned(),
+            op: 7
+        }
+    );
+    assert_eq!(
+        QueuedAction::SendAgain.intent("acct-1".to_owned(), 7),
+        OutboxIntent::SendNow {
+            account: "acct-1".to_owned(),
+            op: 7
+        }
+    );
+    assert_eq!(
+        QueuedAction::MarkSent.intent("acct-1".to_owned(), 7),
+        OutboxIntent::ConfirmSent {
+            account: "acct-1".to_owned(),
+            op: 7
+        }
+    );
+    assert_eq!(
+        QueuedAction::Discard.intent("acct-1".to_owned(), 7),
+        OutboxIntent::Cancel {
+            account: "acct-1".to_owned(),
+            op: 7
+        }
+    );
 }
 
 /// Each state says what it is, in the app's own words, and no two say the same thing.
@@ -67,10 +111,12 @@ fn every_queued_state_is_written_as_itself() {
         state_label(QueuedState::Unconfirmed),
         l10n::outbox_unconfirmed()
     );
+    assert_eq!(state_label(QueuedState::NotSent), l10n::outbox_not_sent());
     let words = [
         state_label(QueuedState::Waiting),
         state_label(QueuedState::Sending),
         state_label(QueuedState::Unconfirmed),
+        state_label(QueuedState::NotSent),
     ];
     for (index, word) in words.iter().enumerate() {
         assert!(
@@ -266,13 +312,15 @@ pub(crate) fn opening_the_outbox_moves_a_highlight_the_selection_cache_would_hav
     );
 }
 
-/// Every row names its recipients, its subject and its state; a message that cannot be acted on
-/// carries no menu at all, which is what stops it being offered a retry.
+/// Every row names its recipients, its subject and its state; a message on its way carries no
+/// menu at all, because there is nothing it can still be asked to do.
 pub(crate) fn a_queued_row_states_its_case_and_offers_a_retry_only_when_one_is_safe() {
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let snapshot = with_outbox(vec![
         queued(1, "ada@example.test", "Lunch", QueuedState::Waiting),
         queued(2, "bob@example.test", "Notes", QueuedState::Unconfirmed),
+        queued(3, "cy@example.test", "Plans", QueuedState::Sending),
+        queued(4, "di@example.test", "Draft", QueuedState::NotSent),
     ]);
     let list = gtk::ListBox::new();
     render(&list, &snapshot, &sender);
@@ -284,6 +332,8 @@ pub(crate) fn a_queued_row_states_its_case_and_offers_a_retry_only_when_one_is_s
         "Notes",
         "bob@example.test",
         l10n::outbox_unconfirmed(),
+        l10n::outbox_sending(),
+        l10n::outbox_not_sent(),
         "eva.jansen@example.test",
     ] {
         assert!(
@@ -305,16 +355,22 @@ pub(crate) fn a_queued_row_states_its_case_and_offers_a_retry_only_when_one_is_s
         );
     }
 
-    let waiting = list.row_at_index(0).expect("the waiting row");
-    let unconfirmed = list.row_at_index(1).expect("the unconfirmed row");
+    let row = |index| list.row_at_index(index).expect("a queued row");
     assert!(
-        has_menu(waiting.clone().upcast_ref()),
+        has_menu(row(0).upcast_ref()),
         "a message still waiting offers Send now, Edit and Cancel"
     );
     assert!(
-        !has_menu(unconfirmed.clone().upcast_ref()),
-        "one that may already have been delivered offers nothing: asking again is how it \
-         arrives twice"
+        has_menu(row(1).upcast_ref()),
+        "one that may already have been delivered offers the two answers"
+    );
+    assert!(
+        !has_menu(row(2).upcast_ref()),
+        "one on its way cannot be called back"
+    );
+    assert!(
+        has_menu(row(3).upcast_ref()),
+        "one the server refused can be sent again, edited or discarded"
     );
 }
 

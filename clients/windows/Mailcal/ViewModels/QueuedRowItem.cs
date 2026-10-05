@@ -29,6 +29,37 @@ public enum QueuedSendState
 
     /// <summary>It may or may not have been delivered, and nothing will retry it by itself.</summary>
     Unconfirmed,
+
+    /// <summary>
+    /// The server refused it. Nothing will retry it by itself; it stays until the user sends it
+    /// again, edits it or discards it.
+    /// </summary>
+    NotSent,
+}
+
+/// <summary>One thing an Outbox row's menu can ask of its message.</summary>
+public enum QueuedAction
+{
+    /// <summary>Send a waiting message now instead of waiting out its backoff.</summary>
+    SendNow,
+
+    /// <summary>Send a message the server refused, again.</summary>
+    SendAgain,
+
+    /// <summary>Withdraw the message and open it in the composer.</summary>
+    Edit,
+
+    /// <summary>Withdraw a waiting message so it is never delivered.</summary>
+    Cancel,
+
+    /// <summary>Take a refused message out of the Outbox.</summary>
+    Discard,
+
+    /// <summary>Answer an unconfirmed send: it arrived, so it leaves the Outbox.</summary>
+    MarkSent,
+
+    /// <summary>Answer an unconfirmed send: it did not arrive, so it is sent again now.</summary>
+    ConfirmNotSent,
 }
 
 /// <summary>One message in the Outbox: who it is for, what it says, and why it has not gone.</summary>
@@ -77,15 +108,18 @@ public sealed class QueuedRowItem
     /// <summary>The Segoe Fluent glyph for <see cref="State"/>.</summary>
     public required string StateGlyph { get; init; }
 
+    /// <summary>What the row's menu lists, in order, resolved by the projection from
+    /// <see cref="State"/>.</summary>
+    public required IReadOnlyList<QueuedAction> Actions { get; init; }
+
     /// <summary>
-    /// Whether this row's three actions are offered at all.
+    /// Whether the items in <see cref="Actions"/> can be chosen.
     /// </summary>
     /// <remarks>
-    /// A message in flight is on its way and cannot be called back; one awaiting confirmation may
-    /// already be in front of its recipients, and offering to send that again is how it arrives
-    /// twice (docs/sending.md). Both show their state and offer nothing.
+    /// Only a message in flight lists its items disabled: it is on its way and cannot be called
+    /// back, and drawing Waiting's items greyed out keeps its menu the shape it had a moment ago.
     /// </remarks>
-    public bool IsActionable => State == QueuedSendState.Waiting;
+    public bool IsActionable => State != QueuedSendState.Sending;
 
     /// <summary>What a screen reader reads for the whole row, as one sentence.</summary>
     /// <remarks>

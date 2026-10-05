@@ -142,6 +142,10 @@ extension ContentView {
             // Not a failure: the message is in the Outbox and goes out by itself. Saying it
             // failed would invite writing it a second time, and then both arrive.
             sendBanner(L10n.send_status_queued(), systemImage: "clock.fill", tint: .secondary)
+        case .unconfirmed:
+            // A warning, never a failure and never a success: the message may already be with
+            // its recipients, and the Outbox row asks the user which it was.
+            sendBanner(L10n.send_status_unconfirmed(), systemImage: "exclamationmark.triangle.fill", tint: .orange)
         case .failed:
             sendBanner(L10n.send_status_failed(), systemImage: "exclamationmark.triangle.fill", tint: .orange)
         }

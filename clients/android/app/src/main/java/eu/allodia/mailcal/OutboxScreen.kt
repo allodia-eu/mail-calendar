@@ -41,9 +41,6 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.QueuedRow
 
-/** The three things a queued send can be asked to do. */
-internal enum class QueuedAction { SEND_NOW, EDIT, CANCEL }
-
 @Composable
 internal fun OutboxScreen(
     queued: List<QueuedRow>,
@@ -148,21 +145,41 @@ private fun QueuedSendRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = "${row.stateText} · ${row.accountText}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                QueuedStateGlyph(row.mark)
+                Text(
+                    text = "${row.stateText} · ${row.accountText}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         // Absent, not disabled, on a message that cannot be acted on: a menu that opens onto
         // nothing is a worse offer than no menu, and this is the Apple client's answer to the
         // same rule.
-        if (row.actionable) {
+        if (row.actions.isNotEmpty()) {
             QueuedRowMenu(row = row, onAct = onAct, ctx = ctx)
         }
     }
+}
+
+/** Decorative: the state text beside it says the same thing, and the row's semantics read that. */
+@Composable
+private fun QueuedStateGlyph(mark: QueuedStateMark) {
+    val colours = MaterialTheme.colorScheme
+    val (icon, tint) = when (mark) {
+        QueuedStateMark.NONE -> return
+        QueuedStateMark.WARNING -> R.drawable.ic_warning to colours.onSurfaceVariant
+        QueuedStateMark.ERROR -> R.drawable.ic_error to colours.error
+    }
+    Icon(
+        painter = painterResource(icon),
+        contentDescription = null,
+        tint = tint,
+        modifier = Modifier.padding(end = 4.dp).size(16.dp),
+    )
 }
 
 @Composable
@@ -181,27 +198,15 @@ private fun QueuedRowMenu(
             )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(
-                text = { Text(L10n.action_send_now(ctx)) },
-                onClick = {
-                    open = false
-                    onAct(row.account, row.op, QueuedAction.SEND_NOW)
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(L10n.action_edit_queued(ctx)) },
-                onClick = {
-                    open = false
-                    onAct(row.account, row.op, QueuedAction.EDIT)
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(L10n.action_cancel_send(ctx)) },
-                onClick = {
-                    open = false
-                    onAct(row.account, row.op, QueuedAction.CANCEL)
-                },
-            )
+            row.actions.forEach { item ->
+                DropdownMenuItem(
+                    text = { Text(item.label) },
+                    onClick = {
+                        open = false
+                        onAct(row.account, row.op, item.action)
+                    },
+                )
+            }
         }
     }
 }

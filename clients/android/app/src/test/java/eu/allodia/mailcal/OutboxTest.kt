@@ -15,8 +15,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,6 +22,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.ComposeRequest
+import uniffi.mailcal_bindings.OutboxIntent
 import uniffi.mailcal_bindings.QueuedRow
 import uniffi.mailcal_bindings.QueuedState
 
@@ -66,22 +65,45 @@ class OutboxTest {
         }
     }
 
+    private fun actions(state: QueuedState) =
+        queuedActions(state, ctx()).map { it.label to it.action }
+
     /**
-     * **The rule the whole surface turns on.** Only a message still waiting may be acted on: one
-     * in flight cannot be called back, and one whose delivery could not be confirmed may already
-     * be in front of its recipients.
+     * **The rule the whole surface turns on.** A message in flight cannot be called back, and one
+     * whose delivery could not be confirmed may already be in front of its recipients, so it is
+     * offered only the two answers to that question: never Send Now, Edit or Cancel.
      */
     @Test
-    fun `only a message still waiting may be acted on`() {
-        assertTrue(isActionable(QueuedState.WAITING))
-        assertFalse(isActionable(QueuedState.SENDING))
-        assertFalse(isActionable(QueuedState.UNCONFIRMED))
+    fun `each state offers exactly its own actions`() {
+        assertEquals(
+            listOf(
+                L10n.action_send_now(ctx()) to QueuedAction.SEND_NOW,
+                L10n.action_edit_queued(ctx()) to QueuedAction.EDIT,
+                L10n.action_cancel_send(ctx()) to QueuedAction.CANCEL,
+            ),
+            actions(QueuedState.WAITING),
+        )
+        assertEquals(emptyList<Pair<String, QueuedAction>>(), actions(QueuedState.SENDING))
+        assertEquals(
+            listOf(
+                L10n.action_mark_sent(ctx()) to QueuedAction.CONFIRM_SENT,
+                L10n.action_send_again(ctx()) to QueuedAction.CONFIRM_NOT_SENT,
+            ),
+            actions(QueuedState.UNCONFIRMED),
+        )
+        assertEquals(
+            listOf(
+                L10n.action_send_again(ctx()) to QueuedAction.SEND_NOW,
+                L10n.action_edit_queued(ctx()) to QueuedAction.EDIT,
+                L10n.action_discard(ctx()) to QueuedAction.CANCEL,
+            ),
+            actions(QueuedState.NOT_SENT),
+        )
     }
 
     @Test
     fun `every queued state is written as itself`() {
-        val words = listOf(QueuedState.WAITING, QueuedState.SENDING, QueuedState.UNCONFIRMED)
-            .map { queuedStateText(it, ctx()) }
+        val words = QueuedState.entries.map { queuedStateText(it, ctx()) }
         assertEquals("two states read as the same sentence", words.size, words.toSet().size)
         assertEquals(L10n.outbox_waiting(ctx()), queuedStateText(QueuedState.WAITING, ctx()))
         assertEquals(L10n.outbox_sending(ctx()), queuedStateText(QueuedState.SENDING, ctx()))
@@ -89,6 +111,31 @@ class OutboxTest {
             L10n.outbox_unconfirmed(ctx()),
             queuedStateText(QueuedState.UNCONFIRMED, ctx()),
         )
+        assertEquals(L10n.outbox_not_sent(ctx()), queuedStateText(QueuedState.NOT_SENT, ctx()))
+    }
+
+    /** An unconfirmed delivery is a warning and a refused one an error; neither reads as waiting. */
+    @Test
+    fun `only the states that need the user draw a glyph`() {
+        assertEquals(QueuedStateMark.NONE, queuedStateMark(QueuedState.WAITING))
+        assertEquals(QueuedStateMark.NONE, queuedStateMark(QueuedState.SENDING))
+        assertEquals(QueuedStateMark.WARNING, queuedStateMark(QueuedState.UNCONFIRMED))
+        assertEquals(QueuedStateMark.ERROR, queuedStateMark(QueuedState.NOT_SENT))
+    }
+
+    @Test
+    fun `each action is the intent of the same name`() {
+        val expected = mapOf(
+            QueuedAction.SEND_NOW to OutboxIntent.SendNow("work", 3uL),
+            QueuedAction.EDIT to OutboxIntent.Edit("work", 3uL),
+            QueuedAction.CANCEL to OutboxIntent.Cancel("work", 3uL),
+            QueuedAction.CONFIRM_SENT to OutboxIntent.ConfirmSent("work", 3uL),
+            QueuedAction.CONFIRM_NOT_SENT to OutboxIntent.ConfirmNotSent("work", 3uL),
+        )
+        assertEquals(QueuedAction.entries.toSet(), expected.keys)
+        expected.forEach { (action, intent) ->
+            assertEquals(intent, outboxIntent("work", 3uL, action))
+        }
     }
 
     /**
@@ -137,24 +184,54 @@ class OutboxTest {
         assertEquals(listOf(Triple("work", 7uL, QueuedAction.SEND_NOW)), acted)
     }
 
-    /**
-     * A message that may already have been delivered carries no menu at all: asking to send it
-     * again is how it arrives twice, and a menu that opens onto nothing is a worse offer than no
-     * menu.
-     */
+    /** A message in flight carries no menu at all: one that opens onto nothing is a worse offer. */
     @Test
-    fun `a message that cannot be called back is offered nothing`() {
+    fun `a message in flight is offered nothing`() {
         screen(
             listOf(
                 queued(1u, subject = "Waiting"),
-                queued(2u, subject = "Gone out", state = QueuedState.UNCONFIRMED),
+                queued(2u, subject = "On its way", state = QueuedState.SENDING),
             ),
         )
-        compose.onNodeWithText("Gone out").assertIsDisplayed()
-        compose.onNodeWithText(L10n.outbox_unconfirmed(ctx()), substring = true).assertIsDisplayed()
+        compose.onNodeWithText("On its way").assertIsDisplayed()
+        compose.onNodeWithText(L10n.outbox_sending(ctx()), substring = true).assertIsDisplayed()
         // One menu on screen, belonging to the row that is still waiting.
         compose.onAllNodesWithContentDescription(L10n.a11y_more_actions(ctx()))
             .assertCountEquals(1)
+    }
+
+    /**
+     * Send Again on an unconfirmed message is the user saying it did not arrive, and only that
+     * answer may send it again. Sending it as Send Now would skip the question.
+     */
+    @Test
+    fun `send again on an unconfirmed message answers that it did not arrive`() {
+        screen(listOf(queued(4u, subject = "Gone out", state = QueuedState.UNCONFIRMED)))
+        compose.onNodeWithText(L10n.outbox_unconfirmed(ctx()), substring = true).assertIsDisplayed()
+        compose.onNodeWithContentDescription(L10n.a11y_more_actions(ctx())).performClick()
+        compose.onNodeWithText(L10n.action_send_now(ctx())).assertDoesNotExist()
+        compose.onNodeWithText(L10n.action_cancel_send(ctx())).assertDoesNotExist()
+        compose.onNodeWithText(L10n.action_send_again(ctx())).performClick()
+        assertEquals(listOf(Triple("work", 4uL, QueuedAction.CONFIRM_NOT_SENT)), acted)
+        assertEquals(
+            OutboxIntent.ConfirmNotSent("work", 4uL),
+            outboxIntent("work", 4uL, acted.single().third),
+        )
+    }
+
+    /** A refused message was never delivered, so sending it again is an ordinary Send Now. */
+    @Test
+    fun `send again on a refused message sends it now`() {
+        screen(listOf(queued(5u, subject = "Refused", state = QueuedState.NOT_SENT)))
+        compose.onNodeWithText(L10n.outbox_not_sent(ctx()), substring = true).assertIsDisplayed()
+        compose.onNodeWithContentDescription(L10n.a11y_more_actions(ctx())).performClick()
+        compose.onNodeWithText(L10n.action_discard(ctx())).assertIsDisplayed()
+        compose.onNodeWithText(L10n.action_send_again(ctx())).performClick()
+        assertEquals(listOf(Triple("work", 5uL, QueuedAction.SEND_NOW)), acted)
+        assertEquals(
+            OutboxIntent.SendNow("work", 5uL),
+            outboxIntent("work", 5uL, acted.single().third),
+        )
     }
 
     /** Cancelling the last row empties the list under the user, and it has to say so once. */

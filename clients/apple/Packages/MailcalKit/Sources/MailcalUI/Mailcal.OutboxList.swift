@@ -1,5 +1,4 @@
-// The Outbox list: the messages that have not gone, and the three things a person can do
-// about one.
+// The Outbox list: the messages that have not gone, and what a person can do about each.
 //
 // Its own list rather than a case inside the message list, because a queued message is not a
 // stored one: it has no sender to show (it is the user), no read or flagged state, no date it
@@ -53,15 +52,27 @@ extension ContentView {
         .accessibilityElement(children: .combine)
     }
 
-    /// The row's actions. A message already on its way, or one whose delivery could not be
-    /// confirmed, offers **none**: neither can be called back, and offering to send an
-    /// unconfirmed message again is how it arrives twice.
+    /// The row's actions, as `OutboxRowAction.offered(for:)` decides them; a destructive one
+    /// sits below a divider.
     @ViewBuilder func outboxActions(_ row: QueuedRow) -> some View {
-        if model.queuedRowIsActionable(row) {
-            Button(L10n.action_send_now()) { model.sendQueuedNow(row) }
-            Button(L10n.action_edit_queued()) { model.editQueued(row) }
-            Divider()
-            Button(L10n.action_cancel_send(), role: .destructive) { model.cancelQueued(row) }
+        ForEach(OutboxRowAction.offered(for: row.state), id: \.self) { action in
+            if action.isDestructive {
+                Divider()
+            }
+            Button(outboxActionLabel(action), role: action.isDestructive ? .destructive : nil) {
+                model.performOutboxAction(action, on: row)
+            }
+        }
+    }
+
+    func outboxActionLabel(_ action: OutboxRowAction) -> String {
+        switch action {
+        case .sendNow: L10n.action_send_now()
+        case .edit: L10n.action_edit_queued()
+        case .cancelSend: L10n.action_cancel_send()
+        case .markSent: L10n.action_mark_sent()
+        case .confirmNotSent, .sendAgain: L10n.action_send_again()
+        case .discard: L10n.action_discard()
         }
     }
 
@@ -71,16 +82,18 @@ extension ContentView {
         case .waiting: L10n.outbox_waiting()
         case .sending: L10n.outbox_sending()
         case .unconfirmed: L10n.outbox_unconfirmed()
+        case .notSent: L10n.outbox_not_sent()
         }
     }
 
     /// The glyph beside it. Unconfirmed earns the warning: it is the one state a person may
-    /// need to check on another device.
+    /// need to check on another device. A refused message is marked as not having gone.
     func outboxStateIcon(_ state: QueuedState) -> String {
         switch state {
         case .waiting: "clock"
         case .sending: "arrow.up.circle"
         case .unconfirmed: "exclamationmark.triangle"
+        case .notSent: "xmark.circle"
         }
     }
 }

@@ -15,12 +15,11 @@ import uniffi.mailcal_bindings.ComposeRequest
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
-import uniffi.mailcal_bindings.OutboxIntent
 import uniffi.mailcal_bindings.SignatureRow
 
 private const val TAG = "Mailcal"
 
-/** Every account's unsent messages, and the three things each still-waiting one offers. */
+/** Every account's unsent messages, and what each one offers. */
 @Composable
 internal fun MainActivity.OutboxPane(instance: MailcalApp, drawerState: DrawerState) {
     val scope = rememberCoroutineScope()
@@ -29,18 +28,7 @@ internal fun MainActivity.OutboxPane(instance: MailcalApp, drawerState: DrawerSt
         accounts = accounts,
         onOpenDrawer = { scope.launch { drawerState.open() } },
         onAct = { account, op, action ->
-            instance.dispatch(
-                Intent.Outbox(
-                    when (action) {
-                        // Neither resets the attempt count, and Edit only asks: the core
-                        // withdraws the message first and offers it back through
-                        // `Surface::ComposeRequest`, which `WithdrawnMessagePane` answers.
-                        QueuedAction.SEND_NOW -> OutboxIntent.SendNow(account, op)
-                        QueuedAction.EDIT -> OutboxIntent.Edit(account, op)
-                        QueuedAction.CANCEL -> OutboxIntent.Cancel(account, op)
-                    },
-                ),
-            )
+            instance.dispatch(Intent.Outbox(outboxIntent(account, op, action)))
         },
     )
 }

@@ -1,4 +1,5 @@
-// The Outbox list's one decision: what each queued send says about itself (docs/sending.md).
+// The Outbox list's decisions: what each queued send says about itself, what its menu offers and
+// which intent each item sends (docs/sending.md).
 //
 // WinUI-free and L10n-free on purpose, so Mailcal.Tests can link it. The failure it exists to
 // catch is silent in the running app: a state mapped to the wrong word tells someone their
@@ -15,10 +16,13 @@ namespace Allodia.Mailcal.Services;
 /// <param name="Waiting">"Waiting to send": the ordinary state, stated plainly.</param>
 /// <param name="Sending">"Sending…": a submission is in flight.</param>
 /// <param name="Unconfirmed">"Delivery not confirmed": it may already have arrived.</param>
+/// <param name="NotSent">"Not sent": the server refused it.</param>
 /// <param name="WaitingGlyph">The Segoe Fluent glyph for <paramref name="Waiting"/>.</param>
 /// <param name="SendingGlyph">The glyph for <paramref name="Sending"/>.</param>
-/// <param name="UnconfirmedGlyph">The glyph for <paramref name="Unconfirmed"/>. The only warning
-/// of the three: it is the one state a person may need to check on another device.</param>
+/// <param name="UnconfirmedGlyph">The glyph for <paramref name="Unconfirmed"/>: a warning, since
+/// it is the one state a person may need to check on another device.</param>
+/// <param name="NotSentGlyph">The glyph for <paramref name="NotSent"/>: an error, since the
+/// message is certainly still here and waits on the user.</param>
 /// <param name="NoSubject">What stands in for a subject the message does not have. The same words
 /// the message list and the reading header use, because it is the same absence.</param>
 /// <remarks>
@@ -30,9 +34,11 @@ public readonly record struct OutboxLabels(
     string Waiting,
     string Sending,
     string Unconfirmed,
+    string NotSent,
     string WaitingGlyph,
     string SendingGlyph,
     string UnconfirmedGlyph,
+    string NotSentGlyph,
     string NoSubject);
 
 /// <summary>Projects the core's queued sends into the rows the Outbox list draws.</summary>
@@ -75,6 +81,7 @@ internal static class OutboxRows
                 State = state,
                 StateText = TextFor(state, labels),
                 StateGlyph = GlyphFor(state, labels),
+                Actions = ActionsFor(state),
             });
         }
         return rows;
@@ -85,16 +92,49 @@ internal static class OutboxRows
     {
         QueuedState.Sending => QueuedSendState.Sending,
         QueuedState.Unconfirmed => QueuedSendState.Unconfirmed,
-        // Waiting, and anything a later core adds: the plain, non-alarming reading, and the only
-        // one of the three that offers the actions. A new state arriving here as actionable would
-        // be worse than arriving as waiting, so the discard falls this way deliberately.
+        QueuedState.NotSent => QueuedSendState.NotSent,
         _ => QueuedSendState.Waiting,
+    };
+
+    /// <summary>What a row in <paramref name="state"/> lists in its menu, in order.</summary>
+    /// <remarks>
+    /// An unconfirmed message may already be in front of its recipients, so it offers only the two
+    /// answers and never Send now, Edit or Cancel: sending it again without the user saying it did
+    /// not arrive is how it arrives twice. A message in flight lists Waiting's items, drawn
+    /// disabled (<see cref="QueuedRowItem.IsActionable"/>).
+    /// </remarks>
+    public static IReadOnlyList<QueuedAction> ActionsFor(QueuedSendState state) => state switch
+    {
+        QueuedSendState.Unconfirmed => [QueuedAction.MarkSent, QueuedAction.ConfirmNotSent],
+        QueuedSendState.NotSent => [QueuedAction.SendAgain, QueuedAction.Edit, QueuedAction.Discard],
+        _ => [QueuedAction.SendNow, QueuedAction.Edit, QueuedAction.Cancel],
+    };
+
+    /// <summary>Whether the item takes the message away for good, so the menu sets it apart.</summary>
+    public static bool IsDestructive(QueuedAction action) =>
+        action is QueuedAction.Cancel or QueuedAction.Discard;
+
+    /// <summary>The intent an item sends for the queued send it names.</summary>
+    /// <remarks>
+    /// Sending again is <c>SendNow</c> for a refused message and <c>ConfirmNotSent</c> for an
+    /// unconfirmed one. The core refuses the second on any other state, so a row that changed
+    /// under the click cannot send a message twice.
+    /// </remarks>
+    public static OutboxIntent IntentFor(QueuedAction action, string account, ulong op) => action switch
+    {
+        QueuedAction.SendNow or QueuedAction.SendAgain => new OutboxIntent.SendNow(account, op),
+        QueuedAction.Edit => new OutboxIntent.Edit(account, op),
+        QueuedAction.Cancel or QueuedAction.Discard => new OutboxIntent.Cancel(account, op),
+        QueuedAction.MarkSent => new OutboxIntent.ConfirmSent(account, op),
+        QueuedAction.ConfirmNotSent => new OutboxIntent.ConfirmNotSent(account, op),
+        _ => throw new ArgumentOutOfRangeException(nameof(action), action, null),
     };
 
     private static string TextFor(QueuedSendState state, OutboxLabels labels) => state switch
     {
         QueuedSendState.Sending => labels.Sending,
         QueuedSendState.Unconfirmed => labels.Unconfirmed,
+        QueuedSendState.NotSent => labels.NotSent,
         _ => labels.Waiting,
     };
 
@@ -102,6 +142,7 @@ internal static class OutboxRows
     {
         QueuedSendState.Sending => labels.SendingGlyph,
         QueuedSendState.Unconfirmed => labels.UnconfirmedGlyph,
+        QueuedSendState.NotSent => labels.NotSentGlyph,
         _ => labels.WaitingGlyph,
     };
 }
