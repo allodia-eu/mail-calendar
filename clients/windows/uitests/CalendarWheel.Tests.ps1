@@ -138,11 +138,17 @@ $Suite = @{
         $before = Get-CalendarPeriod
         Assert-True ([bool]$before) 'the calendar names the span it is showing'
 
-        Invoke-GridWheel -Notches 24
-
-        $after = Wait-CalendarPeriod -From $before
+        # The heading names a month, so how far the grid must travel before it changes depends on
+        # the date the suite runs: a week inside one month needs weeks of travel, a week spanning
+        # two needs a day. So the wheel turns in batches until the heading moves, up to a bound no
+        # month outlasts; a wheel that moves nothing still fails, after the last batch.
+        $after = $before
+        for ($batch = 1; $batch -le 4 -and $after -eq $before; $batch++) {
+          Invoke-GridWheel -Notches 24
+          $after = Wait-CalendarPeriod -From $before -TimeoutSec 4
+        }
         Assert-True ($after -ne $before) (
-          "the grid still says '$after' after 24 wheel notches. A wheel that moves nothing is the " +
+          "the grid still says '$after' after 96 wheel notches. A wheel that moves nothing is the " +
           'defect this suite exists for, and it is invisible to every headless gate: the owner and ' +
           'the driver are perfectly happy, the surface simply never draws.')
       }
