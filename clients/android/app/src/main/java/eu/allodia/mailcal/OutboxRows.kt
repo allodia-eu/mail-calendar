@@ -70,7 +70,7 @@ internal fun outboxRows(
             stateText = queuedStateText(row.state, ctx),
             mark = queuedStateMark(row.state),
             accountText = account,
-            actions = queuedActions(row.state, ctx),
+            actions = queuedActions(row.state, row.editable, ctx),
         )
     }
 }
@@ -100,38 +100,59 @@ internal fun queuedStateMark(state: QueuedState): QueuedStateMark = when (state)
  * A message in flight cannot be called back, so it offers nothing. One whose delivery is
  * unconfirmed may already be in front of its recipients, so it offers only the two answers to that
  * question and never Send Now, Edit or Cancel: its Send Again is the user saying it did not
- * arrive, which is a different intent from a refused message's Send Again.
+ * arrive, which is a different intent from a refused message's Send Again. Edit appears only where
+ * the core says a composer can hold the message (`editable`); an invitation answer is not one.
  */
-internal fun queuedActions(state: QueuedState, ctx: Context): List<QueuedMenuItem> = when (state) {
-    QueuedState.WAITING -> listOf(
-        QueuedMenuItem(L10n.action_send_now(ctx), QueuedAction.SEND_NOW),
-        QueuedMenuItem(L10n.action_edit_queued(ctx), QueuedAction.EDIT),
-        QueuedMenuItem(L10n.action_cancel_send(ctx), QueuedAction.CANCEL),
-    )
-    QueuedState.SENDING -> emptyList()
-    QueuedState.UNCONFIRMED -> listOf(
-        QueuedMenuItem(L10n.action_mark_sent(ctx), QueuedAction.CONFIRM_SENT),
-        QueuedMenuItem(L10n.action_send_again(ctx), QueuedAction.CONFIRM_NOT_SENT),
-    )
-    QueuedState.NOT_SENT -> listOf(
-        QueuedMenuItem(L10n.action_send_again(ctx), QueuedAction.SEND_NOW),
-        QueuedMenuItem(L10n.action_edit_queued(ctx), QueuedAction.EDIT),
-        QueuedMenuItem(L10n.action_discard(ctx), QueuedAction.CANCEL),
-    )
+internal fun queuedActions(
+    state: QueuedState,
+    editable: Boolean,
+    ctx: Context,
+): List<QueuedMenuItem> {
+    val edit = QueuedMenuItem(L10n.action_edit_queued(ctx), QueuedAction.EDIT).takeIf { editable }
+    return when (state) {
+        QueuedState.WAITING -> listOfNotNull(
+            QueuedMenuItem(L10n.action_send_now(ctx), QueuedAction.SEND_NOW),
+            edit,
+            QueuedMenuItem(L10n.action_cancel_send(ctx), QueuedAction.CANCEL),
+        )
+        QueuedState.SENDING -> emptyList()
+        QueuedState.UNCONFIRMED -> listOf(
+            QueuedMenuItem(L10n.action_mark_sent(ctx), QueuedAction.CONFIRM_SENT),
+            QueuedMenuItem(L10n.action_send_again(ctx), QueuedAction.CONFIRM_NOT_SENT),
+        )
+        QueuedState.NOT_SENT -> listOfNotNull(
+            QueuedMenuItem(L10n.action_send_again(ctx), QueuedAction.SEND_NOW),
+            edit,
+            QueuedMenuItem(L10n.action_discard(ctx), QueuedAction.CANCEL),
+        )
+    }
 }
+
+/**
+ * Whether an action asks the user before it is sent to the core. Only answering that an
+ * unconfirmed message did not arrive does: if it did, the recipients receive it twice. A refused
+ * message's Send Again is an ordinary send and asks nothing.
+ */
+internal fun queuedActionNeedsConfirming(action: QueuedAction): Boolean =
+    action == QueuedAction.CONFIRM_NOT_SENT
 
 /**
  * The intent an action sends, naming the queued send by its account **and** its op id: an op id
  * is unique only within its own account's queue, and the Outbox holds every account's at once.
  *
- * Edit only asks: the core withdraws the message first and offers it back through
- * `Surface::ComposeRequest`, which `WithdrawnMessagePane` answers.
+ * Edit moves the message back into Drafts: the core saves it there, writes its files into
+ * `stagingDirectory` and offers it back through `Surface::ComposeRequest`, which
+ * `WithdrawnMessagePane` answers. The directory is read by no other action.
  */
-internal fun outboxIntent(account: String, op: ULong, action: QueuedAction): OutboxIntent =
-    when (action) {
-        QueuedAction.SEND_NOW -> OutboxIntent.SendNow(account, op)
-        QueuedAction.EDIT -> OutboxIntent.Edit(account, op)
-        QueuedAction.CANCEL -> OutboxIntent.Cancel(account, op)
-        QueuedAction.CONFIRM_SENT -> OutboxIntent.ConfirmSent(account, op)
-        QueuedAction.CONFIRM_NOT_SENT -> OutboxIntent.ConfirmNotSent(account, op)
-    }
+internal fun outboxIntent(
+    account: String,
+    op: ULong,
+    action: QueuedAction,
+    stagingDirectory: String,
+): OutboxIntent = when (action) {
+    QueuedAction.SEND_NOW -> OutboxIntent.SendNow(account, op)
+    QueuedAction.EDIT -> OutboxIntent.Edit(account, op, stagingDirectory)
+    QueuedAction.CANCEL -> OutboxIntent.Cancel(account, op)
+    QueuedAction.CONFIRM_SENT -> OutboxIntent.ConfirmSent(account, op)
+    QueuedAction.CONFIRM_NOT_SENT -> OutboxIntent.ConfirmNotSent(account, op)
+}

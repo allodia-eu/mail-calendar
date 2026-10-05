@@ -53,6 +53,10 @@ internal fun SendStatusBanner(status: SendStatus, ctx: Context) {
         // reading it as failed invites writing it again. The glyph below carries the warning.
         SendStatus.UNCONFIRMED ->
             L10n.send_status_unconfirmed(ctx) to MaterialTheme.colorScheme.onSurfaceVariant
+        // Refused by the server: it stays in the Outbox until the user sends it again, edits it or
+        // discards it, and the banner says where to find it.
+        SendStatus.NOT_SENT -> L10n.send_status_not_sent(ctx) to MaterialTheme.colorScheme.error
+        // The send never reached the Outbox; only the composer's draft keeps it.
         SendStatus.FAILED -> L10n.send_status_failed(ctx) to MaterialTheme.colorScheme.error
     }
     Row(

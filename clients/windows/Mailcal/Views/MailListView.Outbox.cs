@@ -1,8 +1,9 @@
 // An Outbox row's menu (docs/sending.md). Its items differ by the message's state, so it is built
-// for each row rather than declared once in the template. What a state lists and which intent an
-// item sends are OutboxRows', gated by Mailcal.Tests; this half draws the items and passes the
-// choice on.
+// for each row rather than declared once in the template. What a state lists, which item asks
+// first and which intent an item sends are OutboxRows', gated by Mailcal.Tests; this half draws the
+// items, asks the question and passes the choice on.
 
+using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
@@ -32,10 +33,34 @@ public sealed partial class MailListView
                 flyout.Items.Add(new MenuFlyoutSeparator());
             }
             var item = new MenuFlyoutItem { Text = QueuedActionText(action), IsEnabled = row.IsActionable };
-            item.Click += (_, _) => Model?.ActOnQueued(row, action);
+            item.Click += async (_, _) => await ActOnQueuedAsync(row, action);
             flyout.Items.Add(item);
         }
         return flyout;
+    }
+
+    // Sending an unconfirmed message again asks first, with Cancel as the default: if it did
+    // arrive after all, this delivers it twice. Every other item acts at once.
+    private async Task ActOnQueuedAsync(QueuedRowItem row, QueuedAction action)
+    {
+        if (Model is not { } model)
+        {
+            return;
+        }
+        if (OutboxRows.NeedsConfirming(action))
+        {
+            var answer = await DialogHelper.ConfirmAsync(
+                this.XamlRoot,
+                L10n.OutboxSendAgainTitle(),
+                L10n.OutboxSendAgainMessage(),
+                L10n.ActionSendAgain(),
+                L10n.ActionCancel());
+            if (answer != ContentDialogResult.Primary)
+            {
+                return;
+            }
+        }
+        model.ActOnQueued(row, action);
     }
 
     // Both ways of sending again read the same, because to the user they are the same request;

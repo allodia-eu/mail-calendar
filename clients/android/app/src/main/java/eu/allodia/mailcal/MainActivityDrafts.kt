@@ -136,6 +136,14 @@ internal fun resumeDraft(
 /** A fresh composition id, minted as a composer opens. */
 internal fun newComposition(): String = UUID.randomUUID().toString()
 
+/**
+ * Where the core writes the files of a draft about to reopen in a composer: a Drafts-folder row,
+ * or a queued send moved back into Drafts. A directory of each composer's own, so two of them never
+ * share a staged file; the cache is reclaimed by the OS, as a forward's staging is.
+ */
+internal fun MainActivity.resumedDraftDirectory(name: String): File =
+    File(File(cacheDir, "resumed-drafts"), name)
+
 /** What the activity holds about Drafts between snapshots. */
 internal class DraftUiState {
     // Whether the list is showing the account's Drafts folder, so a row opens into a composer that
@@ -180,9 +188,7 @@ internal fun MainActivity.openOrResume(
         return
     }
     val composition = newComposition()
-    // A directory of this composer's own, so two resumed drafts never share a staged file. The
-    // cache is reclaimed by the OS, as a forward's staging is.
-    val directory = File(File(cacheDir, "resumed-drafts"), composition)
+    val directory = resumedDraftDirectory(composition)
     thread(name = "mailcal-resume-draft") {
         val resumed = resumeDraft(instance, composition, opened.account, opened.key, directory)
         Handler(Looper.getMainLooper()).post {

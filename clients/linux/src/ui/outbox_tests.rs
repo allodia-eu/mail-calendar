@@ -31,6 +31,7 @@ fn queued(op: u64, to: &str, subject: &str, state: QueuedState) -> QueuedRow {
         state,
         attempts: 1,
         detail: None,
+        editable: true,
     }
 }
 
@@ -55,13 +56,39 @@ fn with_outbox(outbox: Vec<QueuedRow>) -> MailboxListSnapshot {
 #[test]
 fn each_state_offers_only_what_is_safe_for_it() {
     use QueuedAction::{Cancel, ConfirmNotSent, Discard, Edit, MarkSent, SendAgain, SendNow};
-    assert_eq!(actions(QueuedState::Waiting), &[SendNow, Edit, Cancel]);
-    assert_eq!(actions(QueuedState::Sending), &[]);
     assert_eq!(
-        actions(QueuedState::Unconfirmed),
+        actions(QueuedState::Waiting, true),
+        &[SendNow, Edit, Cancel]
+    );
+    assert_eq!(actions(QueuedState::Sending, true), &[]);
+    assert_eq!(
+        actions(QueuedState::Unconfirmed, true),
         &[MarkSent, ConfirmNotSent]
     );
-    assert_eq!(actions(QueuedState::NotSent), &[SendAgain, Edit, Discard]);
+    assert_eq!(
+        actions(QueuedState::NotSent, true),
+        &[SendAgain, Edit, Discard]
+    );
+}
+
+/// A message a composer cannot hold (an invitation's answer) is never offered Edit: editing it
+/// would send something else.
+#[test]
+fn a_message_no_composer_can_hold_offers_no_edit() {
+    for state in [QueuedState::Waiting, QueuedState::NotSent] {
+        assert!(!actions(state, false).contains(&QueuedAction::Edit));
+        assert!(!actions(state, false).is_empty());
+    }
+}
+
+/// Only sending again a message that may already have been delivered asks first.
+#[test]
+fn only_sending_an_unconfirmed_message_again_asks_first() {
+    use QueuedAction::{Cancel, ConfirmNotSent, Discard, Edit, MarkSent, SendAgain, SendNow};
+    assert!(ConfirmNotSent.needs_confirmation());
+    for action in [SendNow, SendAgain, Edit, Cancel, Discard, MarkSent] {
+        assert!(!action.needs_confirmation(), "{action:?}");
+    }
 }
 
 /// Sending again reads the same on both rows, and sends a different intent on each: an
@@ -73,28 +100,36 @@ fn sending_again_is_an_answer_on_an_unconfirmed_row_and_a_retry_on_a_refused_one
         QueuedAction::SendAgain.label()
     );
     assert_eq!(
-        QueuedAction::ConfirmNotSent.intent("acct-1".to_owned(), 7),
+        QueuedAction::ConfirmNotSent.intent("acct-1".to_owned(), 7, String::new()),
         OutboxIntent::ConfirmNotSent {
             account: "acct-1".to_owned(),
             op: 7
         }
     );
     assert_eq!(
-        QueuedAction::SendAgain.intent("acct-1".to_owned(), 7),
+        QueuedAction::SendAgain.intent("acct-1".to_owned(), 7, String::new()),
         OutboxIntent::SendNow {
             account: "acct-1".to_owned(),
             op: 7
         }
     );
     assert_eq!(
-        QueuedAction::MarkSent.intent("acct-1".to_owned(), 7),
+        QueuedAction::MarkSent.intent("acct-1".to_owned(), 7, String::new()),
         OutboxIntent::ConfirmSent {
             account: "acct-1".to_owned(),
             op: 7
         }
     );
     assert_eq!(
-        QueuedAction::Discard.intent("acct-1".to_owned(), 7),
+        QueuedAction::Edit.intent("acct-1".to_owned(), 7, "/staging".to_owned()),
+        OutboxIntent::Edit {
+            account: "acct-1".to_owned(),
+            op: 7,
+            staging_directory: "/staging".to_owned()
+        }
+    );
+    assert_eq!(
+        QueuedAction::Discard.intent("acct-1".to_owned(), 7, String::new()),
         OutboxIntent::Cancel {
             account: "acct-1".to_owned(),
             op: 7

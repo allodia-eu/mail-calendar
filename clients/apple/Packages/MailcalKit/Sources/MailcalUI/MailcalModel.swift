@@ -255,6 +255,9 @@ final class MailboxModel {
     /// A draft an assistant asked to open in the composer, unsent. Set by `AgentComposerBridge`
     /// on the main actor; the shell watches it, opens the composer, and clears it.
     var pendingAgentDraft: AgentDraftRequest?
+    /// A queued send the user asked to edit, already moved back into Drafts by the core. The
+    /// shell watches it, opens the composer on it, and clears it.
+    var pendingResumedDraft: ResumedDraftRequest?
     /// Whether the one-time "make this your default mail app" offer is on screen.
     ///
     /// Raised only from `offerDefaultMailAppIfDue`, which asks the core; answered by

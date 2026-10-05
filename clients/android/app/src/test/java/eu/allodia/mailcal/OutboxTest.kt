@@ -22,9 +22,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.ComposeRequest
+import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.OutboxIntent
 import uniffi.mailcal_bindings.QueuedRow
 import uniffi.mailcal_bindings.QueuedState
+import uniffi.mailcal_bindings.SendStatus
 
 private fun ctx(): Context = RuntimeEnvironment.getApplication()
 
@@ -34,6 +36,7 @@ private fun queued(
     subject: String = "Lunch",
     state: QueuedState = QueuedState.WAITING,
     account: String = "work",
+    editable: Boolean = true,
 ) = QueuedRow(
     account = account,
     op = op,
@@ -42,6 +45,7 @@ private fun queued(
     state = state,
     attempts = 1u,
     detail = null,
+    editable = editable,
 )
 
 private val accounts = listOf(
@@ -65,8 +69,8 @@ class OutboxTest {
         }
     }
 
-    private fun actions(state: QueuedState) =
-        queuedActions(state, ctx()).map { it.label to it.action }
+    private fun actions(state: QueuedState, editable: Boolean = true) =
+        queuedActions(state, editable, ctx()).map { it.label to it.action }
 
     /**
      * **The rule the whole surface turns on.** A message in flight cannot be called back, and one
@@ -101,6 +105,40 @@ class OutboxTest {
         )
     }
 
+    /**
+     * A send no composer can hold (an invitation answer) offers no Edit, and nothing else about
+     * its menu changes.
+     */
+    @Test
+    fun `a send no composer can hold offers no edit`() {
+        assertEquals(
+            listOf(
+                L10n.action_send_now(ctx()) to QueuedAction.SEND_NOW,
+                L10n.action_cancel_send(ctx()) to QueuedAction.CANCEL,
+            ),
+            actions(QueuedState.WAITING, editable = false),
+        )
+        assertEquals(
+            listOf(
+                L10n.action_send_again(ctx()) to QueuedAction.SEND_NOW,
+                L10n.action_discard(ctx()) to QueuedAction.CANCEL,
+            ),
+            actions(QueuedState.NOT_SENT, editable = false),
+        )
+        assertEquals(actions(QueuedState.UNCONFIRMED), actions(QueuedState.UNCONFIRMED, false))
+        val row = outboxRows(listOf(queued(1u, editable = false)), accounts, ctx()).single()
+        assertEquals(false, row.actions.any { it.action == QueuedAction.EDIT })
+    }
+
+    /** Only answering that an unconfirmed message did not arrive can deliver it twice. */
+    @Test
+    fun `only send again on an unconfirmed message asks first`() {
+        assertEquals(
+            setOf(QueuedAction.CONFIRM_NOT_SENT),
+            QueuedAction.entries.filter(::queuedActionNeedsConfirming).toSet(),
+        )
+    }
+
     @Test
     fun `every queued state is written as itself`() {
         val words = QueuedState.entries.map { queuedStateText(it, ctx()) }
@@ -127,14 +165,14 @@ class OutboxTest {
     fun `each action is the intent of the same name`() {
         val expected = mapOf(
             QueuedAction.SEND_NOW to OutboxIntent.SendNow("work", 3uL),
-            QueuedAction.EDIT to OutboxIntent.Edit("work", 3uL),
+            QueuedAction.EDIT to OutboxIntent.Edit("work", 3uL, "/cache/staging"),
             QueuedAction.CANCEL to OutboxIntent.Cancel("work", 3uL),
             QueuedAction.CONFIRM_SENT to OutboxIntent.ConfirmSent("work", 3uL),
             QueuedAction.CONFIRM_NOT_SENT to OutboxIntent.ConfirmNotSent("work", 3uL),
         )
         assertEquals(QueuedAction.entries.toSet(), expected.keys)
         expected.forEach { (action, intent) ->
-            assertEquals(intent, outboxIntent("work", 3uL, action))
+            assertEquals(intent, outboxIntent("work", 3uL, action, "/cache/staging"))
         }
     }
 
@@ -202,21 +240,36 @@ class OutboxTest {
 
     /**
      * Send Again on an unconfirmed message is the user saying it did not arrive, and only that
-     * answer may send it again. Sending it as Send Now would skip the question.
+     * answer may send it again. It asks first, because if it did arrive the recipients receive it
+     * twice, and nothing reaches the core until the user confirms.
      */
     @Test
-    fun `send again on an unconfirmed message answers that it did not arrive`() {
+    fun `send again on an unconfirmed message asks before it answers that it did not arrive`() {
         screen(listOf(queued(4u, subject = "Gone out", state = QueuedState.UNCONFIRMED)))
         compose.onNodeWithText(L10n.outbox_unconfirmed(ctx()), substring = true).assertIsDisplayed()
         compose.onNodeWithContentDescription(L10n.a11y_more_actions(ctx())).performClick()
         compose.onNodeWithText(L10n.action_send_now(ctx())).assertDoesNotExist()
         compose.onNodeWithText(L10n.action_cancel_send(ctx())).assertDoesNotExist()
         compose.onNodeWithText(L10n.action_send_again(ctx())).performClick()
+        compose.onNodeWithText(L10n.outbox_send_again_title(ctx())).assertIsDisplayed()
+        assertEquals(emptyList<Triple<String, ULong, QueuedAction>>(), acted)
+        compose.onNodeWithText(L10n.action_send_again(ctx())).performClick()
+        compose.onNodeWithText(L10n.outbox_send_again_title(ctx())).assertDoesNotExist()
         assertEquals(listOf(Triple("work", 4uL, QueuedAction.CONFIRM_NOT_SENT)), acted)
         assertEquals(
             OutboxIntent.ConfirmNotSent("work", 4uL),
-            outboxIntent("work", 4uL, acted.single().third),
+            outboxIntent("work", 4uL, acted.single().third, "/cache/staging"),
         )
+    }
+
+    @Test
+    fun `cancelling the question sends nothing`() {
+        screen(listOf(queued(4u, state = QueuedState.UNCONFIRMED)))
+        compose.onNodeWithContentDescription(L10n.a11y_more_actions(ctx())).performClick()
+        compose.onNodeWithText(L10n.action_send_again(ctx())).performClick()
+        compose.onNodeWithText(L10n.action_cancel(ctx())).performClick()
+        compose.onNodeWithText(L10n.outbox_send_again_title(ctx())).assertDoesNotExist()
+        assertEquals(emptyList<Triple<String, ULong, QueuedAction>>(), acted)
     }
 
     /** A refused message was never delivered, so sending it again is an ordinary Send Now. */
@@ -227,10 +280,11 @@ class OutboxTest {
         compose.onNodeWithContentDescription(L10n.a11y_more_actions(ctx())).performClick()
         compose.onNodeWithText(L10n.action_discard(ctx())).assertIsDisplayed()
         compose.onNodeWithText(L10n.action_send_again(ctx())).performClick()
+        compose.onNodeWithText(L10n.outbox_send_again_title(ctx())).assertDoesNotExist()
         assertEquals(listOf(Triple("work", 5uL, QueuedAction.SEND_NOW)), acted)
         assertEquals(
             OutboxIntent.SendNow("work", 5uL),
-            outboxIntent("work", 5uL, acted.single().third),
+            outboxIntent("work", 5uL, acted.single().third, "/cache/staging"),
         )
     }
 
@@ -245,32 +299,57 @@ class OutboxTest {
     }
 
     /**
-     * Every field the core hands back reaches the composer, and From is the account the message
-     * was **queued on**: on a device with two accounts, the selected mailbox's would send it as
-     * an identity the recipient has never seen it from.
+     * Every field the core hands back reaches the composer. The composition is the one the core
+     * saved the draft under, so the composer saves over it rather than beside it, and every staged
+     * file is held, because the first save replaces the draft and a file left out is taken off it.
+     * From is the account the message was **queued on**: on a device with two accounts, the
+     * selected mailbox's would send it as an identity the recipient has never seen it from.
      */
     @Test
     fun `a withdrawn message opens holding everything it was queued with`() {
+        val files = listOf(
+            ComposerFileAttachment(
+                path = "/cache/resumed-drafts/x/agenda.pdf",
+                fileName = "agenda.pdf",
+                mediaType = "application/pdf",
+            ),
+            ComposerFileAttachment(
+                path = "/cache/resumed-drafts/x/map.png",
+                fileName = "map.png",
+                mediaType = "image/png",
+            ),
+        )
         val seed = withdrawnSeed(
             ComposeRequest(
                 account = "home",
+                composition = "draft-7",
                 to = "ada@example.test",
                 cc = "copy@example.test",
                 bcc = "audit@example.test",
                 subject = "Lunch",
                 bodyText = "One o'clock?",
+                attachments = files,
             ),
         )
         assertEquals(
             WithdrawnSeed(
+                composition = "draft-7",
                 from = "home",
                 to = "ada@example.test",
                 cc = "copy@example.test",
                 bcc = "audit@example.test",
                 subject = "Lunch",
                 body = "One o'clock?",
+                attachments = files,
             ),
             seed,
         )
+    }
+
+    /** A refused message says where it now is, rather than only that it failed. */
+    @Test
+    fun `a refused send says it is in the outbox`() {
+        compose.setContent { SendStatusBanner(SendStatus.NOT_SENT, ctx()) }
+        compose.onNodeWithText(L10n.send_status_not_sent(ctx())).assertIsDisplayed()
     }
 }

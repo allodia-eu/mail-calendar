@@ -11,7 +11,7 @@ extension ContentView {
     /// The queued sends, oldest first: the order they will go out in.
     var outboxList: some View {
         List {
-            ForEach(model.outbox, id: \.op) { row in
+            ForEach(model.outbox, id: \.rowID) { row in
                 outboxRowView(row)
                     .contextMenu { outboxActions(row) }
             }
@@ -26,6 +26,23 @@ extension ContentView {
                     description: Text(L10n.outbox_waiting())
                 )
             }
+        }
+        // An `alert`, not a `confirmationDialog`, for the reason the remove-account prompt
+        // gives: an iPad popover drops the cancel button.
+        .alert(
+            L10n.outbox_send_again_title(),
+            isPresented: Binding(
+                get: { outboxToConfirm != nil },
+                set: { if !$0 { outboxToConfirm = nil } }
+            ),
+            presenting: outboxToConfirm
+        ) { pending in
+            Button(L10n.action_send_again()) {
+                model.performOutboxAction(pending.action, on: pending.row)
+            }
+            Button(L10n.action_cancel(), role: .cancel) {}
+        } message: { _ in
+            Text(L10n.outbox_send_again_message())
         }
     }
 
@@ -53,14 +70,18 @@ extension ContentView {
     }
 
     /// The row's actions, as `OutboxRowAction.offered(for:)` decides them; a destructive one
-    /// sits below a divider.
+    /// sits below a divider, and one that needs confirming asks first.
     @ViewBuilder func outboxActions(_ row: QueuedRow) -> some View {
-        ForEach(OutboxRowAction.offered(for: row.state), id: \.self) { action in
+        ForEach(OutboxRowAction.offered(for: row), id: \.self) { action in
             if action.isDestructive {
                 Divider()
             }
             Button(outboxActionLabel(action), role: action.isDestructive ? .destructive : nil) {
-                model.performOutboxAction(action, on: row)
+                if action.needsConfirmation {
+                    outboxToConfirm = PendingOutboxAction(action: action, row: row)
+                } else {
+                    model.performOutboxAction(action, on: row)
+                }
             }
         }
     }
@@ -96,4 +117,15 @@ extension ContentView {
         case .notSent: "xmark.circle"
         }
     }
+}
+
+extension QueuedRow {
+    /// The row's identity in the list: an op id is unique only within its own account's queue.
+    var rowID: String { "\(account):\(op)" }
+}
+
+/// An Outbox action waiting on the user's confirmation, and the row it is for.
+struct PendingOutboxAction {
+    let action: OutboxRowAction
+    let row: QueuedRow
 }

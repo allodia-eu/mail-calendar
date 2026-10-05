@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.ComposeRequest
+import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
@@ -28,24 +29,25 @@ internal fun MainActivity.OutboxPane(instance: MailcalApp, drawerState: DrawerSt
         accounts = accounts,
         onOpenDrawer = { scope.launch { drawerState.open() } },
         onAct = { account, op, action ->
-            instance.dispatch(Intent.Outbox(outboxIntent(account, op, action)))
+            // The composition is not known until the core answers, so the directory is named
+            // for this request alone.
+            val staging = resumedDraftDirectory(newComposition()).absolutePath
+            instance.dispatch(Intent.Outbox(outboxIntent(account, op, action, staging)))
         },
     )
 }
 
 /**
- * The composer a message withdrawn from the Outbox opens in, unsent, so the user can change it and
- * send it again.
+ * The composer a queued send moved back into Drafts opens in, so the user can change it and send it
+ * again.
  *
- * **This may not refuse.** The core takes the message out of the queue before raising the request,
- * precisely so a drain cannot deliver it while it is being edited, which means what arrives here is
- * the only copy. The request is dismissed only once this composer has closed, so a client that
- * never draws it leaves the offer standing rather than losing the mail.
+ * It opens as a resumed draft does (`ResumedDraftPane`): on the composition the core saved the
+ * draft under, never a fresh one, and holding every file the core staged, because its first save
+ * replaces that draft and a file left out would be taken off it. The request is dismissed only once
+ * this composer has closed, so a client that never draws it leaves the offer standing.
  *
- * The same composer an assistant's draft opens: a prefilled, unsent message a person reviews and
- * sends themselves is the same thing either way. It seeds no signature for the same reason, that
- * the body already carries whatever was on it when the message was queued, and a second one would
- * go out with it.
+ * It seeds no signature: the body already carries whatever was on it when the message was queued,
+ * and a second one would go out with it.
  */
 @Composable
 internal fun MainActivity.WithdrawnMessagePane(instance: MailcalApp, library: List<SignatureRow>) {
@@ -62,6 +64,8 @@ internal fun MainActivity.WithdrawnMessagePane(instance: MailcalApp, library: Li
         initialBcc = seed.bcc,
         initialSubject = seed.subject,
         initialBody = seed.body,
+        initialAttachments = seed.attachments,
+        composition = seed.composition,
         suggestionsFor = { prefix ->
             try {
                 instance.recipientSuggestions(prefix)
@@ -71,10 +75,7 @@ internal fun MainActivity.WithdrawnMessagePane(instance: MailcalApp, library: Li
             }
         },
         signatures = composerSignatures(instance, library),
-        // It keeps a draft like any other composer, and this is the composer with the most to
-        // lose: the core has taken the message out of the queue, so what is on screen is the only
-        // copy of it. An idle save puts a second one in Drafts, and sending takes that away again
-        // (docs/drafts.md).
+        // Saves over the draft the core stored, and sending takes it away (docs/drafts.md).
         drafts = composerDrafts(instance),
         onSubmitRich = { submission -> submitMail(instance, submission) },
         onDismiss = {
@@ -86,12 +87,15 @@ internal fun MainActivity.WithdrawnMessagePane(instance: MailcalApp, library: Li
 
 /** The fields a withdrawn message opens its composer with. */
 internal data class WithdrawnSeed(
+    /** The composition the core saved the draft under, adopted rather than minted. */
+    val composition: String,
     val from: String,
     val to: String,
     val cc: String,
     val bcc: String,
     val subject: String,
     val body: String,
+    val attachments: List<ComposerFileAttachment>,
 )
 
 /**
@@ -107,10 +111,12 @@ internal data class WithdrawnSeed(
  * and the only one the recipient already expects.
  */
 internal fun withdrawnSeed(request: ComposeRequest): WithdrawnSeed = WithdrawnSeed(
+    composition = request.composition,
     from = request.account,
     to = request.to,
     cc = request.cc,
     bcc = request.bcc,
     subject = request.subject,
     body = request.bodyText,
+    attachments = request.attachments,
 )

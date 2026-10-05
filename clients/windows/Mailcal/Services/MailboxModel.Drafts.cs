@@ -170,6 +170,14 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
+    /// Where a draft opened back into a composer has its files written: a directory of its own,
+    /// so two composers never share a staged file. A resumed draft and a queued send moved back
+    /// into Drafts both stage here.
+    /// </summary>
+    internal static string DraftStagingDirectory() =>
+        Path.Combine(Path.GetTempPath(), "resumed-drafts", Guid.NewGuid().ToString("N"));
+
+    /// <summary>
     /// Opens the stored draft <paramref name="key"/> (on <paramref name="account"/>) into
     /// <paramref name="composition"/>, so the composer about to show it saves over that copy
     /// rather than beside it.

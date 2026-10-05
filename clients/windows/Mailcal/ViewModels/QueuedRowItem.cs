@@ -46,7 +46,7 @@ public enum QueuedAction
     /// <summary>Send a message the server refused, again.</summary>
     SendAgain,
 
-    /// <summary>Withdraw the message and open it in the composer.</summary>
+    /// <summary>Move the message back into Drafts and open it in the composer.</summary>
     Edit,
 
     /// <summary>Withdraw a waiting message so it is never delivered.</summary>
@@ -58,7 +58,8 @@ public enum QueuedAction
     /// <summary>Answer an unconfirmed send: it arrived, so it leaves the Outbox.</summary>
     MarkSent,
 
-    /// <summary>Answer an unconfirmed send: it did not arrive, so it is sent again now.</summary>
+    /// <summary>Answer an unconfirmed send: it did not arrive, so it is sent again now, once the
+    /// user has confirmed it.</summary>
     ConfirmNotSent,
 }
 
@@ -109,7 +110,7 @@ public sealed class QueuedRowItem
     public required string StateGlyph { get; init; }
 
     /// <summary>What the row's menu lists, in order, resolved by the projection from
-    /// <see cref="State"/>.</summary>
+    /// <see cref="State"/> and whether a composer can hold the message.</summary>
     public required IReadOnlyList<QueuedAction> Actions { get; init; }
 
     /// <summary>

@@ -140,9 +140,9 @@ extension MailboxModel {
     }
 
     /// A directory of this composer's own under the app's temporary storage, so two resumed
-    /// drafts never share a staged file. The OS reclaims what is left behind, as it does for a
-    /// forward's.
-    private func draftStagingDirectory() -> URL {
+    /// drafts never share a staged file. A queued send moved back into Drafts for editing stages
+    /// its files here too. The OS reclaims what is left behind, as it does for a forward's.
+    func draftStagingDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("resumed-drafts", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

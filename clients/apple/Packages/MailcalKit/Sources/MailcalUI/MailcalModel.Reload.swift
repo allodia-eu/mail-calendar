@@ -53,27 +53,13 @@ extension MailboxModel {
             unfiledCopy = app?.unfiledCopy()
             return
         }
-        // A queued message the user asked to edit. The core has already withdrawn it from the
-        // Outbox, so what arrives here is the **only** copy: open the composer with it and
-        // tell the core we have it, and it is safe for the core to forget.
-        //
-        // The same composer the assistant's `create_draft` opens: a prefilled, unsent message
-        // a person reviews and sends themselves is the same thing either way, so it reuses
-        // that path rather than growing a second one beside it.
+        // A queued message the user asked to edit. The core has moved it back into Drafts
+        // under the request's composition and withdrawn it from the Outbox, so it opens the
+        // way a resumed draft does: the composer saves over that copy, and its send takes it
+        // away (`docs/drafts.md`). Then the core is told the request is taken.
         if case .composeRequest = surface {
             if let request = app?.composeRequest() {
-                pendingAgentDraft = AgentDraftRequest(
-                    draft: AgentDraft(
-                        account: request.account,
-                        to: request.to,
-                        cc: request.cc,
-                        bcc: request.bcc,
-                        subject: request.subject,
-                        bodyText: request.bodyText,
-                        replyToAccount: nil,
-                        replyToKey: nil
-                    )
-                )
+                pendingResumedDraft = ResumedDraftRequest(request)
                 app?.dispatch(intent: .dismissComposeRequest)
             }
             return

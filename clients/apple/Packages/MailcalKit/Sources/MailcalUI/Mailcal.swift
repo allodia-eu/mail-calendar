@@ -74,6 +74,8 @@ public struct ContentView: View {
     /// for (Mailcal.FolderActions.swift).
     @State var folderSheet: FolderSheet?
     @State var folderToDelete: FolderTarget?
+    /// The Outbox action a confirmation is open for (Mailcal.OutboxList.swift).
+    @State var outboxToConfirm: PendingOutboxAction?
     @State var sceneRestorationComplete = false
     @State var hasActivatedScene = false
     @State var hasLoggedSceneAppear = false
@@ -325,6 +327,12 @@ public struct ContentView: View {
             guard let request else { return }
             model.pendingAgentDraft = nil
             openDraft(request)
+        }
+        // A queued send the user asked to edit, which the core has moved back into Drafts.
+        .onChange(of: model.pendingResumedDraft) { _, request in
+            guard let request else { return }
+            model.pendingResumedDraft = nil
+            openGuardingDraft { compose = .resumedDraft(request) }
         }
         // The OS handing us a `mailto:` link, and the link that had to wait for an account. Both
         // are attached here rather than to the `WindowGroup` because the model is this view's own

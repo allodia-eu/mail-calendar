@@ -33,8 +33,11 @@ public class OutboxRowTests
         ulong op = 7,
         string to = "you@test.local",
         string subject = "Hi",
-        QueuedState state = QueuedState.Waiting) =>
-        new(account, op, to, subject, state, Attempts: 1, Detail: null);
+        QueuedState state = QueuedState.Waiting,
+        bool editable = true) =>
+        new(account, op, to, subject, state, Attempts: 1, Detail: null, Editable: editable);
+
+    private const string Staging = "/tmp/resumed-drafts/abc";
 
     private static List<QueuedRowItem> Build(params QueuedRow[] queued) =>
         OutboxRows.Build(queued, Labels, id => id + "@example.com");
@@ -100,32 +103,81 @@ public class OutboxRowTests
     }
 
     [Fact]
+    public void A_message_no_composer_can_hold_never_offers_edit()
+    {
+        // An invitation answer: the core would refuse the edit, so the item would do nothing. The
+        // rest of the row's menu keeps its order, and a row in flight keeps the shape it had.
+        // A loop rather than a theory: the generated QueuedState is internal, and a theory's
+        // parameter must be as visible as the test.
+        foreach (var state in new[] { QueuedState.Waiting, QueuedState.Sending, QueuedState.NotSent })
+        {
+            var row = Assert.Single(Build(Queued(state: state, editable: false)));
+            QueuedAction[] expected = state == QueuedState.NotSent
+                ? [QueuedAction.SendAgain, QueuedAction.Discard]
+                : [QueuedAction.SendNow, QueuedAction.Cancel];
+
+            Assert.DoesNotContain(QueuedAction.Edit, row.Actions);
+            Assert.Equal(expected, row.Actions);
+        }
+    }
+
+    [Fact]
+    public void An_unconfirmed_message_no_composer_can_hold_offers_the_same_two_answers()
+    {
+        var row = Assert.Single(Build(Queued(state: QueuedState.Unconfirmed, editable: false)));
+
+        Assert.Equal([QueuedAction.MarkSent, QueuedAction.ConfirmNotSent], row.Actions);
+    }
+
+    [Fact]
     public void Sending_again_is_an_answer_on_an_unconfirmed_row_and_a_retry_on_a_refused_one()
     {
         // The two items read the same. Only the answer may send an unconfirmed message again,
         // and the core refuses it on any other state, so a row that changed under the click
         // cannot send twice.
-        var answer = OutboxRows.IntentFor(QueuedAction.ConfirmNotSent, "acct-1", 7);
-        var retry = OutboxRows.IntentFor(QueuedAction.SendAgain, "acct-1", 7);
+        var answer = OutboxRows.IntentFor(QueuedAction.ConfirmNotSent, "acct-1", 7, Staging);
+        var retry = OutboxRows.IntentFor(QueuedAction.SendAgain, "acct-1", 7, Staging);
 
         Assert.Equal(new OutboxIntent.ConfirmNotSent("acct-1", 7), answer);
         Assert.Equal(new OutboxIntent.SendNow("acct-1", 7), retry);
     }
 
     [Fact]
+    public void Only_sending_an_unconfirmed_message_again_asks_first()
+    {
+        // If it did arrive, sending it again delivers it twice, so the user confirms. A refused
+        // message did not go, so sending it again asks nothing.
+        var asking = Enum.GetValues<QueuedAction>().Where(OutboxRows.NeedsConfirming);
+
+        Assert.Equal([QueuedAction.ConfirmNotSent], asking);
+        Assert.False(OutboxRows.NeedsConfirming(QueuedAction.SendAgain));
+    }
+
+    [Fact]
     public void Each_item_sends_its_own_intent_for_the_account_and_op_it_names()
     {
         Assert.Equal(
-            new OutboxIntent.SendNow("acct-2", 3), OutboxRows.IntentFor(QueuedAction.SendNow, "acct-2", 3));
+            new OutboxIntent.SendNow("acct-2", 3),
+            OutboxRows.IntentFor(QueuedAction.SendNow, "acct-2", 3, Staging));
         Assert.Equal(
-            new OutboxIntent.Edit("acct-2", 3), OutboxRows.IntentFor(QueuedAction.Edit, "acct-2", 3));
+            new OutboxIntent.Cancel("acct-2", 3),
+            OutboxRows.IntentFor(QueuedAction.Cancel, "acct-2", 3, Staging));
         Assert.Equal(
-            new OutboxIntent.Cancel("acct-2", 3), OutboxRows.IntentFor(QueuedAction.Cancel, "acct-2", 3));
-        Assert.Equal(
-            new OutboxIntent.Cancel("acct-2", 3), OutboxRows.IntentFor(QueuedAction.Discard, "acct-2", 3));
+            new OutboxIntent.Cancel("acct-2", 3),
+            OutboxRows.IntentFor(QueuedAction.Discard, "acct-2", 3, Staging));
         Assert.Equal(
             new OutboxIntent.ConfirmSent("acct-2", 3),
-            OutboxRows.IntentFor(QueuedAction.MarkSent, "acct-2", 3));
+            OutboxRows.IntentFor(QueuedAction.MarkSent, "acct-2", 3, Staging));
+    }
+
+    [Fact]
+    public void Edit_names_where_the_core_writes_the_messages_files()
+    {
+        // The composer that opens must hold every file, because its first save replaces the
+        // draft; the core can only stage them where it is told to.
+        Assert.Equal(
+            new OutboxIntent.Edit("acct-2", 3, Staging),
+            OutboxRows.IntentFor(QueuedAction.Edit, "acct-2", 3, Staging));
     }
 
     [Fact]

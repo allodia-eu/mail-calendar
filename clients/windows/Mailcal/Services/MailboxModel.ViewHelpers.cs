@@ -33,12 +33,13 @@ public sealed partial class MailboxModel
         // all, because C# takes the discard rather than refusing to compile.
         SendStatus.Queued => L10n.SendStatusQueued(),
         SendStatus.Unconfirmed => L10n.SendStatusUnconfirmed(),
+        SendStatus.NotSent => L10n.SendStatusNotSent(),
         _ => string.Empty,
     };
     /// <summary>The info-bar severity for the current status.</summary>
     public Microsoft.UI.Xaml.Controls.InfoBarSeverity SendStatusSeverity => _sendStatus switch
     {
-        SendStatus.Failed => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error,
+        SendStatus.Failed or SendStatus.NotSent => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error,
         SendStatus.Sent => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success,
         // It may have arrived, so neither a failure nor a success: the Outbox row asks the user.
         SendStatus.Unconfirmed => Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning,

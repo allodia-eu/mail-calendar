@@ -1,5 +1,5 @@
-// The Outbox list's decisions: what each queued send says about itself, what its menu offers and
-// which intent each item sends (docs/sending.md).
+// The Outbox list's decisions: what each queued send says about itself, what its menu offers, which
+// item asks first and which intent each item sends (docs/sending.md).
 //
 // WinUI-free and L10n-free on purpose, so Mailcal.Tests can link it. The failure it exists to
 // catch is silent in the running app: a state mapped to the wrong word tells someone their
@@ -81,7 +81,7 @@ internal static class OutboxRows
                 State = state,
                 StateText = TextFor(state, labels),
                 StateGlyph = GlyphFor(state, labels),
-                Actions = ActionsFor(state),
+                Actions = ActionsFor(state, row.Editable),
             });
         }
         return rows;
@@ -97,33 +97,53 @@ internal static class OutboxRows
     };
 
     /// <summary>What a row in <paramref name="state"/> lists in its menu, in order.</summary>
+    /// <param name="state">Where the send has got to.</param>
+    /// <param name="editable">Whether a composer can hold the message. An invitation answer
+    /// cannot, so its row leaves Edit out rather than offering an item that does nothing.</param>
     /// <remarks>
     /// An unconfirmed message may already be in front of its recipients, so it offers only the two
     /// answers and never Send now, Edit or Cancel: sending it again without the user saying it did
     /// not arrive is how it arrives twice. A message in flight lists Waiting's items, drawn
-    /// disabled (<see cref="QueuedRowItem.IsActionable"/>).
+    /// disabled (<see cref="QueuedRowItem.IsActionable"/>), so its menu keeps the shape it had.
     /// </remarks>
-    public static IReadOnlyList<QueuedAction> ActionsFor(QueuedSendState state) => state switch
+    public static IReadOnlyList<QueuedAction> ActionsFor(QueuedSendState state, bool editable) => state switch
     {
         QueuedSendState.Unconfirmed => [QueuedAction.MarkSent, QueuedAction.ConfirmNotSent],
-        QueuedSendState.NotSent => [QueuedAction.SendAgain, QueuedAction.Edit, QueuedAction.Discard],
-        _ => [QueuedAction.SendNow, QueuedAction.Edit, QueuedAction.Cancel],
+        QueuedSendState.NotSent when editable =>
+            [QueuedAction.SendAgain, QueuedAction.Edit, QueuedAction.Discard],
+        QueuedSendState.NotSent => [QueuedAction.SendAgain, QueuedAction.Discard],
+        _ when editable => [QueuedAction.SendNow, QueuedAction.Edit, QueuedAction.Cancel],
+        _ => [QueuedAction.SendNow, QueuedAction.Cancel],
     };
+
+    /// <summary>Whether the item asks before its intent is sent.</summary>
+    /// <remarks>
+    /// Only sending an unconfirmed message again: the user is saying it did not arrive, and if
+    /// they are wrong it arrives twice. Sending a refused one again asks nothing, because the
+    /// server has said it did not go.
+    /// </remarks>
+    public static bool NeedsConfirming(QueuedAction action) => action is QueuedAction.ConfirmNotSent;
 
     /// <summary>Whether the item takes the message away for good, so the menu sets it apart.</summary>
     public static bool IsDestructive(QueuedAction action) =>
         action is QueuedAction.Cancel or QueuedAction.Discard;
 
     /// <summary>The intent an item sends for the queued send it names.</summary>
+    /// <param name="action">The item chosen.</param>
+    /// <param name="account">The account the send goes from.</param>
+    /// <param name="op">The send's op id within that account's queue.</param>
+    /// <param name="stagingDirectory">Where Edit has the core write the message's files, for the
+    /// composer to open holding them. Every other item ignores it.</param>
     /// <remarks>
     /// Sending again is <c>SendNow</c> for a refused message and <c>ConfirmNotSent</c> for an
     /// unconfirmed one. The core refuses the second on any other state, so a row that changed
     /// under the click cannot send a message twice.
     /// </remarks>
-    public static OutboxIntent IntentFor(QueuedAction action, string account, ulong op) => action switch
+    public static OutboxIntent IntentFor(
+        QueuedAction action, string account, ulong op, string stagingDirectory) => action switch
     {
         QueuedAction.SendNow or QueuedAction.SendAgain => new OutboxIntent.SendNow(account, op),
-        QueuedAction.Edit => new OutboxIntent.Edit(account, op),
+        QueuedAction.Edit => new OutboxIntent.Edit(account, op, stagingDirectory),
         QueuedAction.Cancel or QueuedAction.Discard => new OutboxIntent.Cancel(account, op),
         QueuedAction.MarkSent => new OutboxIntent.ConfirmSent(account, op),
         QueuedAction.ConfirmNotSent => new OutboxIntent.ConfirmNotSent(account, op),

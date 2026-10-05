@@ -54,13 +54,24 @@ impl QueuedAction {
         matches!(self, Self::Cancel | Self::Discard)
     }
 
+    /// Whether the user is asked first. Only sending again a message that may already have been
+    /// delivered: the one action here whose mistake reaches other people's inboxes.
+    pub(crate) fn needs_confirmation(self) -> bool {
+        self == Self::ConfirmNotSent
+    }
+
     /// The intent the action sends. Sending again is `SendNow` for a refused message and
     /// `ConfirmNotSent` for an unconfirmed one: the core refuses the second on any other state,
-    /// so a row that changed under the click cannot send a message twice.
-    pub(crate) fn intent(self, account: String, op: u64) -> OutboxIntent {
+    /// so a row that changed under the click cannot send a message twice. `staging` is where
+    /// Edit has the message's files written for the composer.
+    pub(crate) fn intent(self, account: String, op: u64, staging: String) -> OutboxIntent {
         match self {
             Self::SendNow | Self::SendAgain => OutboxIntent::SendNow { account, op },
-            Self::Edit => OutboxIntent::Edit { account, op },
+            Self::Edit => OutboxIntent::Edit {
+                account,
+                op,
+                staging_directory: staging,
+            },
             Self::Cancel | Self::Discard => OutboxIntent::Cancel { account, op },
             Self::MarkSent => OutboxIntent::ConfirmSent { account, op },
             Self::ConfirmNotSent => OutboxIntent::ConfirmNotSent { account, op },
@@ -94,21 +105,17 @@ pub(crate) fn state_label(state: QueuedState) -> &'static str {
 /// A message in flight is on its way and cannot be called back, so it offers nothing. One whose
 /// delivery could not be confirmed may already be in front of its recipients: it offers only
 /// the two answers, never Send now, Edit or Cancel, because offering to send it again without
-/// the user saying it did not arrive is how it arrives twice.
-pub(crate) fn actions(state: QueuedState) -> &'static [QueuedAction] {
-    match state {
-        QueuedState::Waiting => &[
-            QueuedAction::SendNow,
-            QueuedAction::Edit,
-            QueuedAction::Cancel,
-        ],
-        QueuedState::Sending => &[],
-        QueuedState::Unconfirmed => &[QueuedAction::MarkSent, QueuedAction::ConfirmNotSent],
-        QueuedState::NotSent => &[
-            QueuedAction::SendAgain,
-            QueuedAction::Edit,
-            QueuedAction::Discard,
-        ],
+/// the user saying it did not arrive is how it arrives twice. Edit is left out of a message a
+/// composer cannot hold (`editable`).
+pub(crate) fn actions(state: QueuedState, editable: bool) -> &'static [QueuedAction] {
+    use QueuedAction::{Cancel, ConfirmNotSent, Discard, Edit, MarkSent, SendAgain, SendNow};
+    match (state, editable) {
+        (QueuedState::Waiting, true) => &[SendNow, Edit, Cancel],
+        (QueuedState::Waiting, false) => &[SendNow, Cancel],
+        (QueuedState::Sending, _) => &[],
+        (QueuedState::Unconfirmed, _) => &[MarkSent, ConfirmNotSent],
+        (QueuedState::NotSent, true) => &[SendAgain, Edit, Discard],
+        (QueuedState::NotSent, false) => &[SendAgain, Discard],
     }
 }
 
@@ -209,7 +216,7 @@ fn queued_row(row: &QueuedRow, account: &str, sender: &relm4::Sender<AppInput>) 
     // A subject and an address are each as long as they are, and this list has four things to
     // fit on one line; the row that gets truncated is the one the user is looking for.
     widget.set_tooltip_text(Some(&row_a11y(&recipients, &subject, row.state, account)));
-    let offered = actions(row.state);
+    let offered = actions(row.state, row.editable);
     if !offered.is_empty() {
         widget.add_suffix(&menu_button(
             &QueuedTarget {
@@ -282,16 +289,21 @@ fn menu_button(
         let input = sender.clone();
         let target = target.clone();
         item.connect_clicked(move |button| {
+            // Read before the popover closes: a popped-down popover is no longer in the window.
+            let window = button.root().and_downcast::<gtk::Window>();
             if let Some(popover) = button
                 .ancestor(gtk::Popover::static_type())
                 .and_downcast::<gtk::Popover>()
             {
                 popover.popdown();
             }
-            input.emit(AppInput::QueuedSendAction {
-                target: target.clone(),
-                action,
-            });
+            match window.filter(|_| action.needs_confirmation()) {
+                Some(window) => confirm_send_again(&window, target.clone(), &input),
+                None => input.emit(AppInput::QueuedSendAction {
+                    target: target.clone(),
+                    action,
+                }),
+            }
         });
         menu.append(&item);
     }
@@ -312,6 +324,48 @@ fn menu_button(
     let container = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     container.append(&button);
     container
+}
+
+/// Asks before a message that may already have been delivered is sent again, and sends it only
+/// on the user's yes.
+fn confirm_send_again(
+    parent: &gtk::Window,
+    target: QueuedTarget,
+    sender: &relm4::Sender<AppInput>,
+) {
+    let (window, _) = crate::ui::modal::new(parent, l10n::outbox_send_again_title(), 420, None);
+    window.set_resizable(false);
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 18);
+    content.set_margin_top(24);
+    content.set_margin_bottom(24);
+    content.set_margin_start(24);
+    content.set_margin_end(24);
+    let message = gtk::Label::new(Some(l10n::outbox_send_again_message()));
+    message.set_wrap(true);
+    message.set_xalign(0.0);
+    content.append(&message);
+    let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    buttons.set_halign(gtk::Align::End);
+    let cancel = gtk::Button::with_label(l10n::action_cancel());
+    let dialog = window.clone();
+    cancel.connect_clicked(move |_| dialog.close());
+    buttons.append(&cancel);
+    let send = gtk::Button::with_label(l10n::action_send_again());
+    send.add_css_class("destructive-action");
+    let input = sender.clone();
+    let dialog = window.clone();
+    send.connect_clicked(move |_| {
+        input.emit(AppInput::QueuedSendAction {
+            target: target.clone(),
+            action: QueuedAction::ConfirmNotSent,
+        });
+        dialog.close();
+    });
+    buttons.append(&send);
+    content.append(&buttons);
+    window.set_child(Some(&content));
+    window.set_default_widget(Some(&cancel));
+    window.present();
 }
 
 /// The pane's Outbox row: one row above the account trees, **only while something is in it**.
@@ -353,10 +407,28 @@ impl AppModel {
     /// `Edit` only asks: the core withdraws the message first and then offers it back through
     /// `Surface::ComposeRequest`, which is where this client opens its composer.
     pub(super) fn queued_send_action(&self, target: &QueuedTarget, action: QueuedAction) {
+        let staging = if action == QueuedAction::Edit {
+            edit_staging_dir(target.op)
+        } else {
+            String::new()
+        };
         self.dispatch(Intent::Outbox {
-            intent: action.intent(target.account.clone(), target.op),
+            intent: action.intent(target.account.clone(), target.op, staging),
         });
     }
+}
+
+/// Where an edited message's files are written for the composer: under the user's cache, owner
+/// only, as for a resumed draft's (`docs/drafts.md`).
+fn edit_staging_dir(op: u64) -> String {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = gtk::glib::user_cache_dir()
+        .join("mailcal")
+        .join(format!("outbox-edit-{}-{op}", std::process::id()));
+    if std::fs::create_dir_all(&directory).is_ok() {
+        let _ = std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700));
+    }
+    directory.to_string_lossy().into_owned()
 }
 
 #[cfg(test)]

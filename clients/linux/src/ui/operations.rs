@@ -379,6 +379,7 @@ mod tests {
                 // send that did not happen.
                 SendStatus::Queued => panic!("harness reply was queued rather than sent"),
                 SendStatus::Unconfirmed => panic!("harness reply went unanswered"),
+                SendStatus::NotSent => panic!("harness reply was refused"),
                 SendStatus::Idle | SendStatus::Sending => {}
             }
             assert!(Instant::now() < deadline, "harness reply did not finish");

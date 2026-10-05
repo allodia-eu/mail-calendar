@@ -5,6 +5,7 @@
 
 using System.Threading.Tasks;
 using Allodia.Mailcal.Dialogs;
+using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using uniffi.mailcal_bindings;
 
@@ -34,8 +35,7 @@ public sealed partial class MainWindow
             return;
         }
         var composition = Guid.NewGuid().ToString("N");
-        // Named after the composition, so two resumed drafts never share a staged file.
-        var directory = Path.Combine(Path.GetTempPath(), "resumed-drafts", composition);
+        var directory = MailboxModel.DraftStagingDirectory();
         var resumed = await Task.Run(
             () => Model.ResumeDraft(composition, account, key, directory));
         if (resumed is null)

@@ -83,6 +83,26 @@ struct ResumedDraftRequest: Identifiable, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 }
 
+extension ResumedDraftRequest {
+    /// A queued send the user asked to edit. The core has already saved it into Drafts under
+    /// `request.composition` and staged its files, so it opens exactly as a draft resumed from
+    /// the Drafts folder does: on that composition, holding every one of those files.
+    init(_ request: ComposeRequest) {
+        self.init(
+            composition: request.composition,
+            draft: DraftResume(
+                account: request.account,
+                to: request.to,
+                cc: request.cc,
+                bcc: request.bcc,
+                subject: request.subject,
+                bodyText: request.bodyText,
+                attachments: request.attachments
+            )
+        )
+    }
+}
+
 enum ComposeContext: Identifiable {
     case new
     case reply(account: String, key: String, to: String, cc: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind)

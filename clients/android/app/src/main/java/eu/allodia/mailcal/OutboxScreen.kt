@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -26,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -189,6 +191,8 @@ private fun QueuedRowMenu(
     ctx: android.content.Context,
 ) {
     var open by remember { mutableStateOf(false) }
+    // An action held back until the user has answered the question it asks.
+    var confirming by remember { mutableStateOf<QueuedAction?>(null) }
     Column {
         IconButton(onClick = { open = true }, modifier = Modifier.size(48.dp)) {
             Icon(
@@ -203,10 +207,43 @@ private fun QueuedRowMenu(
                     text = { Text(item.label) },
                     onClick = {
                         open = false
-                        onAct(row.account, row.op, item.action)
+                        if (queuedActionNeedsConfirming(item.action)) {
+                            confirming = item.action
+                        } else {
+                            onAct(row.account, row.op, item.action)
+                        }
                     },
                 )
             }
         }
     }
+    confirming?.let { action ->
+        SendAgainDialog(
+            onSendAgain = {
+                confirming = null
+                onAct(row.account, row.op, action)
+            },
+            onCancel = { confirming = null },
+        )
+    }
+}
+
+/**
+ * Asked before an unconfirmed message is sent again: it may already have been delivered, and if
+ * it was, its recipients receive it twice.
+ */
+@Composable
+private fun SendAgainDialog(onSendAgain: () -> Unit, onCancel: () -> Unit) {
+    val ctx = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(L10n.outbox_send_again_title(ctx)) },
+        text = { Text(L10n.outbox_send_again_message(ctx)) },
+        confirmButton = {
+            TextButton(onClick = onSendAgain) { Text(L10n.action_send_again(ctx)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text(L10n.action_cancel(ctx)) }
+        },
+    )
 }

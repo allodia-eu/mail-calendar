@@ -69,8 +69,10 @@ public sealed partial class MailboxModel
 
     /// <summary>Sends the core what the user chose from a queued message's menu.</summary>
     /// <remarks>
-    /// The intent is <see cref="OutboxRows.IntentFor"/>'s. An edit is withdrawn by the core
-    /// <b>first</b> and then offered back through <c>Surface.ComposeRequest</c>, which
+    /// The intent is <see cref="OutboxRows.IntentFor"/>'s, and an item that asks first
+    /// (<see cref="OutboxRows.NeedsConfirming"/>) arrives here only once the user has answered.
+    /// An edit is saved back into Drafts and withdrawn by the core <b>first</b>, with its files
+    /// staged where this names, and then offered back through <c>Surface.ComposeRequest</c>, which
     /// <see cref="PullComposeRequest"/> answers; this only asks. The other order leaves a window in
     /// which a drain delivers the message being edited, and no part of this app can take that back
     /// (docs/sending.md).
@@ -82,14 +84,15 @@ public sealed partial class MailboxModel
             return;
         }
         Log.Info(LogLineFor(action));
-        _app?.Dispatch(new Intent.Outbox(OutboxRows.IntentFor(action, row.Account, row.Op)));
+        var intent = OutboxRows.IntentFor(action, row.Account, row.Op, DraftStagingDirectory());
+        _app?.Dispatch(new Intent.Outbox(intent));
     }
 
     private static string LogLineFor(QueuedAction action) => action switch
     {
         QueuedAction.SendNow => "outbox: sending a queued message now at the user's request",
         QueuedAction.SendAgain => "outbox: sending a refused message again at the user's request",
-        QueuedAction.Edit => "outbox: withdrawing a queued message to edit it",
+        QueuedAction.Edit => "outbox: moving a queued message back into Drafts to edit it",
         QueuedAction.Cancel => "outbox: withdrawing a queued message at the user's request",
         QueuedAction.Discard => "outbox: discarding a refused message at the user's request",
         QueuedAction.MarkSent => "outbox: the user confirmed an unconfirmed message was delivered",
@@ -99,12 +102,13 @@ public sealed partial class MailboxModel
     };
 
     /// <summary>
-    /// Raised when the core has a withdrawn message for this host's composer to hold.
+    /// Raised when the core has moved a queued send back into Drafts for this host's composer to
+    /// hold.
     /// </summary>
     /// <remarks>
-    /// The shell answers it by opening the composer (MainWindow.Compose.cs). Not a snapshot field:
-    /// it is a standing request, and it stands until <see cref="DismissComposeRequest"/> says the
-    /// composer has the message.
+    /// The shell answers it by opening the composer on the request's composition, holding its
+    /// files (MainWindow.Compose.cs). Not a snapshot field: it is a standing request, and it stands
+    /// until <see cref="DismissComposeRequest"/> says the composer has the message.
     /// </remarks>
     internal event Action<ComposeRequest>? ComposeRequested;
 
@@ -113,9 +117,9 @@ public sealed partial class MailboxModel
     /// <c>Surface.ComposeRequest</c> signal), and hands it to the shell.
     /// </summary>
     /// <remarks>
-    /// What arrives here is the <b>only</b> copy: the message has already left the Outbox, so a
-    /// host that drops it loses it. The request is therefore left standing until the composer is
-    /// actually up, which is where <see cref="DismissComposeRequest"/> is called from, never here.
+    /// The message has already left the Outbox, so a host that drops it leaves the user looking
+    /// for it. The request is therefore left standing until the composer is actually up, which is
+    /// where <see cref="DismissComposeRequest"/> is called from, never here.
     /// </remarks>
     private void PullComposeRequest()
     {
@@ -125,7 +129,7 @@ public sealed partial class MailboxModel
         }
         // Whether there is a message to open, never its recipients, subject or body, which are the
         // user's own mail (docs/logging.md).
-        Log.Info("outbox: opening a withdrawn message in the composer");
+        Log.Info("outbox: opening a queued message in the composer");
         ComposeRequested?.Invoke(request);
     }
 
@@ -175,11 +179,12 @@ public sealed partial class MailboxModel
         }
     }
 
-    // Every field a row draws, so a state change (waiting -> sending) replaces the row rather than
-    // leaving the old word beside a message that has moved on.
+    // Every field a row draws, its menu included, so a state change (waiting -> sending) replaces
+    // the row rather than leaving the old word and the old items beside a message that has moved on.
     private static bool SameQueued(QueuedRowItem left, QueuedRowItem right) =>
         left.ToText == right.ToText
         && left.SubjectText == right.SubjectText
         && left.AccountText == right.AccountText
-        && left.State == right.State;
+        && left.State == right.State
+        && left.Actions.SequenceEqual(right.Actions);
 }
